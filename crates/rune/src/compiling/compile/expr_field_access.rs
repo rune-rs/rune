@@ -1,12 +1,9 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile an expr field access, like `<value>.<field>`.
-impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
-    fn compile(
-        &mut self,
-        (expr_field_access, needs): (&ast::ExprFieldAccess, Needs),
-    ) -> CompileResult<()> {
-        let span = expr_field_access.span();
+impl Compile2 for ast::ExprFieldAccess {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
 
         // Optimizations!
         //
@@ -14,45 +11,45 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
         // e.g. inspect if it compiles down to a local access instead of
         // climbing the ast like we do here.
         #[allow(clippy::single_match)]
-        match (&expr_field_access.expr, &expr_field_access.expr_field) {
+        match (&self.expr, &self.expr_field) {
             (ast::Expr::Path(path), ast::ExprField::LitNumber(n)) => {
-                if try_immediate_field_access_optimization(self, span, path, n, needs)? {
+                if try_immediate_field_access_optimization(c, span, path, n, needs)? {
                     return Ok(());
                 }
             }
             _ => (),
         }
 
-        self.compile((&expr_field_access.expr, Needs::Value))?;
+        self.expr.compile2(c, Needs::Value)?;
 
         // This loop is actually useful.
         #[allow(clippy::never_loop)]
         loop {
-            match &expr_field_access.expr_field {
+            match &self.expr_field {
                 ast::ExprField::LitNumber(n) => {
-                    let index = match n.resolve(&self.storage, &*self.source)?.as_tuple_index() {
+                    let index = match n.resolve(&c.storage, &*c.source)?.as_tuple_index() {
                         Some(n) => n,
                         _ => break,
                     };
 
-                    self.asm.push(Inst::TupleIndexGet { index }, span);
+                    c.asm.push(Inst::TupleIndexGet { index }, span);
 
                     if !needs.value() {
-                        self.warnings.not_used(self.source_id, span, self.context());
-                        self.asm.push(Inst::Pop, span);
+                        c.warnings.not_used(c.source_id, span, c.context());
+                        c.asm.push(Inst::Pop, span);
                     }
 
                     return Ok(());
                 }
                 ast::ExprField::Ident(ident) => {
-                    let field = ident.resolve(&self.storage, &*self.source)?;
-                    let slot = self.unit.new_static_string(span, field.as_ref())?;
+                    let field = ident.resolve(&c.storage, &*c.source)?;
+                    let slot = c.unit.new_static_string(span, field.as_ref())?;
 
-                    self.asm.push(Inst::ObjectIndexGet { slot }, span);
+                    c.asm.push(Inst::ObjectIndexGet { slot }, span);
 
                     if !needs.value() {
-                        self.warnings.not_used(self.source_id, span, self.context());
-                        self.asm.push(Inst::Pop, span);
+                        c.warnings.not_used(c.source_id, span, c.context());
+                        c.asm.push(Inst::Pop, span);
                     }
 
                     return Ok(());

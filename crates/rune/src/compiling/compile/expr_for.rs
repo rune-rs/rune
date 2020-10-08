@@ -1,23 +1,23 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a for loop.
-impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr_for, needs): (&ast::ExprFor, Needs)) -> CompileResult<()> {
-        let span = expr_for.span();
-        log::trace!("ExprFor => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprFor {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprFor => {:?}", c.source.source(span));
 
-        let start_label = self.asm.new_label("for_start");
-        let end_label = self.asm.new_label("for_end");
-        let break_label = self.asm.new_label("for_break");
+        let start_label = c.asm.new_label("for_start");
+        let end_label = c.asm.new_label("for_end");
+        let break_label = c.asm.new_label("for_break");
 
-        let total_var_count = self.scopes.total_var_count(span)?;
+        let total_var_count = c.scopes.total_var_count(span)?;
 
         let (iter_offset, loop_scope_expected) = {
-            let loop_scope_expected = self.scopes.push_child(span)?;
-            self.compile((&expr_for.iter, Needs::Value))?;
+            let loop_scope_expected = c.scopes.push_child(span)?;
+            self.iter.compile2(c, Needs::Value)?;
 
-            let iter_offset = self.scopes.decl_anon(span)?;
-            self.asm.push_with_comment(
+            let iter_offset = c.scopes.decl_anon(span)?;
+            c.asm.push_with_comment(
                 Inst::CallInstance {
                     hash: *runestick::INTO_ITER,
                     args: 0,
@@ -29,8 +29,8 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
             (iter_offset, loop_scope_expected)
         };
 
-        let _guard = self.loops.push(Loop {
-            label: expr_for.label.map(|(label, _)| label),
+        let _guard = c.loops.push(Loop {
+            label: self.label.map(|(label, _)| label),
             break_label,
             total_var_count,
             needs,
@@ -39,19 +39,19 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
 
         // Declare named loop variable.
         let binding_offset = {
-            self.asm.push(Inst::unit(), expr_for.iter.span());
-            let name = expr_for.var.resolve(&self.storage, &*self.source)?;
-            self.scopes.decl_var(name.as_ref(), expr_for.var.span())?
+            c.asm.push(Inst::unit(), self.iter.span());
+            let name = self.var.resolve(&c.storage, &*c.source)?;
+            c.scopes.decl_var(name.as_ref(), self.var.span())?
         };
 
         // Declare storage for memoized `next` instance fn.
-        let next_offset = if self.options.memoize_instance_fn {
-            let span = expr_for.iter.span();
+        let next_offset = if c.options.memoize_instance_fn {
+            let span = self.iter.span();
 
-            let offset = self.scopes.decl_anon(span)?;
+            let offset = c.scopes.decl_anon(span)?;
 
             // Declare the named loop variable and put it in the scope.
-            self.asm.push_with_comment(
+            c.asm.push_with_comment(
                 Inst::Copy {
                     offset: iter_offset,
                 },
@@ -59,7 +59,7 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
                 "copy iterator (memoize)",
             );
 
-            self.asm.push_with_comment(
+            c.asm.push_with_comment(
                 Inst::LoadInstanceFn {
                     hash: *runestick::NEXT,
                 },
@@ -72,45 +72,45 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
             None
         };
 
-        self.asm.label(start_label)?;
+        c.asm.label(start_label)?;
 
         // Use the memoized loop variable.
         if let Some(next_offset) = next_offset {
-            self.asm.push_with_comment(
+            c.asm.push_with_comment(
                 Inst::Copy {
                     offset: iter_offset,
                 },
-                expr_for.iter.span(),
+                self.iter.span(),
                 "copy iterator",
             );
 
-            self.asm.push_with_comment(
+            c.asm.push_with_comment(
                 Inst::Copy {
                     offset: next_offset,
                 },
-                expr_for.iter.span(),
+                self.iter.span(),
                 "copy next",
             );
 
-            self.asm.push(Inst::CallFn { args: 1 }, span);
+            c.asm.push(Inst::CallFn { args: 1 }, span);
 
-            self.asm.push(
+            c.asm.push(
                 Inst::Replace {
                     offset: binding_offset,
                 },
-                expr_for.var.span(),
+                self.var.span(),
             );
         } else {
             // call the `next` function to get the next level of iteration, bind the
             // result to the loop variable in the loop.
-            self.asm.push(
+            c.asm.push(
                 Inst::Copy {
                     offset: iter_offset,
                 },
-                expr_for.iter.span(),
+                self.iter.span(),
             );
 
-            self.asm.push_with_comment(
+            c.asm.push_with_comment(
                 Inst::CallInstance {
                     hash: *runestick::NEXT,
                     args: 0,
@@ -118,62 +118,62 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
                 span,
                 "next",
             );
-            self.asm.push(
+            c.asm.push(
                 Inst::Replace {
                     offset: binding_offset,
                 },
-                expr_for.var.span(),
+                self.var.span(),
             );
         }
 
         // test loop condition and unwrap the option.
         // TODO: introduce a dedicated instruction for this :|.
         {
-            self.asm.push(
+            c.asm.push(
                 Inst::Copy {
                     offset: binding_offset,
                 },
-                expr_for.var.span(),
+                self.var.span(),
             );
-            self.asm.push(Inst::IsValue, expr_for.span());
-            self.asm.jump_if_not(end_label, expr_for.span());
-            self.asm.push(
+            c.asm.push(Inst::IsValue, self.span());
+            c.asm.jump_if_not(end_label, self.span());
+            c.asm.push(
                 Inst::Copy {
                     offset: binding_offset,
                 },
-                expr_for.var.span(),
+                self.var.span(),
             );
             // unwrap the optional value.
-            self.asm.push(Inst::Unwrap, expr_for.span());
-            self.asm.push(
+            c.asm.push(Inst::Unwrap, self.span());
+            c.asm.push(
                 Inst::Replace {
                     offset: binding_offset,
                 },
-                expr_for.var.span(),
+                self.var.span(),
             );
         }
 
-        self.compile((&*expr_for.body, Needs::None))?;
-        self.asm.jump(start_label, span);
-        self.asm.label(end_label)?;
+        self.body.compile2(c, Needs::None)?;
+        c.asm.jump(start_label, span);
+        c.asm.label(end_label)?;
 
         // Drop the iterator.
-        self.asm.push(
+        c.asm.push(
             Inst::Drop {
                 offset: iter_offset,
             },
             span,
         );
 
-        self.clean_last_scope(span, loop_scope_expected, Needs::None)?;
+        c.clean_last_scope(span, loop_scope_expected, Needs::None)?;
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if needs.value() {
-            self.asm.push(Inst::unit(), span);
+            c.asm.push(Inst::unit(), span);
         }
 
         // NB: breaks produce their own value.
-        self.asm.label(break_label)?;
+        c.asm.label(break_label)?;
         Ok(())
     }
 }

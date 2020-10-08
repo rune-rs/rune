@@ -1,55 +1,55 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a literal template string.
-impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (lit_template, needs): (&ast::LitTemplate, Needs)) -> CompileResult<()> {
-        let span = lit_template.span();
-        log::trace!("LitTemplate => {:?}", self.source.source(span));
+impl Compile2 for ast::LitTemplate {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitTemplate => {:?}", c.source.source(span));
 
-        let expected = self.scopes.push_child(span)?;
+        let expected = c.scopes.push_child(span)?;
         let mut size_hint = 0;
         let mut expansions = 0;
 
-        for (expr, _) in &lit_template.args {
+        for (expr, _) in &self.args {
             if let ast::Expr::ExprLit(expr_lit) = expr {
                 if let ast::ExprLit {
                     lit: ast::Lit::Str(s),
                     ..
                 } = &**expr_lit
                 {
-                    let s = s.resolve_template_string(&self.storage, &self.source)?;
+                    let s = s.resolve_template_string(&c.storage, &c.source)?;
                     size_hint += s.len();
 
-                    let slot = self.unit.new_static_string(span, &s)?;
-                    self.asm.push(Inst::String { slot }, span);
-                    self.scopes.decl_anon(span)?;
+                    let slot = c.unit.new_static_string(span, &s)?;
+                    c.asm.push(Inst::String { slot }, span);
+                    c.scopes.decl_anon(span)?;
                     continue;
                 }
             }
 
             expansions += 1;
-            self.compile((expr, Needs::Value))?;
-            self.scopes.decl_anon(span)?;
+            expr.compile2(c, Needs::Value)?;
+            c.scopes.decl_anon(span)?;
         }
 
         if expansions == 0 {
-            self.warnings
-                .template_without_expansions(self.source_id, span, self.context());
+            c.warnings
+                .template_without_expansions(c.source_id, span, c.context());
         }
 
-        self.asm.push(
+        c.asm.push(
             Inst::StringConcat {
-                len: lit_template.args.len(),
+                len: self.args.len(),
                 size_hint,
             },
             span,
         );
 
         if !needs.value() {
-            self.asm.push(Inst::Pop, span);
+            c.asm.push(Inst::Pop, span);
         }
 
-        let _ = self.scopes.pop(expected, span)?;
+        let _ = c.scopes.pop(expected, span)?;
         Ok(())
     }
 }

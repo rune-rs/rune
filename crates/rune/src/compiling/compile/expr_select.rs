@@ -1,22 +1,22 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a select expression.
-impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr_select, needs): (&ast::ExprSelect, Needs)) -> CompileResult<()> {
-        let span = expr_select.span();
-        log::trace!("ExprSelect => {:?}", self.source.source(span));
-        let len = expr_select.branches.len();
-        self.contexts.push(span);
+impl Compile2 for ast::ExprSelect {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprSelect => {:?}", c.source.source(span));
+        let len = self.branches.len();
+        c.contexts.push(span);
 
         let mut default_branch = None;
         let mut branches = Vec::new();
 
-        let end_label = self.asm.new_label("select_end");
+        let end_label = c.asm.new_label("select_end");
 
-        for (branch, _) in &expr_select.branches {
+        for (branch, _) in &self.branches {
             match branch {
                 ast::ExprSelectBranch::Pat(pat) => {
-                    let label = self.asm.new_label("select_branch");
+                    let label = c.asm.new_label("select_branch");
                     branches.push((label, pat));
                 }
                 ast::ExprSelectBranch::Default(def) => {
@@ -27,53 +27,53 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
                         ));
                     }
 
-                    let label = self.asm.new_label("select_default");
+                    let label = c.asm.new_label("select_default");
                     default_branch = Some((def, label));
                 }
             }
         }
 
         for (_, branch) in &branches {
-            self.compile((&branch.expr, Needs::Value))?;
+            branch.expr.compile2(c, Needs::Value)?;
         }
 
-        self.asm.push(Inst::Select { len }, span);
+        c.asm.push(Inst::Select { len }, span);
 
         for (branch, (label, _)) in branches.iter().enumerate() {
-            self.asm.jump_if_branch(branch as i64, *label, span);
+            c.asm.jump_if_branch(branch as i64, *label, span);
         }
 
         if let Some((_, label)) = &default_branch {
-            self.asm.push(Inst::Pop, span);
-            self.asm.jump(*label, span);
+            c.asm.push(Inst::Pop, span);
+            c.asm.jump(*label, span);
         }
 
         if !needs.value() {
-            self.asm.push(Inst::Pop, span);
+            c.asm.push(Inst::Pop, span);
         }
 
-        self.asm.jump(end_label, span);
+        c.asm.jump(end_label, span);
 
         for (label, branch) in branches {
             let span = branch.span();
-            self.asm.label(label)?;
+            c.asm.label(label)?;
 
-            let expected = self.scopes.push_child(span)?;
+            let expected = c.scopes.push_child(span)?;
 
             // NB: loop is actually useful.
             #[allow(clippy::never_loop)]
             loop {
                 match &branch.pat {
                     ast::Pat::PatPath(path) => {
-                        let named = self.convert_path_to_named(&path.path)?;
+                        let named = c.convert_path_to_named(&path.path)?;
 
                         if let Some(local) = named.as_local() {
-                            self.scopes.decl_var(local, path.span())?;
+                            c.scopes.decl_var(local, path.span())?;
                             break;
                         }
                     }
                     ast::Pat::PatIgnore(..) => {
-                        self.asm.push(Inst::Pop, span);
+                        c.asm.push(Inst::Pop, span);
                         break;
                     }
                     _ => (),
@@ -86,19 +86,19 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
             }
 
             // Set up a new scope with the binding.
-            self.compile((&branch.body, needs))?;
-            self.clean_last_scope(span, expected, needs)?;
-            self.asm.jump(end_label, span);
+            branch.body.compile2(c, needs)?;
+            c.clean_last_scope(span, expected, needs)?;
+            c.asm.jump(end_label, span);
         }
 
         if let Some((branch, label)) = default_branch {
-            self.asm.label(label)?;
-            self.compile((&branch.body, needs))?;
+            c.asm.label(label)?;
+            branch.body.compile2(c, needs)?;
         }
 
-        self.asm.label(end_label)?;
+        c.asm.label(end_label)?;
 
-        self.contexts
+        c.contexts
             .pop()
             .ok_or_else(|| CompileError::internal(&span, "missing parent context"))?;
 

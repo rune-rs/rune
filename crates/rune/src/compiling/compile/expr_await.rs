@@ -1,16 +1,16 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile an `.await` expression.
-impl Compile<(&ast::ExprAwait, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr_await, needs): (&ast::ExprAwait, Needs)) -> CompileResult<()> {
-        let span = expr_await.span();
-        log::trace!("ExprAwait => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprAwait {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprAwait => {:?}", c.source.source(span));
 
-        self.compile((&expr_await.expr, Needs::Value))?;
-        self.asm.push(Inst::Await, span);
+        self.expr.compile2(c, Needs::Value)?;
+        c.asm.push(Inst::Await, span);
 
         if !needs.value() {
-            self.asm.push(Inst::Pop, span);
+            c.asm.push(Inst::Pop, span);
         }
 
         Ok(())

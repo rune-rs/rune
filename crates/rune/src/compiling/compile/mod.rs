@@ -23,6 +23,7 @@ mod expr_unary;
 mod expr_while;
 mod expr_yield;
 mod item_fn;
+mod lit;
 mod lit_bool;
 mod lit_byte;
 mod lit_byte_str;
@@ -38,7 +39,13 @@ mod local;
 mod prelude;
 
 /// Compiler trait implemented for things that can be compiled.
-pub(crate) trait Compile<T> {
+///
+/// This is the new compiler trait to implement.
+pub(crate) trait Compile2 {
     /// Walk the current type with the given item.
-    fn compile(&mut self, item: T) -> crate::compiling::CompileResult<()>;
+    fn compile2(
+        &self,
+        c: &mut crate::compiling::Compiler<'_>,
+        needs: crate::compiling::Needs,
+    ) -> crate::compiling::CompileResult<()>;
 }

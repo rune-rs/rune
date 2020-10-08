@@ -1,54 +1,42 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a binary expression.
-impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr_binary, needs): (&ast::ExprBinary, Needs)) -> CompileResult<()> {
-        let span = expr_binary.span();
-        log::trace!("ExprBinary => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprBinary {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprBinary => {:?}", c.source.source(span));
         log::trace!(
             "ExprBinary {{ lhs => {:?} }}",
-            self.source.source(expr_binary.lhs.span())
+            c.source.source(self.lhs.span())
         );
-        log::trace!("ExprBinary {{ op => {:?} }}", expr_binary.op);
+        log::trace!("ExprBinary {{ op => {:?} }}", self.op);
         log::trace!(
             "ExprBinary {{ rhs => {:?} }}",
-            self.source.source(expr_binary.rhs.span())
+            c.source.source(self.rhs.span())
         );
 
         // Special expressions which operates on the stack in special ways.
-        if expr_binary.op.is_assign() {
-            compile_assign_binop(
-                self,
-                &expr_binary.lhs,
-                &expr_binary.rhs,
-                expr_binary.op,
-                needs,
-            )?;
+        if self.op.is_assign() {
+            compile_assign_binop(c, &self.lhs, &self.rhs, self.op, needs)?;
 
             return Ok(());
         }
 
-        if expr_binary.op.is_conditional() {
-            compile_conditional_binop(
-                self,
-                &expr_binary.lhs,
-                &expr_binary.rhs,
-                expr_binary.op,
-                needs,
-            )?;
+        if self.op.is_conditional() {
+            compile_conditional_binop(c, &self.lhs, &self.rhs, self.op, needs)?;
 
             return Ok(());
         }
 
         // NB: need to declare these as anonymous local variables so that they
         // get cleaned up in case there is an early break (return, try, ...).
-        self.compile((&expr_binary.lhs, Needs::Value))?;
-        self.scopes.decl_anon(span)?;
+        self.lhs.compile2(c, Needs::Value)?;
+        c.scopes.decl_anon(span)?;
 
-        self.compile((&expr_binary.rhs, rhs_needs_of(expr_binary.op)))?;
-        self.scopes.decl_anon(span)?;
+        self.rhs.compile2(c, rhs_needs_of(self.op))?;
+        c.scopes.decl_anon(span)?;
 
-        let inst = match expr_binary.op {
+        let inst = match self.op {
             ast::BinOp::Eq => Inst::Eq,
             ast::BinOp::Neq => Inst::Neq,
             ast::BinOp::Lt => Inst::Lt,
@@ -78,15 +66,15 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
             }
         };
 
-        self.asm.push(inst, span);
+        c.asm.push(inst, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !needs.value() {
-            self.asm.push(Inst::Pop, span);
+            c.asm.push(Inst::Pop, span);
         }
 
-        self.scopes.undecl_anon(span, 2)?;
+        c.scopes.undecl_anon(span, 2)?;
         Ok(())
     }
 }
@@ -101,7 +89,7 @@ fn rhs_needs_of(op: ast::BinOp) -> Needs {
 }
 
 fn compile_conditional_binop(
-    this: &mut Compiler<'_>,
+    c: &mut Compiler<'_>,
     lhs: &ast::Expr,
     rhs: &ast::Expr,
     bin_op: ast::BinOp,
@@ -109,16 +97,16 @@ fn compile_conditional_binop(
 ) -> CompileResult<()> {
     let span = lhs.span().join(rhs.span());
 
-    let end_label = this.asm.new_label("conditional_end");
+    let end_label = c.asm.new_label("conditional_end");
 
-    this.compile((&*lhs, Needs::Value))?;
+    lhs.compile2(c, Needs::Value)?;
 
     match bin_op {
         ast::BinOp::And => {
-            this.asm.jump_if_not_or_pop(end_label, lhs.span());
+            c.asm.jump_if_not_or_pop(end_label, lhs.span());
         }
         ast::BinOp::Or => {
-            this.asm.jump_if_or_pop(end_label, lhs.span());
+            c.asm.jump_if_or_pop(end_label, lhs.span());
         }
         op => {
             return Err(CompileError::new(
@@ -128,19 +116,19 @@ fn compile_conditional_binop(
         }
     }
 
-    this.compile((&*rhs, Needs::Value))?;
+    rhs.compile2(c, Needs::Value)?;
 
-    this.asm.label(end_label)?;
+    c.asm.label(end_label)?;
 
     if !needs.value() {
-        this.asm.push(Inst::Pop, span);
+        c.asm.push(Inst::Pop, span);
     }
 
     Ok(())
 }
 
 fn compile_assign_binop(
-    this: &mut Compiler<'_>,
+    c: &mut Compiler<'_>,
     lhs: &ast::Expr,
     rhs: &ast::Expr,
     bin_op: ast::BinOp,
@@ -151,36 +139,34 @@ fn compile_assign_binop(
     let supported = match lhs {
         // <var> <op> <expr>
         ast::Expr::Path(path) if path.rest.is_empty() => {
-            this.compile((rhs, Needs::Value))?;
+            rhs.compile2(c, Needs::Value)?;
 
             let segment = path
                 .first
                 .try_as_ident()
                 .ok_or_else(|| CompileError::internal_unsupported_path(path))?;
-            let ident = segment.resolve(this.storage, &*this.source)?;
-            let var = this
-                .scopes
-                .get_var(&*ident, this.source_id, this.visitor, span)?;
+            let ident = segment.resolve(c.storage, &*c.source)?;
+            let var = c.scopes.get_var(&*ident, c.source_id, c.visitor, span)?;
 
             Some(InstTarget::Offset(var.offset))
         }
         // <expr>.<field> <op> <value>
         ast::Expr::ExprFieldAccess(field_access) => {
-            this.compile((&field_access.expr, Needs::Value))?;
-            this.compile((rhs, Needs::Value))?;
+            field_access.expr.compile2(c, Needs::Value)?;
+            rhs.compile2(c, Needs::Value)?;
 
             // field assignment
             match &field_access.expr_field {
                 ast::ExprField::Ident(index) => {
-                    let n = index.resolve(this.storage, &*this.source)?;
-                    let n = this.unit.new_static_string(index, n.as_ref())?;
+                    let n = index.resolve(c.storage, &*c.source)?;
+                    let n = c.unit.new_static_string(index, n.as_ref())?;
 
                     Some(InstTarget::Field(n))
                 }
                 ast::ExprField::LitNumber(field) => {
                     let span = field.span();
 
-                    let number = field.resolve(this.storage, &*this.source)?;
+                    let number = field.resolve(c.storage, &*c.source)?;
                     let index = number.as_tuple_index().ok_or_else(|| {
                         CompileError::new(span, CompileErrorKind::UnsupportedTupleIndex { number })
                     })?;
@@ -221,10 +207,10 @@ fn compile_assign_binop(
         }
     };
 
-    this.asm.push(Inst::Assign { target, op }, span);
+    c.asm.push(Inst::Assign { target, op }, span);
 
     if needs.value() {
-        this.asm.push(Inst::unit(), span);
+        c.asm.push(Inst::unit(), span);
     }
 
     Ok(())

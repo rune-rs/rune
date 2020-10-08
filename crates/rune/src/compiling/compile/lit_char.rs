@@ -1,19 +1,19 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a literal character.
-impl Compile<(&ast::LitChar, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (lit_char, needs): (&ast::LitChar, Needs)) -> CompileResult<()> {
-        let span = lit_char.span();
-        log::trace!("LitChar => {:?}", self.source.source(span));
+impl Compile2 for ast::LitChar {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitChar => {:?}", c.source.source(span));
 
         // NB: Elide the entire literal if it's not needed.
         if !needs.value() {
-            self.warnings.not_used(self.source_id, span, self.context());
+            c.warnings.not_used(c.source_id, span, c.context());
             return Ok(());
         }
 
-        let c = lit_char.resolve(&self.storage, &*self.source)?;
-        self.asm.push(Inst::char(c), span);
+        let ch = self.resolve(&c.storage, &*c.source)?;
+        c.asm.push(Inst::char(ch), span);
         Ok(())
     }
 }

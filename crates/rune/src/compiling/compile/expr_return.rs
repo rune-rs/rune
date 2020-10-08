@@ -1,29 +1,29 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a return.
-impl Compile<(&ast::ExprReturn, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (return_expr, _needs): (&ast::ExprReturn, Needs)) -> CompileResult<()> {
-        let span = return_expr.span();
-        log::trace!("ExprReturn => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprReturn {
+    fn compile2(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprReturn => {:?}", c.source.source(span));
 
         // NB: drop any loop temporaries.
-        for l in self.loops.iter() {
+        for l in c.loops.iter() {
             if let Some(offset) = l.drop {
-                self.asm.push(Inst::Drop { offset }, span);
+                c.asm.push(Inst::Drop { offset }, span);
             }
         }
 
         // NB: we actually want total_var_count here since we need to clean up
         // _every_ variable declared until we reached the current return.
-        let total_var_count = self.scopes.total_var_count(span)?;
+        let total_var_count = c.scopes.total_var_count(span)?;
 
-        if let Some(expr) = &return_expr.expr {
-            self.compile((expr, Needs::Value))?;
-            self.locals_clean(total_var_count, span);
-            self.asm.push(Inst::Return, span);
+        if let Some(expr) = &self.expr {
+            expr.compile2(c, Needs::Value)?;
+            c.locals_clean(total_var_count, span);
+            c.asm.push(Inst::Return, span);
         } else {
-            self.locals_pop(total_var_count, span);
-            self.asm.push(Inst::ReturnUnit, span);
+            c.locals_pop(total_var_count, span);
+            c.asm.push(Inst::ReturnUnit, span);
         }
 
         Ok(())

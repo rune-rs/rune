@@ -1,20 +1,20 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a literal string `b"Hello World"`.
-impl Compile<(&ast::LitByteStr, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (lit_byte_str, needs): (&ast::LitByteStr, Needs)) -> CompileResult<()> {
-        let span = lit_byte_str.span();
-        log::trace!("LitByteStr => {:?}", self.source.source(span));
+impl Compile2 for ast::LitByteStr {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitByteStr => {:?}", c.source.source(span));
 
         // NB: Elide the entire literal if it's not needed.
         if !needs.value() {
-            self.warnings.not_used(self.source_id, span, self.context());
+            c.warnings.not_used(c.source_id, span, c.context());
             return Ok(());
         }
 
-        let bytes = lit_byte_str.resolve(&self.storage, &*self.source)?;
-        let slot = self.unit.new_static_bytes(span, &*bytes)?;
-        self.asm.push(Inst::Bytes { slot }, span);
+        let bytes = self.resolve(&c.storage, &*c.source)?;
+        let slot = c.unit.new_static_bytes(span, &*bytes)?;
+        c.asm.push(Inst::Bytes { slot }, span);
         Ok(())
     }
 }

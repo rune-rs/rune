@@ -1,13 +1,15 @@
 use crate::compiling::compile::prelude::*;
 
-impl Compile<(&ast::ItemFn, bool)> for Compiler<'_> {
-    fn compile(&mut self, (fn_decl, instance_fn): (&ast::ItemFn, bool)) -> CompileResult<()> {
-        let span = fn_decl.span();
-        log::trace!("ItemFn => {:?}", self.source.source(span));
+impl Compile2 for (&ast::ItemFn, bool) {
+    fn compile2(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<()> {
+        let (item_fn, instance_fn) = *self;
+
+        let span = item_fn.span();
+        log::trace!("ItemFn => {:?}", c.source.source(span));
 
         let mut first = true;
 
-        for (arg, _) in &fn_decl.args {
+        for (arg, _) in &item_fn.args {
             let span = arg.span();
 
             match arg {
@@ -17,44 +19,44 @@ impl Compile<(&ast::ItemFn, bool)> for Compiler<'_> {
                     }
 
                     let span = s.span();
-                    self.scopes.new_var("self", span)?;
+                    c.scopes.new_var("self", span)?;
                 }
                 ast::FnArg::Ident(ident) => {
                     let span = ident.span();
-                    let name = ident.resolve(&self.storage, &*self.source)?;
-                    self.scopes.new_var(name.as_ref(), span)?;
+                    let name = ident.resolve(&c.storage, &*c.source)?;
+                    c.scopes.new_var(name.as_ref(), span)?;
                 }
                 ast::FnArg::Ignore(ignore) => {
                     let span = ignore.span();
-                    self.scopes.decl_anon(span)?;
+                    c.scopes.decl_anon(span)?;
                 }
             }
 
             first = false;
         }
 
-        if fn_decl.body.statements.is_empty() {
-            let total_var_count = self.scopes.total_var_count(span)?;
-            self.locals_pop(total_var_count, span);
-            self.asm.push(Inst::ReturnUnit, span);
+        if item_fn.body.statements.is_empty() {
+            let total_var_count = c.scopes.total_var_count(span)?;
+            c.locals_pop(total_var_count, span);
+            c.asm.push(Inst::ReturnUnit, span);
             return Ok(());
         }
 
-        if !fn_decl.body.produces_nothing() {
-            self.compile((&fn_decl.body, Needs::Value))?;
+        if !item_fn.body.produces_nothing() {
+            item_fn.body.compile2(c, Needs::Value)?;
 
-            let total_var_count = self.scopes.total_var_count(span)?;
-            self.locals_clean(total_var_count, span);
-            self.asm.push(Inst::Return, span);
+            let total_var_count = c.scopes.total_var_count(span)?;
+            c.locals_clean(total_var_count, span);
+            c.asm.push(Inst::Return, span);
         } else {
-            self.compile((&fn_decl.body, Needs::None))?;
+            item_fn.body.compile2(c, Needs::None)?;
 
-            let total_var_count = self.scopes.total_var_count(span)?;
-            self.locals_pop(total_var_count, span);
-            self.asm.push(Inst::ReturnUnit, span);
+            let total_var_count = c.scopes.total_var_count(span)?;
+            c.locals_pop(total_var_count, span);
+            c.asm.push(Inst::ReturnUnit, span);
         }
 
-        self.scopes.pop_last(span)?;
+        c.scopes.pop_last(span)?;
         Ok(())
     }
 }

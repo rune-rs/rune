@@ -1,42 +1,41 @@
 use crate::compiling::compile::prelude::*;
 
-/// Compile the async block.
-impl Compile<(&ast::Block, &[CompileMetaCapture])> for Compiler<'_> {
-    fn compile(
-        &mut self,
-        (block, captures): (&ast::Block, &[CompileMetaCapture]),
-    ) -> CompileResult<()> {
-        let span = block.span();
-        log::trace!("ExprBlock (procedure) => {:?}", self.source.source(span));
+/// Compile an async block.
+impl Compile2 for (&ast::Block, &[CompileMetaCapture]) {
+    fn compile2(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<()> {
+        let (block, captures) = *self;
 
-        let guard = self.scopes.push_child(span)?;
+        let span = block.span();
+        log::trace!("ExprBlock (procedure) => {:?}", c.source.source(span));
+
+        let guard = c.scopes.push_child(span)?;
 
         for capture in captures {
-            self.scopes.new_var(&capture.ident, span)?;
+            c.scopes.new_var(&capture.ident, span)?;
         }
 
-        self.compile((block, Needs::Value))?;
-        self.clean_last_scope(span, guard, Needs::Value)?;
-        self.asm.push(Inst::Return, span);
+        block.compile2(c, Needs::Value)?;
+        c.clean_last_scope(span, guard, Needs::Value)?;
+        c.asm.push(Inst::Return, span);
         Ok(())
     }
 }
 
 /// Call a block.
-impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (block, needs): (&ast::Block, Needs)) -> CompileResult<()> {
-        let span = block.span();
-        log::trace!("Block => {:?}", self.source.source(span));
+impl Compile2 for ast::Block {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Block => {:?}", c.source.source(span));
 
-        self.contexts.push(span);
-        let scopes_count = self.scopes.push_child(span)?;
+        c.contexts.push(span);
+        let scopes_count = c.scopes.push_child(span)?;
 
         let mut last = None::<(&ast::Expr, bool)>;
 
-        for stmt in &block.statements {
+        for stmt in &self.statements {
             let (expr, term) = match stmt {
                 ast::Stmt::Local(local) => {
-                    self.compile((&**local, Needs::None))?;
+                    local.compile2(c, Needs::None)?;
                     continue;
                 }
                 ast::Stmt::Expr(expr) => (expr, false),
@@ -46,36 +45,36 @@ impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
 
             if let Some((stmt, _)) = std::mem::replace(&mut last, Some((expr, term))) {
                 // NB: terminated expressions do not need to produce a value.
-                self.compile((stmt, Needs::None))?;
+                stmt.compile2(c, Needs::None)?;
             }
         }
 
         let produced = if let Some((expr, term)) = last {
             if term {
-                self.compile((expr, Needs::None))?;
+                expr.compile2(c, Needs::None)?;
                 false
             } else {
-                self.compile((expr, needs))?;
+                expr.compile2(c, needs)?;
                 true
             }
         } else {
             false
         };
 
-        let scope = self.scopes.pop(scopes_count, span)?;
+        let scope = c.scopes.pop(scopes_count, span)?;
 
         if needs.value() {
             if produced {
-                self.locals_clean(scope.local_var_count, span);
+                c.locals_clean(scope.local_var_count, span);
             } else {
-                self.locals_pop(scope.local_var_count, span);
-                self.asm.push(Inst::unit(), span);
+                c.locals_pop(scope.local_var_count, span);
+                c.asm.push(Inst::unit(), span);
             }
         } else {
-            self.locals_pop(scope.local_var_count, span);
+            c.locals_pop(scope.local_var_count, span);
         }
 
-        self.contexts
+        c.contexts
             .pop()
             .ok_or_else(|| CompileError::internal(&span, "missing parent context"))?;
 

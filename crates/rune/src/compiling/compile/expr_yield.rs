@@ -1,20 +1,20 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a `yield` expression.
-impl Compile<(&ast::ExprYield, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr_yield, needs): (&ast::ExprYield, Needs)) -> CompileResult<()> {
-        let span = expr_yield.span();
-        log::trace!("ExprYield => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprYield {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprYield => {:?}", c.source.source(span));
 
-        if let Some(expr) = &expr_yield.expr {
-            self.compile((expr, Needs::Value))?;
-            self.asm.push(Inst::Yield, span);
+        if let Some(expr) = &self.expr {
+            expr.compile2(c, Needs::Value)?;
+            c.asm.push(Inst::Yield, span);
         } else {
-            self.asm.push(Inst::YieldUnit, span);
+            c.asm.push(Inst::YieldUnit, span);
         }
 
         if !needs.value() {
-            self.asm.push(Inst::Pop, span);
+            c.asm.push(Inst::Pop, span);
         }
 
         Ok(())

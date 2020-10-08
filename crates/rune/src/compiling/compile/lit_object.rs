@@ -2,21 +2,18 @@ use crate::collections::{HashMap, HashSet};
 use crate::compiling::compile::prelude::*;
 
 /// Compile a literal object.
-impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (lit_object, needs): (&ast::LitObject, Needs)) -> CompileResult<()> {
-        let span = lit_object.span();
-        log::trace!("LitObject => {:?} {:?}", self.source.source(span), needs);
+impl Compile2 for ast::LitObject {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitObject => {:?} {:?}", c.source.source(span), needs);
 
         let mut keys = Vec::new();
         let mut check_keys = Vec::new();
         let mut keys_dup = HashMap::new();
 
-        for (assign, _) in &lit_object.assignments {
+        for (assign, _) in &self.assignments {
             let span = assign.span();
-            let key = assign
-                .key
-                .resolve(&self.storage, &*self.source)?
-                .to_string();
+            let key = assign.key.resolve(&c.storage, &*c.source)?.to_string();
             keys.push(key.clone());
             check_keys.push((key.clone(), assign.key.span()));
 
@@ -31,27 +28,25 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
             }
         }
 
-        for (assign, _) in &lit_object.assignments {
+        for (assign, _) in &self.assignments {
             let span = assign.span();
 
             if let Some((_, expr)) = &assign.assign {
-                self.compile((expr, Needs::Value))?;
+                expr.compile2(c, Needs::Value)?;
             } else {
-                let key = assign.key.resolve(&self.storage, &*self.source)?;
-                let var = self
-                    .scopes
-                    .get_var(&*key, self.source_id, self.visitor, span)?;
-                var.copy(&mut self.asm, span, format!("name `{}`", key));
+                let key = assign.key.resolve(&c.storage, &*c.source)?;
+                let var = c.scopes.get_var(&*key, c.source_id, c.visitor, span)?;
+                var.copy(&mut c.asm, span, format!("name `{}`", key));
             }
         }
 
-        let slot = self.unit.new_static_object_keys(span, &keys)?;
+        let slot = c.unit.new_static_object_keys(span, &keys)?;
 
-        match &lit_object.ident {
+        match &self.ident {
             ast::LitObjectIdent::Named(path) => {
-                let named = self.convert_path_to_named(path)?;
+                let named = c.convert_path_to_named(path)?;
 
-                let meta = match self.lookup_meta(path.span(), &named)? {
+                let meta = match c.lookup_meta(path.span(), &named)? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(
@@ -68,19 +63,19 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         check_object_fields(Some(&HashSet::new()), check_keys, span, &meta.item)?;
 
                         let hash = Hash::type_hash(&meta.item);
-                        self.asm.push(Inst::UnitStruct { hash }, span);
+                        c.asm.push(Inst::UnitStruct { hash }, span);
                     }
                     CompileMetaKind::Struct { object, .. } => {
                         check_object_fields(object.fields.as_ref(), check_keys, span, &meta.item)?;
 
                         let hash = Hash::type_hash(&meta.item);
-                        self.asm.push(Inst::Struct { hash, slot }, span);
+                        c.asm.push(Inst::Struct { hash, slot }, span);
                     }
                     CompileMetaKind::StructVariant { object, .. } => {
                         check_object_fields(object.fields.as_ref(), check_keys, span, &meta.item)?;
 
                         let hash = Hash::type_hash(&meta.item);
-                        self.asm.push(Inst::StructVariant { hash, slot }, span);
+                        c.asm.push(Inst::StructVariant { hash, slot }, span);
                     }
                     _ => {
                         return Err(CompileError::new(
@@ -91,14 +86,14 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 };
             }
             ast::LitObjectIdent::Anonymous(..) => {
-                self.asm.push(Inst::Object { slot }, span);
+                c.asm.push(Inst::Object { slot }, span);
             }
         }
 
         // No need to encode an object since the value is not needed.
         if !needs.value() {
-            self.warnings.not_used(self.source_id, span, self.context());
-            self.asm.push(Inst::Pop, span);
+            c.warnings.not_used(c.source_id, span, c.context());
+            c.asm.push(Inst::Pop, span);
         }
 
         Ok(())

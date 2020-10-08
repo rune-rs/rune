@@ -1,39 +1,39 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a let expression.
-impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr_let, needs): (&ast::ExprLet, Needs)) -> CompileResult<()> {
-        let span = expr_let.span();
-        log::trace!("ExprLet => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprLet {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprLet => {:?}", c.source.source(span));
 
-        let load = |this: &mut Compiler, needs: Needs| {
+        let load = |c: &mut Compiler, needs: Needs| {
             // NB: assignments "move" the value being assigned.
-            this.compile((&expr_let.expr, needs))?;
+            self.expr.compile2(c, needs)?;
             Ok(())
         };
 
-        let false_label = self.asm.new_label("let_panic");
+        let false_label = c.asm.new_label("let_panic");
 
-        if self.compile_pat(&expr_let.pat, false_label, &load)? {
-            self.warnings
-                .let_pattern_might_panic(self.source_id, span, self.context());
+        if c.compile_pat(&self.pat, false_label, &load)? {
+            c.warnings
+                .let_pattern_might_panic(c.source_id, span, c.context());
 
-            let ok_label = self.asm.new_label("let_ok");
-            self.asm.jump(ok_label, span);
-            self.asm.label(false_label)?;
-            self.asm.push(
+            let ok_label = c.asm.new_label("let_ok");
+            c.asm.jump(ok_label, span);
+            c.asm.label(false_label)?;
+            c.asm.push(
                 Inst::Panic {
                     reason: runestick::PanicReason::UnmatchedPattern,
                 },
                 span,
             );
 
-            self.asm.label(ok_label)?;
+            c.asm.label(ok_label)?;
         }
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if needs.value() {
-            self.asm.push(Inst::unit(), span);
+            c.asm.push(Inst::unit(), span);
         }
 
         Ok(())

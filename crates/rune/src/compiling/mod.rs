@@ -23,7 +23,7 @@ pub use self::unit_builder::{InsertMetaError, LinkerError, UnitBuilder};
 use crate::parsing::Resolve as _;
 
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
-pub(crate) use self::compile::Compile;
+pub(crate) use self::compile::Compile2;
 pub(crate) use self::compiler::{Compiler, Needs};
 pub(crate) use self::loops::{Loop, Loops};
 pub(crate) use self::scopes::{Scope, ScopeGuard, Scopes};
@@ -199,7 +199,7 @@ impl CompileBuildEntry<'_> {
                 let span = f.ast.span();
                 let count = f.ast.args.len();
                 compiler.contexts.push(span);
-                compiler.compile((&*f.ast, false))?;
+                (&*f.ast, false).compile2(&mut compiler, Needs::Value)?;
 
                 if used.is_unused() {
                     compiler.warnings.not_used(location.source_id, span, None);
@@ -240,7 +240,7 @@ impl CompileBuildEntry<'_> {
                     .type_of()
                     .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
 
-                compiler.compile((&*f.ast, true))?;
+                (&*f.ast, true).compile2(&mut compiler, Needs::Value)?;
 
                 if used.is_unused() {
                     compiler.warnings.not_used(location.source_id, span, None);
@@ -267,7 +267,7 @@ impl CompileBuildEntry<'_> {
                 let count = c.ast.args.len();
                 let span = c.ast.span();
                 compiler.contexts.push(span);
-                compiler.compile((&*c.ast, &c.captures[..]))?;
+                (&*c.ast, &c.captures[..]).compile2(&mut compiler, Needs::Value)?;
 
                 if used.is_unused() {
                     compiler
@@ -288,7 +288,7 @@ impl CompileBuildEntry<'_> {
                 let args = b.captures.len();
                 let span = b.ast.span();
                 compiler.contexts.push(span);
-                compiler.compile((&b.ast, &b.captures[..]))?;
+                (&b.ast, &b.captures[..]).compile2(&mut compiler, Needs::Value)?;
 
                 if used.is_unused() {
                     compiler

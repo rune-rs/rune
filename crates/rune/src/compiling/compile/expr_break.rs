@@ -3,12 +3,12 @@ use crate::compiling::compile::prelude::*;
 /// Compile a break expression.
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
-impl Compile<&ast::ExprBreak> for Compiler<'_> {
-    fn compile(&mut self, expr_break: &ast::ExprBreak) -> CompileResult<()> {
-        let span = expr_break.span();
-        log::trace!("ExprBreak => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprBreak {
+    fn compile2(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprBreak => {:?}", c.source.source(span));
 
-        let current_loop = match self.loops.last() {
+        let current_loop = match c.loops.last() {
             Some(current_loop) => current_loop,
             None => {
                 return Err(CompileError::new(
@@ -18,16 +18,15 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
             }
         };
 
-        let (last_loop, to_drop, has_value) = if let Some(expr) = &expr_break.expr {
+        let (last_loop, to_drop, has_value) = if let Some(expr) = &self.expr {
             match expr {
                 ast::ExprBreakValue::Expr(expr) => {
-                    self.compile((expr, current_loop.needs))?;
+                    expr.compile2(c, current_loop.needs)?;
                     (current_loop, current_loop.drop.into_iter().collect(), true)
                 }
                 ast::ExprBreakValue::Label(label) => {
                     let (last_loop, to_drop) =
-                        self.loops
-                            .walk_until_label(self.storage, &*self.source, *label)?;
+                        c.loops.walk_until_label(c.storage, &*c.source, *label)?;
                     (last_loop, to_drop, false)
                 }
             }
@@ -37,10 +36,10 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
 
         // Drop loop temporary. Typically an iterator.
         for offset in to_drop {
-            self.asm.push(Inst::Drop { offset }, span);
+            c.asm.push(Inst::Drop { offset }, span);
         }
 
-        let vars = self
+        let vars = c
             .scopes
             .total_var_count(span)?
             .checked_sub(last_loop.total_var_count)
@@ -48,16 +47,16 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
 
         if last_loop.needs.value() {
             if has_value {
-                self.locals_clean(vars, span);
+                c.locals_clean(vars, span);
             } else {
-                self.locals_pop(vars, span);
-                self.asm.push(Inst::unit(), span);
+                c.locals_pop(vars, span);
+                c.asm.push(Inst::unit(), span);
             }
         } else {
-            self.locals_pop(vars, span);
+            c.locals_pop(vars, span);
         }
 
-        self.asm.jump(last_loop.break_label, span);
+        c.asm.jump(last_loop.break_label, span);
         Ok(())
     }
 }

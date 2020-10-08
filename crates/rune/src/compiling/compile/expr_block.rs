@@ -1,18 +1,18 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a block expression.
-impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr_block, needs): (&ast::ExprBlock, Needs)) -> CompileResult<()> {
-        let span = expr_block.span();
-        log::trace!("ExprBlock => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprBlock {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprBlock => {:?}", c.source.source(span));
 
-        if expr_block.async_token.is_none() {
-            return Ok(self.compile((&expr_block.block, needs))?);
+        if self.async_token.is_none() {
+            return Ok(self.block.compile2(c, needs)?);
         }
 
-        let item = self.query.item_for(&expr_block.block)?;
+        let item = c.query.item_for(&self.block)?;
 
-        let meta = match self.lookup_exact_meta(span, &item.item)? {
+        let meta = match c.lookup_exact_meta(span, &item.item)? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(
@@ -32,14 +32,14 @@ impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
         };
 
         for ident in &**captures {
-            let var = self
+            let var = c
                 .scopes
-                .get_var(&ident.ident, self.source_id, self.visitor, span)?;
-            var.copy(&mut self.asm, span, format!("captures `{}`", ident.ident));
+                .get_var(&ident.ident, c.source_id, c.visitor, span)?;
+            var.copy(&mut c.asm, span, format!("captures `{}`", ident.ident));
         }
 
         let hash = Hash::type_hash(&meta.item);
-        self.asm.push_with_comment(
+        c.asm.push_with_comment(
             Inst::Call {
                 hash,
                 args: captures.len(),
@@ -49,7 +49,7 @@ impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
         );
 
         if !needs.value() {
-            self.asm
+            c.asm
                 .push_with_comment(Inst::Pop, span, "value is not needed");
         }
 

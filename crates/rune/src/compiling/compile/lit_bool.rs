@@ -1,17 +1,15 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a literal boolean such as `true`.
-impl Compile<(&ast::LitBool, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (lit_bool, needs): (&ast::LitBool, Needs)) -> CompileResult<()> {
-        let span = lit_bool.span();
-        log::trace!("LitBool => {:?}", self.source.source(span));
+impl Compile2 for ast::LitBool {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitBool => {:?}", c.source.source(span));
 
         // If the value is not needed, no need to encode it.
-        if !needs.value() {
-            return Ok(());
+        if needs.value() {
+            c.asm.push(Inst::bool(self.value), span);
         }
-
-        self.asm.push(Inst::bool(lit_bool.value), span);
 
         Ok(())
     }

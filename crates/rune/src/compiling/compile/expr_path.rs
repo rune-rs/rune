@@ -1,44 +1,39 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile `self`.
-impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (path, needs): (&ast::Path, Needs)) -> CompileResult<()> {
-        let span = path.span();
-        log::trace!("Path => {:?}", self.source.source(span));
+impl Compile2 for ast::Path {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Path => {:?}", c.source.source(span));
 
-        if let Some(ast::PathKind::SelfValue) = path.as_kind() {
-            let var = self
-                .scopes
-                .get_var("self", self.source_id, self.visitor, span)?;
+        if let Some(ast::PathKind::SelfValue) = self.as_kind() {
+            let var = c.scopes.get_var("self", c.source_id, c.visitor, span)?;
 
             if !needs.value() {
                 return Ok(());
             }
 
-            var.copy(&mut self.asm, span, "self");
+            var.copy(&mut c.asm, span, "self");
             return Ok(());
         }
 
         // NB: do nothing if we don't need a value.
         if !needs.value() {
-            self.warnings.not_used(self.source_id, span, self.context());
+            c.warnings.not_used(c.source_id, span, c.context());
         }
 
-        let named = self.convert_path_to_named(path)?;
+        let named = c.convert_path_to_named(self)?;
 
         if let Needs::Value = needs {
             if let Some(local) = named.as_local() {
-                if let Some(var) =
-                    self.scopes
-                        .try_get_var(local, self.source_id, self.visitor, span)
-                {
-                    var.copy(&mut self.asm, span, format!("var `{}`", local));
+                if let Some(var) = c.scopes.try_get_var(local, c.source_id, c.visitor, span) {
+                    var.copy(&mut c.asm, span, format!("var `{}`", local));
                     return Ok(());
                 }
             }
         }
 
-        let meta = match self.lookup_meta(span, &named)? {
+        let meta = match c.lookup_meta(span, &named)? {
             Some(meta) => meta,
             None => {
                 let error = match (needs, named.as_local()) {
@@ -73,7 +68,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
             }
         };
 
-        self.compile_meta(&meta, span, needs)?;
+        c.compile_meta(&meta, span, needs)?;
         Ok(())
     }
 }

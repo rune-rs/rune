@@ -1,43 +1,43 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a while loop.
-impl Compile<(&ast::ExprWhile, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr_while, needs): (&ast::ExprWhile, Needs)) -> CompileResult<()> {
-        let span = expr_while.span();
-        log::trace!("ExprWhile => {:?}", self.source.source(span));
+impl Compile2 for ast::ExprWhile {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprWhile => {:?}", c.source.source(span));
 
-        let start_label = self.asm.new_label("while_test");
-        let then_label = self.asm.new_label("while_then");
-        let end_label = self.asm.new_label("while_end");
-        let break_label = self.asm.new_label("while_break");
+        let start_label = c.asm.new_label("while_test");
+        let then_label = c.asm.new_label("while_then");
+        let end_label = c.asm.new_label("while_end");
+        let break_label = c.asm.new_label("while_break");
 
-        let _guard = self.loops.push(Loop {
-            label: expr_while.label.map(|(label, _)| label),
+        let _guard = c.loops.push(Loop {
+            label: self.label.map(|(label, _)| label),
             break_label,
-            total_var_count: self.scopes.total_var_count(span)?,
+            total_var_count: c.scopes.total_var_count(span)?,
             needs,
             drop: None,
         });
 
-        self.asm.label(start_label)?;
+        c.asm.label(start_label)?;
 
-        let then_scope = self.compile_condition(&expr_while.condition, then_label)?;
-        self.asm.jump(end_label, span);
-        self.asm.label(then_label)?;
+        let then_scope = c.compile_condition(&self.condition, then_label)?;
+        c.asm.jump(end_label, span);
+        c.asm.label(then_label)?;
 
-        let expected = self.scopes.push(then_scope);
-        self.compile((&*expr_while.body, Needs::None))?;
-        self.clean_last_scope(span, expected, Needs::None)?;
+        let expected = c.scopes.push(then_scope);
+        self.body.compile2(c, Needs::None)?;
+        c.clean_last_scope(span, expected, Needs::None)?;
 
-        self.asm.jump(start_label, span);
-        self.asm.label(end_label)?;
+        c.asm.jump(start_label, span);
+        c.asm.label(end_label)?;
 
         if needs.value() {
-            self.asm.push(Inst::unit(), span);
+            c.asm.push(Inst::unit(), span);
         }
 
         // NB: breaks produce their own value.
-        self.asm.label(break_label)?;
+        c.asm.label(break_label)?;
         Ok(())
     }
 }

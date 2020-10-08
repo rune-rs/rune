@@ -1,28 +1,28 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a literal tuple.
-impl Compile<(&ast::LitTuple, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (lit_tuple, needs): (&ast::LitTuple, Needs)) -> CompileResult<()> {
-        let span = lit_tuple.span();
-        log::trace!("LitTuple => {:?}", self.source.source(span));
+impl Compile2 for ast::LitTuple {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitTuple => {:?}", c.source.source(span));
 
-        for (expr, _) in &lit_tuple.items {
-            self.compile((expr, Needs::Value))?;
-            self.scopes.decl_anon(expr.span())?;
+        for (expr, _) in &self.items {
+            expr.compile2(c, Needs::Value)?;
+            c.scopes.decl_anon(expr.span())?;
         }
 
-        self.asm.push(
+        c.asm.push(
             Inst::Tuple {
-                count: lit_tuple.items.len(),
+                count: self.items.len(),
             },
             span,
         );
 
-        self.scopes.undecl_anon(span, lit_tuple.items.len())?;
+        c.scopes.undecl_anon(span, self.items.len())?;
 
         if !needs.value() {
-            self.warnings.not_used(self.source_id, span, self.context());
-            self.asm.push(Inst::Pop, span);
+            c.warnings.not_used(c.source_id, span, c.context());
+            c.asm.push(Inst::Pop, span);
             return Ok(());
         }
 

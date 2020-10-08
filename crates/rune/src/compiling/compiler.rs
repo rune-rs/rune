@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
+use crate::compiling::{Assembly, Compile2 as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::query::{Named, Query, QueryConstFn, QueryItem, Used};
 use crate::shared::Consts;
@@ -209,7 +209,7 @@ impl<'a> Compiler<'a> {
                         .push_with_comment(Inst::LoadFn { hash }, span, meta.to_string());
                 }
                 CompileMetaKind::Const { const_value, .. } => {
-                    self.compile((const_value, span))?;
+                    (const_value, span).compile2(self, Needs::Value)?;
                 }
                 _ => {
                     return Err(CompileError::expected_meta(
@@ -258,7 +258,7 @@ impl<'a> Compiler<'a> {
             ast::Condition::Expr(expr) => {
                 let span = expr.span();
 
-                self.compile((expr, Needs::Value))?;
+                expr.compile2(self, Needs::Value)?;
                 self.asm.jump_if(then_label, span);
 
                 Ok(self.scopes.child(span)?)
@@ -271,8 +271,8 @@ impl<'a> Compiler<'a> {
                 let scope = self.scopes.child(span)?;
                 let expected = self.scopes.push(scope);
 
-                let load = |this: &mut Self, needs: Needs| {
-                    this.compile((&expr_let.expr, needs))?;
+                let load = |c: &mut Self, needs: Needs| {
+                    expr_let.expr.compile2(c, needs)?;
                     Ok(())
                 };
 
@@ -325,9 +325,9 @@ impl<'a> Compiler<'a> {
         for (index, (pat, _)) in pat_vec.items.iter().take(count).enumerate() {
             let span = pat.span();
 
-            let load = move |this: &mut Self, needs: Needs| {
+            let load = move |c: &mut Self, needs: Needs| {
                 if needs.value() {
-                    this.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+                    c.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
                 }
 
                 Ok(())
@@ -431,9 +431,9 @@ impl<'a> Compiler<'a> {
         for (index, (pat, _)) in pat_tuple.items.iter().take(count).enumerate() {
             let span = pat.span();
 
-            let load = move |this: &mut Self, needs: Needs| {
+            let load = move |c: &mut Self, needs: Needs| {
                 if needs.value() {
-                    this.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+                    c.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
                 }
 
                 Ok(())
@@ -612,9 +612,9 @@ impl<'a> Compiler<'a> {
 
             match binding {
                 Binding::Binding(_, _, pat) => {
-                    let load = move |this: &mut Self, needs: Needs| {
+                    let load = move |c: &mut Self, needs: Needs| {
                         if needs.value() {
-                            this.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
+                            c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
                         }
 
                         Ok(())

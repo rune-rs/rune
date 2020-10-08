@@ -1,17 +1,17 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a literal unit `()`.
-impl Compile<(&ast::LitUnit, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (lit_unit, needs): (&ast::LitUnit, Needs)) -> CompileResult<()> {
-        let span = lit_unit.span();
-        log::trace!("LitUnit => {:?}", self.source.source(span));
+impl Compile2 for ast::LitUnit {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitUnit => {:?}", c.source.source(span));
 
         // If the value is not needed, no need to encode it.
         if !needs.value() {
             return Ok(());
         }
 
-        self.asm.push(Inst::unit(), span);
+        c.asm.push(Inst::unit(), span);
         Ok(())
     }
 }

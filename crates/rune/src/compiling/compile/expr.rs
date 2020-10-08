@@ -1,117 +1,85 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile an expression.
-impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (expr, needs): (&ast::Expr, Needs)) -> CompileResult<()> {
-        let span = expr.span();
-        log::trace!("Expr => {:?}", self.source.source(span));
+impl Compile2 for ast::Expr {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Expr => {:?}", c.source.source(span));
 
-        if let Some(span) = expr.attributes().option_span() {
+        if let Some(span) = self.attributes().option_span() {
             return Err(CompileError::internal(span, "attributes are not supported"));
         }
 
-        match expr {
+        match self {
             ast::Expr::Path(path) => {
-                self.compile((&**path, needs))?;
+                path.compile2(c, needs)?;
             }
             ast::Expr::ExprWhile(expr_while) => {
-                self.compile((&**expr_while, needs))?;
+                expr_while.compile2(c, needs)?;
             }
             ast::Expr::ExprFor(expr_for) => {
-                self.compile((&**expr_for, needs))?;
+                expr_for.compile2(c, needs)?;
             }
             ast::Expr::ExprLoop(expr_loop) => {
-                self.compile((&**expr_loop, needs))?;
+                expr_loop.compile2(c, needs)?;
             }
             ast::Expr::ExprLet(expr_let) => {
-                self.compile((&**expr_let, needs))?;
+                expr_let.compile2(c, needs)?;
             }
             ast::Expr::ExprGroup(expr) => {
-                self.compile((&expr.expr, needs))?;
+                expr.expr.compile2(c, needs)?;
             }
             ast::Expr::ExprUnary(expr_unary) => {
-                self.compile((&**expr_unary, needs))?;
+                expr_unary.compile2(c, needs)?;
             }
             ast::Expr::ExprAssign(expr_assign) => {
-                self.compile((&**expr_assign, needs))?;
+                expr_assign.compile2(c, needs)?;
             }
             ast::Expr::ExprBinary(expr_binary) => {
-                self.compile((&**expr_binary, needs))?;
+                expr_binary.compile2(c, needs)?;
             }
             ast::Expr::ExprIf(expr_if) => {
-                self.compile((&**expr_if, needs))?;
+                expr_if.compile2(c, needs)?;
             }
             ast::Expr::ExprIndex(expr_index_get) => {
-                self.compile((&**expr_index_get, needs))?;
+                expr_index_get.compile2(c, needs)?;
             }
             ast::Expr::ExprBreak(expr_break) => {
-                self.compile(&**expr_break)?;
+                expr_break.compile2(c, needs)?;
             }
             ast::Expr::ExprYield(expr_yield) => {
-                self.compile((&**expr_yield, needs))?;
+                expr_yield.compile2(c, needs)?;
             }
             ast::Expr::ExprBlock(expr_block) => {
-                self.compile((&**expr_block, needs))?;
+                expr_block.compile2(c, needs)?;
             }
             ast::Expr::ExprReturn(expr_return) => {
-                self.compile((&**expr_return, needs))?;
+                expr_return.compile2(c, needs)?;
             }
             ast::Expr::ExprMatch(expr_match) => {
-                self.compile((&**expr_match, needs))?;
+                expr_match.compile2(c, needs)?;
             }
             ast::Expr::ExprAwait(expr_await) => {
-                self.compile((&**expr_await, needs))?;
+                expr_await.compile2(c, needs)?;
             }
             ast::Expr::ExprTry(expr_try) => {
-                self.compile((&**expr_try, needs))?;
+                expr_try.compile2(c, needs)?;
             }
             ast::Expr::ExprSelect(expr_select) => {
-                self.compile((&**expr_select, needs))?;
+                expr_select.compile2(c, needs)?;
             }
             ast::Expr::ExprCall(expr_call) => {
-                self.compile((&**expr_call, needs))?;
+                expr_call.compile2(c, needs)?;
             }
             ast::Expr::ExprFieldAccess(expr_field_access) => {
-                self.compile((&**expr_field_access, needs))?;
+                expr_field_access.compile2(c, needs)?;
             }
             ast::Expr::ExprClosure(expr_closure) => {
-                self.compile((&**expr_closure, needs))?;
+                expr_closure.compile2(c, needs)?;
             }
-            ast::Expr::ExprLit(expr_lit) => match &expr_lit.lit {
-                ast::Lit::Unit(lit_unit) => {
-                    self.compile((lit_unit, needs))?;
-                }
-                ast::Lit::Tuple(lit_tuple) => {
-                    self.compile((lit_tuple, needs))?;
-                }
-                ast::Lit::Bool(lit_bool) => {
-                    self.compile((lit_bool, needs))?;
-                }
-                ast::Lit::Number(lit_number) => {
-                    self.compile((lit_number, needs))?;
-                }
-                ast::Lit::Vec(lit_vec) => {
-                    self.compile((lit_vec, needs))?;
-                }
-                ast::Lit::Object(lit_object) => {
-                    self.compile((lit_object, needs))?;
-                }
-                ast::Lit::Char(lit_char) => {
-                    self.compile((lit_char, needs))?;
-                }
-                ast::Lit::Str(lit_str) => {
-                    self.compile((lit_str, needs))?;
-                }
-                ast::Lit::Byte(lit_char) => {
-                    self.compile((lit_char, needs))?;
-                }
-                ast::Lit::ByteStr(lit_str) => {
-                    self.compile((lit_str, needs))?;
-                }
-                ast::Lit::Template(lit_template) => {
-                    self.compile((lit_template, needs))?;
-                }
-            },
+            ast::Expr::ExprLit(expr_lit) => {
+                expr_lit.lit.compile2(c, needs)?;
+            }
             ast::Expr::MacroCall(expr_call_macro) => {
                 return Err(CompileError::internal(
                     expr_call_macro,
@@ -125,7 +93,7 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
                 let span = decl.span();
 
                 if needs.value() {
-                    self.asm.push(Inst::unit(), span);
+                    c.asm.push(Inst::unit(), span);
                 }
             }
         }

@@ -1,25 +1,25 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a literal vector.
-impl Compile<(&ast::LitVec, Needs)> for Compiler<'_> {
-    fn compile(&mut self, (lit_vec, needs): (&ast::LitVec, Needs)) -> CompileResult<()> {
-        let span = lit_vec.span();
-        log::trace!("LitVec => {:?}", self.source.source(span));
+impl Compile2 for ast::LitVec {
+    fn compile2(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitVec => {:?}", c.source.source(span));
 
-        let count = lit_vec.items.len();
+        let count = self.items.len();
 
-        for (expr, _) in &lit_vec.items {
-            self.compile((expr, Needs::Value))?;
-            self.scopes.decl_anon(expr.span())?;
+        for (expr, _) in &self.items {
+            expr.compile2(c, Needs::Value)?;
+            c.scopes.decl_anon(expr.span())?;
         }
 
-        self.asm.push(Inst::Vec { count }, span);
-        self.scopes.undecl_anon(span, lit_vec.items.len())?;
+        c.asm.push(Inst::Vec { count }, span);
+        c.scopes.undecl_anon(span, self.items.len())?;
 
         // Evaluate the expressions one by one, then pop them to cause any
         // side effects (without creating an object).
         if !needs.value() {
-            self.asm.push(Inst::Pop, span);
+            c.asm.push(Inst::Pop, span);
         }
 
         Ok(())

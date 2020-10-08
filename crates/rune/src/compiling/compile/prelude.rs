@@ -1,5 +1,5 @@
 pub(crate) use crate::ast;
-pub(crate) use crate::compiling::{Compile, Compiler, Loop, Needs};
+pub(crate) use crate::compiling::{Compile2, Compiler, Loop, Needs};
 pub(crate) use crate::{
     CompileError, CompileErrorKind, CompileResult, OptionSpanned, ParseErrorKind, Resolve, Spanned,
 };
