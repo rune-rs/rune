@@ -84,7 +84,6 @@ mod lit_char;
 mod lit_number;
 mod lit_object;
 mod lit_str;
-mod lit_template;
 mod lit_tuple;
 mod lit_unit;
 mod lit_vec;
@@ -147,7 +146,6 @@ pub use self::lit_object::{
     AnonymousLitObject, LitObject, LitObjectFieldAssign, LitObjectIdent, LitObjectKey,
 };
 pub use self::lit_str::LitStr;
-pub use self::lit_template::LitTemplate;
 pub use self::lit_tuple::LitTuple;
 pub use self::lit_unit::LitUnit;
 pub use self::lit_vec::LitVec;
@@ -157,8 +155,8 @@ pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVe
 pub use self::path::{Path, PathKind, PathSegment};
 pub use self::stmt::Stmt;
 pub use self::token::{
-    CopySource, Delimiter, Number, NumberBase, NumberSource, NumberText, StrSource, StrText,
-    StringSource, Token,
+    BuiltIn, CopySource, Delimiter, Number, NumberBase, NumberSource, NumberText, StrSource,
+    StrText, StringSource, Token,
 };
 pub use self::vis::Visibility;
 

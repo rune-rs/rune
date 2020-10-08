@@ -1,4 +1,6 @@
 mod block;
+mod builtin_fmtspec;
+mod builtin_template;
 mod const_value;
 mod expr;
 mod expr_assign;
@@ -31,7 +33,6 @@ mod lit_char;
 mod lit_number;
 mod lit_object;
 mod lit_str;
-mod lit_template;
 mod lit_tuple;
 mod lit_unit;
 mod lit_vec;

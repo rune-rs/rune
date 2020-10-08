@@ -150,9 +150,7 @@ fn main() -> Result<()> {
                         let token = p.next()?;
 
                         match token.kind {
-                            #kind::#(t.variant()) => Ok(Self {
-                                token,
-                            }),
+                            #kind::#(t.variant()) => Ok(Self { token }),
                             _ => Err(#parse_error::expected(&token, #(quoted(t.name())))),
                         }
                     }

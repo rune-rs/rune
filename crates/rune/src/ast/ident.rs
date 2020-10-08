@@ -65,6 +65,7 @@ impl<'a> Resolve<'a> for Ident {
 
                 Ok(Cow::Owned(ident))
             }
+            ast::StringSource::BuiltIn(builtin) => Ok(Cow::Borrowed(builtin.as_str())),
         }
     }
 }

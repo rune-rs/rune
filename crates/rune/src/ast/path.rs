@@ -1,7 +1,9 @@
 use crate::ast;
 use crate::parsing::Opaque;
 use crate::shared::Description;
-use crate::{Id, Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
+use crate::{
+    Id, Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveOwned, Spanned, ToTokens,
+};
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
@@ -90,6 +92,81 @@ impl Peek for Path {
 impl Description for &Path {
     fn description(self) -> &'static str {
         "path"
+    }
+}
+
+/// Resolve implementation for path which "stringifies" it.
+impl<'a> Resolve<'a> for Path {
+    type Output = Box<str>;
+
+    fn resolve(
+        &self,
+        storage: &crate::Storage,
+        source: &'a runestick::Source,
+    ) -> Result<Self::Output, ParseError> {
+        let mut buf = String::new();
+
+        if self.global.is_some() {
+            buf.push_str("::");
+        }
+
+        match &self.first {
+            PathSegment::SelfType(_) => {
+                buf.push_str("Self");
+            }
+            PathSegment::SelfValue(_) => {
+                buf.push_str("self");
+            }
+            PathSegment::Ident(ident) => {
+                buf.push_str(ident.resolve(storage, source)?.as_ref());
+            }
+            PathSegment::Crate(_) => {
+                buf.push_str("crate");
+            }
+            PathSegment::Super(_) => {
+                buf.push_str("super");
+            }
+        }
+
+        for (_, segment) in &self.rest {
+            buf.push_str("::");
+
+            match segment {
+                PathSegment::SelfType(_) => {
+                    buf.push_str("Self");
+                }
+                PathSegment::SelfValue(_) => {
+                    buf.push_str("self");
+                }
+                PathSegment::Ident(ident) => {
+                    buf.push_str(ident.resolve(storage, source)?.as_ref());
+                }
+                PathSegment::Crate(_) => {
+                    buf.push_str("crate");
+                }
+                PathSegment::Super(_) => {
+                    buf.push_str("super");
+                }
+            }
+        }
+
+        if self.trailing.is_some() {
+            buf.push_str("::");
+        }
+
+        Ok(buf.into_boxed_str())
+    }
+}
+
+impl ResolveOwned for Path {
+    type Owned = Box<str>;
+
+    fn resolve_owned(
+        &self,
+        storage: &crate::Storage,
+        source: &runestick::Source,
+    ) -> Result<Self::Owned, ParseError> {
+        self.resolve(storage, source)
     }
 }
 

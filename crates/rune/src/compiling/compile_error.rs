@@ -304,6 +304,8 @@ pub enum CompileErrorKind {
         expected: &'static str,
         meta: CompileMeta,
     },
+    #[error("no such built-in macro `{name}`")]
+    NoSuchBuiltInMacro { name: Box<str> },
 }
 
 /// A single stap as an import entry.

@@ -20,8 +20,6 @@ pub enum Lit {
     Number(ast::LitNumber),
     /// An object literal
     Object(ast::LitObject),
-    /// A template literal
-    Template(ast::LitTemplate),
     /// A tuple literal
     Tuple(ast::LitTuple),
     /// A vec literal
@@ -57,7 +55,6 @@ impl Lit {
             K![char] => true,
             K![str] => true,
             K![bytestr] => true,
-            K![template] => true,
             K!['['] => true,
             K![#] => matches!(p.nth(1), K!['{']),
             _ => false,
@@ -96,7 +93,6 @@ impl Parse for Lit {
             K![char(_)] => return Ok(Lit::Char(p.parse()?)),
             K![str(_)] => return Ok(Lit::Str(p.parse()?)),
             K![bytestr(_)] => return Ok(Lit::ByteStr(p.parse()?)),
-            K![template] => return Ok(Lit::Template(p.parse()?)),
             K!['('] => {
                 return Ok(match p.nth(1)? {
                     K![')'] => Lit::Unit(p.parse()?),

@@ -370,7 +370,7 @@ impl<'a> Lexer<'a> {
                     }
 
                     self.buffer.push_back(ast::Token {
-                        kind: ast::Kind::Close(ast::Delimiter::Brace),
+                        kind: K![')'],
                         span: self.iter.span_from(start),
                     });
 
@@ -604,13 +604,36 @@ impl<'a> Lexer<'a> {
                     '`' => {
                         let span = self.iter.span_from(start);
 
+                        self.buffer.push_back(ast::Token { kind: K![#], span });
+
                         self.buffer.push_back(ast::Token {
-                            kind: ast::Kind::Template,
+                            kind: K!['['],
                             span,
                         });
 
                         self.buffer.push_back(ast::Token {
-                            kind: ast::Kind::Open(ast::Delimiter::Brace),
+                            kind: ast::Kind::Ident(ast::StringSource::BuiltIn(
+                                ast::BuiltIn::BuiltIn,
+                            )),
+                            span,
+                        });
+
+                        self.buffer.push_back(ast::Token {
+                            kind: K![']'],
+                            span,
+                        });
+
+                        self.buffer.push_back(ast::Token {
+                            kind: ast::Kind::Ident(ast::StringSource::BuiltIn(
+                                ast::BuiltIn::Template,
+                            )),
+                            span,
+                        });
+
+                        self.buffer.push_back(ast::Token { kind: K![!], span });
+
+                        self.buffer.push_back(ast::Token {
+                            kind: K!['('],
                             span,
                         });
 
@@ -980,7 +1003,11 @@ mod tests {
         test_lexer! {
             "`foo {bar} \\` baz`",
             ast::Token {
-                kind: ast::Kind::Template,
+                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Template)),
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: ast::Kind::Bang,
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1025,7 +1052,11 @@ mod tests {
         test_lexer! {
             "`foo {bar} {baz}`",
             ast::Token {
-                kind: ast::Kind::Template,
+                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Template)),
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: ast::Kind::Bang,
                 span: span!(0, 1),
             },
             ast::Token {

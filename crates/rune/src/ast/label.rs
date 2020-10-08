@@ -56,6 +56,7 @@ impl<'a> Resolve<'a> for Label {
 
                 Ok(Cow::Owned(ident))
             }
+            ast::StringSource::BuiltIn(builtin) => Ok(Cow::Borrowed(builtin.as_str())),
         }
     }
 }

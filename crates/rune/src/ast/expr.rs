@@ -650,7 +650,6 @@ impl Peek for Expr {
             K![byte] => true,
             K![str] => true,
             K![bytestr] => true,
-            K![template] => true,
             K!['label] => matches!(p.nth(1), K![:]),
             _ => false,
         }

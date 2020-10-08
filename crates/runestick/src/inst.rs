@@ -1,3 +1,4 @@
+use crate::format_spec;
 use crate::{Hash, Value};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -638,6 +639,12 @@ pub enum Inst {
         /// The minimum string size used.
         size_hint: usize,
     },
+    /// Push a format specification onto the stack, with the last value on the
+    /// stack wrapped in it.
+    FormatSpec {
+        /// The type specification.
+        ty: format_spec::Type,
+    },
     /// Test if the top of the stack is a unit.
     ///
     /// # Operation
@@ -997,6 +1004,9 @@ impl fmt::Display for Inst {
             }
             Self::StringConcat { len, size_hint } => {
                 write!(fmt, "string-concat {}, {}", len, size_hint)?;
+            }
+            Self::FormatSpec { ty } => {
+                write!(fmt, "format-spec {}", ty)?;
             }
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;

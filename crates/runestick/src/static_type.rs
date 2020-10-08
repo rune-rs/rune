@@ -193,3 +193,11 @@ impl_static_type!(crate::Function => FUNCTION_TYPE);
 impl_static_type!(crate::Shared<crate::Function> => FUNCTION_TYPE);
 impl_static_type!(crate::Ref<crate::Function> => FUNCTION_TYPE);
 impl_static_type!(impl<T> std::collections::HashMap<String, T> => OBJECT_TYPE);
+
+/// The specialized type information for a fmt spec types.
+pub static FORMAT_SPEC_TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("FormatSpec"),
+    hash: Hash::new(0x8d6bddd19f58e97a),
+};
+
+impl_static_type!(crate::FormatSpec => FORMAT_SPEC_TYPE);

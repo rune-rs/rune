@@ -823,7 +823,6 @@ impl<'a> Compiler<'a> {
                     ast::Lit::Bool(_) => {}
                     ast::Lit::ByteStr(_) => {}
                     ast::Lit::Object(_) => {}
-                    ast::Lit::Template(_) => {}
                     ast::Lit::Tuple(_) => {}
                     ast::Lit::Vec(_) => {}
                 },
@@ -888,9 +887,12 @@ impl<'a> Compiler<'a> {
             ));
         }
 
+        let mut ir_query = self.query.as_ir_query();
+
         let mut compiler = IrCompiler {
             storage: self.storage.clone(),
             source: self.source.clone(),
+            query: &mut *ir_query,
         };
 
         let mut compiled = Vec::new();
@@ -899,8 +901,6 @@ impl<'a> Compiler<'a> {
         for ((a, _), name) in args.iter().zip(&query_const_fn.ir_fn.args) {
             compiled.push((compiler.compile(a)?, name));
         }
-
-        let mut ir_query = self.query.as_ir_query();
 
         let mut interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),

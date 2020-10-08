@@ -11,6 +11,7 @@ use crate::{
     CompileError, CompileErrorKind, CompileVisitor, Id, ImportEntryStep, Resolve as _, Spanned,
     Storage, UnitBuilder,
 };
+use runestick::format_spec;
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
     CompileMetaTuple, CompileSource, Component, ComponentRef, Hash, IntoComponent, Item, Names,
@@ -25,6 +26,28 @@ use std::sync::Arc;
 mod imports;
 mod query_error;
 
+/// An internally resolved macro.
+pub(crate) enum BuiltInMacro {
+    Template(BuiltInTemplate),
+    FormatSpec(BuiltInFormatSpec),
+}
+
+/// An internally resolved template.
+pub(crate) struct BuiltInTemplate {
+    pub(crate) span: Span,
+    /// Expressions being concatenated as a template.
+    pub(crate) exprs: Vec<ast::Expr>,
+}
+
+/// An internal format specification.
+pub(crate) struct BuiltInFormatSpec {
+    pub(crate) span: Span,
+    /// The format specification type.
+    pub(crate) ty: Option<(ast::Ident, format_spec::Type)>,
+    /// The value being formatted.
+    pub(crate) value: ast::Expr,
+}
+
 pub use self::query_error::{QueryError, QueryErrorKind};
 
 use self::imports::{ImportEntry, NameKind};
@@ -37,6 +60,14 @@ impl IrQuery for QueryInner {
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
         QueryInner::query_meta(self, spanned, item, used)
+    }
+
+    fn builtin_macro_for(
+        &self,
+        spanned: Span,
+        id: Option<Id>,
+    ) -> Result<Rc<BuiltInMacro>, QueryError> {
+        QueryInner::builtin_macro_for(self, spanned, id)
     }
 
     fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Rc<QueryConstFn>, QueryError> {
@@ -70,6 +101,7 @@ impl Query {
                 indexed: HashMap::new(),
                 const_fns: HashMap::new(),
                 query_paths: HashMap::new(),
+                internal_macros: HashMap::new(),
             })),
         }
     }
@@ -213,12 +245,30 @@ impl Query {
             .insert_new_item(source_id, spanned, item, mod_item, visibility, false)
     }
 
+    /// Insert a new expanded internal macro.
+    pub(crate) fn insert_new_builtin_macro(
+        &mut self,
+        internal_macro: BuiltInMacro,
+    ) -> Result<Id, QueryError> {
+        self.inner
+            .borrow_mut()
+            .insert_new_builtin_macro(internal_macro)
+    }
+
     /// Get the item for the given identifier.
     pub(crate) fn item_for<T>(&self, ast: T) -> Result<Rc<QueryItem>, QueryError>
     where
         T: Spanned + Opaque,
     {
         self.inner.borrow().item_for(ast.span(), ast.id())
+    }
+
+    /// Get the expanded internal macro for the given identifier.
+    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> Result<Rc<BuiltInMacro>, QueryError>
+    where
+        T: Spanned + Opaque,
+    {
+        self.inner.borrow().builtin_macro_for(ast.span(), ast.id())
     }
 
     /// Get the constant function associated with the opaque.
@@ -248,6 +298,7 @@ impl Query {
         let mut ir_compiler = IrCompiler {
             storage: inner.storage.clone(),
             source: source.clone(),
+            query: &mut *inner,
         };
 
         let ir = ir_compiler.compile(&item_const.expr)?;
@@ -606,6 +657,8 @@ struct QueryInner {
     const_fns: HashMap<Id, Rc<QueryConstFn>>,
     /// Query paths.
     query_paths: HashMap<Id, Rc<QueryPath>>,
+    /// The result of internally resolved macros.
+    internal_macros: HashMap<Id, Rc<BuiltInMacro>>,
 }
 
 impl QueryInner {
@@ -616,6 +669,27 @@ impl QueryInner {
             .ok_or_else(|| QueryError::new(span, QueryErrorKind::MissingId { what: "item", id }))?;
 
         Ok(item.clone())
+    }
+
+    /// Get the internally resolved macro for the specified id.
+    fn builtin_macro_for(
+        &self,
+        span: Span,
+        id: Option<Id>,
+    ) -> Result<Rc<BuiltInMacro>, QueryError> {
+        let internal_macro = id
+            .and_then(|n| self.internal_macros.get(&n))
+            .ok_or_else(|| {
+                QueryError::new(
+                    span,
+                    QueryErrorKind::MissingId {
+                        what: "internal macro",
+                        id,
+                    },
+                )
+            })?;
+
+        Ok(internal_macro.clone())
     }
 
     /// Get the constant function associated with the opaque.
@@ -702,6 +776,16 @@ impl QueryInner {
 
         self.imports.items.insert(id, query_item.clone());
         Ok(query_item)
+    }
+
+    /// Insert a new expanded internal macro.
+    pub(crate) fn insert_new_builtin_macro(
+        &mut self,
+        internal_macro: BuiltInMacro,
+    ) -> Result<Id, QueryError> {
+        let id = self.next_id.next().expect("ran out of ids");
+        self.internal_macros.insert(id, Rc::new(internal_macro));
+        Ok(id)
     }
 
     /// Internal implementation for indexing an entry.
@@ -1209,6 +1293,7 @@ impl QueryInner {
                 let mut ir_compiler = IrCompiler {
                     storage: self.storage.clone(),
                     source: source.clone(),
+                    query: self,
                 };
 
                 let ir_fn = ir_compiler.compile(&*c.item_fn)?;

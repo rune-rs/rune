@@ -87,6 +87,9 @@ impl ser::Serialize for Value {
                 Err(ser::Error::custom("cannot serialize generator states"))
             }
             Value::Function(..) => Err(ser::Error::custom("cannot serialize function pointers")),
+            Value::FormatSpec(..) => {
+                Err(ser::Error::custom("cannot serialize format specifications"))
+            }
             Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }

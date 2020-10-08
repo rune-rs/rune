@@ -123,4 +123,6 @@ pub enum ParseErrorKind {
     },
     #[error("bad number literal")]
     BadNumber,
+    #[error("can only specify one attribute named `{name}`")]
+    MultipleMatchingAttributes { name: &'static str },
 }

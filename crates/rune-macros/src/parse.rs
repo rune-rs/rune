@@ -146,6 +146,12 @@ impl Expander {
             meta_fields.push(ident);
         }
 
+        let parser_ident = &if fields.is_empty() {
+            quote!(_parser)
+        } else {
+            quote!(parser)
+        };
+
         let parse = &self.ctx.parse;
         let parser = &self.ctx.parser;
         let parse_error = &self.ctx.parse_error;
@@ -169,7 +175,7 @@ impl Expander {
                 named.span() =>
                     impl #ident {
                         #[doc = "Parse #ident and attach the given meta"]
-                        pub fn parse_with_meta(parser: &mut #parser<'_>, #(#meta_args,)*)
+                        pub fn parse_with_meta(#parser_ident: &mut #parser<'_>, #(#meta_args,)*)
                             -> Result<Self, #parse_error>
                         {
                             Ok(Self {
@@ -184,7 +190,7 @@ impl Expander {
             quote_spanned! {
                 named.span() =>
                     impl #parse for #ident {
-                        fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
+                        fn parse(#parser_ident: &mut #parser<'_>) -> Result<Self, #parse_error> {
                            Ok(Self {
                                 #(#fields,)*
                             })

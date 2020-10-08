@@ -37,9 +37,6 @@ impl Assemble for ast::Lit {
             ast::Lit::ByteStr(lit_byte_str) => {
                 lit_byte_str.assemble(c, needs)?;
             }
-            ast::Lit::Template(lit_template) => {
-                lit_template.assemble(c, needs)?;
-            }
         }
 
         Ok(())
