@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compiling::{Assembly, Compile2 as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
+use crate::compiling::{Assemble as _, Assembly, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::query::{Named, Query, QueryConstFn, QueryItem, Used};
 use crate::shared::Consts;
@@ -209,7 +209,7 @@ impl<'a> Compiler<'a> {
                         .push_with_comment(Inst::LoadFn { hash }, span, meta.to_string());
                 }
                 CompileMetaKind::Const { const_value, .. } => {
-                    (const_value, span).compile2(self, Needs::Value)?;
+                    (const_value, span).assemble(self, Needs::Value)?;
                 }
                 _ => {
                     return Err(CompileError::expected_meta(
@@ -258,7 +258,7 @@ impl<'a> Compiler<'a> {
             ast::Condition::Expr(expr) => {
                 let span = expr.span();
 
-                expr.compile2(self, Needs::Value)?;
+                expr.assemble(self, Needs::Value)?;
                 self.asm.jump_if(then_label, span);
 
                 Ok(self.scopes.child(span)?)
@@ -272,7 +272,7 @@ impl<'a> Compiler<'a> {
                 let expected = self.scopes.push(scope);
 
                 let load = |c: &mut Self, needs: Needs| {
-                    expr_let.expr.compile2(c, needs)?;
+                    expr_let.expr.assemble(c, needs)?;
                     Ok(())
                 };
 
