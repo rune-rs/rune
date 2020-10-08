@@ -3,7 +3,7 @@ pub(crate) use crate::compiling::{
     Assemble, AssembleClosure, AssembleConst, AssembleFn, Compiler, Loop, Needs,
 };
 pub(crate) use crate::{
-    CompileError, CompileErrorKind, CompileResult, OptionSpanned, ParseErrorKind, Resolve, Spanned,
+    CompileError, CompileErrorKind, CompileResult, ParseErrorKind, Resolve, Spanned,
 };
 pub(crate) use runestick::{
     CompileMetaCapture, CompileMetaKind, ConstValue, Hash, Inst, InstAssignOp, InstOp, InstTarget,

@@ -32,6 +32,9 @@ impl Token {
                         None => return Err(fmt::Error),
                     }
                 }
+                StringSource::BuiltIn(builtin) => {
+                    write!(f, "{}", builtin)?;
+                }
             },
             Kind::Label(s) => match s {
                 StringSource::Text => {
@@ -43,6 +46,9 @@ impl Token {
                         Some(result) => result?,
                         None => return Err(fmt::Error),
                     }
+                }
+                StringSource::BuiltIn(builtin) => {
+                    write!(f, "'{}", builtin)?;
                 }
             },
             Kind::Byte(s) => match s {
@@ -269,6 +275,37 @@ impl fmt::Display for NumberBase {
     }
 }
 
+/// A built-in identifiers that do not have a source.
+///
+/// This is necessary to synthesize identifiers in the lexer since there's not
+/// storage available, nor is the identifier reflected in the source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BuiltIn {
+    /// `template`.
+    Template,
+    /// `formatspec`.
+    FormatSpec,
+    /// `builtin`.
+    BuiltIn,
+}
+
+impl BuiltIn {
+    /// Coerce into static string.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Template => "template",
+            Self::FormatSpec => "formatspec",
+            Self::BuiltIn => "builtin",
+        }
+    }
+}
+
+impl fmt::Display for BuiltIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// The kind of the identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StringSource {
@@ -276,6 +313,8 @@ pub enum StringSource {
     Text,
     /// The identifier is synthetic (generated in a macro).
     Synthetic(usize),
+    /// Built-in strings.
+    BuiltIn(BuiltIn),
 }
 
 /// The source of the literal string.

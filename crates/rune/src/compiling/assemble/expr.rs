@@ -1,14 +1,11 @@
 use crate::compiling::assemble::prelude::*;
+use crate::query::BuiltInMacro;
 
 /// Compile an expression.
 impl Assemble for ast::Expr {
     fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
         let span = self.span();
         log::trace!("Expr => {:?}", c.source.source(span));
-
-        if let Some(span) = self.attributes().option_span() {
-            return Err(CompileError::internal(span, "attributes are not supported"));
-        }
 
         match self {
             ast::Expr::Path(path) => {
@@ -81,10 +78,16 @@ impl Assemble for ast::Expr {
                 expr_lit.lit.assemble(c, needs)?;
             }
             ast::Expr::MacroCall(expr_call_macro) => {
-                return Err(CompileError::internal(
-                    expr_call_macro,
-                    "encountered unexpanded macro",
-                ));
+                let internal_macro = c.query.builtin_macro_for(&**expr_call_macro)?;
+
+                match &*internal_macro {
+                    BuiltInMacro::Template(template) => {
+                        template.assemble(c, needs)?;
+                    }
+                    BuiltInMacro::FormatSpec(format_spec) => {
+                        format_spec.assemble(c, needs)?;
+                    }
+                }
             }
             // NB: declarations are not used in this compilation stage.
             // They have been separately indexed and will be built when queried

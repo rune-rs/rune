@@ -1,5 +1,5 @@
 use crate::parsing::Id;
-use crate::query::{QueryConstFn, QueryError, Used};
+use crate::query::{BuiltInMacro, QueryConstFn, QueryError, Used};
 use runestick::{CompileMeta, Item, Span};
 use std::rc::Rc;
 
@@ -12,6 +12,13 @@ pub(crate) trait IrQuery {
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError>;
+
+    /// Get resolved internal macro with the given id.
+    fn builtin_macro_for(
+        &self,
+        spanned: Span,
+        id: Option<Id>,
+    ) -> Result<Rc<BuiltInMacro>, QueryError>;
 
     /// Query for the constant function related to the given id.
     fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Rc<QueryConstFn>, QueryError>;

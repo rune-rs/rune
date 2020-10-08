@@ -1,9 +1,16 @@
 use crate::ast;
+use crate::parsing::Opaque;
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens, TokenStream};
+use runestick::Id;
 
 /// A function call `<expr>!(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct MacroCall {
+    /// Opaque identifier for macro call. Use to store reference to internally
+    /// expanded macros through
+    /// [builtin_macro_for][crate::query::Query::builtin_macro_for].
+    #[rune(id)]
+    pub id: Option<Id>,
     /// Attributes associated with macro call.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -76,6 +83,7 @@ impl MacroCall {
         }
 
         Ok(Self {
+            id: Default::default(),
             attributes,
             bang,
             path,
@@ -91,5 +99,11 @@ impl Parse for MacroCall {
         let attributes = parser.parse()?;
         let path = parser.parse()?;
         Self::parse_with_meta_path(parser, attributes, path)
+    }
+}
+
+impl Opaque for MacroCall {
+    fn id(&self) -> Option<Id> {
+        self.id
     }
 }

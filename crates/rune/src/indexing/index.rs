@@ -1,18 +1,21 @@
 use crate::ast;
+use crate::attrs;
 use crate::collections::HashMap;
 use crate::indexing::{IndexFnKind, IndexScopes, Visibility};
 use crate::load::{SourceLoader, Sources};
 use crate::macros::MacroCompiler;
-use crate::parsing::Parse;
+use crate::parsing::{Parse, Parser};
 use crate::query::{
-    Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
+    Build, BuildEntry, BuiltInFormatSpec, BuiltInMacro, BuiltInTemplate, Function, Indexed,
+    IndexedEntry, InstanceFunction, Query, QueryMod, Used,
 };
 use crate::shared::{Consts, Items, Location};
 use crate::worker::{Import, LoadFileKind, Task};
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _, Options,
-    Resolve as _, Spanned as _, Storage, Warnings,
+    ParseError, Resolve as _, Spanned as _, Storage, Warnings,
 };
+use runestick::format_spec;
 use runestick::{
     Call, CompileMeta, CompileMetaKind, CompileSource, Context, Hash, Item, Source, SourceId, Span,
     Type,
@@ -54,6 +57,147 @@ pub(crate) struct Indexer<'a> {
 }
 
 impl<'a> Indexer<'a> {
+    /// Try to expand an internal macro.
+    fn try_expand_internal_macro(
+        &mut self,
+        attributes: &mut attrs::Attributes,
+        ast: &mut ast::MacroCall,
+    ) -> Result<bool, CompileError> {
+        // Internal macros must be marked with the `#[builtin]` attribute.
+        if attributes.try_parse::<attrs::BuiltIn>()?.is_none() {
+            return Ok(false);
+        }
+
+        // NB: internal macros are
+        let ident = match ast.path.try_as_ident() {
+            Some(ident) => ident,
+            None => {
+                return Err(CompileError::new(
+                    ast.path.span(),
+                    CompileErrorKind::NoSuchBuiltInMacro {
+                        name: ast.path.resolve(&self.storage, &self.source)?,
+                    },
+                ))
+            }
+        };
+
+        let ident = ident.resolve(&self.storage, &self.source)?;
+
+        let mut internal_macro = match ident.as_ref() {
+            "template" => self.expand_template_macro(ast)?,
+            "format_spec" => self.expand_fmtspec_macro(ast)?,
+            _ => {
+                return Err(CompileError::new(
+                    ast.path.span(),
+                    CompileErrorKind::NoSuchBuiltInMacro {
+                        name: ast.path.resolve(&self.storage, &self.source)?,
+                    },
+                ))
+            }
+        };
+
+        match &mut internal_macro {
+            BuiltInMacro::Template(template) => {
+                for expr in &mut template.exprs {
+                    expr.index(self)?;
+                }
+            }
+            BuiltInMacro::FormatSpec(format_spec) => {
+                format_spec.value.index(self)?;
+            }
+        }
+
+        let id = self.query.insert_new_builtin_macro(internal_macro)?;
+        ast.id = Some(id);
+        Ok(true)
+    }
+
+    /// Expand the template macro.
+    fn expand_template_macro(
+        &mut self,
+        ast: &mut ast::MacroCall,
+    ) -> Result<BuiltInMacro, ParseError> {
+        let mut p = Parser::from_token_stream(&ast.stream);
+        let mut exprs = Vec::new();
+
+        while !p.is_eof()? {
+            exprs.push(p.parse::<ast::Expr>()?);
+
+            if p.parse::<Option<T![,]>>()?.is_none() {
+                break;
+            }
+        }
+
+        p.eof()?;
+
+        Ok(BuiltInMacro::Template(BuiltInTemplate {
+            span: ast.span(),
+            exprs,
+        }))
+    }
+
+    /// Expand the template macro.
+    fn expand_fmtspec_macro(
+        &mut self,
+        ast: &mut ast::MacroCall,
+    ) -> Result<BuiltInMacro, ParseError> {
+        let mut p = Parser::from_token_stream(&ast.stream);
+
+        let value = p.parse::<ast::Expr>()?;
+
+        // parsed options
+        let mut ty = None;
+
+        while p.parse::<Option<T![,]>>()?.is_some() {
+            if p.is_eof()? {
+                break;
+            }
+
+            let key = p.parse::<ast::Ident>()?;
+            let _ = p.parse::<T![=]>()?;
+
+            let k = key.resolve(&self.storage, &self.source)?;
+
+            match k.as_ref() {
+                "type" => {
+                    if ty.is_some() {
+                        return Err(ParseError::unsupported(
+                            key.span(),
+                            "multiple `format_spec!(.., type = ..)`",
+                        ));
+                    }
+
+                    let arg = p.parse::<ast::Ident>()?;
+                    let a = arg.resolve(&self.storage, &self.source)?;
+
+                    ty = Some(match a.as_ref() {
+                        "debug" => (arg, format_spec::Type::Debug),
+                        "display" => (arg, format_spec::Type::Display),
+                        _ => {
+                            return Err(ParseError::unsupported(
+                                key.span(),
+                                "`format_spec!(.., type = ..)`",
+                            ));
+                        }
+                    });
+                }
+                _ => {
+                    return Err(ParseError::unsupported(
+                        key.span(),
+                        "`format_spec!(.., <key>)`",
+                    ));
+                }
+            }
+        }
+
+        p.eof()?;
+        Ok(BuiltInMacro::FormatSpec(BuiltInFormatSpec {
+            span: ast.span(),
+            ty,
+            value,
+        }))
+    }
+
     /// Perform a macro expansion.
     fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> Result<T, CompileError>
     where
@@ -676,9 +820,11 @@ impl Index for ast::Expr {
         let span = self.span();
         log::trace!("Expr => {:?}", idx.source.source(span));
 
-        if let Some(span) = self.attributes().option_span() {
-            return Err(CompileError::internal(span, "attributes are not supported"));
-        }
+        let mut attributes = attrs::Attributes::new(
+            self.attributes().to_vec(),
+            idx.storage.clone(),
+            idx.source.clone(),
+        );
 
         match self {
             ast::Expr::Path(path) => {
@@ -757,10 +903,21 @@ impl Index for ast::Expr {
             // NB: macros have nothing to index, they don't export language
             // items.
             ast::Expr::MacroCall(macro_call) => {
+                if idx.try_expand_internal_macro(&mut attributes, macro_call)? {
+                    return Ok(());
+                }
+
                 let out = idx.expand_macro::<ast::Expr>(macro_call)?;
                 *self = out;
                 self.index(idx)?;
             }
+        }
+
+        if let Some(span) = attributes.remaining() {
+            return Err(CompileError::internal(
+                span,
+                "unsupported expression attribute",
+            ));
         }
 
         Ok(())
@@ -1379,9 +1536,6 @@ impl Index for ast::ExprLit {
         }
 
         match &mut self.lit {
-            ast::Lit::Template(lit_template) => {
-                lit_template.index(idx)?;
-            }
             ast::Lit::Tuple(lit_tuple) => {
                 lit_tuple.index(idx)?;
             }
@@ -1400,19 +1554,6 @@ impl Index for ast::ExprLit {
             ast::Lit::Number(..) => (),
             ast::Lit::Str(..) => (),
             ast::Lit::ByteStr(..) => (),
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for ast::LitTemplate {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("LitTemplate => {:?}", idx.source.source(span));
-
-        for (expr, _) in &mut self.args {
-            expr.index(idx)?;
         }
 
         Ok(())

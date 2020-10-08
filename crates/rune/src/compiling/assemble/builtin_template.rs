@@ -1,16 +1,17 @@
 use crate::compiling::assemble::prelude::*;
+use crate::query::BuiltInTemplate;
 
 /// Compile a literal template string.
-impl Assemble for ast::LitTemplate {
+impl Assemble for BuiltInTemplate {
     fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("LitTemplate => {:?}", c.source.source(span));
+        let span = self.span;
+        log::trace!("BuiltInTemplate => {:?}", c.source.source(span));
 
         let expected = c.scopes.push_child(span)?;
         let mut size_hint = 0;
         let mut expansions = 0;
 
-        for (expr, _) in &self.args {
+        for expr in &self.exprs {
             if let ast::Expr::ExprLit(expr_lit) = expr {
                 if let ast::ExprLit {
                     lit: ast::Lit::Str(s),
@@ -39,7 +40,7 @@ impl Assemble for ast::LitTemplate {
 
         c.asm.push(
             Inst::StringConcat {
-                len: self.args.len(),
+                len: self.exprs.len(),
                 size_hint,
             },
             span,

@@ -9,6 +9,8 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "fmt"]);
     module.ty::<std::fmt::Error>()?;
     module.inst_fn(crate::STRING_DISPLAY, format_fmt_error)?;
+
+    module.ty::<crate::FormatSpec>()?;
     Ok(module)
 }
 

@@ -249,6 +249,7 @@ macro_rules! error {
 
 #[macro_use]
 pub mod ast;
+mod attrs;
 mod compiling;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;

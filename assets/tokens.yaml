@@ -342,10 +342,6 @@
   variant: Super
   doc: "The `super` keyword."
   keyword: "super"
-- kind: keyword
-  variant: Template
-  doc: "The `template` keyword."
-  keyword: "template"
 - kind: punct
   variant: Tilde
   doc: "`~`."

@@ -102,7 +102,7 @@ pub struct MacroContext {
     pub(crate) span: Span,
     /// Storage used in macro context.
     pub(crate) storage: Storage,
-    /// Query engine.
+    /// Evaluation context (if available).
     pub(crate) eval_context: Option<EvaluationContext>,
 }
 
@@ -133,6 +133,7 @@ impl MacroContext {
         let mut ir_compiler = IrCompiler {
             storage: self.storage.clone(),
             source: self.source.clone(),
+            query: &mut *ir_query,
         };
 
         let output = ir_compiler.compile(target)?;

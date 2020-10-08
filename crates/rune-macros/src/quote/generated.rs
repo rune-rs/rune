@@ -49,7 +49,6 @@ pub(crate) fn kind_from_ident(ident: &str) -> Option<quote::Kind> {
         "static" => Some(quote::Kind::new("Static")),
         "struct" => Some(quote::Kind::new("Struct")),
         "super" => Some(quote::Kind::new("Super")),
-        "template" => Some(quote::Kind::new("Template")),
         "true" => Some(quote::Kind::new("True")),
         "typeof" => Some(quote::Kind::new("TypeOf")),
         "unsafe" => Some(quote::Kind::new("Unsafe")),

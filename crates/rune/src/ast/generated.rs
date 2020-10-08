@@ -3103,42 +3103,6 @@ impl macros::ToTokens for Super {
     }
 }
 
-/// The `template` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Template {
-    /// Associated token.
-    pub token: ast::Token,
-}
-
-impl crate::Spanned for Template {
-    fn span(&self) -> runestick::Span {
-        self.token.span()
-    }
-}
-
-impl parsing::Parse for Template {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
-        let token = p.next()?;
-
-        match token.kind {
-            ast::Kind::Template => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "template")),
-        }
-    }
-}
-
-impl parsing::Peek for Template {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
-        matches!(peeker.nth(0), ast::Kind::Template)
-    }
-}
-
-impl macros::ToTokens for Template {
-    fn to_tokens(&self, _: &macros::MacroContext, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
-    }
-}
-
 /// `~`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tilde {
@@ -3619,9 +3583,6 @@ macro_rules! T {
     (super) => {
         $crate::ast::generated::Super
     };
-    (template) => {
-        $crate::ast::generated::Template
-    };
     (true) => {
         $crate::ast::generated::True
     };
@@ -3844,7 +3805,6 @@ macro_rules! K {
     (static) => { $crate::ast::Kind::Static };
     (struct) => { $crate::ast::Kind::Struct };
     (super) => { $crate::ast::Kind::Super };
-    (template) => { $crate::ast::Kind::Template };
     (true) => { $crate::ast::Kind::True };
     (typeof) => { $crate::ast::Kind::TypeOf };
     (unsafe) => { $crate::ast::Kind::Unsafe };
@@ -4095,8 +4055,6 @@ pub enum Kind {
     Struct,
     /// The `super` keyword.
     Super,
-    /// The `template` keyword.
-    Template,
     /// `~`.
     Tilde,
     /// The `true` keyword.
@@ -4171,7 +4129,6 @@ impl Kind {
             "static" => Some(Self::Static),
             "struct" => Some(Self::Struct),
             "super" => Some(Self::Super),
-            "template" => Some(Self::Template),
             "true" => Some(Self::True),
             "typeof" => Some(Self::TypeOf),
             "unsafe" => Some(Self::Unsafe),
@@ -4283,7 +4240,6 @@ impl Kind {
             Self::Static => "static",
             Self::Struct => "struct",
             Self::Super => "super",
-            Self::Template => "template",
             Self::Tilde => "~",
             Self::True => "true",
             Self::TypeOf => "typeof",
