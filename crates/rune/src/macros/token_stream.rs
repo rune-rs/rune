@@ -126,6 +126,15 @@ where
     }
 }
 
+impl<T> ToTokens for &T
+where
+    T: ToTokens,
+{
+    fn to_tokens(&self, context: &MacroContext, stream: &mut TokenStream) {
+        ToTokens::to_tokens(*self, context, stream)
+    }
+}
+
 impl<T> ToTokens for Option<T>
 where
     T: ToTokens,

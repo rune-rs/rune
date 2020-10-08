@@ -280,13 +280,13 @@ pub use self::compiling::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntryStep, LinkerError,
     NoopCompileVisitor, UnitBuilder, Var,
 };
-pub use self::ir::{IrError, IrErrorKind};
+pub use self::ir::{IrError, IrErrorKind, IrValue};
 pub use self::load::{
     load_sources, load_sources_with_visitor, Error, ErrorKind, Errors, LoadSourcesError, Warning,
     WarningKind, Warnings,
 };
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
-pub use self::macros::{MacroContext, Storage, ToTokens, TokenStream, TokenStreamIter};
+pub use self::macros::{MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter};
 pub use self::options::Options;
 pub use self::parsing::{
     Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveOwned,

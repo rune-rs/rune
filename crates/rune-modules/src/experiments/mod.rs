@@ -15,7 +15,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::experiments::module()?)?;
+//! context.install(&rune_modules::experiments::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -44,7 +44,7 @@ fn make_function(stream: &TokenStream) -> runestick::Result<TokenStream> {
 }
 
 /// Construct the `std::experiments` module, which contains experiments.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["std", "experiments"]);
     module.macro_(&["passthrough"], passthrough_impl)?;
     module.macro_(&["stringy_math"], stringy_math_macro::stringy_math)?;

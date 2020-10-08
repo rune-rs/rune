@@ -15,7 +15,7 @@ Native modules for Rune, an embeddable dynamic programming language for Rust.
 """
 
 [features]
-default = ["test", "core"]
+default = ["test", "core", "io"]
 full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand"]
 time = ["tokio", "tokio/time"]
 fs = ["tokio", "tokio/fs"]
@@ -27,6 +27,7 @@ rand = ["nanorand"]
 experiments = []
 test = []
 core = []
+io = []
 
 [dependencies]
 reqwest = {version = "0.10.7", optional = true, default-features = false, features = ["rustls-tls", "gzip", "json"]}

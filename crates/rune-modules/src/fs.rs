@@ -15,7 +15,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::fs::module()?)?;
+//! context.install(&rune_modules::fs::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -33,7 +33,7 @@ use std::io;
 use tokio::fs;
 
 /// Construct the `fs` module.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["fs"]);
     module.async_function(&["read_to_string"], read_to_string)?;
     Ok(module)

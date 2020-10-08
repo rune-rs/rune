@@ -261,10 +261,24 @@ impl<'a> Indexer<'a> {
                     )?;
                 }
                 ast::Item::MacroCall(mut macro_call) => {
-                    let file = self.expand_macro::<ast::File>(&mut macro_call)?;
+                    let mut attributes = attrs::Attributes::new(
+                        macro_call.attributes.to_vec(),
+                        self.storage.clone(),
+                        self.source.clone(),
+                    );
 
-                    for entry in file.items.into_iter().rev() {
-                        queue.push_front(entry);
+                    if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
+                        items.push((ast::Item::MacroCall(macro_call), semi));
+                    } else {
+                        let file = self.expand_macro::<ast::File>(&mut macro_call)?;
+
+                        for entry in file.items.into_iter().rev() {
+                            queue.push_front(entry);
+                        }
+                    }
+
+                    if let Some(span) = attributes.remaining() {
+                        return Err(CompileError::internal(span, "unsupported item attribute"));
                     }
                 }
                 item => {
@@ -304,11 +318,33 @@ impl<'a> Indexer<'a> {
                         },
                     )?;
                 }
-                ast::Stmt::Item(ast::Item::MacroCall(mut macro_call), _) => {
-                    let out = self.expand_macro::<Vec<ast::Stmt>>(&mut macro_call)?;
+                ast::Stmt::Item(ast::Item::MacroCall(mut macro_call), comma) => {
+                    let mut attributes = attrs::Attributes::new(
+                        macro_call.attributes.to_vec(),
+                        self.storage.clone(),
+                        self.source.clone(),
+                    );
 
-                    for stmt in out.into_iter().rev() {
-                        queue.push_front(stmt);
+                    if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
+                        // Expand into an expression so that it gets compiled.
+                        if let Some(semi) = comma {
+                            stmts.push(ast::Stmt::Semi(ast::Expr::MacroCall(macro_call), semi));
+                        } else {
+                            stmts.push(ast::Stmt::Expr(ast::Expr::MacroCall(macro_call)));
+                        }
+                    } else {
+                        let out = self.expand_macro::<Vec<ast::Stmt>>(&mut macro_call)?;
+
+                        for stmt in out.into_iter().rev() {
+                            queue.push_front(stmt);
+                        }
+                    }
+
+                    if let Some(span) = attributes.remaining() {
+                        return Err(CompileError::internal(
+                            span,
+                            "unsupported statement attribute",
+                        ));
                     }
                 }
                 item => {
@@ -903,13 +939,23 @@ impl Index for ast::Expr {
             // NB: macros have nothing to index, they don't export language
             // items.
             ast::Expr::MacroCall(macro_call) => {
-                if idx.try_expand_internal_macro(&mut attributes, macro_call)? {
-                    return Ok(());
-                }
+                // Note: There is a preprocessing step involved with statemetns
+                // for which the macro **might** have been expanded to a
+                // built-in macro if we end up here. So instead of expanding if
+                // the id is set, we just assert that the builtin macro has been
+                // added to the query engine.
 
-                let out = idx.expand_macro::<ast::Expr>(macro_call)?;
-                *self = out;
-                self.index(idx)?;
+                if macro_call.id.is_none() {
+                    if !idx.try_expand_internal_macro(&mut attributes, macro_call)? {
+                        let out = idx.expand_macro::<ast::Expr>(macro_call)?;
+                        *self = out;
+                        self.index(idx)?;
+                    }
+                } else {
+                    // Assert that the built-in macro has been expanded.
+                    idx.query.builtin_macro_for(&**macro_call)?;
+                    attributes.drain();
+                }
             }
         }
 
@@ -1223,6 +1269,12 @@ impl Index for ast::Item {
         let span = self.span();
         log::trace!("Item => {:?}", idx.source.source(span));
 
+        let mut attributes = attrs::Attributes::new(
+            self.attributes().to_vec(),
+            idx.storage.clone(),
+            idx.source.clone(),
+        );
+
         match self {
             ast::Item::ItemEnum(item_enum) => {
                 item_enum.index(idx)?;
@@ -1243,12 +1295,24 @@ impl Index for ast::Item {
                 item_const.index(idx)?;
             }
             ast::Item::MacroCall(macro_call) => {
-                let out = idx.expand_macro::<ast::Item>(macro_call)?;
-                *self = out;
-                self.index(idx)?;
+                // Note: There is a preprocessing step involved with items for
+                // which the macro must have been expanded to a built-in macro
+                // if we end up here. So instead of expanding here, we just
+                // assert that the builtin macro has been added to the query
+                // engine.
+
+                // Assert that the built-in macro has been expanded.
+                idx.query.builtin_macro_for(&**macro_call)?;
+
+                // NB: macros are handled during pre-processing.
+                attributes.drain();
             }
             // NB: imports are ignored during indexing.
             ast::Item::ItemUse(..) => {}
+        }
+
+        if let Some(span) = attributes.remaining() {
+            return Err(CompileError::internal(span, "unsupported item attribute"));
         }
 
         Ok(())

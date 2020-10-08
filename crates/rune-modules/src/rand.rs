@@ -16,7 +16,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::rand::module()?)?;
+//! context.install(&rune_modules::rand::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -37,7 +37,7 @@ use nanorand::RNG;
 use runestick::{Any, ContextError, Module, Value};
 
 /// Construct the `rand` module.
-pub fn module() -> Result<Module, ContextError> {
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::new(&["rand"]);
 
     module.ty::<WyRand>()?;

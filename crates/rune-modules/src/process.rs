@@ -15,7 +15,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::process::module()?)?;
+//! context.install(&rune_modules::process::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -37,7 +37,7 @@ use std::io;
 use tokio::process;
 
 /// Construct the `process` module.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["process"]);
     module.ty::<Command>()?;
     module.ty::<Child>()?;

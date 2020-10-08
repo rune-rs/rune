@@ -33,6 +33,12 @@ impl Attributes {
         }
     }
 
+    /// Drain all attributes under the assumption that they have been validated
+    /// elsewhere.
+    pub(crate) fn drain(&mut self) {
+        self.unused.clear();
+    }
+
     /// Try to parse the attribute with the given type.
     pub(crate) fn try_parse<T>(&mut self) -> Result<Option<T>, ParseError>
     where

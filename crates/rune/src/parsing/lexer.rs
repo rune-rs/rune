@@ -1003,6 +1003,22 @@ mod tests {
         test_lexer! {
             "`foo {bar} \\` baz`",
             ast::Token {
+                kind: K![#],
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: K!['['],
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::BuiltIn)),
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: K![']'],
+                span: span!(0, 1),
+            },
+            ast::Token {
                 kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Template)),
                 span: span!(0, 1),
             },
@@ -1011,7 +1027,7 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
-                kind: ast::Kind::Open(ast::Delimiter::Brace),
+                kind: K!['('],
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1041,7 +1057,7 @@ mod tests {
                 span: span!(10, 17),
             },
             ast::Token {
-                kind: ast::Kind::Close(ast::Delimiter::Brace),
+                kind: K![')'],
                 span: span!(17, 18),
             },
         };
@@ -1052,6 +1068,22 @@ mod tests {
         test_lexer! {
             "`foo {bar} {baz}`",
             ast::Token {
+                kind: K![#],
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: K!['['],
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::BuiltIn)),
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: K![']'],
+                span: span!(0, 1),
+            },
+            ast::Token {
                 kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Template)),
                 span: span!(0, 1),
             },
@@ -1060,7 +1092,7 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
-                kind: ast::Kind::Open(ast::Delimiter::Brace),
+                kind: K!['('],
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1098,7 +1130,7 @@ mod tests {
                 span: span!(12, 15),
             },
             ast::Token {
-                kind: ast::Kind::Close(ast::Delimiter::Brace),
+                kind: K![')'],
                 span: span!(16, 17),
             },
         };

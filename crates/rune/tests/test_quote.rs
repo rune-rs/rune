@@ -110,7 +110,6 @@ fn test_tokens() {
         assert_quote!([Static], quote!(static));
         assert_quote!([Struct], quote!(struct));
         assert_quote!([Super], quote!(super));
-        assert_quote!([Template], quote!(template));
         assert_quote!([Tilde], quote!(~));
         assert_quote!([True], quote!(true));
         assert_quote!([TypeOf], quote!(typeof));

@@ -28,7 +28,8 @@ impl UnitBuilder {
     pub fn with_default_prelude() -> Self {
         let mut this = Inner::default();
 
-        this.prelude.insert("dbg".into(), Item::of(&["std", "dbg"]));
+        this.prelude
+            .insert("dbg".into(), Item::of(&["std", "io", "dbg"]));
         this.prelude
             .insert("drop".into(), Item::of(&["std", "drop"]));
         this.prelude
@@ -38,9 +39,9 @@ impl UnitBuilder {
         this.prelude
             .insert("panic".into(), Item::of(&["std", "panic"]));
         this.prelude
-            .insert("print".into(), Item::of(&["std", "print"]));
+            .insert("print".into(), Item::of(&["std", "io", "print"]));
         this.prelude
-            .insert("println".into(), Item::of(&["std", "println"]));
+            .insert("println".into(), Item::of(&["std", "io", "println"]));
         this.prelude
             .insert("unit".into(), Item::of(&["std", "unit"]));
         this.prelude
@@ -505,7 +506,6 @@ impl UnitBuilder {
             CompileMetaKind::Function { .. } => (),
             CompileMetaKind::Closure { .. } => (),
             CompileMetaKind::AsyncBlock { .. } => (),
-            CompileMetaKind::Macro { .. } => (),
             CompileMetaKind::Const { .. } => (),
             CompileMetaKind::ConstFn { .. } => (),
             CompileMetaKind::Import { .. } => (),

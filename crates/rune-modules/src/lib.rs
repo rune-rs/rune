@@ -48,6 +48,7 @@
 //! * [core]
 //! * [fs]
 //! * [http]
+//! * [io]
 //! * [json]
 //! * [process]
 //! * [rand]
@@ -63,6 +64,7 @@
 //! * `fs` for the [fs module][fs]
 //! * `full` includes all modules.
 //! * `http` for the [http module][http]
+//! * `io` for the [io module][io]
 //! * `json` for the [json module][json]
 //! * `process` for the [process module][process]
 //! * `rand` for the [rand module][rand]
@@ -75,6 +77,7 @@
 //! [experiments]: https://docs.rs/rune-modules/0/rune_modules/experiments/
 //! [fs]: https://docs.rs/rune-modules/0/rune_modules/fs/
 //! [http]: https://docs.rs/rune-modules/0/rune_modules/http/
+//! [io]: https://docs.rs/rune-modules/0/rune_modules/io/
 //! [json]: https://docs.rs/rune-modules/0/rune_modules/json/
 //! [process]: https://docs.rs/rune-modules/0/rune_modules/process/
 //! [rand]: https://docs.rs/rune-modules/0/rune_modules/rand/
@@ -96,18 +99,23 @@ macro_rules! modules {
         /// Construct a a default context runestick context with all enabled
         /// modules provided based on the [default runestick
         /// context](runestick::Context::with_default_modules).
-        pub fn default_context() -> Result<runestick::Context, runestick::ContextError> {
+        pub fn with_config(stdio: bool) -> Result<runestick::Context, runestick::ContextError> {
             #[allow(unused_mut)]
-            let mut context = runestick::Context::with_default_modules()?;
+            let mut context = runestick::Context::with_config(stdio)?;
 
             $(
                 #[cfg(feature = $name)]
                 {
-                    context.install(&self::$ident::module()?)?;
+                    context.install(&self::$ident::module(stdio)?)?;
                 }
             )*
 
             Ok(context)
+        }
+
+        /// Construct a a default context runestick context with default config.
+        pub fn default_context() -> Result<runestick::Context, runestick::ContextError> {
+            with_config(true)
         }
     }
 }
@@ -123,4 +131,5 @@ modules! {
     toml, "toml",
     test, "test",
     core, "core",
+    io, "io",
 }

@@ -47,7 +47,6 @@ impl CompileMeta {
             CompileMetaKind::UnitVariant { .. } => None,
             CompileMetaKind::TupleVariant { .. } => None,
             CompileMetaKind::StructVariant { .. } => None,
-            CompileMetaKind::Macro { .. } => None,
             CompileMetaKind::Const { .. } => None,
             CompileMetaKind::ConstFn { .. } => None,
             CompileMetaKind::Import { .. } => None,
@@ -87,9 +86,6 @@ impl fmt::Display for CompileMeta {
             }
             CompileMetaKind::AsyncBlock { .. } => {
                 write!(fmt, "async block {}", self.item)?;
-            }
-            CompileMetaKind::Macro => {
-                write!(fmt, "macro {}", self.item)?;
             }
             CompileMetaKind::Const { .. } => {
                 write!(fmt, "const {}", self.item)?;
@@ -191,8 +187,6 @@ pub enum CompileMetaKind {
         /// Opaque identifier for the constant function.
         id: Id,
     },
-    /// A macro.
-    Macro,
     /// Purely an import.
     Import {
         /// The imported target.

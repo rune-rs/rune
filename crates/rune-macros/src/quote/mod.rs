@@ -16,6 +16,24 @@ impl ToTokens for p::Ident {
     }
 }
 
+impl ToTokens for TokenStream {
+    fn to_tokens(self, stream: &mut TokenStream, _: Span) {
+        stream.extend(self);
+    }
+}
+
+impl quote::ToTokens for inner::ToTokensFn {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        ToTokens::to_tokens(*self, tokens, Span::call_site())
+    }
+}
+
+impl<'a> quote::ToTokens for inner::Ident<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        ToTokens::to_tokens(*self, tokens, Span::call_site())
+    }
+}
+
 use self::builder::Builder;
 use self::inner::{
     Delimiter, Group, Ident, Kind, KindVariant, NewIdent, NewLit, Punct, RUNE_MACROS,
@@ -124,7 +142,9 @@ impl Quote {
                     self.encode_to_tokens(ident.span(), &mut output, kind);
                 }
                 TokenTree::Punct(punct) => {
-                    if punct.as_char() == '#' && self.try_parse_expansion(&punct, &mut output, it) {
+                    if punct.as_char() == '#'
+                        && self.try_parse_expansion(&punct, &mut output, it)?
+                    {
                         continue;
                     }
 
@@ -154,11 +174,13 @@ impl Quote {
         &self,
         punct: &p::Punct,
         output: &mut Builder,
-        it: &mut Peekable<impl Iterator<Item = TokenTree>>,
-    ) -> bool {
-        let next = match it.peek() {
+        it: &mut Peekable<impl Iterator<Item = TokenTree> + Clone>,
+    ) -> Result<bool, Error> {
+        let mut lh = it.clone();
+
+        let next = match lh.next() {
             Some(next) => next,
-            None => return false,
+            None => return Ok(false),
         };
 
         match next {
@@ -167,16 +189,43 @@ impl Quote {
             }
             // Token group parsing, currently disabled because it's not
             // particularly useful.
-            /*TokenTree::Group(group) if group.delimiter() == p::Delimiter::Parenthesis => {
-                let group = Builder::from(group.stream());
-                let group = Group::new(p::Delimiter::Parenthesis, group);
-                self.encode_to_tokens(punct.span(), output, group);
-            }*/
-            _ => return false,
+            TokenTree::Group(group) if group.delimiter() == p::Delimiter::Parenthesis => {
+                let group = group.stream();
+
+                // repetition: #(<expr>)<sep>*.
+                let sep = match (lh.next(), lh.next()) {
+                    (Some(sep), Some(TokenTree::Punct(p))) if p.as_char() == '*' => sep,
+                    _ => return Ok(false),
+                };
+
+                let to_tokens = inner::ToTokensFn;
+                let ctx = &self.ctx;
+                let stream = &self.stream;
+
+                let sep = &self.process(TokenStream::from(sep))?.into_stream();
+
+                output.push(quote::quote! {
+                    let mut it = IntoIterator::into_iter(#group).peekable();
+
+                    while let Some(value) = it.next() {
+                        #to_tokens(&value, #ctx, #stream);
+
+                        if it.peek().is_some() {
+                            #sep
+                        }
+                    }
+                });
+
+                it.next();
+                it.next();
+                it.next();
+                return Ok(true);
+            }
+            _ => return Ok(false),
         }
 
         it.next();
-        true
+        Ok(true)
     }
 
     fn encode_to_tokens(&self, span: Span, output: &mut Builder, tokens: impl ToTokens) {

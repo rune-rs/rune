@@ -30,6 +30,7 @@ pub enum IrValue {
 }
 
 impl IrValue {
+    /// Convert a constant value into an interpreter value.
     pub fn from_const(value: ConstValue) -> Self {
         match value {
             ConstValue::Unit => Self::Unit,
