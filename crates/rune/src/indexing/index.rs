@@ -47,7 +47,7 @@ pub(crate) struct Indexer<'a> {
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
     pub(crate) mod_item: Rc<QueryMod>,
-    /// Set if we are inside of an impl block.
+    /// Set if we are inside of an impl self.
     pub(crate) impl_item: Option<Rc<Item>>,
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
@@ -237,63 +237,63 @@ impl<'a> Indexer<'a> {
     }
 }
 
-pub(crate) trait Index<T> {
+pub(crate) trait Index {
     /// Walk the current type with the given item.
-    fn index(&mut self, item: &mut T) -> CompileResult<()>;
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()>;
 }
 
-impl Index<ast::File> for Indexer<'_> {
-    fn index(&mut self, file: &mut ast::File) -> CompileResult<()> {
-        if let Some(first) = file.attributes.first() {
+impl Index for ast::File {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        if let Some(first) = self.attributes.first() {
             return Err(CompileError::internal(
                 first,
                 "file attributes are not supported",
             ));
         }
 
-        self.preprocess_items(&mut file.items)?;
+        idx.preprocess_items(&mut self.items)?;
 
-        for (item, semi_colon) in &mut file.items {
+        for (item, semi_colon) in &mut self.items {
             if let Some(semi_colon) = semi_colon {
                 if !item.needs_semi_colon() {
-                    self.warnings
-                        .uneccessary_semi_colon(self.source_id, semi_colon.span());
+                    idx.warnings
+                        .uneccessary_semi_colon(idx.source_id, semi_colon.span());
                 }
             }
 
-            self.index(item)?;
+            item.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::ItemFn> for Indexer<'_> {
-    fn index(&mut self, decl_fn: &mut ast::ItemFn) -> CompileResult<()> {
-        let span = decl_fn.span();
-        log::trace!("ItemFn => {:?}", self.source.source(span));
+impl Index for ast::ItemFn {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ItemFn => {:?}", idx.source.source(span));
 
-        if let Some(first) = decl_fn.attributes.first() {
+        if let Some(first) = self.attributes.first() {
             return Err(CompileError::internal(
                 first,
                 "function attributes are not supported",
             ));
         }
 
-        let is_toplevel = self.items.is_empty();
-        let name = decl_fn.name.resolve(&self.storage, &*self.source)?;
-        let _guard = self.items.push_name(name.as_ref());
+        let is_toplevel = idx.items.is_empty();
+        let name = self.name.resolve(&idx.storage, &*idx.source)?;
+        let _guard = idx.items.push_name(name.as_ref());
 
-        let visibility = Visibility::from_ast(&decl_fn.visibility)?;
-        let item = self.query.insert_new_item(
-            self.source_id,
+        let visibility = Visibility::from_ast(&self.visibility)?;
+        let item = idx.query.insert_new_item(
+            idx.source_id,
             span,
-            &*self.items.item(),
-            &self.mod_item,
+            &*idx.items.item(),
+            &idx.mod_item,
             visibility,
         )?;
 
-        let kind = match (decl_fn.const_token, decl_fn.async_token) {
+        let kind = match (self.const_token, self.async_token) {
             (Some(const_token), Some(async_token)) => {
                 return Err(CompileError::new(
                     const_token.span().join(async_token.span()),
@@ -305,36 +305,36 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             _ => IndexFnKind::None,
         };
 
-        if let (Some(const_token), Some(async_token)) = (decl_fn.const_token, decl_fn.async_token) {
+        if let (Some(const_token), Some(async_token)) = (self.const_token, self.async_token) {
             return Err(CompileError::new(
                 const_token.span().join(async_token.span()),
                 CompileErrorKind::FnConstAsyncConflict,
             ));
         }
 
-        let guard = self.scopes.push_function(kind);
+        let guard = idx.scopes.push_function(kind);
 
-        for (arg, _) in &decl_fn.args {
+        for (arg, _) in &self.args {
             match arg {
                 ast::FnArg::SelfValue(s) => {
                     let span = s.span();
-                    self.scopes.declare("self", span)?;
+                    idx.scopes.declare("self", span)?;
                 }
                 ast::FnArg::Ident(ident) => {
                     let span = ident.span();
-                    let ident = ident.resolve(&self.storage, &*self.source)?;
-                    self.scopes.declare(ident.as_ref(), span)?;
+                    let ident = ident.resolve(&idx.storage, &*idx.source)?;
+                    idx.scopes.declare(ident.as_ref(), span)?;
                 }
                 _ => (),
             }
         }
 
-        self.index(&mut decl_fn.body)?;
+        self.body.index(idx)?;
 
         let f = guard.into_function(span)?;
-        decl_fn.id = Some(item.id);
+        self.id = Some(item.id);
 
-        let call = match Self::call(f.generator, f.kind) {
+        let call = match Indexer::call(f.generator, f.kind) {
             Some(call) => call,
             // const function.
             None => {
@@ -345,20 +345,20 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                     ));
                 }
 
-                self.query
-                    .index_const_fn(&item, &self.source, Box::new(decl_fn.clone()))?;
+                idx.query
+                    .index_const_fn(&item, &idx.source, Box::new(self.clone()))?;
 
                 return Ok(());
             }
         };
 
         let fun = Function {
-            ast: Box::new(decl_fn.clone()),
+            ast: Box::new(self.clone()),
             call,
         };
 
-        if decl_fn.is_instance() {
-            let impl_item = self.impl_item.as_ref().ok_or_else(|| {
+        if self.is_instance() {
+            let impl_item = idx.impl_item.as_ref().ok_or_else(|| {
                 CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
             })?;
 
@@ -372,11 +372,11 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             // NB: all instance functions must be pre-emptively built,
             // because statically we don't know if they will be used or
             // not.
-            self.query.push_build_entry(BuildEntry {
-                location: Location::new(self.source_id, f.ast.span()),
+            idx.query.push_build_entry(BuildEntry {
+                location: Location::new(idx.source_id, f.ast.span()),
                 item: item.clone(),
                 build: Build::InstanceFunction(f),
-                source: self.source.clone(),
+                source: idx.source.clone(),
                 used: Used::Used,
             });
 
@@ -387,19 +387,19 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 },
                 source: Some(CompileSource {
                     span,
-                    path: self.source.path().map(ToOwned::to_owned),
-                    source_id: self.source_id,
+                    path: idx.source.path().map(ToOwned::to_owned),
+                    source_id: idx.source_id,
                 }),
             };
 
-            self.query.insert_meta(span, meta)?;
+            idx.query.insert_meta(span, meta)?;
         } else if is_toplevel {
             // NB: immediately compile all toplevel functions.
-            self.query.push_build_entry(BuildEntry {
-                location: Location::new(self.source_id, fun.ast.item_span()),
+            idx.query.push_build_entry(BuildEntry {
+                location: Location::new(idx.source_id, fun.ast.item_span()),
                 item: item.clone(),
                 build: Build::Function(fun),
-                source: self.source.clone(),
+                source: idx.source.clone(),
                 used: Used::Used,
             });
 
@@ -410,16 +410,16 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 },
                 source: Some(CompileSource {
                     span,
-                    path: self.source.path().map(ToOwned::to_owned),
-                    source_id: self.source_id,
+                    path: idx.source.path().map(ToOwned::to_owned),
+                    source_id: idx.source_id,
                 }),
             };
 
-            self.query.insert_meta(span, meta)?;
+            idx.query.insert_meta(span, meta)?;
         } else {
-            self.query.index(IndexedEntry {
+            idx.query.index(IndexedEntry {
                 query_item: item,
-                source: self.source.clone(),
+                source: idx.source.clone(),
                 indexed: Indexed::Function(fun),
             })?;
         }
@@ -428,79 +428,74 @@ impl Index<ast::ItemFn> for Indexer<'_> {
     }
 }
 
-impl Index<ast::ExprBlock> for Indexer<'_> {
-    fn index(&mut self, expr_block: &mut ast::ExprBlock) -> CompileResult<()> {
-        let span = expr_block.span();
-        log::trace!("ExprBlock => {:?}", self.source.source(span));
+impl Index for ast::ExprBlock {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprBlock => {:?}", idx.source.source(span));
 
-        if let Some(span) = expr_block.attributes.option_span() {
+        if let Some(span) = self.attributes.option_span() {
             return Err(CompileError::internal(
                 span,
                 "block attributes are not supported yet",
             ));
         }
 
-        if expr_block.async_token.is_none() {
-            return self.index(&mut expr_block.block);
+        if self.async_token.is_none() {
+            return self.block.index(idx);
         }
 
-        let _guard = self.items.push_async_block();
-        let guard = self.scopes.push_closure(IndexFnKind::Async);
+        let _guard = idx.items.push_async_block();
+        let guard = idx.scopes.push_closure(IndexFnKind::Async);
 
-        let item = self.query.insert_new_item(
-            self.source_id,
+        let item = idx.query.insert_new_item(
+            idx.source_id,
             span,
-            &*self.items.item(),
-            &self.mod_item,
+            &*idx.items.item(),
+            &idx.mod_item,
             Visibility::Inherited,
         )?;
-        expr_block.block.id = Some(item.id);
+        self.block.id = Some(item.id);
 
-        self.index(&mut expr_block.block)?;
+        self.block.index(idx)?;
 
         let c = guard.into_closure(span)?;
 
         let captures = Arc::new(c.captures);
 
-        let call = match Self::call(c.generator, c.kind) {
+        let call = match Indexer::call(c.generator, c.kind) {
             Some(call) => call,
             None => {
                 return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
             }
         };
 
-        self.query.index_async_block(
-            &item,
-            &self.source,
-            expr_block.block.clone(),
-            captures,
-            call,
-        )?;
+        idx.query
+            .index_async_block(&item, &idx.source, self.block.clone(), captures, call)?;
 
         Ok(())
     }
 }
 
-impl Index<ast::Block> for Indexer<'_> {
-    fn index(&mut self, block: &mut ast::Block) -> CompileResult<()> {
-        let span = block.span();
-        log::trace!("Block => {:?}", self.source.source(span));
+impl Index for ast::Block {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Block => {:?}", idx.source.source(span));
 
-        let _guard = self.items.push_block();
-        let _guard = self.scopes.push_scope();
+        let _guard = idx.items.push_block();
+        let _guard = idx.scopes.push_scope();
 
-        self.query.insert_new_item(
-            self.source_id,
+        idx.query.insert_new_item(
+            idx.source_id,
             span,
-            &*self.items.item(),
-            &self.mod_item,
+            &*idx.items.item(),
+            &idx.mod_item,
             Visibility::Inherited,
         )?;
 
-        self.preprocess_stmts(&mut block.statements)?;
+        idx.preprocess_stmts(&mut self.statements)?;
         let mut must_be_last = None;
 
-        for stmt in &mut block.statements {
+        for stmt in &mut self.statements {
             if let Some(span) = must_be_last {
                 return Err(CompileError::new(
                     span,
@@ -512,32 +507,32 @@ impl Index<ast::Block> for Indexer<'_> {
 
             match stmt {
                 ast::Stmt::Local(local) => {
-                    self.index(&mut **local)?;
+                    local.index(idx)?;
                 }
                 ast::Stmt::Item(item, semi) => {
                     if let Some(semi) = semi {
                         if !item.needs_semi_colon() {
-                            self.warnings
-                                .uneccessary_semi_colon(self.source_id, semi.span());
+                            idx.warnings
+                                .uneccessary_semi_colon(idx.source_id, semi.span());
                         }
                     }
 
-                    self.index(item)?;
+                    item.index(idx)?;
                 }
                 ast::Stmt::Expr(expr) => {
                     if expr.needs_semi() {
                         must_be_last = Some(expr.span());
                     }
 
-                    self.index(expr)?;
+                    expr.index(idx)?;
                 }
                 ast::Stmt::Semi(expr, semi) => {
                     if !expr.needs_semi() {
-                        self.warnings
-                            .uneccessary_semi_colon(self.source_id, semi.span());
+                        idx.warnings
+                            .uneccessary_semi_colon(idx.source_id, semi.span());
                     }
 
-                    self.index(expr)?;
+                    expr.index(idx)?;
                 }
             }
         }
@@ -546,67 +541,67 @@ impl Index<ast::Block> for Indexer<'_> {
     }
 }
 
-impl Index<ast::Local> for Indexer<'_> {
-    fn index(&mut self, local: &mut ast::Local) -> CompileResult<()> {
-        let span = local.span();
-        log::trace!("Local => {:?}", self.source.source(span));
+impl Index for ast::Local {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Local => {:?}", idx.source.source(span));
 
-        if let Some(span) = local.attributes.option_span() {
+        if let Some(span) = self.attributes.option_span() {
             return Err(CompileError::internal(span, "attributes are not supported"));
         }
 
-        self.index(&mut local.pat)?;
-        self.index(&mut local.expr)?;
+        self.pat.index(idx)?;
+        self.expr.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprLet> for Indexer<'_> {
-    fn index(&mut self, expr_let: &mut ast::ExprLet) -> CompileResult<()> {
-        let span = expr_let.span();
-        log::trace!("ExprLet => {:?}", self.source.source(span));
+impl Index for ast::ExprLet {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprLet => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_let.pat)?;
-        self.index(&mut expr_let.expr)?;
+        self.pat.index(idx)?;
+        self.expr.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::Ident> for Indexer<'_> {
-    fn index(&mut self, ident: &mut ast::Ident) -> CompileResult<()> {
-        let span = ident.span();
-        log::trace!("Ident => {:?}", self.source.source(span));
+impl Index for ast::Ident {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Ident => {:?}", idx.source.source(span));
 
-        let ident = ident.resolve(&self.storage, &*self.source)?;
-        self.scopes.declare(ident.as_ref(), span)?;
+        let ident = self.resolve(&idx.storage, &*idx.source)?;
+        idx.scopes.declare(ident.as_ref(), span)?;
         Ok(())
     }
 }
 
-impl Index<ast::Pat> for Indexer<'_> {
-    fn index(&mut self, pat: &mut ast::Pat) -> CompileResult<()> {
-        let span = pat.span();
-        log::trace!("Pat => {:?}", self.source.source(span));
+impl Index for ast::Pat {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Pat => {:?}", idx.source.source(span));
 
-        match pat {
+        match self {
             ast::Pat::PatPath(pat_path) => {
-                self.index(&mut pat_path.path)?;
+                pat_path.path.index(idx)?;
 
                 if let Some(ident) = pat_path.path.try_as_ident_mut() {
-                    self.index(ident)?;
+                    ident.index(idx)?;
                 }
             }
             ast::Pat::PatObject(pat_object) => {
-                self.index(pat_object)?;
+                pat_object.index(idx)?;
             }
             ast::Pat::PatVec(pat_vec) => {
-                self.index(pat_vec)?;
+                pat_vec.index(idx)?;
             }
             ast::Pat::PatTuple(pat_tuple) => {
-                self.index(pat_tuple)?;
+                pat_tuple.index(idx)?;
             }
             ast::Pat::PatBinding(pat_binding) => {
-                self.index(pat_binding)?;
+                pat_binding.index(idx)?;
             }
             ast::Pat::PatIgnore(..) => (),
             ast::Pat::PatLit(..) => (),
@@ -617,154 +612,154 @@ impl Index<ast::Pat> for Indexer<'_> {
     }
 }
 
-impl Index<ast::PatTuple> for Indexer<'_> {
-    fn index(&mut self, pat_tuple: &mut ast::PatTuple) -> CompileResult<()> {
-        let span = pat_tuple.span();
-        log::trace!("PatTuple => {:?}", self.source.source(span));
+impl Index for ast::PatTuple {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("PatTuple => {:?}", idx.source.source(span));
 
-        if let Some(path) = &mut pat_tuple.path {
-            self.index(path)?;
+        if let Some(path) = &mut self.path {
+            path.index(idx)?;
         }
 
-        for (pat, _) in &mut pat_tuple.items {
-            self.index(pat)?;
+        for (pat, _) in &mut self.items {
+            pat.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::PatBinding> for Indexer<'_> {
-    fn index(&mut self, pat_binding: &mut ast::PatBinding) -> CompileResult<()> {
-        let span = pat_binding.span();
-        log::trace!("PatBinding => {:?}", self.source.source(span));
-        self.index(&mut *pat_binding.pat)?;
+impl Index for ast::PatBinding {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("PatBinding => {:?}", idx.source.source(span));
+        self.pat.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::PatObject> for Indexer<'_> {
-    fn index(&mut self, pat_object: &mut ast::PatObject) -> CompileResult<()> {
-        let span = pat_object.span();
-        log::trace!("PatObject => {:?}", self.source.source(span));
+impl Index for ast::PatObject {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("PatObject => {:?}", idx.source.source(span));
 
-        match &mut pat_object.ident {
+        match &mut self.ident {
             ast::LitObjectIdent::Anonymous(..) => (),
             ast::LitObjectIdent::Named(path) => {
-                self.index(path)?;
+                path.index(idx)?;
             }
         }
 
-        for (pat, _) in &mut pat_object.items {
-            self.index(pat)?;
+        for (pat, _) in &mut self.items {
+            pat.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::PatVec> for Indexer<'_> {
-    fn index(&mut self, pat_vec: &mut ast::PatVec) -> CompileResult<()> {
-        let span = pat_vec.span();
-        log::trace!("PatVec => {:?}", self.source.source(span));
+impl Index for ast::PatVec {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("PatVec => {:?}", idx.source.source(span));
 
-        for (pat, _) in &mut pat_vec.items {
-            self.index(pat)?;
+        for (pat, _) in &mut self.items {
+            pat.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::Expr> for Indexer<'_> {
-    fn index(&mut self, expr: &mut ast::Expr) -> CompileResult<()> {
-        let span = expr.span();
-        log::trace!("Expr => {:?}", self.source.source(span));
+impl Index for ast::Expr {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Expr => {:?}", idx.source.source(span));
 
-        if let Some(span) = expr.attributes().option_span() {
+        if let Some(span) = self.attributes().option_span() {
             return Err(CompileError::internal(span, "attributes are not supported"));
         }
 
-        match expr {
+        match self {
             ast::Expr::Path(path) => {
-                self.index(&mut **path)?;
+                path.index(idx)?;
             }
             ast::Expr::ExprLet(expr_let) => {
-                self.index(&mut **expr_let)?;
+                expr_let.index(idx)?;
             }
             ast::Expr::ExprBlock(block) => {
-                self.index(&mut **block)?;
+                block.index(idx)?;
             }
             ast::Expr::ExprGroup(expr) => {
-                self.index(&mut expr.expr)?;
+                expr.expr.index(idx)?;
             }
             ast::Expr::ExprIf(expr_if) => {
-                self.index(&mut **expr_if)?;
+                expr_if.index(idx)?;
             }
             ast::Expr::ExprAssign(expr_assign) => {
-                self.index(&mut **expr_assign)?;
+                expr_assign.index(idx)?;
             }
             ast::Expr::ExprBinary(expr_binary) => {
-                self.index(&mut **expr_binary)?;
+                expr_binary.index(idx)?;
             }
             ast::Expr::ExprMatch(expr_if) => {
-                self.index(&mut **expr_if)?;
+                expr_if.index(idx)?;
             }
             ast::Expr::Item(decl) => {
-                self.index(&mut **decl)?;
+                decl.index(idx)?;
             }
             ast::Expr::ExprClosure(expr_closure) => {
-                self.index(&mut **expr_closure)?;
+                expr_closure.index(idx)?;
             }
             ast::Expr::ExprWhile(expr_while) => {
-                self.index(&mut **expr_while)?;
+                expr_while.index(idx)?;
             }
             ast::Expr::ExprLoop(expr_loop) => {
-                self.index(&mut **expr_loop)?;
+                expr_loop.index(idx)?;
             }
             ast::Expr::ExprFor(expr_for) => {
-                self.index(&mut **expr_for)?;
+                expr_for.index(idx)?;
             }
             ast::Expr::ExprFieldAccess(expr_field_access) => {
-                self.index(&mut **expr_field_access)?;
+                expr_field_access.index(idx)?;
             }
             ast::Expr::ExprUnary(expr_unary) => {
-                self.index(&mut **expr_unary)?;
+                expr_unary.index(idx)?;
             }
             ast::Expr::ExprIndex(expr_index_get) => {
-                self.index(&mut **expr_index_get)?;
+                expr_index_get.index(idx)?;
             }
             ast::Expr::ExprBreak(expr_break) => {
-                self.index(&mut **expr_break)?;
+                expr_break.index(idx)?;
             }
             ast::Expr::ExprYield(expr_yield) => {
-                self.index(&mut **expr_yield)?;
+                expr_yield.index(idx)?;
             }
             ast::Expr::ExprReturn(expr_return) => {
-                self.index(&mut **expr_return)?;
+                expr_return.index(idx)?;
             }
             ast::Expr::ExprAwait(expr_await) => {
-                self.index(&mut **expr_await)?;
+                expr_await.index(idx)?;
             }
             ast::Expr::ExprTry(expr_try) => {
-                self.index(&mut **expr_try)?;
+                expr_try.index(idx)?;
             }
             ast::Expr::ExprSelect(expr_select) => {
-                self.index(&mut **expr_select)?;
+                expr_select.index(idx)?;
             }
             // ignored because they have no effect on indexing.
             ast::Expr::ExprCall(expr_call) => {
-                self.index(&mut **expr_call)?;
+                expr_call.index(idx)?;
             }
             ast::Expr::ExprLit(expr_lit) => {
-                self.index(&mut **expr_lit)?;
+                expr_lit.index(idx)?;
             }
             // NB: macros have nothing to index, they don't export language
             // items.
             ast::Expr::MacroCall(macro_call) => {
-                let out = self.expand_macro::<ast::Expr>(macro_call)?;
-                *expr = out;
-                self.index(expr)?;
+                let out = idx.expand_macro::<ast::Expr>(macro_call)?;
+                *self = out;
+                self.index(idx)?;
             }
         }
 
@@ -772,81 +767,81 @@ impl Index<ast::Expr> for Indexer<'_> {
     }
 }
 
-impl Index<ast::ExprIf> for Indexer<'_> {
-    fn index(&mut self, expr_if: &mut ast::ExprIf) -> CompileResult<()> {
-        let span = expr_if.span();
-        log::trace!("ExprIf => {:?}", self.source.source(span));
+impl Index for ast::ExprIf {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprIf => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_if.condition)?;
-        self.index(&mut *expr_if.block)?;
+        self.condition.index(idx)?;
+        self.block.index(idx)?;
 
-        for expr_else_if in &mut expr_if.expr_else_ifs {
-            self.index(&mut expr_else_if.condition)?;
-            self.index(&mut *expr_else_if.block)?;
+        for expr_else_if in &mut self.expr_else_ifs {
+            expr_else_if.condition.index(idx)?;
+            expr_else_if.block.index(idx)?;
         }
 
-        if let Some(expr_else) = &mut expr_if.expr_else {
-            self.index(&mut *expr_else.block)?;
+        if let Some(expr_else) = &mut self.expr_else {
+            expr_else.block.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::ExprAssign> for Indexer<'_> {
-    fn index(&mut self, expr_binary: &mut ast::ExprAssign) -> CompileResult<()> {
-        let span = expr_binary.span();
-        log::trace!("ExprAssign => {:?}", self.source.source(span));
+impl Index for ast::ExprAssign {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprAssign => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_binary.lhs)?;
-        self.index(&mut expr_binary.rhs)?;
+        self.lhs.index(idx)?;
+        self.rhs.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprBinary> for Indexer<'_> {
-    fn index(&mut self, expr_binary: &mut ast::ExprBinary) -> CompileResult<()> {
-        let span = expr_binary.span();
-        log::trace!("ExprBinary => {:?}", self.source.source(span));
+impl Index for ast::ExprBinary {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprBinary => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_binary.lhs)?;
-        self.index(&mut expr_binary.rhs)?;
+        self.lhs.index(idx)?;
+        self.rhs.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprMatch> for Indexer<'_> {
-    fn index(&mut self, expr_match: &mut ast::ExprMatch) -> CompileResult<()> {
-        let span = expr_match.span();
-        log::trace!("ExprMatch => {:?}", self.source.source(span));
+impl Index for ast::ExprMatch {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprMatch => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_match.expr)?;
+        self.expr.index(idx)?;
 
-        for (branch, _) in &mut expr_match.branches {
+        for (branch, _) in &mut self.branches {
             if let Some((_, condition)) = &mut branch.condition {
-                self.index(condition)?;
+                condition.index(idx)?;
             }
 
-            let _guard = self.scopes.push_scope();
-            self.index(&mut branch.pat)?;
-            self.index(&mut branch.body)?;
+            let _guard = idx.scopes.push_scope();
+            branch.pat.index(idx)?;
+            branch.body.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::Condition> for Indexer<'_> {
-    fn index(&mut self, condition: &mut ast::Condition) -> CompileResult<()> {
-        let span = condition.span();
-        log::trace!("Condition => {:?}", self.source.source(span));
+impl Index for ast::Condition {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Condition => {:?}", idx.source.source(span));
 
-        match condition {
+        match self {
             ast::Condition::Expr(expr) => {
-                self.index(expr)?;
+                expr.index(idx)?;
             }
             ast::Condition::ExprLet(expr_let) => {
-                self.index(&mut **expr_let)?;
+                expr_let.index(idx)?;
             }
         }
 
@@ -854,207 +849,246 @@ impl Index<ast::Condition> for Indexer<'_> {
     }
 }
 
-impl Index<ast::Item> for Indexer<'_> {
-    fn index(&mut self, item: &mut ast::Item) -> CompileResult<()> {
-        let span = item.span();
-        log::trace!("Item => {:?}", self.source.source(span));
+impl Index for ast::ItemEnum {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
 
-        match item {
-            ast::Item::ItemEnum(item_enum) => {
-                if let Some(first) = item_enum.attributes.first() {
+        if let Some(first) = self.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "enum attributes are not supported",
+            ));
+        }
+
+        let name = self.name.resolve(&idx.storage, &*idx.source)?;
+        let _guard = idx.items.push_name(name.as_ref());
+
+        let visibility = Visibility::from_ast(&self.visibility)?;
+        let enum_item = idx.query.insert_new_item(
+            idx.source_id,
+            span,
+            &*idx.items.item(),
+            &idx.mod_item,
+            visibility,
+        )?;
+
+        idx.query.index_enum(&enum_item, &idx.source)?;
+
+        for (variant, _) in &mut self.variants {
+            if let Some(first) = variant.attributes.first() {
+                return Err(CompileError::internal(
+                    first,
+                    "variant attributes are not supported yet",
+                ));
+            }
+
+            for (field, _) in variant.body.fields() {
+                if let Some(first) = field.attributes.first() {
                     return Err(CompileError::internal(
                         first,
-                        "enum attributes are not supported",
+                        "field attributes are not supported",
                     ));
                 }
+            }
 
-                let name = item_enum.name.resolve(&self.storage, &*self.source)?;
-                let _guard = self.items.push_name(name.as_ref());
+            let span = variant.name.span();
+            let name = variant.name.resolve(&idx.storage, &*idx.source)?;
+            let _guard = idx.items.push_name(name.as_ref());
 
-                let visibility = Visibility::from_ast(&item_enum.visibility)?;
-                let enum_item = self.query.insert_new_item(
-                    self.source_id,
-                    span,
-                    &*self.items.item(),
-                    &self.mod_item,
+            let item = idx.query.insert_new_item(
+                idx.source_id,
+                span,
+                &*idx.items.item(),
+                &idx.mod_item,
+                visibility,
+            )?;
+            variant.id = Some(item.id);
+
+            idx.query
+                .index_variant(&item, &idx.source, enum_item.id, variant.clone())?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Index for Box<ast::ItemStruct> {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+
+        if let Some(first) = self.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "struct attributes are not supported",
+            ));
+        }
+
+        for (field, _) in self.body.fields() {
+            if let Some(first) = field.attributes.first() {
+                return Err(CompileError::internal(
+                    first,
+                    "field attributes are not supported",
+                ));
+            } else if !field.visibility.is_inherited() {
+                return Err(CompileError::internal(
+                    &field,
+                    "field visibility levels are not supported",
+                ));
+            }
+        }
+
+        let ident = self.ident.resolve(&idx.storage, &*idx.source)?;
+        let _guard = idx.items.push_name(ident.as_ref());
+
+        let visibility = Visibility::from_ast(&self.visibility)?;
+        let item = idx.query.insert_new_item(
+            idx.source_id,
+            span,
+            &*idx.items.item(),
+            &idx.mod_item,
+            visibility,
+        )?;
+        self.id = Some(item.id);
+
+        idx.query.index_struct(&item, &idx.source, self.clone())?;
+        Ok(())
+    }
+}
+
+impl Index for ast::ItemImpl {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        if let Some(first) = self.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "impl attributes are not supported",
+            ));
+        }
+
+        let mut guards = Vec::new();
+
+        if let Some(global) = &self.path.global {
+            return Err(CompileError::internal(
+                global,
+                "global scopes are not supported yet",
+            ));
+        }
+
+        for path_segment in self.path.as_components() {
+            let ident_segment = path_segment
+                .try_as_ident()
+                .ok_or_else(|| CompileError::internal_unsupported_path(path_segment))?;
+            let ident = ident_segment.resolve(&idx.storage, &*idx.source)?;
+            guards.push(idx.items.push_name(ident.as_ref()));
+        }
+
+        let new = Rc::new(idx.items.item().clone());
+        let old = std::mem::replace(&mut idx.impl_item, Some(new));
+
+        for item_fn in &mut self.functions {
+            item_fn.index(idx)?;
+        }
+
+        idx.impl_item = old;
+        Ok(())
+    }
+}
+
+impl Index for ast::ItemMod {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        if let Some(first) = self.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "module attributes are not supported",
+            ));
+        }
+
+        let name_span = self.name_span();
+
+        match &mut self.body {
+            ast::ItemModBody::EmptyBody(..) => {
+                idx.handle_file_mod(self)?;
+            }
+            ast::ItemModBody::InlineBody(body) => {
+                let name = self.name.resolve(&idx.storage, &*idx.source)?;
+                let _guard = idx.items.push_name(name.as_ref());
+
+                let visibility = Visibility::from_ast(&self.visibility)?;
+                let (id, mod_item) = idx.query.insert_mod(
+                    idx.source_id,
+                    name_span,
+                    &*idx.items.item(),
                     visibility,
                 )?;
+                self.id = Some(id);
 
-                self.query.index_enum(&enum_item, &self.source)?;
+                let replaced = std::mem::replace(&mut idx.mod_item, mod_item);
+                body.file.index(idx)?;
+                idx.mod_item = replaced;
+            }
+        }
 
-                for (variant, _) in &mut item_enum.variants {
-                    if let Some(first) = variant.attributes.first() {
-                        return Err(CompileError::internal(
-                            first,
-                            "variant attributes are not supported yet",
-                        ));
-                    }
+        Ok(())
+    }
+}
 
-                    for (field, _) in variant.body.fields() {
-                        if let Some(first) = field.attributes.first() {
-                            return Err(CompileError::internal(
-                                first,
-                                "field attributes are not supported",
-                            ));
-                        }
-                    }
+impl Index for Box<ast::ItemConst> {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        if let Some(first) = self.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "attributes on constants are not supported",
+            ));
+        }
 
-                    let span = variant.name.span();
-                    let name = variant.name.resolve(&self.storage, &*self.source)?;
-                    let _guard = self.items.push_name(name.as_ref());
+        let span = self.span();
+        let name = self.name.resolve(&idx.storage, &*idx.source)?;
+        let _guard = idx.items.push_name(name.as_ref());
 
-                    let item = self.query.insert_new_item(
-                        self.source_id,
-                        span,
-                        &*self.items.item(),
-                        &self.mod_item,
-                        visibility,
-                    )?;
-                    variant.id = Some(item.id);
+        let item = idx.query.insert_new_item(
+            idx.source_id,
+            span,
+            &*idx.items.item(),
+            &idx.mod_item,
+            Visibility::from_ast(&self.visibility)?,
+        )?;
 
-                    self.query
-                        .index_variant(&item, &self.source, enum_item.id, variant.clone())?;
-                }
+        self.id = Some(item.id);
+
+        self.expr.index(idx)?;
+
+        idx.query.index_const(&item, &idx.source, self.clone())?;
+        Ok(())
+    }
+}
+
+impl Index for ast::Item {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Item => {:?}", idx.source.source(span));
+
+        match self {
+            ast::Item::ItemEnum(item_enum) => {
+                item_enum.index(idx)?;
             }
             ast::Item::ItemStruct(item_struct) => {
-                if let Some(first) = item_struct.attributes.first() {
-                    return Err(CompileError::internal(
-                        first,
-                        "struct attributes are not supported",
-                    ));
-                }
-
-                for (field, _) in item_struct.body.fields() {
-                    if let Some(first) = field.attributes.first() {
-                        return Err(CompileError::internal(
-                            first,
-                            "field attributes are not supported",
-                        ));
-                    } else if !field.visibility.is_inherited() {
-                        return Err(CompileError::internal(
-                            &field,
-                            "field visibility levels are not supported",
-                        ));
-                    }
-                }
-
-                let ident = item_struct.ident.resolve(&self.storage, &*self.source)?;
-                let _guard = self.items.push_name(ident.as_ref());
-
-                let visibility = Visibility::from_ast(&item_struct.visibility)?;
-                let item = self.query.insert_new_item(
-                    self.source_id,
-                    span,
-                    &*self.items.item(),
-                    &self.mod_item,
-                    visibility,
-                )?;
-                item_struct.id = Some(item.id);
-
-                self.query
-                    .index_struct(&item, &self.source, item_struct.clone())?;
+                item_struct.index(idx)?;
             }
             ast::Item::ItemFn(item_fn) => {
-                self.index(&mut **item_fn)?;
+                item_fn.index(idx)?;
             }
             ast::Item::ItemImpl(item_impl) => {
-                if let Some(first) = item_impl.attributes.first() {
-                    return Err(CompileError::internal(
-                        first,
-                        "impl attributes are not supported",
-                    ));
-                }
-
-                let mut guards = Vec::new();
-
-                if let Some(global) = &item_impl.path.global {
-                    return Err(CompileError::internal(
-                        global,
-                        "global scopes are not supported yet",
-                    ));
-                }
-
-                for path_segment in item_impl.path.as_components() {
-                    let ident_segment = path_segment
-                        .try_as_ident()
-                        .ok_or_else(|| CompileError::internal_unsupported_path(path_segment))?;
-                    let ident = ident_segment.resolve(&self.storage, &*self.source)?;
-                    guards.push(self.items.push_name(ident.as_ref()));
-                }
-
-                let new = Rc::new(self.items.item().clone());
-                let old = std::mem::replace(&mut self.impl_item, Some(new));
-
-                for item_fn in &mut item_impl.functions {
-                    self.index(item_fn)?;
-                }
-
-                self.impl_item = old;
+                item_impl.index(idx)?;
             }
             ast::Item::ItemMod(item_mod) => {
-                if let Some(first) = item_mod.attributes.first() {
-                    return Err(CompileError::internal(
-                        first,
-                        "module attributes are not supported",
-                    ));
-                }
-
-                let name_span = item_mod.name_span();
-
-                match &mut item_mod.body {
-                    ast::ItemModBody::EmptyBody(..) => {
-                        self.handle_file_mod(item_mod)?;
-                    }
-                    ast::ItemModBody::InlineBody(body) => {
-                        let name = item_mod.name.resolve(&self.storage, &*self.source)?;
-                        let _guard = self.items.push_name(name.as_ref());
-
-                        let visibility = Visibility::from_ast(&item_mod.visibility)?;
-                        let (id, mod_item) = self.query.insert_mod(
-                            self.source_id,
-                            name_span,
-                            &*self.items.item(),
-                            visibility,
-                        )?;
-                        item_mod.id = Some(id);
-
-                        let replaced = std::mem::replace(&mut self.mod_item, mod_item);
-                        self.index(&mut *body.file)?;
-                        self.mod_item = replaced;
-                    }
-                }
+                item_mod.index(idx)?;
             }
             ast::Item::ItemConst(item_const) => {
-                if let Some(first) = item_const.attributes.first() {
-                    return Err(CompileError::internal(
-                        first,
-                        "attributes on constants are not supported",
-                    ));
-                }
-
-                let span = item_const.span();
-                let name = item_const.name.resolve(&self.storage, &*self.source)?;
-                let _guard = self.items.push_name(name.as_ref());
-
-                let item = self.query.insert_new_item(
-                    self.source_id,
-                    span,
-                    &*self.items.item(),
-                    &self.mod_item,
-                    Visibility::from_ast(&item_const.visibility)?,
-                )?;
-
-                item_const.id = Some(item.id);
-
-                self.index(&mut **item_const)?;
-
-                self.query
-                    .index_const(&item, &self.source, item_const.clone())?;
+                item_const.index(idx)?;
             }
             ast::Item::MacroCall(macro_call) => {
-                let out = self.expand_macro::<ast::Item>(macro_call)?;
-                *item = out;
-                self.index(item)?;
+                let out = idx.expand_macro::<ast::Item>(macro_call)?;
+                *self = out;
+                self.index(idx)?;
             }
             // NB: imports are ignored during indexing.
             ast::Item::ItemUse(..) => {}
@@ -1064,30 +1098,23 @@ impl Index<ast::Item> for Indexer<'_> {
     }
 }
 
-impl Index<ast::ItemConst> for Indexer<'_> {
-    fn index(&mut self, item_const: &mut ast::ItemConst) -> CompileResult<()> {
-        self.index(&mut item_const.expr)?;
-        Ok(())
-    }
-}
+impl Index for ast::Path {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("Path => {:?}", idx.source.source(span));
 
-impl Index<ast::Path> for Indexer<'_> {
-    fn index(&mut self, path: &mut ast::Path) -> CompileResult<()> {
-        let span = path.span();
-        log::trace!("Path => {:?}", self.source.source(span));
+        let id = idx
+            .query
+            .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
+        self.id = Some(id);
 
-        let id =
-            self.query
-                .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
-        path.id = Some(id);
-
-        match path.as_kind() {
+        match self.as_kind() {
             Some(ast::PathKind::SelfValue) => {
-                self.scopes.mark_use("self");
+                idx.scopes.mark_use("self");
             }
             Some(ast::PathKind::Ident(ident)) => {
-                let ident = ident.resolve(&self.storage, &*self.source)?;
-                self.scopes.mark_use(ident.as_ref());
+                let ident = ident.resolve(&idx.storage, &*idx.source)?;
+                idx.scopes.mark_use(ident.as_ref());
             }
             None => (),
         }
@@ -1096,147 +1123,142 @@ impl Index<ast::Path> for Indexer<'_> {
     }
 }
 
-impl Index<ast::ExprWhile> for Indexer<'_> {
-    fn index(&mut self, expr_while: &mut ast::ExprWhile) -> CompileResult<()> {
-        let span = expr_while.span();
-        log::trace!("ExprWhile => {:?}", self.source.source(span));
+impl Index for ast::ExprWhile {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprWhile => {:?}", idx.source.source(span));
 
-        let _guard = self.scopes.push_scope();
-        self.index(&mut expr_while.condition)?;
-        self.index(&mut *expr_while.body)?;
+        let _guard = idx.scopes.push_scope();
+        self.condition.index(idx)?;
+        self.body.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprLoop> for Indexer<'_> {
-    fn index(&mut self, expr_loop: &mut ast::ExprLoop) -> CompileResult<()> {
-        let span = expr_loop.span();
-        log::trace!("ExprLoop => {:?}", self.source.source(span));
+impl Index for ast::ExprLoop {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprLoop => {:?}", idx.source.source(span));
 
-        let _guard = self.scopes.push_scope();
-        self.index(&mut *expr_loop.body)?;
+        let _guard = idx.scopes.push_scope();
+        self.body.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprFor> for Indexer<'_> {
-    fn index(&mut self, expr_for: &mut ast::ExprFor) -> CompileResult<()> {
-        let span = expr_for.span();
-        log::trace!("ExprFor => {:?}", self.source.source(span));
+impl Index for ast::ExprFor {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprFor => {:?}", idx.source.source(span));
 
         // NB: creating the iterator is evaluated in the parent scope.
-        self.index(&mut expr_for.iter)?;
+        self.iter.index(idx)?;
 
-        let _guard = self.scopes.push_scope();
-        self.index(&mut expr_for.var)?;
-        self.index(&mut *expr_for.body)?;
+        let _guard = idx.scopes.push_scope();
+        self.var.index(idx)?;
+        self.body.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprClosure> for Indexer<'_> {
-    fn index(&mut self, expr_closure: &mut ast::ExprClosure) -> CompileResult<()> {
-        let span = expr_closure.span();
-        log::trace!("ExprClosure => {:?}", self.source.source(span));
+impl Index for Box<ast::ExprClosure> {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprClosure => {:?}", idx.source.source(span));
 
-        let _guard = self.items.push_closure();
+        let _guard = idx.items.push_closure();
 
-        let kind = match expr_closure.async_token {
+        let kind = match self.async_token {
             Some(..) => IndexFnKind::Async,
             _ => IndexFnKind::None,
         };
 
-        let guard = self.scopes.push_closure(kind);
-        let span = expr_closure.span();
+        let guard = idx.scopes.push_closure(kind);
+        let span = self.span();
 
-        let item = self.query.insert_new_item(
-            self.source_id,
+        let item = idx.query.insert_new_item(
+            idx.source_id,
             span,
-            &*self.items.item(),
-            &self.mod_item,
+            &*idx.items.item(),
+            &idx.mod_item,
             Visibility::Inherited,
         )?;
 
-        expr_closure.id = Some(item.id);
+        self.id = Some(item.id);
 
-        for (arg, _) in expr_closure.args.as_slice() {
+        for (arg, _) in self.args.as_slice() {
             match arg {
                 ast::FnArg::SelfValue(s) => {
                     return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
                 }
                 ast::FnArg::Ident(ident) => {
-                    let ident = ident.resolve(&self.storage, &*self.source)?;
-                    self.scopes.declare(ident.as_ref(), span)?;
+                    let ident = ident.resolve(&idx.storage, &*idx.source)?;
+                    idx.scopes.declare(ident.as_ref(), span)?;
                 }
                 ast::FnArg::Ignore(..) => (),
             }
         }
 
-        self.index(&mut expr_closure.body)?;
+        self.body.index(idx)?;
 
         let c = guard.into_closure(span)?;
 
         let captures = Arc::new(c.captures);
 
-        let call = match Self::call(c.generator, c.kind) {
+        let call = match Indexer::call(c.generator, c.kind) {
             Some(call) => call,
             None => {
                 return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
             }
         };
 
-        self.query.index_closure(
-            &item,
-            &self.source,
-            Box::new(expr_closure.clone()),
-            captures,
-            call,
-        )?;
+        idx.query
+            .index_closure(&item, &idx.source, self.clone(), captures, call)?;
 
         Ok(())
     }
 }
 
-impl Index<ast::ExprFieldAccess> for Indexer<'_> {
-    fn index(&mut self, expr_field_access: &mut ast::ExprFieldAccess) -> CompileResult<()> {
-        let span = expr_field_access.span();
-        log::trace!("ExprIndexSet => {:?}", self.source.source(span));
+impl Index for ast::ExprFieldAccess {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprIndexSet => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_field_access.expr)?;
+        self.expr.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprUnary> for Indexer<'_> {
-    fn index(&mut self, expr_unary: &mut ast::ExprUnary) -> CompileResult<()> {
-        let span = expr_unary.span();
-        log::trace!("ExprUnary => {:?}", self.source.source(span));
+impl Index for ast::ExprUnary {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprUnary => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_unary.expr)?;
+        self.expr.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprIndex> for Indexer<'_> {
-    fn index(&mut self, expr_index_get: &mut ast::ExprIndex) -> CompileResult<()> {
-        let span = expr_index_get.span();
-        log::trace!("ExprIndex => {:?}", self.source.source(span));
+impl Index for ast::ExprIndex {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprIndex => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_index_get.index)?;
-        self.index(&mut expr_index_get.target)?;
+        self.index.index(idx)?;
+        self.target.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprBreak> for Indexer<'_> {
-    fn index(&mut self, expr_break: &mut ast::ExprBreak) -> CompileResult<()> {
-        let span = expr_break.span();
-        log::trace!("ExprBreak => {:?}", self.source.source(span));
+impl Index for ast::ExprBreak {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprBreak => {:?}", idx.source.source(span));
 
-        if let Some(expr) = &mut expr_break.expr {
+        if let Some(expr) = &mut self.expr {
             match expr {
                 ast::ExprBreakValue::Expr(expr) => {
-                    self.index(expr)?;
+                    expr.index(idx)?;
                 }
                 ast::ExprBreakValue::Label(..) => (),
             }
@@ -1246,75 +1268,75 @@ impl Index<ast::ExprBreak> for Indexer<'_> {
     }
 }
 
-impl Index<ast::ExprYield> for Indexer<'_> {
-    fn index(&mut self, expr_yield: &mut ast::ExprYield) -> CompileResult<()> {
-        let span = expr_yield.span();
-        log::trace!("ExprYield => {:?}", self.source.source(span));
+impl Index for ast::ExprYield {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprYield => {:?}", idx.source.source(span));
 
-        let span = expr_yield.span();
-        self.scopes.mark_yield(span)?;
+        let span = self.span();
+        idx.scopes.mark_yield(span)?;
 
-        if let Some(expr) = &mut expr_yield.expr {
-            self.index(expr)?;
+        if let Some(expr) = &mut self.expr {
+            expr.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::ExprReturn> for Indexer<'_> {
-    fn index(&mut self, expr_return: &mut ast::ExprReturn) -> CompileResult<()> {
-        let span = expr_return.span();
-        log::trace!("ExprReturn => {:?}", self.source.source(span));
+impl Index for ast::ExprReturn {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprReturn => {:?}", idx.source.source(span));
 
-        if let Some(expr) = &mut expr_return.expr {
-            self.index(expr)?;
+        if let Some(expr) = &mut self.expr {
+            expr.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::ExprAwait> for Indexer<'_> {
-    fn index(&mut self, expr_await: &mut ast::ExprAwait) -> CompileResult<()> {
-        let span = expr_await.span();
-        log::trace!("ExprAwait => {:?}", self.source.source(span));
+impl Index for ast::ExprAwait {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprAwait => {:?}", idx.source.source(span));
 
-        let span = expr_await.span();
-        self.scopes.mark_await(span)?;
-        self.index(&mut expr_await.expr)?;
+        let span = self.span();
+        idx.scopes.mark_await(span)?;
+        self.expr.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprTry> for Indexer<'_> {
-    fn index(&mut self, expr_try: &mut ast::ExprTry) -> CompileResult<()> {
-        let span = expr_try.span();
-        log::trace!("ExprTry => {:?}", self.source.source(span));
+impl Index for ast::ExprTry {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprTry => {:?}", idx.source.source(span));
 
-        self.index(&mut expr_try.expr)?;
+        self.expr.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprSelect> for Indexer<'_> {
-    fn index(&mut self, expr_select: &mut ast::ExprSelect) -> CompileResult<()> {
-        let span = expr_select.span();
-        log::trace!("ExprSelect => {:?}", self.source.source(span));
+impl Index for ast::ExprSelect {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprSelect => {:?}", idx.source.source(span));
 
-        self.scopes.mark_await(expr_select.span())?;
+        idx.scopes.mark_await(self.span())?;
 
         let mut default_branch = None;
 
-        for (branch, _) in &mut expr_select.branches {
+        for (branch, _) in &mut self.branches {
             match branch {
                 ast::ExprSelectBranch::Pat(pat) => {
                     // NB: expression to evaluate future is evaled in parent scope.
-                    self.index(&mut pat.expr)?;
+                    pat.expr.index(idx)?;
 
-                    let _guard = self.scopes.push_scope();
-                    self.index(&mut pat.pat)?;
-                    self.index(&mut pat.body)?;
+                    let _guard = idx.scopes.push_scope();
+                    pat.pat.index(idx)?;
+                    pat.body.index(idx)?;
                 }
                 ast::ExprSelectBranch::Default(def) => {
                     default_branch = Some(def);
@@ -1323,51 +1345,51 @@ impl Index<ast::ExprSelect> for Indexer<'_> {
         }
 
         if let Some(def) = default_branch {
-            let _guard = self.scopes.push_scope();
-            self.index(&mut def.body)?;
+            let _guard = idx.scopes.push_scope();
+            def.body.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::ExprCall> for Indexer<'_> {
-    fn index(&mut self, expr_call: &mut ast::ExprCall) -> CompileResult<()> {
-        let span = expr_call.span();
-        log::trace!("ExprCall => {:?}", self.source.source(span));
+impl Index for ast::ExprCall {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprCall => {:?}", idx.source.source(span));
 
-        expr_call.id = Some(self.query.get_item_id(span, &*self.items.item())?);
+        self.id = Some(idx.query.get_item_id(span, &*idx.items.item())?);
 
-        for (expr, _) in &mut expr_call.args {
-            self.index(expr)?;
+        for (expr, _) in &mut self.args {
+            expr.index(idx)?;
         }
 
-        self.index(&mut expr_call.expr)?;
+        self.expr.index(idx)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprLit> for Indexer<'_> {
-    fn index(&mut self, expr_lit: &mut ast::ExprLit) -> CompileResult<()> {
-        if let Some(first) = expr_lit.attributes.first() {
+impl Index for ast::ExprLit {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        if let Some(first) = self.attributes.first() {
             return Err(CompileError::internal(
                 first,
                 "literal attributes are not supported",
             ));
         }
 
-        match &mut expr_lit.lit {
+        match &mut self.lit {
             ast::Lit::Template(lit_template) => {
-                self.index(lit_template)?;
+                lit_template.index(idx)?;
             }
             ast::Lit::Tuple(lit_tuple) => {
-                self.index(lit_tuple)?;
+                lit_tuple.index(idx)?;
             }
             ast::Lit::Vec(lit_vec) => {
-                self.index(lit_vec)?;
+                lit_vec.index(idx)?;
             }
             ast::Lit::Object(lit_object) => {
-                self.index(lit_object)?;
+                lit_object.index(idx)?;
             }
             // NB: literals have nothing to index, they don't export language
             // items.
@@ -1384,60 +1406,60 @@ impl Index<ast::ExprLit> for Indexer<'_> {
     }
 }
 
-impl Index<ast::LitTemplate> for Indexer<'_> {
-    fn index(&mut self, lit_template: &mut ast::LitTemplate) -> CompileResult<()> {
-        let span = lit_template.span();
-        log::trace!("LitTemplate => {:?}", self.source.source(span));
+impl Index for ast::LitTemplate {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitTemplate => {:?}", idx.source.source(span));
 
-        for (expr, _) in &mut lit_template.args {
-            self.index(expr)?;
+        for (expr, _) in &mut self.args {
+            expr.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::LitTuple> for Indexer<'_> {
-    fn index(&mut self, lit_tuple: &mut ast::LitTuple) -> CompileResult<()> {
-        let span = lit_tuple.span();
-        log::trace!("LitTuple => {:?}", self.source.source(span));
+impl Index for ast::LitTuple {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitTuple => {:?}", idx.source.source(span));
 
-        for (expr, _) in &mut lit_tuple.items {
-            self.index(expr)?;
+        for (expr, _) in &mut self.items {
+            expr.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::LitVec> for Indexer<'_> {
-    fn index(&mut self, lit_vec: &mut ast::LitVec) -> CompileResult<()> {
-        let span = lit_vec.span();
-        log::trace!("LitVec => {:?}", self.source.source(span));
+impl Index for ast::LitVec {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitVec => {:?}", idx.source.source(span));
 
-        for (expr, _) in &mut lit_vec.items {
-            self.index(expr)?;
+        for (expr, _) in &mut self.items {
+            expr.index(idx)?;
         }
 
         Ok(())
     }
 }
 
-impl Index<ast::LitObject> for Indexer<'_> {
-    fn index(&mut self, lit_object: &mut ast::LitObject) -> CompileResult<()> {
-        let span = lit_object.span();
-        log::trace!("LitObject => {:?}", self.source.source(span));
+impl Index for ast::LitObject {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("LitObject => {:?}", idx.source.source(span));
 
-        match &mut lit_object.ident {
+        match &mut self.ident {
             ast::LitObjectIdent::Named(path) => {
-                self.index(path)?;
+                path.index(idx)?;
             }
             ast::LitObjectIdent::Anonymous(..) => (),
         }
 
-        for (assign, _) in &mut lit_object.assignments {
+        for (assign, _) in &mut self.assignments {
             if let Some((_, expr)) = &mut assign.assign {
-                self.index(expr)?;
+                expr.index(idx)?;
             }
         }
 

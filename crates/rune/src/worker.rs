@@ -149,7 +149,7 @@ impl<'a> Worker<'a> {
                         source_loader: self.source_loader,
                     };
 
-                    if let Err(error) = indexer.index(&mut file) {
+                    if let Err(error) = file.index(&mut indexer) {
                         self.errors.push(Error::new(source_id, error));
                     }
                 }
