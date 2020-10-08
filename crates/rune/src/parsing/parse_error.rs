@@ -7,7 +7,7 @@ use thiserror::Error;
 
 error! {
     /// An error raised during parsing.
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone)]
     pub struct ParseError {
         kind: ParseErrorKind,
     }
@@ -20,13 +20,13 @@ impl ParseError {
         A: Description + Spanned,
         E: Description,
     {
-        Self {
-            span: actual.span(),
-            kind: ParseErrorKind::Expected {
+        Self::new(
+            actual.span(),
+            ParseErrorKind::Expected {
                 actual: actual.description(),
                 expected: expected.description(),
             },
-        }
+        )
     }
 
     /// Construct an unsupported error.
@@ -35,12 +35,12 @@ impl ParseError {
         T: Spanned,
         E: Description,
     {
-        Self {
-            span: actual.span(),
-            kind: ParseErrorKind::Unsupported {
+        Self::new(
+            actual.span(),
+            ParseErrorKind::Unsupported {
                 what: what.description(),
             },
-        }
+        )
     }
 }
 

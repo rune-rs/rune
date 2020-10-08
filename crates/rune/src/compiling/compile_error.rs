@@ -90,12 +90,12 @@ impl CompileError {
 
 impl From<Internal> for CompileError {
     fn from(error: Internal) -> Self {
-        Self {
-            span: error.span(),
-            kind: CompileErrorKind::Internal {
+        Self::new(
+            error.span(),
+            CompileErrorKind::Internal {
                 message: error.message(),
             },
-        }
+        )
     }
 }
 

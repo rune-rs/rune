@@ -184,7 +184,7 @@ macro_rules! error {
         $(#[$meta])*
         $vis struct $error {
             span: runestick::Span,
-            kind: $kind,
+            kind: Box<$kind>,
         }
 
         impl $error {
@@ -196,18 +196,18 @@ macro_rules! error {
             {
                 Self {
                     span: crate::Spanned::span(&spanned),
-                    kind: $kind::from(kind),
+                    kind: Box::new($kind::from(kind)),
                 }
             }
 
             /// Get the kind of the error.
             pub fn kind(&self) -> &$kind {
-                &self.kind
+                &*self.kind
             }
 
             /// Convert into the kind of the error.
             pub fn into_kind(self) -> $kind {
-                self.kind
+                *self.kind
             }
         }
 
@@ -234,9 +234,9 @@ macro_rules! error {
                 fn from(error: $from_error) -> Self {
                     $error {
                         span: error.span(),
-                        kind: $kind::$from_error {
+                        kind: Box::new($kind::$from_error {
                             error: From::from(error.into_kind()),
-                        },
+                        }),
                     }
                 }
             }

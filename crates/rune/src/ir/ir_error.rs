@@ -17,12 +17,12 @@ error! {
 
 impl From<Internal> for IrError {
     fn from(error: Internal) -> Self {
-        Self {
-            span: error.span(),
-            kind: IrErrorKind::Internal {
+        Self::new(
+            error.span(),
+            IrErrorKind::Internal {
                 message: error.message(),
             },
-        }
+        )
     }
 }
 
