@@ -1,4 +1,5 @@
-use crate::{Any, AnyObj, Mut, RawMut, RawRef, Ref, Shared, Value, VmError};
+use crate::{Any, AnyObj, Mut, RawMut, RawRef, Ref, Shared, StaticString, Value, VmError};
+use std::sync::Arc;
 
 /// Trait for converting from a value.
 pub trait FromValue: 'static + Sized {
@@ -178,18 +179,29 @@ impl FromValue for Box<str> {
     }
 }
 
+/// Raw guard used for `&str` references.
+///
+/// Note that we need to hold onto an instance of the static string to prevent
+/// the reference to it from being deallocated (the `StaticString` variant).
+pub enum StrGuard {
+    RawRef(RawRef),
+    StaticString(Arc<StaticString>),
+}
+
 impl UnsafeFromValue for &str {
     type Output = *const str;
-    type Guard = Option<RawRef>;
+    type Guard = StrGuard;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
                 let string = string.into_ref()?;
                 let (s, guard) = Ref::into_raw(string);
-                ((*s).as_str(), Some(guard))
+                ((*s).as_str(), StrGuard::RawRef(guard))
             }
-            Value::StaticString(string) => (string.as_ref().as_str(), None),
+            Value::StaticString(string) => {
+                (string.as_ref().as_str(), StrGuard::StaticString(string))
+            }
             actual => return Err(VmError::expected::<String>(actual.type_info()?)),
         })
     }
@@ -223,16 +235,16 @@ impl UnsafeFromValue for &mut str {
 
 impl UnsafeFromValue for &String {
     type Output = *const String;
-    type Guard = Option<RawRef>;
+    type Guard = StrGuard;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
                 let string = string.into_ref()?;
                 let (s, guard) = Ref::into_raw(string);
-                (s, Some(guard))
+                (s, StrGuard::RawRef(guard))
             }
-            Value::StaticString(string) => (&**string, None),
+            Value::StaticString(string) => (&**string, StrGuard::StaticString(string)),
             actual => {
                 return Err(VmError::expected::<String>(actual.type_info()?));
             }
