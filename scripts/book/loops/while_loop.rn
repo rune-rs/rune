@@ -9,5 +9,5 @@ fn main() {
         value = value + 1;
     }
 
-    println(`The value is {value}`); // => The value is 50
+    println!("The value is {}", value); // => The value is 50
 }

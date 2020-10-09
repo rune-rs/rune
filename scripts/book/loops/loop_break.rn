@@ -9,5 +9,5 @@ fn main() {
         }
     };
 
-    println(`The final count is: {total}`);
+    println!("The final count is: {}", total);
 }

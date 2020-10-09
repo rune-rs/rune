@@ -345,7 +345,7 @@ pub enum Value {
     /// A stored function pointer.
     Function(Shared<Function>),
     /// A value being formatted.
-    Format(Shared<Format>),
+    Format(Box<Format>),
     /// An opaque value that can be downcasted.
     Any(Shared<AnyObj>),
 }
@@ -562,7 +562,7 @@ impl Value {
 
     /// Try to coerce value into a format spec.
     #[inline]
-    pub fn into_format(self) -> Result<Shared<Format>, VmError> {
+    pub fn into_format(self) -> Result<Box<Format>, VmError> {
         match self {
             Value::Format(format) => Ok(format),
             actual => Err(VmError::expected::<Format>(actual.type_info()?)),
@@ -886,66 +886,74 @@ impl crate::ToValue for () {
 }
 
 macro_rules! impl_from {
-    ($ty:ty, $variant:ident) => {
-        impl From<$ty> for Value {
-            fn from(value: $ty) -> Self {
-                Self::$variant(value)
+    ($($variant:ident => $ty:ty),* $(,)*) => {
+        $(
+            impl From<$ty> for Value {
+                fn from(value: $ty) -> Self {
+                    Self::$variant(value)
+                }
             }
-        }
 
-        impl $crate::ToValue for $ty {
-            fn to_value(self) -> Result<Value, VmError> {
-                Ok(Value::from(self))
+            impl $crate::ToValue for $ty {
+                fn to_value(self) -> Result<Value, VmError> {
+                    Ok(Value::from(self))
+                }
             }
-        }
+        )*
     };
 }
 
-impl_from!(u8, Byte);
-impl_from!(bool, Bool);
-impl_from!(char, Char);
-impl_from!(i64, Integer);
-impl_from!(f64, Float);
-impl_from!(Arc<StaticString>, StaticString);
+macro_rules! impl_from_wrapper {
+    ($($variant:ident => $wrapper:ident<$ty:ty>),* $(,)?) => {
+        impl_from!($($variant => $wrapper<$ty>),*);
 
-macro_rules! impl_from_shared {
-    (Shared<$ty:ty>, $variant:ident) => {
-        impl_from!(Shared<$ty>, $variant);
-
-        impl From<$ty> for Value {
-            fn from(value: $ty) -> Self {
-                Self::$variant(Shared::new(value))
+        $(
+            impl From<$ty> for Value {
+                fn from(value: $ty) -> Self {
+                    Self::$variant($wrapper::new(value))
+                }
             }
-        }
 
-        impl $crate::ToValue for $ty {
-            fn to_value(self) -> Result<Value, VmError> {
-                Ok(Value::from(self))
+            impl $crate::ToValue for $ty {
+                fn to_value(self) -> Result<Value, VmError> {
+                    Ok(Value::from(self))
+                }
             }
-        }
+        )*
     };
 }
 
-impl_from_shared!(Shared<Bytes>, Bytes);
-impl_from_shared!(Shared<String>, String);
-impl_from_shared!(Shared<Vec>, Vec);
-impl_from_shared!(Shared<Tuple>, Tuple);
-impl_from_shared!(Shared<Object>, Object);
-impl_from_shared!(Shared<Future>, Future);
-impl_from_shared!(Shared<Stream>, Stream);
-impl_from_shared!(Shared<Generator>, Generator);
-impl_from_shared!(Shared<GeneratorState>, GeneratorState);
-impl_from!(Shared<Option<Value>>, Option);
-impl_from!(Shared<Result<Value, Value>>, Result);
-impl_from_shared!(Shared<UnitStruct>, UnitStruct);
-impl_from_shared!(Shared<TupleStruct>, TupleStruct);
-impl_from_shared!(Shared<Struct>, Struct);
-impl_from_shared!(Shared<UnitVariant>, UnitVariant);
-impl_from_shared!(Shared<TupleVariant>, TupleVariant);
-impl_from_shared!(Shared<StructVariant>, StructVariant);
-impl_from_shared!(Shared<Function>, Function);
-impl_from_shared!(Shared<Format>, Format);
-impl_from_shared!(Shared<AnyObj>, Any);
+impl_from! {
+    Byte => u8,
+    Bool => bool,
+    Char => char,
+    Integer => i64,
+    Float => f64,
+    Option => Shared<Option<Value>>,
+    Result => Shared<Result<Value, Value>>,
+}
+
+impl_from_wrapper! {
+    StaticString => Arc<StaticString>,
+    Format => Box<Format>,
+    Bytes => Shared<Bytes>,
+    String => Shared<String>,
+    Vec => Shared<Vec>,
+    Tuple => Shared<Tuple>,
+    Object => Shared<Object>,
+    Future => Shared<Future>,
+    Stream => Shared<Stream>,
+    Generator => Shared<Generator>,
+    GeneratorState => Shared<GeneratorState>,
+    UnitStruct => Shared<UnitStruct>,
+    TupleStruct => Shared<TupleStruct>,
+    Struct => Shared<Struct>,
+    UnitVariant => Shared<UnitVariant>,
+    TupleVariant => Shared<TupleVariant>,
+    StructVariant => Shared<StructVariant>,
+    Function => Shared<Function>,
+    Any => Shared<AnyObj>,
+}
 
 #[cfg(test)]
 mod tests {

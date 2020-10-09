@@ -11,7 +11,7 @@ async fn main() {
         match res {
             () => break,
             result => {
-                println(`{result.status()}`);
+                println!("{}", result.status());
             }
         }
     }

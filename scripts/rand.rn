@@ -3,13 +3,13 @@ use rand;
 fn main() {
      let rng = rand::WyRand::new();
      let rand_int = rng.int();
-     println(`Random int: {rand_int}`);
+     println!("Random int: {}", rand_int);
      let rand_int_range = rng.int_range(-100, 100);
-     println(`Random int between -100 and 100: {rand_int_range}`);
+     println!("Random int between -100 and 100: {}", rand_int_range);
 
      let rng = rand::Pcg64::new();
      let rand_int = rng.int();
-     println(`Random int: {rand_int}`);
+     println!("Random int: {}", rand_int);
      let rand_int_range = rng.int_range(-100, 100);
-     println(`Random int between -100 and 100: {rand_int_range}`);
+     println!("Random int between -100 and 100: {}", rand_int_range);
 }

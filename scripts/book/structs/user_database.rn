@@ -10,9 +10,9 @@ impl User {
 
     fn describe(self) {
         if self.active {
-            println(`{self.username} is active`);
+            println(`${self.username} is active`);
         } else {
-            println(`{self.username} is inactive`);
+            println(`${self.username} is inactive`);
         }
     }
 }

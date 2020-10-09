@@ -1,6 +1,6 @@
 fn test_ignore(vector) {
     match vector {
-        [_, b] => println(`Second item in vector is {b}.`),
+        [_, b] => println!("Second item in vector is {}.", b),
     }
 }
 

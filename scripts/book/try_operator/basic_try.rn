@@ -5,10 +5,10 @@ fn checked_div_mod(a, b) {
 
 fn main() {
     if let Some((div, m)) = checked_div_mod(5, 2) {
-        println(`Result: {div}, {m}`);
+        println(`Result: ${div}, ${m}`);
     }
 
     if let Some((div, m)) = checked_div_mod(5, 0) {
-        println(`Result: {div}, {m}`);
+        println(`Result: ${div}, ${m}`);
     }
 }

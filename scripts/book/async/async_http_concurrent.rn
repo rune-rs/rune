@@ -3,7 +3,7 @@ use std::future;
 struct Timeout;
 
 async fn request(timeout) {
-    let request = http::get(`http://httpstat.us/200?sleep={timeout}`);
+    let request = http::get(`http://httpstat.us/200?sleep=${timeout}`);
     let timeout = time::delay_for(time::Duration::from_secs(2));
 
     let result = select {
@@ -17,7 +17,7 @@ async fn request(timeout) {
 async fn main() {
     for result in future::join([request(1000), request(4000)]).await {
         match result {
-            Ok(result) => println(`Result: {result.status()}`),
+            Ok(result) => println!("Result: {}", result.status()),
             Err(Timeout) => println("Request timed out!"),
         }
     }

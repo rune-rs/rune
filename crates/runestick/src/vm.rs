@@ -1537,10 +1537,7 @@ impl Vm {
         for value in values {
             match value {
                 Value::Format(format) => {
-                    let format = format.borrow_ref()?;
-                    format
-                        .spec
-                        .format_with_buf(&format.value, &mut out, &mut buf)?;
+                    format.spec.format(&format.value, &mut out, &mut buf)?;
                 }
                 Value::String(string) => {
                     out.push_str(&*string.borrow_ref()?);

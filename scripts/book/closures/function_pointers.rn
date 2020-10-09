@@ -11,6 +11,6 @@ fn sub(a, b) {
 }
 
 fn main() {
-    println(`{do_thing(add)}`);
-    println(`{do_thing(sub)}`);
+    println!("{}", do_thing(add));
+    println!("{}", do_thing(sub));
 }

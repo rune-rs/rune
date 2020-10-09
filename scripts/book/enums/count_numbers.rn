@@ -4,7 +4,7 @@ fn count_numbers(limit) {
     let limit = limit.unwrap_or(10);
 
     for n in range(0, limit) {
-        println(`Count: {n}`);
+        println!("Count: {}", n);
     }
 }
 

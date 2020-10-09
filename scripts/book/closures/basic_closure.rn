@@ -4,6 +4,6 @@ fn work(op) {
 
 fn main() {
     let n = 1;
-    println(`Result: {work(|a, b| n + a + b)}`);
-    println(`Result: {work(|a, b| n + a * b)}`);
+    println!("Result: {}", work(|a, b| n + a + b));
+    println!("Result: {}", work(|a, b| n + a * b));
 }

@@ -1,9 +1,9 @@
 fn main() {
     let object = #{field: 1};
     let object2 = object;
-    println(`{object.field}`);
+    println(`${object.field}`);
     object2.field = 2;
 
     // Note: we changed `object2`, but read out `object`
-    println(`{object.field}`);
+    println(`${object.field}`);
 }

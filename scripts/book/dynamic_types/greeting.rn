@@ -4,7 +4,7 @@ struct Person {
 
 impl Person {
     fn greet(self) {
-        println(`Greetings from {self.name}, and good luck with this section!`);
+        println!("Greetings from {}, and good luck with this section!", self.name);
     }
 }
 

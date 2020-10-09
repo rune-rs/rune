@@ -1,10 +1,10 @@
 //! Types for dealing with formatting specifications.
 
-use crate::{
-    FromValue, Named, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value, VmError, VmErrorKind,
-};
+use crate::{FromValue, Named, RawStr, Value, VmError, VmErrorKind};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::fmt::Write as _;
+use std::iter;
 use std::num::NonZeroUsize;
 use thiserror::Error;
 
@@ -19,7 +19,7 @@ pub struct TypeFromStrError(());
 pub struct AlignmentFromStrError(());
 
 /// A format specification, wrapping an inner value.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Format {
     /// The value being formatted.
     pub(crate) value: Value,
@@ -65,116 +65,63 @@ impl FormatSpec {
         }
     }
 
-    /// Format the given value to the out buffer `out`, using `buf` for
-    /// intermediate work if necessary.
-    pub(crate) fn format_with_buf(
-        &self,
-        value: &Value,
-        out: &mut String,
-        buf: &mut String,
-    ) -> Result<(), VmErrorKind> {
-        use std::fmt::Write as _;
-        use std::iter;
-
-        let mut fill = self.fill;
-
-        buf.clear();
-        let mut sign_aware = false;
-        let mut sign = None;
-
-        match value {
-            Value::String(s) => match self.format_type {
-                Type::Display => {
-                    buf.push_str(&*s.borrow_ref()?);
-                }
-                Type::Debug => {
-                    write!(out, "{:?}", &*s.borrow_ref()?).map_err(|_| VmErrorKind::FormatError)?;
-                    return Ok(());
-                }
-                _ => return Err(VmErrorKind::FormatError),
-            },
-            Value::StaticString(s) => match self.format_type {
-                Type::Display => {
-                    buf.push_str(s.as_ref());
-                }
-                Type::Debug => {
-                    write!(out, "{:?}", s.as_ref()).map_err(|_| VmErrorKind::FormatError)?;
-                    return Ok(());
-                }
-                _ => return Err(VmErrorKind::FormatError),
-            },
-            Value::Integer(n) => {
-                let mut n = *n;
-
-                if self.flags.test(Flag::SignAwareZeroPad) {
-                    fill = '0';
-                    sign_aware = true;
-
-                    if n < 0 {
-                        sign = Some('-');
-                        n = -n;
-                    }
-                } else if self.flags.test(Flag::SignPlus) && n >= 0 {
-                    sign = Some('+');
-                }
-
-                match self.format_type {
-                    Type::Display | Type::Debug => {
-                        let mut buffer = itoa::Buffer::new();
-                        buf.push_str(buffer.format(n));
-                    }
-                    Type::UpperHex => {
-                        write!(buf, "{:X}", n).map_err(|_| VmErrorKind::FormatError)?;
-                    }
-                    Type::LowerHex => {
-                        write!(buf, "{:x}", n).map_err(|_| VmErrorKind::FormatError)?;
-                    }
-                    Type::Binary => {
-                        write!(buf, "{:b}", n).map_err(|_| VmErrorKind::FormatError)?;
-                    }
-                    _ => {
-                        return Err(VmErrorKind::FormatError);
-                    }
-                }
+    /// get traits out of a floating point number.
+    fn float_traits(&self, n: f64) -> (f64, Option<char>, char, bool) {
+        if self.flags.test(Flag::SignAwareZeroPad) {
+            if n.is_sign_negative() {
+                (-n, Some('-'), '0', true)
+            } else {
+                (n, None, '0', true)
             }
-            Value::Float(n) => {
-                let mut n = *n;
+        } else if self.flags.test(Flag::SignPlus) && n.is_sign_positive() {
+            (n, Some('+'), self.fill, false)
+        } else {
+            (n, None, self.fill, false)
+        }
+    }
 
-                if self.flags.test(Flag::SignAwareZeroPad) {
-                    fill = '0';
-                    sign_aware = true;
-
-                    if n.is_sign_negative() {
-                        sign = Some('-');
-                        n = -n;
-                    }
-                } else if self.flags.test(Flag::SignPlus) && n.is_sign_positive() {
-                    sign = Some('+');
-                }
-
-                match self.format_type {
-                    Type::Display | Type::Debug => {
-                        if let Some(precision) = self.precision {
-                            write!(buf, "{:.*}", precision.get(), n)
-                                .map_err(|_| VmErrorKind::FormatError)?;
-                        } else {
-                            let mut buffer = ryu::Buffer::new();
-                            buf.push_str(buffer.format(n));
-                        }
-                    }
-                    _ => return Err(VmErrorKind::FormatError),
-                }
+    /// get traits out of an integer.
+    fn int_traits(&self, n: i64) -> (i64, Option<char>, char, bool) {
+        if self.flags.test(Flag::SignAwareZeroPad) {
+            if n < 0 {
+                (-n, Some('-'), '0', true)
+            } else {
+                (n, None, '0', true)
             }
-            value => {
-                if let Type::Debug = self.format_type {
-                    write!(buf, "{:?}", value).map_err(|_| VmErrorKind::FormatError)?;
-                    return Ok(());
-                }
+        } else if self.flags.test(Flag::SignPlus) && n >= 0 {
+            (n, Some('+'), self.fill, false)
+        } else {
+            (n, None, self.fill, false)
+        }
+    }
 
-                return Err(VmErrorKind::FormatError);
-            }
+    /// Format the given number.
+    fn format_number(&self, buf: &mut String, n: i64) {
+        let mut buffer = itoa::Buffer::new();
+        buf.push_str(buffer.format(n));
+    }
+
+    /// Format the given float.
+    fn format_float(&self, buf: &mut String, n: f64) -> Result<(), VmErrorKind> {
+        if let Some(precision) = self.precision {
+            write!(buf, "{:.*}", precision.get(), n).map_err(|_| VmErrorKind::FormatError)?;
+        } else {
+            let mut buffer = ryu::Buffer::new();
+            buf.push_str(buffer.format(n));
         }
 
+        Ok(())
+    }
+
+    /// Format fill.
+    fn format_fill(
+        &self,
+        out: &mut String,
+        buf: &String,
+        sign_aware: bool,
+        fill: char,
+        sign: Option<char>,
+    ) {
         let extra = self
             .width
             .map(|n| n.get())
@@ -185,7 +132,7 @@ impl FormatSpec {
         if extra > 0 {
             let mut filler = iter::repeat(fill).take(extra);
 
-            if let Some(sign) = sign.take() {
+            if let Some(sign) = sign {
                 out.push(sign);
             }
 
@@ -210,11 +157,185 @@ impl FormatSpec {
                 }
             }
         } else {
-            if let Some(sign) = sign.take() {
+            if let Some(sign) = sign {
                 out.push(sign);
             }
 
             out.push_str(&buf);
+        }
+    }
+
+    fn format_display(
+        &self,
+        value: &Value,
+        out: &mut String,
+        buf: &mut String,
+    ) -> Result<(), VmErrorKind> {
+        match value {
+            Value::String(s) => {
+                buf.push_str(&*s.borrow_ref()?);
+                self.format_fill(out, buf, false, self.fill, None);
+            }
+            Value::StaticString(s) => {
+                buf.push_str(s.as_ref());
+                self.format_fill(out, buf, false, self.fill, None);
+            }
+            Value::Integer(n) => {
+                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                self.format_number(buf, n);
+                self.format_fill(out, buf, sign_aware, fill, sign);
+            }
+            Value::Float(n) => {
+                let (n, sign, fill, sign_aware) = self.float_traits(*n);
+                self.format_float(buf, n)?;
+                self.format_fill(out, buf, sign_aware, fill, sign);
+            }
+            _ => {
+                return Err(VmErrorKind::FormatError);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn format_debug(
+        &self,
+        value: &Value,
+        out: &mut String,
+        buf: &mut String,
+    ) -> Result<(), VmErrorKind> {
+        match value {
+            Value::String(s) => {
+                write!(out, "{:?}", &*s.borrow_ref()?).map_err(|_| VmErrorKind::FormatError)?;
+            }
+            Value::StaticString(s) => {
+                write!(out, "{:?}", s.as_ref()).map_err(|_| VmErrorKind::FormatError)?;
+            }
+            Value::Integer(n) => {
+                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                self.format_number(buf, n);
+                self.format_fill(out, buf, sign_aware, fill, sign);
+            }
+            Value::Float(n) => {
+                let (n, sign, fill, sign_aware) = self.float_traits(*n);
+                self.format_float(buf, n)?;
+                self.format_fill(out, buf, sign_aware, fill, sign);
+            }
+            value => {
+                write!(buf, "{:?}", value).map_err(|_| VmErrorKind::FormatError)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn format_upper_hex(
+        &self,
+        value: &Value,
+        out: &mut String,
+        buf: &mut String,
+    ) -> Result<(), VmErrorKind> {
+        match value {
+            Value::Integer(n) => {
+                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                write!(buf, "{:X}", n).map_err(|_| VmErrorKind::FormatError)?;
+                self.format_fill(out, buf, sign_aware, fill, sign);
+            }
+            _ => {
+                return Err(VmErrorKind::FormatError);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn format_lower_hex(
+        &self,
+        value: &Value,
+        out: &mut String,
+        buf: &mut String,
+    ) -> Result<(), VmErrorKind> {
+        match value {
+            Value::Integer(n) => {
+                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                write!(buf, "{:x}", n).map_err(|_| VmErrorKind::FormatError)?;
+                self.format_fill(out, buf, sign_aware, fill, sign);
+            }
+            _ => {
+                return Err(VmErrorKind::FormatError);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn format_binary(
+        &self,
+        value: &Value,
+        out: &mut String,
+        buf: &mut String,
+    ) -> Result<(), VmErrorKind> {
+        match value {
+            Value::Integer(n) => {
+                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                write!(buf, "{:b}", n).map_err(|_| VmErrorKind::FormatError)?;
+                self.format_fill(out, buf, sign_aware, fill, sign);
+            }
+            _ => {
+                return Err(VmErrorKind::FormatError);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn format_pointer(
+        &self,
+        value: &Value,
+        out: &mut String,
+        buf: &mut String,
+    ) -> Result<(), VmErrorKind> {
+        match value {
+            Value::Integer(n) => {
+                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                write!(buf, "{:p}", n as *const ()).map_err(|_| VmErrorKind::FormatError)?;
+                self.format_fill(out, buf, sign_aware, fill, sign);
+            }
+            _ => {
+                return Err(VmErrorKind::FormatError);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Format the given value to the out buffer `out`, using `buf` for
+    /// intermediate work if necessary.
+    pub(crate) fn format(
+        &self,
+        value: &Value,
+        out: &mut String,
+        buf: &mut String,
+    ) -> Result<(), VmErrorKind> {
+        match self.format_type {
+            Type::Display => {
+                self.format_display(value, out, buf)?;
+            }
+            Type::Debug => {
+                self.format_debug(value, out, buf)?;
+            }
+            Type::UpperHex => {
+                self.format_upper_hex(value, out, buf)?;
+            }
+            Type::LowerHex => {
+                self.format_lower_hex(value, out, buf)?;
+            }
+            Type::Binary => {
+                self.format_binary(value, out, buf)?;
+            }
+            Type::Pointer => {
+                self.format_pointer(value, out, buf)?;
+            }
         }
 
         Ok(())
@@ -225,30 +346,9 @@ impl Named for Format {
     const NAME: RawStr = RawStr::from_str("Format");
 }
 
-impl FromValue for Shared<Format> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_format()?)
-    }
-}
-
 impl FromValue for Format {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_format()?.take()?)
-    }
-}
-
-impl UnsafeFromValue for &Format {
-    type Output = *const Format;
-    type Guard = RawRef;
-
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let generator = value.into_format()?;
-        let (generator, guard) = Ref::into_raw(generator.into_ref()?);
-        Ok((generator, guard))
-    }
-
-    unsafe fn to_arg(output: Self::Output) -> Self {
-        &*output
+        Ok(*value.into_format()?)
     }
 }
 
