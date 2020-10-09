@@ -602,7 +602,7 @@ fn test_template_string() {
         rune_s! { String => r#"
             fn main() {
                 let name = "John Doe";
-                `Hello {name}, I am {1 - 10} years old!`
+                `Hello ${name}, I am ${1 - 10} years old!`
             }
         "#},
         "Hello John Doe, I am -9 years old!",
@@ -616,7 +616,7 @@ fn test_template_string() {
             fn main() {
                 let name = "John Doe";
 
-                `Hello {name}, I am {{
+                `Hello ${name}, I am ${{
                     let a = 20;
                     a += 2;
                     a

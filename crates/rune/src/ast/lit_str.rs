@@ -22,7 +22,7 @@ impl LitStr {
         storage: &Storage,
         source: &'a Source,
     ) -> Result<Cow<'a, str>, ParseError> {
-        self.resolve_string(storage, source, ast::utils::WithBrace(true))
+        self.resolve_string(storage, source, ast::utils::WithTemplate(true))
     }
 
     /// Resolve the given string with the specified configuration.
@@ -30,7 +30,7 @@ impl LitStr {
         &self,
         storage: &Storage,
         source: &'a Source,
-        with_brace: ast::utils::WithBrace,
+        with_template: ast::utils::WithTemplate,
     ) -> Result<Cow<'a, str>, ParseError> {
         let span = self.token.span();
 
@@ -52,7 +52,7 @@ impl LitStr {
             .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
-            Cow::Owned(Self::parse_escaped(span, string, with_brace)?)
+            Cow::Owned(Self::parse_escaped(span, string, with_template)?)
         } else {
             Cow::Borrowed(string)
         })
@@ -61,7 +61,7 @@ impl LitStr {
     fn parse_escaped(
         span: Span,
         source: &str,
-        with_brace: ast::utils::WithBrace,
+        with_template: ast::utils::WithTemplate,
     ) -> Result<String, ParseError> {
         let mut buffer = String::with_capacity(source.len());
 
@@ -76,7 +76,7 @@ impl LitStr {
             buffer.extend(match c {
                 '\\' => match ast::utils::parse_char_escape(
                     &mut it,
-                    with_brace,
+                    with_template,
                     ast::utils::WithLineCont(true),
                 ) {
                     Ok(c) => c,
@@ -121,7 +121,7 @@ impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
-        self.resolve_string(storage, source, ast::utils::WithBrace(false))
+        self.resolve_string(storage, source, ast::utils::WithTemplate(false))
     }
 }
 

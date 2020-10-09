@@ -107,7 +107,7 @@ impl EmitDiagnostics for Warnings {
                 WarningKind::TemplateWithoutExpansions { span, context } => {
                     labels.push(
                         Label::primary(w.source_id, span.range())
-                            .with_message("template string without expansions like `{1 + 2}`"),
+                            .with_message("template string without expansions like `${1 + 2}`"),
                     );
 
                     *context

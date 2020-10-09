@@ -1,7 +1,7 @@
 # Template strings
 
 If you've been paying attention on previous sections you might have seen odd
-looking strings like `` `Hello {name}` ``. These are called *template strings*,
+looking strings like `` `Hello ${name}` ``. These are called *template strings*,
 and allow you to conveniently build strings using variables from the
 environment.
 
@@ -59,6 +59,6 @@ $> cargo run --bin rune -- scripts/book/template_strings/not_a_template.rn
 error: virtual machine error
   ┌─ scripts/book/template_strings/not_a_template.rn:3:13
   │
-3 │     println(`{vec}`);
-  │             ^^^^^^^ `vector` does not implement the `string_display` protocol
+3 │     println(`${vec}`);
+  │             ^^^^^^^^ `Vec` does not implement the `string_display` protocol
 ```

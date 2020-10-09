@@ -26,7 +26,7 @@ fn test_const_values() {
     assert_eq!(
         "Hello World 1 1.0 true",
         rune_s!(String => r#"
-            const VALUE = `Hello {WORLD} {A} {B} {C}`;
+            const VALUE = `Hello ${WORLD} ${A} ${B} ${C}`;
             const WORLD = "World";
             const A = 1;
             const B = 1.0;
@@ -171,11 +171,11 @@ fn test_const_fn() {
     const VALUE = "baz";
 
     const fn foo(n) {
-        `foo {n}`
+        `foo ${n}`
     }
     
     fn main() {
-        foo(`bar {VALUE}`)
+        foo(`bar ${VALUE}`)
     }
     "#};
 
@@ -185,7 +185,7 @@ fn test_const_fn() {
         const VALUE = foo("bar", "baz");
 
         const fn foo(a, b) {
-            `foo {a} {b} {bar("biz")}`
+            `foo ${a} ${b} ${bar("biz")}`
         }
         
         const fn bar(c) {

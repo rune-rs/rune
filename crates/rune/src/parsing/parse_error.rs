@@ -123,8 +123,6 @@ pub enum ParseErrorKind {
     BadHexEscapeByte,
     #[error("bad byte escape")]
     BadByteEscape,
-    #[error("closing braces must be escaped inside of templates with `\\}}`")]
-    BadCloseBrace,
     #[error("unsupported field access")]
     BadFieldAccess,
     #[error("expected close delimiter `{expected}`, but got `{actual}`")]

@@ -88,7 +88,7 @@ impl<'a> Resolve<'a> for LitChar {
             '\\' => {
                 let c = match ast::utils::parse_char_escape(
                     &mut it,
-                    ast::utils::WithBrace(false),
+                    ast::utils::WithTemplate(false),
                     ast::utils::WithLineCont(false),
                 ) {
                     Ok(c) => c,

@@ -318,13 +318,29 @@ impl<'a> Lexer<'a> {
 
         while let Some((s, c)) = self.iter.peek_with_pos() {
             match c {
-                '{' => {
+                '$' => {
                     let expressions = self.modes.expression_count(&self.iter, start)?;
 
                     let span = self.iter.span_from(start);
                     let had_string = start != self.iter.pos();
                     let start = self.iter.pos();
+
                     self.iter.next();
+
+                    match self.iter.next_with_pos() {
+                        Some((_, '{')) => (),
+                        Some((start, c)) => {
+                            let span = self.iter.span_from(start);
+                            return Err(ParseError::new(
+                                span,
+                                ParseErrorKind::UnexpectedChar { c },
+                            ));
+                        }
+                        None => {
+                            let span = self.iter.end_span(start);
+                            return Err(ParseError::new(span, ParseErrorKind::UnexpectedEof));
+                        }
+                    }
 
                     if had_string {
                         if *expressions > 0 {
@@ -354,15 +370,6 @@ impl<'a> Lexer<'a> {
 
                     self.modes.push(LexerMode::Default(1));
                     return Ok(());
-                }
-                '}' => {
-                    let start = self.iter.pos();
-                    self.iter.next();
-
-                    return Err(ParseError::new(
-                        self.iter.span_from(start),
-                        ParseErrorKind::BadCloseBrace,
-                    ));
                 }
                 '\\' => {
                     self.iter.next();
@@ -1018,7 +1025,7 @@ mod tests {
     #[test]
     fn test_template_literals() {
         test_lexer! {
-            "`foo {bar} \\` baz`",
+            "`foo ${bar} \\` baz`",
             ast::Token {
                 kind: K![#],
                 span: span!(0, 1),
@@ -1068,26 +1075,26 @@ mod tests {
             },
             ast::Token {
                 kind: ast::Kind::Comma,
-                span: span!(5, 6),
+                span: span!(5, 7),
             },
             ast::Token {
                 kind: ast::Kind::Ident(ast::StringSource::Text),
-                span: span!(6, 9),
+                span: span!(7, 10),
             },
             ast::Token {
                 kind: ast::Kind::Comma,
-                span: span!(10, 17),
+                span: span!(11, 18),
             },
             ast::Token {
                 kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
                     escaped: true,
                     wrapped: false,
                 })),
-                span: span!(10, 17),
+                span: span!(11, 18),
             },
             ast::Token {
                 kind: K![')'],
-                span: span!(17, 18),
+                span: span!(18, 19),
             },
         };
     }
@@ -1095,7 +1102,7 @@ mod tests {
     #[test]
     fn test_template_literals_multi() {
         test_lexer! {
-            "`foo {bar} {baz}`",
+            "`foo ${bar} ${baz}`",
             ast::Token {
                 kind: K![#],
                 span: span!(0, 1),
@@ -1145,34 +1152,34 @@ mod tests {
             },
             ast::Token {
                 kind: ast::Kind::Comma,
-                span: span!(5, 6),
+                span: span!(5, 7),
             },
             ast::Token {
                 kind: ast::Kind::Ident(ast::StringSource::Text),
-                span: span!(6, 9),
-            },
-            ast::Token {
-                kind: ast::Kind::Comma,
-                span: span!(10, 11),
-            },
-            ast::Token {
-                kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
-                    escaped: false,
-                    wrapped: false,
-                })),
-                span: span!(10, 11),
+                span: span!(7, 10),
             },
             ast::Token {
                 kind: ast::Kind::Comma,
                 span: span!(11, 12),
             },
             ast::Token {
+                kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    escaped: false,
+                    wrapped: false,
+                })),
+                span: span!(11, 12),
+            },
+            ast::Token {
+                kind: ast::Kind::Comma,
+                span: span!(12, 14),
+            },
+            ast::Token {
                 kind: ast::Kind::Ident(ast::StringSource::Text),
-                span: span!(12, 15),
+                span: span!(14, 17),
             },
             ast::Token {
                 kind: K![')'],
-                span: span!(16, 17),
+                span: span!(18, 19),
             },
         };
     }
