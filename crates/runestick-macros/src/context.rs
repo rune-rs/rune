@@ -195,13 +195,13 @@ impl Context {
                 type Output = *const #ident;
                 type Guard = #raw_into_ref;
 
-                unsafe fn unsafe_from_value(
+                fn from_value(
                     value: #value,
                 ) -> Result<(Self::Output, Self::Guard), #vm_error> {
-                    Ok(value.unsafe_into_any_ref()?)
+                    Ok(value.into_any_ptr()?)
                 }
 
-                unsafe fn to_arg(output: Self::Output) -> Self {
+                unsafe fn unsafe_coerce(output: Self::Output) -> Self {
                     &*output
                 }
             }
@@ -210,13 +210,13 @@ impl Context {
                 type Output = *mut #ident;
                 type Guard = #raw_into_mut;
 
-                unsafe fn unsafe_from_value(
+                fn from_value(
                     value: #value,
                 ) -> Result<(Self::Output, Self::Guard), #vm_error> {
-                    Ok(value.unsafe_into_any_mut()?)
+                    Ok(value.into_any_mut()?)
                 }
 
-                unsafe fn to_arg(output: Self::Output) -> Self {
+                unsafe fn unsafe_coerce(output: Self::Output) -> Self {
                     &mut *output
                 }
             }

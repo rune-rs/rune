@@ -7,10 +7,12 @@ impl Assemble for ast::LitBool {
         log::trace!("LitBool => {:?}", c.source.source(span));
 
         // If the value is not needed, no need to encode it.
-        if needs.value() {
-            c.asm.push(Inst::bool(self.value), span);
+        if !needs.value() {
+            c.warnings.not_used(c.source_id, span, c.context());
+            return Ok(());
         }
 
+        c.asm.push(Inst::bool(self.value), span);
         Ok(())
     }
 }

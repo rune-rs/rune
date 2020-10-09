@@ -244,13 +244,13 @@ impl UnsafeFromValue for &Object {
     type Output = *const Object;
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let object = value.into_object()?;
         let object = object.into_ref()?;
         Ok(Ref::into_raw(object))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
@@ -259,13 +259,13 @@ impl UnsafeFromValue for &mut Object {
     type Output = *mut Object;
     type Guard = RawMut;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let object = value.into_object()?;
         let object = object.into_mut()?;
         Ok(Mut::into_raw(object))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &mut *output
     }
 }

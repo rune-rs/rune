@@ -406,13 +406,13 @@ impl UnsafeFromValue for &Function {
     type Output = *const Function;
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let function = value.into_function()?;
         let (function, guard) = Ref::into_raw(function.into_ref()?);
         Ok((function, guard))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }

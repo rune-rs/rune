@@ -79,13 +79,13 @@ impl UnsafeFromValue for &Generator {
     type Output = *const Generator;
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let generator = value.into_generator()?;
         let (generator, guard) = Ref::into_raw(generator.into_ref()?);
         Ok((generator, guard))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
@@ -94,12 +94,12 @@ impl UnsafeFromValue for &mut Generator {
     type Output = *mut Generator;
     type Guard = RawMut;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let generator = value.into_generator()?;
         Ok(Mut::into_raw(generator.into_mut()?))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &mut *output
     }
 }

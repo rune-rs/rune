@@ -588,7 +588,7 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_any_ref<T>(self) -> Result<(*const T, RawRef), VmError>
+    pub fn into_any_ptr<T>(self) -> Result<(*const T, RawRef), VmError>
     where
         T: Any,
     {
@@ -612,7 +612,7 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_any_mut<T>(self) -> Result<(*mut T, RawMut), VmError>
+    pub fn into_any_mut<T>(self) -> Result<(*mut T, RawMut), VmError>
     where
         T: Any,
     {

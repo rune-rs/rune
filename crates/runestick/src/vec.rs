@@ -221,13 +221,15 @@ impl<'a> UnsafeFromValue for &'a [Value] {
     type Output = *const [Value];
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let vec = value.into_vec()?;
         let (vec, guard) = Ref::into_raw(vec.into_ref()?);
-        Ok((&**vec, guard))
+        // Safety: we're holding onto the guard for the vector here, so it is
+        // live.
+        Ok((unsafe { &**vec }, guard))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
@@ -236,12 +238,12 @@ impl<'a> UnsafeFromValue for &'a Vec {
     type Output = *const Vec;
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let vec = value.into_vec()?;
         Ok(Ref::into_raw(vec.into_ref()?))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
@@ -250,12 +252,12 @@ impl<'a> UnsafeFromValue for &'a mut Vec {
     type Output = *mut Vec;
     type Guard = RawMut;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let vec = value.into_vec()?;
         Ok(Mut::into_raw(vec.into_mut()?))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &mut *output
     }
 }
