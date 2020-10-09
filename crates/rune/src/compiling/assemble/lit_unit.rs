@@ -8,6 +8,7 @@ impl Assemble for ast::LitUnit {
 
         // If the value is not needed, no need to encode it.
         if !needs.value() {
+            c.warnings.not_used(c.source_id, span, c.context());
             return Ok(());
         }
 

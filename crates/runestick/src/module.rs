@@ -799,7 +799,7 @@ macro_rules! impl_register {
                 let ret = unsafe {
                     impl_register!{@unsafe-vars $count, $($ty, $var, $num,)*}
 
-                    self($(<$ty>::to_arg($var.0),)*)
+                    self($(<$ty>::unsafe_coerce($var.0),)*)
                 };
 
                 impl_register!{@return stack, ret, Return}
@@ -841,7 +841,7 @@ macro_rules! impl_register {
                     impl_register!{@unsafe-vars $count, $($ty, $var, $num,)*}
 
                     Future::new(async move {
-                        let output = self($(<$ty>::to_arg($var.0),)*).await;
+                        let output = self($(<$ty>::unsafe_coerce($var.0),)*).await;
                         let value = output.to_value()?;
                         Ok(value)
                     })
@@ -891,7 +891,7 @@ macro_rules! impl_register {
                 #[allow(unused)]
                 let ret = unsafe {
                     impl_register!{@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*}
-                    self(Instance::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*)
+                    self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*)
                 };
 
                 impl_register!{@return stack, ret, Return}
@@ -940,7 +940,7 @@ macro_rules! impl_register {
                     impl_register!{@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*}
 
                     Future::new(async move {
-                        let output = self(Instance::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*).await;
+                        let output = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*).await;
                         let value = output.to_value()?;
                         Ok(value)
                     })
@@ -967,7 +967,7 @@ macro_rules! impl_register {
     // Expand to function variable bindings.
     (@unsafe-vars $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         $(
-            let $var = match <$ty>::unsafe_from_value($var) {
+            let $var = match <$ty>::from_value($var) {
                 Ok(v) => v,
                 Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
                     error: e.unpack_critical()?,
@@ -980,7 +980,7 @@ macro_rules! impl_register {
 
     // Expand to instance variable bindings.
     (@unsafe-inst-vars $inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        let $inst = match Instance::unsafe_from_value($inst) {
+        let $inst = match Instance::from_value($inst) {
             Ok(v) => v,
             Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
                 error: e.unpack_critical()?,
@@ -990,7 +990,7 @@ macro_rules! impl_register {
         };
 
         $(
-            let $var = match <$ty>::unsafe_from_value($var) {
+            let $var = match <$ty>::from_value($var) {
                 Ok(v) => v,
                 Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
                     error: e.unpack_critical()?,

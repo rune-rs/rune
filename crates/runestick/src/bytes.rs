@@ -125,13 +125,13 @@ impl<'a> UnsafeFromValue for &'a Bytes {
     type Output = *const Bytes;
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let bytes = value.into_bytes()?;
         let bytes = bytes.into_ref()?;
         Ok(Ref::into_raw(bytes))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
@@ -140,13 +140,13 @@ impl<'a> UnsafeFromValue for &'a mut Bytes {
     type Output = *mut Bytes;
     type Guard = RawMut;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let bytes = value.into_bytes()?;
         let bytes = bytes.into_mut()?;
         Ok(Mut::into_raw(bytes))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &mut *output
     }
 }
@@ -155,14 +155,16 @@ impl<'a> UnsafeFromValue for &'a [u8] {
     type Output = *const [u8];
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let bytes = value.into_bytes()?;
         let bytes = bytes.into_ref()?;
         let (value, guard) = Ref::into_raw(bytes);
-        Ok(((*value).bytes.as_slice(), guard))
+        // Safety: we're holding onto the guard for the slice here, so it is
+        // live.
+        Ok((unsafe { (*value).bytes.as_slice() }, guard))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }

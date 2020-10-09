@@ -32,7 +32,7 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// You must also make sure that the returned value does not outlive the
     /// guard.
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError>;
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError>;
 
     /// Coerce the output of an unsafe from value into the final output type.
     ///
@@ -43,7 +43,7 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// You must also make sure that the returned value does not outlive the
     /// guard.
-    unsafe fn to_arg(output: Self::Output) -> Self;
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self;
 }
 
 impl<T> FromValue for T
@@ -86,11 +86,11 @@ where
     type Output = T;
     type Guard = ();
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self, Self::Guard), VmError> {
         Ok((T::from_value(value)?, ()))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         output
     }
 }
@@ -119,11 +119,11 @@ impl UnsafeFromValue for &Option<Value> {
     type Output = *const Option<Value>;
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(Ref::into_raw(value.into_option()?.into_ref()?))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
@@ -132,11 +132,11 @@ impl UnsafeFromValue for &mut Option<Value> {
     type Output = *mut Option<Value>;
     type Guard = RawMut;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(Mut::into_raw(value.into_option()?.into_mut()?))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &mut *output
     }
 }
@@ -192,12 +192,14 @@ impl UnsafeFromValue for &str {
     type Output = *const str;
     type Guard = StrGuard;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
                 let string = string.into_ref()?;
                 let (s, guard) = Ref::into_raw(string);
-                ((*s).as_str(), StrGuard::RawRef(guard))
+                // Safety: we're holding onto the guard for the string here, so
+                // it is live.
+                (unsafe { (*s).as_str() }, StrGuard::RawRef(guard))
             }
             Value::StaticString(string) => {
                 (string.as_ref().as_str(), StrGuard::StaticString(string))
@@ -206,7 +208,7 @@ impl UnsafeFromValue for &str {
         })
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
@@ -215,12 +217,14 @@ impl UnsafeFromValue for &mut str {
     type Output = *mut str;
     type Guard = Option<RawMut>;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
                 let string = string.into_mut()?;
                 let (s, guard) = Mut::into_raw(string);
-                ((*s).as_mut_str(), Some(guard))
+                // Safety: we're holding onto the guard for the string here, so
+                // it is live.
+                (unsafe { (*s).as_mut_str() }, Some(guard))
             }
             actual => {
                 return Err(VmError::expected::<String>(actual.type_info()?));
@@ -228,7 +232,7 @@ impl UnsafeFromValue for &mut str {
         })
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &mut *output
     }
 }
@@ -237,7 +241,7 @@ impl UnsafeFromValue for &String {
     type Output = *const String;
     type Guard = StrGuard;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
                 let string = string.into_ref()?;
@@ -251,7 +255,7 @@ impl UnsafeFromValue for &String {
         })
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
@@ -260,7 +264,7 @@ impl UnsafeFromValue for &mut String {
     type Output = *mut String;
     type Guard = RawMut;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
                 let string = string.into_mut()?;
@@ -273,7 +277,7 @@ impl UnsafeFromValue for &mut String {
         })
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &mut *output
     }
 }
@@ -297,13 +301,13 @@ impl UnsafeFromValue for &Result<Value, Value> {
     type Output = *const Result<Value, Value>;
     type Guard = RawRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let result = value.into_result()?;
         let result = result.into_ref()?;
         Ok(Ref::into_raw(result))
     }
 
-    unsafe fn to_arg(output: Self::Output) -> Self {
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
 }
