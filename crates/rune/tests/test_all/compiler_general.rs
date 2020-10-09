@@ -32,14 +32,8 @@ fn test_pointers() {
 
 #[test]
 fn test_template_strings() {
-    assert_parse!(r#"fn main() { `hello \}` }"#);
-
-    assert_parse_error! {
-        r#"fn main() { `hello }` }"#,
-        span, BadCloseBrace {} => {
-            assert_eq!(span, Span::new(19, 20));
-        }
-    };
+    assert_parse!(r#"fn main() { `hello \`` }"#);
+    assert_parse!(r#"fn main() { `hello \$` }"#);
 }
 
 #[test]

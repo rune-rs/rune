@@ -1,4 +1,4 @@
 fn main() {
     let vec = [1, 2, 3];
-    println(`{vec}`);
+    println(`${vec}`);
 }

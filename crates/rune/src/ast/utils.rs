@@ -3,11 +3,11 @@ use crate::ParseErrorKind;
 use std::iter::Peekable;
 use std::ops;
 
-/// Indicates if we are parsing braces.
+/// Indicates if we are parsing template escapes.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct WithBrace(pub(super) bool);
+pub(crate) struct WithTemplate(pub(super) bool);
 
-impl ops::Deref for WithBrace {
+impl ops::Deref for WithTemplate {
     type Target = bool;
 
     fn deref(&self) -> &Self::Target {
@@ -74,7 +74,7 @@ pub(super) fn parse_byte_escape(
 /// Parse a byte escape sequence.
 pub(super) fn parse_char_escape(
     it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
-    with_brace: WithBrace,
+    with_template: WithTemplate,
     with_line_cont: WithLineCont,
 ) -> Result<Option<char>, ParseErrorKind> {
     let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadEscapeSequence)?;
@@ -91,8 +91,8 @@ pub(super) fn parse_char_escape(
 
             return Ok(None);
         }
-        '{' if *with_brace => '{',
-        '}' if *with_brace => '}',
+        '$' if *with_template => '$',
+        '`' if *with_template => '`',
         '\'' => '\'',
         '\"' => '\"',
         'n' => '\n',
