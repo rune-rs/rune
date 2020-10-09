@@ -46,6 +46,8 @@
 //!
 //! See each module for documentation:
 //! * [core]
+//! * [experiments]
+//! * [fmt]
 //! * [fs]
 //! * [http]
 //! * [io]
@@ -61,6 +63,7 @@
 //!
 //! * `core` for the [core module][toml]
 //! * `experiments` for the [experiments module][experiments]
+//! * `fmt` for the [fmt module][fmt]
 //! * `fs` for the [fs module][fs]
 //! * `full` includes all modules.
 //! * `http` for the [http module][http]
@@ -75,6 +78,7 @@
 //!
 //! [core]: https://docs.rs/rune-modules/0/rune_modules/core/
 //! [experiments]: https://docs.rs/rune-modules/0/rune_modules/experiments/
+//! [fmt]: https://docs.rs/rune-modules/0/rune_modules/fmt/
 //! [fs]: https://docs.rs/rune-modules/0/rune_modules/fs/
 //! [http]: https://docs.rs/rune-modules/0/rune_modules/http/
 //! [io]: https://docs.rs/rune-modules/0/rune_modules/io/
@@ -121,15 +125,16 @@ macro_rules! modules {
 }
 
 modules! {
+    core, "core",
+    fmt, "fmt",
     fs, "fs",
     http, "http",
+    io, "io",
     json, "json",
     process, "process",
     rand, "rand",
     signal, "signal",
+    test, "test",
     time, "time",
     toml, "toml",
-    test, "test",
-    core, "core",
-    io, "io",
 }

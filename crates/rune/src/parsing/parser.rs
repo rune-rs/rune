@@ -41,7 +41,7 @@ impl<'a> Parser<'a> {
 
     /// Construct a new parser with a source.
     fn with_source(source: Source<'a>) -> Self {
-        let span = source.span().or_else(crate::macros::current_span);
+        let span = source.span().or_else(crate::macros::current_stream_span);
 
         Self {
             peeker: Peeker {

@@ -1,4 +1,4 @@
-//! `std::io` module for the [Rune Language].
+//! `std::fmt` module for the [Rune Language].
 //!
 //! [Rune Language]: https://rune-rs.github.io
 //!
@@ -7,7 +7,7 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! rune-modules = {version = "0.6.16", features = ["io"]}
+//! rune-modules = {version = "0.6.16", features = ["fmt"]}
 //! ```
 //!
 //! Install it into your context:
@@ -15,26 +15,26 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::io::module(true)?)?;
+//! context.install(&rune_modules::fmt::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
 
 use rune::macros;
-use rune::{quote, Parser, TokenStream};
+use rune::{Parser, TokenStream};
 
 /// Construct the supplemental `std::io` module.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["std", "io"]);
-    module.macro_(&["println"], println_macro)?;
+    let mut module = runestick::Module::new(&["std", "fmt"]);
+    module.macro_(&["format"], format_macro)?;
     Ok(module)
 }
 
-/// Implementation for the `println!` macro.
-pub(crate) fn println_macro(stream: &TokenStream) -> runestick::Result<TokenStream> {
+/// Implementation for the `format!` macro.
+pub(crate) fn format_macro(stream: &TokenStream) -> runestick::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream);
     let args = p.parse::<macros::FormatArgs>()?;
     p.eof()?;
     let expanded = args.expand()?;
-    Ok(quote!(std::io::println(#expanded)).into_token_stream())
+    Ok(expanded.into_token_stream())
 }

@@ -23,8 +23,8 @@ thread_local! {
 
 /// Optionally get the span associated with the current context if it is
 /// specified.
-pub(crate) fn current_span() -> Option<Span> {
-    MACRO_CONTEXT.with(|ctx| Some(ctx.borrow().as_ref()?.span))
+pub(crate) fn current_stream_span() -> Option<Span> {
+    MACRO_CONTEXT.with(|ctx| Some(ctx.borrow().as_ref()?.stream_span()))
 }
 
 /// Perform the given operation with the current macro context fetched from TLS.
@@ -102,8 +102,10 @@ pub(crate) struct EvaluationContext {
 
 /// Context for a running macro.
 pub struct MacroContext {
+    /// The span of the macro call.
+    pub(crate) macro_span: Span,
     /// Temporary recorded default span.
-    pub(crate) span: Span,
+    pub(crate) stream_span: Span,
     /// The current source.
     pub(crate) source: Arc<Source>,
     /// Storage used in macro context.
@@ -116,7 +118,8 @@ impl MacroContext {
     /// Construct an empty macro context, primarily used for testing.
     pub fn empty() -> Self {
         Self {
-            span: Span::empty(),
+            macro_span: Span::empty(),
+            stream_span: Span::empty(),
             source: Arc::new(Source::default()),
             storage: Storage::default(),
             eval_context: None,
@@ -132,7 +135,7 @@ impl MacroContext {
         let eval_context = self
             .eval_context
             .as_ref()
-            .ok_or_else(|| IrError::new(self.span, IrErrorKind::MissingMacroQuery))?;
+            .ok_or_else(|| IrError::new(self.macro_span, IrErrorKind::MissingMacroQuery))?;
 
         let mut ir_query = eval_context.query.as_ir_query();
 
@@ -178,9 +181,14 @@ impl MacroContext {
         Stringify { ctx: self, stream }
     }
 
-    /// Access the default span of the context.
-    pub fn span(&self) -> Span {
-        self.span
+    /// Access span of the whole macro.
+    pub fn macro_span(&self) -> Span {
+        self.macro_span
+    }
+
+    /// Access the span of the stream being parsed.
+    pub fn stream_span(&self) -> Span {
+        self.stream_span
     }
 
     /// Access storage for the macro system.
@@ -209,7 +217,7 @@ impl MacroContext {
 
         ast::Ident {
             token: ast::Token {
-                span: self.span,
+                span: self.macro_span(),
                 kind: ast::Kind::Ident(source),
             },
             source,
@@ -218,12 +226,16 @@ impl MacroContext {
 
     /// Construct a new label from the given string. The string should be
     /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
-    pub fn label(&self, label: &str) -> ast::Token {
+    pub(crate) fn label(&self, label: &str) -> ast::Label {
         let id = self.storage.insert_str(label);
+        let source = ast::StringSource::Synthetic(id);
 
-        ast::Token {
-            span: self.span,
-            kind: ast::Kind::Label(ast::StringSource::Synthetic(id)),
+        ast::Label {
+            token: ast::Token {
+                span: self.macro_span,
+                kind: ast::Kind::Label(source),
+            },
+            source,
         }
     }
 }
@@ -242,7 +254,7 @@ impl IntoLit for i32 {
         ast::Lit::Number(ast::LitNumber {
             token: ast::Token {
                 kind: ast::Kind::Number(source),
-                span: ctx.span(),
+                span: ctx.macro_span(),
             },
             source,
         })
@@ -257,7 +269,7 @@ impl IntoLit for i64 {
         ast::Lit::Number(ast::LitNumber {
             token: ast::Token {
                 kind: ast::Kind::Number(source),
-                span: ctx.span(),
+                span: ctx.macro_span(),
             },
             source,
         })
@@ -272,7 +284,7 @@ impl IntoLit for f64 {
         ast::Lit::Number(ast::LitNumber {
             token: ast::Token {
                 kind: ast::Kind::Number(source),
-                span: ctx.span(),
+                span: ctx.macro_span(),
             },
             source,
         })
@@ -286,7 +298,7 @@ impl IntoLit for char {
         ast::Lit::Char(ast::LitChar {
             token: ast::Token {
                 kind: ast::Kind::Char(source),
-                span: ctx.span(),
+                span: ctx.macro_span(),
             },
             source,
         })
@@ -300,7 +312,7 @@ impl IntoLit for u8 {
         ast::Lit::Byte(ast::LitByte {
             token: ast::Token {
                 kind: ast::Kind::Byte(source),
-                span: ctx.span(),
+                span: ctx.macro_span(),
             },
             source,
         })
@@ -315,7 +327,7 @@ impl IntoLit for &str {
         ast::Lit::Str(ast::LitStr {
             token: ast::Token {
                 kind: ast::Kind::Str(ast::StrSource::Synthetic(id)),
-                span: ctx.span(),
+                span: ctx.macro_span(),
             },
             source,
         })
@@ -336,7 +348,7 @@ impl IntoLit for String {
         ast::Lit::Str(ast::LitStr {
             token: ast::Token {
                 kind: ast::Kind::Str(source),
-                span: ctx.span(),
+                span: ctx.macro_span(),
             },
             source,
         })
@@ -352,7 +364,7 @@ impl IntoLit for &[u8] {
         ast::Lit::ByteStr(ast::LitByteStr {
             token: ast::Token {
                 kind: ast::Kind::ByteStr(source),
-                span: ctx.span(),
+                span: ctx.macro_span(),
             },
             source,
         })

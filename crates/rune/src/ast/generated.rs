@@ -4263,7 +4263,7 @@ impl macros::ToTokens for Kind {
     fn to_tokens(&self, context: &macros::MacroContext, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             kind: *self,
-            span: context.span(),
+            span: context.macro_span(),
         });
     }
 }

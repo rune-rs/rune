@@ -172,18 +172,36 @@ fn main() -> Result<()> {
             #("/// Helper macro to reference a specific token.")
             #[macro_export]
             macro_rules! T {
-                (()) => { $crate::ast::LitUnit };
-                ('(') => { $crate::ast::OpenParen };
-                (')') => { $crate::ast::CloseParen };
-                ('[') => { $crate::ast::OpenBracket };
-                (']') => { $crate::ast::CloseBracket };
-                ('{') => { $crate::ast::OpenBrace };
-                ('}') => { $crate::ast::CloseBrace };
+                (()) => {
+                    $crate::ast::LitUnit
+                };
+                ('(') => {
+                    $crate::ast::OpenParen
+                };
+                (')') => {
+                    $crate::ast::CloseParen
+                };
+                ('[') => {
+                    $crate::ast::OpenBracket
+                };
+                (']') => {
+                    $crate::ast::CloseBracket 
+                };
+                ('{') => {
+                    $crate::ast::OpenBrace
+                };
+                ('}') => {
+                    $crate::ast::CloseBrace
+                };
                 #(for k in &keywords join(#<push>) =>
-                    (#(&k.keyword)) => { $crate::ast::generated::#(&k.variant) };
+                    (#(&k.keyword)) => {
+                        $crate::ast::generated::#(&k.variant)
+                    };
                 )
                 #(for k in &punctuations join(#<push>) =>
-                    (#(&k.punct)) => { $crate::ast::generated::#(&k.variant) };
+                    (#(&k.punct)) => {
+                        $crate::ast::generated::#(&k.variant)
+                    };
                 )
             }
 
@@ -293,7 +311,7 @@ fn main() -> Result<()> {
                 fn to_tokens(&self, context: &#macro_context, stream: &mut #token_stream) {
                     stream.push(#token {
                         kind: *self,
-                        span: context.span(),
+                        span: context.macro_span(),
                     });
                 }
             }

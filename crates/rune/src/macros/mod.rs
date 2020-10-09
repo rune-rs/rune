@@ -17,4 +17,4 @@ pub use self::storage::Storage;
 pub use self::token_stream::{ToTokens, TokenStream, TokenStreamIter};
 
 pub(crate) use self::macro_compiler::MacroCompiler;
-pub(crate) use self::macro_context::{current_context, current_span};
+pub(crate) use self::macro_context::{current_context, current_stream_span};
