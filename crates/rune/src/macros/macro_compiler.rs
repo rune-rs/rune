@@ -57,7 +57,8 @@ impl MacroCompiler<'_> {
         let input_stream = &macro_call.stream;
 
         let macro_context = MacroContext {
-            span: macro_call.stream_span(),
+            macro_span: macro_call.span(),
+            stream_span: macro_call.stream_span(),
             source: self.source.clone(),
             storage: self.storage.clone(),
             eval_context: Some(EvaluationContext {

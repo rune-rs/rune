@@ -13,7 +13,19 @@ pub struct Label {
     pub token: ast::Token,
     /// The kind of the label.
     #[rune(skip)]
-    pub kind: ast::StringSource,
+    pub source: ast::StringSource,
+}
+
+impl Label {
+    /// Construct a new synthetic label. The label should be specified without
+    /// the leading `'`, so `hello` instead of `'hello`.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if it's called outside of a macro context.
+    pub fn new(label: &str) -> Self {
+        crate::macros::current_context(|ctx| ctx.label(label))
+    }
 }
 
 impl Parse for Label {
@@ -21,7 +33,7 @@ impl Parse for Label {
         let token = p.next()?;
 
         match token.kind {
-            K!['label(kind)] => Ok(Self { token, kind }),
+            K!['label(source)] => Ok(Self { token, source }),
             _ => Err(ParseError::expected(&token, "label")),
         }
     }
@@ -39,7 +51,7 @@ impl<'a> Resolve<'a> for Label {
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
         let span = self.token.span();
 
-        match self.kind {
+        match self.source {
             ast::StringSource::Text => {
                 let span = self.token.span();
 

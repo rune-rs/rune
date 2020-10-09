@@ -47,6 +47,8 @@ impl UnitBuilder {
         this.prelude
             .insert("println".into(), Item::of(&["std", "io", "println"]));
         this.prelude
+            .insert("format".into(), Item::of(&["std", "fmt", "format"]));
+        this.prelude
             .insert("unit".into(), Item::of(&["std", "core", "unit"]));
         this.prelude
             .insert("bool".into(), Item::of(&["std", "core", "bool"]));
