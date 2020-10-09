@@ -246,39 +246,12 @@ pub trait IntoLit {
     fn into_lit(self, ctx: &MacroContext) -> ast::Lit;
 }
 
-impl IntoLit for i32 {
+impl<T> IntoLit for T
+where
+    ast::Number: From<T>,
+{
     fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-        let id = ctx.storage.insert_number(self as i64);
-        let source = ast::NumberSource::Synthetic(id);
-
-        ast::Lit::Number(ast::LitNumber {
-            token: ast::Token {
-                kind: ast::Kind::Number(source),
-                span: ctx.macro_span(),
-            },
-            source,
-        })
-    }
-}
-
-impl IntoLit for i64 {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-        let id = ctx.storage.insert_number(self as i64);
-        let source = ast::NumberSource::Synthetic(id);
-
-        ast::Lit::Number(ast::LitNumber {
-            token: ast::Token {
-                kind: ast::Kind::Number(source),
-                span: ctx.macro_span(),
-            },
-            source,
-        })
-    }
-}
-
-impl IntoLit for f64 {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-        let id = ctx.storage.insert_number(self as i64);
+        let id = ctx.storage.insert_number(self);
         let source = ast::NumberSource::Synthetic(id);
 
         ast::Lit::Number(ast::LitNumber {

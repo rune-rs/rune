@@ -1,3 +1,10 @@
+macro_rules! test_case {
+    ($($tt:tt)*) => {
+        let out: String = rune!(String => fn main() { format!($($tt)*) });
+        assert_eq!(format!($($tt)*), out);
+    }
+}
+
 #[test]
 fn test_asserts() {
     rune!(() => fn main() { assert!(true) });
@@ -12,19 +19,80 @@ fn test_stringify() {
 
 #[test]
 fn test_format() {
-    let out: String = rune!(String => fn main() { format!("Hello, World") });
-    assert_eq!("Hello, World", out);
-
-    let out: String = rune!(String => fn main() { format!("Hello, {name}", name = "John Doe") });
-    assert_eq!("Hello, John Doe", out);
-
-    let out: String = rune!(String => fn main() { format!("Hello, {1} {0}", "John", "Doe") });
-    assert_eq!("Hello, Doe John", out);
-
-    let out: String = rune!(String => fn main() { format!("Hello, {} {0} {}", "John", "Doe") });
-    assert_eq!("Hello, John John Doe", out);
+    test_case!("Hello, World");
+    test_case!("Hello, {name}", name = "John Doe");
+    test_case!("Hello, {1} {0}", "John", "Doe");
+    test_case!("Hello, {} {0} {}", "John", "Doe");
 
     let out: String =
         rune!(String => fn main() { format!("Hello, {}" + " {0} {}", "John", "Doe") });
-    assert_eq!("Hello, John John Doe", out);
+    assert_eq!(format!("Hello, {} {0} {}", "John", "Doe"), out);
+}
+
+#[test]
+fn test_strings() {
+    test_case!("{}", "test\tstring");
+    test_case!("{:?}", "test\tstring");
+
+    test_case!("{:>99}", "test\tstring");
+    test_case!("{:>99?}", "test\tstring");
+    test_case!("{:^99}", "test\tstring");
+    test_case!("{:^99?}", "test\tstring");
+    test_case!("{:>99}", "test\tstring");
+    test_case!("{:>99?}", "test\tstring");
+
+    // NB: sign aware zero expansion is ignored for strings.
+    test_case!("{:>099}", "test\tstring");
+    test_case!("{:>099?}", "test\tstring");
+    test_case!("{:^099}", "test\tstring");
+    test_case!("{:^099?}", "test\tstring");
+    test_case!("{:>099}", "test\tstring");
+    test_case!("{:>099?}", "test\tstring");
+
+    test_case!("{:/>99}", "test\tstring");
+    test_case!("{:/>99?}", "test\tstring");
+    test_case!("{:/^99}", "test\tstring");
+    test_case!("{:/^99?}", "test\tstring");
+    test_case!("{:/>99}", "test\tstring");
+    test_case!("{:/>99?}", "test\tstring");
+
+    test_case!("{:\n>99}", "test\tstring");
+    test_case!("{:\n>99?}", "test\tstring");
+    test_case!("{:\n^99}", "test\tstring");
+    test_case!("{:\n^99?}", "test\tstring");
+    test_case!("{:\n>99}", "test\tstring");
+    test_case!("{:\n>99?}", "test\tstring");
+}
+
+#[test]
+fn test_float_formatting() {
+    test_case!("{:.10}", 3.1415);
+    test_case!("{:.*}", 10, 3.1415);
+}
+
+#[test]
+fn test_number_formatting() {
+    test_case!("{:<013}", -42);
+    test_case!("{:^013}", -42);
+    test_case!("{:>013}", -42);
+
+    test_case!("{:<013}", 42);
+    test_case!("{:^013}", 42);
+    test_case!("{:>013}", 42);
+
+    test_case!("{:/<13}", 42);
+    test_case!("{:/^13}", 42);
+    test_case!("{:/>13}", 42);
+
+    test_case!("{:/<13x}", 42);
+    test_case!("{:/^13x}", 42);
+    test_case!("{:/>13x}", 42);
+
+    test_case!("{:/<13X}", 42);
+    test_case!("{:/^13X}", 42);
+    test_case!("{:/>13X}", 42);
+
+    test_case!("{:/<13b}", 42);
+    test_case!("{:/^13b}", 42);
+    test_case!("{:/>13b}", 42);
 }

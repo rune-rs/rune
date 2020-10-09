@@ -27,7 +27,7 @@ impl Token {
                     write!(f, "{}", s)?;
                 }
                 StringSource::Synthetic(id) => {
-                    match ctx.storage().with_string(*id, |s| write!(f, "{:?}", s)) {
+                    match ctx.storage().with_string(*id, |s| write!(f, "{}", s)) {
                         Some(result) => result?,
                         None => return Err(fmt::Error),
                     }
@@ -176,18 +176,46 @@ pub enum Number {
 }
 
 impl Number {
+    /// Negate the inner number.
+    pub fn neg(self) -> Self {
+        use std::ops::Neg as _;
+
+        match self {
+            Self::Float(n) => Self::Float(-n),
+            Self::Integer(n) => Self::Integer(n.neg()),
+        }
+    }
+
+    /// Convert into a 32-bit unsigned number.
+    pub fn as_u32(&self, spanned: Span, neg: bool) -> Result<u32, ParseError> {
+        self.as_primitive(spanned, neg, num::ToPrimitive::to_u32)
+    }
+
     /// Convert into a 64-bit signed number.
     pub fn as_i64(&self, spanned: Span, neg: bool) -> Result<i64, ParseError> {
-        use num::ToPrimitive as _;
+        self.as_primitive(spanned, neg, num::ToPrimitive::to_i64)
+    }
+
+    /// Convert into usize.
+    pub fn as_usize(&self, spanned: Span, neg: bool) -> Result<usize, ParseError> {
+        self.as_primitive(spanned, neg, num::ToPrimitive::to_usize)
+    }
+
+    fn as_primitive<T>(
+        &self,
+        spanned: Span,
+        neg: bool,
+        to: impl FnOnce(&num::BigInt) -> Option<T>,
+    ) -> Result<T, ParseError> {
         use std::ops::Neg as _;
 
         let number = match self {
             Number::Float(_) => return Err(ParseError::new(spanned, ParseErrorKind::BadNumber)),
             Number::Integer(n) => {
                 if neg {
-                    n.clone().neg().to_i64()
+                    to(&n.clone().neg())
                 } else {
-                    n.to_i64()
+                    to(n)
                 }
             }
         };
@@ -212,33 +240,36 @@ impl Number {
     }
 }
 
+macro_rules! impl_from_int {
+    ($ty:ty) => {
+        impl From<$ty> for Number {
+            fn from(value: $ty) -> Self {
+                Self::Integer(num::BigInt::from(value))
+            }
+        }
+    };
+}
+
+impl_from_int!(usize);
+impl_from_int!(isize);
+impl_from_int!(i16);
+impl_from_int!(u16);
+impl_from_int!(i32);
+impl_from_int!(u32);
+impl_from_int!(i64);
+impl_from_int!(u64);
+impl_from_int!(i128);
+impl_from_int!(u128);
+
+impl From<f32> for Number {
+    fn from(value: f32) -> Self {
+        Self::Float(value as f64)
+    }
+}
+
 impl From<f64> for Number {
     fn from(value: f64) -> Self {
         Self::Float(value)
-    }
-}
-
-impl From<u32> for Number {
-    fn from(value: u32) -> Self {
-        Self::Integer(num::BigInt::from(value))
-    }
-}
-
-impl From<i32> for Number {
-    fn from(value: i32) -> Self {
-        Self::Integer(num::BigInt::from(value))
-    }
-}
-
-impl From<u64> for Number {
-    fn from(value: u64) -> Self {
-        Self::Integer(num::BigInt::from(value))
-    }
-}
-
-impl From<i64> for Number {
-    fn from(value: i64) -> Self {
-        Self::Integer(num::BigInt::from(value))
     }
 }
 
@@ -284,7 +315,7 @@ pub enum BuiltIn {
     /// `template`.
     Template,
     /// `formatspec`.
-    FormatSpec,
+    Format,
     /// `builtin`.
     BuiltIn,
     /// `literal`.
@@ -296,7 +327,7 @@ impl BuiltIn {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Template => "template",
-            Self::FormatSpec => "formatspec",
+            Self::Format => "formatspec",
             Self::BuiltIn => "builtin",
             Self::Literal => "literal",
         }

@@ -1,5 +1,5 @@
 mod block;
-mod builtin_fmtspec;
+mod builtin_format;
 mod builtin_template;
 mod const_value;
 mod expr;

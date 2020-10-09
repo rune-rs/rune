@@ -1,10 +1,9 @@
 use crate::budget;
-use crate::format_spec;
 use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
-    Args, Awaited, BorrowMut, Bytes, Call, Context, FormatSpec, FromValue, Function, Future,
-    Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstTarget,
+    Args, Awaited, BorrowMut, Bytes, Call, Context, Format, FormatSpec, FromValue, Function,
+    Future, Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstTarget,
     IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, Struct, StructVariant, Tuple,
     TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution,
     VmHalt, VmIntegerRepr,
@@ -1527,78 +1526,38 @@ impl Vm {
         Ok(())
     }
 
-    /// Formatting of a format specification.
-    fn format_format_spec(&mut self, spec: &FormatSpec, buf: &mut String) -> Result<(), VmError> {
-        use std::fmt::Write as _;
-
-        match &spec.value {
-            Value::String(s) => match spec.ty {
-                format_spec::Type::Display => {
-                    buf.push_str(&*s.borrow_ref()?);
-                }
-                format_spec::Type::Debug => write!(buf, "{:?}", &*s.borrow_ref()?).unwrap(),
-            },
-            Value::StaticString(s) => match spec.ty {
-                format_spec::Type::Display => {
-                    buf.push_str(s.as_ref());
-                }
-                format_spec::Type::Debug => write!(buf, "{:?}", s.as_ref()).unwrap(),
-            },
-            Value::Integer(n) => match spec.ty {
-                format_spec::Type::Display => {
-                    let mut buffer = itoa::Buffer::new();
-                    buf.push_str(buffer.format(*n));
-                }
-                format_spec::Type::Debug => write!(buf, "{:?}", n).unwrap(),
-            },
-            Value::Float(n) => match spec.ty {
-                format_spec::Type::Display => {
-                    let mut buffer = ryu::Buffer::new();
-                    buf.push_str(buffer.format(*n));
-                }
-                format_spec::Type::Debug => write!(buf, "{:?}", n).unwrap(),
-            },
-            value => {
-                if let format_spec::Type::Debug = spec.ty {
-                    write!(buf, "{:?}", value).unwrap();
-                    return Ok(());
-                }
-
-                return Err(VmError::from(VmErrorKind::FormatError));
-            }
-        }
-
-        Ok(())
-    }
-
     /// Optimize operation to perform string concatenation.
     #[inline]
     fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
-        let mut buf = String::with_capacity(size_hint);
         let values = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
+
+        let mut out = String::with_capacity(size_hint);
+        let mut buf = String::new();
 
         for value in values {
             match value {
-                Value::FormatSpec(format_spec) => {
-                    let format_spec = format_spec.borrow_ref()?;
-                    self.format_format_spec(&*format_spec, &mut buf)?;
+                Value::Format(format) => {
+                    let format = format.borrow_ref()?;
+                    format
+                        .spec
+                        .format_with_buf(&format.value, &mut out, &mut buf)?;
                 }
                 Value::String(string) => {
-                    buf.push_str(&*string.borrow_ref()?);
+                    out.push_str(&*string.borrow_ref()?);
                 }
                 Value::StaticString(string) => {
-                    buf.push_str(string.as_ref());
+                    out.push_str(string.as_ref());
                 }
                 Value::Integer(integer) => {
                     let mut buffer = itoa::Buffer::new();
-                    buf.push_str(buffer.format(integer));
+                    out.push_str(buffer.format(integer));
                 }
                 Value::Float(float) => {
                     let mut buffer = ryu::Buffer::new();
-                    buf.push_str(buffer.format(float));
+                    out.push_str(buffer.format(float));
                 }
                 actual => {
-                    let b = Shared::new(std::mem::take(&mut buf));
+                    let b = Shared::new(std::mem::take(&mut out));
 
                     if !self.call_instance_fn(
                         &actual,
@@ -1617,21 +1576,21 @@ impl Vm {
                         return Err(VmError::from(VmErrorKind::FormatError));
                     }
 
-                    buf = b.take()?;
+                    out = b.take()?;
                 }
             }
         }
 
-        self.stack.push(buf);
+        self.stack.push(out);
         Ok(())
     }
 
     /// Push a format specification onto the stack.
     #[inline]
-    fn op_fmt_spec(&mut self, ty: format_spec::Type) -> Result<(), VmError> {
+    fn op_format(&mut self, spec: FormatSpec) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        self.stack.push(FormatSpec { value, ty });
+        self.stack.push(Format { value, spec });
         Ok(())
     }
 
@@ -2405,8 +2364,8 @@ impl Vm {
                 Inst::StringConcat { len, size_hint } => {
                     self.op_string_concat(len, size_hint)?;
                 }
-                Inst::FormatSpec { ty } => {
-                    self.op_fmt_spec(ty)?;
+                Inst::Format { spec } => {
+                    self.op_format(spec)?;
                 }
                 Inst::IsUnit => {
                     self.op_is_unit()?;

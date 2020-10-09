@@ -32,6 +32,36 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// Try to consume a single thing matching `T`, returns `true` if any tokens
+    /// were consumed.
+    pub fn try_consume<T>(&mut self) -> Result<bool, ParseError>
+    where
+        T: Parse + Peek,
+    {
+        Ok(if self.peek::<T>()? {
+            self.parse::<T>()?;
+            true
+        } else {
+            false
+        })
+    }
+
+    /// Try to consume all things matching `T`, returns `true` if any tokens
+    /// were consumed.
+    pub fn try_consume_all<T>(&mut self) -> Result<bool, ParseError>
+    where
+        T: Parse + Peek,
+    {
+        let mut consumed = false;
+
+        while self.peek::<T>()? {
+            self.parse::<T>()?;
+            consumed = true;
+        }
+
+        Ok(consumed)
+    }
+
     /// Construct a parser from a token stream.
     pub fn from_token_stream(token_stream: &'a TokenStream) -> Self {
         Self::with_source(Source {

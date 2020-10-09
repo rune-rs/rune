@@ -87,8 +87,8 @@ impl Assemble for ast::Expr {
                     BuiltInMacro::Template(template) => {
                         template.assemble(c, needs)?;
                     }
-                    BuiltInMacro::FormatSpec(format_spec) => {
-                        format_spec.assemble(c, needs)?;
+                    BuiltInMacro::Format(format) => {
+                        format.assemble(c, needs)?;
                     }
                 }
             }

@@ -11,7 +11,7 @@ use crate::{
     CompileError, CompileErrorKind, CompileVisitor, Id, ImportEntryStep, Resolve as _, Spanned,
     Storage, UnitBuilder,
 };
-use runestick::format_spec;
+use runestick::format;
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
     CompileMetaTuple, CompileSource, Component, ComponentRef, Hash, IntoComponent, Item, Names,
@@ -20,6 +20,7 @@ use runestick::{
 use std::cell::{RefCell, RefMut};
 use std::collections::VecDeque;
 use std::fmt;
+use std::num::NonZeroUsize;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -29,7 +30,7 @@ mod query_error;
 /// An internally resolved macro.
 pub(crate) enum BuiltInMacro {
     Template(BuiltInTemplate),
-    FormatSpec(BuiltInFormatSpec),
+    Format(BuiltInFormat),
 }
 
 /// An internally resolved template.
@@ -43,10 +44,20 @@ pub(crate) struct BuiltInTemplate {
 }
 
 /// An internal format specification.
-pub(crate) struct BuiltInFormatSpec {
+pub(crate) struct BuiltInFormat {
     pub(crate) span: Span,
+    /// The fill character to use.
+    pub(crate) fill: Option<(ast::LitChar, char)>,
+    /// Alignment specification.
+    pub(crate) align: Option<(ast::Ident, format::Alignment)>,
+    /// Width to fill.
+    pub(crate) width: Option<(ast::LitNumber, Option<NonZeroUsize>)>,
+    /// Precision to fill.
+    pub(crate) precision: Option<(ast::LitNumber, Option<NonZeroUsize>)>,
+    /// A specification of flags.
+    pub(crate) flags: Option<(ast::LitNumber, format::Flags)>,
     /// The format specification type.
-    pub(crate) ty: Option<(ast::Ident, format_spec::Type)>,
+    pub(crate) format_type: Option<(ast::Ident, format::Type)>,
     /// The value being formatted.
     pub(crate) value: ast::Expr,
 }
