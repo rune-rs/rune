@@ -6,7 +6,7 @@ use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
 };
 use runestick::debug::DebugSignature;
-use runestick::{CompileMeta, Hash, Item, Label, SourceId, Span};
+use runestick::{CompileMeta, Hash, Item, Label, SourceId, Span, SpannedError};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -24,6 +24,12 @@ error! {
     impl From<ParseError>;
     impl From<IrError>;
     impl From<QueryError>;
+}
+
+impl From<CompileError> for SpannedError {
+    fn from(error: CompileError) -> Self {
+        SpannedError::new(error.span, *error.kind)
+    }
 }
 
 impl CompileError {

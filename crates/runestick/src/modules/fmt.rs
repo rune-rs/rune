@@ -10,7 +10,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<std::fmt::Error>()?;
     module.inst_fn(crate::STRING_DISPLAY, format_fmt_error)?;
 
-    module.ty::<crate::FormatSpec>()?;
+    module.ty::<crate::Format>()?;
     Ok(module)
 }
 

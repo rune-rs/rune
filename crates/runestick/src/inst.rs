@@ -1,5 +1,4 @@
-use crate::format_spec;
-use crate::{Hash, Value};
+use crate::{FormatSpec, Hash, Value};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -639,11 +638,11 @@ pub enum Inst {
         /// The minimum string size used.
         size_hint: usize,
     },
-    /// Push a format specification onto the stack, with the last value on the
-    /// stack wrapped in it.
-    FormatSpec {
-        /// The type specification.
-        ty: format_spec::Type,
+    /// Push a combined format specification and value onto the stack. The value
+    /// used is the last value on the stack.
+    Format {
+        /// The format specification to use.
+        spec: FormatSpec,
     },
     /// Test if the top of the stack is a unit.
     ///
@@ -1005,8 +1004,17 @@ impl fmt::Display for Inst {
             Self::StringConcat { len, size_hint } => {
                 write!(fmt, "string-concat {}, {}", len, size_hint)?;
             }
-            Self::FormatSpec { ty } => {
-                write!(fmt, "format-spec {}", ty)?;
+            Self::Format { spec } => {
+                write!(
+                    fmt,
+                    "format {fill:?}, {align}, {flags:?}, {width}, {precision}, {format_type}",
+                    fill = spec.fill,
+                    align = spec.align,
+                    flags = spec.flags,
+                    width = option(&spec.width),
+                    precision = option(&spec.precision),
+                    format_type = spec.format_type
+                )?;
             }
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;
@@ -1060,7 +1068,25 @@ impl fmt::Display for Inst {
             }
         }
 
-        Ok(())
+        return Ok(());
+
+        fn option<T>(value: &Option<T>) -> OptionDebug<'_, T> {
+            OptionDebug(value.as_ref())
+        }
+
+        struct OptionDebug<'a, T>(Option<&'a T>);
+
+        impl<'a, T> fmt::Display for OptionDebug<'a, T>
+        where
+            T: fmt::Display,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self.0 {
+                    Some(value) => write!(f, "{}", value),
+                    None => write!(f, "?"),
+                }
+            }
+        }
     }
 }
 

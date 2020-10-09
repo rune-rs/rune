@@ -1,6 +1,6 @@
 use crate::access::AccessKind;
 use crate::{
-    Any, AnyObj, Bytes, FormatSpec, Function, Future, Generator, GeneratorState, Hash, Item, Mut,
+    Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Item, Mut,
     Object, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, Vec, VmError,
 };
 use serde::{Deserialize, Serialize};
@@ -344,8 +344,8 @@ pub enum Value {
     StructVariant(Shared<StructVariant>),
     /// A stored function pointer.
     Function(Shared<Function>),
-    /// A format specification.
-    FormatSpec(Shared<FormatSpec>),
+    /// A value being formatted.
+    Format(Shared<Format>),
     /// An opaque value that can be downcasted.
     Any(Shared<AnyObj>),
 }
@@ -562,10 +562,10 @@ impl Value {
 
     /// Try to coerce value into a format spec.
     #[inline]
-    pub fn into_format_spec(self) -> Result<Shared<FormatSpec>, VmError> {
+    pub fn into_format(self) -> Result<Shared<Format>, VmError> {
         match self {
-            Value::FormatSpec(format_spec) => Ok(format_spec),
-            actual => Err(VmError::expected::<FormatSpec>(actual.type_info()?)),
+            Value::Format(format) => Ok(format),
+            actual => Err(VmError::expected::<Format>(actual.type_info()?)),
         }
     }
 
@@ -648,7 +648,7 @@ impl Value {
             Self::Result(..) => Type::from(crate::RESULT_TYPE),
             Self::Option(..) => Type::from(crate::OPTION_TYPE),
             Self::Function(..) => Type::from(crate::FUNCTION_TYPE),
-            Self::FormatSpec(..) => Type::from(crate::FORMAT_SPEC_TYPE),
+            Self::Format(..) => Type::from(crate::FORMAT_TYPE),
             Self::Type(hash) => Type::from(*hash),
             Self::UnitStruct(empty) => Type::from(empty.borrow_ref()?.rtti.hash),
             Self::TupleStruct(tuple) => Type::from(tuple.borrow_ref()?.rtti.hash),
@@ -682,7 +682,7 @@ impl Value {
             Self::Option(..) => TypeInfo::StaticType(crate::OPTION_TYPE),
             Self::Result(..) => TypeInfo::StaticType(crate::RESULT_TYPE),
             Self::Function(..) => TypeInfo::StaticType(crate::FUNCTION_TYPE),
-            Self::FormatSpec(..) => TypeInfo::StaticType(crate::FORMAT_SPEC_TYPE),
+            Self::Format(..) => TypeInfo::StaticType(crate::FORMAT_TYPE),
             Self::Type(hash) => TypeInfo::Hash(*hash),
             Self::UnitStruct(empty) => empty.borrow_ref()?.type_info(),
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.type_info(),
@@ -846,7 +846,7 @@ impl fmt::Debug for Value {
             Value::Function(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::FormatSpec(value) => {
+            Value::Format(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::Any(value) => {
@@ -944,7 +944,7 @@ impl_from_shared!(Shared<UnitVariant>, UnitVariant);
 impl_from_shared!(Shared<TupleVariant>, TupleVariant);
 impl_from_shared!(Shared<StructVariant>, StructVariant);
 impl_from_shared!(Shared<Function>, Function);
-impl_from_shared!(Shared<FormatSpec>, FormatSpec);
+impl_from_shared!(Shared<Format>, Format);
 impl_from_shared!(Shared<AnyObj>, Any);
 
 #[cfg(test)]

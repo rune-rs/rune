@@ -14,6 +14,23 @@ pub struct LitChar {
     pub source: ast::CopySource<char>,
 }
 
+impl LitChar {
+    /// Construct a new literal character.
+    ///
+    /// # Panics
+    ///
+    /// This panics if called outside of a macro context.
+    pub fn new(c: char) -> Self {
+        crate::macros::current_context(|ctx| Self {
+            token: ast::Token {
+                kind: ast::Kind::Char(ast::CopySource::Inline(c)),
+                span: ctx.macro_span(),
+            },
+            source: ast::CopySource::Inline(c),
+        })
+    }
+}
+
 /// Parse a character literal.
 ///
 /// # Examples

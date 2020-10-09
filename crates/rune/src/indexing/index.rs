@@ -6,7 +6,7 @@ use crate::load::{SourceLoader, Sources};
 use crate::macros::MacroCompiler;
 use crate::parsing::{Parse, Parser};
 use crate::query::{
-    Build, BuildEntry, BuiltInFormatSpec, BuiltInMacro, BuiltInTemplate, Function, Indexed,
+    Build, BuildEntry, BuiltInFormat, BuiltInMacro, BuiltInTemplate, Function, Indexed,
     IndexedEntry, InstanceFunction, Query, QueryMod, Used,
 };
 use crate::shared::{Consts, Items, Location};
@@ -15,12 +15,13 @@ use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _, Options,
     ParseError, Resolve as _, Spanned as _, Storage, Warnings,
 };
-use runestick::format_spec;
+use runestick::format;
 use runestick::{
     Call, CompileMeta, CompileMetaKind, CompileSource, Context, Hash, Item, Source, SourceId, Span,
     Type,
 };
 use std::collections::VecDeque;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -87,7 +88,7 @@ impl<'a> Indexer<'a> {
 
         let mut internal_macro = match ident.as_ref() {
             "template" => self.expand_template_macro(ast, &args)?,
-            "format_spec" => self.expand_fmtspec_macro(ast, &args)?,
+            "format" => self.expand_format_macro(ast, &args)?,
             _ => {
                 return Err(CompileError::new(
                     ast.path.span(),
@@ -104,8 +105,8 @@ impl<'a> Indexer<'a> {
                     expr.index(self)?;
                 }
             }
-            BuiltInMacro::FormatSpec(format_spec) => {
-                format_spec.value.index(self)?;
+            BuiltInMacro::Format(format) => {
+                format.value.index(self)?;
             }
         }
 
@@ -141,7 +142,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Expand the template macro.
-    fn expand_fmtspec_macro(
+    fn expand_format_macro(
         &mut self,
         ast: &mut ast::MacroCall,
         _: &attrs::BuiltInArgs,
@@ -151,54 +152,136 @@ impl<'a> Indexer<'a> {
         let value = p.parse::<ast::Expr>()?;
 
         // parsed options
-        let mut ty = None;
+        let mut fill = None;
+        let mut align = None;
+        let mut flags = None;
+        let mut width = None;
+        let mut precision = None;
+        let mut format_type = None;
 
-        while p.parse::<Option<T![,]>>()?.is_some() {
-            if p.is_eof()? {
-                break;
-            }
-
+        while p.try_consume::<T![,]>()? && !p.is_eof()? {
             let key = p.parse::<ast::Ident>()?;
             let _ = p.parse::<T![=]>()?;
 
             let k = key.resolve(&self.storage, &self.source)?;
 
             match k.as_ref() {
-                "type" => {
-                    if ty.is_some() {
+                "fill" => {
+                    if fill.is_some() {
                         return Err(ParseError::unsupported(
                             key.span(),
-                            "multiple `format_spec!(.., type = ..)`",
+                            "multiple `format!(.., fill = ..)`",
+                        ));
+                    }
+
+                    let arg = p.parse::<ast::LitChar>()?;
+                    let f = arg.resolve(&self.storage, &self.source)?;
+
+                    fill = Some((arg, f));
+                }
+                "align" => {
+                    if align.is_some() {
+                        return Err(ParseError::unsupported(
+                            key.span(),
+                            "multiple `format!(.., align = ..)`",
                         ));
                     }
 
                     let arg = p.parse::<ast::Ident>()?;
                     let a = arg.resolve(&self.storage, &self.source)?;
 
-                    ty = Some(match a.as_ref() {
-                        "debug" => (arg, format_spec::Type::Debug),
-                        "display" => (arg, format_spec::Type::Display),
+                    align = Some(match str::parse::<format::Alignment>(a.as_ref()) {
+                        Ok(a) => (arg, a),
                         _ => {
                             return Err(ParseError::unsupported(
                                 key.span(),
-                                "`format_spec!(.., type = ..)`",
+                                "`format!(.., align = ..)`",
+                            ));
+                        }
+                    });
+                }
+                "flags" => {
+                    if flags.is_some() {
+                        return Err(ParseError::unsupported(
+                            key.span(),
+                            "multiple `format!(.., flags = ..)`",
+                        ));
+                    }
+
+                    let arg = p.parse::<ast::LitNumber>()?;
+                    let f = arg
+                        .resolve(&self.storage, &self.source)?
+                        .as_u32(arg.span(), false)?;
+
+                    let f = format::Flags::from(f);
+                    flags = Some((arg, f));
+                }
+                "width" => {
+                    if width.is_some() {
+                        return Err(ParseError::unsupported(
+                            key.span(),
+                            "multiple `format!(.., width = ..)`",
+                        ));
+                    }
+
+                    let arg = p.parse::<ast::LitNumber>()?;
+                    let f = arg
+                        .resolve(&self.storage, &self.source)?
+                        .as_usize(arg.span(), false)?;
+
+                    width = Some((arg, NonZeroUsize::new(f)));
+                }
+                "precision" => {
+                    if precision.is_some() {
+                        return Err(ParseError::unsupported(
+                            key.span(),
+                            "multiple `format!(.., precision = ..)`",
+                        ));
+                    }
+
+                    let arg = p.parse::<ast::LitNumber>()?;
+                    let f = arg
+                        .resolve(&self.storage, &self.source)?
+                        .as_usize(arg.span(), false)?;
+
+                    precision = Some((arg, NonZeroUsize::new(f)));
+                }
+                "type" => {
+                    if format_type.is_some() {
+                        return Err(ParseError::unsupported(
+                            key.span(),
+                            "multiple `format!(.., type = ..)`",
+                        ));
+                    }
+
+                    let arg = p.parse::<ast::Ident>()?;
+                    let a = arg.resolve(&self.storage, &self.source)?;
+
+                    format_type = Some(match str::parse::<format::Type>(a.as_ref()) {
+                        Ok(format_type) => (arg, format_type),
+                        _ => {
+                            return Err(ParseError::unsupported(
+                                key.span(),
+                                "`format!(.., type = ..)`",
                             ));
                         }
                     });
                 }
                 _ => {
-                    return Err(ParseError::unsupported(
-                        key.span(),
-                        "`format_spec!(.., <key>)`",
-                    ));
+                    return Err(ParseError::unsupported(key.span(), "`format!(.., <key>)`"));
                 }
             }
         }
 
         p.eof()?;
-        Ok(BuiltInMacro::FormatSpec(BuiltInFormatSpec {
+        Ok(BuiltInMacro::Format(BuiltInFormat {
             span: ast.span(),
-            ty,
+            fill,
+            align,
+            width,
+            precision,
+            flags,
+            format_type,
             value,
         }))
     }
@@ -333,19 +416,17 @@ impl<'a> Indexer<'a> {
                     if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
                         // Expand into an expression so that it gets compiled.
                         stmts.push(ast::Stmt::Expr(ast::Expr::MacroCall(macro_call), semi));
-                    } else {
-                        if let Some(out) =
-                            self.expand_macro::<Option<ast::ItemOrExpr>>(&mut macro_call)?
-                        {
-                            let stmt = match out {
-                                ast::ItemOrExpr::Item(item) => ast::Stmt::Item(item, semi),
-                                ast::ItemOrExpr::Expr(expr) => {
-                                    ast::Stmt::Expr(macro_call.adjust_expr_semi(expr), semi)
-                                }
-                            };
+                    } else if let Some(out) =
+                        self.expand_macro::<Option<ast::ItemOrExpr>>(&mut macro_call)?
+                    {
+                        let stmt = match out {
+                            ast::ItemOrExpr::Item(item) => ast::Stmt::Item(item, semi),
+                            ast::ItemOrExpr::Expr(expr) => {
+                                ast::Stmt::Expr(macro_call.adjust_expr_semi(expr), semi)
+                            }
+                        };
 
-                            queue.push_front(stmt);
-                        }
+                        queue.push_front(stmt);
                     }
 
                     if let Some(span) = attributes.remaining() {

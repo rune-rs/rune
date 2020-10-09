@@ -41,11 +41,8 @@ impl Block {
     pub fn produces_nothing(&self) -> bool {
         let mut it = self.statements.iter();
 
-        while let Some(stmt) = it.next_back() {
-            match stmt {
-                ast::Stmt::Expr(_, semi) => return semi.is_some(),
-                _ => (),
-            }
+        while let Some(ast::Stmt::Expr(_, semi)) = it.next_back() {
+            return semi.is_some();
         }
 
         true

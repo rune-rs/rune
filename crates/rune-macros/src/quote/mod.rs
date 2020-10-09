@@ -185,7 +185,7 @@ impl Quote {
 
         match next {
             TokenTree::Ident(ident) => {
-                self.encode_to_tokens(punct.span(), output, ident.clone());
+                self.encode_to_tokens(punct.span(), output, ident);
             }
             // Token group parsing, currently disabled because it's not
             // particularly useful.
@@ -204,8 +204,8 @@ impl Quote {
 
                 let sep = &self.process(TokenStream::from(sep))?.into_stream();
 
-                output.push(quote::quote! {
-                    let mut it = IntoIterator::into_iter(#group).peekable();
+                let expanded = quote::quote! {
+                    let mut it = IntoIterator::into_iter(&#group).peekable();
 
                     while let Some(value) = it.next() {
                         #to_tokens(&value, #ctx, #stream);
@@ -214,7 +214,9 @@ impl Quote {
                             #sep
                         }
                     }
-                });
+                };
+
+                output.push(expanded);
 
                 it.next();
                 it.next();
