@@ -21,9 +21,10 @@ impl Function {
     {
         let value = match &self.inner {
             Inner::FnHandler(handler) => {
-                let mut stack = Stack::with_capacity(A::count());
+                let arg_count = args.count();
+                let mut stack = Stack::with_capacity(arg_count);
                 args.into_stack(&mut stack)?;
-                (handler.handler)(&mut stack, A::count())?;
+                (handler.handler)(&mut stack, arg_count)?;
                 stack.pop()?
             }
             Inner::FnOffset(fn_offset) => fn_offset.call(args, ())?,
@@ -31,19 +32,19 @@ impl Function {
                 .fn_offset
                 .call(args, (closure.environment.clone(),))?,
             Inner::FnUnitStruct(empty) => {
-                Self::check_args(A::count(), 0)?;
+                Self::check_args(args.count(), 0)?;
                 Value::unit_struct(empty.rtti.clone())
             }
             Inner::FnTupleStruct(tuple) => {
-                Self::check_args(A::count(), tuple.args)?;
+                Self::check_args(args.count(), tuple.args)?;
                 Value::tuple_struct(tuple.rtti.clone(), args.into_vec()?)
             }
             Inner::FnUnitVariant(empty) => {
-                Self::check_args(A::count(), 0)?;
+                Self::check_args(args.count(), 0)?;
                 Value::empty_variant(empty.rtti.clone())
             }
             Inner::FnTupleVariant(tuple) => {
-                Self::check_args(A::count(), tuple.args)?;
+                Self::check_args(args.count(), tuple.args)?;
                 Value::tuple_variant(tuple.rtti.clone(), args.into_vec()?)
             }
         };
@@ -293,7 +294,7 @@ impl FnOffset {
         A: Args,
         E: Args,
     {
-        Function::check_args(A::count(), self.args)?;
+        Function::check_args(args.count(), self.args)?;
 
         let mut vm = Vm::new(self.context.clone(), self.unit.clone());
 

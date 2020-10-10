@@ -7,7 +7,7 @@ pub trait Args {
     fn into_vec(self) -> Result<Vec<crate::Value>, crate::VmError>;
 
     /// The number of arguments.
-    fn count() -> usize;
+    fn count(&self) -> usize;
 }
 
 macro_rules! impl_into_args {
@@ -39,7 +39,7 @@ macro_rules! impl_into_args {
                 Ok(vec![$($value,)*])
             }
 
-            fn count() -> usize {
+            fn count(&self) -> usize {
                 $count
             }
         }
