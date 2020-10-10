@@ -1,10 +1,10 @@
 use crate::ast;
+use crate::collections::HashMap;
 use crate::ir::IrValue;
 use crate::macros;
-use crate::macros::Quote;
-use crate::parsing::{Parse, ParseError, Parser, Peek};
+use crate::macros::{MacroContext, Quote};
 use crate::quote;
-use crate::Spanned as _;
+use crate::{Parse, ParseError, Parser, Peek, Spanned};
 use runestick::format;
 use runestick::{Span, SpannedError};
 use std::collections::{BTreeMap, BTreeSet};
@@ -20,10 +20,8 @@ use crate as rune;
 pub struct FormatArgs {
     /// Format argument.
     format: ast::Expr,
-    /// Positional arguments.
-    pos: Vec<ast::Expr>,
-    /// Named arguments.
-    named: BTreeMap<Box<str>, (ast::Ident, T![=], ast::Expr)>,
+    /// Format arguments.
+    args: Vec<FormatArg>,
 }
 
 impl FormatArgs {
@@ -33,7 +31,36 @@ impl FormatArgs {
     ///
     /// Panics if called outside of a macro context.
     pub fn expand(&self) -> Result<Quote<'_>, SpannedError> {
-        let format = macros::eval(&self.format)?;
+        macros::current_context(|ctx| self.expand_with(ctx))
+    }
+
+    /// Expand the format specification.
+    pub fn expand_with(&self, ctx: &MacroContext) -> Result<Quote<'_>, SpannedError> {
+        let format = ctx.eval(&self.format)?;
+
+        let mut pos = Vec::new();
+        let mut named = HashMap::<Box<str>, _>::new();
+
+        for a in &self.args {
+            match a {
+                FormatArg::Positional(expr) => {
+                    if !named.is_empty() {
+                        return Err(SpannedError::msg(
+                            expr.span(),
+                            "unnamed positional arguments must come before named ones",
+                        ));
+                    }
+
+                    pos.push(expr);
+                }
+                FormatArg::Named(n) => {
+                    let name = ctx
+                        .resolve_owned(n.key)
+                        .map_err(|error| SpannedError::new(error.span(), error.into_kind()))?;
+                    named.insert(name.into(), n);
+                }
+            }
+        }
 
         let format = match format {
             IrValue::String(string) => string
@@ -47,19 +74,19 @@ impl FormatArgs {
             }
         };
 
-        let mut unused_pos = (0..self.pos.len()).collect::<BTreeSet<_>>();
-        let mut unused_named = self
-            .named
+        let mut unused_pos = (0..pos.len()).collect::<BTreeSet<_>>();
+        let mut unused_named = named
             .iter()
-            .map(|(key, n)| (key.clone(), n.0.span().join(n.1.span())))
+            .map(|(key, n)| (key.clone(), n.span()))
             .collect::<BTreeMap<_, _>>();
 
         let expanded = match expand_format_spec(
+            ctx,
             self.format.span(),
             &format,
-            &self.pos,
+            &pos,
             &mut unused_pos,
-            &self.named,
+            &named,
             &mut unused_named,
         ) {
             Ok(expanded) => expanded,
@@ -68,7 +95,7 @@ impl FormatArgs {
             }
         };
 
-        if let Some(expr) = unused_pos.into_iter().flat_map(|n| self.pos.get(n)).next() {
+        if let Some(expr) = unused_pos.into_iter().flat_map(|n| pos.get(n)).next() {
             return Err(SpannedError::msg(expr.span(), "unused positional argument"));
         }
 
@@ -95,38 +122,17 @@ impl Parse for FormatArgs {
 
         let format = p.parse::<ast::Expr>()?;
 
-        let mut pos = Vec::new();
-        let mut named = BTreeMap::new();
+        let mut args = Vec::new();
 
         while p.parse::<Option<T![,]>>()?.is_some() {
             if p.is_eof()? {
                 break;
             }
 
-            match (p.nth(0)?, p.nth(1)?) {
-                (K![ident], K![=]) => {
-                    let ident = p.parse::<ast::Ident>()?;
-                    let key = macros::resolve(ident)?;
-                    let eq_token = p.parse::<T![=]>()?;
-                    let expr = p.parse::<ast::Expr>()?;
-                    named.insert(key.into(), (ident, eq_token, expr));
-                }
-                _ => {
-                    let expr = p.parse::<ast::Expr>()?;
-
-                    if !named.is_empty() {
-                        return Err(ParseError::custom(
-                            expr.span(),
-                            "unnamed positional arguments must come before named ones",
-                        ));
-                    }
-
-                    pos.push(expr);
-                }
-            }
+            args.push(p.parse()?);
         }
 
-        Ok(Self { format, pos, named })
+        Ok(Self { format, args })
     }
 }
 
@@ -136,12 +142,43 @@ impl Peek for FormatArgs {
     }
 }
 
+/// A named format argument.
+#[derive(Debug, Clone, Parse, Spanned)]
+pub struct NamedFormatArg {
+    /// The key of the named argument.
+    pub key: ast::Ident,
+    /// The `=` token.
+    pub eq_token: T![=],
+    /// The value expression.
+    pub expr: ast::Expr,
+}
+
+/// A single format argument.
+#[derive(Debug, Clone)]
+pub enum FormatArg {
+    /// A positional argument.
+    Positional(ast::Expr),
+    /// A named argument.
+    Named(NamedFormatArg),
+}
+
+impl Parse for FormatArg {
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        Ok(if let (K![ident], K![=]) = (p.nth(0)?, p.nth(1)?) {
+            FormatArg::Named(p.parse()?)
+        } else {
+            FormatArg::Positional(p.parse()?)
+        })
+    }
+}
+
 fn expand_format_spec<'a>(
+    ctx: &MacroContext,
     span: Span,
     input: &str,
-    pos: &'a [ast::Expr],
+    pos: &[&'a ast::Expr],
     unused_pos: &mut BTreeSet<usize>,
-    named: &'a BTreeMap<Box<str>, (ast::Ident, T![=], ast::Expr)>,
+    named: &HashMap<Box<str>, &'a NamedFormatArg>,
     unused_named: &mut BTreeMap<Box<str>, Span>,
 ) -> Result<Quote<'a>, SpannedError> {
     let mut iter = Iter::new(input);
@@ -177,6 +214,7 @@ fn expand_format_spec<'a>(
                 }
 
                 components.push(parse_group(
+                    ctx,
                     span,
                     &mut iter,
                     &mut count,
@@ -306,15 +344,16 @@ fn expand_format_spec<'a>(
 
     /// Parse a single expansion group.
     fn parse_group<'a>(
+        ctx: &MacroContext,
         span: Span,
         iter: &mut Iter<'_>,
         count: &mut usize,
         name: &mut String,
         width: &mut String,
         precision: &mut String,
-        pos: &'a [ast::Expr],
+        pos: &[&'a ast::Expr],
         unused_pos: &mut BTreeSet<usize>,
-        named: &'a BTreeMap<Box<str>, (ast::Ident, T![=], ast::Expr)>,
+        named: &HashMap<Box<str>, &'a NamedFormatArg>,
         unused_named: &mut BTreeMap<Box<str>, Span>,
     ) -> Result<C<'a>, SpannedError> {
         use num::ToPrimitive as _;
@@ -499,7 +538,7 @@ fn expand_format_spec<'a>(
 
             unused_pos.remove(&count);
 
-            let value = macros::eval(expr)?;
+            let value = ctx.eval(*expr)?;
 
             let number = match &value {
                 IrValue::Integer(n) => n.to_usize(),
@@ -534,7 +573,7 @@ fn expand_format_spec<'a>(
         let expr = if !name.is_empty() {
             if let Ok(n) = str::parse::<usize>(&name) {
                 let expr = match pos.get(n) {
-                    Some(expr) => expr,
+                    Some(expr) => *expr,
                     None => {
                         return Err(SpannedError::msg(
                             span,
@@ -547,7 +586,7 @@ fn expand_format_spec<'a>(
                 expr
             } else {
                 let expr = match named.get(name.as_str()) {
-                    Some((_, _, expr)) => expr,
+                    Some(n) => &n.expr,
                     None => {
                         return Err(SpannedError::msg(
                             span,
@@ -561,7 +600,7 @@ fn expand_format_spec<'a>(
             }
         } else {
             let expr = match pos.get(*count) {
-                Some(expr) => expr,
+                Some(expr) => *expr,
                 None => {
                     return Err(SpannedError::msg(
                         span,

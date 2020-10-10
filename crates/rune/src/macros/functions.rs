@@ -41,14 +41,11 @@ where
 /// # Panics
 ///
 /// This will panic if it's called outside of a macro context.
-pub fn resolve<T>(value: T) -> Result<T::Owned, ParseError>
+pub fn resolve<T>(item: T) -> Result<T::Owned, ParseError>
 where
     T: ResolveOwned,
 {
-    current_context(|ctx| {
-        let value = value.resolve_owned(ctx.storage(), ctx.source())?;
-        Ok(value)
-    })
+    current_context(|ctx| ctx.resolve_owned(item))
 }
 
 /// Convert the given argument into a tokens stream.

@@ -6,6 +6,7 @@ use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
+use crate::parsing::{ParseError, ResolveOwned};
 use crate::query;
 use crate::query::{QueryItem, Used};
 use crate::shared::Consts;
@@ -126,8 +127,16 @@ impl MacroContext {
         }
     }
 
+    /// Resolve the given item into an owned variant.
+    pub fn resolve_owned<T>(&self, item: T) -> Result<T::Owned, ParseError>
+    where
+        T: ResolveOwned,
+    {
+        item.resolve_owned(&self.storage, &self.source)
+    }
+
     /// Evaluate the given ast as a constant expression.
-    pub(crate) fn eval<T>(&self, target: &T) -> Result<<T::Output as IrEval>::Output, CompileError>
+    pub fn eval<T>(&self, target: &T) -> Result<<T::Output as IrEval>::Output, CompileError>
     where
         T: Spanned + IrCompile,
         T::Output: IrEval,
@@ -167,7 +176,7 @@ impl MacroContext {
     }
 
     /// Stringify the given token stream.
-    pub(crate) fn stringify<'a, T>(&'a self, tokens: &T) -> Stringify<'_>
+    pub fn stringify<'a, T>(&'a self, tokens: &T) -> Stringify<'_>
     where
         T: ToTokens,
     {
