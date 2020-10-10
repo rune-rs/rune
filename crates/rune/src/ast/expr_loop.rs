@@ -28,4 +28,4 @@ pub struct ExprLoop {
     pub body: Box<ast::Block>,
 }
 
-expr_parse!(ExprLoop, "loop expression");
+expr_parse!(Loop, ExprLoop, "loop expression");

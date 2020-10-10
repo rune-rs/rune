@@ -25,7 +25,7 @@ pub struct ExprCall {
     pub args: ast::Parenthesized<ast::Expr, T![,]>,
 }
 
-expr_parse!(ExprCall, "call expression");
+expr_parse!(Call, ExprCall, "call expression");
 
 impl Opaque for ExprCall {
     fn id(&self) -> Option<Id> {

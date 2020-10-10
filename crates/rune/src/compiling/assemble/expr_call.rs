@@ -20,7 +20,7 @@ impl Assemble for ast::ExprCall {
                     log::trace!("ExprCall(Path) => {:?}", c.source.source(span));
                     break path;
                 }
-                ast::Expr::ExprFieldAccess(expr_field_access) => {
+                ast::Expr::FieldAccess(expr_field_access) => {
                     if let ast::ExprFieldAccess {
                         expr,
                         expr_field: ast::ExprField::Ident(ident),

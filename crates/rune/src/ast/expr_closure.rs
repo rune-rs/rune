@@ -92,7 +92,7 @@ impl Opaque for ExprClosure {
     }
 }
 
-expr_parse!(ExprClosure, "closure expression");
+expr_parse!(Closure, ExprClosure, "closure expression");
 
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 pub enum ExprClosureArgs {

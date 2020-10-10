@@ -42,7 +42,7 @@ impl ItemStruct {
     }
 }
 
-item_parse!(ItemStruct, "struct item");
+item_parse!(Struct, ItemStruct, "struct item");
 
 /// AST for a struct body.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]

@@ -49,7 +49,7 @@ impl ItemMod {
     }
 }
 
-item_parse!(ItemMod, "mod item");
+item_parse!(Mod, ItemMod, "mod item");
 
 /// An item body.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

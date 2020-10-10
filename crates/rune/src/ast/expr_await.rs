@@ -25,4 +25,4 @@ pub struct ExprAwait {
     pub await_token: T![await],
 }
 
-expr_parse!(ExprAwait, ".await expression");
+expr_parse!(Await, ExprAwait, ".await expression");

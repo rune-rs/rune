@@ -13,4 +13,4 @@ pub struct ExprTry {
     pub try_token: T![?],
 }
 
-expr_parse!(ExprTry, "try expression");
+expr_parse!(Try, ExprTry, "try expression");

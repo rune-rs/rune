@@ -15,4 +15,4 @@ pub struct ExprAssign {
     pub rhs: ast::Expr,
 }
 
-expr_parse!(ExprAssign, "assign expression");
+expr_parse!(Assign, ExprAssign, "assign expression");

@@ -326,7 +326,7 @@ impl<'a> Indexer<'a> {
 
         while let Some((item, semi)) = queue.pop_front() {
             match item {
-                ast::Item::ItemUse(item_use) => {
+                ast::Item::Use(item_use) => {
                     let visibility = Visibility::from_ast(&item_use.visibility)?;
                     let queue = &mut *self.queue;
 
@@ -384,7 +384,7 @@ impl<'a> Indexer<'a> {
 
         while let Some(stmt) = queue.pop_front() {
             match stmt {
-                ast::Stmt::Item(ast::Item::ItemUse(item_use), _) => {
+                ast::Stmt::Item(ast::Item::Use(item_use), _) => {
                     let visibility = Visibility::from_ast(&item_use.visibility)?;
                     let queue = &mut *self.queue;
 
@@ -955,74 +955,74 @@ impl Index for ast::Expr {
             ast::Expr::Path(path) => {
                 path.index(idx)?;
             }
-            ast::Expr::ExprLet(expr_let) => {
+            ast::Expr::Let(expr_let) => {
                 expr_let.index(idx)?;
             }
-            ast::Expr::ExprBlock(block) => {
+            ast::Expr::Block(block) => {
                 block.index(idx)?;
             }
-            ast::Expr::ExprGroup(expr) => {
+            ast::Expr::Group(expr) => {
                 expr.expr.index(idx)?;
             }
-            ast::Expr::ExprIf(expr_if) => {
+            ast::Expr::If(expr_if) => {
                 expr_if.index(idx)?;
             }
-            ast::Expr::ExprAssign(expr_assign) => {
+            ast::Expr::Assign(expr_assign) => {
                 expr_assign.index(idx)?;
             }
-            ast::Expr::ExprBinary(expr_binary) => {
+            ast::Expr::Binary(expr_binary) => {
                 expr_binary.index(idx)?;
             }
-            ast::Expr::ExprMatch(expr_if) => {
+            ast::Expr::Match(expr_if) => {
                 expr_if.index(idx)?;
             }
             ast::Expr::Item(decl) => {
                 decl.index(idx)?;
             }
-            ast::Expr::ExprClosure(expr_closure) => {
+            ast::Expr::Closure(expr_closure) => {
                 expr_closure.index(idx)?;
             }
-            ast::Expr::ExprWhile(expr_while) => {
+            ast::Expr::While(expr_while) => {
                 expr_while.index(idx)?;
             }
-            ast::Expr::ExprLoop(expr_loop) => {
+            ast::Expr::Loop(expr_loop) => {
                 expr_loop.index(idx)?;
             }
-            ast::Expr::ExprFor(expr_for) => {
+            ast::Expr::For(expr_for) => {
                 expr_for.index(idx)?;
             }
-            ast::Expr::ExprFieldAccess(expr_field_access) => {
+            ast::Expr::FieldAccess(expr_field_access) => {
                 expr_field_access.index(idx)?;
             }
-            ast::Expr::ExprUnary(expr_unary) => {
+            ast::Expr::Unary(expr_unary) => {
                 expr_unary.index(idx)?;
             }
-            ast::Expr::ExprIndex(expr_index_get) => {
+            ast::Expr::Index(expr_index_get) => {
                 expr_index_get.index(idx)?;
             }
-            ast::Expr::ExprBreak(expr_break) => {
+            ast::Expr::Break(expr_break) => {
                 expr_break.index(idx)?;
             }
-            ast::Expr::ExprYield(expr_yield) => {
+            ast::Expr::Yield(expr_yield) => {
                 expr_yield.index(idx)?;
             }
-            ast::Expr::ExprReturn(expr_return) => {
+            ast::Expr::Return(expr_return) => {
                 expr_return.index(idx)?;
             }
-            ast::Expr::ExprAwait(expr_await) => {
+            ast::Expr::Await(expr_await) => {
                 expr_await.index(idx)?;
             }
-            ast::Expr::ExprTry(expr_try) => {
+            ast::Expr::Try(expr_try) => {
                 expr_try.index(idx)?;
             }
-            ast::Expr::ExprSelect(expr_select) => {
+            ast::Expr::Select(expr_select) => {
                 expr_select.index(idx)?;
             }
             // ignored because they have no effect on indexing.
-            ast::Expr::ExprCall(expr_call) => {
+            ast::Expr::Call(expr_call) => {
                 expr_call.index(idx)?;
             }
-            ast::Expr::ExprLit(expr_lit) => {
+            ast::Expr::Lit(expr_lit) => {
                 expr_lit.index(idx)?;
             }
             ast::Expr::ForceSemi(force_semi) => {
@@ -1377,22 +1377,22 @@ impl Index for ast::Item {
         );
 
         match self {
-            ast::Item::ItemEnum(item_enum) => {
+            ast::Item::Enum(item_enum) => {
                 item_enum.index(idx)?;
             }
-            ast::Item::ItemStruct(item_struct) => {
+            ast::Item::Struct(item_struct) => {
                 item_struct.index(idx)?;
             }
-            ast::Item::ItemFn(item_fn) => {
+            ast::Item::Fn(item_fn) => {
                 item_fn.index(idx)?;
             }
-            ast::Item::ItemImpl(item_impl) => {
+            ast::Item::Impl(item_impl) => {
                 item_impl.index(idx)?;
             }
-            ast::Item::ItemMod(item_mod) => {
+            ast::Item::Mod(item_mod) => {
                 item_mod.index(idx)?;
             }
-            ast::Item::ItemConst(item_const) => {
+            ast::Item::Const(item_const) => {
                 item_const.index(idx)?;
             }
             ast::Item::MacroCall(macro_call) => {
@@ -1409,7 +1409,7 @@ impl Index for ast::Item {
                 attributes.drain();
             }
             // NB: imports are ignored during indexing.
-            ast::Item::ItemUse(..) => {}
+            ast::Item::Use(..) => {}
         }
 
         if let Some(span) = attributes.remaining() {

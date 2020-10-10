@@ -24,4 +24,4 @@ pub struct ExprGroup {
     pub close: ast::CloseParen,
 }
 
-expr_parse!(ExprGroup, "group expression");
+expr_parse!(Group, ExprGroup, "group expression");

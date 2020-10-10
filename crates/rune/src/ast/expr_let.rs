@@ -53,4 +53,4 @@ impl ExprLet {
     }
 }
 
-expr_parse!(ExprLet, "let expression");
+expr_parse!(Let, ExprLet, "let expression");

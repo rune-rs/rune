@@ -29,7 +29,7 @@ pub struct ItemUse {
     pub path: ItemUsePath,
 }
 
-item_parse!(ItemUse, "use item");
+item_parse!(Use, ItemUse, "use item");
 
 /// A single use declaration path, like `foo::bar::{baz::*, biz}`.
 ///

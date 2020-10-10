@@ -25,4 +25,4 @@ pub struct ExprYield {
     pub expr: Option<ast::Expr>,
 }
 
-expr_parse!(ExprYield, "yield expression");
+expr_parse!(Yield, ExprYield, "yield expression");

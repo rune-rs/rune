@@ -8,8 +8,8 @@ use runestick::Span;
 pub mod generated;
 
 macro_rules! expr_parse {
-    ($ty:ident, $expected:literal) => {
-        impl crate::Parse for $ty {
+    ($ty:ident, $local:ty, $expected:literal) => {
+        impl crate::Parse for $local {
             fn parse(p: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
                 let t = p.tok_at(0)?;
 
@@ -23,8 +23,8 @@ macro_rules! expr_parse {
 }
 
 macro_rules! item_parse {
-    ($ty:ident, $expected:literal) => {
-        impl crate::Parse for $ty {
+    ($ty:ident, $local:ty, $expected:literal) => {
+        impl crate::Parse for $local {
             fn parse(p: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
                 let t = p.tok_at(0)?;
 
@@ -237,7 +237,7 @@ mod tests {
         )
         .unwrap();
 
-        if let ast::Expr::ExprIf(..) = expr {
+        if let ast::Expr::If(..) = expr {
         } else {
             panic!("not an if statement");
         }

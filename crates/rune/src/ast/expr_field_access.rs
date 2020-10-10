@@ -15,7 +15,7 @@ pub struct ExprFieldAccess {
     pub expr_field: ExprField,
 }
 
-expr_parse!(ExprFieldAccess, "field access expression");
+expr_parse!(FieldAccess, ExprFieldAccess, "field access expression");
 
 /// The field being accessed.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

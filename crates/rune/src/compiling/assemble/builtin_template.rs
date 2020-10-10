@@ -12,7 +12,7 @@ impl Assemble for BuiltInTemplate {
         let mut expansions = 0;
 
         for expr in &self.exprs {
-            if let ast::Expr::ExprLit(expr_lit) = expr {
+            if let ast::Expr::Lit(expr_lit) = expr {
                 if let ast::ExprLit {
                     lit: ast::Lit::Str(s),
                     ..

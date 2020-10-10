@@ -51,49 +51,49 @@ pub enum Expr {
     /// A declaration.
     Item(Box<ast::Item>),
     /// An assign expression.
-    ExprAssign(Box<ast::ExprAssign>),
+    Assign(Box<ast::ExprAssign>),
     /// A while loop.
-    ExprWhile(Box<ast::ExprWhile>),
+    While(Box<ast::ExprWhile>),
     /// An unconditional loop.
-    ExprLoop(Box<ast::ExprLoop>),
+    Loop(Box<ast::ExprLoop>),
     /// An for loop.
-    ExprFor(Box<ast::ExprFor>),
+    For(Box<ast::ExprFor>),
     /// A let expression.
-    ExprLet(Box<ast::ExprLet>),
+    Let(Box<ast::ExprLet>),
     /// An if expression.
-    ExprIf(Box<ast::ExprIf>),
+    If(Box<ast::ExprIf>),
     /// An match expression.
-    ExprMatch(Box<ast::ExprMatch>),
+    Match(Box<ast::ExprMatch>),
     /// A function call,
-    ExprCall(Box<ast::ExprCall>),
+    Call(Box<ast::ExprCall>),
     /// A field access on an expression.
-    ExprFieldAccess(Box<ast::ExprFieldAccess>),
+    FieldAccess(Box<ast::ExprFieldAccess>),
     /// A grouped expression.
-    ExprGroup(Box<ast::ExprGroup>),
+    Group(Box<ast::ExprGroup>),
     /// A binary expression.
-    ExprBinary(Box<ast::ExprBinary>),
+    Binary(Box<ast::ExprBinary>),
     /// A unary expression.
-    ExprUnary(Box<ast::ExprUnary>),
+    Unary(Box<ast::ExprUnary>),
     /// An index set operation.
-    ExprIndex(Box<ast::ExprIndex>),
+    Index(Box<ast::ExprIndex>),
     /// A break expression.
-    ExprBreak(Box<ast::ExprBreak>),
+    Break(Box<ast::ExprBreak>),
     /// A yield expression.
-    ExprYield(Box<ast::ExprYield>),
+    Yield(Box<ast::ExprYield>),
     /// A block as an expression.
-    ExprBlock(Box<ast::ExprBlock>),
+    Block(Box<ast::ExprBlock>),
     /// A return statement.
-    ExprReturn(Box<ast::ExprReturn>),
+    Return(Box<ast::ExprReturn>),
     /// An await expression.
-    ExprAwait(Box<ast::ExprAwait>),
+    Await(Box<ast::ExprAwait>),
     /// Try expression.
-    ExprTry(Box<ast::ExprTry>),
+    Try(Box<ast::ExprTry>),
     /// A select expression.
-    ExprSelect(Box<ast::ExprSelect>),
+    Select(Box<ast::ExprSelect>),
     /// A closure expression.
-    ExprClosure(Box<ast::ExprClosure>),
+    Closure(Box<ast::ExprClosure>),
     /// A literal expression.
-    ExprLit(Box<ast::ExprLit>),
+    Lit(Box<ast::ExprLit>),
     /// Force a specific semi-colon policy.
     ForceSemi(Box<ast::ForceSemi>),
     /// A macro call,
@@ -110,13 +110,13 @@ impl Expr {
     /// Indicates if an expression needs a semicolon or must be last in a block.
     pub fn needs_semi(&self) -> bool {
         match self {
-            Self::ExprWhile(_) => false,
-            Self::ExprLoop(_) => false,
-            Self::ExprFor(_) => false,
-            Self::ExprIf(_) => false,
-            Self::ExprMatch(_) => false,
-            Self::ExprBlock(_) => false,
-            Self::ExprSelect(_) => false,
+            Self::While(_) => false,
+            Self::Loop(_) => false,
+            Self::For(_) => false,
+            Self::If(_) => false,
+            Self::Match(_) => false,
+            Self::Block(_) => false,
+            Self::Select(_) => false,
             Self::MacroCall(macro_call) => macro_call.needs_semi(),
             Self::ForceSemi(force_semi) => force_semi.needs_semi,
             _ => true,
@@ -127,12 +127,12 @@ impl Expr {
     /// override.
     pub fn is_callable(&self, callable: bool) -> bool {
         match self {
-            Self::ExprWhile(_) => false,
-            Self::ExprLoop(_) => callable,
-            Self::ExprFor(_) => false,
-            Self::ExprIf(_) => callable,
-            Self::ExprMatch(_) => callable,
-            Self::ExprSelect(_) => callable,
+            Self::While(_) => false,
+            Self::Loop(_) => callable,
+            Self::For(_) => false,
+            Self::If(_) => callable,
+            Self::Match(_) => callable,
+            Self::Select(_) => callable,
             Self::ForceSemi(expr) => expr.expr.is_callable(callable),
             _ => true,
         }
@@ -143,28 +143,28 @@ impl Expr {
         match self {
             Self::Path(_) => Vec::new(),
             Self::Item(item) => item.take_attributes(),
-            Self::ExprBreak(expr) => take(&mut expr.attributes),
-            Self::ExprYield(expr) => take(&mut expr.attributes),
-            Self::ExprBlock(expr) => take(&mut expr.attributes),
-            Self::ExprReturn(expr) => take(&mut expr.attributes),
-            Self::ExprClosure(expr) => take(&mut expr.attributes),
-            Self::ExprMatch(expr) => take(&mut expr.attributes),
-            Self::ExprWhile(expr) => take(&mut expr.attributes),
-            Self::ExprLoop(expr) => take(&mut expr.attributes),
-            Self::ExprFor(expr) => take(&mut expr.attributes),
-            Self::ExprLet(expr) => take(&mut expr.attributes),
-            Self::ExprIf(expr) => take(&mut expr.attributes),
-            Self::ExprSelect(expr) => take(&mut expr.attributes),
-            Self::ExprLit(expr) => take(&mut expr.attributes),
-            Self::ExprAssign(expr) => take(&mut expr.attributes),
-            Self::ExprBinary(expr) => take(&mut expr.attributes),
-            Self::ExprCall(expr) => take(&mut expr.attributes),
-            Self::ExprFieldAccess(expr) => take(&mut expr.attributes),
-            Self::ExprGroup(expr) => take(&mut expr.attributes),
-            Self::ExprUnary(expr) => take(&mut expr.attributes),
-            Self::ExprIndex(expr) => take(&mut expr.attributes),
-            Self::ExprAwait(expr) => take(&mut expr.attributes),
-            Self::ExprTry(expr) => take(&mut expr.attributes),
+            Self::Break(expr) => take(&mut expr.attributes),
+            Self::Yield(expr) => take(&mut expr.attributes),
+            Self::Block(expr) => take(&mut expr.attributes),
+            Self::Return(expr) => take(&mut expr.attributes),
+            Self::Closure(expr) => take(&mut expr.attributes),
+            Self::Match(expr) => take(&mut expr.attributes),
+            Self::While(expr) => take(&mut expr.attributes),
+            Self::Loop(expr) => take(&mut expr.attributes),
+            Self::For(expr) => take(&mut expr.attributes),
+            Self::Let(expr) => take(&mut expr.attributes),
+            Self::If(expr) => take(&mut expr.attributes),
+            Self::Select(expr) => take(&mut expr.attributes),
+            Self::Lit(expr) => take(&mut expr.attributes),
+            Self::Assign(expr) => take(&mut expr.attributes),
+            Self::Binary(expr) => take(&mut expr.attributes),
+            Self::Call(expr) => take(&mut expr.attributes),
+            Self::FieldAccess(expr) => take(&mut expr.attributes),
+            Self::Group(expr) => take(&mut expr.attributes),
+            Self::Unary(expr) => take(&mut expr.attributes),
+            Self::Index(expr) => take(&mut expr.attributes),
+            Self::Await(expr) => take(&mut expr.attributes),
+            Self::Try(expr) => take(&mut expr.attributes),
             Self::ForceSemi(expr) => expr.expr.take_attributes(),
             Self::Object(expr) => take(&mut expr.attributes),
             Self::Vec(expr) => take(&mut expr.attributes),
@@ -178,28 +178,28 @@ impl Expr {
         match self {
             Self::Path(_) => &[],
             Self::Item(expr) => expr.attributes(),
-            Self::ExprBreak(expr) => &expr.attributes,
-            Self::ExprYield(expr) => &expr.attributes,
-            Self::ExprBlock(expr) => &expr.attributes,
-            Self::ExprReturn(expr) => &expr.attributes,
-            Self::ExprClosure(expr) => &expr.attributes,
-            Self::ExprMatch(expr) => &expr.attributes,
-            Self::ExprWhile(expr) => &expr.attributes,
-            Self::ExprLoop(expr) => &expr.attributes,
-            Self::ExprFor(expr) => &expr.attributes,
-            Self::ExprLet(expr) => &expr.attributes,
-            Self::ExprIf(expr) => &expr.attributes,
-            Self::ExprSelect(expr) => &expr.attributes,
-            Self::ExprLit(expr) => &expr.attributes,
-            Self::ExprAssign(expr) => &expr.attributes,
-            Self::ExprBinary(expr) => &expr.attributes,
-            Self::ExprCall(expr) => &expr.attributes,
-            Self::ExprFieldAccess(expr) => &expr.attributes,
-            Self::ExprGroup(expr) => &expr.attributes,
-            Self::ExprUnary(expr) => &expr.attributes,
-            Self::ExprIndex(expr) => &expr.attributes,
-            Self::ExprAwait(expr) => &expr.attributes,
-            Self::ExprTry(expr) => &expr.attributes,
+            Self::Break(expr) => &expr.attributes,
+            Self::Yield(expr) => &expr.attributes,
+            Self::Block(expr) => &expr.attributes,
+            Self::Return(expr) => &expr.attributes,
+            Self::Closure(expr) => &expr.attributes,
+            Self::Match(expr) => &expr.attributes,
+            Self::While(expr) => &expr.attributes,
+            Self::Loop(expr) => &expr.attributes,
+            Self::For(expr) => &expr.attributes,
+            Self::Let(expr) => &expr.attributes,
+            Self::If(expr) => &expr.attributes,
+            Self::Select(expr) => &expr.attributes,
+            Self::Lit(expr) => &expr.attributes,
+            Self::Assign(expr) => &expr.attributes,
+            Self::Binary(expr) => &expr.attributes,
+            Self::Call(expr) => &expr.attributes,
+            Self::FieldAccess(expr) => &expr.attributes,
+            Self::Group(expr) => &expr.attributes,
+            Self::Unary(expr) => &expr.attributes,
+            Self::Index(expr) => &expr.attributes,
+            Self::Await(expr) => &expr.attributes,
+            Self::Try(expr) => &expr.attributes,
             Self::ForceSemi(expr) => expr.expr.attributes(),
             Self::MacroCall(expr) => &expr.attributes,
             Self::Object(expr) => &expr.attributes,
@@ -215,15 +215,15 @@ impl Expr {
     /// * Unary expressions which are the negate operation.
     pub fn is_lit(&self) -> bool {
         match self {
-            Self::ExprLit(..) => return true,
-            Self::ExprUnary(expr_unary) => {
+            Self::Lit(..) => return true,
+            Self::Unary(expr_unary) => {
                 if let ast::ExprUnary {
                     op: ast::UnOp::Neg,
                     expr,
                     ..
                 } = &**expr_unary
                 {
-                    if let Self::ExprLit(expr) = expr {
+                    if let Self::Lit(expr) = expr {
                         return matches!(
                             &**expr,
                             ast::ExprLit {
@@ -316,7 +316,7 @@ impl Expr {
         let expr = p.parse::<Self>()?;
 
         if p.peek::<T![')']>()? {
-            return Ok(Self::ExprGroup(Box::new(ast::ExprGroup {
+            return Ok(Self::Group(Box::new(ast::ExprGroup {
                 attributes,
                 open,
                 expr,
@@ -361,7 +361,7 @@ impl Expr {
         }
 
         if ast::Lit::peek_in_expr(p.peeker()) {
-            return Ok(Self::ExprLit(Box::new(ast::ExprLit::parse_with_meta(
+            return Ok(Self::Lit(Box::new(ast::ExprLit::parse_with_meta(
                 p,
                 take(attributes),
             )?)));
@@ -381,40 +381,40 @@ impl Expr {
                 )?))
             }
             K![||] | K![|] => {
-                Self::ExprClosure(Box::new(ast::ExprClosure::parse_with_attributes_and_async(
+                Self::Closure(Box::new(ast::ExprClosure::parse_with_attributes_and_async(
                     p,
                     take(attributes),
                     take(&mut async_token),
                 )?))
             }
-            K![select] => Self::ExprSelect(Box::new(ast::ExprSelect::parse_with_attributes(
+            K![select] => Self::Select(Box::new(ast::ExprSelect::parse_with_attributes(
                 p,
                 take(attributes),
             )?)),
-            K![!] | K![-] | K![&] | K![*] => Self::ExprUnary(Box::new(
+            K![!] | K![-] | K![&] | K![*] => Self::Unary(Box::new(
                 ast::ExprUnary::parse_with_meta(p, take(attributes), eager_brace)?,
             )),
-            K![while] => Self::ExprWhile(Box::new(ast::ExprWhile::parse_with_meta(
+            K![while] => Self::While(Box::new(ast::ExprWhile::parse_with_meta(
                 p,
                 take(attributes),
                 take(&mut label),
             )?)),
-            K![loop] => Self::ExprLoop(Box::new(ast::ExprLoop::parse_with_meta(
+            K![loop] => Self::Loop(Box::new(ast::ExprLoop::parse_with_meta(
                 p,
                 take(attributes),
                 take(&mut label),
             )?)),
-            K![for] => Self::ExprFor(Box::new(ast::ExprFor::parse_with_meta(
+            K![for] => Self::For(Box::new(ast::ExprFor::parse_with_meta(
                 p,
                 take(attributes),
                 take(&mut label),
             )?)),
-            K![let] => Self::ExprLet(Box::new(ast::ExprLet::parse_with_meta(
+            K![let] => Self::Let(Box::new(ast::ExprLet::parse_with_meta(
                 p,
                 take(attributes),
             )?)),
-            K![if] => Self::ExprIf(Box::new(ast::ExprIf::parse_with_meta(p, take(attributes))?)),
-            K![match] => Self::ExprMatch(Box::new(ast::ExprMatch::parse_with_attributes(
+            K![if] => Self::If(Box::new(ast::ExprIf::parse_with_meta(p, take(attributes))?)),
+            K![match] => Self::Match(Box::new(ast::ExprMatch::parse_with_attributes(
                 p,
                 take(attributes),
             )?)),
@@ -423,20 +423,20 @@ impl Expr {
                 take(attributes),
             )?)),
             K!['('] => Self::parse_open_paren(p, take(attributes))?,
-            K!['{'] => Self::ExprBlock(Box::new(ast::ExprBlock {
+            K!['{'] => Self::Block(Box::new(ast::ExprBlock {
                 async_token: take(&mut async_token),
                 attributes: take(attributes),
                 block: p.parse()?,
             })),
-            K![break] => Self::ExprBreak(Box::new(ast::ExprBreak::parse_with_meta(
+            K![break] => Self::Break(Box::new(ast::ExprBreak::parse_with_meta(
                 p,
                 take(attributes),
             )?)),
-            K![yield] => Self::ExprYield(Box::new(ast::ExprYield::parse_with_meta(
+            K![yield] => Self::Yield(Box::new(ast::ExprYield::parse_with_meta(
                 p,
                 take(attributes),
             )?)),
-            K![return] => Self::ExprReturn(Box::new(ast::ExprReturn::parse_with_meta(
+            K![return] => Self::Return(Box::new(ast::ExprReturn::parse_with_meta(
                 p,
                 take(attributes),
             )?)),
@@ -467,7 +467,7 @@ impl Expr {
 
             match p.nth(0)? {
                 K!['['] if is_callable => {
-                    expr = Self::ExprIndex(Box::new(ast::ExprIndex {
+                    expr = Self::Index(Box::new(ast::ExprIndex {
                         attributes: expr.take_attributes(),
                         target: expr,
                         open: p.parse()?,
@@ -479,7 +479,7 @@ impl Expr {
                 K!['('] if is_callable => {
                     let args = p.parse::<ast::Parenthesized<Self, T![,]>>()?;
 
-                    expr = Self::ExprCall(Box::new(ast::ExprCall {
+                    expr = Self::Call(Box::new(ast::ExprCall {
                         id: Default::default(),
                         attributes: expr.take_attributes(),
                         expr,
@@ -487,7 +487,7 @@ impl Expr {
                     }));
                 }
                 K![?] => {
-                    expr = Self::ExprTry(Box::new(ast::ExprTry {
+                    expr = Self::Try(Box::new(ast::ExprTry {
                         attributes: expr.take_attributes(),
                         expr,
                         try_token: p.parse()?,
@@ -498,7 +498,7 @@ impl Expr {
                     let rhs =
                         Self::parse_with(p, EagerBrace(true), EagerBinary(true), Callable(true))?;
 
-                    expr = Self::ExprAssign(Box::new(ast::ExprAssign {
+                    expr = Self::Assign(Box::new(ast::ExprAssign {
                         attributes: expr.take_attributes(),
                         lhs: expr,
                         eq,
@@ -509,7 +509,7 @@ impl Expr {
                     match p.nth(1)? {
                         // <expr>.await
                         K![await] => {
-                            expr = Self::ExprAwait(Box::new(ast::ExprAwait {
+                            expr = Self::Await(Box::new(ast::ExprAwait {
                                 attributes: expr.take_attributes(),
                                 expr,
                                 dot: p.parse()?,
@@ -518,7 +518,7 @@ impl Expr {
                         }
                         // <expr>.field
                         K![ident] => {
-                            expr = Self::ExprFieldAccess(Box::new(ast::ExprFieldAccess {
+                            expr = Self::FieldAccess(Box::new(ast::ExprFieldAccess {
                                 attributes: expr.take_attributes(),
                                 expr,
                                 dot: p.parse()?,
@@ -527,7 +527,7 @@ impl Expr {
                         }
                         // tuple access: <expr>.<number>
                         K![number] => {
-                            expr = Self::ExprFieldAccess(Box::new(ast::ExprFieldAccess {
+                            expr = Self::FieldAccess(Box::new(ast::ExprFieldAccess {
                                 attributes: expr.take_attributes(),
                                 expr,
                                 dot: p.parse()?,
@@ -587,7 +587,7 @@ impl Expr {
                 lookahead_tok = ast::BinOp::from_peeker(p.peeker());
             }
 
-            lhs = Self::ExprBinary(Box::new(ast::ExprBinary {
+            lhs = Self::Binary(Box::new(ast::ExprBinary {
                 attributes: Vec::new(),
                 lhs,
                 t1,
@@ -602,7 +602,7 @@ impl Expr {
 
     /// Internal function to construct a literal expression.
     pub(crate) fn from_lit(lit: ast::Lit) -> Self {
-        Self::ExprLit(Box::new(ast::ExprLit {
+        Self::Lit(Box::new(ast::ExprLit {
             attributes: Vec::new(),
             lit,
         }))
@@ -633,7 +633,7 @@ impl Expr {
 /// let expr = testing::roundtrip::<ast::Expr>(r#"
 ///     if 1 { } else { if 2 { } else { } }
 /// "#);
-/// assert!(matches!(expr, ast::Expr::ExprIf(..)));
+/// assert!(matches!(expr, ast::Expr::If(..)));
 ///
 /// // Chained function calls.
 /// testing::roundtrip::<ast::Expr>("foo.bar.baz()");
@@ -644,7 +644,7 @@ impl Expr {
 /// testing::roundtrip::<ast::Expr>("{ let x = 1; x }");
 ///
 /// let expr = testing::roundtrip::<ast::Expr>("#[cfg(debug_assertions)] { assert_eq(x, 32); }");
-/// assert!(matches!(expr, ast::Expr::ExprBlock(b) if b.attributes.len() == 1 && b.block.statements.len() == 1));
+/// assert!(matches!(expr, ast::Expr::Block(b) if b.attributes.len() == 1 && b.block.statements.len() == 1));
 ///
 /// testing::roundtrip::<ast::Expr>("#{\"foo\": b\"bar\"}");
 /// testing::roundtrip::<ast::Expr>("Disco {\"never_died\": true }");

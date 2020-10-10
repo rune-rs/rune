@@ -5,20 +5,20 @@ use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peeker, Spanned, ToTo
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Item {
     /// A use declaration.
-    ItemUse(Box<ast::ItemUse>),
+    Use(Box<ast::ItemUse>),
     /// A function declaration.
     // large variant, so boxed
-    ItemFn(Box<ast::ItemFn>),
+    Fn(Box<ast::ItemFn>),
     /// An enum declaration.
-    ItemEnum(Box<ast::ItemEnum>),
+    Enum(Box<ast::ItemEnum>),
     /// A struct declaration.
-    ItemStruct(Box<ast::ItemStruct>),
+    Struct(Box<ast::ItemStruct>),
     /// An impl declaration.
-    ItemImpl(Box<ast::ItemImpl>),
+    Impl(Box<ast::ItemImpl>),
     /// A module declaration.
-    ItemMod(Box<ast::ItemMod>),
+    Mod(Box<ast::ItemMod>),
     /// A const declaration.
-    ItemConst(Box<ast::ItemConst>),
+    Const(Box<ast::ItemConst>),
     /// A macro call expanding into an item.
     MacroCall(Box<ast::MacroCall>),
 }
@@ -27,9 +27,9 @@ impl Item {
     /// Indicates if the declaration needs a semi-colon or not.
     pub fn needs_semi_colon(&self) -> bool {
         match self {
-            Self::ItemUse(..) => true,
-            Self::ItemStruct(st) => st.needs_semi_colon(),
-            Self::ItemConst(..) => true,
+            Self::Use(..) => true,
+            Self::Struct(st) => st.needs_semi_colon(),
+            Self::Const(..) => true,
             _ => false,
         }
     }
@@ -39,28 +39,28 @@ impl Item {
         use std::mem::take;
 
         match self {
-            Item::ItemUse(item) => take(&mut item.attributes),
-            Item::ItemFn(item) => take(&mut item.attributes),
-            Item::ItemEnum(item) => take(&mut item.attributes),
-            Item::ItemStruct(item) => take(&mut item.attributes),
-            Item::ItemImpl(item) => take(&mut item.attributes),
-            Item::ItemMod(item) => take(&mut item.attributes),
-            Item::ItemConst(item) => take(&mut item.attributes),
-            Item::MacroCall(item) => take(&mut item.attributes),
+            Self::Use(item) => take(&mut item.attributes),
+            Self::Fn(item) => take(&mut item.attributes),
+            Self::Enum(item) => take(&mut item.attributes),
+            Self::Struct(item) => take(&mut item.attributes),
+            Self::Impl(item) => take(&mut item.attributes),
+            Self::Mod(item) => take(&mut item.attributes),
+            Self::Const(item) => take(&mut item.attributes),
+            Self::MacroCall(item) => take(&mut item.attributes),
         }
     }
 
     /// Test if the item has any attributes
     pub fn attributes(&self) -> &[ast::Attribute] {
         match self {
-            Item::ItemUse(item) => &item.attributes,
-            Item::ItemFn(item) => &item.attributes,
-            Item::ItemEnum(item) => &item.attributes,
-            Item::ItemStruct(item) => &item.attributes,
-            Item::ItemImpl(item) => &item.attributes,
-            Item::ItemMod(item) => &item.attributes,
-            Item::ItemConst(item) => &item.attributes,
-            Item::MacroCall(item) => &item.attributes,
+            Self::Use(item) => &item.attributes,
+            Self::Fn(item) => &item.attributes,
+            Self::Enum(item) => &item.attributes,
+            Self::Struct(item) => &item.attributes,
+            Self::Impl(item) => &item.attributes,
+            Self::Mod(item) => &item.attributes,
+            Self::Const(item) => &item.attributes,
+            Self::MacroCall(item) => &item.attributes,
         }
     }
 
@@ -104,40 +104,40 @@ impl Item {
             let mut async_token = p.parse::<Option<T![async]>>()?;
 
             let item = match p.nth(0)? {
-                K![use] => Self::ItemUse(Box::new(ast::ItemUse::parse_with_meta(
+                K![use] => Self::Use(Box::new(ast::ItemUse::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
                 )?)),
-                K![enum] => Self::ItemEnum(Box::new(ast::ItemEnum::parse_with_meta(
+                K![enum] => Self::Enum(Box::new(ast::ItemEnum::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
                 )?)),
-                K![struct] => Self::ItemStruct(Box::new(ast::ItemStruct::parse_with_meta(
+                K![struct] => Self::Struct(Box::new(ast::ItemStruct::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
                 )?)),
-                K![impl] => Self::ItemImpl(Box::new(ast::ItemImpl::parse_with_attributes(
+                K![impl] => Self::Impl(Box::new(ast::ItemImpl::parse_with_attributes(
                     p,
                     take(&mut attributes),
                 )?)),
-                K![fn] => Self::ItemFn(Box::new(ast::ItemFn::parse_with_meta(
+                K![fn] => Self::Fn(Box::new(ast::ItemFn::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
                     take(&mut const_token),
                     take(&mut async_token),
                 )?)),
-                K![mod] => Self::ItemMod(Box::new(ast::ItemMod::parse_with_meta(
+                K![mod] => Self::Mod(Box::new(ast::ItemMod::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
                 )?)),
                 K![ident] => {
                     if let Some(const_token) = const_token.take() {
-                        Self::ItemConst(Box::new(ast::ItemConst::parse_with_meta(
+                        Self::Const(Box::new(ast::ItemConst::parse_with_meta(
                             p,
                             take(&mut attributes),
                             take(&mut visibility),
