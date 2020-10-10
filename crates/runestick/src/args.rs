@@ -1,3 +1,5 @@
+use crate::{Stack, Value, VmError};
+
 /// Trait for converting arguments onto the stack.
 pub trait Args {
     /// Encode arguments onto a stack.
@@ -47,3 +49,20 @@ macro_rules! impl_into_args {
 }
 
 repeat_macro!(impl_into_args);
+
+impl Args for Vec<Value> {
+    fn into_stack(self, stack: &mut Stack) -> Result<(), VmError> {
+        for value in self {
+            stack.push(value);
+        }
+        Ok(())
+    }
+
+    fn into_vec(self) -> Result<Vec<Value>, VmError> {
+        Ok(self)
+    }
+
+    fn count(&self) -> usize {
+        self.len()
+    }
+}
