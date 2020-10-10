@@ -12,7 +12,7 @@ fn test_number_literals() {
 
     assert_compile_error! {
         r#"fn main() { -0aardvark }"#,
-        span, CompileErrorKind::ParseError { error: BadNumberLiteral { .. }} => {
+        span, CompileErrorKind::ResolveError { error: BadNumberLiteral { .. } } => {
             assert_eq!(span, Span::new(13, 22));
         }
     };

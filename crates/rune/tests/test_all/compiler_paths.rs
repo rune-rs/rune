@@ -77,9 +77,8 @@ fn test_unsupported_leading_path() {
 fn test_import_conflict() {
     assert_compile_error! {
         r#"use std::{option, option};"#,
-        span, QueryError { error, .. } => {
+        span, QueryError { error: ItemConflict { .. }, .. } => {
             assert_eq!(span, Span::new(18, 24));
-            assert_matches!(&*error, ItemConflict { .. });
         }
     };
 }

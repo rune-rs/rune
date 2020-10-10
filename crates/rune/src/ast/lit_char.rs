@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
+    Storage, ToTokens,
 };
 use runestick::{Source, Span};
 
@@ -58,7 +59,7 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<char, ParseError> {
+    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<char, ResolveError> {
         match self.source {
             ast::CopySource::Inline(c) => return Ok(c),
             ast::CopySource::Text => (),
@@ -68,7 +69,7 @@ impl<'a> Resolve<'a> for LitChar {
 
         let string = source
             .source(span.narrow(1))
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
+            .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();
 
@@ -80,7 +81,7 @@ impl<'a> Resolve<'a> for LitChar {
         let (start, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(ParseError::new(span, ParseErrorKind::BadCharLiteral));
+                return Err(ResolveError::new(span, ResolveErrorKind::BadCharLiteral));
             }
         };
 
@@ -97,7 +98,7 @@ impl<'a> Resolve<'a> for LitChar {
                             .next()
                             .map(|n| n.0)
                             .unwrap_or_else(|| span.end.into_usize());
-                        return Err(ParseError::new(Span::new(start, end), kind));
+                        return Err(ResolveError::new(Span::new(start, end), kind));
                     }
                 };
 
@@ -108,9 +109,9 @@ impl<'a> Resolve<'a> for LitChar {
                             .next()
                             .map(|n| n.0)
                             .unwrap_or_else(|| span.end.into_usize());
-                        return Err(ParseError::new(
+                        return Err(ResolveError::new(
                             Span::new(start, end),
-                            ParseErrorKind::BadCharLiteral,
+                            ResolveErrorKind::BadCharLiteral,
                         ));
                     }
                 }
@@ -120,7 +121,7 @@ impl<'a> Resolve<'a> for LitChar {
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(ParseError::new(span, ParseErrorKind::BadCharLiteral));
+            return Err(ResolveError::new(span, ResolveErrorKind::BadCharLiteral));
         }
 
         Ok(c)
@@ -130,7 +131,11 @@ impl<'a> Resolve<'a> for LitChar {
 impl ResolveOwned for LitChar {
     type Owned = char;
 
-    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+    fn resolve_owned(
+        &self,
+        storage: &Storage,
+        source: &Source,
+    ) -> Result<Self::Owned, ResolveError> {
         Ok(self.resolve(storage, source)?)
     }
 }

@@ -144,7 +144,7 @@ fn compile_assign_binop(
             let segment = path
                 .first
                 .try_as_ident()
-                .ok_or_else(|| CompileError::internal_unsupported_path(path))?;
+                .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
             let ident = segment.resolve(c.storage, &*c.source)?;
             let var = c.scopes.get_var(&*ident, c.source_id, c.visitor, span)?;
 

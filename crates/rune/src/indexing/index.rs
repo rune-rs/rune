@@ -366,7 +366,7 @@ impl<'a> Indexer<'a> {
                     }
 
                     if let Some(span) = attributes.remaining() {
-                        return Err(CompileError::internal(span, "unsupported item attribute"));
+                        return Err(CompileError::msg(span, "unsupported item attribute"));
                     }
                 }
                 item => {
@@ -430,10 +430,7 @@ impl<'a> Indexer<'a> {
                     }
 
                     if let Some(span) = attributes.remaining() {
-                        return Err(CompileError::internal(
-                            span,
-                            "unsupported statement attribute",
-                        ));
+                        return Err(CompileError::msg(span, "unsupported statement attribute"));
                     }
                 }
                 item => {
@@ -514,7 +511,7 @@ pub(crate) trait Index {
 impl Index for ast::File {
     fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
         if let Some(first) = self.attributes.first() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 first,
                 "file attributes are not supported",
             ));
@@ -543,7 +540,7 @@ impl Index for ast::ItemFn {
         log::trace!("ItemFn => {:?}", idx.source.source(span));
 
         if let Some(first) = self.attributes.first() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 first,
                 "function attributes are not supported",
             ));
@@ -703,7 +700,7 @@ impl Index for ast::ExprBlock {
         log::trace!("ExprBlock => {:?}", idx.source.source(span));
 
         if let Some(span) = self.attributes.option_span() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 span,
                 "block attributes are not supported yet",
             ));
@@ -816,7 +813,7 @@ impl Index for ast::Local {
         log::trace!("Local => {:?}", idx.source.source(span));
 
         if let Some(span) = self.attributes.option_span() {
-            return Err(CompileError::internal(span, "attributes are not supported"));
+            return Err(CompileError::msg(span, "attributes are not supported"));
         }
 
         self.pat.index(idx)?;
@@ -1061,10 +1058,7 @@ impl Index for ast::Expr {
         }
 
         if let Some(span) = attributes.remaining() {
-            return Err(CompileError::internal(
-                span,
-                "unsupported expression attribute",
-            ));
+            return Err(CompileError::msg(span, "unsupported expression attribute"));
         }
 
         Ok(())
@@ -1158,7 +1152,7 @@ impl Index for ast::ItemEnum {
         let span = self.span();
 
         if let Some(first) = self.attributes.first() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 first,
                 "enum attributes are not supported",
             ));
@@ -1180,7 +1174,7 @@ impl Index for ast::ItemEnum {
 
         for (variant, _) in &mut self.variants {
             if let Some(first) = variant.attributes.first() {
-                return Err(CompileError::internal(
+                return Err(CompileError::msg(
                     first,
                     "variant attributes are not supported yet",
                 ));
@@ -1188,7 +1182,7 @@ impl Index for ast::ItemEnum {
 
             for (field, _) in variant.body.fields() {
                 if let Some(first) = field.attributes.first() {
-                    return Err(CompileError::internal(
+                    return Err(CompileError::msg(
                         first,
                         "field attributes are not supported",
                     ));
@@ -1221,7 +1215,7 @@ impl Index for Box<ast::ItemStruct> {
         let span = self.span();
 
         if let Some(first) = self.attributes.first() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 first,
                 "struct attributes are not supported",
             ));
@@ -1229,12 +1223,12 @@ impl Index for Box<ast::ItemStruct> {
 
         for (field, _) in self.body.fields() {
             if let Some(first) = field.attributes.first() {
-                return Err(CompileError::internal(
+                return Err(CompileError::msg(
                     first,
                     "field attributes are not supported",
                 ));
             } else if !field.visibility.is_inherited() {
-                return Err(CompileError::internal(
+                return Err(CompileError::msg(
                     &field,
                     "field visibility levels are not supported",
                 ));
@@ -1262,7 +1256,7 @@ impl Index for Box<ast::ItemStruct> {
 impl Index for ast::ItemImpl {
     fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
         if let Some(first) = self.attributes.first() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 first,
                 "impl attributes are not supported",
             ));
@@ -1271,7 +1265,7 @@ impl Index for ast::ItemImpl {
         let mut guards = Vec::new();
 
         if let Some(global) = &self.path.global {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 global,
                 "global scopes are not supported yet",
             ));
@@ -1280,7 +1274,7 @@ impl Index for ast::ItemImpl {
         for path_segment in self.path.as_components() {
             let ident_segment = path_segment
                 .try_as_ident()
-                .ok_or_else(|| CompileError::internal_unsupported_path(path_segment))?;
+                .ok_or_else(|| CompileError::msg(path_segment, "unsupported path segment"))?;
             let ident = ident_segment.resolve(&idx.storage, &*idx.source)?;
             guards.push(idx.items.push_name(ident.as_ref()));
         }
@@ -1300,7 +1294,7 @@ impl Index for ast::ItemImpl {
 impl Index for ast::ItemMod {
     fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
         if let Some(first) = self.attributes.first() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 first,
                 "module attributes are not supported",
             ));
@@ -1338,7 +1332,7 @@ impl Index for ast::ItemMod {
 impl Index for Box<ast::ItemConst> {
     fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
         if let Some(first) = self.attributes.first() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 first,
                 "attributes on constants are not supported",
             ));
@@ -1413,7 +1407,7 @@ impl Index for ast::Item {
         }
 
         if let Some(span) = attributes.remaining() {
-            return Err(CompileError::internal(span, "unsupported item attribute"));
+            return Err(CompileError::msg(span, "unsupported item attribute"));
         }
 
         Ok(())
@@ -1694,7 +1688,7 @@ impl Index for ast::ExprCall {
 impl Index for ast::ExprLit {
     fn index(&mut self, _: &mut Indexer<'_>) -> CompileResult<()> {
         if let Some(first) = self.attributes.first() {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 first,
                 "literal attributes are not supported",
             ));

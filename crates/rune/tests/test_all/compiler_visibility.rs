@@ -39,9 +39,8 @@ fn test_access_hidden() {
             a::b::hidden()
         }        
         "#,
-        span, QueryError { error } => {
+        span, QueryError { error: NotVisibleMod { .. } } => {
             assert_eq!(span, Span::new(215, 227));
-            assert_matches!(*error, NotVisibleMod { .. });
         }
     };
 }

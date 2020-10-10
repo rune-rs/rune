@@ -30,12 +30,12 @@ impl IrEval for ir::IrBinary {
                 ir::IrBinaryOp::Div => {
                     let number = a
                         .checked_div(&b)
-                        .ok_or_else(|| IrError::custom(span, "division by zero"))?;
+                        .ok_or_else(|| IrError::msg(span, "division by zero"))?;
                     return Ok(IrValue::Integer(number));
                 }
                 ir::IrBinaryOp::Shl => {
                     let b = u32::try_from(b).map_err(|_| {
-                        IrError::custom(&self.rhs, "cannot be converted to shift operand")
+                        IrError::msg(&self.rhs, "cannot be converted to shift operand")
                     })?;
 
                     let n = a.shl(b);
@@ -43,7 +43,7 @@ impl IrEval for ir::IrBinary {
                 }
                 ir::IrBinaryOp::Shr => {
                     let b = u32::try_from(b).map_err(|_| {
-                        IrError::custom(&self.rhs, "cannot be converted to shift operand")
+                        IrError::msg(&self.rhs, "cannot be converted to shift operand")
                     })?;
 
                     let n = a.shr(b);

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::ParseErrorKind;
+use crate::ResolveErrorKind;
 use std::iter::Peekable;
 use std::ops;
 
@@ -31,8 +31,10 @@ impl ops::Deref for WithLineCont {
 pub(super) fn parse_byte_escape(
     it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
     with_line_cont: WithLineCont,
-) -> Result<Option<u8>, ParseErrorKind> {
-    let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadEscapeSequence)?;
+) -> Result<Option<u8>, ResolveErrorKind> {
+    let (_, c) = it
+        .next()
+        .ok_or_else(|| ResolveErrorKind::BadEscapeSequence)?;
 
     Ok(Some(match c {
         '\n' | '\r' if *with_line_cont => {
@@ -57,16 +59,16 @@ pub(super) fn parse_byte_escape(
             let result = parse_hex_escape(it)?;
 
             if result > 0xff {
-                return Err(ParseErrorKind::BadHexEscapeByte);
+                return Err(ResolveErrorKind::BadHexEscapeByte);
             }
 
             result as u8
         }
         'u' => {
-            return Err(ParseErrorKind::BadUnicodeEscapeInByteString);
+            return Err(ResolveErrorKind::BadUnicodeEscapeInByteString);
         }
         _ => {
-            return Err(ParseErrorKind::BadEscapeSequence);
+            return Err(ResolveErrorKind::BadEscapeSequence);
         }
     }))
 }
@@ -76,8 +78,10 @@ pub(super) fn parse_char_escape(
     it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
     with_template: WithTemplate,
     with_line_cont: WithLineCont,
-) -> Result<Option<char>, ParseErrorKind> {
-    let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadEscapeSequence)?;
+) -> Result<Option<char>, ResolveErrorKind> {
+    let (_, c) = it
+        .next()
+        .ok_or_else(|| ResolveErrorKind::BadEscapeSequence)?;
 
     Ok(Some(match c {
         '\n' | '\r' if *with_line_cont => {
@@ -104,18 +108,18 @@ pub(super) fn parse_char_escape(
             let result = parse_hex_escape(it)?;
 
             if result > 0x7f {
-                return Err(ParseErrorKind::BadHexEscapeChar);
+                return Err(ResolveErrorKind::BadHexEscapeChar);
             }
 
             if let Some(c) = std::char::from_u32(result) {
                 c
             } else {
-                return Err(ParseErrorKind::BadByteEscape);
+                return Err(ResolveErrorKind::BadByteEscape);
             }
         }
         'u' => parse_unicode_escape(it)?,
         _ => {
-            return Err(ParseErrorKind::BadEscapeSequence);
+            return Err(ResolveErrorKind::BadEscapeSequence);
         }
     }))
 }
@@ -123,21 +127,21 @@ pub(super) fn parse_char_escape(
 /// Parse a hex escape.
 fn parse_hex_escape(
     it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
-) -> Result<u32, ParseErrorKind> {
+) -> Result<u32, ResolveErrorKind> {
     let mut result = 0u32;
 
     for _ in 0..2 {
-        let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadByteEscape)?;
+        let (_, c) = it.next().ok_or_else(|| ResolveErrorKind::BadByteEscape)?;
 
         result = result
             .checked_shl(4)
-            .ok_or_else(|| ParseErrorKind::BadByteEscape)?;
+            .ok_or_else(|| ResolveErrorKind::BadByteEscape)?;
 
         result += match c {
             '0'..='9' => c as u32 - '0' as u32,
             'a'..='f' => c as u32 - 'a' as u32 + 10,
             'A'..='F' => c as u32 - 'A' as u32 + 10,
-            _ => return Err(ParseErrorKind::BadByteEscape),
+            _ => return Err(ResolveErrorKind::BadByteEscape),
         };
     }
 
@@ -147,29 +151,31 @@ fn parse_hex_escape(
 /// Parse a unicode escape.
 pub(super) fn parse_unicode_escape(
     it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
-) -> Result<char, ParseErrorKind> {
+) -> Result<char, ResolveErrorKind> {
     match it.next() {
         Some((_, '{')) => (),
-        _ => return Err(ParseErrorKind::BadUnicodeEscape),
+        _ => return Err(ResolveErrorKind::BadUnicodeEscape),
     };
 
     let mut first = true;
     let mut result = 0u32;
 
     loop {
-        let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadUnicodeEscape)?;
+        let (_, c) = it
+            .next()
+            .ok_or_else(|| ResolveErrorKind::BadUnicodeEscape)?;
 
         match c {
             '}' => {
                 if first {
-                    return Err(ParseErrorKind::BadUnicodeEscape);
+                    return Err(ResolveErrorKind::BadUnicodeEscape);
                 }
 
                 if let Some(c) = std::char::from_u32(result) {
                     return Ok(c);
                 }
 
-                return Err(ParseErrorKind::BadUnicodeEscape);
+                return Err(ResolveErrorKind::BadUnicodeEscape);
             }
             c => {
                 first = false;
@@ -177,7 +183,7 @@ pub(super) fn parse_unicode_escape(
                 result = match result.checked_shl(4) {
                     Some(result) => result,
                     None => {
-                        return Err(ParseErrorKind::BadUnicodeEscape);
+                        return Err(ResolveErrorKind::BadUnicodeEscape);
                     }
                 };
 
@@ -186,7 +192,7 @@ pub(super) fn parse_unicode_escape(
                     'a'..='f' => c as u32 - 'a' as u32 + 10,
                     'A'..='F' => c as u32 - 'A' as u32 + 10,
                     _ => {
-                        return Err(ParseErrorKind::BadUnicodeEscape);
+                        return Err(ResolveErrorKind::BadUnicodeEscape);
                     }
                 };
             }

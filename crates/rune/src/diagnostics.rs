@@ -2,8 +2,8 @@
 
 use crate::shared::Location;
 use crate::{
-    CompileErrorKind, Error, ErrorKind, Errors, IrErrorKind, LinkerError, QueryErrorKind, Sources,
-    Spanned as _, WarningKind, Warnings,
+    CompileErrorKind, Error, ErrorKind, Errors, IrErrorKind, LinkerError, QueryErrorKind,
+    ResolveErrorKind, Sources, Spanned as _, WarningKind, Warnings,
 };
 use runestick::{Source, SourceId, Span, Unit, VmError};
 use std::error::Error as _;
@@ -372,8 +372,8 @@ impl EmitDiagnostics for Error {
             notes: &mut Vec<String>,
         ) -> fmt::Result {
             match kind {
-                QueryErrorKind::CompileError { error } => {
-                    format_compile_error(this, sources, error_span, error, labels, notes)?;
+                QueryErrorKind::ResolveError { error } => {
+                    format_resolve_error(this, sources, error_span, error, labels, notes)?;
                 }
                 QueryErrorKind::IrError { error } => {
                     format_ir_error(this, sources, error_span, error, labels, notes)?;
@@ -459,6 +459,17 @@ impl EmitDiagnostics for Error {
                 format_query_error(this, sources, error_span, error, labels, notes)?;
             }
 
+            Ok(())
+        }
+
+        fn format_resolve_error(
+            _: &Error,
+            _: &Sources,
+            _: Span,
+            _: &ResolveErrorKind,
+            _: &mut Vec<Label<SourceId>>,
+            _: &mut Vec<String>,
+        ) -> fmt::Result {
             Ok(())
         }
     }

@@ -2,7 +2,8 @@ use crate::ast;
 use crate::parsing::Opaque;
 use crate::shared::Description;
 use crate::{
-    Id, Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveOwned, Spanned, ToTokens,
+    Id, Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveOwned, Spanned,
+    ToTokens,
 };
 
 /// A path, where each element is separated by a `::`.
@@ -103,7 +104,7 @@ impl<'a> Resolve<'a> for Path {
         &self,
         storage: &crate::Storage,
         source: &'a runestick::Source,
-    ) -> Result<Self::Output, ParseError> {
+    ) -> Result<Self::Output, ResolveError> {
         let mut buf = String::new();
 
         if self.global.is_some() {
@@ -165,7 +166,7 @@ impl ResolveOwned for Path {
         &self,
         storage: &crate::Storage,
         source: &runestick::Source,
-    ) -> Result<Self::Owned, ParseError> {
+    ) -> Result<Self::Owned, ResolveError> {
         self.resolve(storage, source)
     }
 }

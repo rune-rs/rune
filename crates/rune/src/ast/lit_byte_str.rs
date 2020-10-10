@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
+    Storage, ToTokens,
 };
 use runestick::{Source, Span};
 use std::borrow::Cow;
@@ -16,7 +17,7 @@ pub struct LitByteStr {
 }
 
 impl LitByteStr {
-    fn parse_escaped(&self, span: Span, source: &str) -> Result<Vec<u8>, ParseError> {
+    fn parse_escaped(&self, span: Span, source: &str) -> Result<Vec<u8>, ResolveError> {
         let mut buffer = Vec::with_capacity(source.len());
 
         let start = span.start.into_usize();
@@ -36,7 +37,7 @@ impl LitByteStr {
                                 .next()
                                 .map(|n| n.0)
                                 .unwrap_or_else(|| span.end.into_usize());
-                            return Err(ParseError::new(Span::new(start, end), kind));
+                            return Err(ResolveError::new(Span::new(start, end), kind));
                         }
                     }
                 }
@@ -72,16 +73,20 @@ impl Parse for LitByteStr {
 impl<'a> Resolve<'a> for LitByteStr {
     type Output = Cow<'a, [u8]>;
 
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, [u8]>, ParseError> {
+    fn resolve(
+        &self,
+        storage: &Storage,
+        source: &'a Source,
+    ) -> Result<Cow<'a, [u8]>, ResolveError> {
         let span = self.token.span();
 
         let text = match self.source {
             ast::StrSource::Text(text) => text,
             ast::StrSource::Synthetic(id) => {
                 let bytes = storage.get_byte_string(id).ok_or_else(|| {
-                    ParseError::new(
+                    ResolveError::new(
                         span,
-                        ParseErrorKind::BadSyntheticId {
+                        ResolveErrorKind::BadSyntheticId {
                             kind: "byte string",
                             id,
                         },
@@ -95,7 +100,7 @@ impl<'a> Resolve<'a> for LitByteStr {
         let span = span.trim_start(2).trim_end(1);
         let string = source
             .source(span)
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
+            .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
             Cow::Owned(self.parse_escaped(span, string)?)
@@ -108,7 +113,11 @@ impl<'a> Resolve<'a> for LitByteStr {
 impl ResolveOwned for LitByteStr {
     type Owned = Vec<u8>;
 
-    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+    fn resolve_owned(
+        &self,
+        storage: &Storage,
+        source: &Source,
+    ) -> Result<Self::Owned, ResolveError> {
         Ok(self.resolve(storage, source)?.into_owned())
     }
 }

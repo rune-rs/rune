@@ -7,6 +7,7 @@ pub use crate::{CompileErrorKind, CompileErrorKind::*};
 use crate::{Error, Errors, Sources, UnitBuilder, Warnings};
 pub use crate::{ParseErrorKind, ParseErrorKind::*};
 pub use crate::{QueryErrorKind, QueryErrorKind::*};
+pub use crate::{ResolveErrorKind, ResolveErrorKind::*};
 pub use futures_executor::block_on;
 pub use runestick::VmErrorKind::*;
 pub use runestick::{

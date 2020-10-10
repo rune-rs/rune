@@ -100,7 +100,7 @@ impl Assemble for ast::ExprSelect {
 
         c.contexts
             .pop()
-            .ok_or_else(|| CompileError::internal(&span, "missing parent context"))?;
+            .ok_or_else(|| CompileError::msg(&span, "missing parent context"))?;
 
         Ok(())
     }

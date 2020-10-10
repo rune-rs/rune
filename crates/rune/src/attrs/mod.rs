@@ -36,7 +36,7 @@ impl BuiltIn {
                         out.literal = true;
                     }
                     _ => {
-                        return Err(ParseError::custom(ident, "unsupported attribute"));
+                        return Err(ParseError::msg(ident, "unsupported attribute"));
                     }
                 }
             }

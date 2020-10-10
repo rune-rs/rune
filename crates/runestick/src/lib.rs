@@ -160,7 +160,7 @@ pub use self::raw_str::RawStr;
 pub use self::select::Select;
 pub use self::source::Source;
 pub use self::span::{ByteIndex, IntoByteIndex, Span};
-pub use self::spanned_error::SpannedError;
+pub use self::spanned_error::{SpannedError, WithSpan};
 pub use self::static_string::StaticString;
 pub use self::static_type::{
     StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FORMAT_TYPE,

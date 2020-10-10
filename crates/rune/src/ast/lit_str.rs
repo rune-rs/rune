@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
+    Storage, ToTokens,
 };
 use runestick::{Source, Span};
 use std::borrow::Cow;
@@ -21,7 +22,7 @@ impl LitStr {
         &self,
         storage: &Storage,
         source: &'a Source,
-    ) -> Result<Cow<'a, str>, ParseError> {
+    ) -> Result<Cow<'a, str>, ResolveError> {
         self.resolve_string(storage, source, ast::utils::WithTemplate(true))
     }
 
@@ -31,14 +32,17 @@ impl LitStr {
         storage: &Storage,
         source: &'a Source,
         with_template: ast::utils::WithTemplate,
-    ) -> Result<Cow<'a, str>, ParseError> {
+    ) -> Result<Cow<'a, str>, ResolveError> {
         let span = self.token.span();
 
         let text = match self.source {
             ast::StrSource::Text(text) => text,
             ast::StrSource::Synthetic(id) => {
                 let bytes = storage.get_string(id).ok_or_else(|| {
-                    ParseError::new(span, ParseErrorKind::BadSyntheticId { kind: "string", id })
+                    ResolveError::new(
+                        span,
+                        ResolveErrorKind::BadSyntheticId { kind: "string", id },
+                    )
                 })?;
 
                 return Ok(Cow::Owned(bytes));
@@ -49,7 +53,7 @@ impl LitStr {
 
         let string = source
             .source(span)
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
+            .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
             Cow::Owned(Self::parse_escaped(span, string, with_template)?)
@@ -62,7 +66,7 @@ impl LitStr {
         span: Span,
         source: &str,
         with_template: ast::utils::WithTemplate,
-    ) -> Result<String, ParseError> {
+    ) -> Result<String, ResolveError> {
         let mut buffer = String::with_capacity(source.len());
 
         let start = span.start.into_usize();
@@ -85,7 +89,7 @@ impl LitStr {
                             .next()
                             .map(|n| n.0)
                             .unwrap_or_else(|| span.end.into_usize());
-                        return Err(ParseError::new(Span::new(start, end), kind));
+                        return Err(ResolveError::new(Span::new(start, end), kind));
                     }
                 },
                 c => Some(c),
@@ -120,7 +124,7 @@ impl Parse for LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
+    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ResolveError> {
         self.resolve_string(storage, source, ast::utils::WithTemplate(false))
     }
 }
@@ -128,7 +132,11 @@ impl<'a> Resolve<'a> for LitStr {
 impl ResolveOwned for LitStr {
     type Owned = String;
 
-    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+    fn resolve_owned(
+        &self,
+        storage: &Storage,
+        source: &Source,
+    ) -> Result<Self::Owned, ResolveError> {
         Ok(self.resolve(storage, source)?.into_owned())
     }
 }

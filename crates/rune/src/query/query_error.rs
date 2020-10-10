@@ -2,9 +2,9 @@ use crate::compiling::{ImportEntryStep, InsertMetaError};
 use crate::indexing::Visibility;
 use crate::shared::Location;
 use crate::{
-    CompileError, CompileErrorKind, Id, IrError, IrErrorKind, ParseError, ParseErrorKind, Spanned,
+    Id, IrError, IrErrorKind, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind, Spanned,
 };
-use runestick::{CompileMeta, Item, Span};
+use runestick::{CompileMeta, Item};
 use thiserror::Error;
 
 error! {
@@ -15,47 +15,39 @@ error! {
     }
 
     impl From<IrError>;
-    impl From<CompileError>;
     impl From<ParseError>;
-}
-
-impl From<InsertMetaError> for QueryErrorKind {
-    fn from(error: InsertMetaError) -> Self {
-        QueryErrorKind::InsertMetaError {
-            error: Box::new(error),
-        }
-    }
+    impl From<ResolveError>;
 }
 
 /// Error raised during queries.
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum QueryErrorKind {
-    #[error("internal error: {message}")]
-    Internal { message: &'static str },
+    #[error("{message}")]
+    Custom { message: &'static str },
     #[error("failed to insert meta: {error}")]
     InsertMetaError {
         #[source]
         #[from]
-        error: Box<InsertMetaError>,
+        error: InsertMetaError,
     },
     #[error("{error}")]
     IrError {
         #[source]
         #[from]
-        error: Box<IrErrorKind>,
-    },
-    #[error("{error}")]
-    CompileError {
-        #[source]
-        #[from]
-        error: Box<CompileErrorKind>,
+        error: IrErrorKind,
     },
     #[error("{error}")]
     ParseError {
         #[source]
         #[from]
-        error: Box<ParseErrorKind>,
+        error: ParseErrorKind,
+    },
+    #[error("{error}")]
+    ResolveError {
+        #[source]
+        #[from]
+        error: ResolveErrorKind,
     },
     #[error("missing {what} for id {id:?}")]
     MissingId { what: &'static str, id: Option<Id> },

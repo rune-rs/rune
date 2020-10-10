@@ -28,7 +28,7 @@ impl IndexScopeGuard {
             .levels
             .borrow_mut()
             .pop()
-            .ok_or_else(|| CompileError::internal(&span, "missing scope"))?;
+            .ok_or_else(|| CompileError::msg(&span, "missing scope"))?;
 
         match level {
             IndexScopeLevel::IndexClosure(closure) => Ok(Closure {
@@ -37,7 +37,7 @@ impl IndexScopeGuard {
                 kind: closure.kind,
                 has_await: closure.has_await,
             }),
-            _ => Err(CompileError::internal(&span, "expected closure")),
+            _ => Err(CompileError::msg(&span, "expected closure")),
         }
     }
 
@@ -49,7 +49,7 @@ impl IndexScopeGuard {
             .levels
             .borrow_mut()
             .pop()
-            .ok_or_else(|| CompileError::internal(&span, "missing scope"))?;
+            .ok_or_else(|| CompileError::msg(&span, "missing scope"))?;
 
         match level {
             IndexScopeLevel::IndexFunction(fun) => Ok(Function {
@@ -57,7 +57,7 @@ impl IndexScopeGuard {
                 kind: fun.kind,
                 has_await: fun.has_await,
             }),
-            _ => Err(CompileError::internal(&span, "expected function")),
+            _ => Err(CompileError::msg(&span, "expected function")),
         }
     }
 }
@@ -178,7 +178,7 @@ impl IndexScopes {
 
         let level = levels
             .last_mut()
-            .ok_or_else(|| CompileError::internal(&span, "empty scopes"))?;
+            .ok_or_else(|| CompileError::msg(&span, "empty scopes"))?;
 
         let scope = match level {
             IndexScopeLevel::IndexScope(scope) => scope,

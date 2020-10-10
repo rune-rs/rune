@@ -35,7 +35,7 @@ impl IrEval for ir::IrLoop {
                                 return Ok(value);
                             }
 
-                            return Err(IrEvalOutcome::from(IrError::custom(
+                            return Err(IrEvalOutcome::from(IrError::msg(
                                 span,
                                 "break with value is not supported for unconditional loops",
                             )));

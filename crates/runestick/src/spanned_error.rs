@@ -2,6 +2,25 @@ use crate::Span;
 use std::error;
 use std::fmt;
 
+/// Trait to coerce a result of a non-spanned error into a spanned error.
+pub trait WithSpan<T> {
+    /// Convert the given result into a result which produces a spanned error.
+    fn with_span(self, span: Span) -> Result<T, SpannedError>;
+}
+
+/// Blanket implementation that is helpful.
+impl<T, E> WithSpan<T> for Result<T, E>
+where
+    anyhow::Error: From<E>,
+{
+    fn with_span(self, span: Span) -> Result<T, SpannedError> {
+        match self {
+            Ok(value) => Ok(value),
+            Err(error) => Err(SpannedError::new(span, error)),
+        }
+    }
+}
+
 /// An error with an associated span.
 #[derive(Debug)]
 pub struct SpannedError {

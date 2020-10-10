@@ -1,7 +1,7 @@
 use crate::ir::IrValue;
-use crate::shared::{Internal, ScopeError, ScopeErrorKind};
-use crate::{QueryError, QueryErrorKind, Spanned};
-use runestick::{AccessError, CompileMeta, Span, TypeInfo, TypeOf};
+use crate::shared::{ScopeError, ScopeErrorKind};
+use crate::{QueryError, QueryErrorKind, ResolveError, ResolveErrorKind, Spanned};
+use runestick::{AccessError, CompileMeta, SpannedError, TypeInfo, TypeOf};
 use thiserror::Error;
 
 error! {
@@ -11,38 +11,12 @@ error! {
         kind: IrErrorKind,
     }
 
+    impl From<ResolveError>;
     impl From<QueryError>;
     impl From<ScopeError>;
 }
 
-impl From<Internal> for IrError {
-    fn from(error: Internal) -> Self {
-        Self::new(
-            error.span(),
-            IrErrorKind::Internal {
-                message: error.message(),
-            },
-        )
-    }
-}
-
-impl From<AccessError> for IrErrorKind {
-    fn from(error: AccessError) -> Self {
-        IrErrorKind::AccessError {
-            error: Box::new(error),
-        }
-    }
-}
-
 impl IrError {
-    /// Construct a custom error.
-    pub fn custom<S>(spanned: S, message: &'static str) -> Self
-    where
-        S: Spanned,
-    {
-        Self::new(spanned, IrErrorKind::Custom(message))
-    }
-
     /// An error raised when we expect a certain constant value but get another.
     pub fn expected<S, E>(spanned: S, actual: &IrValue) -> Self
     where
@@ -67,26 +41,25 @@ impl IrError {
     }
 }
 
+impl From<IrError> for SpannedError {
+    fn from(error: IrError) -> Self {
+        SpannedError::new(error.span, *error.kind)
+    }
+}
+
 /// Error when encoding AST.
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
 pub enum IrErrorKind {
-    /// A custom error.
-    #[error("{0}")]
-    Custom(&'static str),
-    /// Internal compiler error.
-    #[error("internal error: {message}")]
-    Internal {
-        /// Message of the error.
-        message: &'static str,
-    },
+    #[error("{message}")]
+    Custom { message: &'static str },
     /// A scope error.
     #[error("scope error: {error}")]
     ScopeError {
         /// The kind of the scope error.
         #[source]
         #[from]
-        error: Box<ScopeErrorKind>,
+        error: ScopeErrorKind,
     },
     /// An access error raised during compilation.
     #[error("access error: {error}")]
@@ -94,7 +67,7 @@ pub enum IrErrorKind {
         /// The source error.
         #[source]
         #[from]
-        error: Box<AccessError>,
+        error: AccessError,
     },
     /// An access error raised during queries.
     #[error("{error}")]
@@ -103,6 +76,12 @@ pub enum IrErrorKind {
         #[source]
         #[from]
         error: Box<QueryErrorKind>,
+    },
+    #[error("{error}")]
+    ResolveError {
+        #[source]
+        #[from]
+        error: ResolveErrorKind,
     },
     /// Encountered an expression that is not supported as a constant
     /// expression.

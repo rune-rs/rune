@@ -119,6 +119,7 @@ macro_rules! assert_warnings {
 }
 
 /// Assert that the given value matches the provided pattern.
+#[allow(unused)]
 macro_rules! assert_matches {
     ($value:expr, $pat:pat) => {
         match $value {

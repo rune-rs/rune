@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
+    Storage, ToTokens,
 };
 use runestick::{Source, Span};
 
@@ -43,7 +44,7 @@ impl Parse for LitByte {
 impl<'a> Resolve<'a> for LitByte {
     type Output = u8;
 
-    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<u8, ParseError> {
+    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<u8, ResolveError> {
         match self.source {
             ast::CopySource::Inline(b) => return Ok(b),
             ast::CopySource::Text => (),
@@ -53,7 +54,7 @@ impl<'a> Resolve<'a> for LitByte {
 
         let string = source
             .source(span.trim_start(2).trim_end(1))
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
+            .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();
 
@@ -65,7 +66,7 @@ impl<'a> Resolve<'a> for LitByte {
         let (start, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral));
+                return Err(ResolveError::new(span, ResolveErrorKind::BadByteLiteral));
             }
         };
 
@@ -79,7 +80,7 @@ impl<'a> Resolve<'a> for LitByte {
                                 .next()
                                 .map(|n| n.0)
                                 .unwrap_or_else(|| span.end.into_usize());
-                            return Err(ParseError::new(Span::new(start, end), kind));
+                            return Err(ResolveError::new(Span::new(start, end), kind));
                         }
                     };
 
@@ -90,22 +91,22 @@ impl<'a> Resolve<'a> for LitByte {
                             .next()
                             .map(|n| n.0)
                             .unwrap_or_else(|| span.end.into_usize());
-                        return Err(ParseError::new(
+                        return Err(ResolveError::new(
                             Span::new(start, end),
-                            ParseErrorKind::BadByteLiteral,
+                            ResolveErrorKind::BadByteLiteral,
                         ));
                     }
                 }
             }
             c if c.is_ascii() && !c.is_control() => c as u8,
             _ => {
-                return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral));
+                return Err(ResolveError::new(span, ResolveErrorKind::BadByteLiteral));
             }
         };
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral));
+            return Err(ResolveError::new(span, ResolveErrorKind::BadByteLiteral));
         }
 
         Ok(c)
@@ -115,7 +116,11 @@ impl<'a> Resolve<'a> for LitByte {
 impl ResolveOwned for LitByte {
     type Owned = u8;
 
-    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+    fn resolve_owned(
+        &self,
+        storage: &Storage,
+        source: &Source,
+    ) -> Result<Self::Owned, ResolveError> {
         Ok(self.resolve(storage, source)?)
     }
 }

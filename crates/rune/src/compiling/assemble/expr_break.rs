@@ -43,7 +43,7 @@ impl Assemble for ast::ExprBreak {
             .scopes
             .total_var_count(span)?
             .checked_sub(last_loop.total_var_count)
-            .ok_or_else(|| CompileError::internal(&span, "var count should be larger"))?;
+            .ok_or_else(|| CompileError::msg(&span, "var count should be larger"))?;
 
         if last_loop.needs.value() {
             if has_value {

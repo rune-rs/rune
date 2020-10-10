@@ -1,7 +1,6 @@
-use crate::compiling::CompileError;
-use crate::ir::{IrCompile, IrEval};
+use crate::ir::{IrCompile, IrError, IrEval};
 use crate::macros::{current_context, ToTokens, TokenStream};
-use crate::parsing::{ParseError, ResolveOwned};
+use crate::parsing::{ResolveError, ResolveOwned};
 use crate::Spanned;
 
 /// Evaluate the given target as a constant expression.
@@ -28,7 +27,7 @@ use crate::Spanned;
 ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
 /// });
 /// ```
-pub fn eval<T>(target: &T) -> Result<<T::Output as IrEval>::Output, CompileError>
+pub fn eval<T>(target: &T) -> Result<<T::Output as IrEval>::Output, IrError>
 where
     T: Spanned + IrCompile,
     T::Output: IrEval,
@@ -41,7 +40,7 @@ where
 /// # Panics
 ///
 /// This will panic if it's called outside of a macro context.
-pub fn resolve<T>(item: T) -> Result<T::Owned, ParseError>
+pub fn resolve<T>(item: T) -> Result<T::Owned, ResolveError>
 where
     T: ResolveOwned,
 {

@@ -190,7 +190,7 @@ impl Import<'_> {
 
         while let Some((mut name, path, mut initial)) = queue.pop_front() {
             if let Some(global) = &path.global {
-                return Err(CompileError::internal(
+                return Err(CompileError::msg(
                     global,
                     "global imports are not supported",
                 ));

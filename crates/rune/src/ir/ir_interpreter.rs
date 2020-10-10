@@ -314,7 +314,7 @@ impl IrScopes {
                     }
                 };
 
-                Err(IrError::custom(ir_target, "missing index"))
+                Err(IrError::msg(ir_target, "missing index"))
             }
         }
     }

@@ -1,16 +1,16 @@
 //! Context for a macro.
 
 use crate::ast;
-use crate::compiling::CompileError;
+
 use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
-use crate::parsing::{ParseError, ResolveOwned};
+use crate::parsing::{ResolveError, ResolveOwned};
 use crate::query;
 use crate::query::{QueryItem, Used};
 use crate::shared::Consts;
-use crate::Spanned;
+use crate::{IrError, Spanned};
 use query::Query;
 use runestick::{Source, Span};
 use std::cell::RefCell;
@@ -128,7 +128,7 @@ impl MacroContext {
     }
 
     /// Resolve the given item into an owned variant.
-    pub fn resolve_owned<T>(&self, item: T) -> Result<T::Owned, ParseError>
+    pub fn resolve_owned<T>(&self, item: T) -> Result<T::Owned, ResolveError>
     where
         T: ResolveOwned,
     {
@@ -136,7 +136,7 @@ impl MacroContext {
     }
 
     /// Evaluate the given ast as a constant expression.
-    pub fn eval<T>(&self, target: &T) -> Result<<T::Output as IrEval>::Output, CompileError>
+    pub fn eval<T>(&self, target: &T) -> Result<<T::Output as IrEval>::Output, IrError>
     where
         T: Spanned + IrCompile,
         T::Output: IrEval,
@@ -163,14 +163,11 @@ impl MacroContext {
         match ir_interpreter.eval(&output, Used::Used) {
             Ok(value) => Ok(value),
             Err(e) => match e {
-                IrEvalOutcome::Error(error) => Err(CompileError::from(error)),
-                IrEvalOutcome::NotConst(span) => {
-                    Err(CompileError::new(span, Box::new(IrErrorKind::NotConst)))
+                IrEvalOutcome::Error(error) => Err(error),
+                IrEvalOutcome::NotConst(span) => Err(IrError::new(span, IrErrorKind::NotConst)),
+                IrEvalOutcome::Break(span, _) => {
+                    Err(IrError::new(span, IrErrorKind::BreakOutsideOfLoop))
                 }
-                IrEvalOutcome::Break(span, _) => Err(CompileError::new(
-                    span,
-                    Box::new(IrErrorKind::BreakOutsideOfLoop),
-                )),
             },
         }
     }

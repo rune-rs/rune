@@ -1110,7 +1110,7 @@ impl QueryInner {
             .clone();
 
         if let Some(global) = &path.global {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 global,
                 "global scopes are not supported yet",
             ));

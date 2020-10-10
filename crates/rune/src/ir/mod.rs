@@ -400,7 +400,7 @@ impl IrAssignOp {
             }
         }
 
-        Err(IrError::custom(spanned, "unsupported operands"))
+        Err(IrError::msg(spanned, "unsupported operands"))
     }
 
     /// Perform the given assign operation.
@@ -429,17 +429,17 @@ impl IrAssignOp {
             IrAssignOp::Div => {
                 *target = target
                     .checked_div(&operand)
-                    .ok_or_else(|| IrError::custom(spanned, "division by zero"))?;
+                    .ok_or_else(|| IrError::msg(spanned, "division by zero"))?;
             }
             IrAssignOp::Shl => {
                 let operand =
-                    u32::try_from(operand).map_err(|_| IrError::custom(spanned, "bad operand"))?;
+                    u32::try_from(operand).map_err(|_| IrError::msg(spanned, "bad operand"))?;
 
                 target.shl_assign(operand);
             }
             IrAssignOp::Shr => {
                 let operand =
-                    u32::try_from(operand).map_err(|_| IrError::custom(spanned, "bad operand"))?;
+                    u32::try_from(operand).map_err(|_| IrError::msg(spanned, "bad operand"))?;
 
                 target.shr_assign(operand);
             }

@@ -133,12 +133,12 @@ impl Scope {
         self.total_var_count = self
             .total_var_count
             .checked_sub(n)
-            .ok_or_else(|| CompileError::internal(&span, "totals out of bounds"))?;
+            .ok_or_else(|| CompileError::msg(&span, "totals out of bounds"))?;
 
         self.local_var_count = self
             .local_var_count
             .checked_sub(n)
-            .ok_or_else(|| CompileError::internal(&span, "locals out of bounds"))?;
+            .ok_or_else(|| CompileError::msg(&span, "locals out of bounds"))?;
 
         Ok(())
     }
@@ -244,7 +244,7 @@ impl Scopes {
         let ScopeGuard(expected) = expected;
 
         if self.scopes.len() != expected {
-            return Err(CompileError::internal(
+            return Err(CompileError::msg(
                 &span,
                 "the number of scopes do not match",
             ));
@@ -263,7 +263,7 @@ impl Scopes {
         let scope = self
             .scopes
             .pop()
-            .ok_or_else(|| CompileError::internal(&span, "missing parent scope"))?;
+            .ok_or_else(|| CompileError::msg(&span, "missing parent scope"))?;
 
         Ok(scope)
     }
@@ -294,7 +294,7 @@ impl Scopes {
         Ok(self
             .scopes
             .last()
-            .ok_or_else(|| CompileError::internal(&span, "missing head of locals"))?)
+            .ok_or_else(|| CompileError::msg(&span, "missing head of locals"))?)
     }
 
     /// Get the last locals scope.
@@ -302,6 +302,6 @@ impl Scopes {
         Ok(self
             .scopes
             .last_mut()
-            .ok_or_else(|| CompileError::internal(&span, "missing head of locals"))?)
+            .ok_or_else(|| CompileError::msg(&span, "missing head of locals"))?)
     }
 }

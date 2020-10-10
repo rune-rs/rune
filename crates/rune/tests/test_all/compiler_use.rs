@@ -16,13 +16,8 @@ fn test_import_cycle() {
             Foo
         }             
         "#,
-        span, QueryError { error } => {
+        span, QueryError { error: ImportCycle { .. } } => {
             assert_eq!(span, Span::new(240, 243));
-
-            match *error {
-                ImportCycle { .. } => (),
-                other => panic!("unexpected query error: {:?}", other),
-            }
         }
     };
 
@@ -40,14 +35,8 @@ fn test_import_cycle() {
             a::Foo
         }           
         "#,
-        span, QueryError { error } => {
+        span, QueryError { error: ImportCycle { path, .. } } => {
             assert_eq!(span, Span::new(173, 179));
-
-            let path = match *error {
-                ImportCycle { path, .. } => path,
-                other => panic!("unexpected query error: {:?}", other),
-            };
-
             assert_eq!(2, path.len());
             assert_eq!(Span::new(107, 120), path[0].location.span);
             assert_eq!(Span::new(37, 50), path[1].location.span);

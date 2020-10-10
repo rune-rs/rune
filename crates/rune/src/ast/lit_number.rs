@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
+    Storage, ToTokens,
 };
 use runestick::{Source, Span};
 
@@ -40,7 +41,7 @@ impl Parse for LitNumber {
 impl<'a> Resolve<'a> for LitNumber {
     type Output = ast::Number;
 
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<ast::Number, ParseError> {
+    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<ast::Number, ResolveError> {
         use num::Num as _;
         use std::str::FromStr as _;
 
@@ -50,9 +51,9 @@ impl<'a> Resolve<'a> for LitNumber {
             ast::NumberSource::Synthetic(id) => match storage.get_number(id) {
                 Some(number) => return Ok(number),
                 None => {
-                    return Err(ParseError::new(
+                    return Err(ResolveError::new(
                         span,
-                        ParseErrorKind::BadSyntheticId { kind: "number", id },
+                        ResolveErrorKind::BadSyntheticId { kind: "number", id },
                     ));
                 }
             },
@@ -61,7 +62,7 @@ impl<'a> Resolve<'a> for LitNumber {
 
         let string = source
             .source(span)
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
+            .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         if text.is_fractional {
             let number = f64::from_str(string).map_err(err_span(span))?;
@@ -78,8 +79,8 @@ impl<'a> Resolve<'a> for LitNumber {
         let number = num::BigInt::from_str_radix(&string[s..], radix).map_err(err_span(span))?;
         return Ok(ast::Number::Integer(number));
 
-        fn err_span<E>(span: Span) -> impl Fn(E) -> ParseError {
-            move |_| ParseError::new(span, ParseErrorKind::BadNumberLiteral)
+        fn err_span<E>(span: Span) -> impl Fn(E) -> ResolveError {
+            move |_| ResolveError::new(span, ResolveErrorKind::BadNumberLiteral)
         }
     }
 }
@@ -87,7 +88,11 @@ impl<'a> Resolve<'a> for LitNumber {
 impl ResolveOwned for LitNumber {
     type Owned = ast::Number;
 
-    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+    fn resolve_owned(
+        &self,
+        storage: &Storage,
+        source: &Source,
+    ) -> Result<Self::Owned, ResolveError> {
         self.resolve(storage, source)
     }
 }

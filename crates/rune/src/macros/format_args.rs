@@ -6,7 +6,7 @@ use crate::macros::{MacroContext, Quote};
 use crate::quote;
 use crate::{Parse, ParseError, Parser, Peek, Spanned};
 use runestick::format;
-use runestick::{Span, SpannedError};
+use runestick::{Span, SpannedError, WithSpan as _};
 use std::collections::{BTreeMap, BTreeSet};
 
 // NB: needed for quote macro.
@@ -54,18 +54,14 @@ impl FormatArgs {
                     pos.push(expr);
                 }
                 FormatArg::Named(n) => {
-                    let name = ctx
-                        .resolve_owned(n.key)
-                        .map_err(|error| SpannedError::new(error.span(), error.into_kind()))?;
+                    let name = ctx.resolve_owned(n.key)?;
                     named.insert(name.into(), n);
                 }
             }
         }
 
         let format = match format {
-            IrValue::String(string) => string
-                .take()
-                .map_err(|error| SpannedError::new(self.format.span(), error))?,
+            IrValue::String(string) => string.take().with_span(self.format.span())?,
             _ => {
                 return Err(SpannedError::msg(
                     self.format.span(),
@@ -114,10 +110,7 @@ impl Parse for FormatArgs {
     /// Parse format arguments inside of a macro.
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
         if p.is_eof()? {
-            return Err(ParseError::custom(
-                p.last_span(),
-                "expected format specifier",
-            ));
+            return Err(ParseError::msg(p.last_span(), "expected format specifier"));
         }
 
         let format = p.parse::<ast::Expr>()?;

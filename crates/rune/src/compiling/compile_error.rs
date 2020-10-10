@@ -1,9 +1,10 @@
 use crate::ast;
 use crate::compiling::InsertMetaError;
 use crate::indexing::Visibility;
-use crate::shared::{Internal, Location};
+use crate::shared::Location;
 use crate::{
-    IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
+    IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, ResolveError,
+    ResolveErrorKind, Spanned,
 };
 use runestick::debug::DebugSignature;
 use runestick::{CompileMeta, Hash, Item, Label, SourceId, Span, SpannedError};
@@ -24,6 +25,7 @@ error! {
     impl From<ParseError>;
     impl From<IrError>;
     impl From<QueryError>;
+    impl From<ResolveError>;
 }
 
 impl From<CompileError> for SpannedError {
@@ -33,45 +35,12 @@ impl From<CompileError> for SpannedError {
 }
 
 impl CompileError {
-    /// Construct an internal error.
-    ///
-    /// This should be used for programming invariants of the encoder which are
-    /// broken for some reason.
-    pub fn internal<S>(spanned: S, message: &'static str) -> Self
-    where
-        S: Spanned,
-    {
-        CompileError::new(spanned, CompileErrorKind::Internal { message })
-    }
-
     /// Construct a factor for unsupported super.
     pub fn unsupported_super<S>(spanned: S) -> impl FnOnce() -> Self
     where
         S: Spanned,
     {
         || CompileError::new(spanned, CompileErrorKind::UnsupportedSuper)
-    }
-
-    /// Construct an "unsupported path" internal error for the
-    /// paths containing unsupported path keywords like super and crate.
-    pub fn internal_unsupported_path<S>(spanned: S) -> Self
-    where
-        S: Spanned,
-    {
-        CompileError::new(
-            spanned,
-            CompileErrorKind::Internal {
-                message: "paths containing `crate` or `super` are not supported",
-            },
-        )
-    }
-
-    /// An error raised during constant computation.
-    pub fn const_error<S>(spanned: S, msg: &'static str) -> Self
-    where
-        S: Spanned,
-    {
-        CompileError::new(spanned, CompileErrorKind::ConstError { msg })
     }
 
     /// Construct an experimental error.
@@ -94,34 +63,23 @@ impl CompileError {
     }
 }
 
-impl From<Internal> for CompileError {
-    fn from(error: Internal) -> Self {
-        Self::new(
-            error.span(),
-            CompileErrorKind::Internal {
-                message: error.message(),
-            },
-        )
-    }
-}
-
 /// Compiler error.
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum CompileErrorKind {
-    #[error("internal compiler error: {message}")]
-    Internal { message: &'static str },
+    #[error("{message}")]
+    Custom { message: &'static str },
     #[error("{error}")]
     IrError {
         #[source]
         #[from]
-        error: Box<IrErrorKind>,
+        error: IrErrorKind,
     },
     #[error("{error}")]
     QueryError {
         #[source]
         #[from]
-        error: Box<QueryErrorKind>,
+        error: QueryErrorKind,
     },
     #[error("{error}")]
     ParseError {
@@ -134,6 +92,12 @@ pub enum CompileErrorKind {
         #[source]
         #[from]
         error: InsertMetaError,
+    },
+    #[error("{error}")]
+    ResolveError {
+        #[source]
+        #[from]
+        error: ResolveErrorKind,
     },
     #[error("failed to load `{path}`: {error}")]
     ModFileError {

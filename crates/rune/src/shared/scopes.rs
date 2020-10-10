@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
-use crate::shared::Internal;
+use crate::shared::Custom;
 use crate::Spanned;
-use runestick::Span;
+
 use thiserror::Error;
 
 /// A hierarchy of constant scopes.
@@ -11,27 +11,27 @@ pub(crate) struct Scopes<T> {
 
 impl<T> Scopes<T> {
     /// Clear the current scope.
-    pub(crate) fn clear_current<S>(&mut self, spanned: S) -> Result<(), Internal>
+    pub(crate) fn clear_current<S>(&mut self, spanned: S) -> Result<(), Custom>
     where
         S: Spanned,
     {
         let last = self
             .scopes
             .last_mut()
-            .ok_or_else(|| Internal::new(spanned, "expected at least one scope"))?;
+            .ok_or_else(|| Custom::new(spanned, "expected at least one scope"))?;
 
         last.locals.clear();
         Ok(())
     }
 
     /// Declare a value in the scope.
-    pub(crate) fn decl<S>(&mut self, name: &str, value: T, spanned: S) -> Result<(), Internal>
+    pub(crate) fn decl<S>(&mut self, name: &str, value: T, spanned: S) -> Result<(), Custom>
     where
         S: Spanned,
     {
         let last = self
             .last_mut()
-            .ok_or_else(|| Internal::new(spanned, "expected at least one scope"))?;
+            .ok_or_else(|| Custom::new(spanned, "expected at least one scope"))?;
 
         last.locals.insert(name.to_owned(), value);
         Ok(())
@@ -117,16 +117,16 @@ impl<T> Scopes<T> {
         ScopeGuard { length }
     }
 
-    pub(crate) fn pop<S>(&mut self, spanned: S, guard: ScopeGuard) -> Result<(), Internal>
+    pub(crate) fn pop<S>(&mut self, spanned: S, guard: ScopeGuard) -> Result<(), Custom>
     where
         S: Spanned,
     {
         if self.scopes.pop().is_none() {
-            return Err(Internal::new(spanned, "expected at least one scope to pop"));
+            return Err(Custom::new(spanned, "expected at least one scope to pop"));
         }
 
         if self.scopes.len() != guard.length {
-            return Err(Internal::new(spanned, "scope length mismatch"));
+            return Err(Custom::new(spanned, "scope length mismatch"));
         }
 
         Ok(())
@@ -180,13 +180,11 @@ error! {
     }
 }
 
-/// The kind of the [ScopeError].
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum ScopeErrorKind {
-    /// A local variable was missing.
+    #[error("{message}")]
+    Custom { message: &'static str },
     #[error("missing local {name}")]
-    MissingLocal {
-        /// The name that was missing.
-        name: Box<str>,
-    },
+    MissingLocal { name: Box<str> },
 }
