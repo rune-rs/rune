@@ -22,4 +22,4 @@ pub struct ExprReturn {
     pub expr: Option<ast::Expr>,
 }
 
-expr_parse!(ExprReturn, "return expression");
+expr_parse!(Return, ExprReturn, "return expression");

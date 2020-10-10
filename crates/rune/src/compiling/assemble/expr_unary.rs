@@ -11,7 +11,7 @@ impl Assemble for ast::ExprUnary {
             return Err(CompileError::new(self, CompileErrorKind::UnsupportedRef));
         }
 
-        if let (ast::UnOp::Neg, ast::Expr::ExprLit(expr_lit)) = (self.op, &self.expr) {
+        if let (ast::UnOp::Neg, ast::Expr::Lit(expr_lit)) = (self.op, &self.expr) {
             if let ast::Lit::Number(n) = &expr_lit.lit {
                 let n = n.resolve(&c.storage, &*c.source)?.as_i64(span, true)?;
                 c.asm.push(Inst::integer(n), span);

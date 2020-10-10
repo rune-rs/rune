@@ -29,4 +29,4 @@ pub struct ExprWhile {
     pub body: Box<ast::Block>,
 }
 
-expr_parse!(ExprWhile, "while expression");
+expr_parse!(While, ExprWhile, "while expression");

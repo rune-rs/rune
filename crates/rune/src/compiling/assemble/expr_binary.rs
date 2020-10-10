@@ -151,7 +151,7 @@ fn compile_assign_binop(
             Some(InstTarget::Offset(var.offset))
         }
         // <expr>.<field> <op> <value>
-        ast::Expr::ExprFieldAccess(field_access) => {
+        ast::Expr::FieldAccess(field_access) => {
             field_access.expr.assemble(c, Needs::Value)?;
             rhs.assemble(c, Needs::Value)?;
 

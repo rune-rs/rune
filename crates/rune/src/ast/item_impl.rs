@@ -59,4 +59,4 @@ impl ItemImpl {
     }
 }
 
-item_parse!(ItemImpl, "impl item");
+item_parse!(Impl, ItemImpl, "impl item");

@@ -30,7 +30,7 @@ pub struct ItemEnum {
     pub variants: ast::Braced<ItemVariant, T![,]>,
 }
 
-item_parse!(ItemEnum, "enum item");
+item_parse!(Enum, ItemEnum, "enum item");
 
 /// An enum variant.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]

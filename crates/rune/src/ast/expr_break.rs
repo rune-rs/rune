@@ -23,7 +23,7 @@ pub struct ExprBreak {
     pub expr: Option<ExprBreakValue>,
 }
 
-expr_parse!(ExprBreak, "break expression");
+expr_parse!(Break, ExprBreak, "break expression");
 
 /// Things that we can break on.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

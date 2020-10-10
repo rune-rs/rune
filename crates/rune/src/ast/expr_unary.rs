@@ -55,7 +55,7 @@ impl ExprUnary {
     }
 }
 
-expr_parse!(ExprUnary, "try expression");
+expr_parse!(Unary, ExprUnary, "try expression");
 
 /// A unary operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

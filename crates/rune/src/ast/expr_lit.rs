@@ -12,4 +12,4 @@ pub struct ExprLit {
     pub lit: ast::Lit,
 }
 
-expr_parse!(ExprLit, "literal expression");
+expr_parse!(Lit, ExprLit, "literal expression");

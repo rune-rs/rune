@@ -34,7 +34,7 @@ pub struct ExprIf {
     pub expr_else: Option<ExprElse>,
 }
 
-expr_parse!(ExprIf, "if expression");
+expr_parse!(If, ExprIf, "if expression");
 
 /// An else branch of an if expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]

@@ -82,7 +82,7 @@ impl ItemFn {
     }
 }
 
-item_parse!(ItemFn, "function item");
+item_parse!(Fn, ItemFn, "function item");
 
 impl Peek for ItemFn {
     fn peek(p: &mut Peeker<'_>) -> bool {

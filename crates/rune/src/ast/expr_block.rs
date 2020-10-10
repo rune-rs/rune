@@ -30,4 +30,4 @@ pub struct ExprBlock {
     pub block: ast::Block,
 }
 
-expr_parse!(ExprBlock, "block expression");
+expr_parse!(Block, ExprBlock, "block expression");

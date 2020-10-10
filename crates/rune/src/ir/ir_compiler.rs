@@ -45,7 +45,7 @@ impl IrCompiler<'_> {
                     });
                 }
             }
-            ast::Expr::ExprFieldAccess(expr_field_access) => {
+            ast::Expr::FieldAccess(expr_field_access) => {
                 let target = self.ir_target(&expr_field_access.expr)?;
 
                 match &expr_field_access.expr_field {
@@ -93,21 +93,19 @@ impl IrCompile for ast::Expr {
             ast::Expr::Object(expr_object) => {
                 ir::Ir::new(expr_object.span(), expr_object.compile(c)?)
             }
-            ast::Expr::ExprGroup(expr_group) => expr_group.expr.compile(c)?,
-            ast::Expr::ExprBinary(expr_binary) => expr_binary.compile(c)?,
-            ast::Expr::ExprAssign(expr_assign) => expr_assign.compile(c)?,
-            ast::Expr::ExprCall(expr_call) => ir::Ir::new(self.span(), expr_call.compile(c)?),
-            ast::Expr::ExprIf(expr_if) => ir::Ir::new(self.span(), expr_if.compile(c)?),
-            ast::Expr::ExprLoop(expr_loop) => ir::Ir::new(self.span(), expr_loop.compile(c)?),
-            ast::Expr::ExprWhile(expr_while) => ir::Ir::new(self.span(), expr_while.compile(c)?),
-            ast::Expr::ExprLit(expr_lit) => expr_lit.compile(c)?,
-            ast::Expr::ExprBlock(expr_block) => {
-                ir::Ir::new(self.span(), expr_block.block.compile(c)?)
-            }
+            ast::Expr::Group(expr_group) => expr_group.expr.compile(c)?,
+            ast::Expr::Binary(expr_binary) => expr_binary.compile(c)?,
+            ast::Expr::Assign(expr_assign) => expr_assign.compile(c)?,
+            ast::Expr::Call(expr_call) => ir::Ir::new(self.span(), expr_call.compile(c)?),
+            ast::Expr::If(expr_if) => ir::Ir::new(self.span(), expr_if.compile(c)?),
+            ast::Expr::Loop(expr_loop) => ir::Ir::new(self.span(), expr_loop.compile(c)?),
+            ast::Expr::While(expr_while) => ir::Ir::new(self.span(), expr_while.compile(c)?),
+            ast::Expr::Lit(expr_lit) => expr_lit.compile(c)?,
+            ast::Expr::Block(expr_block) => ir::Ir::new(self.span(), expr_block.block.compile(c)?),
             ast::Expr::Path(path) => path.compile(c)?,
-            ast::Expr::ExprFieldAccess(..) => ir::Ir::new(self.span(), c.ir_target(self)?),
-            ast::Expr::ExprBreak(expr_break) => ir::Ir::new(expr_break, expr_break.compile(c)?),
-            ast::Expr::ExprLet(expr_let) => ir::Ir::new(expr_let, expr_let.compile(c)?),
+            ast::Expr::FieldAccess(..) => ir::Ir::new(self.span(), c.ir_target(self)?),
+            ast::Expr::Break(expr_break) => ir::Ir::new(expr_break, expr_break.compile(c)?),
+            ast::Expr::Let(expr_let) => ir::Ir::new(expr_let, expr_let.compile(c)?),
             ast::Expr::MacroCall(macro_call) => {
                 let internal_macro = c
                     .query
@@ -463,7 +461,7 @@ impl IrCompile for BuiltInTemplate {
         let mut components = Vec::new();
 
         for expr in &self.exprs {
-            if let ast::Expr::ExprLit(expr_lit) = expr {
+            if let ast::Expr::Lit(expr_lit) = expr {
                 if let ast::ExprLit {
                     lit: ast::Lit::Str(s),
                     ..

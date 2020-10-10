@@ -17,4 +17,4 @@ pub struct ExprIndex {
     pub close: T![']'],
 }
 
-expr_parse!(ExprIndex, "index expression");
+expr_parse!(Index, ExprIndex, "index expression");

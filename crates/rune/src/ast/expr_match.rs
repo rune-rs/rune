@@ -66,7 +66,7 @@ impl ExprMatch {
     }
 }
 
-expr_parse!(ExprMatch, "match expression");
+expr_parse!(Match, ExprMatch, "match expression");
 
 /// A match branch.
 ///

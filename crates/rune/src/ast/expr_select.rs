@@ -72,7 +72,7 @@ impl ExprSelect {
     }
 }
 
-expr_parse!(ExprSelect, "select expression");
+expr_parse!(Select, ExprSelect, "select expression");
 
 /// A single selection branch.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

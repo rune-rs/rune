@@ -11,70 +11,70 @@ impl Assemble for ast::Expr {
             ast::Expr::Path(path) => {
                 path.assemble(c, needs)?;
             }
-            ast::Expr::ExprWhile(expr_while) => {
+            ast::Expr::While(expr_while) => {
                 expr_while.assemble(c, needs)?;
             }
-            ast::Expr::ExprFor(expr_for) => {
+            ast::Expr::For(expr_for) => {
                 expr_for.assemble(c, needs)?;
             }
-            ast::Expr::ExprLoop(expr_loop) => {
+            ast::Expr::Loop(expr_loop) => {
                 expr_loop.assemble(c, needs)?;
             }
-            ast::Expr::ExprLet(expr_let) => {
+            ast::Expr::Let(expr_let) => {
                 expr_let.assemble(c, needs)?;
             }
-            ast::Expr::ExprGroup(expr) => {
+            ast::Expr::Group(expr) => {
                 expr.expr.assemble(c, needs)?;
             }
-            ast::Expr::ExprUnary(expr_unary) => {
+            ast::Expr::Unary(expr_unary) => {
                 expr_unary.assemble(c, needs)?;
             }
-            ast::Expr::ExprAssign(expr_assign) => {
+            ast::Expr::Assign(expr_assign) => {
                 expr_assign.assemble(c, needs)?;
             }
-            ast::Expr::ExprBinary(expr_binary) => {
+            ast::Expr::Binary(expr_binary) => {
                 expr_binary.assemble(c, needs)?;
             }
-            ast::Expr::ExprIf(expr_if) => {
+            ast::Expr::If(expr_if) => {
                 expr_if.assemble(c, needs)?;
             }
-            ast::Expr::ExprIndex(expr_index_get) => {
+            ast::Expr::Index(expr_index_get) => {
                 expr_index_get.assemble(c, needs)?;
             }
-            ast::Expr::ExprBreak(expr_break) => {
+            ast::Expr::Break(expr_break) => {
                 expr_break.assemble(c, needs)?;
             }
-            ast::Expr::ExprYield(expr_yield) => {
+            ast::Expr::Yield(expr_yield) => {
                 expr_yield.assemble(c, needs)?;
             }
-            ast::Expr::ExprBlock(expr_block) => {
+            ast::Expr::Block(expr_block) => {
                 expr_block.assemble(c, needs)?;
             }
-            ast::Expr::ExprReturn(expr_return) => {
+            ast::Expr::Return(expr_return) => {
                 expr_return.assemble(c, needs)?;
             }
-            ast::Expr::ExprMatch(expr_match) => {
+            ast::Expr::Match(expr_match) => {
                 expr_match.assemble(c, needs)?;
             }
-            ast::Expr::ExprAwait(expr_await) => {
+            ast::Expr::Await(expr_await) => {
                 expr_await.assemble(c, needs)?;
             }
-            ast::Expr::ExprTry(expr_try) => {
+            ast::Expr::Try(expr_try) => {
                 expr_try.assemble(c, needs)?;
             }
-            ast::Expr::ExprSelect(expr_select) => {
+            ast::Expr::Select(expr_select) => {
                 expr_select.assemble(c, needs)?;
             }
-            ast::Expr::ExprCall(expr_call) => {
+            ast::Expr::Call(expr_call) => {
                 expr_call.assemble(c, needs)?;
             }
-            ast::Expr::ExprFieldAccess(expr_field_access) => {
+            ast::Expr::FieldAccess(expr_field_access) => {
                 expr_field_access.assemble(c, needs)?;
             }
-            ast::Expr::ExprClosure(expr_closure) => {
+            ast::Expr::Closure(expr_closure) => {
                 expr_closure.assemble(c, needs)?;
             }
-            ast::Expr::ExprLit(expr_lit) => {
+            ast::Expr::Lit(expr_lit) => {
                 expr_lit.lit.assemble(c, needs)?;
             }
             ast::Expr::ForceSemi(force_semi) => {

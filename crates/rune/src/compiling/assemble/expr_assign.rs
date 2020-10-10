@@ -21,7 +21,7 @@ impl Assemble for ast::ExprAssign {
                 true
             }
             // <expr>.<field> = <value>
-            ast::Expr::ExprFieldAccess(field_access) => {
+            ast::Expr::FieldAccess(field_access) => {
                 // field assignment
                 match &field_access.expr_field {
                     ast::ExprField::Ident(index) => {
@@ -63,7 +63,7 @@ impl Assemble for ast::ExprAssign {
                     }
                 }
             }
-            ast::Expr::ExprIndex(expr_index_get) => {
+            ast::Expr::Index(expr_index_get) => {
                 let span = expr_index_get.span();
                 log::trace!("ExprIndexSet => {:?}", c.source.source(span));
 

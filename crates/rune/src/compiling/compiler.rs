@@ -776,8 +776,8 @@ impl<'a> Compiler<'a> {
     ) -> CompileResult<bool> {
         loop {
             match &pat_lit.expr {
-                ast::Expr::ExprUnary(expr_unary) => {
-                    if let ast::Expr::ExprLit(expr_lit) = &expr_unary.expr {
+                ast::Expr::Unary(expr_unary) => {
+                    if let ast::Expr::Lit(expr_lit) = &expr_unary.expr {
                         if let ast::ExprLit {
                             lit: ast::Lit::Number(lit_number),
                             ..
@@ -793,7 +793,7 @@ impl<'a> Compiler<'a> {
                         }
                     }
                 }
-                ast::Expr::ExprLit(expr_lit) => match &expr_lit.lit {
+                ast::Expr::Lit(expr_lit) => match &expr_lit.lit {
                     ast::Lit::Byte(lit_byte) => {
                         let byte = lit_byte.resolve(&self.storage, &*self.source)?;
                         load(self, Needs::Value)?;

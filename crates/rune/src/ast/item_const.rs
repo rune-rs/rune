@@ -33,4 +33,4 @@ pub struct ItemConst {
     pub expr: ast::Expr,
 }
 
-item_parse!(ItemConst, "constant item");
+item_parse!(Const, ItemConst, "constant item");

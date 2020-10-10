@@ -52,4 +52,4 @@ impl ExprFor {
     }
 }
 
-expr_parse!(ExprFor, "for loop expression");
+expr_parse!(For, ExprFor, "for loop expression");
