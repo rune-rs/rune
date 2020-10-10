@@ -8,12 +8,15 @@ use crate::{Parse, Spanned, ToTokens};
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::LitVec>("[1, \"two\"]");
-/// testing::roundtrip::<ast::LitVec>("[1, 2,]");
-/// testing::roundtrip::<ast::LitVec>("[1, 2, foo()]");
+/// testing::roundtrip::<ast::ExprVec>("[1, \"two\"]");
+/// testing::roundtrip::<ast::ExprVec>("[1, 2,]");
+/// testing::roundtrip::<ast::ExprVec>("[1, 2, foo()]");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
-pub struct LitVec {
+pub struct ExprVec {
+    /// Attributes associated with vector.
+    #[rune(iter, meta)]
+    pub attributes: Vec<ast::Attribute>,
     /// Items in the vector.
     pub items: ast::Bracketed<ast::Expr, T![,]>,
 }

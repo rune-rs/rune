@@ -88,6 +88,11 @@ impl IrCompile for ast::Expr {
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
         Ok(match self {
+            ast::Expr::Vec(expr_vec) => ir::Ir::new(expr_vec.span(), expr_vec.compile(c)?),
+            ast::Expr::Tuple(expr_tuple) => expr_tuple.compile(c)?,
+            ast::Expr::Object(expr_object) => {
+                ir::Ir::new(expr_object.span(), expr_object.compile(c)?)
+            }
             ast::Expr::ExprGroup(expr_group) => expr_group.expr.compile(c)?,
             ast::Expr::ExprBinary(expr_binary) => expr_binary.compile(c)?,
             ast::Expr::ExprAssign(expr_assign) => expr_assign.compile(c)?,
@@ -276,7 +281,6 @@ impl IrCompile for ast::ExprLit {
         let span = self.span();
 
         Ok(match &self.lit {
-            ast::Lit::Unit(..) => ir::Ir::new(span, ConstValue::Unit),
             ast::Lit::Bool(b) => ir::Ir::new(span, ConstValue::Bool(b.value)),
             ast::Lit::Str(s) => {
                 let s = c.resolve(s)?;
@@ -292,34 +296,40 @@ impl IrCompile for ast::ExprLit {
 
                 ir::Ir::new(span, const_value)
             }
-            ast::Lit::Vec(lit_vec) => ir::Ir::new(span, lit_vec.compile(c)?),
-            ast::Lit::Tuple(lit_tuple) => ir::Ir::new(span, lit_tuple.compile(c)?),
             ast::Lit::Byte(lit_byte) => ir::Ir::new(span, lit_byte.compile(c)?),
             ast::Lit::ByteStr(lit_byte_str) => ir::Ir::new(span, lit_byte_str.compile(c)?),
             ast::Lit::Char(lit_char) => ir::Ir::new(span, lit_char.compile(c)?),
-            ast::Lit::Object(lit_object) => ir::Ir::new(span, lit_object.compile(c)?),
         })
     }
 }
 
-impl IrCompile for ast::LitTuple {
-    type Output = ir::IrTuple;
+impl IrCompile for ast::ExprTuple {
+    type Output = ir::Ir;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
+
+        if self.items.is_empty() {
+            return Ok(ir::Ir::new(span, ConstValue::Unit));
+        }
+
         let mut items = Vec::new();
 
         for (expr, _) in &self.items {
             items.push(expr.compile(c)?);
         }
 
-        Ok(ir::IrTuple {
-            span: self.span(),
-            items: items.into_boxed_slice(),
-        })
+        Ok(ir::Ir::new(
+            span,
+            ir::IrTuple {
+                span: self.span(),
+                items: items.into_boxed_slice(),
+            },
+        ))
     }
 }
 
-impl IrCompile for ast::LitVec {
+impl IrCompile for ast::ExprVec {
     type Output = ir::IrVec;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
@@ -336,7 +346,7 @@ impl IrCompile for ast::LitVec {
     }
 }
 
-impl IrCompile for ast::LitObject {
+impl IrCompile for ast::ExprObject {
     type Output = ir::IrObject;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {

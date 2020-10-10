@@ -350,9 +350,18 @@ impl<'a> Compiler<'a> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span));
 
+        load(self, Needs::Value)?;
+
+        if pat_tuple.items.is_empty() {
+            self.asm.push(Inst::IsUnit, span);
+
+            self.asm
+                .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
+            return Ok(());
+        }
+
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
-        load(self, Needs::Value)?;
         let offset = self.scopes.decl_anon(span)?;
 
         let type_check = if let Some(path) = &pat_tuple.path {
@@ -525,7 +534,7 @@ impl<'a> Compiler<'a> {
         let keys = self.unit.new_static_object_keys(span, &keys[..])?;
 
         let type_check = match &pat_object.ident {
-            ast::LitObjectIdent::Named(path) => {
+            ast::ObjectIdent::Named(path) => {
                 let span = path.span();
 
                 let named = self.convert_path_to_named(path)?;
@@ -590,7 +599,7 @@ impl<'a> Compiler<'a> {
 
                 type_check
             }
-            ast::LitObjectIdent::Anonymous(..) => TypeCheck::Object,
+            ast::ObjectIdent::Anonymous(..) => TypeCheck::Object,
         };
 
         // Copy the temporary and check that its length matches the pattern and
@@ -785,11 +794,6 @@ impl<'a> Compiler<'a> {
                     }
                 }
                 ast::Expr::ExprLit(expr_lit) => match &expr_lit.lit {
-                    ast::Lit::Unit(unit) => {
-                        load(self, Needs::Value)?;
-                        self.asm.push(Inst::IsUnit, unit.span());
-                        break;
-                    }
                     ast::Lit::Byte(lit_byte) => {
                         let byte = lit_byte.resolve(&self.storage, &*self.source)?;
                         load(self, Needs::Value)?;
@@ -822,9 +826,6 @@ impl<'a> Compiler<'a> {
                     }
                     ast::Lit::Bool(_) => {}
                     ast::Lit::ByteStr(_) => {}
-                    ast::Lit::Object(_) => {}
-                    ast::Lit::Tuple(_) => {}
-                    ast::Lit::Vec(_) => {}
                 },
                 _ => (),
             }

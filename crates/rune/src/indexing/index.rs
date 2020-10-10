@@ -913,8 +913,8 @@ impl Index for ast::PatObject {
         log::trace!("PatObject => {:?}", idx.source.source(span));
 
         match &mut self.ident {
-            ast::LitObjectIdent::Anonymous(..) => (),
-            ast::LitObjectIdent::Named(path) => {
+            ast::ObjectIdent::Anonymous(..) => (),
+            ast::ObjectIdent::Named(path) => {
                 path.index(idx)?;
             }
         }
@@ -1027,6 +1027,15 @@ impl Index for ast::Expr {
             }
             ast::Expr::ForceSemi(force_semi) => {
                 force_semi.expr.index(idx)?;
+            }
+            ast::Expr::Tuple(expr_tuple) => {
+                expr_tuple.index(idx)?;
+            }
+            ast::Expr::Vec(expr_vec) => {
+                expr_vec.index(idx)?;
+            }
+            ast::Expr::Object(expr_object) => {
+                expr_object.index(idx)?;
             }
             // NB: macros have nothing to index, they don't export language
             // items.
@@ -1683,7 +1692,7 @@ impl Index for ast::ExprCall {
 }
 
 impl Index for ast::ExprLit {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    fn index(&mut self, _: &mut Indexer<'_>) -> CompileResult<()> {
         if let Some(first) = self.attributes.first() {
             return Err(CompileError::internal(
                 first,
@@ -1692,18 +1701,8 @@ impl Index for ast::ExprLit {
         }
 
         match &mut self.lit {
-            ast::Lit::Tuple(lit_tuple) => {
-                lit_tuple.index(idx)?;
-            }
-            ast::Lit::Vec(lit_vec) => {
-                lit_vec.index(idx)?;
-            }
-            ast::Lit::Object(lit_object) => {
-                lit_object.index(idx)?;
-            }
             // NB: literals have nothing to index, they don't export language
             // items.
-            ast::Lit::Unit(..) => (),
             ast::Lit::Bool(..) => (),
             ast::Lit::Byte(..) => (),
             ast::Lit::Char(..) => (),
@@ -1716,10 +1715,10 @@ impl Index for ast::ExprLit {
     }
 }
 
-impl Index for ast::LitTuple {
+impl Index for ast::ExprTuple {
     fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("LitTuple => {:?}", idx.source.source(span));
+        log::trace!("ExprTuple => {:?}", idx.source.source(span));
 
         for (expr, _) in &mut self.items {
             expr.index(idx)?;
@@ -1729,10 +1728,10 @@ impl Index for ast::LitTuple {
     }
 }
 
-impl Index for ast::LitVec {
+impl Index for ast::ExprVec {
     fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("LitVec => {:?}", idx.source.source(span));
+        log::trace!("ExprVec => {:?}", idx.source.source(span));
 
         for (expr, _) in &mut self.items {
             expr.index(idx)?;
@@ -1742,16 +1741,16 @@ impl Index for ast::LitVec {
     }
 }
 
-impl Index for ast::LitObject {
+impl Index for ast::ExprObject {
     fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("LitObject => {:?}", idx.source.source(span));
+        log::trace!("ExprObject => {:?}", idx.source.source(span));
 
         match &mut self.ident {
-            ast::LitObjectIdent::Named(path) => {
+            ast::ObjectIdent::Named(path) => {
                 path.index(idx)?;
             }
-            ast::LitObjectIdent::Anonymous(..) => (),
+            ast::ObjectIdent::Anonymous(..) => (),
         }
 
         for (assign, _) in &mut self.assignments {

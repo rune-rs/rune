@@ -4,8 +4,6 @@ use crate::{Parse, ParseError, Parser, Peeker, Spanned, ToTokens};
 /// A literal value
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Lit {
-    /// A unit literal
-    Unit(ast::LitUnit),
     /// A boolean literal
     Bool(ast::LitBool),
     /// A byte literal
@@ -18,12 +16,6 @@ pub enum Lit {
     Char(ast::LitChar),
     /// A number literal
     Number(ast::LitNumber),
-    /// An object literal
-    Object(ast::LitObject),
-    /// A tuple literal
-    Tuple(ast::LitTuple),
-    /// A vec literal
-    Vec(ast::LitVec),
 }
 
 impl Lit {
@@ -55,8 +47,6 @@ impl Lit {
             K![char] => true,
             K![str] => true,
             K![bytestr] => true,
-            K!['['] => true,
-            K![#] => matches!(p.nth(1), K!['{']),
             _ => false,
         }
     }
@@ -69,7 +59,6 @@ impl Lit {
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::Lit>("()");
 /// testing::roundtrip::<ast::Lit>("true");
 /// testing::roundtrip::<ast::Lit>("false");
 /// testing::roundtrip::<ast::Lit>("'🔥'");
@@ -77,11 +66,7 @@ impl Lit {
 /// testing::roundtrip::<ast::Lit>("b\"bytes\"");
 /// testing::roundtrip::<ast::Lit>("1.2");
 /// testing::roundtrip::<ast::Lit>("42");
-/// testing::roundtrip::<ast::Lit>("#{\"foo\": b\"bar\"}");
-/// testing::roundtrip::<ast::Lit>("Disco {\"never_died\": true }");
 /// testing::roundtrip::<ast::Lit>("\"mary had a little lamb\"");
-/// testing::roundtrip::<ast::Lit>("(false, 1, 'n')");
-/// testing::roundtrip::<ast::Lit>("[false, 1, 'b']");
 /// ```
 impl Parse for Lit {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -92,18 +77,6 @@ impl Parse for Lit {
             K![char(_)] => return Ok(Lit::Char(p.parse()?)),
             K![str(_)] => return Ok(Lit::Str(p.parse()?)),
             K![bytestr(_)] => return Ok(Lit::ByteStr(p.parse()?)),
-            K!['('] => {
-                return Ok(match p.nth(1)? {
-                    K![')'] => Lit::Unit(p.parse()?),
-                    _ => Lit::Tuple(p.parse()?),
-                });
-            }
-            K!['['] => return Ok(Lit::Vec(p.parse()?)),
-            K![#] | K![ident] => {
-                if let K!['{'] = p.nth(1)? {
-                    return Ok(Lit::Object(p.parse()?));
-                }
-            }
             _ => (),
         }
 
