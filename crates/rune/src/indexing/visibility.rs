@@ -47,6 +47,12 @@ impl Visibility {
     }
 }
 
+impl Default for Visibility {
+    fn default() -> Self {
+        Self::Inherited
+    }
+}
+
 impl fmt::Display for Visibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

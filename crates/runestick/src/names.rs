@@ -3,7 +3,7 @@ use crate::{Component, ComponentRef, IntoComponent};
 use std::mem;
 
 /// A tree of names.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Names<T> {
     root: Node<T>,
 }
@@ -159,7 +159,7 @@ impl<T> Names<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Node<T> {
     /// If this is a terminating node that can be imported or not..
     term: Option<T>,

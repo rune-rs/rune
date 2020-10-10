@@ -89,7 +89,7 @@ impl IrQuery for QueryInner {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) struct Query {
     inner: Rc<RefCell<QueryInner>>,
 }
@@ -651,6 +651,7 @@ impl Query {
     }
 }
 
+#[derive(Clone, Default)]
 struct QueryInner {
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<Item, CompileMeta>,
@@ -1392,7 +1393,7 @@ impl Default for Used {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum Indexed {
     Enum,
     Struct(Struct),
@@ -1421,7 +1422,7 @@ impl Indexed {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Import {
     /// The import entry.
     pub(crate) entry: ImportEntry,
@@ -1431,7 +1432,7 @@ pub struct Import {
     pub(crate) wildcard: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Struct {
     /// The ast of the struct.
     ast: Box<ast::ItemStruct>,
@@ -1444,7 +1445,7 @@ impl Struct {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Variant {
     /// Id of of the enum type.
     enum_id: Id,
@@ -1459,13 +1460,14 @@ impl Variant {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Function {
     /// Ast for declaration.
     pub(crate) ast: Box<ast::ItemFn>,
     pub(crate) call: Call,
 }
 
+#[derive(Debug, Clone)]
 pub(crate) struct InstanceFunction {
     /// Ast for the instance function.
     pub(crate) ast: Box<ast::ItemFn>,
@@ -1473,10 +1475,11 @@ pub(crate) struct InstanceFunction {
     pub(crate) impl_item: Rc<Item>,
     /// The span of the instance function.
     pub(crate) instance_span: Span,
+    /// Calling convention of the instance function.
     pub(crate) call: Call,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: Box<ast::ExprClosure>,
@@ -1486,7 +1489,7 @@ pub(crate) struct Closure {
     pub(crate) call: Call,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct AsyncBlock {
     /// Ast for block.
     pub(crate) ast: ast::Block,
@@ -1496,7 +1499,7 @@ pub(crate) struct AsyncBlock {
     pub(crate) call: Call,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Const {
     /// The module item the constant is defined in.
     pub(crate) mod_item: Rc<QueryMod>,
@@ -1504,13 +1507,14 @@ pub(crate) struct Const {
     pub(crate) ir: ir::Ir,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ConstFn {
     /// The const fn ast.
     pub(crate) item_fn: Box<ast::ItemFn>,
 }
 
 /// An entry in the build queue.
+#[derive(Debug, Clone)]
 pub(crate) enum Build {
     Function(Function),
     InstanceFunction(InstanceFunction),
@@ -1521,6 +1525,7 @@ pub(crate) enum Build {
 }
 
 /// An entry in the build queue.
+#[derive(Debug, Clone)]
 pub(crate) struct BuildEntry {
     /// The location of the build entry.
     pub(crate) location: Location,
@@ -1534,7 +1539,7 @@ pub(crate) struct BuildEntry {
     pub(crate) used: Used,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct IndexedEntry {
     /// The query item this indexed entry belongs to.
     pub(crate) query_item: Rc<QueryItem>,
@@ -1553,7 +1558,7 @@ pub(crate) struct QueryPath {
 }
 
 /// Item and the module that the item belongs to.
-#[derive(Debug)]
+#[derive(Default, Debug, Clone)]
 pub(crate) struct QueryItem {
     pub(crate) location: Location,
     pub(crate) id: Id,
@@ -1572,7 +1577,7 @@ pub(crate) struct QueryConstFn {
 }
 
 /// Module, its item and its visibility.
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub(crate) struct QueryMod {
     pub(crate) location: Location,
     pub(crate) item: Item,

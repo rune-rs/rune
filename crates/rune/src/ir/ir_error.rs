@@ -162,6 +162,4 @@ pub enum IrErrorKind {
     FnNotFound,
     #[error("argument count mismatch, got {actual} but expected {expected}")]
     ArgumentCountMismatch { actual: usize, expected: usize },
-    #[error("can't perform constant evaluation in this context")]
-    MissingMacroQuery,
 }

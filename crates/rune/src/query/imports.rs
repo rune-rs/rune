@@ -7,6 +7,7 @@ use runestick::{Item, Names, Span};
 use std::rc::Rc;
 
 /// Broken out substruct of `Query` to handle imports.
+#[derive(Clone, Default)]
 pub(crate) struct Imports {
     /// Prelude from the prelude.
     pub(super) prelude: HashMap<Box<str>, Item>,
@@ -97,7 +98,7 @@ pub struct ImportEntry {
     pub(crate) mod_item: Rc<QueryMod>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum NameKind {
     Wildcard,
     Use,

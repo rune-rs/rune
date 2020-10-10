@@ -3,7 +3,7 @@ use crate::{
     Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveOwned, Spanned,
     Storage, ToTokens,
 };
-use runestick::Source;
+use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A label, like `'foo`
@@ -17,14 +17,34 @@ pub struct Label {
 }
 
 impl Label {
-    /// Construct a new synthetic label. The label should be specified without
-    /// the leading `'`, so `hello` instead of `'hello`.
+    /// Construct a new label from the given string. The string should be
+    /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
+    ///
+    /// This constructor must only be used inside of a macro.
     ///
     /// # Panics
     ///
     /// This will panic if it's called outside of a macro context.
     pub fn new(label: &str) -> Self {
-        crate::macros::current_context(|ctx| ctx.label(label))
+        crate::macros::current_context(|ctx| Self::new_with(label, ctx.macro_span(), ctx.storage()))
+    }
+
+    /// Construct a new label from the given string. The string should be
+    /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
+    ///
+    /// This constructor does not panic when called outside of a macro context
+    /// but requires access to a `span` and `storage`.
+    pub fn new_with(label: &str, span: Span, storage: &Storage) -> Self {
+        let id = storage.insert_str(label);
+        let source = ast::StringSource::Synthetic(id);
+
+        ast::Label {
+            token: ast::Token {
+                span,
+                kind: ast::Kind::Label(source),
+            },
+            source,
+        }
     }
 }
 

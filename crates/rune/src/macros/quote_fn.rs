@@ -16,6 +16,10 @@ pub struct Quote<'a>(Box<EncodeFn<'a>>);
 
 impl<'a> Quote<'a> {
     /// Convert into token stream.
+    ///
+    /// # Panics
+    ///
+    /// This panics if called outside of a macro context.
     pub fn into_token_stream(self) -> TokenStream {
         TokenStream::from_to_tokens(self)
     }

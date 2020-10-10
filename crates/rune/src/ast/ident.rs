@@ -3,7 +3,7 @@ use crate::{
     Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveOwned, Spanned,
     Storage, ToTokens,
 };
-use runestick::Source;
+use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// An identifier, like `foo` or `Hello`.".
@@ -17,13 +17,33 @@ pub struct Ident {
 }
 
 impl Ident {
-    /// Construct a new synthetic identifier.
+    /// Construct a new identifier from the given string from inside of a macro
+    /// context.
+    ///
+    /// This constructor must only be used inside of a macro.
     ///
     /// # Panics
     ///
     /// This will panic if it's called outside of a macro context.
     pub fn new(ident: &str) -> Self {
-        crate::macros::current_context(|ctx| ctx.ident(ident))
+        crate::macros::current_context(|ctx| Self::new_with(ident, ctx.macro_span(), ctx.storage()))
+    }
+
+    /// Construct a new identifier from the given string.
+    ///
+    /// This does not panic when called outside of a macro but requires access
+    /// to a `span` and `storage`.
+    pub(crate) fn new_with(ident: &str, span: Span, storage: &Storage) -> ast::Ident {
+        let id = storage.insert_str(ident);
+        let source = ast::StringSource::Synthetic(id);
+
+        ast::Ident {
+            token: ast::Token {
+                span,
+                kind: ast::Kind::Ident(source),
+            },
+            source,
+        }
     }
 }
 

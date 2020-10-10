@@ -26,6 +26,12 @@ impl Id {
     }
 }
 
+impl Default for Id {
+    fn default() -> Self {
+        Self::initial()
+    }
+}
+
 impl Iterator for Id {
     type Item = Self;
 

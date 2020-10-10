@@ -97,6 +97,16 @@ impl<'a> Parser<'a> {
         T::parse(self)
     }
 
+    /// Parse a specific item from the parser and then expect end of input.
+    pub fn parse_all<T>(&mut self) -> Result<T, ParseError>
+    where
+        T: Parse,
+    {
+        let item = self.parse::<T>()?;
+        self.eof()?;
+        Ok(item)
+    }
+
     /// Peek for the given token.
     pub fn peek<T>(&mut self) -> Result<bool, ParseError>
     where

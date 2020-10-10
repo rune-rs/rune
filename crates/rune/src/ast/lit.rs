@@ -1,5 +1,6 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peeker, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peeker, Spanned, Storage, ToTokens};
+use runestick::Span;
 
 /// A literal value
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -28,7 +29,28 @@ impl Lit {
     where
         T: crate::macros::IntoLit,
     {
-        crate::macros::current_context(|ctx| ctx.lit(lit))
+        crate::macros::current_context(|ctx| Self::new_with(lit, ctx.macro_span(), ctx.storage()))
+    }
+
+    /// Construct a new literal with the specified span and storage.
+    ///
+    /// This does not panic outside of a macro context, but requires access to
+    /// the specified arguments.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use rune::{ast, Storage};
+    /// use runestick::Span;
+    ///
+    /// let storage = Storage::default();
+    /// let string = ast::Lit::new_with("hello world", Span::empty(), &storage);
+    /// ```
+    pub fn new_with<T>(lit: T, span: Span, storage: &Storage) -> Self
+    where
+        T: crate::macros::IntoLit,
+    {
+        T::into_lit(lit, span, storage)
     }
 
     /// Test if this is an immediate literal in an expression.

@@ -17,6 +17,10 @@ impl TokenStream {
     }
 
     /// Construct a token stream from tokens.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if called outside of a macro context.
     pub fn from_to_tokens<T>(tokens: T) -> Self
     where
         T: ToTokens,

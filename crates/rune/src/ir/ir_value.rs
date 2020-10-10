@@ -1,6 +1,7 @@
 use crate::collections::HashMap;
 use crate::{IrError, Spanned};
 use runestick::{ConstValue, Shared, TypeInfo};
+use std::convert::TryFrom;
 
 /// A constant value.
 #[derive(Debug, Clone)]
@@ -129,6 +130,17 @@ impl IrValue {
         match self {
             Self::Bool(value) => Ok(value),
             value => Err(value),
+        }
+    }
+
+    /// Try to coerce into an integer of the specified type.
+    pub fn into_integer<T>(self) -> Option<T>
+    where
+        T: TryFrom<num::BigInt>,
+    {
+        match self {
+            Self::Integer(n) => T::try_from(n).ok(),
+            _ => None,
         }
     }
 

@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Storage for synthetic language items.
-#[derive(Default, Clone)]
+#[derive(Clone, Default)]
 pub struct Storage {
     inner: Rc<RefCell<Inner>>,
 }

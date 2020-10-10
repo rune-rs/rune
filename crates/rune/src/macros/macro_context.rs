@@ -3,7 +3,7 @@
 use crate::ast;
 use crate::compiling::CompileError;
 use crate::ir::{
-    IrBudget, IrCompile, IrCompiler, IrError, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
+    IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
 use crate::query;
@@ -94,6 +94,7 @@ where
     }
 }
 
+#[derive(Default)]
 pub(crate) struct EvaluationContext {
     pub(crate) query: Query,
     pub(crate) item: Rc<QueryItem>,
@@ -111,18 +112,18 @@ pub struct MacroContext {
     /// Storage used in macro context.
     pub(crate) storage: Storage,
     /// Evaluation context (if available).
-    pub(crate) eval_context: Option<EvaluationContext>,
+    pub(crate) eval_context: EvaluationContext,
 }
 
 impl MacroContext {
-    /// Construct an empty macro context, primarily used for testing.
+    /// Construct an empty macro context. Should only be used for testing.
     pub fn empty() -> Self {
         Self {
             macro_span: Span::empty(),
             stream_span: Span::empty(),
             source: Arc::new(Source::default()),
             storage: Storage::default(),
-            eval_context: None,
+            eval_context: EvaluationContext::default(),
         }
     }
 
@@ -132,12 +133,7 @@ impl MacroContext {
         T: Spanned + IrCompile,
         T::Output: IrEval,
     {
-        let eval_context = self
-            .eval_context
-            .as_ref()
-            .ok_or_else(|| IrError::new(self.macro_span, IrErrorKind::MissingMacroQuery))?;
-
-        let mut ir_query = eval_context.query.as_ir_query();
+        let mut ir_query = self.eval_context.query.as_ir_query();
 
         let mut ir_compiler = IrCompiler {
             storage: self.storage.clone(),
@@ -150,9 +146,9 @@ impl MacroContext {
         let mut ir_interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            mod_item: eval_context.item.mod_item.clone(),
-            item: eval_context.item.item.clone(),
-            consts: eval_context.consts.clone(),
+            mod_item: self.eval_context.item.mod_item.clone(),
+            item: self.eval_context.item.item.clone(),
+            consts: self.eval_context.consts.clone(),
             query: &mut *ir_query,
         };
 
@@ -200,64 +196,26 @@ impl MacroContext {
     pub fn source(&self) -> &Source {
         &*self.source
     }
-
-    /// Construct a new literal token for values that can be converted into
-    /// literals.
-    pub(crate) fn lit<T>(&self, value: T) -> ast::Lit
-    where
-        T: IntoLit,
-    {
-        value.into_lit(self)
-    }
-
-    /// Construct a new identifier from the given string.
-    pub(crate) fn ident(&self, ident: &str) -> ast::Ident {
-        let id = self.storage.insert_str(ident);
-        let source = ast::StringSource::Synthetic(id);
-
-        ast::Ident {
-            token: ast::Token {
-                span: self.macro_span(),
-                kind: ast::Kind::Ident(source),
-            },
-            source,
-        }
-    }
-
-    /// Construct a new label from the given string. The string should be
-    /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
-    pub(crate) fn label(&self, label: &str) -> ast::Label {
-        let id = self.storage.insert_str(label);
-        let source = ast::StringSource::Synthetic(id);
-
-        ast::Label {
-            token: ast::Token {
-                span: self.macro_span,
-                kind: ast::Kind::Label(source),
-            },
-            source,
-        }
-    }
 }
 
 /// Helper trait used for things that can be converted into tokens.
 pub trait IntoLit {
     /// Convert the current thing into a token.
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit;
+    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit;
 }
 
 impl<T> IntoLit for T
 where
     ast::Number: From<T>,
 {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-        let id = ctx.storage.insert_number(self);
+    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+        let id = storage.insert_number(self);
         let source = ast::NumberSource::Synthetic(id);
 
         ast::Lit::Number(ast::LitNumber {
             token: ast::Token {
                 kind: ast::Kind::Number(source),
-                span: ctx.macro_span(),
+                span,
             },
             source,
         })
@@ -265,13 +223,13 @@ where
 }
 
 impl IntoLit for char {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
+    fn into_lit(self, span: Span, _: &Storage) -> ast::Lit {
         let source = ast::CopySource::Inline(self);
 
         ast::Lit::Char(ast::LitChar {
             token: ast::Token {
                 kind: ast::Kind::Char(source),
-                span: ctx.macro_span(),
+                span,
             },
             source,
         })
@@ -279,13 +237,13 @@ impl IntoLit for char {
 }
 
 impl IntoLit for u8 {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
+    fn into_lit(self, span: Span, _: &Storage) -> ast::Lit {
         let source = ast::CopySource::Inline(self);
 
         ast::Lit::Byte(ast::LitByte {
             token: ast::Token {
                 kind: ast::Kind::Byte(source),
-                span: ctx.macro_span(),
+                span,
             },
             source,
         })
@@ -293,14 +251,14 @@ impl IntoLit for u8 {
 }
 
 impl IntoLit for &str {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-        let id = ctx.storage.insert_str(self);
+    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+        let id = storage.insert_str(self);
         let source = ast::StrSource::Synthetic(id);
 
         ast::Lit::Str(ast::LitStr {
             token: ast::Token {
                 kind: ast::Kind::Str(ast::StrSource::Synthetic(id)),
-                span: ctx.macro_span(),
+                span,
             },
             source,
         })
@@ -308,20 +266,20 @@ impl IntoLit for &str {
 }
 
 impl IntoLit for &String {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-        <&str>::into_lit(self, ctx)
+    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+        <&str>::into_lit(self, span, storage)
     }
 }
 
 impl IntoLit for String {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-        let id = ctx.storage.insert_string(self);
+    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+        let id = storage.insert_string(self);
         let source = ast::StrSource::Synthetic(id);
 
         ast::Lit::Str(ast::LitStr {
             token: ast::Token {
                 kind: ast::Kind::Str(source),
-                span: ctx.macro_span(),
+                span,
             },
             source,
         })
@@ -329,15 +287,14 @@ impl IntoLit for String {
 }
 
 impl IntoLit for &[u8] {
-    fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-        let id = ctx.storage.insert_byte_string(self);
-
+    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+        let id = storage.insert_byte_string(self);
         let source = ast::StrSource::Synthetic(id);
 
         ast::Lit::ByteStr(ast::LitByteStr {
             token: ast::Token {
                 kind: ast::Kind::ByteStr(source),
-                span: ctx.macro_span(),
+                span,
             },
             source,
         })
@@ -347,8 +304,8 @@ impl IntoLit for &[u8] {
 macro_rules! impl_into_lit_byte_array {
     ($($n:literal),*) => {
         $(impl IntoLit for &[u8; $n] {
-            fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
-                <&[u8]>::into_lit(self, ctx)
+            fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+                <&[u8]>::into_lit(self, span, storage)
             }
         })*
     };

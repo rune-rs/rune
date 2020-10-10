@@ -5,6 +5,29 @@ use crate::parsing::{ParseError, ResolveOwned};
 use crate::Spanned;
 
 /// Evaluate the given target as a constant expression.
+///
+/// # Panics
+///
+/// This will panic if it's called outside of a macro context.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{macros, ast, IrValue, MacroContext};
+///
+/// // Note: should only be used for testing.
+/// let ctx = MacroContext::empty();
+///
+/// macros::with_context(ctx, || {
+///     let stream = rune::quote!(1 + 2).into_token_stream();
+///
+///     let mut p = rune::Parser::from_token_stream(&stream);
+///     let expr = p.parse_all::<ast::Expr>().unwrap();
+///     let value = macros::eval(&expr).unwrap();
+///
+///     assert_eq!(3, value.into_integer::<u32>().unwrap());
+/// });
+/// ```
 pub fn eval<T>(target: &T) -> Result<<T::Output as IrEval>::Output, CompileError>
 where
     T: Spanned + IrCompile,
