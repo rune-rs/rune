@@ -5,47 +5,30 @@ use crate::{
 use runestick::Source;
 use std::borrow::Cow;
 
-/// A number literal.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub struct LitObject {
-    /// An object identifier.
-    pub ident: LitObjectIdent,
-    /// Assignments in the object.
-    pub assignments: ast::Braced<LitObjectFieldAssign, T![,]>,
-}
-
-impl LitObject {
-    /// Parse a literal object with the given path.
-    pub fn parse_with_ident(
-        p: &mut Parser<'_>,
-        ident: ast::LitObjectIdent,
-    ) -> Result<Self, ParseError> {
-        Ok(Self {
-            ident,
-            assignments: p.parse()?,
-        })
-    }
-}
-
-/// Parse an object literal.
+/// Parse an object expression.
 ///
 /// # Examples
 ///
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::LitObject>("Foo {\"foo\": 42}");
-/// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42}");
-/// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42,}");
+/// testing::roundtrip::<ast::ExprObject>("Foo {\"foo\": 42}");
+/// testing::roundtrip::<ast::ExprObject>("#{\"foo\": 42}");
+/// testing::roundtrip::<ast::ExprObject>("#{\"foo\": 42,}");
 /// ```
-impl Parse for LitObject {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
-        let ident = p.parse()?;
-        Self::parse_with_ident(p, ident)
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+pub struct ExprObject {
+    /// Attributes associated with object.
+    #[rune(iter, meta)]
+    pub attributes: Vec<ast::Attribute>,
+    /// An object identifier.
+    #[rune(meta)]
+    pub ident: ObjectIdent,
+    /// Assignments in the object.
+    pub assignments: ast::Braced<FieldAssign, T![,]>,
 }
 
-impl Peek for LitObject {
+impl Peek for ExprObject {
     fn peek(p: &mut Peeker<'_>) -> bool {
         match (p.nth(0), p.nth(1)) {
             (K![ident], K!['{']) => true,
@@ -57,14 +40,14 @@ impl Peek for LitObject {
 
 /// A literal object identifier.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub enum LitObjectIdent {
+pub enum ObjectIdent {
     /// An anonymous object.
     Anonymous(T![#]),
     /// A named object.
     Named(ast::Path),
 }
 
-impl Parse for LitObjectIdent {
+impl Parse for ObjectIdent {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         Ok(match p.nth(0)? {
             K![#] => Self::Anonymous(p.parse()?),
@@ -75,9 +58,9 @@ impl Parse for LitObjectIdent {
 
 /// A literal object field.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub struct LitObjectFieldAssign {
+pub struct FieldAssign {
     /// The key of the field.
-    pub key: LitObjectKey,
+    pub key: ObjectKey,
     /// The assigned expression of the field.
     #[rune(iter)]
     pub assign: Option<(T![:], ast::Expr)>,
@@ -90,11 +73,11 @@ pub struct LitObjectFieldAssign {
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::LitObjectFieldAssign>("\"foo\": 42");
-/// testing::roundtrip::<ast::LitObjectFieldAssign>("\"foo\": 42");
-/// testing::roundtrip::<ast::LitObjectFieldAssign>("\"foo\": 42");
+/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
+/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
+/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
 /// ```
-impl Parse for LitObjectFieldAssign {
+impl Parse for FieldAssign {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         let key = p.parse()?;
 
@@ -112,10 +95,10 @@ impl Parse for LitObjectFieldAssign {
 
 /// Possible literal object keys.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub enum LitObjectKey {
+pub enum ObjectKey {
     /// A literal string (with escapes).
     LitStr(ast::LitStr),
-    /// An path, usually an identifier.
+    /// A path, usually an identifier.
     Path(ast::Path),
 }
 
@@ -126,10 +109,10 @@ pub enum LitObjectKey {
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::LitObjectKey>("foo");
-/// testing::roundtrip::<ast::LitObjectKey>("\"foo \\n bar\"");
+/// testing::roundtrip::<ast::ObjectKey>("foo");
+/// testing::roundtrip::<ast::ObjectKey>("\"foo \\n bar\"");
 /// ```
-impl Parse for LitObjectKey {
+impl Parse for ObjectKey {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         Ok(match p.nth(0)? {
             K![str] => Self::LitStr(p.parse()?),
@@ -144,15 +127,15 @@ impl Parse for LitObjectKey {
 /// A tag object to help peeking for anonymous object case to help
 /// differentiate anonymous objects and attributes when parsing block
 /// expressions.
-pub struct AnonymousLitObject;
+pub struct AnonExprObject;
 
-impl Peek for AnonymousLitObject {
+impl Peek for AnonExprObject {
     fn peek(p: &mut Peeker<'_>) -> bool {
         matches!((p.nth(0), p.nth(1)), (K![#], K!['{']))
     }
 }
 
-impl<'a> Resolve<'a> for LitObjectKey {
+impl<'a> Resolve<'a> for ObjectKey {
     type Output = Cow<'a, str>;
 
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ParseError> {
@@ -172,7 +155,7 @@ impl<'a> Resolve<'a> for LitObjectKey {
     }
 }
 
-impl ResolveOwned for LitObjectKey {
+impl ResolveOwned for ObjectKey {
     type Owned = String;
 
     fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {

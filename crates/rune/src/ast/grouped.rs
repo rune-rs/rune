@@ -15,6 +15,16 @@ macro_rules! grouped {
         }
 
         impl<T, S> $name<T, S> {
+            /// Test if empty.
+            pub fn is_empty(&self) -> bool {
+                self.$field.is_empty()
+            }
+
+            /// Get the length of the parsed elements.
+            pub fn len(&self) -> usize {
+                self.$field.len()
+            }
+
             /// Get the first element.
             pub fn first(&self) -> Option<&(T, Option<S>)> {
                 self.$field.first()
@@ -23,11 +33,6 @@ macro_rules! grouped {
             /// Get the last element.
             pub fn last(&self) -> Option<&(T, Option<S>)> {
                 self.$field.last()
-            }
-
-            /// Get the length of the parsed elements.
-            pub fn len(&self) -> usize {
-                self.$field.len()
             }
 
             /// Iterate over elements.

@@ -1,10 +1,10 @@
 use crate::compiling::assemble::prelude::*;
 
 /// Compile a literal vector.
-impl Assemble for ast::LitVec {
+impl Assemble for ast::ExprVec {
     fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("LitVec => {:?}", c.source.source(span));
+        log::trace!("ExprVec => {:?}", c.source.source(span));
 
         let count = self.items.len();
 

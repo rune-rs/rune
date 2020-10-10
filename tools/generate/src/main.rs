@@ -172,9 +172,6 @@ fn main() -> Result<()> {
             #("/// Helper macro to reference a specific token.")
             #[macro_export]
             macro_rules! T {
-                (()) => {
-                    $crate::ast::LitUnit
-                };
                 ('(') => {
                     $crate::ast::OpenParen
                 };

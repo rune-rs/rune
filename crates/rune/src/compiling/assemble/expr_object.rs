@@ -2,10 +2,10 @@ use crate::collections::{HashMap, HashSet};
 use crate::compiling::assemble::prelude::*;
 
 /// Compile a literal object.
-impl Assemble for ast::LitObject {
+impl Assemble for ast::ExprObject {
     fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("LitObject => {:?} {:?}", c.source.source(span), needs);
+        log::trace!("ExprObject => {:?} {:?}", c.source.source(span), needs);
 
         let mut keys = Vec::<Box<str>>::new();
         let mut check_keys = Vec::new();
@@ -43,7 +43,7 @@ impl Assemble for ast::LitObject {
         let slot = c.unit.new_static_object_keys(span, &keys)?;
 
         match &self.ident {
-            ast::LitObjectIdent::Named(path) => {
+            ast::ObjectIdent::Named(path) => {
                 let named = c.convert_path_to_named(path)?;
 
                 let meta = match c.lookup_meta(path.span(), &named)? {
@@ -85,7 +85,7 @@ impl Assemble for ast::LitObject {
                     }
                 };
             }
-            ast::LitObjectIdent::Anonymous(..) => {
+            ast::ObjectIdent::Anonymous(..) => {
                 c.asm.push(Inst::Object { slot }, span);
             }
         }

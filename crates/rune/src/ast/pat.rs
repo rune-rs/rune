@@ -69,7 +69,7 @@ impl Parse for Pat {
                 return Ok(match p.nth(1)? {
                     K![:] => Self::PatBinding(PatBinding {
                         attributes,
-                        key: ast::LitObjectKey::LitStr(p.parse()?),
+                        key: ast::ObjectKey::LitStr(p.parse()?),
                         colon: p.parse()?,
                         pat: p.parse()?,
                     }),
@@ -93,10 +93,6 @@ impl Parse for Pat {
             }
             K!['('] => {
                 return Ok(match p.nth(1)? {
-                    K![')'] => Self::PatLit(PatLit {
-                        attributes,
-                        expr: ast::Expr::from_lit(ast::Lit::Unit(p.parse()?)),
-                    }),
                     _ => Self::PatTuple(PatTuple {
                         attributes,
                         path: None,
@@ -141,12 +137,12 @@ impl Parse for Pat {
                     }),
                     K!['{'] => Self::PatObject(PatObject {
                         attributes,
-                        ident: ast::LitObjectIdent::Named(path),
+                        ident: ast::ObjectIdent::Named(path),
                         items: p.parse()?,
                     }),
                     K![:] => Self::PatBinding(PatBinding {
                         attributes,
-                        key: ast::LitObjectKey::Path(path),
+                        key: ast::ObjectKey::Path(path),
                         colon: p.parse()?,
                         pat: p.parse()?,
                     }),
@@ -225,7 +221,7 @@ pub struct PatObject {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The identifier of the object pattern.
-    pub ident: ast::LitObjectIdent,
+    pub ident: ast::ObjectIdent,
     /// The fields matched against.
     pub items: ast::Braced<Pat, T![,]>,
 }
@@ -237,7 +233,7 @@ pub struct PatBinding {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The key of an object.
-    pub key: ast::LitObjectKey,
+    pub key: ast::ObjectKey,
     /// The colon separator for the binding.
     pub colon: T![:],
     /// What the binding is to.

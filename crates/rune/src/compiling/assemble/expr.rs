@@ -80,6 +80,15 @@ impl Assemble for ast::Expr {
             ast::Expr::ForceSemi(force_semi) => {
                 force_semi.expr.assemble(c, needs)?;
             }
+            ast::Expr::Tuple(expr_tuple) => {
+                expr_tuple.assemble(c, needs)?;
+            }
+            ast::Expr::Vec(expr_vec) => {
+                expr_vec.assemble(c, needs)?;
+            }
+            ast::Expr::Object(expr_object) => {
+                expr_object.assemble(c, needs)?;
+            }
             ast::Expr::MacroCall(expr_call_macro) => {
                 let internal_macro = c.query.builtin_macro_for(&**expr_call_macro)?;
 

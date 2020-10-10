@@ -8,24 +8,29 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::LitTuple>("(1, \"two\")");
-/// testing::roundtrip::<ast::LitTuple>("(1, 2,)");
-/// testing::roundtrip::<ast::LitTuple>("(1, 2, foo())");
+/// testing::roundtrip::<ast::ExprTuple>("(1, \"two\")");
+/// testing::roundtrip::<ast::ExprTuple>("(1, 2,)");
+/// testing::roundtrip::<ast::ExprTuple>("(1, 2, foo())");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Parse)]
-pub struct LitTuple {
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+pub struct ExprTuple {
+    /// Attributes associated with tuple.
+    #[rune(iter, meta)]
+    pub attributes: Vec<ast::Attribute>,
     /// Items in the tuple.
     pub items: ast::Parenthesized<ast::Expr, T![,]>,
 }
 
-impl LitTuple {
+impl ExprTuple {
     /// Start parsing literal tuple from the middle of an expression.
     pub fn parse_from_first_expr(
         parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
         open: ast::OpenParen,
         expr: ast::Expr,
     ) -> Result<Self, ParseError> {
         Ok(Self {
+            attributes,
             items: ast::Parenthesized::parse_from_first(parser, open, expr)?,
         })
     }
