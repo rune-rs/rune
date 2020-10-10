@@ -10,7 +10,6 @@ mod token_stream;
 
 pub use self::format_args::FormatArgs;
 pub use self::functions::{eval, resolve, stringify, to_tokens};
-pub(crate) use self::macro_context::EvaluationContext;
 pub use self::macro_context::{with_context, IntoLit, MacroContext};
 pub use self::quote_fn::{quote_fn, Quote};
 pub use self::storage::Storage;

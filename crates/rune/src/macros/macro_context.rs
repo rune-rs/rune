@@ -94,13 +94,6 @@ where
     }
 }
 
-#[derive(Default)]
-pub(crate) struct EvaluationContext {
-    pub(crate) query: Query,
-    pub(crate) item: Rc<QueryItem>,
-    pub(crate) consts: Consts,
-}
-
 /// Context for a running macro.
 pub struct MacroContext {
     /// The span of the macro call.
@@ -111,8 +104,12 @@ pub struct MacroContext {
     pub(crate) source: Arc<Source>,
     /// Storage used in macro context.
     pub(crate) storage: Storage,
-    /// Evaluation context (if available).
-    pub(crate) eval_context: EvaluationContext,
+    /// Query engine.
+    pub(crate) query: Query,
+    /// The item where the macro is being evaluated.
+    pub(crate) item: Rc<QueryItem>,
+    /// Constants storage.
+    pub(crate) consts: Consts,
 }
 
 impl MacroContext {
@@ -123,7 +120,9 @@ impl MacroContext {
             stream_span: Span::empty(),
             source: Arc::new(Source::default()),
             storage: Storage::default(),
-            eval_context: EvaluationContext::default(),
+            query: Default::default(),
+            item: Default::default(),
+            consts: Default::default(),
         }
     }
 
@@ -133,7 +132,7 @@ impl MacroContext {
         T: Spanned + IrCompile,
         T::Output: IrEval,
     {
-        let mut ir_query = self.eval_context.query.as_ir_query();
+        let mut ir_query = self.query.as_ir_query();
 
         let mut ir_compiler = IrCompiler {
             storage: self.storage.clone(),
@@ -146,9 +145,9 @@ impl MacroContext {
         let mut ir_interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            mod_item: self.eval_context.item.mod_item.clone(),
-            item: self.eval_context.item.item.clone(),
-            consts: self.eval_context.consts.clone(),
+            mod_item: self.item.mod_item.clone(),
+            item: self.item.item.clone(),
+            consts: self.consts.clone(),
             query: &mut *ir_query,
         };
 

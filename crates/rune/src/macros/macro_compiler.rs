@@ -1,6 +1,6 @@
 //! Macro compiler.
 
-use crate::macros::{EvaluationContext, MacroContext, Storage, TokenStream};
+use crate::macros::{MacroContext, Storage, TokenStream};
 use crate::query::{Query, QueryItem};
 use crate::shared::Consts;
 use crate::CompileResult;
@@ -61,11 +61,9 @@ impl MacroCompiler<'_> {
             stream_span: macro_call.stream_span(),
             source: self.source.clone(),
             storage: self.storage.clone(),
-            eval_context: EvaluationContext {
-                item: self.item.clone(),
-                query: self.query.clone(),
-                consts: self.consts.clone(),
-            },
+            item: self.item.clone(),
+            query: self.query.clone(),
+            consts: self.consts.clone(),
         };
 
         let result = crate::macros::with_context(macro_context, || handler(input_stream));
