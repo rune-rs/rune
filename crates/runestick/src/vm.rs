@@ -195,7 +195,7 @@ impl Vm {
         N: IntoTypeHash,
         A: Args,
     {
-        self.set_entrypoint(name, A::count())?;
+        self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack)?;
         Ok(VmExecution::new(self))
     }
@@ -349,7 +349,7 @@ impl Vm {
         H: IntoTypeHash,
         A: Args,
     {
-        let count = A::count() + 1;
+        let count = args.count() + 1;
         let hash = Hash::instance_function(target.type_of()?, hash.into_type_hash());
 
         if let Some(UnitFn::Offset {
@@ -383,7 +383,7 @@ impl Vm {
         H: IntoTypeHash,
         A: Args,
     {
-        let count = A::count() + 1;
+        let count = args.count() + 1;
         let hash = Hash::getter(target.type_of()?, hash.into_type_hash());
 
         let handler = match self.context.lookup(hash) {
