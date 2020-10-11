@@ -54,7 +54,6 @@ function parseConfig(config) {
         return {};
     }
 
-    console.log(config);
     return JSON.parse(config);
 }
 
@@ -80,9 +79,9 @@ function getUrlContent() {
     if (!content) {
         return null;
     }
-    
+
     try {
-        return atob(content);
+        return atou(content);
     } catch(e) {
         return null;
     }
@@ -90,7 +89,13 @@ function getUrlContent() {
 
 function updateUrlContent(content) {
     var query = new URLSearchParams(window.location.search);
-    query.set("c", btoa(content));
+
+    try {
+        query.set("c", utoa(content));
+    } catch (e) {
+        return;
+    }
+
     history.replaceState(null, null, "?" + query.toString());
 }
 
@@ -188,7 +193,7 @@ function setupEditor(element, opts) {
             diagnosticsOutput.textContent = result.diagnostics_output;
             diagnosticsOutput.classList.remove("hidden");
         } else {
-            diagnosticsOutput.textContent = null;
+            diagnosticsOutput.textContent = "";
             diagnosticsOutput.classList.add("hidden");
         }
 
@@ -221,7 +226,7 @@ function setupEditor(element, opts) {
             primaryOutput.textContent = text;
             primaryOutput.classList.remove("hidden");
         } else {
-            primaryOutput.textContent = null;
+            primaryOutput.textContent = "";
             primaryOutput.classList.add("hidden");
         }
 
@@ -229,12 +234,12 @@ function setupEditor(element, opts) {
             instructionsOutput.textContent = `# instruction\n${result.instructions}`;
             instructionsOutput.classList.remove("hidden");
         } else {
-            instructionsOutput.textContent = null;
+            instructionsOutput.textContent = "";
             instructionsOutput.classList.add("hidden");   
         }
 
         let annotations = [];
-        
+
         for (let d of result.diagnostics) {
             let r = new ace.Range(
                 d.start.line, d.start.character,
@@ -272,4 +277,19 @@ function setupEditor(element, opts) {
     }
 
     return { recompile: () => {} };
+}
+
+
+/**
+ * ASCII to Unicode (decode Base64 to original data)
+ */
+function atou(b64) {
+    return decodeURIComponent(escape(atob(b64)));
+}
+
+/**
+ * Unicode to ASCII (encode data to Base64)
+ */
+function utoa(data) {
+    return btoa(unescape(encodeURIComponent(data)));
 }

@@ -1,6 +1,5 @@
 use runestick::{ContextError, Module, Panic, Stack, Value, VmError};
-use std::cell;
-use std::io;
+use std::io::Write as _;
 
 /// Provide a bunch of `std` functions which does something appropriate to the
 /// wasm context.
@@ -12,47 +11,33 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-thread_local!(static OUT: cell::RefCell<io::Cursor<Vec<u8>>> = cell::RefCell::new(io::Cursor::new(Vec::new())));
+lazy_static::lazy_static! {
+    static ref OUT: parking_lot::Mutex<Vec<u8>> = parking_lot::Mutex::new(Vec::new());
+}
 
 /// Drain all output that has been written to `OUT`. If `OUT` contains non -
 /// UTF-8, will drain but will still return `None`.
 pub fn drain_output() -> Option<String> {
-    OUT.with(|out| {
-        let mut out = out.borrow_mut();
-        let out = std::mem::take(&mut *out).into_inner();
-        String::from_utf8(out).ok()
-    })
+    let mut o = OUT.lock();
+    let o = std::mem::take(&mut *o);
+    String::from_utf8(o).ok()
 }
 
 fn print_impl(m: &str) -> Result<(), Panic> {
-    use std::io::Write as _;
-
-    OUT.with(|out| {
-        let mut out = out.borrow_mut();
-        write!(out, "{}", m).map_err(Panic::custom)
-    })
+    write!(OUT.lock(), "{}", m).map_err(Panic::custom)
 }
 
 fn println_impl(m: &str) -> Result<(), Panic> {
-    use std::io::Write as _;
-
-    OUT.with(|out| {
-        let mut out = out.borrow_mut();
-        writeln!(out, "{}", m).map_err(Panic::custom)
-    })
+    writeln!(OUT.lock(), "{}", m).map_err(Panic::custom)
 }
 
 fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {
-    use std::io::Write as _;
+    let mut o = OUT.lock();
 
-    OUT.with(|out| {
-        let mut out = out.borrow_mut();
+    for value in stack.drain_stack_top(args)? {
+        writeln!(o, "{:?}", value).map_err(VmError::panic)?;
+    }
 
-        for value in stack.drain_stack_top(args)? {
-            writeln!(out, "{:?}", value).map_err(VmError::panic)?;
-        }
-
-        stack.push(Value::Unit);
-        Ok(())
-    })
+    stack.push(Value::Unit);
+    Ok(())
 }
