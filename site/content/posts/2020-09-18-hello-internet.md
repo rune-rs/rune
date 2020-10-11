@@ -68,7 +68,7 @@ So now that I've set up the skeleton for it. Let's build something cool!
 P.S. And as a final treat, here's a code snippet that you can edit and run! 😊
 
 {% rune(footnote = "Showcasing the integrated editor. Neat, huh?") %}
-fn main() {
-    println("Hello World!");
+pub fn main() {
+    println!("Hello World!");
 }
 {% end %}
