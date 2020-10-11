@@ -1,18 +1,33 @@
 use crate::context::Handler;
 use crate::VmErrorKind;
 use crate::{
-    Args, Call, Context, FromValue, Future, Generator, RawRef, Ref, Rtti, Shared, Stack, Stream,
-    Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
+    Args, Call, ConstValue, Context, FromValue, Future, Generator, RawRef, Ref, Rtti, Shared,
+    Stack, Stream, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
 use std::sync::Arc;
 
+/// A callable non-sync function.
+pub type Function = FunctionImpl<Value>;
+
+/// A callable sync function. This currently only supports a subset of values
+/// that are supported by the Vm.
+pub type SyncFunction = FunctionImpl<ConstValue>;
+
 /// A stored function, of some specific kind.
-pub struct Function {
-    inner: Inner,
+pub struct FunctionImpl<V>
+where
+    V: Clone,
+    Tuple: From<Box<[V]>>,
+{
+    inner: Inner<V>,
 }
 
-impl Function {
+impl<V> FunctionImpl<V>
+where
+    V: Clone,
+    Tuple: From<Box<[V]>>,
+{
     /// Perform a call over the function represented by this function pointer.
     pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
     where
@@ -30,7 +45,7 @@ impl Function {
             Inner::FnOffset(fn_offset) => fn_offset.call(args, ())?,
             Inner::FnClosureOffset(closure) => closure
                 .fn_offset
-                .call(args, (closure.environment.clone(),))?,
+                .call(args, (Tuple::from(closure.environment.clone()),))?,
             Inner::FnUnitStruct(empty) => {
                 Self::check_args(args.count(), 0)?;
                 Value::unit_struct(empty.rtti.clone())
@@ -72,11 +87,11 @@ impl Function {
                 None
             }
             Inner::FnClosureOffset(closure) => {
-                if let Some(vm_call) =
-                    closure
-                        .fn_offset
-                        .call_with_vm(vm, args, (closure.environment.clone(),))?
-                {
+                if let Some(vm_call) = closure.fn_offset.call_with_vm(
+                    vm,
+                    args,
+                    (Tuple::from(closure.environment.clone()),),
+                )? {
                     return Ok(Some(VmHalt::VmCall(vm_call)));
                 }
 
@@ -148,7 +163,7 @@ impl Function {
         offset: usize,
         call: Call,
         args: usize,
-        environment: Shared<Tuple>,
+        environment: Box<[V]>,
     ) -> Self {
         Self {
             inner: Inner::FnClosureOffset(FnClosureOffset {
@@ -205,6 +220,34 @@ impl Function {
     }
 }
 
+impl FunctionImpl<Value> {
+    /// Try to convert into a [SyncFunction].
+    pub fn into_sync(self) -> Result<SyncFunction, VmError> {
+        let inner = match self.inner {
+            Inner::FnClosureOffset(closure) => {
+                let mut env = Vec::with_capacity(closure.environment.len());
+
+                for value in closure.environment.into_vec() {
+                    env.push(ConstValue::from_value(value)?);
+                }
+
+                Inner::FnClosureOffset(FnClosureOffset {
+                    fn_offset: closure.fn_offset,
+                    environment: env.into_boxed_slice(),
+                })
+            }
+            Inner::FnHandler(inner) => Inner::FnHandler(inner),
+            Inner::FnOffset(inner) => Inner::FnOffset(inner),
+            Inner::FnUnitStruct(inner) => Inner::FnUnitStruct(inner),
+            Inner::FnTupleStruct(inner) => Inner::FnTupleStruct(inner),
+            Inner::FnUnitVariant(inner) => Inner::FnUnitVariant(inner),
+            Inner::FnTupleVariant(inner) => Inner::FnTupleVariant(inner),
+        };
+
+        Ok(SyncFunction { inner })
+    }
+}
+
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.inner {
@@ -240,7 +283,7 @@ impl fmt::Debug for Function {
 }
 
 #[derive(Debug)]
-enum Inner {
+enum Inner<V> {
     /// A native function handler.
     /// This is wrapped as an `Arc<dyn Handler>`.
     FnHandler(FnHandler),
@@ -253,7 +296,7 @@ enum Inner {
     ///
     /// This also captures the context and unit it belongs to allow for external
     /// calls.
-    FnClosureOffset(FnClosureOffset),
+    FnClosureOffset(FnClosureOffset<V>),
     /// Constructor for a unit struct.
     FnUnitStruct(FnUnitStruct),
     /// Constructor for a tuple.
@@ -275,6 +318,7 @@ impl fmt::Debug for FnHandler {
     }
 }
 
+#[derive(Clone)]
 struct FnOffset {
     context: Arc<Context>,
     /// The unit where the function resides.
@@ -350,11 +394,11 @@ impl fmt::Debug for FnOffset {
 }
 
 #[derive(Debug)]
-struct FnClosureOffset {
-    /// Function offset.
+struct FnClosureOffset<V> {
+    /// The offset in the associated unit that the function lives.
     fn_offset: FnOffset,
     /// Captured environment.
-    environment: Shared<Tuple>,
+    environment: Box<[V]>,
 }
 
 #[derive(Debug)]
@@ -383,6 +427,12 @@ struct FnTupleVariant {
     rtti: Arc<VariantRtti>,
     /// The number of arguments the tuple takes.
     args: usize,
+}
+
+impl FromValue for SyncFunction {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_function()?.take()?.into_sync()?)
+    }
 }
 
 impl FromValue for Function {
@@ -415,5 +465,28 @@ impl UnsafeFromValue for &Function {
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SyncFunction;
+
+    fn assert_send<T>()
+    where
+        T: Send,
+    {
+    }
+
+    fn assert_sync<T>()
+    where
+        T: Sync,
+    {
+    }
+
+    #[test]
+    fn assert_send_sync() {
+        assert_send::<SyncFunction>();
+        assert_sync::<SyncFunction>();
     }
 }

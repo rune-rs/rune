@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
-use crate::{IrError, Spanned};
-use runestick::{ConstValue, Shared, TypeInfo};
+use crate::{IrError, IrErrorKind, Spanned};
+use runestick::{Bytes, ConstValue, Shared, Span, TypeInfo};
 use std::convert::TryFrom;
 
 /// A constant value.
@@ -32,21 +32,21 @@ pub enum IrValue {
 
 impl IrValue {
     /// Convert a constant value into an interpreter value.
-    pub fn from_const(value: ConstValue) -> Self {
-        match value {
+    pub fn from_const(span: Span, value: ConstValue) -> Result<Self, IrError> {
+        Ok(match value {
             ConstValue::Unit => Self::Unit,
             ConstValue::Byte(b) => Self::Byte(b),
             ConstValue::Char(c) => Self::Char(c),
             ConstValue::Bool(b) => Self::Bool(b),
-            ConstValue::Integer(n) => Self::Integer(n),
+            ConstValue::Integer(n) => Self::Integer(n.into()),
             ConstValue::Float(n) => Self::Float(n),
             ConstValue::String(s) => Self::String(Shared::new(s)),
-            ConstValue::Bytes(b) => Self::Bytes(Shared::new(b)),
+            ConstValue::Bytes(b) => Self::Bytes(Shared::new(b.into_vec())),
             ConstValue::Vec(vec) => {
                 let mut ir_vec = Vec::with_capacity(vec.len());
 
                 for value in vec {
-                    ir_vec.push(Self::from_const(value));
+                    ir_vec.push(Self::from_const(span, value)?);
                 }
 
                 Self::Vec(Shared::new(ir_vec))
@@ -55,7 +55,7 @@ impl IrValue {
                 let mut ir_tuple = Vec::with_capacity(tuple.len());
 
                 for value in Vec::from(tuple) {
-                    ir_tuple.push(Self::from_const(value));
+                    ir_tuple.push(Self::from_const(span, value)?);
                 }
 
                 Self::Tuple(Shared::new(ir_tuple.into_boxed_slice()))
@@ -64,12 +64,12 @@ impl IrValue {
                 let mut ir_object = HashMap::with_capacity(object.len());
 
                 for (key, value) in object {
-                    ir_object.insert(key, Self::from_const(value));
+                    ir_object.insert(key, Self::from_const(span, value)?);
                 }
 
                 Self::Object(Shared::new(ir_object))
             }
-        }
+        })
     }
 
     /// Convert into constant value.
@@ -77,12 +77,23 @@ impl IrValue {
     where
         S: Copy + Spanned,
     {
+        use num::ToPrimitive as _;
+
         Ok(match self {
             IrValue::Unit => ConstValue::Unit,
             IrValue::Byte(b) => ConstValue::Byte(b),
             IrValue::Char(c) => ConstValue::Char(c),
             IrValue::Bool(b) => ConstValue::Bool(b),
-            IrValue::Integer(n) => ConstValue::Integer(n),
+            IrValue::Integer(n) => {
+                let n = match n.clone().to_i64() {
+                    Some(n) => n,
+                    None => {
+                        return Err(IrError::new(spanned, IrErrorKind::NotInteger { value: n }))
+                    }
+                };
+
+                ConstValue::Integer(n)
+            }
             IrValue::Float(f) => ConstValue::Float(f),
             IrValue::String(s) => {
                 let s = s.take().map_err(IrError::access(spanned))?;
@@ -90,7 +101,7 @@ impl IrValue {
             }
             IrValue::Bytes(b) => {
                 let b = b.take().map_err(IrError::access(spanned))?;
-                ConstValue::Bytes(b)
+                ConstValue::Bytes(Bytes::from(b))
             }
             IrValue::Vec(vec) => {
                 let vec = vec.take().map_err(IrError::access(spanned))?;

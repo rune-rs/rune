@@ -20,7 +20,9 @@ impl IrEval for ir::Ir {
             ir::IrKind::Template(ir_template) => ir_template.eval(interp, used),
             ir::IrKind::Name(name) => Ok(interp.resolve_var(self.span(), name.as_ref(), used)?),
             ir::IrKind::Target(ir_target) => Ok(interp.scopes.get_target(ir_target)?),
-            ir::IrKind::Value(const_value) => Ok(IrValue::from_const(const_value.clone())),
+            ir::IrKind::Value(const_value) => {
+                Ok(IrValue::from_const(self.span, const_value.clone())?)
+            }
             ir::IrKind::Branches(branches) => branches.eval(interp, used),
             ir::IrKind::Loop(ir_loop) => ir_loop.eval(interp, used),
             ir::IrKind::Break(ir_break) => {

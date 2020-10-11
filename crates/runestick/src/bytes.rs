@@ -95,6 +95,12 @@ impl Bytes {
     }
 }
 
+impl From<Vec<u8>> for Bytes {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self { bytes }
+    }
+}
+
 impl fmt::Debug for Bytes {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_list().entries(&self.bytes).finish()
