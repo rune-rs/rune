@@ -1,4 +1,4 @@
-fn main() {
+pub fn main() {
     let values = ("Now", "You", "See", "Me");
     dbg(values);
 

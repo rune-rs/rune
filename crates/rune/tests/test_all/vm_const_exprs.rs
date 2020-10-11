@@ -1,7 +1,7 @@
 macro_rules! test_op {
     ($ty:ty => $lhs:literal $op:tt $rhs:literal = $result:literal) => {{
         let program = format!(
-            r#"const A = {lhs}; const B = {rhs}; const VALUE = A {op} B; fn main() {{ VALUE }}"#,
+            r#"const A = {lhs}; const B = {rhs}; const VALUE = A {op} B; pub fn main() {{ VALUE }}"#,
             lhs = $lhs, rhs = $rhs, op = stringify!($op),
         );
 
@@ -16,11 +16,14 @@ macro_rules! test_op {
 
 #[test]
 fn test_const_values() {
-    assert_eq!(true, rune!(bool => const VALUE = true; fn main() { VALUE }));
+    assert_eq!(
+        true,
+        rune!(bool => const VALUE = true; pub fn main() { VALUE })
+    );
 
     assert_eq!(
         "Hello World",
-        rune!(String => const VALUE = "Hello World"; fn main() { VALUE })
+        rune!(String => const VALUE = "Hello World"; pub fn main() { VALUE })
     );
 
     assert_eq!(
@@ -31,7 +34,7 @@ fn test_const_values() {
             const A = 1;
             const B = 1.0;
             const C = true;
-            fn main() { VALUE }
+            pub fn main() { VALUE }
         "#)
     );
 }
@@ -57,7 +60,7 @@ fn test_integer_ops() {
 macro_rules! test_float_op {
     ($ty:ty => $lhs:literal $op:tt $rhs:literal = $result:literal) => {{
         let program = format!(
-            r#"const A = {lhs}.0; const B = {rhs}.0; const VALUE = A {op} B; fn main() {{ VALUE }}"#,
+            r#"const A = {lhs}.0; const B = {rhs}.0; const VALUE = A {op} B; pub fn main() {{ VALUE }}"#,
             lhs = $lhs, rhs = $rhs, op = stringify!($op),
         );
 
@@ -88,22 +91,22 @@ fn test_float_ops() {
 
 #[test]
 fn test_const_collections() {
-    let object = rune!(runestick::Object => fn main() { VALUE } const VALUE = #{};);
+    let object = rune!(runestick::Object => pub fn main() { VALUE } const VALUE = #{};);
     assert!(object.is_empty());
 
-    let tuple = rune!(runestick::Tuple => fn main() { VALUE } const VALUE = (););
+    let tuple = rune!(runestick::Tuple => pub fn main() { VALUE } const VALUE = (););
     assert!(tuple.is_empty());
 
-    let tuple = rune!(runestick::Tuple => fn main() { VALUE } const VALUE = ("Hello World",););
+    let tuple = rune!(runestick::Tuple => pub fn main() { VALUE } const VALUE = ("Hello World",););
     assert_eq!(
         Some("Hello World"),
         tuple.get_value::<String>(0).unwrap().as_deref()
     );
 
-    let vec = rune!(runestick::Vec => fn main() { VALUE } const VALUE = [];);
+    let vec = rune!(runestick::Vec => pub fn main() { VALUE } const VALUE = [];);
     assert!(vec.is_empty());
 
-    let vec = rune!(runestick::Vec => fn main() { VALUE } const VALUE = ["Hello World"];);
+    let vec = rune!(runestick::Vec => pub fn main() { VALUE } const VALUE = ["Hello World"];);
     assert_eq!(
         Some("Hello World"),
         vec.get_value::<String>(0).unwrap().as_deref()
@@ -126,7 +129,7 @@ fn test_more_complexity() {
             timeout
         };
 
-        fn main() { VALUE }
+        pub fn main() { VALUE }
     };
 
     assert_eq!(result, 1280);
@@ -136,19 +139,19 @@ fn test_more_complexity() {
 fn test_if_else() {
     let result = rune! { i64 =>
         const VALUE = { if true { 1 } else if true { 2 } else { 3 } };
-        fn main() { VALUE }
+        pub fn main() { VALUE }
     };
     assert_eq!(result, 1);
 
     let result = rune! { i64 =>
         const VALUE = { if false { 1 } else if true { 2 } else { 3 } };
-        fn main() { VALUE }
+        pub fn main() { VALUE }
     };
     assert_eq!(result, 2);
 
     let result = rune! { i64 =>
         const VALUE = { if false { 1 } else if false { 2 } else { 3 } };
-        fn main() { VALUE }
+        pub fn main() { VALUE }
     };
     assert_eq!(result, 3);
 }
@@ -159,7 +162,7 @@ fn test_const_fn() {
         const VALUE = 2;
         const fn foo(n) { n + VALUE }
 
-        fn main() {
+        pub fn main() {
             const VALUE = 1;
             foo(1 + 4 / 2 - VALUE) + foo(VALUE - 1)
         }
@@ -174,7 +177,7 @@ fn test_const_fn() {
         `foo ${n}`
     }
     
-    fn main() {
+    pub fn main() {
         foo(`bar ${VALUE}`)
     }
     "#};
@@ -192,7 +195,7 @@ fn test_const_fn() {
             c
         }
         
-        fn main() {
+        pub fn main() {
             VALUE
         }    
     "#};
@@ -221,7 +224,7 @@ fn test_const_fn_visibility() {
             const B = 2;
         }
 
-        fn main() {
+        pub fn main() {
             b::out()
         }
     };

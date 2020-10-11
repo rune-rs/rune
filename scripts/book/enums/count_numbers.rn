@@ -8,7 +8,7 @@ fn count_numbers(limit) {
     }
 }
 
-fn main() {
+pub fn main() {
     println("First count!");
     count_numbers(None);
 

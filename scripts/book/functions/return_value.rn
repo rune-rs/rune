@@ -6,7 +6,7 @@ fn foo(condition) {
     }
 }
 
-fn main() {
+pub fn main() {
     println!("{}", foo(true));
     println!("{}", foo(false));
 }

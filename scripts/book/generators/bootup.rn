@@ -6,7 +6,7 @@ fn printer() {
     }
 }
 
-fn main() {
+pub fn main() {
     let printer = printer();
 
     println("firing off the printer...");

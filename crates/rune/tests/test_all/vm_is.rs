@@ -6,7 +6,7 @@ fn test_binop_override() {
         rune! { (bool, bool, bool, bool) =>
             struct Timeout;
 
-            fn main() {
+            pub fn main() {
                 let timeout = Timeout;
 
                 (

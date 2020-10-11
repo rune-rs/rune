@@ -6,7 +6,7 @@ async fn update_readme(project, output) {
     Ok(cargo.spawn()?.await?)
 }
 
-async fn main() {
+pub async fn main() {
     let cargo_toml = fs::read_to_string("Cargo.toml").await?;
     let cargo_toml = toml::from_string(cargo_toml)?;
     let projects = cargo_toml.workspace.members;

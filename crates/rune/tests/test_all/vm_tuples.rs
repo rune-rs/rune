@@ -2,7 +2,7 @@
 fn test_mutate_tuples() {
     assert_eq! {
         rune_s! { String => r#"
-            fn main() {
+            pub fn main() {
                 let m = ("Now", "You", "See", "Me");
                 m.2 = "Don't";
                 m.3 = "!";

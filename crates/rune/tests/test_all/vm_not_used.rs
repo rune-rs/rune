@@ -2,7 +2,7 @@
 fn test_not_used() {
     assert_eq! {
         rune! { () =>
-            fn main() {
+            pub fn main() {
                 0;
                 4.1;
                 'a';

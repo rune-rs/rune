@@ -10,7 +10,7 @@ fn test_unwrap() {
                 Err(b / a)
             }
 
-            fn main() {
+            pub fn main() {
                 Ok(foo(2, 4)? + bar(3, 9)?)
             }
         },
@@ -23,7 +23,7 @@ fn test_unwrap() {
                 Ok(b / a)
             }
 
-            fn main() {
+            pub fn main() {
                 Ok(foo(2, 4)? + {
                     Err(6 / 2)
                 }?)

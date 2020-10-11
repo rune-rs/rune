@@ -659,7 +659,7 @@ impl Index for ast::ItemFn {
             };
 
             idx.query.insert_meta(span, meta)?;
-        } else if is_toplevel {
+        } else if is_toplevel && item.visibility.is_public() {
             // NB: immediately compile all toplevel functions.
             idx.query.push_build_entry(BuildEntry {
                 location: Location::new(idx.source_id, fun.ast.item_span()),

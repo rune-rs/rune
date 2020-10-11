@@ -10,7 +10,7 @@ fn sub(a, b) {
     a - b
 }
 
-fn main() {
+pub fn main() {
     println!("{}", do_thing(add));
     println!("{}", do_thing(sub));
 }

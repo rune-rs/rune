@@ -11,7 +11,7 @@ environment.
 
 ```text
 $> cargo run --bin rune -- scripts/book/template_strings/basic_template.rn
-I am 30 years old!
+"I am 30 years old!"
 == () (4.5678ms)
 ```
 
@@ -56,9 +56,10 @@ types which do not implement this protocol will fail to run.
 
 ```text
 $> cargo run --bin rune -- scripts/book/template_strings/not_a_template.rn
+== ! (`Vec` does not implement the `string_display` protocol (at 5)) (77.7µs)
 error: virtual machine error
-  ┌─ scripts/book/template_strings/not_a_template.rn:3:13
+  ┌─ scripts/book/template_strings/not_a_template.rn:3:9
   │
-3 │     println(`${vec}`);
-  │             ^^^^^^^^ `Vec` does not implement the `string_display` protocol
+3 │     dbg(`${vec}`);
+  │         ^^^^^^^^ `Vec` does not implement the `string_display` protocol
 ```

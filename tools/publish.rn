@@ -1,6 +1,6 @@
 use process::Command;
 
-async fn main() {
+pub async fn main() {
     let ctrl_c = signal::ctrl_c();
 
     let cargo_toml = fs::read_to_string("Cargo.toml").await?;

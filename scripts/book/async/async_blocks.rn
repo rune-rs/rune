@@ -4,7 +4,7 @@ fn do_request(url) {
     }
 }
 
-async fn main() {
+pub async fn main() {
     let future = do_request("https://google.com");
     let status = future.await?;
     println!("Status: {}", status);

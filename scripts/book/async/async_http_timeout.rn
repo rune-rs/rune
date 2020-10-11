@@ -13,7 +13,7 @@ async fn request(timeout) {
     Ok(())
 }
 
-async fn main() {
+pub async fn main() {
     if let Err(Timeout) = request(1000).await {
         println("Request timed out!");
     }

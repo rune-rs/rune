@@ -25,11 +25,12 @@ of that type.
 
 ```text
 $> cargo run --bin rune -- scripts/book/types/bad_type_check.rn
+== ! (panicked `assertion failed: vectors should be strings` (at 12)) (133.3µs)
 error: virtual machine error
-  ┌─ scripts/book/types/bad_type_check.rn:4:5
+  ┌─ scripts/book/types/bad_type_check.rn:2:5
   │
-4 │     assert(["hello", "world"] is String, "vectors should be strings");
-  │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ panicked `assertion failed `vectors should be strings``
+2 │     assert!(["hello", "world"] is String, "vectors should be strings");
+  │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ panicked `assertion failed: vectors should be strings`
 ```
 
 This gives us insight at runtime which type is which, and allows Rune scripts to

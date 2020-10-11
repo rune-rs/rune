@@ -113,7 +113,7 @@
 //!     sources.insert(Source::new(
 //!         "script",
 //!         r#"
-//!         fn calculate(a, b) {
+//!         pub fn calculate(a, b) {
 //!             println("Hello World");
 //!             a + b
 //!         }

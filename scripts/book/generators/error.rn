@@ -2,7 +2,7 @@ fn print_once() {
     yield 1
 }
 
-fn main() {
+pub fn main() {
     let printer = print_once();
     dbg(printer);
     dbg(printer.resume(()));

@@ -30,7 +30,7 @@ fn vm_test_references() {
     sources.insert(Source::new(
         "test",
         r#"
-        fn main(number) {
+        pub fn main(number) {
             number += 1;
         }
         "#,

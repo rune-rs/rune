@@ -67,7 +67,7 @@ fn test_linked_list() {
                 }
             }
 
-            fn main() {
+            pub fn main() {
                 let ll = List::new();
                 ll.push_back(1);
                 ll.push_back(2);

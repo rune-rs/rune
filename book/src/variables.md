@@ -56,11 +56,12 @@ raised in the virtual machine.
 ```text
 $> cargo run --bin rune -- scripts/book/variables/take_argument.rn
 field: 1
+== ! (failed to access value: cannot read, value is moved (at 14)) (469µs)
 error: virtual machine error
-  ┌─ scripts/book/variables/take_argument.rn:6:22
+  ┌─ scripts/book/variables/take_argument.rn:6:27
   │
-6 │     println(`field: {object.field}`);
-  │                      ^^^^^^^^^^^^ failed to access value: cannot read, value is moved
+6 │     println!("field: {}", object.field);
+  │                           ^^^^^^^^^^^^ failed to access value: cannot read, value is moved
 ```
 
 If you need to, you can test if a variable is still accessible for reading with

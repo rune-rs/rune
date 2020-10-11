@@ -4,7 +4,7 @@ fn foo() {
     yield 3;
 }
 
-fn main() {
+pub fn main() {
     let gen = foo();
 
     while let Some(value) = gen.next() {

@@ -15,7 +15,7 @@ fn test_external_function() -> runestick::Result<()> {
         (),
         r#"
         fn test() { 42 }
-        fn main() { test }
+        pub fn main() { test }
         "#,
     )?;
 
@@ -24,7 +24,7 @@ fn test_external_function() -> runestick::Result<()> {
         &["main"],
         (function,),
         r#"
-        fn main(f) { f() }
+        pub fn main(f) { f() }
         "#,
     )?;
 
@@ -46,7 +46,7 @@ fn test_external_generator() -> runestick::Result<()> {
         (),
         r#"
         fn test() { yield 42; }
-        fn main() { test }
+        pub fn main() { test }
         "#,
     )?;
 
@@ -55,7 +55,7 @@ fn test_external_generator() -> runestick::Result<()> {
         &["main"],
         (function,),
         r#"
-        fn main(f) { let gen = f(); (gen.next(), gen.next()) }
+        pub fn main(f) { let gen = f(); (gen.next(), gen.next()) }
         "#,
     )?;
 

@@ -3,9 +3,9 @@ use rune::testing::*;
 #[test]
 fn test_let_pattern_might_panic() {
     assert_warnings! {
-        r#"fn main() { let [0, 1, 3] = []; }"#,
+        r#"pub fn main() { let [0, 1, 3] = []; }"#,
         LetPatternMightPanic { span, .. } => {
-            assert_eq!(span, Span::new(12, 31));
+            assert_eq!(span, Span::new(16, 35));
         }
     };
 }
@@ -13,9 +13,9 @@ fn test_let_pattern_might_panic() {
 #[test]
 fn test_template_without_variables() {
     assert_warnings! {
-        r#"fn main() { `Hello World` }"#,
+        r#"pub fn main() { `Hello World` }"#,
         TemplateWithoutExpansions { span, .. } => {
-            assert_eq!(span, Span::new(12, 25));
+            assert_eq!(span, Span::new(16, 29));
         }
     };
 }
@@ -23,9 +23,9 @@ fn test_template_without_variables() {
 #[test]
 fn test_remove_variant_parens() {
     assert_warnings! {
-        r#"fn main() { None() }"#,
+        r#"pub fn main() { None() }"#,
         RemoveTupleCallParams { span, .. } => {
-            assert_eq!(span, Span::new(12, 18));
+            assert_eq!(span, Span::new(16, 22));
         }
     };
 }

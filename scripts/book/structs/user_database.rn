@@ -17,7 +17,7 @@ impl User {
     }
 }
 
-fn main() {
+pub fn main() {
     let user = User {
         username: "setbac",
         active: false,

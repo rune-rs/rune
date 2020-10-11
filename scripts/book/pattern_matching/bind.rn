@@ -4,6 +4,6 @@ fn test_ignore(vector) {
     }
 }
 
-fn main() {
+pub fn main() {
     test_ignore([1, 2]);
 }

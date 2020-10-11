@@ -47,7 +47,7 @@ pub struct LoadSourcesError;
 /// let mut options = rune::Options::default();
 /// let mut sources = rune::Sources::new();
 /// sources.insert(Source::new("entry", r#"
-/// fn main() {
+/// pub fn main() {
 ///     println("Hello World");
 /// }
 /// "#));

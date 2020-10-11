@@ -4,7 +4,7 @@ fn test_simple_generator() {
         rune! { i64 =>
             fn foo() { yield 1; yield 2; yield 3; }
 
-            fn main() {
+            pub fn main() {
                 let gen = foo();
                 let result = 0;
 
@@ -27,7 +27,7 @@ fn test_resume() {
 
             fn foo() { let a = yield 1; let b = yield a; b }
 
-            fn main() {
+            pub fn main() {
                 let gen = foo();
                 let result = 0;
 

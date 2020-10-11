@@ -1,42 +1,42 @@
 macro_rules! test_case {
     (($($k:tt)*), $field:tt, $index:tt, $($extra:tt)*) => {
         assert_eq! {
-            rune!(bool => fn main() { let m = $($k)*; m[return true]; false } $($extra)*),
+            rune!(bool => pub fn main() { let m = $($k)*; m[return true]; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune!(bool => fn main() { let m = $($k)*; m[return true] = 0; false } $($extra)*),
+            rune!(bool => pub fn main() { let m = $($k)*; m[return true] = 0; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune!(bool => fn main() { let m = $($k)*; m[$index] = return true; false } $($extra)*),
+            rune!(bool => pub fn main() { let m = $($k)*; m[$index] = return true; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune!(bool => fn main() { let m = $($k)*; m.$field = return true; false } $($extra)*),
+            rune!(bool => pub fn main() { let m = $($k)*; m.$field = return true; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune!(bool => fn main() { $($k)*[return true]; false } $($extra)*),
+            rune!(bool => pub fn main() { $($k)*[return true]; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune!(bool => fn main() { $($k)*[return true] = 0; false } $($extra)*),
+            rune!(bool => pub fn main() { $($k)*[return true] = 0; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune!(bool => fn main() { $($k)*[$index] = return true; false } $($extra)*),
+            rune!(bool => pub fn main() { $($k)*[$index] = return true; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune!(bool => fn main() { $($k)*.$field = return true; false } $($extra)*),
+            rune!(bool => pub fn main() { $($k)*.$field = return true; false } $($extra)*),
             true,
         };
     };

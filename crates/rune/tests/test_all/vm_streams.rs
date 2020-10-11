@@ -14,7 +14,7 @@ fn test_simple_stream() {
                 yield give();
             }
 
-            async fn main() {
+            pub async fn main() {
                 let gen = foo();
                 let result = 0;
 
@@ -37,7 +37,7 @@ fn test_resume() {
 
             async fn foo() { let a = yield 1; let b = yield a; b }
 
-            async fn main() {
+            pub async fn main() {
                 let gen = foo();
                 let result = 0;
 

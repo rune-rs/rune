@@ -5,7 +5,7 @@ fn printer() {
     }
 }
 
-fn main() {
+pub fn main() {
     let printer = printer();
     printer.resume(1);
     printer.resume("John");

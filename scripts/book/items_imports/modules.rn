@@ -1,6 +1,6 @@
 mod foo;
 mod bar;
 
-fn main() {
+pub fn main() {
     foo::get_number() + bar::get_number()
 }

@@ -26,7 +26,7 @@ fn test_super_self_crate_mod() {
 
             fn root() { 0b1 }
 
-            fn main() { Foo::foo() }
+            pub fn main() { Foo::foo() }
         },
         0b111111,
     };
@@ -50,7 +50,7 @@ fn test_super_use() {
 
             const VALUE = 1;
 
-            fn main() { x::y::foo() }
+            pub fn main() { x::y::foo() }
         },
         3,
     };

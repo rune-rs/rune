@@ -1,6 +1,6 @@
 use std::experiments::stringy_math;
 
-fn main() {
+pub fn main() {
     let a = 1;
 
     // This will error inside of the macro.

@@ -9,14 +9,14 @@ fn test_function() {
     let function = rune! { Function =>
         fn foo(a, b) { a + b }
 
-        fn main() { foo }
+        pub fn main() { foo }
     };
 
     assert_eq!(function.call::<_, i64>((1i64, 3i64)).unwrap(), 4i64);
     assert!(function.call::<_, i64>((1i64,)).is_err());
 
     // ptr to native function
-    let function = rune!(Function => fn main() { Vec::new });
+    let function = rune!(Function => pub fn main() { Vec::new });
 
     let value: Vec<Value> = function.call(()).unwrap();
     assert_eq!(value.len(), 0);
@@ -24,7 +24,7 @@ fn test_function() {
     // ptr to dynamic function.
     let function = rune! { Function =>
         enum Custom { A(a) }
-        fn main() { Custom::A }
+        pub fn main() { Custom::A }
     };
 
     assert!(function.call::<_, Value>(()).is_err());
@@ -34,7 +34,7 @@ fn test_function() {
     // ptr to dynamic function.
     let function = rune! { Function =>
         struct Custom(a);
-        fn main() { Custom }
+        pub fn main() { Custom }
     };
 
     assert!(function.call::<_, Value>(()).is_err());
@@ -43,7 +43,7 @@ fn test_function() {
 
     // non-capturing closure == free function
     let function = rune! { Function =>
-        fn main() { |a, b| a + b }
+        pub fn main() { |a, b| a + b }
     };
 
     assert!(function.call::<_, Value>((1i64,)).is_err());
@@ -55,7 +55,7 @@ fn test_function() {
         &context,
         &["main"],
         (1i64, 2i64),
-        r#"fn main(a, b) { || a + b }"#,
+        r#"pub fn main(a, b) { || a + b }"#,
     )
     .unwrap();
 

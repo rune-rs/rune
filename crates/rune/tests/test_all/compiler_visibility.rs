@@ -13,7 +13,7 @@ fn test_working_visibility() {
             pub fn visible() { b::hidden() }
         }
 
-        fn main() {
+        pub fn main() {
             a::visible()
         }
     };
@@ -35,12 +35,12 @@ fn test_access_hidden() {
             pub fn visible() { b::hidden() }
         }
 
-        fn main() {
+        pub fn main() {
             a::b::hidden()
         }        
         "#,
         span, QueryError { error: NotVisibleMod { .. } } => {
-            assert_eq!(span, Span::new(215, 227));
+            assert_eq!(span, Span::new(219, 231));
         }
     };
 }
@@ -64,7 +64,7 @@ fn test_indirect_access() {
             }
         }
 
-        fn main() {
+        pub fn main() {
             d::e::test().0
         }
     };
@@ -100,7 +100,7 @@ fn test_rust_example() {
             }
         }
 
-        fn main() {
+        pub fn main() {
             submodule::my_method();
         }
     };
