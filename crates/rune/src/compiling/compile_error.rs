@@ -220,6 +220,8 @@ pub enum CompileErrorKind {
     UseAliasNotSupported,
     #[error("conflicting function signature already exists `{existing}`")]
     FunctionConflict { existing: DebugSignature },
+    #[error("conflicting function hash already exists `{hash}`")]
+    FunctionReExportConflict { hash: Hash },
     #[error("conflicting constant registered for `{item}` on hash `{hash}`")]
     ConstantConflict { item: Item, hash: Hash },
     #[error("unsupported meta type for item `{existing}`")]

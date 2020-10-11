@@ -312,6 +312,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                             }
                         },
                         rune::ErrorKind::Internal(_) => {}
+                        rune::ErrorKind::BuildError(_) => {}
                     }
                 }
             }

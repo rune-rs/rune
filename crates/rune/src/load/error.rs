@@ -1,5 +1,5 @@
 use crate::compiling::LinkerError;
-use crate::{CompileError, ParseError, QueryError};
+use crate::{BuildError, CompileError, ParseError, QueryError};
 use runestick::SourceId;
 use std::error;
 use std::fmt;
@@ -30,7 +30,7 @@ impl Error {
     ///
     /// This should be used for programming invariants of the compiler which are
     /// broken for some reason.
-    pub fn internal(source_id: SourceId, message: &'static str) -> Self {
+    pub(crate) fn internal(source_id: SourceId, message: &'static str) -> Self {
         Self {
             source_id,
             kind: Box::new(ErrorKind::Internal(message)),
@@ -65,36 +65,38 @@ impl error::Error for Error {
     }
 }
 
-/// The kind of the load error.
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum ErrorKind {
-    /// Parse error.
     #[error("parse error")]
     ParseError(
         #[from]
         #[source]
         ParseError,
     ),
-    /// Compiler error.
     #[error("compile error")]
     CompileError(
         #[from]
         #[source]
         CompileError,
     ),
-    /// Query error.
     #[error("query error")]
     QueryError(
         #[from]
         #[source]
         QueryError,
     ),
-    /// A linker error occured.
     #[error("linker error")]
     LinkError(
         #[from]
         #[source]
         LinkerError,
+    ),
+    #[error("builder error: {0}")]
+    BuildError(
+        #[from]
+        #[source]
+        BuildError,
     ),
     /// An internal error.
     #[error("internal error: {0}")]

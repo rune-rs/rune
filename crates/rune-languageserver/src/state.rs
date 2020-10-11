@@ -198,6 +198,12 @@ impl State {
                             let range = lsp::Range::default();
                             diagnostics.push(display_to_error(range, message));
                         }
+                        rune::ErrorKind::BuildError(error) => {
+                            let diagnostics = by_url.entry(url.clone()).or_default();
+
+                            let range = lsp::Range::default();
+                            diagnostics.push(display_to_error(range, error));
+                        }
                     }
                 }
             }

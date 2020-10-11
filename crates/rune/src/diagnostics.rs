@@ -246,6 +246,10 @@ impl EmitDiagnostics for Error {
                 writeln!(out, "internal error: {}", message)?;
                 return Ok(());
             }
+            ErrorKind::BuildError(error) => {
+                writeln!(out, "build error: {}", error)?;
+                return Ok(());
+            }
             ErrorKind::LinkError(error) => {
                 match error {
                     LinkerError::MissingFunction { hash, spans } => {

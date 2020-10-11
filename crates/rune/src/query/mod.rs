@@ -566,8 +566,10 @@ impl Query {
             None => return Ok(()),
         };
 
+        let location = Location::new(source_id, spanned.span());
+
         let entry = ImportEntry {
-            location: Location::new(source_id, spanned.span()),
+            location,
             visibility,
             name: item.clone(),
             imported: target.clone(),
@@ -582,6 +584,17 @@ impl Query {
             visibility,
             may_overwrite,
         )?;
+
+        // toplevel public uses are re-exported.
+        if mod_item.item.is_empty() && query_item.visibility.is_public() {
+            inner.queue.push_back(BuildEntry {
+                location,
+                item: query_item.clone(),
+                build: Build::ReExport,
+                source: source.clone(),
+                used: Used::Used,
+            });
+        }
 
         inner.index(
             IndexedEntry {
@@ -1522,6 +1535,8 @@ pub(crate) enum Build {
     AsyncBlock(AsyncBlock),
     Unused,
     Import(Import),
+    /// A public re-export.
+    ReExport,
 }
 
 /// An entry in the build queue.

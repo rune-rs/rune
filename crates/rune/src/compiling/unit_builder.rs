@@ -17,6 +17,17 @@ use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
 
+#[allow(missing_docs)]
+#[derive(Debug, Error)]
+pub enum BuildError {
+    #[error("builder not exclusively held")]
+    NotExclusivelyHeld,
+    #[error("missing function with hash `{hash}`")]
+    MissingFunctionHash { hash: Hash },
+    #[error("conflicting function already exists `{hash}`")]
+    FunctionConflictHash { hash: Hash },
+}
+
 /// Instructions from a single source file.
 #[derive(Debug, Default, Clone)]
 pub struct UnitBuilder {
@@ -103,15 +114,30 @@ impl UnitBuilder {
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
-    pub fn build(self) -> Option<Unit> {
-        let inner = Rc::try_unwrap(self.inner).ok()?;
+    pub fn build(self) -> Result<Unit, BuildError> {
+        let inner = match Rc::try_unwrap(self.inner) {
+            Ok(inner) => inner,
+            Err(..) => return Err(BuildError::NotExclusivelyHeld),
+        };
+
         let mut inner = inner.into_inner();
 
         if let Some(debug) = &mut inner.debug {
             debug.functions_rev = inner.functions_rev;
         }
 
-        Some(Unit::new(
+        for (from, to) in inner.reexports {
+            let info = match inner.functions.get(&to) {
+                Some(info) => *info,
+                None => return Err(BuildError::MissingFunctionHash { hash: to }),
+            };
+
+            if inner.functions.insert(from, info).is_some() {
+                return Err(BuildError::FunctionConflictHash { hash: from });
+            }
+        }
+
+        Ok(Unit::new(
             inner.instructions,
             inner.functions,
             inner.types,
@@ -560,6 +586,27 @@ impl UnitBuilder {
         Ok(())
     }
 
+    /// Register a new function re-export.
+    pub(crate) fn new_function_reexport(
+        &self,
+        location: Location,
+        item: &Item,
+        target: &Item,
+    ) -> Result<(), CompileError> {
+        let mut inner = self.inner.borrow_mut();
+        let hash = Hash::type_hash(item);
+        let target = Hash::type_hash(target);
+
+        if inner.reexports.insert(hash, target).is_some() {
+            return Err(CompileError::new(
+                location.span,
+                CompileErrorKind::FunctionReExportConflict { hash },
+            ));
+        }
+
+        Ok(())
+    }
+
     /// Declare a new instance function at the current instruction pointer.
     pub(crate) fn new_instance_function(
         &self,
@@ -650,6 +697,8 @@ struct Inner {
     prelude: HashMap<Box<str>, Item>,
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
+    /// Registered re-exports.
+    reexports: HashMap<Hash, Hash>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFn>,
     /// Declared types.
