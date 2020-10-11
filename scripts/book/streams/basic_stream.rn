@@ -11,7 +11,7 @@ async fn send_requests(list) {
     }
 }
 
-async fn main() {
+pub async fn main() {
     let requests = send_requests([
         "https://google.com",
         "https://amazon.com",

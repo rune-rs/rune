@@ -6,6 +6,6 @@ fn fib(n) {
     }
 }
 
-fn main() {
+pub fn main() {
     fib(15)
 }

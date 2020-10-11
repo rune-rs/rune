@@ -6,7 +6,7 @@ fn foo() {
     b
 }
 
-fn main() {
+pub fn main() {
     let gen = foo();
     let result = 0;
 

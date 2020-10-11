@@ -1,7 +1,7 @@
 use http;
 use json;
 
-async fn main() {
+pub async fn main() {
     let response = http::get("http://worldtimeapi.org/api/ip").await?;
     let json = response.json().await?;
 

@@ -11,14 +11,14 @@ fn test_from_value_object_like() {
     let value = rune! { Proxy =>
         struct Ignored;
         struct Value { field, ignored }
-        fn main() { Value { field: 42, ignored: Ignored } }
+        pub fn main() { Value { field: 42, ignored: Ignored } }
     };
 
     assert_eq!(value.field, 42);
 
     let value = rune! { Proxy =>
         struct Ignored;
-        fn main() { #{ field: 42, ignored: Ignored } }
+        pub fn main() { #{ field: 42, ignored: Ignored } }
     };
 
     assert_eq!(value.field, 42);
@@ -31,13 +31,13 @@ fn test_from_value_tuple_like() {
 
     let value = rune! { Proxy =>
         struct Value(field);
-        fn main() { Value(42) }
+        pub fn main() { Value(42) }
     };
 
     assert_eq!(value.0, 42);
 
     let value = rune! { Proxy =>
-        fn main() { (42,) }
+        pub fn main() { (42,) }
     };
 
     assert_eq!(value.0, 42);
@@ -52,7 +52,7 @@ fn test_missing_dynamic_field() {
 
     assert_vm_error!(
         ProxyStruct => r#"
-        fn main() {
+        pub fn main() {
             struct Ignored;
             struct Value { other, ignored }
             Value { other: 42, ignored: Ignored }
@@ -69,7 +69,7 @@ fn test_missing_dynamic_field() {
 
     assert_vm_error!(
         ProxyTuple => r#"
-        fn main() {
+        pub fn main() {
             struct Ignored;
             struct Value(other);
             Value(42)
@@ -92,7 +92,7 @@ fn test_enum_proxy() {
     }
 
     let proxy = rune! { Proxy =>
-    fn main() {
+    pub fn main() {
         enum Proxy { Unit, Tuple(a), Struct { field } }
         Proxy::Unit
     }};
@@ -100,7 +100,7 @@ fn test_enum_proxy() {
     assert_eq!(proxy, Proxy::Unit);
 
     let proxy = rune! { Proxy =>
-    fn main() {
+    pub fn main() {
         enum Proxy { Unit, Tuple(a), Struct { field } }
         Proxy::Tuple("Hello World")
     }};
@@ -108,7 +108,7 @@ fn test_enum_proxy() {
     assert_eq!(proxy, Proxy::Tuple(String::from("Hello World")));
 
     let proxy = rune! { Proxy =>
-    fn main() {
+    pub fn main() {
         enum Proxy { Unit, Tuple(a), Struct { field } }
         Proxy::Struct { field: "Hello World" }
     }};

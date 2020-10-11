@@ -30,7 +30,7 @@ fn test_instance_kinds() {
                 }
             }
 
-            fn main() {
+            pub fn main() {
                 (Foo { n: 3 }.test(1), Custom::A(4).test(), Custom::B{n: 5}.test(), Custom::C.test())
             }
         },

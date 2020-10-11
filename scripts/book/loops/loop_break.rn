@@ -1,4 +1,4 @@
-fn main() {
+pub fn main() {
     let counter = 0;
 
     let total = loop {

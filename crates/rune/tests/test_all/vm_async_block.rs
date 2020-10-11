@@ -8,7 +8,7 @@ fn test_async_block() {
                 output
             }
 
-            async fn main() {
+            pub async fn main() {
                 let value = 42;
                 foo(async { value }).await / foo(async { 2 }).await
             }

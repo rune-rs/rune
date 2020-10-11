@@ -1,4 +1,4 @@
-fn main() {
+pub fn main() {
     let a = "foo";
 
     let s = String::with_capacity(42);

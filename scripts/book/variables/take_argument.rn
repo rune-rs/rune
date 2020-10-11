@@ -1,7 +1,7 @@
-fn main() {
+pub fn main() {
     let object = #{field: 1};
     let object2 = object;
-    println(`field: ${object.field}`);
+    println!("field: {}", object.field);
     drop(object2);
-    println(`field: ${object.field}`);
+    println!("field: {}", object.field);
 }

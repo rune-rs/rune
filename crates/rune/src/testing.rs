@@ -147,7 +147,7 @@ pub fn build(
 ///
 /// # fn main() {
 /// assert_eq! {
-///     rune::rune_s!(bool => "fn main() { true || false }"),
+///     rune::rune_s!(bool => "pub fn main() { true || false }"),
 ///     true,
 /// };
 /// # }
@@ -173,7 +173,7 @@ macro_rules! rune_s {
 ///
 /// # fn main() {
 /// assert_eq! {
-///     rune::rune!(bool => fn main() { true || false }),
+///     rune::rune!(bool => pub fn main() { true || false }),
 ///     true,
 /// };
 /// # }

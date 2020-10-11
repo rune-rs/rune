@@ -19,6 +19,11 @@ pub enum Visibility {
 }
 
 impl Visibility {
+    /// Test if visibility is public.
+    pub(crate) fn is_public(self) -> bool {
+        matches!(self, Self::Public)
+    }
+
     /// Construct visibility from ast.
     pub(crate) fn from_ast(vis: &ast::Visibility) -> Result<Self, CompileError> {
         let span = match vis {

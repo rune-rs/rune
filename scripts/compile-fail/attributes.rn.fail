@@ -136,7 +136,7 @@ fn definetypeinfunction() {
 
 /// 5.4. also works on async `fn` items
 #[wasm::bindgen]
-async fn main() {
+pub async fn main() {
 
 
     // 12. match expressions

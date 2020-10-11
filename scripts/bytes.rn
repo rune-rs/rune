@@ -1,7 +1,7 @@
 use std::bytes::Bytes;
 use std::test::assert;
 
-fn main() {
+pub fn main() {
     let bytes = Bytes::new();
     bytes.extend_str("hello world");
     bytes.extend_str("hello world");

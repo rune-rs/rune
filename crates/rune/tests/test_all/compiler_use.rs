@@ -12,12 +12,12 @@ fn test_import_cycle() {
 
         use self::a::Foo;
 
-        fn main() {
+        pub fn main() {
             Foo
         }             
         "#,
         span, QueryError { error: ImportCycle { .. } } => {
-            assert_eq!(span, Span::new(240, 243));
+            assert_eq!(span, Span::new(244, 247));
         }
     };
 
@@ -31,12 +31,12 @@ fn test_import_cycle() {
             pub use super::b::Foo;
         }
         
-        fn main() {
+        pub fn main() {
             a::Foo
         }           
         "#,
         span, QueryError { error: ImportCycle { path, .. } } => {
-            assert_eq!(span, Span::new(173, 179));
+            assert_eq!(span, Span::new(177, 183));
             assert_eq!(2, path.len());
             assert_eq!(Span::new(107, 120), path[0].location.span);
             assert_eq!(Span::new(37, 50), path[1].location.span);
@@ -55,7 +55,7 @@ fn test_recursive_import() {
 
         use self::a::Foo;
 
-        fn main() {
+        pub fn main() {
             Foo is a::c::Baz
         }
     };
@@ -74,7 +74,7 @@ fn test_recursive_context_import() {
 
         use self::a::Foo;
 
-        fn main() {
+        pub fn main() {
             Foo::None is Option
         }
     };
@@ -93,7 +93,7 @@ fn test_recusive_wildcard() {
 
         use self::a::*;
 
-        fn main() {
+        pub fn main() {
             (Foo::None is Option, Foo2::Some(2) is Option)
         }
     };
@@ -113,7 +113,7 @@ fn test_reexport_fn() {
 
         mod b { pub use crate::{a::b::out, a}; }
 
-        fn main() {
+        pub fn main() {
             b::out(2) + b::a::b::out(4)
         }
     };

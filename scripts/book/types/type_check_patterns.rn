@@ -6,8 +6,8 @@ fn dynamic_type(n) {
     }
 }
 
-fn main() {
-    println(dynamic_type("Hello"));
-    println(dynamic_type([1, 2, 3, 4]));
-    println(dynamic_type(42));
+pub fn main() {
+    println!("{}", dynamic_type("Hello"));
+    println!("{}", dynamic_type([1, 2, 3, 4]));
+    println!("{}", dynamic_type(42));
 }

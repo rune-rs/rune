@@ -14,7 +14,7 @@ fn test_grouped_imports() {
                 }
             }
 
-            fn main() {
+            pub fn main() {
                 (c::VALUE, Foo::Bar is a::b::Foo, Baz is a::b::Foo)
             }
         },

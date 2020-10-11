@@ -2,6 +2,6 @@ fn foo() {
     (1, "test")
 }
 
-fn main() {
+pub fn main() {
     dbg(foo());
 }

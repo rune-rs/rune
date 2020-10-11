@@ -1,6 +1,6 @@
 use rand;
 
-fn main() {
+pub fn main() {
      let rng = rand::WyRand::new();
      let rand_int = rng.int();
      println!("Random int: {}", rand_int);

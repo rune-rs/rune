@@ -1,4 +1,4 @@
-fn main() {
+pub fn main() {
     let object = #{"foo": 42};
     object["bar"] = object["foo"] + 1;
     object = #{"foo": 1};

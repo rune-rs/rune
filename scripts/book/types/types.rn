@@ -1,4 +1,4 @@
-fn main() {
+pub fn main() {
     assert!(() is unit, "units should be units");
     assert!(true is bool, "bools should be bools");
     assert!('a' is char, "chars should be chars");

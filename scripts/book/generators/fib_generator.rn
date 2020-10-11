@@ -10,7 +10,7 @@ fn fib() {
     }
 }
 
-fn main() {
+pub fn main() {
     let g = fib();
 
     while let Some(n) = g.next() {

@@ -1,4 +1,4 @@
-fn main() {
+pub fn main() {
     let age = 30;
-    println(`I am ${age} years old!`);
+    dbg(`I am ${age} years old!`);
 }

@@ -1,6 +1,6 @@
 use std::experiments::stringy_math;
 
-fn main() {
+pub fn main() {
     let output = stringy_math!(add 10 sub 2 div 3 mul 100);
     println!("{}", output);
 }

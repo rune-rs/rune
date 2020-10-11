@@ -1,4 +1,4 @@
-fn main() {
+pub fn main() {
     "hello world";
     'a';
     [42, 42];

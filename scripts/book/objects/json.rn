@@ -23,7 +23,7 @@ async fn get_commits(repo, limit) {
     commits
 }
 
-async fn main() {
+pub async fn main() {
     for commit in get_commits("rune-rs/rune", Some(5)).await {
         println(commit);
     }

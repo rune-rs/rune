@@ -15,7 +15,7 @@ fn test_nested_mods() {
                 }
             }
 
-            fn main() {
+            pub fn main() {
                 hello::test()
             }
         }

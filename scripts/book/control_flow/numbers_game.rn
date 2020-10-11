@@ -6,7 +6,7 @@ fn foo(n) {
     "something else"
 }
 
-fn main() {
+pub fn main() {
     println(foo(0)); // => outputs: "less than one"
     println(foo(10)); // => outputs: "something else"
 }

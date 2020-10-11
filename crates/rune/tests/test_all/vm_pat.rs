@@ -6,7 +6,7 @@ fn test_ignore_binding() {
                 let _ = 100;
             }
 
-            fn main() {
+            pub fn main() {
                 returns_unit(1) is unit
             }
         },
@@ -22,7 +22,7 @@ fn test_name_binding() {
                 let a = 100;
             }
 
-            fn main() {
+            pub fn main() {
                 returns_unit(1) is unit
             }
         },
@@ -38,7 +38,7 @@ fn test_match_binding() {
                 let [..] = [1, 2, 3];
             }
 
-            fn main() {
+            pub fn main() {
                 returns_unit(1) is unit
             }
         },
