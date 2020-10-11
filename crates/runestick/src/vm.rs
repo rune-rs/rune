@@ -2038,8 +2038,7 @@ impl Vm {
             _ => return Err(VmError::from(VmErrorKind::MissingFunction { hash })),
         };
 
-        let environment = self.stack.pop_sequence(count)?;
-        let environment = Shared::new(Tuple::from(environment));
+        let environment = self.stack.pop_sequence(count)?.into_boxed_slice();
 
         let function = Function::from_closure(
             self.context.clone(),

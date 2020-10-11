@@ -141,4 +141,6 @@ pub enum IrErrorKind {
     FnNotFound,
     #[error("argument count mismatch, got {actual} but expected {expected}")]
     ArgumentCountMismatch { actual: usize, expected: usize },
+    #[error("value `{value}` is outside of the supported integer range")]
+    NotInteger { value: num::BigInt },
 }

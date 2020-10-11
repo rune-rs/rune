@@ -1,8 +1,8 @@
 use crate::ir;
 use crate::query::BuiltInMacro;
 use crate::query::BuiltInTemplate;
-use crate::{Resolve, Spanned, Storage};
-use runestick::{ConstValue, Source};
+use crate::{IrErrorKind, Resolve, Spanned, Storage};
+use runestick::{Bytes, ConstValue, Source};
 use std::sync::Arc;
 
 use crate::ast;
@@ -261,6 +261,8 @@ impl IrCompile for ast::ExprLit {
     type Output = ir::Ir;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
+        use num::ToPrimitive as _;
+
         let span = self.span();
 
         Ok(match &self.lit {
@@ -273,7 +275,19 @@ impl IrCompile for ast::ExprLit {
                 let n = c.resolve(n)?;
 
                 let const_value = match n {
-                    ast::Number::Integer(n) => ConstValue::Integer(n),
+                    ast::Number::Integer(n) => {
+                        let n = match n.clone().to_i64() {
+                            Some(n) => n,
+                            None => {
+                                return Err(IrError::new(
+                                    span,
+                                    IrErrorKind::NotInteger { value: n },
+                                ))
+                            }
+                        };
+
+                        ConstValue::Integer(n)
+                    }
                     ast::Number::Float(n) => ConstValue::Float(n),
                 };
 
@@ -365,7 +379,7 @@ impl IrCompile for ast::LitByteStr {
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
         let byte_str = c.resolve(self)?;
-        Ok(ConstValue::Bytes(byte_str.as_ref().to_vec()))
+        Ok(ConstValue::Bytes(Bytes::from(byte_str.as_ref().to_vec())))
     }
 }
 

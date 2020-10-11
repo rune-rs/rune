@@ -1,4 +1,4 @@
-use crate::{FromValue, Mut, Ref, Value, VmError};
+use crate::{ConstValue, FromValue, Mut, Ref, Value, VmError};
 use std::fmt;
 use std::ops;
 
@@ -101,6 +101,20 @@ impl From<Vec<Value>> for Tuple {
 impl From<Box<[Value]>> for Tuple {
     fn from(inner: Box<[Value]>) -> Self {
         Self { inner }
+    }
+}
+
+impl From<Box<[ConstValue]>> for Tuple {
+    fn from(inner: Box<[ConstValue]>) -> Self {
+        let mut out = Vec::with_capacity(inner.len());
+
+        for value in inner.into_vec() {
+            out.push(value.into_value());
+        }
+
+        Self {
+            inner: out.into_boxed_slice(),
+        }
     }
 }
 

@@ -297,6 +297,8 @@ pub enum VmErrorKind {
     MissingVariant { name: Box<str> },
     #[error("expected an enum variant, but got `{actual}`")]
     ExpectedVariant { actual: TypeInfo },
+    #[error("{actual} can't be converted to a constant value")]
+    ConstNotSupported { actual: TypeInfo },
 }
 
 impl VmErrorKind {
