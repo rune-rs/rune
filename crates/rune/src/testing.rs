@@ -45,9 +45,9 @@ pub fn compile_source(
     }
 
     let unit = match unit.build() {
-        Some(unit) => unit,
-        None => {
-            errors.push(Error::internal(0, "unit builder is not exclusively held"));
+        Ok(unit) => unit,
+        Err(error) => {
+            errors.push(Error::new(0, error));
             return Err(errors);
         }
     };

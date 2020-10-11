@@ -135,9 +135,9 @@ pub fn load_sources_with_visitor(
     }
 
     match unit.build() {
-        Some(unit) => Ok(unit),
-        None => {
-            errors.push(Error::internal(0, "unit builder is not exclusively held"));
+        Ok(unit) => Ok(unit),
+        Err(error) => {
+            errors.push(Error::new(0, error));
             Err(LoadSourcesError)
         }
     }

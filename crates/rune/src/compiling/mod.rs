@@ -19,7 +19,7 @@ mod unit_builder;
 pub use self::compile_error::{CompileError, CompileErrorKind, CompileResult, ImportEntryStep};
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
 pub use self::scopes::Var;
-pub use self::unit_builder::{InsertMetaError, LinkerError, UnitBuilder};
+pub use self::unit_builder::{BuildError, InsertMetaError, LinkerError, UnitBuilder};
 use crate::parsing::Resolve as _;
 
 pub(crate) use self::assemble::{Assemble, AssembleClosure, AssembleConst, AssembleFn};
@@ -334,6 +334,26 @@ impl CompileBuildEntry<'_> {
                         },
                     ));
                 }
+            }
+            Build::ReExport => {
+                let import =
+                    match self
+                        .query
+                        .get_import(&item.mod_item, location.span, &item.item, used)?
+                    {
+                        Some(item) => item,
+                        None => {
+                            return Err(CompileError::new(
+                                location.span,
+                                CompileErrorKind::MissingItem {
+                                    item: item.item.clone(),
+                                },
+                            ))
+                        }
+                    };
+
+                self.unit
+                    .new_function_reexport(location, &item.item, &import)?;
             }
         }
 

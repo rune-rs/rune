@@ -21,3 +21,31 @@ fn test_grouped_imports() {
         (2, true, true),
     };
 }
+
+#[test]
+fn test_reexport() {
+    assert_eq! {
+        rune! { i64 =>
+            mod inner { fn func() { 42 } }
+            pub use self::inner::func as main;
+        },
+        42,
+    };
+
+    assert_eq! {
+        rune! { i64 =>
+            mod inner { fn func() { 42 } }
+            pub use crate::inner::func as main;
+        },
+        42,
+    };
+
+    assert_eq! {
+        rune! { i64 =>
+            mod inner2 { fn func() { 42 } }
+            mod inner1 { pub use super::inner2::func; }
+            pub use crate::inner1::func as main;
+        },
+        42,
+    };
+}
