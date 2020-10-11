@@ -1539,6 +1539,9 @@ impl Vm {
                 Value::Format(format) => {
                     format.spec.format(&format.value, &mut out, &mut buf)?;
                 }
+                Value::Char(c) => {
+                    out.push(c);
+                }
                 Value::String(string) => {
                     out.push_str(&*string.borrow_ref()?);
                 }

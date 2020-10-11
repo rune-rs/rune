@@ -18,6 +18,14 @@ fn test_stringify() {
 }
 
 #[test]
+fn test_unicode() {
+    test_case!("{name:😊^10}", name = "😞😞😞😞😞");
+    test_case!("{name:﷽^10}", name = "𒈙");
+    test_case!("{}", '㒨');
+    test_case!("Hello {var}", var = '㒨');
+}
+
+#[test]
 fn test_format() {
     test_case!("Hello, World");
     test_case!("Hello, {name}", name = "John Doe");

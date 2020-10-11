@@ -66,32 +66,32 @@ impl FormatSpec {
     }
 
     /// get traits out of a floating point number.
-    fn float_traits(&self, n: f64) -> (f64, Option<char>, char, bool) {
+    fn float_traits(&self, n: f64) -> (f64, Alignment, char, Option<char>) {
         if self.flags.test(Flag::SignAwareZeroPad) {
             if n.is_sign_negative() {
-                (-n, Some('-'), '0', true)
+                (-n, Alignment::Right, '0', Some('-'))
             } else {
-                (n, None, '0', true)
+                (n, Alignment::Right, '0', None)
             }
         } else if self.flags.test(Flag::SignPlus) && n.is_sign_positive() {
-            (n, Some('+'), self.fill, false)
+            (n, self.align, self.fill, Some('+'))
         } else {
-            (n, None, self.fill, false)
+            (n, self.align, self.fill, None)
         }
     }
 
     /// get traits out of an integer.
-    fn int_traits(&self, n: i64) -> (i64, Option<char>, char, bool) {
+    fn int_traits(&self, n: i64) -> (i64, Alignment, char, Option<char>) {
         if self.flags.test(Flag::SignAwareZeroPad) {
             if n < 0 {
-                (-n, Some('-'), '0', true)
+                (-n, Alignment::Right, '0', Some('-'))
             } else {
-                (n, None, '0', true)
+                (n, Alignment::Right, '0', None)
             }
         } else if self.flags.test(Flag::SignPlus) && n >= 0 {
-            (n, Some('+'), self.fill, false)
+            (n, self.align, self.fill, Some('+'))
         } else {
-            (n, None, self.fill, false)
+            (n, self.align, self.fill, None)
         }
     }
 
@@ -118,50 +118,46 @@ impl FormatSpec {
         &self,
         out: &mut String,
         buf: &String,
-        sign_aware: bool,
+        align: Alignment,
         fill: char,
         sign: Option<char>,
     ) {
-        let extra = self
-            .width
-            .map(|n| n.get())
-            .unwrap_or_default()
-            .saturating_sub(buf.len())
+        if let Some(sign) = sign {
+            out.push(sign);
+        }
+
+        let mut w = self.width.map(|n| n.get()).unwrap_or_default();
+
+        if w == 0 {
+            out.push_str(&buf);
+            return;
+        }
+
+        w = w
+            .saturating_sub(buf.chars().count())
             .saturating_sub(sign.map(|_| 1).unwrap_or_default());
 
-        if extra > 0 {
-            let mut filler = iter::repeat(fill).take(extra);
+        if w == 0 {
+            out.push_str(&buf);
+            return;
+        }
 
-            if let Some(sign) = sign {
-                out.push(sign);
+        let mut filler = iter::repeat(fill).take(w);
+
+        match align {
+            Alignment::Left => {
+                out.push_str(&buf);
+                out.extend(filler);
             }
-
-            if sign_aware {
+            Alignment::Center => {
+                out.extend((&mut filler).take(w / 2));
+                out.push_str(&buf);
+                out.extend(filler);
+            }
+            Alignment::Right => {
                 out.extend(filler);
                 out.push_str(&buf);
-            } else {
-                match self.align {
-                    Alignment::Left => {
-                        out.push_str(&buf);
-                        out.extend(filler);
-                    }
-                    Alignment::Center => {
-                        out.extend((&mut filler).take(extra / 2));
-                        out.push_str(&buf);
-                        out.extend(filler);
-                    }
-                    Alignment::Right => {
-                        out.extend(filler);
-                        out.push_str(&buf);
-                    }
-                }
             }
-        } else {
-            if let Some(sign) = sign {
-                out.push(sign);
-            }
-
-            out.push_str(&buf);
         }
     }
 
@@ -172,23 +168,27 @@ impl FormatSpec {
         buf: &mut String,
     ) -> Result<(), VmErrorKind> {
         match value {
+            Value::Char(c) => {
+                buf.push(*c);
+                self.format_fill(out, buf, self.align, self.fill, None);
+            }
             Value::String(s) => {
                 buf.push_str(&*s.borrow_ref()?);
-                self.format_fill(out, buf, false, self.fill, None);
+                self.format_fill(out, buf, self.align, self.fill, None);
             }
             Value::StaticString(s) => {
                 buf.push_str(s.as_ref());
-                self.format_fill(out, buf, false, self.fill, None);
+                self.format_fill(out, buf, self.align, self.fill, None);
             }
             Value::Integer(n) => {
-                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                let (n, align, fill, sign) = self.int_traits(*n);
                 self.format_number(buf, n);
-                self.format_fill(out, buf, sign_aware, fill, sign);
+                self.format_fill(out, buf, align, fill, sign);
             }
             Value::Float(n) => {
-                let (n, sign, fill, sign_aware) = self.float_traits(*n);
+                let (n, align, fill, sign) = self.float_traits(*n);
                 self.format_float(buf, n)?;
-                self.format_fill(out, buf, sign_aware, fill, sign);
+                self.format_fill(out, buf, align, fill, sign);
             }
             _ => {
                 return Err(VmErrorKind::FormatError);
@@ -212,14 +212,14 @@ impl FormatSpec {
                 write!(out, "{:?}", s.as_ref()).map_err(|_| VmErrorKind::FormatError)?;
             }
             Value::Integer(n) => {
-                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                let (n, align, fill, sign) = self.int_traits(*n);
                 self.format_number(buf, n);
-                self.format_fill(out, buf, sign_aware, fill, sign);
+                self.format_fill(out, buf, align, fill, sign);
             }
             Value::Float(n) => {
-                let (n, sign, fill, sign_aware) = self.float_traits(*n);
+                let (n, align, fill, sign) = self.float_traits(*n);
                 self.format_float(buf, n)?;
-                self.format_fill(out, buf, sign_aware, fill, sign);
+                self.format_fill(out, buf, align, fill, sign);
             }
             value => {
                 write!(buf, "{:?}", value).map_err(|_| VmErrorKind::FormatError)?;
@@ -237,9 +237,9 @@ impl FormatSpec {
     ) -> Result<(), VmErrorKind> {
         match value {
             Value::Integer(n) => {
-                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                let (n, align, fill, sign) = self.int_traits(*n);
                 write!(buf, "{:X}", n).map_err(|_| VmErrorKind::FormatError)?;
-                self.format_fill(out, buf, sign_aware, fill, sign);
+                self.format_fill(out, buf, align, fill, sign);
             }
             _ => {
                 return Err(VmErrorKind::FormatError);
@@ -257,9 +257,9 @@ impl FormatSpec {
     ) -> Result<(), VmErrorKind> {
         match value {
             Value::Integer(n) => {
-                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                let (n, align, fill, sign) = self.int_traits(*n);
                 write!(buf, "{:x}", n).map_err(|_| VmErrorKind::FormatError)?;
-                self.format_fill(out, buf, sign_aware, fill, sign);
+                self.format_fill(out, buf, align, fill, sign);
             }
             _ => {
                 return Err(VmErrorKind::FormatError);
@@ -277,9 +277,9 @@ impl FormatSpec {
     ) -> Result<(), VmErrorKind> {
         match value {
             Value::Integer(n) => {
-                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                let (n, align, fill, sign) = self.int_traits(*n);
                 write!(buf, "{:b}", n).map_err(|_| VmErrorKind::FormatError)?;
-                self.format_fill(out, buf, sign_aware, fill, sign);
+                self.format_fill(out, buf, align, fill, sign);
             }
             _ => {
                 return Err(VmErrorKind::FormatError);
@@ -297,9 +297,9 @@ impl FormatSpec {
     ) -> Result<(), VmErrorKind> {
         match value {
             Value::Integer(n) => {
-                let (n, sign, fill, sign_aware) = self.int_traits(*n);
+                let (n, align, fill, sign) = self.int_traits(*n);
                 write!(buf, "{:p}", n as *const ()).map_err(|_| VmErrorKind::FormatError)?;
-                self.format_fill(out, buf, sign_aware, fill, sign);
+                self.format_fill(out, buf, align, fill, sign);
             }
             _ => {
                 return Err(VmErrorKind::FormatError);
