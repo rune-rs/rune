@@ -183,7 +183,7 @@ pub use crate::bytes::Bytes;
 pub use crate::call::Call;
 pub use crate::context::{Context, ContextError};
 pub use crate::debug::{DebugInfo, DebugInst};
-pub use crate::function::Function;
+pub use crate::function::{Function, SyncFunction};
 pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, InstAssignOp, InstOp, InstTarget, InstValue, PanicReason, TypeCheck};
