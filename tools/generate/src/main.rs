@@ -89,14 +89,14 @@ fn main() -> Result<()> {
 
             pub(crate) fn kind_from_ident(ident: &str) -> Option<#kind> {
                 match ident {
-                    #(for k in &keywords => #(quoted(&k.keyword)) => Some(#kind::new(#(quoted(&k.variant)))),#<push>)
+                    #(for k in &keywords => #(quoted(&k.keyword)) => Some(#kind(#(quoted(&k.variant)))),#<push>)
                     _ => None,
                 }
             }
 
             pub(crate) fn kind_from_punct(buf: &[char]) -> Option<#kind> {
                 match buf {
-                    #(for p in &punctuations => #(buf_match(&p.punct)) => Some(#kind::new(#(quoted(&p.variant)))),#<push>)
+                    #(for p in &punctuations => #(buf_match(&p.punct)) => Some(#kind(#(quoted(&p.variant)))),#<push>)
                     _ => None,
                 }
             }

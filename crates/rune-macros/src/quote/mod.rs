@@ -6,72 +6,33 @@ mod builder;
 mod generated;
 mod inner;
 
-pub(crate) trait ToTokens {
-    fn to_tokens(self, stream: &mut TokenStream, span: Span);
-}
-
-impl ToTokens for p::Ident {
-    fn to_tokens(self, stream: &mut TokenStream, _: Span) {
-        stream.extend(std::iter::once(TokenTree::Ident(self)));
-    }
-}
-
-impl ToTokens for TokenStream {
-    fn to_tokens(self, stream: &mut TokenStream, _: Span) {
-        stream.extend(self);
-    }
-}
-
-impl quote::ToTokens for inner::ToTokensFn {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        ToTokens::to_tokens(*self, tokens, Span::call_site())
-    }
-}
-
-impl<'a> quote::ToTokens for inner::Ident<'a> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        ToTokens::to_tokens(*self, tokens, Span::call_site())
-    }
-}
-
 use self::builder::Builder;
-use self::inner::{
-    Delimiter, Group, Ident, Kind, KindVariant, NewIdent, NewLit, Punct, RUNE_MACROS,
-};
+use self::inner::*;
 
 pub struct Quote {
-    ctx: Ident<'static>,
-    stream: Ident<'static>,
+    ctx: &'static str,
+    stream: &'static str,
 }
 
 impl Quote {
     /// Construct a new quote parser.
     pub fn new() -> Self {
         Self {
-            ctx: Ident::new("__rune_macros_ctx"),
-            stream: Ident::new("__rune_macros_stream"),
+            ctx: "__rune_macros_ctx",
+            stream: "__rune_macros_stream",
         }
     }
 
     /// Parse the given input stream and convert into code that constructs a
     /// `ToTokens` implementation.
     pub fn parse(&self, input: TokenStream) -> Result<TokenStream, Error> {
+        let arg = (
+            ("move", '|', self.ctx, ',', self.stream, '|'),
+            braced(self.process(input)?),
+        );
+
         let mut output = Builder::new();
-
-        let mut inner = Builder::new();
-        inner.push(Ident::new("move"));
-        inner.push(Punct::new("|"));
-        inner.push(self.ctx);
-        inner.push(Punct::new(","));
-        inner.push(self.stream);
-        inner.push(Punct::new("|"));
-        inner.push(Group::new(p::Delimiter::Brace, self.process(input)?));
-
-        output.push(RUNE_MACROS);
-        output.push(Ident::new("quote_fn"));
-
-        output.push(Group::new(p::Delimiter::Parenthesis, inner));
-
+        output.push((MACROS, S, "quote_fn", p(arg)));
         Ok(output.into_stream())
     }
 
@@ -89,14 +50,12 @@ impl Quote {
                         .pop()
                         .ok_or_else(|| Error::new(Span::call_site(), "stack is empty"))?;
 
+                    // Add the closing delimiter.
                     if let Some(variant) = Delimiter::from_proc_macro(d) {
                         self.encode_to_tokens(
                             Span::call_site(),
                             &mut output,
-                            KindVariant {
-                                kind: Kind::new("Close"),
-                                variant,
-                            },
+                            (Kind("Close"), p(variant)),
                         );
                     }
 
@@ -106,22 +65,22 @@ impl Quote {
 
             match tt {
                 TokenTree::Group(group) => {
+                    // Add the opening delimiter.
                     if let Some(variant) = Delimiter::from_proc_macro(group.delimiter()) {
                         self.encode_to_tokens(
                             group.span(),
                             &mut output,
-                            KindVariant {
-                                kind: Kind::new("Open"),
-                                variant,
-                            },
+                            (Kind("Open"), p(variant)),
                         );
                     }
 
                     stack.push((group.delimiter(), group.stream().into_iter().peekable()));
                 }
                 TokenTree::Ident(ident) => {
+                    // TODO: change Rune underscore from being a punctuation to
+                    // an identifier to be in line with Rust.
                     if ident == "_" {
-                        self.encode_to_tokens(ident.span(), &mut output, Kind::new("Underscore"));
+                        self.encode_to_tokens(ident.span(), &mut output, Kind("Underscore"));
                         continue;
                     }
 
@@ -130,11 +89,7 @@ impl Quote {
                     let kind = match generated::kind_from_ident(string.as_str()) {
                         Some(kind) => kind,
                         None => {
-                            self.encode_to_tokens(
-                                ident.span(),
-                                &mut output,
-                                NewIdent::new(&string),
-                            );
+                            self.encode_to_tokens(ident.span(), &mut output, NewIdent(&string));
                             continue;
                         }
                     };
@@ -161,7 +116,7 @@ impl Quote {
                     self.encode_to_tokens(punct.span(), &mut output, kind);
                 }
                 TokenTree::Literal(lit) => {
-                    self.encode_to_tokens(lit.span(), &mut output, NewLit::new(lit));
+                    self.encode_to_tokens(lit.span(), &mut output, NewLit(lit));
                 }
             }
         }
@@ -176,6 +131,7 @@ impl Quote {
         output: &mut Builder,
         it: &mut Peekable<impl Iterator<Item = TokenTree> + Clone>,
     ) -> Result<bool, Error> {
+        // Clone for lookahead.
         let mut lh = it.clone();
 
         let next = match lh.next() {
@@ -184,45 +140,50 @@ impl Quote {
         };
 
         match next {
+            // `#value` expansion.
             TokenTree::Ident(ident) => {
                 self.encode_to_tokens(punct.span(), output, ident);
             }
-            // Token group parsing, currently disabled because it's not
-            // particularly useful.
+            // `#(<expr>)<sep>*` repetition.
             TokenTree::Group(group) if group.delimiter() == p::Delimiter::Parenthesis => {
                 let group = group.stream();
 
-                // repetition: #(<expr>)<sep>*.
+                // Parse the repitition character.
                 let sep = match (lh.next(), lh.next()) {
                     (Some(sep), Some(TokenTree::Punct(p))) if p.as_char() == '*' => sep,
                     _ => return Ok(false),
                 };
 
-                let to_tokens = inner::ToTokensFn;
-                let ctx = &self.ctx;
-                let stream = &self.stream;
+                output.push((
+                    ("let", "mut", "it"),
+                    '=',
+                    ("IntoIterator", S, "into_iter", p(('&', group))),
+                    ('.', "peekable", p(())),
+                    ';',
+                ));
 
-                let sep = &self.process(TokenStream::from(sep))?.into_stream();
+                let body = (
+                    (
+                        ToTokensFn,
+                        p(('&', "value", ',', self.ctx, ',', self.stream)),
+                        ';',
+                    ),
+                    ("if", "it", '.', "peek", p(()), '.', "is_some", p(())),
+                    braced(self.process(TokenStream::from(sep))?),
+                );
 
-                let expanded = quote::quote! {
-                    let mut it = IntoIterator::into_iter(&#group).peekable();
-
-                    while let Some(value) = it.next() {
-                        #to_tokens(&value, #ctx, #stream);
-
-                        if it.peek().is_some() {
-                            #sep
-                        }
-                    }
-                };
-
-                output.push(expanded);
+                output.push((
+                    ("while", "let", "Some", p("value")),
+                    '=',
+                    ("it", '.', "next", p(()), braced(body)),
+                ));
 
                 it.next();
                 it.next();
                 it.next();
                 return Ok(true);
             }
+            // Non-expansions.
             _ => return Ok(false),
         }
 
@@ -231,18 +192,14 @@ impl Quote {
     }
 
     fn encode_to_tokens(&self, span: Span, output: &mut Builder, tokens: impl ToTokens) {
-        let mut args = Builder::spanned(span);
-
-        args.push(Punct::joint("&"));
-        args.push(tokens);
-        args.push(Punct::new(","));
-        args.push(self.ctx);
-        args.push(Punct::new(","));
-        args.push(self.stream);
-
-        output.push(inner::ToTokensFn);
-        output.push(Group::new(p::Delimiter::Parenthesis, args));
-        output.push(Punct::new(";"));
+        output.push_spanned(
+            span,
+            (
+                ToTokensFn,
+                p(('&', tokens, ',', self.ctx, ',', self.stream)),
+                ';',
+            ),
+        );
     }
 }
 

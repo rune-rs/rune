@@ -1,4 +1,4 @@
-use crate::quote::ToTokens;
+use crate::quote::inner::ToTokens;
 use proc_macro2::{Span, TokenStream};
 
 #[derive(Debug, Clone)]
@@ -15,14 +15,6 @@ impl Builder {
         }
     }
 
-    /// Construct a new spanned builder.
-    pub(crate) fn spanned(span: Span) -> Self {
-        Self {
-            stream: TokenStream::new(),
-            span: Some(span),
-        }
-    }
-
     pub(crate) fn into_stream(self) -> TokenStream {
         self.stream
     }
@@ -32,6 +24,13 @@ impl Builder {
         T: ToTokens,
     {
         let span = self.span.unwrap_or_else(Span::call_site);
+        tokens.to_tokens(&mut self.stream, span);
+    }
+
+    pub(crate) fn push_spanned<T>(&mut self, span: Span, tokens: T)
+    where
+        T: ToTokens,
+    {
         tokens.to_tokens(&mut self.stream, span);
     }
 }
