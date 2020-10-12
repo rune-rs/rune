@@ -380,6 +380,8 @@ impl<'a> Indexer<'a> {
 
     /// Preprocess uses in statements.
     fn preprocess_stmts(&mut self, stmts: &mut Vec<ast::Stmt>) -> Result<(), CompileError> {
+        stmts.sort_by_key(|s| s.sort_key());
+
         let mut queue = stmts.drain(..).collect::<VecDeque<_>>();
 
         while let Some(stmt) = queue.pop_front() {
@@ -433,8 +435,15 @@ impl<'a> Indexer<'a> {
                         return Err(CompileError::msg(span, "unsupported statement attribute"));
                     }
                 }
-                item => {
-                    stmts.push(item);
+                ast::Stmt::Expr(expr, semi) => {
+                    stmts.push(ast::Stmt::Expr(expr, semi));
+                }
+                ast::Stmt::Local(expr) => {
+                    stmts.push(ast::Stmt::Local(expr));
+                }
+                ast::Stmt::Item(mut item, semi) => {
+                    item.index(self)?;
+                    stmts.push(ast::Stmt::Item(item, semi));
                 }
             }
         }
@@ -706,7 +715,7 @@ impl Index for ast::ExprBlock {
             ));
         }
 
-        if self.async_token.is_none() {
+        if self.async_token.is_none() && self.const_token.is_none() {
             if let Some(span) = self.move_token.option_span() {
                 return Err(CompileError::msg(
                     span,
@@ -717,19 +726,34 @@ impl Index for ast::ExprBlock {
             return self.block.index(idx);
         }
 
-        let _guard = idx.items.push_async_block();
-        let guard = idx
-            .scopes
-            .push_closure(IndexFnKind::Async, self.move_token.is_some());
+        let _guard = idx.items.push_block();
 
         let item = idx.query.insert_new_item(
             idx.source_id,
             span,
             &*idx.items.item(),
             &idx.mod_item,
-            Visibility::Inherited,
+            Visibility::default(),
         )?;
+
         self.block.id = Some(item.id);
+
+        if self.const_token.is_some() {
+            if let Some(async_token) = self.async_token {
+                return Err(CompileError::new(
+                    async_token.span(),
+                    CompileErrorKind::BlockConstAsyncConflict,
+                ));
+            }
+
+            self.block.index(idx)?;
+            idx.query.index_const(&item, &idx.source, self)?;
+            return Ok(());
+        }
+
+        let guard = idx
+            .scopes
+            .push_closure(IndexFnKind::Async, self.move_token.is_some());
 
         self.block.index(idx)?;
 
@@ -790,16 +814,6 @@ impl Index for ast::Block {
                 ast::Stmt::Local(local) => {
                     local.index(idx)?;
                 }
-                ast::Stmt::Item(item, semi) => {
-                    if let Some(semi) = semi {
-                        if !item.needs_semi_colon() {
-                            idx.warnings
-                                .uneccessary_semi_colon(idx.source_id, semi.span());
-                        }
-                    }
-
-                    item.index(idx)?;
-                }
                 ast::Stmt::Expr(expr, None) => {
                     if expr.needs_semi() {
                         must_be_last = Some(expr.span());
@@ -814,6 +828,14 @@ impl Index for ast::Block {
                     }
 
                     expr.index(idx)?;
+                }
+                ast::Stmt::Item(item, semi) => {
+                    if let Some(semi) = semi {
+                        if !item.needs_semi_colon() {
+                            idx.warnings
+                                .uneccessary_semi_colon(idx.source_id, semi.span());
+                        }
+                    }
                 }
             }
         }
@@ -1369,7 +1391,7 @@ impl Index for Box<ast::ItemConst> {
 
         self.expr.index(idx)?;
 
-        idx.query.index_const(&item, &idx.source, self.clone())?;
+        idx.query.index_const(&item, &idx.source, &self.expr)?;
         Ok(())
     }
 }

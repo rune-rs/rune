@@ -6,7 +6,7 @@ impl Assemble for ast::ExprBlock {
         let span = self.span();
         log::trace!("ExprBlock => {:?}", c.source.source(span));
 
-        if self.async_token.is_none() {
+        if self.async_token.is_none() && self.const_token.is_none() {
             return Ok(self.block.assemble(c, needs)?);
         }
 
@@ -24,45 +24,51 @@ impl Assemble for ast::ExprBlock {
             }
         };
 
-        let (captures, do_move) = match &meta.kind {
+        match &meta.kind {
             CompileMetaKind::AsyncBlock {
                 captures, do_move, ..
-            } => (&**captures, *do_move),
+            } => {
+                let captures = &**captures;
+                let do_move = *do_move;
+
+                for ident in captures {
+                    if do_move {
+                        let var = c
+                            .scopes
+                            .take_var(&ident.ident, c.source_id, c.visitor, span)?;
+
+                        var.do_move(&mut c.asm, span, format!("captures `{}`", ident.ident));
+                    } else {
+                        let var = c
+                            .scopes
+                            .get_var(&ident.ident, c.source_id, c.visitor, span)?;
+
+                        var.copy(&mut c.asm, span, format!("captures `{}`", ident.ident));
+                    }
+                }
+
+                let hash = Hash::type_hash(&meta.item);
+                c.asm.push_with_comment(
+                    Inst::Call {
+                        hash,
+                        args: captures.len(),
+                    },
+                    span,
+                    meta.to_string(),
+                );
+
+                if !needs.value() {
+                    c.asm
+                        .push_with_comment(Inst::Pop, span, "value is not needed");
+                }
+            }
+            CompileMetaKind::Const { const_value } => {
+                const_value.assemble_const(c, needs, span)?;
+            }
             _ => {
                 return Err(CompileError::expected_meta(span, meta, "async block"));
             }
         };
-
-        for ident in captures {
-            if do_move {
-                let var = c
-                    .scopes
-                    .take_var(&ident.ident, c.source_id, c.visitor, span)?;
-
-                var.do_move(&mut c.asm, span, format!("captures `{}`", ident.ident));
-            } else {
-                let var = c
-                    .scopes
-                    .get_var(&ident.ident, c.source_id, c.visitor, span)?;
-
-                var.copy(&mut c.asm, span, format!("captures `{}`", ident.ident));
-            }
-        }
-
-        let hash = Hash::type_hash(&meta.item);
-        c.asm.push_with_comment(
-            Inst::Call {
-                hash,
-                args: captures.len(),
-            },
-            span,
-            meta.to_string(),
-        );
-
-        if !needs.value() {
-            c.asm
-                .push_with_comment(Inst::Pop, span, "value is not needed");
-        }
 
         Ok(())
     }

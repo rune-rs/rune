@@ -4,7 +4,7 @@ use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::indexing::Visibility;
 use crate::ir;
-use crate::ir::{IrBudget, IrCompiler, IrInterpreter, IrQuery};
+use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter, IrQuery};
 use crate::parsing::Opaque;
 use crate::shared::{Consts, Location};
 use crate::{
@@ -299,12 +299,15 @@ impl Query {
     }
 
     /// Index a constant expression.
-    pub fn index_const(
+    pub fn index_const<T>(
         &self,
         query_item: &Rc<QueryItem>,
         source: &Arc<Source>,
-        item_const: Box<ast::ItemConst>,
-    ) -> Result<(), QueryError> {
+        expr: &T,
+    ) -> Result<(), QueryError>
+    where
+        T: IrCompile<Output = ir::Ir>,
+    {
         log::trace!("new const: {:?}", query_item.item);
 
         let mut inner = self.inner.borrow_mut();
@@ -315,7 +318,7 @@ impl Query {
             query: &mut *inner,
         };
 
-        let ir = ir_compiler.compile(&item_const.expr)?;
+        let ir = ir_compiler.compile(expr)?;
 
         inner.index(
             IndexedEntry {

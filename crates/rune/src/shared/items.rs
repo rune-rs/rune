@@ -74,18 +74,6 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub(crate) fn push_async_block(&mut self) -> Guard {
-        let mut inner = self.inner.borrow_mut();
-
-        let id = inner.id;
-        inner.item.push(Component::AsyncBlock(id));
-
-        Guard {
-            inner: self.inner.clone(),
-        }
-    }
-
-    /// Push a component and return a guard to it.
     pub(crate) fn push_name(&mut self, name: &str) -> Guard {
         let mut inner = self.inner.borrow_mut();
 

@@ -200,6 +200,8 @@ pub enum CompileErrorKind {
     ExpectedMacroSemi,
     #[error("an `fn` can't both be `async` and `const` at the same time")]
     FnConstAsyncConflict,
+    #[error("a block can't both be `async` and `const` at the same time")]
+    BlockConstAsyncConflict,
     #[error("const functions can't be generators")]
     FnConstNotGenerator,
     #[error("unsupported closure kind")]
