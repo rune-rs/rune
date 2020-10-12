@@ -367,6 +367,9 @@ impl EmitDiagnostics for Error {
                             .with_message("moved here"),
                     );
                 }
+                CompileErrorKind::CallMacroError { item, .. } => {
+                    notes.push(format!("Error originated in the `{}` macro", item).into());
+                }
                 _ => (),
             }
 
