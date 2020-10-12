@@ -1,11 +1,11 @@
 mod foo {
-    fn get_number() {
+    pub fn get_number() {
         1
     }
 }
 
 mod bar {
-    fn get_number() {
+    pub fn get_number() {
         2
     }
 }

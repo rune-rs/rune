@@ -1,11 +1,10 @@
 use crate::ast;
-use crate::indexing::Visibility;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query, Used};
 use crate::shared::Consts;
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
-use runestick::{Context, Item, Source, Span};
+use runestick::{Context, Source, Span};
 
 mod assemble;
 mod assembly;
@@ -85,12 +84,7 @@ pub fn compile_with_options(
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.sources.source_ids() {
-        let (_, mod_item) = match worker.query.insert_mod(
-            source_id,
-            Span::empty(),
-            &Item::new(),
-            Visibility::Public,
-        ) {
+        let mod_item = match worker.query.insert_root_mod(source_id, Span::empty()) {
             Ok(result) => result,
             Err(error) => {
                 errors.push(Error::new(source_id, error));
@@ -312,7 +306,7 @@ impl CompileBuildEntry<'_> {
             Build::Import(import) => {
                 // Issue the import to check access.
                 let result = self.query.get_import(
-                    &item.mod_item,
+                    &item.module,
                     location.span,
                     &import.entry.imported,
                     Used::Used,
@@ -339,7 +333,7 @@ impl CompileBuildEntry<'_> {
                 let import =
                     match self
                         .query
-                        .get_import(&item.mod_item, location.span, &item.item, used)?
+                        .get_import(&item.module, location.span, &item.item, used)?
                     {
                         Some(item) => item,
                         None => {

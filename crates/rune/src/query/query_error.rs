@@ -53,7 +53,7 @@ pub enum QueryErrorKind {
     MissingId { what: &'static str, id: Option<Id> },
     #[error("cannot define conflicting item `{item}`")]
     ItemConflict { item: Item, other: Location },
-    #[error("item `{item}` with {visibility} visibility, is not accessible from here")]
+    #[error("item `{item}` with {visibility} visibility, is not accessible from `{from}`")]
     NotVisible {
         chain: Vec<Location>,
         location: Location,
@@ -61,12 +61,13 @@ pub enum QueryErrorKind {
         item: Item,
         from: Item,
     },
-    #[error("module `{item}` with {visibility} visibility, is not accessible from here")]
+    #[error("module `{item}` with {visibility} visibility, is not accessible from `{from}`")]
     NotVisibleMod {
         chain: Vec<Location>,
         location: Location,
         visibility: Visibility,
         item: Item,
+        from: Item,
     },
     #[error("missing reverse lookup for `{item}`")]
     MissingRevItem { item: Item },

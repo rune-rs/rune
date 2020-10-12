@@ -480,9 +480,15 @@ impl<'a> Indexer<'a> {
 
         let item = self.items.item();
         let visibility = Visibility::from_ast(&item_mod.visibility)?;
-        let (id, mod_item) =
-            self.query
-                .insert_mod(self.source_id, item_mod.name_span(), &*item, visibility)?;
+
+        let (id, mod_item) = self.query.insert_mod(
+            self.source_id,
+            item_mod.name_span(),
+            &self.mod_item,
+            &*item,
+            visibility,
+        )?;
+
         item_mod.id = Some(id);
 
         let source = self.source_loader.load(root, &*item, span)?;
@@ -1235,7 +1241,7 @@ impl Index for ast::ItemEnum {
                 span,
                 &*idx.items.item(),
                 &idx.mod_item,
-                visibility,
+                Visibility::Public,
             )?;
             variant.id = Some(item.id);
 
@@ -1351,6 +1357,7 @@ impl Index for ast::ItemMod {
                 let (id, mod_item) = idx.query.insert_mod(
                     idx.source_id,
                     name_span,
+                    &idx.mod_item,
                     &*idx.items.item(),
                     visibility,
                 )?;

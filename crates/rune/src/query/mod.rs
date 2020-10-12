@@ -164,14 +164,14 @@ impl Query {
     /// Insert path information.
     pub(crate) fn insert_path(
         &self,
-        mod_item: &Rc<QueryMod>,
+        module: &Rc<QueryMod>,
         impl_item: Option<&Rc<Item>>,
         item: &Item,
     ) -> Id {
         let mut inner = self.inner.borrow_mut();
 
         let query_path = Rc::new(QueryPath {
-            mod_item: mod_item.clone(),
+            module: module.clone(),
             impl_item: impl_item.cloned(),
             item: item.clone(),
         });
@@ -195,6 +195,7 @@ impl Query {
         &self,
         source_id: SourceId,
         spanned: Span,
+        parent: &Rc<QueryMod>,
         item: &Item,
         visibility: Visibility,
     ) -> Result<(Id, Rc<QueryMod>), QueryError> {
@@ -206,15 +207,40 @@ impl Query {
             location: Location::new(source_id, spanned),
             item: item.clone(),
             visibility,
+            kind: QueryModKind::Nested {
+                parent: parent.clone(),
+            },
         });
 
         inner
             .imports
             .modules
             .insert(item.clone(), query_mod.clone());
+
         inner.insert_name(source_id, spanned, item, NameKind::Other, false)?;
-        inner.insert_new_item(source_id, spanned, item, &query_mod, visibility, false)?;
+        inner.insert_new_item(source_id, spanned, item, parent, visibility, false)?;
         Ok((id, query_mod))
+    }
+
+    /// Insert module and associated metadata.
+    pub(crate) fn insert_root_mod(
+        &self,
+        source_id: SourceId,
+        spanned: Span,
+    ) -> Result<Rc<QueryMod>, QueryError> {
+        let mut inner = self.inner.borrow_mut();
+
+        let query_mod = Rc::new(QueryMod {
+            location: Location::new(source_id, spanned),
+            item: Item::new(),
+            visibility: Visibility::Public,
+            kind: QueryModKind::Root,
+        });
+
+        inner.imports.modules.insert(Item::new(), query_mod.clone());
+
+        inner.insert_name(source_id, spanned, &Item::new(), NameKind::Other, false)?;
+        Ok(query_mod)
     }
 
     /// Get the item indexed item for the given item.
@@ -251,12 +277,12 @@ impl Query {
         source_id: SourceId,
         spanned: Span,
         item: &Item,
-        mod_item: &Rc<QueryMod>,
+        module: &Rc<QueryMod>,
         visibility: Visibility,
     ) -> Result<Rc<QueryItem>, QueryError> {
         self.inner
             .borrow_mut()
-            .insert_new_item(source_id, spanned, item, mod_item, visibility, false)
+            .insert_new_item(source_id, spanned, item, module, visibility, false)
     }
 
     /// Insert a new expanded internal macro.
@@ -325,7 +351,7 @@ impl Query {
                 query_item: query_item.clone(),
                 source: source.clone(),
                 indexed: Indexed::Const(Const {
-                    mod_item: query_item.mod_item.clone(),
+                    module: query_item.module.clone(),
                     ir,
                 }),
             },
@@ -551,7 +577,7 @@ impl Query {
         source_id: SourceId,
         spanned: Span,
         source: &Arc<Source>,
-        mod_item: &Rc<QueryMod>,
+        module: &Rc<QueryMod>,
         visibility: Visibility,
         at: Item,
         target: Item,
@@ -580,20 +606,14 @@ impl Query {
             visibility,
             name: item.clone(),
             imported: target.clone(),
-            mod_item: mod_item.clone(),
+            module: module.clone(),
         };
 
-        let query_item = inner.insert_new_item(
-            source_id,
-            spanned,
-            &item,
-            mod_item,
-            visibility,
-            may_overwrite,
-        )?;
+        let query_item =
+            inner.insert_new_item(source_id, spanned, &item, module, visibility, may_overwrite)?;
 
         // toplevel public uses are re-exported.
-        if mod_item.item.is_empty() && query_item.visibility.is_public() {
+        if module.item.is_empty() && query_item.visibility.is_public() {
             inner.queue.push_back(BuildEntry {
                 location,
                 item: query_item.clone(),
@@ -661,13 +681,13 @@ impl Query {
 
     pub(crate) fn get_import(
         &self,
-        mod_item: &Rc<QueryMod>,
+        module: &Rc<QueryMod>,
         spanned: Span,
         item: &Item,
         used: Used,
     ) -> Result<Option<Item>, QueryError> {
         let mut inner = self.inner.borrow_mut();
-        inner.get_import(mod_item, spanned, item, used)
+        inner.get_import(module, spanned, item, used)
     }
 }
 
@@ -779,7 +799,7 @@ impl QueryInner {
         source_id: SourceId,
         spanned: Span,
         item: &Item,
-        mod_item: &Rc<QueryMod>,
+        module: &Rc<QueryMod>,
         visibility: Visibility,
         may_overwrite: bool,
     ) -> Result<Rc<QueryItem>, QueryError> {
@@ -789,7 +809,7 @@ impl QueryInner {
             location: Location::new(source_id, spanned),
             id,
             item: item.clone(),
-            mod_item: mod_item.clone(),
+            module: module.clone(),
             visibility,
         });
 
@@ -852,10 +872,41 @@ impl QueryInner {
         Ok(())
     }
 
+    /// Handle an imported indexed entry.
+    fn import_indexed(
+        &mut self,
+        spanned: Span,
+        query_item: Rc<QueryItem>,
+        source: Arc<Source>,
+        indexed: Indexed,
+        used: Used,
+        imported_meta: &mut Option<CompileMeta>,
+    ) -> Result<(), QueryError> {
+        // NB: if we find another indexed entry, queue it up for
+        // building and clone its built meta to the other
+        // results.
+        let entry = IndexedEntry {
+            query_item,
+            source,
+            indexed,
+        };
+
+        let meta = self.build_indexed_entry(spanned, entry, used)?;
+
+        self.unit
+            .insert_meta(&meta)
+            .map_err(|error| QueryError::new(spanned, error))?;
+
+        self.insert_meta(spanned, meta.clone())?;
+
+        *imported_meta = Some(meta);
+        Ok(())
+    }
+
     /// Get the given import by name.
     fn get_import(
         &mut self,
-        mod_item: &Rc<QueryMod>,
+        module: &Rc<QueryMod>,
         spanned: Span,
         item: &Item,
         used: Used,
@@ -863,29 +914,29 @@ impl QueryInner {
         let mut visited = HashSet::<Item>::new();
         let mut path = Vec::new();
 
-        let mut current = item.clone();
-        let mut matched = false;
+        let mut imported = item.clone();
+        let mut is_imported = false;
         // The meta that matched, if any.
-        let mut matched_meta = None;
+        let mut imported_meta = None;
 
-        let mut from = mod_item.clone();
-        let mut chain = Vec::new();
-        let mut added = Vec::new();
+        let mut from = module.clone();
 
         loop {
             // already resolved query.
-            if let Some(meta) = self.meta.get(&current) {
-                current = match &meta.kind {
-                    CompileMetaKind::Import { imported } => imported.clone(),
-                    _ => current,
+            if let Some(meta) = self.meta.get(&imported) {
+                imported = match &meta.kind {
+                    CompileMetaKind::Import { imported } => {
+                        is_imported = true;
+                        imported.clone()
+                    }
+                    _ => imported,
                 };
 
-                matched = true;
-                matched_meta = Some(meta.clone());
+                imported_meta = Some(meta.clone());
                 break;
             }
 
-            if visited.contains(&current) {
+            if visited.contains(&imported) {
                 return Err(QueryError::new(
                     spanned,
                     QueryErrorKind::ImportCycle { path },
@@ -893,40 +944,18 @@ impl QueryInner {
             }
 
             // resolve query.
-            let entry = match self.indexed.remove(&current) {
+            let import_entry = match self.indexed.remove(&imported) {
                 Some(entry) => match entry.indexed {
-                    Indexed::Import(entry) => entry.entry,
+                    Indexed::Import(import) => import.entry,
                     indexed => {
-                        // NB: if we find another indexed entry, queue it up for
-                        // building and clone its built meta to the other
-                        // results.
-
-                        let entry = IndexedEntry {
-                            query_item: entry.query_item,
-                            source: entry.source,
+                        self.import_indexed(
+                            spanned,
+                            entry.query_item,
+                            entry.source,
                             indexed,
-                        };
-
-                        let item = match self.imports.items_rev.get(&current) {
-                            Some(item) => item.clone(),
-                            None => {
-                                return Err(QueryError::new(
-                                    spanned,
-                                    QueryErrorKind::MissingRevItem { item: current },
-                                ))
-                            }
-                        };
-
-                        let meta = self.build_indexed_entry(spanned, &item, entry, used)?;
-
-                        self.unit
-                            .insert_meta(&meta)
-                            .map_err(|error| QueryError::new(spanned, error))?;
-
-                        self.insert_meta(spanned, meta.clone())?;
-
-                        matched = true;
-                        matched_meta = Some(meta);
+                            used,
+                            &mut imported_meta,
+                        )?;
                         break;
                     }
                 },
@@ -938,25 +967,25 @@ impl QueryInner {
             self.imports.check_access_to(
                 spanned,
                 &*from,
-                &mut chain,
-                &entry.mod_item,
-                entry.location,
-                entry.visibility,
-                &entry.name,
+                &mut path,
+                &import_entry.module,
+                import_entry.location,
+                import_entry.visibility,
+                &import_entry.name,
             )?;
 
-            added.push(current.clone());
-            let inserted = visited.insert(current.clone());
+            debug_assert_eq!(imported, import_entry.name);
+            let inserted = visited.insert(import_entry.name.clone());
             debug_assert!(inserted, "visited is checked just prior to this");
-            chain.push(entry.location);
+
             path.push(ImportEntryStep {
-                location: entry.location,
-                visibility: entry.visibility,
-                item: entry.name.clone(),
+                location: import_entry.location,
+                visibility: import_entry.visibility,
+                item: import_entry.name.clone(),
             });
 
-            from = entry.mod_item.clone();
-            matched = true;
+            from = import_entry.module.clone();
+            is_imported = true;
 
             // NB: this happens when you have a superflous import, like:
             // ```
@@ -964,53 +993,37 @@ impl QueryInner {
             //
             // std::option::Option::None
             // ```
-            if entry.imported == current {
+            if import_entry.imported == imported {
                 break;
             }
 
-            current = entry.imported.clone();
+            imported = import_entry.imported.clone();
         }
 
-        if let Some(item) = self.imports.items_rev.get(&current) {
-            self.imports.check_access_to(
-                spanned,
-                &*from,
-                &mut chain,
-                &item.mod_item,
-                item.location,
-                item.visibility,
-                &item.item,
-            )?;
-        }
+        let (kind, source) = match imported_meta {
+            Some(m) => (m.kind, m.source),
+            None => {
+                let kind = CompileMetaKind::Import {
+                    imported: imported.clone(),
+                };
 
-        if matched {
-            if let Some(meta) = matched_meta {
-                for item in added {
-                    self.insert_meta(
-                        spanned,
-                        CompileMeta {
-                            item,
-                            kind: meta.kind.clone(),
-                            source: meta.source.clone(),
-                        },
-                    )?
-                }
-            } else {
-                for item in added {
-                    self.insert_meta(
-                        spanned,
-                        CompileMeta {
-                            item,
-                            kind: CompileMetaKind::Import {
-                                imported: current.clone(),
-                            },
-                            source: None,
-                        },
-                    )?;
-                }
+                (kind, None)
             }
+        };
 
-            return Ok(Some(current));
+        for p in path {
+            self.insert_meta(
+                spanned,
+                CompileMeta {
+                    item: p.item,
+                    kind: kind.clone(),
+                    source: source.clone(),
+                },
+            )?
+        }
+
+        if is_imported {
+            return Ok(Some(imported));
         }
 
         Ok(None)
@@ -1049,7 +1062,7 @@ impl QueryInner {
             None => return Ok(None),
         };
 
-        let meta = self.build_indexed_entry(spanned, item, entry, used)?;
+        let meta = self.build_indexed_entry(spanned, entry, used)?;
 
         self.unit
             .insert_meta(&meta)
@@ -1080,39 +1093,39 @@ impl QueryInner {
     }
 
     /// Walk the names to find the first one that is contained in the unit.
-    fn walk_names(
+    fn lookup_initial_path(
         &mut self,
         spanned: Span,
-        mod_item: &Rc<QueryMod>,
+        module: &Rc<QueryMod>,
         base: &Item,
         local: &str,
         used: Used,
-    ) -> Result<Option<Item>, CompileError> {
-        debug_assert!(base.starts_with(&mod_item.item));
+    ) -> Result<Item, CompileError> {
+        debug_assert!(base.starts_with(&module.item));
 
         let mut base = base.clone();
 
-        loop {
+        while base.starts_with(&module.item) {
             let item = base.extended(local);
 
             if let Some((NameKind::Other, ..)) = self.imports.names.get(&item) {
-                return Ok(Some(item));
+                return Ok(item);
             }
 
-            if let Some(item) = self.get_import(mod_item, spanned, &item, used)? {
-                return Ok(Some(item));
+            if let Some(item) = self.get_import(module, spanned, &item, used)? {
+                return Ok(item);
             }
 
-            if mod_item.item == base || base.pop().is_none() {
+            if base.pop().is_none() {
                 break;
             }
         }
 
         if let Some(item) = self.imports.prelude.get(local) {
-            return Ok(Some(item.clone()));
+            return Ok(item.clone());
         }
 
-        Ok(None)
+        Ok(module.item.extended(local))
     }
 
     /// Perform a path lookup on the current state of the unit.
@@ -1143,17 +1156,13 @@ impl QueryInner {
             ast::PathSegment::Ident(ident) => {
                 let ident = ident.resolve(storage, source)?;
 
-                let item = if let Some(entry) = self.walk_names(
+                let item = self.lookup_initial_path(
                     path.span(),
-                    &qp.mod_item,
+                    &qp.module,
                     &qp.item,
                     ident.as_ref(),
                     Used::Used,
-                )? {
-                    entry
-                } else {
-                    Item::of(&[ident.as_ref()])
-                };
+                )?;
 
                 if path.rest.is_empty() {
                     local = Some(<Box<str>>::from(ident));
@@ -1162,7 +1171,7 @@ impl QueryInner {
                 item
             }
             ast::PathSegment::Super(super_value) => {
-                let mut item = qp.mod_item.item.clone();
+                let mut item = qp.module.item.clone();
 
                 item.pop()
                     .ok_or_else(CompileError::unsupported_super(super_value))?;
@@ -1177,9 +1186,12 @@ impl QueryInner {
                 in_self_type = true;
                 impl_item.clone()
             }
-            ast::PathSegment::SelfValue(..) => qp.mod_item.item.clone(),
+            ast::PathSegment::SelfValue(..) => qp.module.item.clone(),
             ast::PathSegment::Crate(..) => Item::new(),
         };
+
+        // Indicate if access has already been checked or not.
+        let mut access_checked = false;
 
         for (_, segment) in &path.rest {
             log::trace!("item = {}", item);
@@ -1190,8 +1202,9 @@ impl QueryInner {
                     item.push(ident.as_ref());
 
                     if let Some(new) =
-                        self.get_import(&qp.mod_item, path.span(), &item, Used::Used)?
+                        self.get_import(&qp.module, path.span(), &item, Used::Used)?
                     {
+                        access_checked = true;
                         item = new;
                     }
                 }
@@ -1215,6 +1228,21 @@ impl QueryInner {
             }
         }
 
+        // If immediately accessed, perform access check here.
+        if !access_checked {
+            if let Some(item) = self.imports.items_rev.get(&item) {
+                self.imports.check_access_to(
+                    path.span(),
+                    &qp.module,
+                    &mut Vec::new(),
+                    &item.module,
+                    item.location,
+                    item.visibility,
+                    &item.item,
+                )?;
+            }
+        }
+
         Ok(Named { local, item })
     }
 
@@ -1222,7 +1250,6 @@ impl QueryInner {
     fn build_indexed_entry(
         &mut self,
         spanned: Span,
-        item: &Rc<QueryItem>,
         entry: IndexedEntry,
         used: Used,
     ) -> Result<CompileMeta, QueryError> {
@@ -1236,7 +1263,7 @@ impl QueryInner {
 
         let kind = match indexed {
             Indexed::Enum => CompileMetaKind::Enum {
-                type_of: Type::from(Hash::type_hash(&item.item)),
+                type_of: Type::from(Hash::type_hash(&query_item.item)),
             },
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for(query_item.location.span, Some(variant.enum_id))?;
@@ -1245,7 +1272,7 @@ impl QueryInner {
                 self.query_meta_with(spanned, &enum_item, Default::default())?;
 
                 variant_into_item_decl(
-                    &item.item,
+                    &query_item.item,
                     variant.ast.body,
                     Some(&enum_item.item),
                     &self.storage,
@@ -1253,19 +1280,19 @@ impl QueryInner {
                 )?
             }
             Indexed::Struct(st) => {
-                struct_into_item_decl(&item.item, st.ast.body, None, &self.storage, &*source)?
+                struct_into_item_decl(&query_item.item, st.ast.body, None, &self.storage, &*source)?
             }
             Indexed::Function(f) => {
                 self.queue.push_back(BuildEntry {
                     location: query_item.location,
-                    item: item.clone(),
+                    item: query_item.clone(),
                     build: Build::Function(f),
                     source,
                     used,
                 });
 
                 CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&item.item)),
+                    type_of: Type::from(Hash::type_hash(&query_item.item)),
                 }
             }
             Indexed::Closure(c) => {
@@ -1274,14 +1301,14 @@ impl QueryInner {
 
                 self.queue.push_back(BuildEntry {
                     location: query_item.location,
-                    item: item.clone(),
+                    item: query_item.clone(),
                     build: Build::Closure(c),
                     source,
                     used,
                 });
 
                 CompileMetaKind::Closure {
-                    type_of: Type::from(Hash::type_hash(&item.item)),
+                    type_of: Type::from(Hash::type_hash(&query_item.item)),
                     captures,
                     do_move,
                 }
@@ -1292,14 +1319,14 @@ impl QueryInner {
 
                 self.queue.push_back(BuildEntry {
                     location: query_item.location,
-                    item: item.clone(),
+                    item: query_item.clone(),
                     build: Build::AsyncBlock(b),
                     source,
                     used,
                 });
 
                 CompileMetaKind::AsyncBlock {
-                    type_of: Type::from(Hash::type_hash(&item.item)),
+                    type_of: Type::from(Hash::type_hash(&query_item.item)),
                     captures,
                     do_move,
                 }
@@ -1308,8 +1335,8 @@ impl QueryInner {
                 let mut const_compiler = IrInterpreter {
                     budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
-                    mod_item: c.mod_item.clone(),
-                    item: item.item.clone(),
+                    module: c.module.clone(),
+                    item: query_item.item.clone(),
                     consts: self.consts.clone(),
                     query: self,
                 };
@@ -1319,7 +1346,7 @@ impl QueryInner {
                 if used.is_unused() {
                     self.queue.push_back(BuildEntry {
                         location: query_item.location,
-                        item: item.clone(),
+                        item: query_item.clone(),
                         build: Build::Unused,
                         source,
                         used,
@@ -1342,7 +1369,7 @@ impl QueryInner {
                 if used.is_unused() {
                     self.queue.push_back(BuildEntry {
                         location: query_item.location,
-                        item: item.clone(),
+                        item: query_item.clone(),
                         build: Build::Unused,
                         source,
                         used,
@@ -1357,7 +1384,7 @@ impl QueryInner {
                 if !import.wildcard {
                     self.queue.push_back(BuildEntry {
                         location: query_item.location,
-                        item: item.clone(),
+                        item: query_item.clone(),
                         build: Build::Import(import),
                         source,
                         used,
@@ -1369,7 +1396,7 @@ impl QueryInner {
         };
 
         Ok(CompileMeta {
-            item: item.item.clone(),
+            item: query_item.item.clone(),
             kind,
             source: Some(CompileSource {
                 source_id: query_item.location.source_id,
@@ -1530,7 +1557,7 @@ pub(crate) struct AsyncBlock {
 #[derive(Debug, Clone)]
 pub(crate) struct Const {
     /// The module item the constant is defined in.
-    pub(crate) mod_item: Rc<QueryMod>,
+    pub(crate) module: Rc<QueryMod>,
     /// The intermediate representation of the constant expression.
     pub(crate) ir: ir::Ir,
 }
@@ -1582,7 +1609,7 @@ pub(crate) struct IndexedEntry {
 /// Query information for a path.
 #[derive(Debug)]
 pub(crate) struct QueryPath {
-    pub(crate) mod_item: Rc<QueryMod>,
+    pub(crate) module: Rc<QueryMod>,
     pub(crate) impl_item: Option<Rc<Item>>,
     pub(crate) item: Item,
 }
@@ -1593,7 +1620,7 @@ pub(crate) struct QueryItem {
     pub(crate) location: Location,
     pub(crate) id: Id,
     pub(crate) item: Item,
-    pub(crate) mod_item: Rc<QueryMod>,
+    pub(crate) module: Rc<QueryMod>,
     pub(crate) visibility: Visibility,
 }
 
@@ -1612,6 +1639,21 @@ pub(crate) struct QueryMod {
     pub(crate) location: Location,
     pub(crate) item: Item,
     pub(crate) visibility: Visibility,
+    /// The kind of the module.
+    pub(crate) kind: QueryModKind,
+}
+
+/// The module kind.
+#[derive(Debug)]
+pub(crate) enum QueryModKind {
+    Root,
+    Nested { parent: Rc<QueryMod> },
+}
+
+impl Default for QueryModKind {
+    fn default() -> Self {
+        Self::Root
+    }
 }
 
 /// The result of calling [Query::find_named].

@@ -16,7 +16,7 @@ pub struct IrInterpreter<'a> {
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
     /// The module in which the interpreter is run.
-    pub(crate) mod_item: Rc<QueryMod>,
+    pub(crate) module: Rc<QueryMod>,
     /// The item where the constant expression is located.
     pub(crate) item: Item,
     /// Constant scopes.

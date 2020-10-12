@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::indexing::Visibility;
-use crate::query::{QueryError, QueryErrorKind, QueryItem, QueryMod};
+use crate::query::{ImportEntryStep, QueryError, QueryErrorKind, QueryItem, QueryMod};
 use crate::shared::Location;
 use crate::Id;
 use runestick::{Item, Names, Span};
@@ -31,46 +31,47 @@ impl Imports {
         &self,
         spanned: Span,
         from: &QueryMod,
-        chain: &mut Vec<Location>,
-        mod_item: &QueryMod,
+        chain: &mut Vec<ImportEntryStep>,
+        module: &QueryMod,
         location: Location,
         visibility: Visibility,
         item: &Item,
     ) -> Result<(), QueryError> {
-        let (common, tree) = from.item.ancestry(&mod_item.item);
-        let mut module = common.clone();
+        let (common, tree) = from.item.ancestry(&module.item);
+        let mut current_module = common.clone();
 
         // Check each module from the common ancestrly to the module.
         for c in &tree {
-            module.push(c);
+            current_module.push(c);
 
-            let m = self.modules.get(&module).ok_or_else(|| {
+            let m = self.modules.get(&current_module).ok_or_else(|| {
                 QueryError::new(
                     spanned,
                     QueryErrorKind::MissingMod {
-                        item: module.clone(),
+                        item: current_module.clone(),
                     },
                 )
             })?;
 
-            if !m.visibility.is_visible_to(&common, &module) {
+            if !m.visibility.is_visible(&common, &current_module) {
                 return Err(QueryError::new(
                     spanned,
                     QueryErrorKind::NotVisibleMod {
-                        chain: std::mem::take(chain),
+                        chain: into_chain(std::mem::take(chain)),
                         location: m.location,
                         visibility: m.visibility,
-                        item: module,
+                        item: current_module,
+                        from: from.item.clone(),
                     },
                 ));
             }
         }
 
-        if !visibility.is_visible_to(&common, &mod_item.item) {
+        if !visibility.is_visible_inside(&common, &module.item) {
             return Err(QueryError::new(
                 spanned,
                 QueryErrorKind::NotVisible {
-                    chain: std::mem::take(chain),
+                    chain: into_chain(std::mem::take(chain)),
                     location,
                     visibility,
                     item: item.clone(),
@@ -95,7 +96,7 @@ pub struct ImportEntry {
     /// The item being imported.
     pub imported: Item,
     /// The module in which the imports is located.
-    pub(crate) mod_item: Rc<QueryMod>,
+    pub(crate) module: Rc<QueryMod>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -103,4 +104,8 @@ pub(crate) enum NameKind {
     Wildcard,
     Use,
     Other,
+}
+
+fn into_chain(chain: Vec<ImportEntryStep>) -> Vec<Location> {
+    chain.into_iter().map(|c| c.location).collect()
 }

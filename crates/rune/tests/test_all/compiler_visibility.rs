@@ -105,3 +105,31 @@ fn test_rust_example() {
         }
     };
 }
+
+#[test]
+fn test_access_super() {
+    let value = rune! { i64 =>
+        struct Test;
+
+        mod c {
+            pub fn test() { let _ = super::Test; 1 }
+        }
+
+        pub fn main() {
+            c::test()
+        }
+    };
+
+    assert_eq!(value, 1);
+
+    let value = rune! { i64 =>
+        mod a { pub(super) fn test() { 1 } }
+        mod b { pub fn test() { crate::a::test() } }
+
+        pub fn main() {
+            b::test()
+        }
+    };
+
+    assert_eq!(value, 1);
+}
