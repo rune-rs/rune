@@ -101,7 +101,7 @@ impl IrCompile for ast::Expr {
             ast::Expr::Loop(expr_loop) => ir::Ir::new(self.span(), expr_loop.compile(c)?),
             ast::Expr::While(expr_while) => ir::Ir::new(self.span(), expr_while.compile(c)?),
             ast::Expr::Lit(expr_lit) => expr_lit.compile(c)?,
-            ast::Expr::Block(expr_block) => ir::Ir::new(self.span(), expr_block.block.compile(c)?),
+            ast::Expr::Block(expr_block) => expr_block.compile(c)?,
             ast::Expr::Path(path) => path.compile(c)?,
             ast::Expr::FieldAccess(..) => ir::Ir::new(self.span(), c.ir_target(self)?),
             ast::Expr::Break(expr_break) => ir::Ir::new(expr_break, expr_break.compile(c)?),
@@ -402,10 +402,10 @@ impl IrCompile for ast::LitChar {
 }
 
 impl IrCompile for ast::ExprBlock {
-    type Output = ir::IrScope;
+    type Output = ir::Ir;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
-        self.block.compile(c)
+        Ok(ir::Ir::new(self.span(), self.block.compile(c)?))
     }
 }
 

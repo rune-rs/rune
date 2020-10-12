@@ -151,7 +151,7 @@ pub use self::local::Local;
 pub use self::macro_call::MacroCall;
 pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVec};
 pub use self::path::{Path, PathKind, PathSegment};
-pub use self::stmt::{ItemOrExpr, Stmt};
+pub use self::stmt::{ItemOrExpr, Stmt, StmtSortKey};
 pub use self::token::{
     BuiltIn, CopySource, Delimiter, Number, NumberBase, NumberSource, NumberText, StrSource,
     StrText, StringSource, Token,

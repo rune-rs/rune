@@ -10,7 +10,6 @@ use std::hash::Hash as _;
 const STRING: u8 = 0;
 const BLOCK: u8 = 1;
 const CLOSURE: u8 = 2;
-const ASYNC_BLOCK: u8 = 3;
 
 /// How many bits the type of a tag takes up.
 const TYPE_BITS: usize = 2;
@@ -356,7 +355,6 @@ impl<'a> Iterator for Iter<'a> {
             }
             BLOCK => ComponentRef::Block(n),
             CLOSURE => ComponentRef::Closure(n),
-            ASYNC_BLOCK => ComponentRef::AsyncBlock(n),
             b => panic!("unsupported control byte {:?}", b),
         };
 
@@ -401,7 +399,6 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
             }
             BLOCK => ComponentRef::Block(n),
             CLOSURE => ComponentRef::Closure(n),
-            ASYNC_BLOCK => ComponentRef::AsyncBlock(n),
             b => panic!("unsupported control byte {:?}", b),
         };
 
@@ -446,8 +443,6 @@ pub enum Component {
     Block(usize),
     /// A closure component.
     Closure(usize),
-    /// An async block, like `async {  }`.
-    AsyncBlock(usize),
 }
 
 impl Component {
@@ -457,7 +452,6 @@ impl Component {
             Self::String(..) => None,
             Self::Block(n) => Some(*n),
             Self::Closure(n) => Some(*n),
-            Self::AsyncBlock(n) => Some(*n),
         }
     }
 
@@ -467,7 +461,6 @@ impl Component {
             Self::String(s) => ComponentRef::String(&*s),
             Self::Block(n) => ComponentRef::Block(*n),
             Self::Closure(n) => ComponentRef::Closure(*n),
-            Self::AsyncBlock(n) => ComponentRef::AsyncBlock(*n),
         }
     }
 }
@@ -478,7 +471,6 @@ impl fmt::Display for Component {
             Self::String(s) => write!(fmt, "{}", s),
             Self::Block(n) => write!(fmt, "$block{}", n),
             Self::Closure(n) => write!(fmt, "$closure{}", n),
-            Self::AsyncBlock(n) => write!(fmt, "$async{}", n),
         }
     }
 }
@@ -495,8 +487,6 @@ pub enum ComponentRef<'a> {
     Block(usize),
     /// A closure component.
     Closure(usize),
-    /// An async block, like `async {  }`.
-    AsyncBlock(usize),
 }
 
 impl ComponentRef<'_> {
@@ -506,7 +496,6 @@ impl ComponentRef<'_> {
             Self::String(..) => None,
             Self::Block(n) => Some(n),
             Self::Closure(n) => Some(n),
-            Self::AsyncBlock(n) => Some(n),
         }
     }
 
@@ -516,7 +505,6 @@ impl ComponentRef<'_> {
             Self::String(s) => Component::String(s.into()),
             Self::Block(n) => Component::Block(n),
             Self::Closure(n) => Component::Closure(n),
-            Self::AsyncBlock(n) => Component::AsyncBlock(n),
         }
     }
 
@@ -531,9 +519,6 @@ impl ComponentRef<'_> {
             }
             ComponentRef::Closure(c) => {
                 write_tag(output, CLOSURE, c);
-            }
-            ComponentRef::AsyncBlock(c) => {
-                write_tag(output, ASYNC_BLOCK, c);
             }
         }
     }
@@ -556,10 +541,6 @@ impl ComponentRef<'_> {
                 CLOSURE.hash(hasher);
                 c.hash(hasher);
             }
-            ComponentRef::AsyncBlock(c) => {
-                ASYNC_BLOCK.hash(hasher);
-                c.hash(hasher);
-            }
         }
     }
 }
@@ -570,7 +551,6 @@ impl fmt::Display for ComponentRef<'_> {
             Self::String(s) => write!(fmt, "{}", s),
             Self::Block(n) => write!(fmt, "$block{}", n),
             Self::Closure(n) => write!(fmt, "$closure{}", n),
-            Self::AsyncBlock(n) => write!(fmt, "$async{}", n),
         }
     }
 }
@@ -726,11 +706,11 @@ mod tests {
         item.push(ComponentRef::Block(1));
         item.push(ComponentRef::Closure(2));
         item.push("middle");
-        item.push(ComponentRef::AsyncBlock(3));
+        item.push(ComponentRef::Block(3));
         item.push("end");
 
         assert_eq!(item.pop(), Some("end".into_component()));
-        assert_eq!(item.pop(), Some(Component::AsyncBlock(3)));
+        assert_eq!(item.pop(), Some(Component::Block(3)));
         assert_eq!(item.pop(), Some("middle".into_component()));
         assert_eq!(item.pop(), Some(Component::Closure(2)));
         assert_eq!(item.pop(), Some(Component::Block(1)));
@@ -748,7 +728,7 @@ mod tests {
         item.push(ComponentRef::Block(1));
         item.push(ComponentRef::Closure(2));
         item.push("middle");
-        item.push(ComponentRef::AsyncBlock(3));
+        item.push(ComponentRef::Block(3));
         item.push("end");
 
         let mut it = item.iter();
@@ -757,7 +737,7 @@ mod tests {
         assert_eq!(it.next(), Some(ComponentRef::Block(1)));
         assert_eq!(it.next(), Some(ComponentRef::Closure(2)));
         assert_eq!(it.next(), Some("middle".as_component_ref()));
-        assert_eq!(it.next(), Some(ComponentRef::AsyncBlock(3)));
+        assert_eq!(it.next(), Some(ComponentRef::Block(3)));
         assert_eq!(it.next(), Some("end".as_component_ref()));
         assert_eq!(it.next(), None);
 
@@ -772,13 +752,13 @@ mod tests {
         item.push(ComponentRef::Block(1));
         item.push(ComponentRef::Closure(2));
         item.push("middle");
-        item.push(ComponentRef::AsyncBlock(3));
+        item.push(ComponentRef::Block(3));
         item.push("end");
 
         let mut it = item.iter();
 
         assert_eq!(it.next_back_str(), Some("end"));
-        assert_eq!(it.next_back(), Some(ComponentRef::AsyncBlock(3)));
+        assert_eq!(it.next_back(), Some(ComponentRef::Block(3)));
         assert_eq!(it.next_back_str(), Some("middle"));
         assert_eq!(it.next_back(), Some(ComponentRef::Closure(2)));
         assert_eq!(it.next_back(), Some(ComponentRef::Block(1)));
@@ -794,7 +774,7 @@ mod tests {
         item.push(ComponentRef::Block(1));
         item.push(ComponentRef::Closure(2));
         item.push("middle");
-        item.push(ComponentRef::AsyncBlock(3));
+        item.push(ComponentRef::Block(3));
         item.push("end");
 
         let mut it = item.iter();
@@ -803,7 +783,7 @@ mod tests {
         assert_eq!(it.next_back_str(), Some("end"));
         assert_eq!(it.next(), Some(ComponentRef::Block(1)));
         assert_eq!(it.next(), Some(ComponentRef::Closure(2)));
-        assert_eq!(it.next_back(), Some(ComponentRef::AsyncBlock(3)));
+        assert_eq!(it.next_back(), Some(ComponentRef::Block(3)));
         assert_eq!(it.next_str(), Some("middle"));
         assert_eq!(it.next_back(), None);
         assert_eq!(it.next(), None);

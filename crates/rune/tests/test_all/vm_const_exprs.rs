@@ -231,3 +231,36 @@ fn test_const_fn_visibility() {
 
     assert_eq!(result, 3);
 }
+
+#[test]
+fn test_const_block() {
+    let result = rune! { i64 =>
+        pub fn main() {
+            let u = 2;
+            let value = const { 1 << test() };
+            return value - u;
+            const fn test() { 32 }
+        }
+    };
+
+    assert_eq!(result, (1i64 << 32) - 2);
+
+    let result = rune! { String =>
+        pub fn main() {
+            let var = "World";
+            format!(const { "Hello {}" }, var)
+        }
+    };
+
+    assert_eq!(result, "Hello World");
+
+    let result = rune! { String =>
+        pub fn main() {
+            let var = "World";
+            return format!(const { FORMAT }, var);
+            const FORMAT = "Hello {}";
+        }
+    };
+
+    assert_eq!(result, "Hello World");
+}

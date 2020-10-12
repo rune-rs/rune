@@ -20,6 +20,29 @@ pub enum Stmt {
     Expr(ast::Expr, #[rune(iter)] Option<T![;]>),
 }
 
+impl Stmt {
+    /// Get the sort key for the statement.
+    ///
+    /// This allows a collection of statements to be reordered into:
+    /// * Uses
+    /// * Items
+    /// * Macro expansions.
+    /// * The rest, expressions, local decl, etc...
+    ///
+    /// Note that the sort implementation must be stable, to make sure that
+    /// intermediate items are not affected.
+    pub fn sort_key(&self) -> StmtSortKey {
+        match self {
+            Stmt::Item(item, _) => match item {
+                ast::Item::Use(_) => StmtSortKey::Use,
+                ast::Item::MacroCall(_) => StmtSortKey::Other,
+                _ => StmtSortKey::Item,
+            },
+            _ => StmtSortKey::Other,
+        }
+    }
+}
+
 impl Peek for Stmt {
     fn peek(p: &mut Peeker<'_>) -> bool {
         matches!(p.nth(0), K![let]) || ItemOrExpr::peek(p)
@@ -119,6 +142,17 @@ impl Parse for ItemOrExpr {
 
         Ok(Self::Expr(expr))
     }
+}
+
+/// Key used to stort a statement into its processing order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum StmtSortKey {
+    /// USe statements, that should be processed first.
+    Use,
+    /// Items.
+    Item,
+    /// Other things, that should be processed last.
+    Other,
 }
 
 #[cfg(test)]

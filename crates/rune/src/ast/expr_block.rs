@@ -27,6 +27,9 @@ pub struct ExprBlock {
     /// The optional async token.
     #[rune(iter, meta)]
     pub async_token: Option<T![async]>,
+    /// The optional const token.
+    #[rune(iter, meta)]
+    pub const_token: Option<T![const]>,
     /// The optional move token.
     #[rune(iter, meta)]
     pub move_token: Option<T![move]>,

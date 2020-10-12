@@ -369,6 +369,7 @@ impl Expr {
 
         let mut label = p.parse::<Option<(ast::Label, T![:])>>()?;
         let mut async_token = p.parse::<Option<T![async]>>()?;
+        let mut const_token = p.parse::<Option<T![const]>>()?;
         let mut move_token = p.parse::<Option<T![move]>>()?;
 
         let expr = match p.nth(0)? {
@@ -427,6 +428,7 @@ impl Expr {
                 p,
                 take(attributes),
                 take(&mut async_token),
+                take(&mut const_token),
                 take(&mut move_token),
             )?)),
             K![break] => Self::Break(Box::new(ast::ExprBreak::parse_with_meta(
@@ -452,6 +454,10 @@ impl Expr {
 
         if let Some(span) = async_token.option_span() {
             return Err(ParseError::unsupported(span, "async modifier"));
+        }
+
+        if let Some(span) = const_token.option_span() {
+            return Err(ParseError::unsupported(span, "const modifier"));
         }
 
         if let Some(span) = move_token.option_span() {
