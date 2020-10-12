@@ -169,6 +169,8 @@ pub enum CompileMetaKind {
         type_of: Type,
         /// Sequence of captured variables.
         captures: Arc<[CompileMetaCapture]>,
+        /// If the closure moves its environment.
+        do_move: bool,
     },
     /// An async block.
     AsyncBlock {
@@ -176,6 +178,8 @@ pub enum CompileMetaKind {
         type_of: Type,
         /// Sequence of captured variables.
         captures: Arc<[CompileMetaCapture]>,
+        /// If the async block moves its environment.
+        do_move: bool,
     },
     /// The constant expression.
     Const {

@@ -6,7 +6,7 @@ where
     Self: Sized,
 {
     /// Parse the current item from the parser.
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError>;
+    fn parse(p: &mut Parser) -> Result<Self, ParseError>;
 }
 
 impl<A, B> Parse for (A, B)

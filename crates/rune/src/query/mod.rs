@@ -424,6 +424,7 @@ impl Query {
         ast: Box<ast::ExprClosure>,
         captures: Arc<[CompileMetaCapture]>,
         call: Call,
+        do_move: bool,
     ) -> Result<(), QueryError> {
         log::trace!("new closure: {:?}", query_item.item);
 
@@ -435,6 +436,7 @@ impl Query {
                     ast,
                     captures,
                     call,
+                    do_move,
                 }),
             },
             false,
@@ -451,6 +453,7 @@ impl Query {
         ast: ast::Block,
         captures: Arc<[CompileMetaCapture]>,
         call: Call,
+        do_move: bool,
     ) -> Result<(), QueryError> {
         log::trace!("new closure: {:?}", query_item.item);
 
@@ -462,6 +465,7 @@ impl Query {
                     ast,
                     captures,
                     call,
+                    do_move,
                 }),
             },
             false,
@@ -1263,6 +1267,7 @@ impl QueryInner {
             }
             Indexed::Closure(c) => {
                 let captures = c.captures.clone();
+                let do_move = c.do_move;
 
                 self.queue.push_back(BuildEntry {
                     location: query_item.location,
@@ -1275,10 +1280,12 @@ impl QueryInner {
                 CompileMetaKind::Closure {
                     type_of: Type::from(Hash::type_hash(&item.item)),
                     captures,
+                    do_move,
                 }
             }
             Indexed::AsyncBlock(b) => {
                 let captures = b.captures.clone();
+                let do_move = b.do_move;
 
                 self.queue.push_back(BuildEntry {
                     location: query_item.location,
@@ -1291,6 +1298,7 @@ impl QueryInner {
                 CompileMetaKind::AsyncBlock {
                     type_of: Type::from(Hash::type_hash(&item.item)),
                     captures,
+                    do_move,
                 }
             }
             Indexed::Const(c) => {
@@ -1500,6 +1508,8 @@ pub(crate) struct Closure {
     pub(crate) captures: Arc<[CompileMetaCapture]>,
     /// Calling convention used for closure.
     pub(crate) call: Call,
+    /// If the closure moves its captures.
+    pub(crate) do_move: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1510,6 +1520,8 @@ pub(crate) struct AsyncBlock {
     pub(crate) captures: Arc<[CompileMetaCapture]>,
     /// Calling convention used for async block.
     pub(crate) call: Call,
+    /// If the block moves its captures.
+    pub(crate) do_move: bool,
 }
 
 #[derive(Debug, Clone)]

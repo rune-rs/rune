@@ -432,6 +432,14 @@ impl Vm {
         Ok(())
     }
 
+    /// Move a value from a position relative to the top of the stack, to the
+    /// top of the stack.
+    fn op_move(&mut self, offset: usize) -> Result<(), VmError> {
+        let value = self.stack.at_offset(offset)?.clone();
+        self.stack.push(value.take()?);
+        Ok(())
+    }
+
     #[inline]
     fn op_drop(&mut self, offset: usize) -> Result<(), VmError> {
         let _ = self.stack.at_offset(offset)?;
@@ -2302,6 +2310,9 @@ impl Vm {
                 }
                 Inst::Copy { offset } => {
                     self.op_copy(offset)?;
+                }
+                Inst::Move { offset } => {
+                    self.op_move(offset)?;
                 }
                 Inst::Drop { offset } => {
                     self.op_drop(offset)?;

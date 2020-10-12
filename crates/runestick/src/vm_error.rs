@@ -144,7 +144,7 @@ pub enum VmErrorKind {
         /// The instruction pointer of where the original error happened.
         ip: usize,
     },
-    #[error("failed to access value: {error}")]
+    #[error("{error}")]
     AccessError {
         #[from]
         error: AccessError,

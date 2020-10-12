@@ -9,6 +9,7 @@ mod compiler_use;
 mod compiler_visibility;
 mod compiler_warnings;
 mod core_macros;
+mod moved;
 mod vm_arithmetic;
 mod vm_assign_exprs;
 mod vm_async_block;

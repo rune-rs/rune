@@ -22,11 +22,11 @@ impl Assemble for ast::ExprAssign {
             }
             // <expr>.<field> = <value>
             ast::Expr::FieldAccess(field_access) => {
+                let span = field_access.span();
+
                 // field assignment
                 match &field_access.expr_field {
                     ast::ExprField::Ident(index) => {
-                        let span = index.span();
-
                         let slot = index.resolve(c.storage, &*c.source)?;
                         let slot = c.unit.new_static_string(index, slot.as_ref())?;
 
@@ -44,7 +44,6 @@ impl Assemble for ast::ExprAssign {
                         true
                     }
                     ast::ExprField::LitNumber(field) => {
-                        let span = field.span();
                         let number = field.resolve(c.storage, &*c.source)?;
                         let index = number.as_tuple_index().ok_or_else(|| {
                             CompileError::new(
