@@ -24,18 +24,29 @@ impl Assemble for ast::ExprBlock {
             }
         };
 
-        let captures = match &meta.kind {
-            CompileMetaKind::AsyncBlock { captures, .. } => captures,
+        let (captures, do_move) = match &meta.kind {
+            CompileMetaKind::AsyncBlock {
+                captures, do_move, ..
+            } => (&**captures, *do_move),
             _ => {
                 return Err(CompileError::expected_meta(span, meta, "async block"));
             }
         };
 
-        for ident in &**captures {
-            let var = c
-                .scopes
-                .get_var(&ident.ident, c.source_id, c.visitor, span)?;
-            var.copy(&mut c.asm, span, format!("captures `{}`", ident.ident));
+        for ident in captures {
+            if do_move {
+                let var = c
+                    .scopes
+                    .take_var(&ident.ident, c.source_id, c.visitor, span)?;
+
+                var.do_move(&mut c.asm, span, format!("captures `{}`", ident.ident));
+            } else {
+                let var = c
+                    .scopes
+                    .get_var(&ident.ident, c.source_id, c.visitor, span)?;
+
+                var.copy(&mut c.asm, span, format!("captures `{}`", ident.ident));
+            }
         }
 
         let hash = Hash::type_hash(&meta.item);

@@ -11,6 +11,8 @@ pub struct Var {
     pub(crate) offset: usize,
     /// Token assocaited with the variable.
     span: Span,
+    /// Variable has been taken at the given position.
+    moved_at: Option<Span>,
 }
 
 impl Var {
@@ -26,6 +28,20 @@ impl Var {
     {
         asm.push_with_comment(
             Inst::Copy {
+                offset: self.offset,
+            },
+            span,
+            comment,
+        );
+    }
+
+    /// Move the declared variable.
+    pub(crate) fn do_move<C>(&self, asm: &mut Assembly, span: Span, comment: C)
+    where
+        C: AsRef<str>,
+    {
+        asm.push_with_comment(
+            Inst::Move {
                 offset: self.offset,
             },
             span,
@@ -80,7 +96,11 @@ impl Scope {
     fn new_var(&mut self, name: &str, span: Span) -> CompileResult<usize> {
         let offset = self.total_var_count;
 
-        let local = Var { offset, span };
+        let local = Var {
+            offset,
+            span,
+            moved_at: None,
+        };
 
         self.total_var_count += 1;
         self.local_var_count += 1;
@@ -104,7 +124,14 @@ impl Scope {
 
         log::trace!("decl {} => {}", name, offset);
 
-        self.locals.insert(name.to_owned(), Var { offset, span });
+        self.locals.insert(
+            name.to_owned(),
+            Var {
+                offset,
+                span,
+                moved_at: None,
+            },
+        );
 
         self.total_var_count += 1;
         self.local_var_count += 1;
@@ -144,12 +171,36 @@ impl Scope {
     }
 
     /// Access the variable with the given name.
-    fn get(&self, name: &str) -> Option<&Var> {
+    fn get(&self, name: &str, span: Span) -> CompileResult<Option<&Var>> {
         if let Some(var) = self.locals.get(name) {
-            return Some(var);
+            if let Some(moved_at) = var.moved_at {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::VariableMoved { moved_at },
+                ));
+            }
+
+            return Ok(Some(var));
         }
 
-        None
+        Ok(None)
+    }
+
+    /// Access the variable with the given name.
+    fn take(&mut self, name: &str, span: Span) -> CompileResult<Option<&Var>> {
+        if let Some(var) = self.locals.get_mut(name) {
+            if let Some(moved_at) = var.moved_at {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::VariableMoved { moved_at },
+                ));
+            }
+
+            var.moved_at = Some(span);
+            return Ok(Some(var));
+        }
+
+        Ok(None)
     }
 }
 
@@ -180,18 +231,40 @@ impl Scopes {
         source_id: SourceId,
         visitor: &mut dyn CompileVisitor,
         span: Span,
-    ) -> Option<&Var> {
+    ) -> CompileResult<Option<&Var>> {
         log::trace!("get var: {}", name);
 
         for scope in self.scopes.iter().rev() {
-            if let Some(var) = scope.get(name) {
+            if let Some(var) = scope.get(name, span)? {
                 log::trace!("found var: {} => {:?}", name, var);
                 visitor.visit_variable_use(source_id, var, span);
-                return Some(var);
+                return Ok(Some(var));
             }
         }
 
-        None
+        Ok(None)
+    }
+
+    /// Try to take the local with the given name. Returns `None` if it's
+    /// missing.
+    pub(crate) fn try_take_var(
+        &mut self,
+        name: &str,
+        source_id: SourceId,
+        visitor: &mut dyn CompileVisitor,
+        span: Span,
+    ) -> CompileResult<Option<&Var>> {
+        log::trace!("get var: {}", name);
+
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(var) = scope.take(name, span)? {
+                log::trace!("found var: {} => {:?}", name, var);
+                visitor.visit_variable_use(source_id, var, span);
+                return Ok(Some(var));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Get the local with the given name.
@@ -202,7 +275,26 @@ impl Scopes {
         visitor: &mut dyn CompileVisitor,
         span: Span,
     ) -> CompileResult<&Var> {
-        match self.try_get_var(name, source_id, visitor, span) {
+        match self.try_get_var(name, source_id, visitor, span)? {
+            Some(var) => Ok(var),
+            None => Err(CompileError::new(
+                span,
+                CompileErrorKind::MissingLocal {
+                    name: name.to_owned(),
+                },
+            )),
+        }
+    }
+
+    /// Take the local with the given name.
+    pub(crate) fn take_var(
+        &mut self,
+        name: &str,
+        source_id: SourceId,
+        visitor: &mut dyn CompileVisitor,
+        span: Span,
+    ) -> CompileResult<&Var> {
+        match self.try_take_var(name, source_id, visitor, span)? {
             Some(var) => Ok(var),
             None => Err(CompileError::new(
                 span,

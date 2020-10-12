@@ -125,7 +125,7 @@ impl Expander {
             return Some(span_impl);
         }
 
-        let it = named
+        let values = named
             .named
             .iter()
             .map(|f| {
@@ -134,38 +134,39 @@ impl Expander {
             })
             .collect::<Vec<_>>();
 
-        let it = it.into_iter();
-        self.build_spanned(named, it)
+        self.build_spanned(named, values)
     }
 
     fn build_spanned<'a>(
         &mut self,
         tokens: &(impl quote::ToTokens + syn::spanned::Spanned),
-        mut it: impl DoubleEndedIterator<Item = (Option<TokenStream>, &'a syn::Field)>,
+        values: Vec<(Option<TokenStream>, &'a syn::Field)>,
     ) -> Option<TokenStream> {
-        let (begin_term, begin) = self.ctx.build_spanned_iter(false, &mut it)?;
+        let (optional, begin) = self
+            .ctx
+            .build_spanned_iter(false, values.clone().into_iter())?;
 
-        let begin = match (begin_term, begin) {
+        let begin = match (optional, begin) {
             (false, Some(begin)) => begin,
             _ => {
                 self.ctx.errors.push(syn::Error::new_spanned(
                     tokens,
-                    "ran out of fields to calculate span",
+                    "ran out of fields to calculate exact span",
                 ));
                 return None;
             }
         };
 
-        let mut it = it.rev();
-        let (end_term, end) = self.ctx.build_spanned_iter(true, &mut it)?;
+        let (end_optional, end) = self
+            .ctx
+            .build_spanned_iter(true, values.into_iter().rev())?;
 
-        Some(if end_term {
+        Some(if end_optional {
             if let Some(end) = end {
                 quote_spanned! { tokens.span() => {
                     let begin = #begin;
-                    let end = #end;
 
-                    match end {
+                    match #end {
                         Some(end) => begin.join(end),
                         None => begin,
                     }
@@ -209,7 +210,7 @@ impl Expander {
         variant: &syn::Variant,
         unnamed: &syn::FieldsUnnamed,
     ) -> Option<TokenStream> {
-        let it = unnamed
+        let values = unnamed
             .unnamed
             .iter()
             .enumerate()
@@ -219,8 +220,7 @@ impl Expander {
             })
             .collect::<Vec<_>>();
 
-        let it = it.into_iter();
-        let body = self.build_spanned(unnamed, it);
+        let body = self.build_spanned(unnamed, values);
 
         let ident = &variant.ident;
         let vars =

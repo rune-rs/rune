@@ -79,8 +79,10 @@ impl Assemble for ast::ExprClosure {
                 )
             })?;
 
-        let captures = match &meta.kind {
-            CompileMetaKind::Closure { captures, .. } => captures,
+        let (captures, do_move) = match &meta.kind {
+            CompileMetaKind::Closure {
+                captures, do_move, ..
+            } => (&**captures, *do_move),
             _ => {
                 return Err(CompileError::expected_meta(span, meta, "a closure"));
             }
@@ -98,11 +100,20 @@ impl Assemble for ast::ExprClosure {
             );
         } else {
             // Construct a closure environment.
-            for capture in &**captures {
-                let var = c
-                    .scopes
-                    .get_var(&capture.ident, c.source_id, c.visitor, span)?;
-                var.copy(&mut c.asm, span, format!("capture `{}`", capture.ident));
+            for capture in captures {
+                if do_move {
+                    let var = c
+                        .scopes
+                        .take_var(&capture.ident, c.source_id, c.visitor, span)?;
+
+                    var.do_move(&mut c.asm, span, format!("capture `{}`", capture.ident));
+                } else {
+                    let var = c
+                        .scopes
+                        .get_var(&capture.ident, c.source_id, c.visitor, span)?;
+
+                    var.copy(&mut c.asm, span, format!("capture `{}`", capture.ident));
+                }
             }
 
             c.asm.push_with_comment(

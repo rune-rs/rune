@@ -32,9 +32,10 @@ impl IndexScopeGuard {
 
         match level {
             IndexScopeLevel::IndexClosure(closure) => Ok(Closure {
+                kind: closure.kind,
+                do_move: closure.do_move,
                 captures: closure.captures,
                 generator: closure.generator,
-                kind: closure.kind,
                 has_await: closure.has_await,
             }),
             _ => Err(CompileError::msg(&span, "expected closure")),
@@ -86,6 +87,8 @@ impl IndexScope {
 #[derive(Debug, Clone)]
 pub(crate) struct IndexClosure {
     kind: IndexFnKind,
+    /// Perform a move.
+    do_move: bool,
     /// Variables which could not be found in the immediate scope, and
     /// marked as needed to be captured from the outer scope.
     captures: Vec<CompileMetaCapture>,
@@ -97,9 +100,10 @@ pub(crate) struct IndexClosure {
 
 impl IndexClosure {
     /// Construct a new closure.
-    pub(crate) fn new(kind: IndexFnKind) -> Self {
+    pub(crate) fn new(kind: IndexFnKind, do_move: bool) -> Self {
         Self {
             kind,
+            do_move,
             captures: Vec::new(),
             existing: HashSet::new(),
             scope: IndexScope::new(),
@@ -117,9 +121,10 @@ pub(crate) struct Function {
 }
 
 pub(crate) struct Closure {
+    pub(crate) kind: IndexFnKind,
+    pub(crate) do_move: bool,
     pub(crate) captures: Vec<CompileMetaCapture>,
     pub(crate) generator: bool,
-    pub(crate) kind: IndexFnKind,
     #[allow(dead_code)]
     pub(crate) has_await: bool,
 }
@@ -315,10 +320,12 @@ impl IndexScopes {
     }
 
     /// Push a closure boundary.
-    pub(crate) fn push_closure(&mut self, kind: IndexFnKind) -> IndexScopeGuard {
+    pub(crate) fn push_closure(&mut self, kind: IndexFnKind, do_move: bool) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
-            .push(IndexScopeLevel::IndexClosure(IndexClosure::new(kind)));
+            .push(IndexScopeLevel::IndexClosure(IndexClosure::new(
+                kind, do_move,
+            )));
 
         IndexScopeGuard {
             levels: self.levels.clone(),

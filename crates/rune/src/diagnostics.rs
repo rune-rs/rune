@@ -361,6 +361,12 @@ impl EmitDiagnostics for Error {
                         notes.push(note);
                     }
                 }
+                CompileErrorKind::VariableMoved { moved_at, .. } => {
+                    labels.push(
+                        Label::secondary(this.source_id(), moved_at.range())
+                            .with_message("moved here"),
+                    );
+                }
                 _ => (),
             }
 

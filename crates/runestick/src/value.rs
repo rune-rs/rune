@@ -387,6 +387,40 @@ impl Value {
         }))
     }
 
+    /// Take the interior value.
+    pub fn take(self) -> Result<Self, VmError> {
+        Ok(match self {
+            Self::Unit => Self::Unit,
+            Self::Bool(value) => Self::Bool(value),
+            Self::Byte(value) => Self::Byte(value),
+            Self::Char(value) => Self::Char(value),
+            Self::Integer(value) => Self::Integer(value),
+            Self::Float(value) => Self::Float(value),
+            Self::Type(value) => Self::Type(value),
+            Self::StaticString(value) => Self::StaticString(value),
+            Self::String(value) => Self::String(Shared::new(value.take()?)),
+            Self::Bytes(value) => Self::Bytes(Shared::new(value.take()?)),
+            Self::Vec(value) => Self::Vec(Shared::new(value.take()?)),
+            Self::Tuple(value) => Self::Tuple(Shared::new(value.take()?)),
+            Self::Object(value) => Self::Object(Shared::new(value.take()?)),
+            Self::Future(value) => Self::Future(Shared::new(value.take()?)),
+            Self::Stream(value) => Self::Stream(Shared::new(value.take()?)),
+            Self::Generator(value) => Self::Generator(Shared::new(value.take()?)),
+            Self::GeneratorState(value) => Self::GeneratorState(Shared::new(value.take()?)),
+            Self::Option(value) => Self::Option(Shared::new(value.take()?)),
+            Self::Result(value) => Self::Result(Shared::new(value.take()?)),
+            Self::UnitStruct(value) => Self::UnitStruct(Shared::new(value.take()?)),
+            Self::TupleStruct(value) => Self::TupleStruct(Shared::new(value.take()?)),
+            Self::Struct(value) => Self::Struct(Shared::new(value.take()?)),
+            Self::UnitVariant(value) => Self::UnitVariant(Shared::new(value.take()?)),
+            Self::TupleVariant(value) => Self::TupleVariant(Shared::new(value.take()?)),
+            Self::StructVariant(value) => Self::StructVariant(Shared::new(value.take()?)),
+            Self::Function(value) => Self::Function(Shared::new(value.take()?)),
+            Self::Format(value) => Self::Format(value),
+            Self::Any(value) => Self::Any(Shared::new(value.take()?)),
+        })
+    }
+
     /// Try to coerce value into a unit.
     #[inline]
     pub fn into_unit(self) -> Result<(), VmError> {

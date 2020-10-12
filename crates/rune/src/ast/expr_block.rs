@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Spanned, ToTokens};
+use crate::{Parse, Spanned, ToTokens};
 
 /// A block expression.
 ///
@@ -18,14 +18,18 @@ use crate::{Spanned, ToTokens};
 /// assert_eq!(expr.block.statements.len(), 1);
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ExprBlock {
     /// The attributes for the block.
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The optional async token.
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub async_token: Option<T![async]>,
+    /// The optional move token.
+    #[rune(iter, meta)]
+    pub move_token: Option<T![move]>,
     /// The close brace.
     pub block: ast::Block,
 }

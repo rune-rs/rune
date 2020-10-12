@@ -280,6 +280,8 @@ pub enum CompileErrorKind {
     },
     #[error("no such built-in macro `{name}`")]
     NoSuchBuiltInMacro { name: Box<str> },
+    #[error("variable moved")]
+    VariableMoved { moved_at: Span },
 }
 
 /// A single stap as an import entry.

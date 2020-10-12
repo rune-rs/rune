@@ -707,11 +707,20 @@ impl Index for ast::ExprBlock {
         }
 
         if self.async_token.is_none() {
+            if let Some(span) = self.move_token.option_span() {
+                return Err(CompileError::msg(
+                    span,
+                    "move modifier not support on blocks",
+                ));
+            }
+
             return self.block.index(idx);
         }
 
         let _guard = idx.items.push_async_block();
-        let guard = idx.scopes.push_closure(IndexFnKind::Async);
+        let guard = idx
+            .scopes
+            .push_closure(IndexFnKind::Async, self.move_token.is_some());
 
         let item = idx.query.insert_new_item(
             idx.source_id,
@@ -735,8 +744,14 @@ impl Index for ast::ExprBlock {
             }
         };
 
-        idx.query
-            .index_async_block(&item, &idx.source, self.block.clone(), captures, call)?;
+        idx.query.index_async_block(
+            &item,
+            &idx.source,
+            self.block.clone(),
+            captures,
+            call,
+            c.do_move,
+        )?;
 
         Ok(())
     }
@@ -1489,7 +1504,7 @@ impl Index for Box<ast::ExprClosure> {
             _ => IndexFnKind::None,
         };
 
-        let guard = idx.scopes.push_closure(kind);
+        let guard = idx.scopes.push_closure(kind, self.move_token.is_some());
         let span = self.span();
 
         let item = idx.query.insert_new_item(
@@ -1529,7 +1544,7 @@ impl Index for Box<ast::ExprClosure> {
         };
 
         idx.query
-            .index_closure(&item, &idx.source, self.clone(), captures, call)?;
+            .index_closure(&item, &idx.source, self.clone(), captures, call, c.do_move)?;
 
         Ok(())
     }

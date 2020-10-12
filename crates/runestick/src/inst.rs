@@ -368,6 +368,12 @@ pub enum Inst {
         /// Offset to copy value from.
         offset: usize,
     },
+    /// Move a variable from a location `offset` relative to the current call
+    /// frame.
+    Move {
+        /// Offset to move value from.
+        offset: usize,
+    },
     /// Drop the value in the given frame offset, cleaning out it's slot in
     /// memory.
     ///
@@ -940,6 +946,9 @@ impl fmt::Display for Inst {
             }
             Self::Copy { offset } => {
                 write!(fmt, "copy {}", offset)?;
+            }
+            Self::Move { offset } => {
+                write!(fmt, "move {}", offset)?;
             }
             Self::Dup => {
                 write!(fmt, "dup")?;

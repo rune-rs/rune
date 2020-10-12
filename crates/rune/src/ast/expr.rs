@@ -369,6 +369,7 @@ impl Expr {
 
         let mut label = p.parse::<Option<(ast::Label, T![:])>>()?;
         let mut async_token = p.parse::<Option<T![async]>>()?;
+        let mut move_token = p.parse::<Option<T![move]>>()?;
 
         let expr = match p.nth(0)? {
             K![#] => {
@@ -380,13 +381,12 @@ impl Expr {
                     ident,
                 )?))
             }
-            K![||] | K![|] => {
-                Self::Closure(Box::new(ast::ExprClosure::parse_with_attributes_and_async(
-                    p,
-                    take(attributes),
-                    take(&mut async_token),
-                )?))
-            }
+            K![||] | K![|] => Self::Closure(Box::new(ast::ExprClosure::parse_with_meta(
+                p,
+                take(attributes),
+                take(&mut async_token),
+                take(&mut move_token),
+            )?)),
             K![select] => Self::Select(Box::new(ast::ExprSelect::parse_with_attributes(
                 p,
                 take(attributes),
@@ -423,11 +423,12 @@ impl Expr {
                 take(attributes),
             )?)),
             K!['('] => Self::parse_open_paren(p, take(attributes))?,
-            K!['{'] => Self::Block(Box::new(ast::ExprBlock {
-                async_token: take(&mut async_token),
-                attributes: take(attributes),
-                block: p.parse()?,
-            })),
+            K!['{'] => Self::Block(Box::new(ast::ExprBlock::parse_with_meta(
+                p,
+                take(attributes),
+                take(&mut async_token),
+                take(&mut move_token),
+            )?)),
             K![break] => Self::Break(Box::new(ast::ExprBreak::parse_with_meta(
                 p,
                 take(attributes),
@@ -451,6 +452,10 @@ impl Expr {
 
         if let Some(span) = async_token.option_span() {
             return Err(ParseError::unsupported(span, "async modifier"));
+        }
+
+        if let Some(span) = move_token.option_span() {
+            return Err(ParseError::unsupported(span, "move modifier"));
         }
 
         Ok(expr)

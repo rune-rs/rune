@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::parsing::Opaque;
-use crate::{Id, ParseError, Parser, Spanned, ToTokens};
+use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
 use runestick::Span;
 
 /// A closure expression.
@@ -13,6 +13,8 @@ use runestick::Span;
 /// testing::roundtrip::<ast::ExprClosure>("async || 42");
 /// testing::roundtrip::<ast::ExprClosure>("|| 42");
 /// testing::roundtrip::<ast::ExprClosure>("|| { 42 }");
+/// testing::roundtrip::<ast::ExprClosure>("move || { 42 }");
+/// testing::roundtrip::<ast::ExprClosure>("async move || { 42 }");
 ///
 /// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)]  || 43");
 /// assert_eq!(expr.attributes.len(), 1);
@@ -20,17 +22,21 @@ use runestick::Span;
 /// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)] async || 43");
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ExprClosure {
     /// Opaque identifier for the closure.
     #[rune(id)]
     pub id: Option<Id>,
     /// The attributes for the async closure
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// If the closure is async or not.
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub async_token: Option<T![async]>,
+    /// If the closure moves data into it.
+    #[rune(iter, meta)]
+    pub move_token: Option<T![move]>,
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
     /// The body of the closure.
@@ -45,44 +51,6 @@ impl ExprClosure {
         } else {
             self.args.span()
         }
-    }
-
-    /// Parse the closure attaching the given attributes
-    pub fn parse_with_attributes_and_async(
-        p: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-        async_token: Option<T![async]>,
-    ) -> Result<Self, ParseError> {
-        let args = if let Some(token) = p.parse::<Option<T![||]>>()? {
-            ExprClosureArgs::Empty { token }
-        } else {
-            let open = p.parse()?;
-            let mut args = Vec::new();
-
-            while !p.peek::<T![|]>()? {
-                let arg = p.parse()?;
-
-                let comma = p.parse::<Option<T![,]>>()?;
-                let is_end = comma.is_none();
-                args.push((arg, comma));
-
-                if is_end {
-                    break;
-                }
-            }
-
-            let close = p.parse()?;
-
-            ExprClosureArgs::List { open, args, close }
-        };
-
-        Ok(Self {
-            id: Default::default(),
-            attributes,
-            async_token,
-            args,
-            body: p.parse()?,
-        })
     }
 }
 
@@ -125,6 +93,35 @@ impl ExprClosureArgs {
             Self::Empty { .. } => &[],
             Self::List { args, .. } => &args[..],
         }
+    }
+}
+
+impl Parse for ExprClosureArgs {
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        if let Some(token) = p.parse::<Option<T![||]>>()? {
+            return Ok(ExprClosureArgs::Empty { token });
+        }
+
+        let open = p.parse()?;
+        let mut args = Vec::new();
+
+        while !p.peek::<T![|]>()? {
+            let arg = p.parse()?;
+
+            let comma = p.parse::<Option<T![,]>>()?;
+            let is_end = comma.is_none();
+            args.push((arg, comma));
+
+            if is_end {
+                break;
+            }
+        }
+
+        Ok(ExprClosureArgs::List {
+            open,
+            args,
+            close: p.parse()?,
+        })
     }
 }
 
