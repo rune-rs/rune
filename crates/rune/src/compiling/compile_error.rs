@@ -120,8 +120,8 @@ pub enum CompileErrorKind {
     VariableConflict { name: String, existing_span: Span },
     #[error("missing macro `{item}`")]
     MissingMacro { item: Item },
-    #[error("error while calling macro: {error}")]
-    CallMacroError { error: runestick::Error },
+    #[error("{error}")]
+    CallMacroError { item: Item, error: runestick::Error },
     #[error("no local variable `{name}`")]
     MissingLocal { name: String },
     #[error("no such type `{item}`")]
