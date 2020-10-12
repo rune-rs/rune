@@ -17,11 +17,6 @@ impl Assemble for ast::Path {
             return Ok(());
         }
 
-        // NB: do nothing if we don't need a value.
-        if !needs.value() {
-            c.warnings.not_used(c.source_id, span, c.context());
-        }
-
         let named = c.convert_path_to_named(self)?;
 
         if let Needs::Value = needs {

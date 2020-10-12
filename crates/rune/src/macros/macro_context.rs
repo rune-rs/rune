@@ -154,7 +154,7 @@ impl MacroContext {
         let mut ir_interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            mod_item: self.item.mod_item.clone(),
+            module: self.item.module.clone(),
             item: self.item.item.clone(),
             consts: self.consts.clone(),
             query: &mut *ir_query,

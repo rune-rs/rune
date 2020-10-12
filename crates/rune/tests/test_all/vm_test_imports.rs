@@ -1,3 +1,5 @@
+use rune::testing::*;
+
 #[test]
 fn test_grouped_imports() {
     assert_eq! {
@@ -26,7 +28,7 @@ fn test_grouped_imports() {
 fn test_reexport() {
     assert_eq! {
         rune! { i64 =>
-            mod inner { fn func() { 42 } }
+            mod inner { pub fn func() { 42 } }
             pub use self::inner::func as main;
         },
         42,
@@ -34,7 +36,7 @@ fn test_reexport() {
 
     assert_eq! {
         rune! { i64 =>
-            mod inner { fn func() { 42 } }
+            mod inner { pub fn func() { 42 } }
             pub use crate::inner::func as main;
         },
         42,
@@ -42,10 +44,36 @@ fn test_reexport() {
 
     assert_eq! {
         rune! { i64 =>
-            mod inner2 { fn func() { 42 } }
+            mod inner2 { pub fn func() { 42 } }
             mod inner1 { pub use super::inner2::func; }
             pub use crate::inner1::func as main;
         },
         42,
+    };
+}
+
+#[test]
+fn test_access() {
+    assert!(rune! { bool =>
+        mod a { pub struct Foo; }
+
+        mod c {
+            use a::Foo;
+            use crate::a;
+            pub fn test() { Foo is a::Foo }
+        }
+
+        pub fn main() { c::test() }
+    });
+
+    assert_compile_error! {
+        r#"
+        mod a { struct Test; }
+        mod c { use a; fn test() { a::Test } }
+        pub fn main() { c::test() }
+        "#,
+        span, QueryError { error: NotVisible { .. } } => {
+            assert_eq!(span, Span::new(103, 110));
+        }
     };
 }

@@ -149,6 +149,7 @@ impl<'a> Compiler<'a> {
         needs: Needs,
     ) -> CompileResult<()> {
         log::trace!("CompileMeta => {:?} {:?}", meta, needs);
+
         if let Needs::Value = needs {
             match &meta.kind {
                 CompileMetaKind::UnitStruct { empty, .. } => {
@@ -221,20 +222,23 @@ impl<'a> Compiler<'a> {
                     ));
                 }
             }
+        } else {
+            let type_of = meta.base_type_of().ok_or_else(|| {
+                CompileError::expected_meta(span, meta.clone(), "something that has a type")
+            })?;
 
-            return Ok(());
+            self.asm.push(
+                Inst::Push {
+                    value: InstValue::Type(*type_of),
+                },
+                span,
+            );
         }
 
-        let type_of = meta.base_type_of().ok_or_else(|| {
-            CompileError::expected_meta(span, meta.clone(), "something that has a type")
-        })?;
+        if !needs.value() {
+            self.asm.push(Inst::Pop, span);
+        }
 
-        self.asm.push(
-            Inst::Push {
-                value: InstValue::Type(*type_of),
-            },
-            span,
-        );
         Ok(())
     }
 
@@ -906,7 +910,7 @@ impl<'a> Compiler<'a> {
         let mut interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            mod_item: from.mod_item.clone(),
+            module: from.module.clone(),
             item: from.item.clone(),
             consts: self.consts.clone(),
             query: &mut *ir_query,
@@ -917,7 +921,7 @@ impl<'a> Compiler<'a> {
             interpreter.scopes.decl(name, value, spanned)?;
         }
 
-        interpreter.mod_item = query_const_fn.item.mod_item.clone();
+        interpreter.module = query_const_fn.item.module.clone();
         interpreter.item = query_const_fn.item.item.clone();
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
         Ok(value.into_const(spanned)?)
