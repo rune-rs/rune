@@ -733,12 +733,14 @@ impl Vm {
             InstOp::Eq => {
                 let b = self.stack.pop()?;
                 let a = self.stack.pop()?;
-                self.stack.push(Value::value_ptr_eq(&a, &b)?);
+                let test = Value::value_ptr_eq(&a, &b)?;
+                self.stack.push(test);
             }
             InstOp::Neq => {
                 let b = self.stack.pop()?;
                 let a = self.stack.pop()?;
-                self.stack.push(!Value::value_ptr_eq(&a, &b)?);
+                let test = Value::value_ptr_eq(&a, &b)?;
+                self.stack.push(!test);
             }
             InstOp::And => {
                 self.internal_boolean_op(|a, b| a && b, "&&")?;
@@ -1046,7 +1048,7 @@ impl Vm {
             None => {
                 return Err(VmError::from(VmErrorKind::MissingIndex {
                     target: target.type_info()?,
-                    index: VmIntegerRepr::Usize(index),
+                    index: VmIntegerRepr::from(index),
                 }));
             }
         };
@@ -1116,7 +1118,7 @@ impl Vm {
             None => {
                 return Err(VmError::from(VmErrorKind::MissingIndex {
                     target: target.type_info()?,
-                    index: VmIntegerRepr::Usize(index),
+                    index: VmIntegerRepr::from(index),
                 }));
             }
         };
@@ -1263,7 +1265,7 @@ impl Vm {
                         Err(..) => {
                             return Err(VmError::from(VmErrorKind::MissingIndex {
                                 target: target.type_info()?,
-                                index: VmIntegerRepr::I64(*index),
+                                index: VmIntegerRepr::from(*index),
                             }));
                         }
                     };

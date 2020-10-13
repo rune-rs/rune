@@ -142,7 +142,7 @@ impl ops::DerefMut for Vec {
 
 impl IntoIterator for Vec {
     type Item = Value;
-    type IntoIter = std::vec::IntoIter<Value>;
+    type IntoIter = vec::IntoIter<Value>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.into_iter()

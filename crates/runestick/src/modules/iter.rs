@@ -1,76 +1,45 @@
 //! The `std::iter` module.
 
-use crate::{ContextError, Module};
+use crate::{ContextError, FromValue as _, Iterator, Module, Object, Value, Vec, VmError};
 
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "iter"]);
-    module.ty::<Range>()?;
-    module.ty::<Rev>()?;
-    module.function(&["range"], Range::new)?;
-    module.inst_fn(crate::INTO_ITER, Range::into_iter)?;
-    module.inst_fn(crate::NEXT, Range::next)?;
-    module.inst_fn("rev", Range::rev)?;
-    module.inst_fn(crate::INTO_ITER, Rev::into_iter)?;
-    module.inst_fn(crate::NEXT, Rev::next)?;
+    module.ty::<Iterator>()?;
+
+    module.inst_fn("chain", Iterator::chain)?;
+    module.inst_fn("collect_object", collect_object)?;
+    module.inst_fn("collect_vec", collect_vec)?;
+    module.inst_fn("enumerate", Iterator::enumerate)?;
+    module.inst_fn("filter", Iterator::filter)?;
+    module.inst_fn("map", Iterator::map)?;
+    module.inst_fn("next_back", Iterator::next_back)?;
+    module.inst_fn("next", Iterator::next)?;
+    module.inst_fn("rev", Iterator::rev)?;
+    module.inst_fn("size_hint", Iterator::size_hint)?;
+    module.inst_fn(crate::NEXT, Iterator::next)?;
+    module.inst_fn(crate::INTO_ITER, <Iterator as From<Iterator>>::from)?;
+
+    module.function(&["range"], new_range)?;
     Ok(module)
 }
 
-#[derive(Debug)]
-struct Rev {
-    current: i64,
-    start: i64,
+fn new_range(start: i64, end: i64) -> Iterator {
+    Iterator::from_double_ended("std::iter::Range", start..end)
 }
 
-impl Iterator for Rev {
-    type Item = i64;
-
-    fn next(&mut self) -> Option<i64> {
-        if self.current <= self.start {
-            return None;
-        }
-
-        self.current -= 1;
-        Some(self.current)
-    }
+fn collect_vec(it: Iterator) -> Result<Vec, VmError> {
+    Ok(Vec::from(it.collect::<Value>()?))
 }
 
-#[derive(Debug)]
-struct Range {
-    current: i64,
-    end: i64,
-}
+fn collect_object(mut it: Iterator) -> Result<Object, VmError> {
+    let (cap, _) = it.size_hint();
+    let mut object = Object::with_capacity(cap);
 
-impl Range {
-    fn new(start: i64, end: i64) -> Self {
-        Self {
-            current: start,
-            end,
-        }
+    while let Some(value) = it.next()? {
+        let (key, value) = <(String, Value)>::from_value(value)?;
+        object.insert(key, value);
     }
 
-    fn rev(self) -> Rev {
-        Rev {
-            current: self.end,
-            start: self.current,
-        }
-    }
+    Ok(object)
 }
-
-impl Iterator for Range {
-    type Item = i64;
-
-    fn next(&mut self) -> Option<i64> {
-        let value = self.current;
-
-        if self.current < self.end {
-            self.current += 1;
-            return Some(value);
-        }
-
-        None
-    }
-}
-
-crate::__internal_impl_any!(Range);
-crate::__internal_impl_any!(Rev);

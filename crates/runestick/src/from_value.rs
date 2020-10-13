@@ -345,7 +345,7 @@ impl FromValue for i64 {
 }
 
 macro_rules! impl_number {
-    ($ty:ty, $variant:ident) => {
+    ($ty:ty) => {
         impl FromValue for $ty {
             fn from_value(value: Value) -> Result<Self, VmError> {
                 use std::convert::TryInto as _;
@@ -355,7 +355,7 @@ macro_rules! impl_number {
                     Ok(number) => Ok(number),
                     Err(..) => Err($crate::VmError::from(
                         $crate::VmErrorKind::ValueToIntegerCoercionError {
-                            from: $crate::VmIntegerRepr::I64(integer),
+                            from: $crate::VmIntegerRepr::from(integer),
                             to: std::any::type_name::<Self>(),
                         },
                     )),
@@ -365,14 +365,14 @@ macro_rules! impl_number {
     };
 }
 
-impl_number!(u32, U32);
-impl_number!(u64, U64);
-impl_number!(u128, U128);
-impl_number!(usize, Usize);
-impl_number!(i8, I8);
-impl_number!(i32, I32);
-impl_number!(i128, I128);
-impl_number!(isize, Isize);
+impl_number!(u32);
+impl_number!(u64);
+impl_number!(u128);
+impl_number!(usize);
+impl_number!(i8);
+impl_number!(i32);
+impl_number!(i128);
+impl_number!(isize);
 
 impl FromValue for f64 {
     fn from_value(value: Value) -> Result<Self, VmError> {

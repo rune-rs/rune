@@ -135,7 +135,7 @@ pub enum VmErrorKind {
     ///
     /// In order to represent this, we need to preserve the instruction pointer
     /// and eventually unit from where the error happened.
-    #[error("{kind} (at {ip})")]
+    #[error("{kind} (at inst {ip})")]
     Unwound {
         /// The wrapper error.
         kind: Box<VmErrorKind>,
@@ -149,7 +149,7 @@ pub enum VmErrorKind {
         #[from]
         error: AccessError,
     },
-    #[error("panicked `{reason}`")]
+    #[error("panicked: {reason}")]
     Panic { reason: Panic },
     #[error("no running virtual machines")]
     NoRunningVm,
@@ -209,18 +209,16 @@ pub enum VmErrorKind {
         expected: TypeInfo,
         actual: TypeInfo,
     },
-    #[error("bad argument #{arg} (expected `{to}`): {error}")]
+    #[error("bad argument #{arg}: {error}")]
     BadArgument {
         #[source]
         error: VmError,
         arg: usize,
-        to: &'static str,
     },
-    #[error("bad return value (expected `{ret}`): {error}")]
+    #[error("bad return value: {error}")]
     BadReturn {
         #[source]
         error: VmError,
-        ret: &'static str,
     },
     #[error("the index set operation `{target}[{index}] = {value}` is not supported")]
     UnsupportedIndexSet {
@@ -245,7 +243,7 @@ pub enum VmErrorKind {
     UnsupportedCallFn { actual_type: TypeInfo },
     #[error("missing index by static string slot `{slot}` in object")]
     ObjectIndexMissing { slot: usize },
-    #[error("missing index `{}` on `{target}`")]
+    #[error("missing index `{index}` on `{target}`")]
     MissingIndex {
         target: TypeInfo,
         index: VmIntegerRepr,
@@ -312,49 +310,20 @@ impl VmErrorKind {
 }
 
 /// A type-erased rust number.
-#[derive(Debug, Clone, Copy)]
-pub enum VmIntegerRepr {
-    /// `u8`
-    U8(u8),
-    /// `u16`
-    U16(u16),
-    /// `u32`
-    U32(u32),
-    /// `u64`
-    U64(u64),
-    /// `u128`
-    U128(u128),
-    /// `i8`
-    I8(i8),
-    /// `i16`
-    I16(i16),
-    /// `i32`
-    I32(i32),
-    /// `i64`
-    I64(i64),
-    /// `i128`
-    I128(i128),
-    /// `isize`
-    Isize(isize),
-    /// `usize`
-    Usize(usize),
+#[derive(Debug, Clone)]
+pub struct VmIntegerRepr(num_bigint::BigInt);
+
+impl<T> From<T> for VmIntegerRepr
+where
+    num_bigint::BigInt: From<T>,
+{
+    fn from(value: T) -> Self {
+        Self(num_bigint::BigInt::from(value))
+    }
 }
 
 impl fmt::Display for VmIntegerRepr {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::U8(n) => write!(fmt, "{}u8", n),
-            Self::U16(n) => write!(fmt, "{}u16", n),
-            Self::U32(n) => write!(fmt, "{}u32", n),
-            Self::U64(n) => write!(fmt, "{}u64", n),
-            Self::U128(n) => write!(fmt, "{}u128", n),
-            Self::I8(n) => write!(fmt, "{}i8", n),
-            Self::I16(n) => write!(fmt, "{}i16", n),
-            Self::I32(n) => write!(fmt, "{}i32", n),
-            Self::I64(n) => write!(fmt, "{}i64", n),
-            Self::I128(n) => write!(fmt, "{}i128", n),
-            Self::Isize(n) => write!(fmt, "{}isize", n),
-            Self::Usize(n) => write!(fmt, "{}usize", n),
-        }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }

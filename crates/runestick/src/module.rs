@@ -4,17 +4,14 @@
 //! through native code.
 
 use crate::collections::HashMap;
+use crate::context::{ContextError, Handler, Macro};
 use crate::{
-    Future, Hash, IntoComponent, Named, Stack, ToValue, Type, TypeInfo, TypeOf, UnsafeFromValue,
-    VmError, VmErrorKind,
+    Future, GeneratorState, Hash, IntoComponent, Item, Named, Stack, StaticType, ToValue, Type,
+    TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use std::any;
-use std::any::type_name;
 use std::future;
 use std::sync::Arc;
-
-use crate::context::{ContextError, Handler, Macro};
-use crate::{GeneratorState, Item, StaticType, TypeCheck, Value};
 
 /// Specialized information on `Option` types.
 pub(crate) struct ModuleUnitType {
@@ -957,7 +954,6 @@ macro_rules! impl_register {
             Ok($ret) => $ret,
             Err(e) => return Err(VmError::from(VmErrorKind::BadReturn {
                 error: e.unpack_critical()?,
-                ret: type_name::<$ty>()
             })),
         };
 
@@ -972,7 +968,6 @@ macro_rules! impl_register {
                 Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
                     error: e.unpack_critical()?,
                     arg: $count - $num,
-                    to: type_name::<$ty>(),
                 })),
             };
         )*
@@ -985,7 +980,6 @@ macro_rules! impl_register {
             Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
                 error: e.unpack_critical()?,
                 arg: 0,
-                to: type_name::<Instance>()
             })),
         };
 
@@ -995,7 +989,6 @@ macro_rules! impl_register {
                 Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
                     error: e.unpack_critical()?,
                     arg: 1 + $count - $num,
-                    to: type_name::<$ty>()
                 })),
             };
         )*

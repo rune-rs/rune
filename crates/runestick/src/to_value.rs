@@ -119,7 +119,7 @@ where
 // number impls
 
 macro_rules! number_value_trait {
-    ($ty:ty, $variant:ident) => {
+    ($ty:ty) => {
         impl ToValue for $ty {
             fn to_value(self) -> Result<Value, $crate::VmError> {
                 use std::convert::TryInto as _;
@@ -128,7 +128,7 @@ macro_rules! number_value_trait {
                     Ok(number) => Ok(Value::Integer(number)),
                     Err(..) => Err($crate::VmError::from(
                         $crate::VmErrorKind::IntegerToValueCoercionError {
-                            from: $crate::VmIntegerRepr::$variant(self),
+                            from: $crate::VmIntegerRepr::from(self),
                             to: std::any::type_name::<i64>(),
                         },
                     )),
@@ -138,14 +138,14 @@ macro_rules! number_value_trait {
     };
 }
 
-number_value_trait!(u32, U32);
-number_value_trait!(u64, U64);
-number_value_trait!(u128, U128);
-number_value_trait!(usize, Usize);
-number_value_trait!(i8, I8);
-number_value_trait!(i32, I32);
-number_value_trait!(i128, I128);
-number_value_trait!(isize, Isize);
+number_value_trait!(u32);
+number_value_trait!(u64);
+number_value_trait!(u128);
+number_value_trait!(usize);
+number_value_trait!(i8);
+number_value_trait!(i32);
+number_value_trait!(i128);
+number_value_trait!(isize);
 
 impl ToValue for f32 {
     fn to_value(self) -> Result<Value, VmError> {
