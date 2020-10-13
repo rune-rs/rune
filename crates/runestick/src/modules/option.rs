@@ -9,6 +9,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("is_some", Option::<Value>::is_some)?;
     module.inst_fn("unwrap_or_else", unwrap_or_else_impl)?;
     module.inst_fn("transpose", transpose_impl)?;
+    module.inst_fn("iter", option_iter)?;
+    module.inst_fn(crate::INTO_ITER, option_iter)?;
     Ok(module)
 }
 
@@ -31,4 +33,8 @@ fn transpose_impl(this: &Option<Value>) -> Result<Value, VmError> {
         },
         None => Ok(Value::from(Shared::new(None::<Value>))),
     })))
+}
+
+fn option_iter(option: &Option<Value>) -> crate::Iterator {
+    crate::Iterator::from_double_ended("std::option::Iter", option.clone().into_iter())
 }

@@ -174,6 +174,26 @@ impl Object {
     pub fn iter_mut(&mut self) -> IterMut<'_> {
         self.inner.iter_mut()
     }
+
+    /// Value pointer equals implementation for an Object.
+    pub(crate) fn value_ptr_eq(a: &Self, b: &Self) -> Result<bool, VmError> {
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+
+        for (key, a) in a.iter() {
+            let b = match b.get(key) {
+                Some(b) => b,
+                None => return Ok(false),
+            };
+
+            if !Value::value_ptr_eq(a, b)? {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
 }
 
 impl<'a> IntoIterator for &'a Object {

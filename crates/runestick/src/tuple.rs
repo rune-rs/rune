@@ -54,6 +54,21 @@ impl Tuple {
     pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
         self.inner.get_mut(index)
     }
+
+    /// Value pointer equals implementation for a Tuple.
+    pub(crate) fn value_ptr_eq(a: &Self, b: &Self) -> Result<bool, VmError> {
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+
+        for (a, b) in a.iter().zip(b.iter()) {
+            if !Value::value_ptr_eq(a, b)? {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
 }
 
 impl fmt::Debug for Tuple {

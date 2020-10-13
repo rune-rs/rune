@@ -735,8 +735,9 @@ impl Value {
     pub(crate) fn value_ptr_eq(a: &Value, b: &Value) -> Result<bool, VmError> {
         Ok(match (a, b) {
             (Self::Unit, Self::Unit) => true,
-            (Self::Char(a), Self::Char(b)) => a == b,
             (Self::Bool(a), Self::Bool(b)) => a == b,
+            (Self::Byte(a), Self::Byte(b)) => a == b,
+            (Self::Char(a), Self::Char(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Vec(a), Self::Vec(b)) => {
@@ -755,32 +756,47 @@ impl Value {
 
                 true
             }
+            (Self::Tuple(a), Self::Tuple(b)) => {
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
+                Tuple::value_ptr_eq(&*a, &*b)?
+            }
             (Self::Object(a), Self::Object(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-
-                if a.len() != b.len() {
-                    return Ok(false);
-                }
-
-                for (key, a) in a.iter() {
-                    let b = match b.get(key) {
-                        Some(b) => b,
-                        None => return Ok(false),
-                    };
-
-                    if !Self::value_ptr_eq(a, b)? {
-                        return Ok(false);
-                    }
-                }
-
-                true
+                Object::value_ptr_eq(&*a, &*b)?
             }
-            (Self::String(a), Self::String(b)) => {
+            (Self::UnitStruct(a), Self::UnitStruct(b)) => {
+                a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash
+            }
+            (Self::TupleStruct(a), Self::TupleStruct(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                *a == *b
+
+                a.rtti.hash == b.rtti.hash && Tuple::value_ptr_eq(&a.data, &b.data)?
             }
+            (Self::Struct(a), Self::Struct(b)) => {
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
+
+                a.rtti.hash == b.rtti.hash && Object::value_ptr_eq(&a.data, &b.data)?
+            }
+            (Self::UnitVariant(a), Self::UnitVariant(b)) => {
+                a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash
+            }
+            (Self::TupleVariant(a), Self::TupleVariant(b)) => {
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
+
+                a.rtti.hash == b.rtti.hash && Tuple::value_ptr_eq(&a.data, &b.data)?
+            }
+            (Self::StructVariant(a), Self::StructVariant(b)) => {
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
+
+                a.rtti.hash == b.rtti.hash && Object::value_ptr_eq(&a.data, &b.data)?
+            }
+            (Self::String(a), Self::String(b)) => *a.borrow_ref()? == *b.borrow_ref()?,
             (Self::StaticString(a), Self::String(b)) => {
                 let b = b.borrow_ref()?;
                 ***a == *b
@@ -791,6 +807,16 @@ impl Value {
             }
             // fast string comparison: exact string slot.
             (Self::StaticString(a), Self::StaticString(b)) => ***a == ***b,
+            (Self::Option(a), Self::Option(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
+                (Some(a), Some(b)) => Self::value_ptr_eq(a, b)?,
+                (None, None) => true,
+                _ => false,
+            },
+            (Self::Result(a), Self::Result(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
+                (Ok(a), Ok(b)) => Self::value_ptr_eq(a, b)?,
+                (Err(a), Err(b)) => Self::value_ptr_eq(a, b)?,
+                _ => false,
+            },
             // fast external comparison by slot.
             // TODO: implement ptr equals.
             // (Self::Any(a), Self::Any(b)) => a == b,
