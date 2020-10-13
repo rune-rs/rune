@@ -679,7 +679,7 @@ impl Query {
             .collect::<Vec<_>>()
     }
 
-    pub(crate) fn get_import(
+    pub(crate) fn import(
         &self,
         module: &Rc<QueryMod>,
         spanned: Span,
@@ -687,7 +687,7 @@ impl Query {
         used: Used,
     ) -> Result<Option<Item>, QueryError> {
         let mut inner = self.inner.borrow_mut();
-        inner.get_import(module, spanned, item, used)
+        inner.import(module, spanned, item, used)
     }
 }
 
@@ -904,7 +904,7 @@ impl QueryInner {
     }
 
     /// Get the given import by name.
-    fn get_import(
+    fn import(
         &mut self,
         module: &Rc<QueryMod>,
         spanned: Span,
@@ -1112,7 +1112,7 @@ impl QueryInner {
                 return Ok(item);
             }
 
-            if let Some(item) = self.get_import(module, spanned, &item, used)? {
+            if let Some(item) = self.import(module, spanned, &item, used)? {
                 return Ok(item);
             }
 
@@ -1201,9 +1201,7 @@ impl QueryInner {
                     let ident = ident.resolve(storage, source)?;
                     item.push(ident.as_ref());
 
-                    if let Some(new) =
-                        self.get_import(&qp.module, path.span(), &item, Used::Used)?
-                    {
+                    if let Some(new) = self.import(&qp.module, path.span(), &item, Used::Used)? {
                         access_checked = true;
                         item = new;
                     }

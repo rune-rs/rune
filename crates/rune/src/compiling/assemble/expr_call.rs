@@ -93,17 +93,7 @@ impl Assemble for ast::ExprCall {
             }
         }
 
-        let meta = match c.lookup_meta(path.span(), &named)? {
-            Some(meta) => meta,
-            None => {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::MissingFunction {
-                        item: named.item.clone(),
-                    },
-                ));
-            }
-        };
+        let meta = c.lookup_meta(path.span(), &named.item)?;
 
         match &meta.kind {
             CompileMetaKind::UnitStruct { .. } | CompileMetaKind::UnitVariant { .. } => {

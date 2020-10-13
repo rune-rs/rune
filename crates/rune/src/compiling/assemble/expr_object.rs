@@ -45,18 +45,7 @@ impl Assemble for ast::ExprObject {
         match &self.ident {
             ast::ObjectIdent::Named(path) => {
                 let named = c.convert_path_to_named(path)?;
-
-                let meta = match c.lookup_meta(path.span(), &named)? {
-                    Some(meta) => meta,
-                    None => {
-                        return Err(CompileError::new(
-                            span,
-                            CompileErrorKind::MissingType {
-                                item: named.item.clone(),
-                            },
-                        ));
-                    }
-                };
+                let meta = c.lookup_meta(path.span(), &named.item)?;
 
                 match &meta.kind {
                     CompileMetaKind::UnitStruct { .. } => {
@@ -111,7 +100,7 @@ fn check_object_fields(
         None => {
             return Err(CompileError::new(
                 span,
-                CompileErrorKind::MissingType { item: item.clone() },
+                CompileErrorKind::MissingItem { item: item.clone() },
             ));
         }
     };

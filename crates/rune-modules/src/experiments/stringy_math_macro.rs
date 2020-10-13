@@ -1,6 +1,7 @@
 use rune::ast;
-use rune::macros::resolve;
+use rune::macros;
 use rune::{quote, Parser, Spanned, TokenStream};
+use runestick::SpannedError;
 
 /// Implementation for the `stringy_math!` macro.
 pub(crate) fn stringy_math(stream: &TokenStream) -> runestick::Result<TokenStream> {
@@ -12,17 +13,12 @@ pub(crate) fn stringy_math(stream: &TokenStream) -> runestick::Result<TokenStrea
         let op = parser.parse::<ast::Ident>()?;
         let arg = parser.parse::<ast::Expr>()?;
 
-        output = match resolve(op)?.as_ref() {
+        output = match macros::resolve(op)?.as_ref() {
             "add" => quote!((#output) + #arg),
             "sub" => quote!((#output) - #arg),
             "div" => quote!((#output) / #arg),
             "mul" => quote!((#output) * #arg),
-            _ => {
-                return Err(From::from(runestick::SpannedError::msg(
-                    op.span(),
-                    "unsupported operation",
-                )))
-            }
+            _ => return Err(SpannedError::msg(op.span(), "unsupported operation").into()),
         }
     }
 

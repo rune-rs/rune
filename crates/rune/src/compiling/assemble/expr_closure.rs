@@ -67,17 +67,17 @@ impl Assemble for ast::ExprClosure {
         let item = c.query.item_for(self)?;
         let hash = Hash::type_hash(&item.item);
 
-        let meta = c
-            .query
-            .query_meta_with(span, &item, Default::default())?
-            .ok_or_else(|| {
-                CompileError::new(
+        let meta = match c.query.query_meta_with(span, &item, Default::default())? {
+            Some(meta) => meta,
+            None => {
+                return Err(CompileError::new(
                     span,
-                    CompileErrorKind::MissingType {
+                    CompileErrorKind::MissingItem {
                         item: item.item.clone(),
                     },
-                )
-            })?;
+                ))
+            }
+        };
 
         let (captures, do_move) = match &meta.kind {
             CompileMetaKind::Closure {

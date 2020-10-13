@@ -219,16 +219,7 @@ impl CompileBuildEntry<'_> {
                 let source = compiler.source.clone();
                 let name = f.ast.name.resolve(self.storage, &*source)?;
 
-                let meta = compiler
-                    .lookup_exact_meta(f.instance_span, &f.impl_item)?
-                    .ok_or_else(|| {
-                        CompileError::new(
-                            &f.instance_span,
-                            CompileErrorKind::MissingType {
-                                item: (*f.impl_item).clone(),
-                            },
-                        )
-                    })?;
+                let meta = compiler.lookup_meta(f.instance_span, &f.impl_item)?;
 
                 let type_of = meta
                     .base_type_of()
@@ -305,7 +296,7 @@ impl CompileBuildEntry<'_> {
             }
             Build::Import(import) => {
                 // Issue the import to check access.
-                let result = self.query.get_import(
+                let result = self.query.import(
                     &item.module,
                     location.span,
                     &import.entry.imported,
@@ -333,7 +324,7 @@ impl CompileBuildEntry<'_> {
                 let import =
                     match self
                         .query
-                        .get_import(&item.module, location.span, &item.item, used)?
+                        .import(&item.module, location.span, &item.item, used)?
                     {
                         Some(item) => item,
                         None => {

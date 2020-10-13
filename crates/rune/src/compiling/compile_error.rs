@@ -124,8 +124,6 @@ pub enum CompileErrorKind {
     CallMacroError { item: Item, error: runestick::Error },
     #[error("no local variable `{name}`")]
     MissingLocal { name: String },
-    #[error("no such type `{item}`")]
-    MissingType { item: Item },
     #[error("missing item `{item}`")]
     MissingItem { item: Item },
     #[error("cannot load modules using a source without an associated URL")]
@@ -166,8 +164,6 @@ pub enum CompileErrorKind {
     },
     #[error("{meta} is not supported here")]
     UnsupportedPattern { meta: CompileMeta },
-    #[error("undefined types cannot be used as patterns")]
-    UnsupportedPatternNoMeta,
     #[error("`..` is not supported in this location")]
     UnsupportedPatternRest,
     #[error("this kind of expression is not supported as a pattern")]
@@ -178,8 +174,6 @@ pub enum CompileErrorKind {
     MatchFloatInPattern,
     #[error("duplicate key in literal object")]
     DuplicateObjectKey { existing: Span, object: Span },
-    #[error("`{item}` is not a function")]
-    MissingFunction { item: Item },
     #[error("`yield` must be used in function or closure")]
     YieldOutsideFunction,
     #[error("`await` must be used inside an async function or closure")]

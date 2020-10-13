@@ -2,6 +2,7 @@ use crate::ast;
 use crate::parsing::{LexerMode, ResolveError, ResolveErrorKind};
 use crate::shared::Description;
 use crate::Spanned;
+use runestick::SpannedError;
 
 use thiserror::Error;
 
@@ -43,6 +44,12 @@ impl ParseError {
                 what: what.description(),
             },
         )
+    }
+}
+
+impl From<ParseError> for SpannedError {
+    fn from(error: ParseError) -> Self {
+        SpannedError::new(error.span, *error.kind)
     }
 }
 

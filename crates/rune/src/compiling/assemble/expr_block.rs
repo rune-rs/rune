@@ -11,18 +11,7 @@ impl Assemble for ast::ExprBlock {
         }
 
         let item = c.query.item_for(&self.block)?;
-
-        let meta = match c.lookup_exact_meta(span, &item.item)? {
-            Some(meta) => meta,
-            None => {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::MissingType {
-                        item: item.item.clone(),
-                    },
-                ));
-            }
-        };
+        let meta = c.lookup_meta(span, &item.item)?;
 
         match &meta.kind {
             CompileMetaKind::AsyncBlock {

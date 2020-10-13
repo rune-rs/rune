@@ -66,23 +66,20 @@ pub(crate) struct Compiler<'a> {
 
 impl<'a> Compiler<'a> {
     /// Access the meta for the given language item.
-    pub fn lookup_meta(
+    pub fn try_lookup_meta(
         &mut self,
         spanned: Span,
-        named: &Named,
+        item: &Item,
     ) -> CompileResult<Option<CompileMeta>> {
-        log::trace!("lookup meta: {:?}", named.item);
+        log::trace!("lookup meta: {:?}", item);
 
-        if let Some(meta) = self
-            .query
-            .query_meta(spanned, &named.item, Default::default())?
-        {
+        if let Some(meta) = self.query.query_meta(spanned, &item, Default::default())? {
             log::trace!("found in query: {:?}", meta);
             self.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
         }
 
-        if let Some(meta) = self.context.lookup_meta(&named.item) {
+        if let Some(meta) = self.context.lookup_meta(&item) {
             log::trace!("found in context: {:?}", meta);
             self.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
@@ -92,26 +89,15 @@ impl<'a> Compiler<'a> {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_exact_meta(
-        &mut self,
-        spanned: Span,
-        name: &Item,
-    ) -> CompileResult<Option<CompileMeta>> {
-        log::trace!("lookup meta: {}", name);
-
-        if let Some(meta) = self.context.lookup_meta(name) {
-            log::trace!("found in context: {:?}", meta);
-            self.visitor.visit_meta(self.source_id, &meta, spanned);
-            return Ok(Some(meta));
+    pub fn lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<CompileMeta> {
+        if let Some(meta) = self.try_lookup_meta(spanned, item)? {
+            return Ok(meta);
         }
 
-        if let Some(meta) = self.query.query_meta(spanned, name, Default::default())? {
-            log::trace!("found in query: {:?}", meta);
-            self.visitor.visit_meta(self.source_id, &meta, spanned);
-            return Ok(Some(meta));
-        }
-
-        Ok(None)
+        Err(CompileError::new(
+            spanned,
+            CompileErrorKind::MissingItem { item: item.clone() },
+        ))
     }
 
     /// Pop locals by simply popping them.
@@ -370,16 +356,7 @@ impl<'a> Compiler<'a> {
 
         let type_check = if let Some(path) = &pat_tuple.path {
             let named = self.convert_path_to_named(path)?;
-
-            let meta = match self.lookup_meta(path.span(), &named)? {
-                Some(meta) => meta,
-                None => {
-                    return Err(CompileError::new(
-                        span,
-                        CompileErrorKind::UnsupportedPatternNoMeta,
-                    ));
-                }
-            };
+            let meta = self.lookup_meta(path.span(), &named.item)?;
 
             let (args, type_check) = match &meta.kind {
                 CompileMetaKind::UnitStruct { type_of, .. } => {
@@ -543,17 +520,7 @@ impl<'a> Compiler<'a> {
 
                 let named = self.convert_path_to_named(path)?;
 
-                let meta = match self.lookup_meta(span, &named)? {
-                    Some(meta) => meta,
-                    None => {
-                        return Err(CompileError::new(
-                            span,
-                            CompileErrorKind::MissingType {
-                                item: named.item.clone(),
-                            },
-                        ));
-                    }
-                };
+                let meta = self.lookup_meta(span, &named.item)?;
 
                 let (object, type_check) = match &meta.kind {
                     CompileMetaKind::Struct {
@@ -729,7 +696,7 @@ impl<'a> Compiler<'a> {
 
                 let named = self.convert_path_to_named(&path.path)?;
 
-                if let Some(meta) = self.lookup_meta(span, &named)? {
+                if let Some(meta) = self.try_lookup_meta(span, &named.item)? {
                     if self.compile_pat_meta_binding(span, &meta, false_label, load)? {
                         return Ok(true);
                     }

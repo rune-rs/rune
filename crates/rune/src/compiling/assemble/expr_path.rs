@@ -28,42 +28,29 @@ impl Assemble for ast::Path {
             }
         }
 
-        let meta = match c.lookup_meta(span, &named)? {
-            Some(meta) => meta,
-            None => {
-                let error = match (needs, named.as_local()) {
-                    (Needs::Value, Some(local)) => {
-                        // light heuristics, treat it as a type error in case the
-                        // first character is uppercase.
-                        if local.starts_with(char::is_uppercase) {
-                            CompileError::new(
-                                span,
-                                CompileErrorKind::MissingType {
-                                    item: named.item.clone(),
-                                },
-                            )
-                        } else {
-                            CompileError::new(
-                                span,
-                                CompileErrorKind::MissingLocal {
-                                    name: local.to_owned(),
-                                },
-                            )
-                        }
-                    }
-                    _ => CompileError::new(
-                        span,
-                        CompileErrorKind::MissingType {
-                            item: named.item.clone(),
-                        },
-                    ),
-                };
+        if let Some(meta) = c.try_lookup_meta(span, &named.item)? {
+            c.compile_meta(&meta, span, needs)?;
+            return Ok(());
+        }
 
-                return Err(error);
+        if let (Needs::Value, Some(local)) = (needs, named.as_local()) {
+            // light heuristics, treat it as a type error in case the
+            // first character is uppercase.
+            if !local.starts_with(char::is_uppercase) {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::MissingLocal {
+                        name: local.to_owned(),
+                    },
+                ));
             }
         };
 
-        c.compile_meta(&meta, span, needs)?;
-        Ok(())
+        return Err(CompileError::new(
+            span,
+            CompileErrorKind::MissingItem {
+                item: named.item.clone(),
+            },
+        ));
     }
 }
