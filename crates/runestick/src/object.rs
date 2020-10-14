@@ -1,6 +1,7 @@
 use crate::collections::HashMap;
 use crate::{
-    FromValue, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value, VmError,
+    FromValue, Item, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
+    VmError,
 };
 use std::borrow;
 use std::cmp;
@@ -194,6 +195,12 @@ impl Object {
 
         Ok(true)
     }
+
+    /// Debug implementation for a struct. This assumes that all fields
+    /// corresponds to identifiers.
+    pub(crate) fn debug_struct<'a>(&'a self, item: &'a Item) -> DebugStruct<'a> {
+        DebugStruct { item, st: self }
+    }
 }
 
 impl<'a> IntoIterator for &'a Object {
@@ -292,4 +299,21 @@ impl UnsafeFromValue for &mut Object {
 
 impl Named for Object {
     const NAME: RawStr = RawStr::from_str("Object");
+}
+
+pub struct DebugStruct<'a> {
+    item: &'a Item,
+    st: &'a Object,
+}
+
+impl fmt::Display for DebugStruct<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut d = f.debug_struct(&self.item.to_string());
+
+        for (key, value) in self.st.iter() {
+            d.field(key, value);
+        }
+
+        d.finish()
+    }
 }

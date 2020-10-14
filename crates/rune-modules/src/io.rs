@@ -33,8 +33,7 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
 /// Implementation for the `println!` macro.
 pub(crate) fn println_macro(stream: &TokenStream) -> runestick::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream);
-    let args = p.parse::<macros::FormatArgs>()?;
-    p.eof()?;
+    let args = p.parse_all::<macros::FormatArgs>()?;
     let expanded = args.expand()?;
     Ok(quote!(std::io::println(#expanded)).into_token_stream())
 }

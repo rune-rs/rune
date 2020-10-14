@@ -41,7 +41,7 @@ pub(crate) fn assert_macro(
     let expr = p.parse::<ast::Expr>()?;
 
     let message = if p.parse::<Option<T![,]>>()?.is_some() {
-        p.parse::<Option<macros::FormatArgs>>()?
+        p.parse_all::<Option<macros::FormatArgs>>()?
     } else {
         None
     };
@@ -61,7 +61,6 @@ pub(crate) fn assert_macro(
         })
     };
 
-    p.eof()?;
     Ok(output.into_token_stream())
 }
 
@@ -75,7 +74,7 @@ pub(crate) fn assert_eq_macro(
     let right = p.parse::<ast::Expr>()?;
 
     let message = if p.parse::<Option<T![,]>>()?.is_some() {
-        p.parse::<Option<macros::FormatArgs>>()?
+        p.parse_all::<Option<macros::FormatArgs>>()?
     } else {
         None
     };
@@ -97,6 +96,5 @@ pub(crate) fn assert_eq_macro(
         })
     };
 
-    p.eof()?;
     Ok(output.into_token_stream())
 }

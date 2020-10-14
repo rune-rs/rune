@@ -222,7 +222,7 @@ impl FormatSpec {
                 self.format_fill(out, buf, align, fill, sign);
             }
             value => {
-                write!(buf, "{:?}", value).map_err(|_| VmErrorKind::FormatError)?;
+                write!(out, "{:?}", value).map_err(|_| VmErrorKind::FormatError)?;
             }
         }
 

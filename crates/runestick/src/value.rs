@@ -180,7 +180,7 @@ impl Struct {
 
 impl fmt::Debug for Struct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.data)
+        write!(f, "{}", self.data.debug_struct(&self.rtti.item))
     }
 }
 
@@ -234,7 +234,7 @@ impl StructVariant {
 
 impl fmt::Debug for StructVariant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.data)
+        write!(f, "{}", self.data.debug_struct(&self.rtti.item))
     }
 }
 
