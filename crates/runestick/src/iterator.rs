@@ -138,6 +138,40 @@ impl Iterator {
         })
     }
 
+    /// Take the given number of elements from the iterator.
+    pub fn take(self, n: usize) -> Self {
+        Self {
+            inner: Inner::Take(Box::new(Take {
+                inner: self.inner,
+                n,
+            })),
+        }
+    }
+
+    /// Create a peekable iterator.
+    pub fn peekable(self) -> Self {
+        Self {
+            inner: match self.inner {
+                Inner::Peekable(peekable) => Inner::Peekable(peekable),
+                inner => Inner::Peekable(Box::new(Peekable {
+                    inner,
+                    peeked: None,
+                })),
+            },
+        }
+    }
+
+    /// Peek the next element if supported.
+    pub fn peek(&mut self) -> Result<Option<Value>, VmError> {
+        match &mut self.inner {
+            Inner::Peekable(peekable) => peekable.peek(),
+            _ => Err(VmError::panic(format!(
+                "`{}` is not a peekable iterator",
+                self.inner.name()
+            ))),
+        }
+    }
+
     /// Collect results from the iterator.
     pub fn collect<T>(mut self) -> Result<vec::Vec<T>, VmError>
     where
@@ -162,6 +196,8 @@ enum Inner {
     Rev(Box<Inner>),
     Chain(Box<Chain>),
     Enumerate(Box<Enumerate>),
+    Take(Box<Take>),
+    Peekable(Box<Peekable>),
 }
 
 impl Inner {
@@ -175,6 +211,8 @@ impl Inner {
             Inner::Rev(inner) => inner.name(),
             Inner::Chain(..) => "std::iter::Chain",
             Inner::Enumerate(enumerate) => enumerate.inner.name(),
+            Inner::Take(take) => take.inner.name(),
+            Inner::Peekable(peekable) => peekable.inner.name(),
         }
     }
 
@@ -188,6 +226,8 @@ impl Inner {
             Inner::Rev(..) => true,
             Inner::Chain(chain) => chain.is_double_ended(),
             Inner::Enumerate(enumerate) => enumerate.inner.is_double_ended(),
+            Inner::Take(take) => take.inner.is_double_ended(),
+            Inner::Peekable(peekable) => peekable.inner.is_double_ended(),
         }
     }
 
@@ -215,6 +255,8 @@ impl Inner {
             Inner::Rev(inner) => inner.size_hint(),
             Inner::Chain(chain) => chain.size_hint(),
             Inner::Enumerate(enumerate) => enumerate.inner.size_hint(),
+            Inner::Take(take) => take.inner.size_hint(),
+            Inner::Peekable(peekable) => peekable.size_hint(),
         }
     }
 
@@ -227,6 +269,8 @@ impl Inner {
             Self::Rev(rev) => rev.next_back(),
             Inner::Chain(chain) => chain.next(),
             Inner::Enumerate(enumerate) => enumerate.next(),
+            Inner::Take(take) => take.next(),
+            Inner::Peekable(peekable) => peekable.next(),
         }
     }
 
@@ -244,6 +288,8 @@ impl Inner {
             Self::Rev(rev) => rev.next(),
             Inner::Chain(chain) => chain.next_back(),
             Inner::Enumerate(enumerate) => enumerate.next_back(),
+            Inner::Take(take) => take.next_back(),
+            Inner::Peekable(peekable) => peekable.next_back(),
         }
     }
 }
@@ -440,5 +486,83 @@ impl Enumerate {
 
         let len = self.inner.len()?;
         Ok(Some((self.count + len, value).to_value()?))
+    }
+}
+
+struct Take {
+    inner: Inner,
+    n: usize,
+}
+
+impl Take {
+    #[inline]
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        if self.n == 0 {
+            return Ok(None);
+        }
+
+        self.n -= 1;
+        self.inner.next()
+    }
+
+    #[inline]
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        if self.n == 0 {
+            return Ok(None);
+        }
+
+        self.n -= 1;
+        self.inner.next_back()
+    }
+}
+
+struct Peekable {
+    inner: Inner,
+    peeked: Option<Option<Value>>,
+}
+
+impl Peekable {
+    #[inline]
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        match self.peeked.take() {
+            Some(v) => Ok(v),
+            None => self.inner.next(),
+        }
+    }
+
+    #[inline]
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        match self.peeked.as_mut() {
+            Some(v @ Some(_)) => Ok(self.inner.next_back()?.or_else(|| v.take())),
+            Some(None) => Ok(None),
+            None => self.inner.next_back(),
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let peek_len = match self.peeked {
+            Some(None) => return (0, Some(0)),
+            Some(Some(_)) => 1,
+            None => 0,
+        };
+        let (lo, hi) = self.inner.size_hint();
+        let lo = lo.saturating_add(peek_len);
+        let hi = match hi {
+            Some(x) => x.checked_add(peek_len),
+            None => None,
+        };
+        (lo, hi)
+    }
+
+    #[inline]
+    fn peek(&mut self) -> Result<Option<Value>, VmError> {
+        if let Some(value) = &self.peeked {
+            return Ok(value.clone());
+        }
+
+        let value = self.inner.next()?;
+        self.peeked = Some(value.clone());
+        Ok(value)
     }
 }

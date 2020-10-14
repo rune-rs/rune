@@ -101,3 +101,35 @@ fn test_option_iter() {
 
     assert_eq!(values, vec![1, 3])
 }
+
+#[test]
+fn test_peekable_take() {
+    let actual = rune! { Vec<i64> =>
+        use std::iter::range;
+
+        pub fn main() {
+            let it = range(1, 100).take(40).peekable();
+            let out = [];
+
+            while let Some(n) = it.next() {
+                out.push(n);
+
+                if it.peek().is_some() {
+                    out.push(0);
+                }
+            }
+
+            out
+        }
+    };
+
+    let mut it = (1..100).take(40).peekable();
+    let mut expected = Vec::new();
+
+    while let Some(n) = it.next() {
+        expected.push(n);
+        expected.extend(it.peek().map(|_| 0));
+    }
+
+    assert_eq!(actual, expected);
+}

@@ -7,19 +7,7 @@ async fn get_commits(repo, limit) {
     let text = response.text().await?;
     let json = json::from_string(text)?;
 
-    let commits = Vec::new();
-    let count = 0;
-
-    for entry in json {
-        commits.push(entry.sha);
-
-        if count >= limit {
-            break;
-        }
-
-        count += 1;
-    }
-
+    let commits = json.iter().take(limit).map(|e| e.sha).collect_vec();
     Ok(commits)
 }
 
