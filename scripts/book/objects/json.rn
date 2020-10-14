@@ -20,11 +20,11 @@ async fn get_commits(repo, limit) {
         count += 1;
     }
 
-    commits
+    Ok(commits)
 }
 
 pub async fn main() {
-    for commit in get_commits("rune-rs/rune", Some(5)).await {
+    for commit in get_commits("rune-rs/rune", Some(5)).await? {
         println(commit);
     }
 }
