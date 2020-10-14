@@ -31,7 +31,7 @@ that we need to pass in the `MacroContext` when invoking it. This is a detail
 which will be covered in one of the advanced sections.
 
 ```rust,noplaypen
-{{#include ../../crates/rune-macros/src/stringy_math_macro.rs}}
+{{#include ../../crates/rune-modules/src/experiments/stringy_math_macro.rs}}
 ```
 
 A macro is added to a [`Module`] using the [`Module::macro_`] function.
@@ -56,14 +56,10 @@ $> cargo run --bin rune -- scripts/book/macros/stringy_math.rn -O macros=true --
 == () (2.9737ms)
 ```
 
-Until macros are considered somewhat stable, they will be hidden behind the `-O
-macros=true` compiler option. This can be set programmatically in
-[`Options::macros`]. `--experimental` is an option to Rune CLI which adds the
-`std::experimental` module, which contains weird and experimental things like
-`stringy_math!`.
+To access the `std::experimental`, you have to specify the `--experimental`
+option to the Rune CLI.
 
 [`quote!` macro]: https://docs.rs/rune/0/rune/macro.quote.html
 [famed counterpart in the Rust world]: https://docs.rs/quote/1/quote/
 [`Module`]: https://docs.rs/runestick/0/runestick/module/struct.Module.html
 [`Module::macro_`]: https://docs.rs/runestick/0/runestick/module/struct.Module.html#method.macro_
-[`Options::macros`]: https://docs.rs/rune/0/rune/struct.Options.html#method.macros

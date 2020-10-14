@@ -9,10 +9,10 @@ fn main() -> runestick::Result<()> {
     sources.insert(Source::new(
         "test",
         r#"
-         fn main(number) {
-             number + 10
-         }
-         "#,
+        pub fn main(number) {
+            number + 10
+        }
+        "#,
     ));
 
     let mut errors = Errors::new();

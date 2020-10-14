@@ -13,7 +13,7 @@ fn main() -> runestick::Result<()> {
         &["calc"],
         (object,),
         r#"
-        fn calc(input) {
+        pub fn calc(input) {
             dbg(input["Hello"]);
             input["Hello"] = "World";
             input

@@ -5,7 +5,7 @@ async fn main() -> runestick::Result<()> {
     let unit = rune::testing::build(
         &*context,
         r#"
-        async fn main() {
+        pub async fn main() {
             time::delay_for(time::Duration::from_secs(5)).await
         }
         "#,

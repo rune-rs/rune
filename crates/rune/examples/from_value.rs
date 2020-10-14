@@ -25,7 +25,7 @@ fn main() -> runestick::Result<()> {
         &["passthrough"],
         (my_bytes,),
         r#"
-        fn passthrough(my_bytes) {
+        pub fn passthrough(my_bytes) {
             #{ field: String::from_str("hello world"), my_bytes }
         }
         "#,

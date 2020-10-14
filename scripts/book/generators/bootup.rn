@@ -2,7 +2,7 @@ fn printer() {
     loop {
         println("waiting for value...");
         let out = yield;
-        dbg(out);
+        println!("{:?}", out);
     }
 }
 

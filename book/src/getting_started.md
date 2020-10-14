@@ -23,10 +23,11 @@ But its exact behavior can differ depending on how the environment is
 configured. When Rune is embedded into a larger application it might for example
 be more suitable to output to a log file.
 
-Rune also provides `print` and `println` functions which can be used to write
+Rune also provides `print!` and `println!` macros which can be used to format
 directly to stdout, but these cannot be relied on to be present to the same
-degree as `dbg`. But for our purposes we will be using `rune-cli`, which has all
-of these modules installed. This is also what was used to run the above code.
+degree as `dbg`. However for our purposes we will be using `rune-cli`, which has
+all of these modules installed. This is also what was used to run the above
+code.
 
 So for a more formal introduction, here is the official Rune `"Hello World"`:
 
@@ -40,9 +41,6 @@ Hello World
 == () (1.0864ms)
 ```
 
-> Note: Something which might trip up Rust users is that the `println` is not a
-> macro-like function as `println!`.
-
 At the end of the script's output, you see this rather odd looking line:
 
 ```text
@@ -50,9 +48,9 @@ At the end of the script's output, you see this rather odd looking line:
 ```
 
 This simply means that the script evaluated to a unit, or a `()`.
-And that the execution took `1.0864` milliseconds.
+And that the script took `1.0864` milliseconds to run.
 
-> Cool Hint:
+> Cool hint:
 > Any function that doesn't have a return value returns a unit.
 
 So now you know how to run Rune scripts. Well done! Let's move on to the next

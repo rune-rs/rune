@@ -1,4 +1,4 @@
-# Pattern Matching
+# Pattern matching
 
 In this section we will be discussing *Pattern Matching*.
 
@@ -24,32 +24,59 @@ Something else. Can I go eat now?
 
 We will be covering each of these variants in detail in the coming sections.
 
-## Matching Literals
+## Patterns
 
-Literals are the simplest form of matching, where we test if the branch is
-exactly equal to a literal.
+Things that can be matched over are called *patterns*, and there's a fairly
+large number of them. In this section we'll try to document the most common
+ones.
 
-Literals take a number of form:
+Patterns that can be matched over are the following:
 
-* A literal unit, simply `()`.
-* A literal boolean, like `true` or `false`.
-* A literal character, like `'a'` or `'あ'`.
-* A literal integer, like `42`.
+* A unit, simply `()`.
+* A boolean value, like `true` or `false`.
+* A byte, like `b'a'` or `b'\x10'`.
+* A character, like `'a'` or `'あ'`.
+* An integer, like `42`.
 * A string, like `"Steven Universe"`.
-* A vector, like the numbers `[4, 8, 15, 16, 23, 42]` or the empty vector `[]`.
-* A tuple, like `("Steven Universe", 42)`.
-* An object, like the numbers `{"name": "Steven Universe"}` or the empty `{}`.
+* A vector, like the numbers `[1, _, ..]`, or simply the empty vector `[]`. The
+  values in the vectors are patterns themselves.
+* A tuple, like `("Steven Universe", _, 42)`. The values in the tuple are
+  patterns themselves.
+* An object, like the numbers `{"name": "Steven Universe", "age": _}`, or the
+  empty `{}`. The values in the object are patterns themselves.
 
-Finally, literals can be *any* combination of the above.
-Even `{"items": ["Sword", "Bow", "Axe"]}` is a literal that can be matched over.
+Structs can be matched over by prefixing the match with their name:
+* A unit struct: `Foo`.
+* A tuple struct: `Foo(1, _)`.
+* An object struct: `Foo { bar: 1, .. }`.
 
-## Match Bindings
+Similarly, variants in an enum can be matched over as well in the same way:
+* A unit variant: `Foo::Variant`.
+* A tuple variant: `Foo::Variant(1, _)`.
+* An object variant: `Foo::Variant { bar: 1, .. }`.
 
-In a pattern, every literal value can also be replaced with an ignore directive
-or a binding.
+Patterns can be almost *any* combination of the above. Even `{"items": ["Sword",
+"Bow", "Axe"]}` is a pattern that can be matched over.
 
-The ignore directive looks like an underscore `_`, which tells rune to *ignore*
-the value, allowing it to have any value.
+Anything that qualifies as a collection can have `..` as a suffix to match the
+case that there are extra fields or values which are not covered in the pattern.
+This is called a *rest pattern*.
+
+```rune
+{{#include ../../scripts/book/pattern_matching/rest_pattern.rn}}
+```
+
+```text
+$> cargo run --bin rune -- scripts/book/pattern_matching/rest_pattern.rn
+== () (89.8µs)
+```
+
+## Binding and ignoring
+
+In a pattern, every value can be replaced with a *binding* or an *ignore
+pattern*. The ignore pattern is a single underscore `_`, which informs Rune that
+it should ignore that value, causing it to match unconditionally regardless of
+what it is.
 
 ```rune
 {{#include ../../scripts/book/pattern_matching/ignore.rn}}
@@ -62,7 +89,8 @@ Second item in vector is 2.
 ```
 
 In contrast to ignoring, we can also *bind* the value to a variable that is then
-in scope of the match arm.
+in scope of the match arm. This will also match the value unconditionally, but
+give us access to it in the match arm.
 
 ```rune
 {{#include ../../scripts/book/pattern_matching/bind.rn}}
@@ -76,13 +104,9 @@ Second item in vector is 2.
 
 Here are some more examples:
 
-* `[_, a, b]` which will ignore the first, but then capture the second and third
-  element in the vector.
-* `{"name": name}` will capture the `name` value out of the specified object.
-
-Finally we can also add the sequence `..` to ask Rune to *ignore* any additional
-values in a collection that might be present when matching a vector or an
-object.
+* `[_, a, b]` which will ignore the first value in the vector, but then bind the
+  second and third as `a` and `b`.
+* `{"name": name}` will bind the value `name` out of the specified object.
 
 ```rune
 {{#include ../../scripts/book/pattern_matching/fast_cars.rn}}

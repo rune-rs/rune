@@ -6,17 +6,17 @@ distinct *copies* of the underlying value.
 
 The primitives available in Rune are:
 
-* the unit `()`.
-* booleans, `true` and `false`.
-* bytes, like `b'\xff'`.
-* characters, like `'今'`.
-* integers, like `42`.
-* floats, like `3.1418`.
-* static strings, like `"Hello World"`.
-* type hashes.
+* The unit `()`.
+* Booleans, `true` and `false`.
+* Bytes, like `b'\xff'`.
+* Characters, like `'今'`. Which are 4 byte wide characters.
+* Integers, like `42`. Which are 64-bit signed integers.
+* Floats, like `3.1418`. Which are 64-bit floating point numbers.
+* Static strings, like `"Hello World"`.
+* Type hashes.
 
 You can see that these bytes are `Copy` when assigning them to a different
-variable, because a separate copy of the variable will be used.
+variable, because a separate copy of the value will be used automatically.
 
 ```rune
 {{#include ../../scripts/book/primitives/copy.rn}}
@@ -29,9 +29,9 @@ $> cargo run --bin rune -- scripts/book/primitives/copy.rn
 == () (691.3µs)
 ```
 
-Other types like *strings* are stored by reference on the stack. Assigning them
-to a different variable will only *copy their reference*, but they still point
-to the same underlying data.
+Other types like *strings* are stored by reference. Assigning them to a
+different variable will only *copy their reference*, but they still point to the
+same underlying data.
 
 ```rune
 {{#include ../../scripts/book/primitives/primitives.rn}}

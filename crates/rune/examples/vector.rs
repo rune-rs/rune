@@ -11,7 +11,7 @@ fn main() -> runestick::Result<()> {
         &["calc"],
         (input,),
         r#"
-        fn calc(input) {
+        pub fn calc(input) {
             let output = 0;
 
             for value in input {

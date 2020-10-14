@@ -12,7 +12,7 @@ fn main() -> runestick::Result<()> {
         &["calc"],
         (input,),
         r#"
-        fn calc(input) {
+        pub fn calc(input) {
             let a = input[0] + 1;
             let b = `{input[1]} World`;
             [a, b]

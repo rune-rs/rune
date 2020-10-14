@@ -9,7 +9,7 @@ fn main() -> runestick::Result<()> {
         &["calc"],
         ((1, 2),),
         r#"
-        fn calc(input) {
+        pub fn calc(input) {
             (input.0 + 1, input.1 + 2)
         }
         "#,

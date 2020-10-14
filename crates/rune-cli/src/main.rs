@@ -207,15 +207,15 @@ fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::
     std::iter::from_fn(move || loop {
         let path = queue.pop_front()?;
 
+        if !recursive {
+            return Some(Ok(path));
+        }
+
         if path.is_file() {
-            if !recursive || path.extension() == Some(OsStr::new("rn")) {
+            if path.extension() == Some(OsStr::new("rn")) {
                 return Some(Ok(path));
             }
 
-            continue;
-        }
-
-        if !recursive {
             continue;
         }
 

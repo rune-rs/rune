@@ -6,7 +6,7 @@ fn main() -> runestick::Result<()> {
             a + b
         }
 
-        fn main() {
+        pub fn main() {
             foo
         }
     };

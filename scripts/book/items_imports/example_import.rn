@@ -1,5 +1,5 @@
-use std::test::assert;
+use std::iter::range;
 
 pub fn main() {
-    assert!(1 < 2, "one is less than two");
+    range(0, 10)
 }

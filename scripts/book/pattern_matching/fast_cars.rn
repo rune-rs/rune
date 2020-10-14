@@ -7,7 +7,7 @@ fn describe_car(car) {
 }
 
 pub fn main() {
-    println(describe_car(#{"model": "Ford", "make": 2000}));
-    println(describe_car(#{"model": "Honda", "make": 1980}));
-    println(describe_car(#{"model": "Volvo", "make": 1910}));
+    println!("{}", describe_car(#{"model": "Ford", "make": 2000}));
+    println!("{}", describe_car(#{"model": "Honda", "make": 1980}));
+    println!("{}", describe_car(#{"model": "Volvo", "make": 1910}));
 }

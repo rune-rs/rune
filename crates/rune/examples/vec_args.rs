@@ -19,7 +19,7 @@ fn main() -> runestick::Result<()> {
     sources.insert(Source::new(
         "test",
         r#"
-        fn main() {
+        pub fn main() {
             let value = mymodule::pass_along(add, [5, 9]);
             println(`${value}`);
         }

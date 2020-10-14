@@ -1,6 +1,6 @@
 fn print_once() {
     let out = yield 1;
-    dbg(out);
+    println!("{:?}", out);
     2
 }
 

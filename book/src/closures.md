@@ -71,3 +71,27 @@ $> cargo run --example call_rune_fn
 Note that these functions by necessity have to capture their entire context and
 can take up quite a bit of space if you keep them around while cycling many
 contexts or units.
+
+Values used in a closure can also be moved into it using the `move` keyword,
+guaranteeing that no one else can use it afterwards. An attempt to do so will
+cause a compile error.
+
+```rune
+{{#include ../../scripts/book/closures/closure_move.rn.fail}}
+```
+
+```text
+$> cargo run --bin rune -- scripts/book/closures/closure_move.rn.fail
+error: compile error
+  ┌─ scripts/book/closures/closure_move.rn.fail:7:33
+  │
+7 │     println!("Result: {}", work(move |a, b| n + a + b));
+  │                                 --------------------- moved here
+8 │     assert!(!is_readable(n));
+  │                          ^ variable moved
+```
+
+> Moving indiscriminately applies to types which in principle could be copied
+> (like integers). We simply don't have the necessary type information available
+> right now to make that decision. If you know that the value can be copied and
+> you want to do so: assign it to a separate variable.

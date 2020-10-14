@@ -1,0 +1,9 @@
+fn work(op) {
+    op(1, 2)
+}
+
+pub fn main() {
+    let n = 1;
+    println!("Result: {}", work(move |a, b| n + a + b));
+    assert!(!is_readable(n));
+}

@@ -9,8 +9,8 @@
   - [Control flow](./control_flow.md)
   - [Variables and memory](./variables.md)
   - [Loops](./loops.md)
-  - [Pattern Matching](./pattern_matching.md)
-  - [Template strings](./template_strings.md)
+  - [Pattern matching](./pattern_matching.md)
+  - [Template literals](./template_literals.md)
   - [Instance functions](./instance_functions.md)
 - [Built-in types](./types.md)
   - [Primitives and references](./primitives.md)
@@ -31,3 +31,8 @@
   - [The stack](./the_stack.md)
   - [Call frames](./call_frames.md)
   - [Compiler guide](./compiler_guide.md)
+
+-----------
+
+- [Deprecated](./deprecated.md)
+  - [String literals](./string_literals.md)

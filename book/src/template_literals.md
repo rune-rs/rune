@@ -1,22 +1,26 @@
-# Template strings
+# Template literals
 
 If you've been paying attention on previous sections you might have seen odd
-looking strings like `` `Hello ${name}` ``. These are called *template strings*,
-and allow you to conveniently build strings using variables from the
+looking strings like `` `Hello ${name}` ``. These are called *template
+literals*, and allow you to conveniently build strings using variables from the
 environment.
 
+> Template literals are [a concept borrowed from EcmaScript].
+
 ```rune
-{{#include ../../scripts/book/template_strings/basic_template.rn}}
+{{#include ../../scripts/book/template_literals/basic_template.rn}}
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/template_strings/basic_template.rn
+$> cargo run --bin rune -- scripts/book/template_literals/basic_template.rn
 "I am 30 years old!"
 == () (4.5678ms)
 ```
 
 Template strings are accelerated by the Vm, each argument uses a *display
 protocol* and it can be very efficient to build complex strings out of it.
+
+[a concept borrowed from EcmaScript]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals
 
 ## The `STRING_DISPLAY` protocol
 
@@ -51,14 +55,14 @@ This is what allows status codes to be formatted into template strings, any
 types which do not implement this protocol will fail to run.
 
 ```rune
-{{#include ../../scripts/book/template_strings/not_a_template.rn}}
+{{#include ../../scripts/book/template_literals/not_a_template.rn}}
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/template_strings/not_a_template.rn
+$> cargo run --bin rune -- scripts/book/template_literals/not_a_template.rn
 == ! (`Vec` does not implement the `string_display` protocol (at 5)) (77.7µs)
 error: virtual machine error
-  ┌─ scripts/book/template_strings/not_a_template.rn:3:9
+  ┌─ scripts/book/template_literals/not_a_template.rn:3:9
   │
 3 │     dbg(`${vec}`);
   │         ^^^^^^^^ `Vec` does not implement the `string_display` protocol

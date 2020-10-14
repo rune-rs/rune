@@ -14,7 +14,7 @@ pub fn main() {
     let g = fib();
 
     while let Some(n) = g.next() {
-        dbg(n);
+        println!("{}", n);
 
         if n > 100 {
             break;

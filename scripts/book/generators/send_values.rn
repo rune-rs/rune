@@ -1,7 +1,7 @@
 fn printer() {
     loop {
         let out = yield;
-        dbg(out);
+        println!("{:?}", out);
     }
 }
 
