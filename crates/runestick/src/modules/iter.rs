@@ -16,6 +16,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("next_back", Iterator::next_back)?;
     module.inst_fn("next", Iterator::next)?;
     module.inst_fn("rev", Iterator::rev)?;
+    module.inst_fn("take", Iterator::take)?;
+    module.inst_fn("peekable", Iterator::peekable)?;
+    module.inst_fn("peek", Iterator::peek)?;
     module.inst_fn("size_hint", Iterator::size_hint)?;
     module.inst_fn(crate::NEXT, Iterator::next)?;
     module.inst_fn(crate::INTO_ITER, <Iterator as From<Iterator>>::from)?;
