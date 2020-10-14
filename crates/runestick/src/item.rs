@@ -8,11 +8,10 @@ use std::hash::Hash as _;
 
 // Types available.
 const STRING: u8 = 0;
-const BLOCK: u8 = 1;
-const CLOSURE: u8 = 2;
+const ID: u8 = 1;
 
 /// How many bits the type of a tag takes up.
-const TYPE_BITS: usize = 2;
+const TYPE_BITS: usize = 1;
 /// Mask of the type of a tag.
 const TYPE_MASK: usize = (0b1 << TYPE_BITS) - 1;
 /// Total tag size in bytes.
@@ -27,14 +26,14 @@ const MAX_DATA: usize = 0b1 << (TAG_BYTES * 8 - TYPE_BITS);
 ///
 /// # Panics
 ///
-/// The max length of a string component is is 2**14 = 16384. Attempting to add
+/// The max length of a string component is is 2**15 = 32768. Attempting to add
 /// a string larger than that will panic.
 ///
 /// # Component encoding
 ///
 /// A component is encoded as:
 /// * A two byte tag as a u16 in native endianess, indicating its type (least
-///   significant 2 bits) and data (most significant 14 bits).
+///   significant 2 bits) and data (most significant 15 bits).
 /// * If the type is a `STRING`, the data is treated as the length of the
 ///   string. Any other type this the `data` is treated as the numeric id of the
 ///   component.
@@ -45,13 +44,13 @@ const MAX_DATA: usize = 0b1 << (TAG_BYTES * 8 - TYPE_BITS);
 /// So all in all, a string is encoded as:
 ///
 /// ```text
-/// dddddddd ddddddtt *string content* dddddddd ddddddtt
+/// dddddddd dddddddt *string content* dddddddd dddddddt
 /// ```
 ///
 /// And any other component is just the two bytes:
 ///
 /// ```text
-/// dddddddd ddddddtt
+/// dddddddd dddddddt
 /// ```
 #[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Item {
@@ -250,7 +249,7 @@ impl Item {
 /// use runestick::{Item, ComponentRef::*};
 ///
 /// assert_eq!("{root}", Item::new().to_string());
-/// assert_eq!("hello::$block0", Item::of(&[String("hello"), Block(0)]).to_string());
+/// assert_eq!("hello::$0", Item::of(&[Str("hello"), Id(0)]).to_string());
 /// ```
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -308,10 +307,10 @@ impl<'a> Iter<'a> {
     /// Get the next component as a string.
     ///
     /// Will consume the next component in the iterator, but will only indicate
-    /// if the next component was present, and was a [Component::String].
+    /// if the next component was present, and was a [Component::Str].
     pub fn next_str(&mut self) -> Option<&'a str> {
         match self.next()? {
-            ComponentRef::String(s) => Some(s),
+            ComponentRef::Str(s) => Some(s),
             _ => None,
         }
     }
@@ -319,10 +318,10 @@ impl<'a> Iter<'a> {
     /// Get the next back as a string component.
     ///
     /// Will consume the next component in the iterator, but will only indicate
-    /// if the next component was present, and was a [Component::String].
+    /// if the next component was present, and was a [Component::Str].
     pub fn next_back_str(&mut self) -> Option<&'a str> {
         match self.next_back()? {
-            ComponentRef::String(s) => Some(s),
+            ComponentRef::Str(s) => Some(s),
             _ => None,
         }
     }
@@ -349,12 +348,11 @@ impl<'a> Iterator for Iter<'a> {
                 self.content = content;
 
                 // Safety: we control the construction of the item.
-                return Some(ComponentRef::String(unsafe {
+                return Some(ComponentRef::Str(unsafe {
                     std::str::from_utf8_unchecked(buf)
                 }));
             }
-            BLOCK => ComponentRef::Block(n),
-            CLOSURE => ComponentRef::Closure(n),
+            ID => ComponentRef::Id(n),
             b => panic!("unsupported control byte {:?}", b),
         };
 
@@ -393,12 +391,11 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
                 self.content = content;
 
                 // Safety: we control the construction of the item.
-                return Some(ComponentRef::String(unsafe {
+                return Some(ComponentRef::Str(unsafe {
                     std::str::from_utf8_unchecked(buf)
                 }));
             }
-            BLOCK => ComponentRef::Block(n),
-            CLOSURE => ComponentRef::Closure(n),
+            ID => ComponentRef::Id(n),
             b => panic!("unsupported control byte {:?}", b),
         };
 
@@ -433,34 +430,30 @@ impl PartialEq<Iter<'_>> for &Item {
 
 /// The component of an item.
 ///
-/// All indexes refere to sibling indexes. So two sibling blocks could have the
-/// indexes `1` and `2` respectively.
+/// All indexes refer to sibling indexes. So two sibling id components could
+/// have the indexes `1` and `2` respectively.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Component {
     /// A regular string component.
-    String(Box<str>),
-    /// A nested block with an index.
-    Block(usize),
-    /// A closure component.
-    Closure(usize),
+    Str(Box<str>),
+    /// A nested anonymous part with an identifier.
+    Id(usize),
 }
 
 impl Component {
     /// Get the identifier of the component.
     pub fn id(&self) -> Option<usize> {
         match self {
-            Self::String(..) => None,
-            Self::Block(n) => Some(*n),
-            Self::Closure(n) => Some(*n),
+            Self::Str(..) => None,
+            Self::Id(n) => Some(*n),
         }
     }
 
     /// Convert into component reference.
     pub fn as_component_ref(&self) -> ComponentRef<'_> {
         match self {
-            Self::String(s) => ComponentRef::String(&*s),
-            Self::Block(n) => ComponentRef::Block(*n),
-            Self::Closure(n) => ComponentRef::Closure(*n),
+            Self::Str(s) => ComponentRef::Str(&*s),
+            Self::Id(n) => ComponentRef::Id(*n),
         }
     }
 }
@@ -468,57 +461,49 @@ impl Component {
 impl fmt::Display for Component {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::String(s) => write!(fmt, "{}", s),
-            Self::Block(n) => write!(fmt, "$block{}", n),
-            Self::Closure(n) => write!(fmt, "$closure{}", n),
+            Self::Str(s) => write!(fmt, "{}", s),
+            Self::Id(n) => write!(fmt, "${}", n),
         }
     }
 }
 
 /// A reference to a component of an item.
 ///
-/// All indexes refere to sibling indexes. So two sibling blocks could have the
-/// indexes `1` and `2` respectively.
+/// All indexes refer to sibling indexes. So two sibling id components could
+/// have the indexes `1` and `2` respectively.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ComponentRef<'a> {
     /// A regular string component.
-    String(&'a str),
-    /// A nested block with an index.
-    Block(usize),
-    /// A closure component.
-    Closure(usize),
+    Str(&'a str),
+    /// A nested anonymous part with an identifier.
+    Id(usize),
 }
 
 impl ComponentRef<'_> {
-    /// Get the identifier of the component.
+    /// Get the identifier of the component if it is an identifier component.
     pub fn id(self) -> Option<usize> {
         match self {
-            Self::String(..) => None,
-            Self::Block(n) => Some(n),
-            Self::Closure(n) => Some(n),
+            Self::Str(..) => None,
+            Self::Id(n) => Some(n),
         }
     }
 
     /// Convert into an owned component.
     pub fn into_component(self) -> Component {
         match self {
-            Self::String(s) => Component::String(s.into()),
-            Self::Block(n) => Component::Block(n),
-            Self::Closure(n) => Component::Closure(n),
+            Self::Str(s) => Component::Str(s.into()),
+            Self::Id(n) => Component::Id(n),
         }
     }
 
     /// Write the current component to the given vector.
     pub fn write_component(self, output: &mut Vec<u8>) {
         match self {
-            ComponentRef::String(s) => {
+            ComponentRef::Str(s) => {
                 write_str(s, output);
             }
-            ComponentRef::Block(c) => {
-                write_tag(output, BLOCK, c);
-            }
-            ComponentRef::Closure(c) => {
-                write_tag(output, CLOSURE, c);
+            ComponentRef::Id(c) => {
+                write_tag(output, ID, c);
             }
         }
     }
@@ -529,16 +514,12 @@ impl ComponentRef<'_> {
         H: hash::Hasher,
     {
         match self {
-            ComponentRef::String(s) => {
+            ComponentRef::Str(s) => {
                 STRING.hash(hasher);
                 s.hash(hasher);
             }
-            ComponentRef::Block(c) => {
-                BLOCK.hash(hasher);
-                c.hash(hasher);
-            }
-            ComponentRef::Closure(c) => {
-                CLOSURE.hash(hasher);
+            ComponentRef::Id(c) => {
+                ID.hash(hasher);
                 c.hash(hasher);
             }
         }
@@ -548,9 +529,8 @@ impl ComponentRef<'_> {
 impl fmt::Display for ComponentRef<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::String(s) => write!(fmt, "{}", s),
-            Self::Block(n) => write!(fmt, "$block{}", n),
-            Self::Closure(n) => write!(fmt, "$closure{}", n),
+            Self::Str(s) => write!(fmt, "{}", s),
+            Self::Id(n) => write!(fmt, "${}", n),
         }
     }
 }
@@ -623,11 +603,11 @@ macro_rules! impl_into_component_for_str {
     ($ty:ty, $slf:ident, $into:expr) => {
         impl IntoComponent for $ty {
             fn as_component_ref(&self) -> ComponentRef<'_> {
-                ComponentRef::String(self.as_ref())
+                ComponentRef::Str(self.as_ref())
             }
 
             fn into_component($slf) -> Component {
-                Component::String($into)
+                Component::Str($into)
             }
 
             fn write_component(self, output: &mut Vec<u8>) {
@@ -703,17 +683,17 @@ mod tests {
         let mut item = Item::new();
 
         item.push("start");
-        item.push(ComponentRef::Block(1));
-        item.push(ComponentRef::Closure(2));
+        item.push(ComponentRef::Id(1));
+        item.push(ComponentRef::Id(2));
         item.push("middle");
-        item.push(ComponentRef::Block(3));
+        item.push(ComponentRef::Id(3));
         item.push("end");
 
         assert_eq!(item.pop(), Some("end".into_component()));
-        assert_eq!(item.pop(), Some(Component::Block(3)));
+        assert_eq!(item.pop(), Some(Component::Id(3)));
         assert_eq!(item.pop(), Some("middle".into_component()));
-        assert_eq!(item.pop(), Some(Component::Closure(2)));
-        assert_eq!(item.pop(), Some(Component::Block(1)));
+        assert_eq!(item.pop(), Some(Component::Id(2)));
+        assert_eq!(item.pop(), Some(Component::Id(1)));
         assert_eq!(item.pop(), Some("start".into_component()));
         assert_eq!(item.pop(), None);
 
@@ -725,19 +705,19 @@ mod tests {
         let mut item = Item::new();
 
         item.push("start");
-        item.push(ComponentRef::Block(1));
-        item.push(ComponentRef::Closure(2));
+        item.push(ComponentRef::Id(1));
+        item.push(ComponentRef::Id(2));
         item.push("middle");
-        item.push(ComponentRef::Block(3));
+        item.push(ComponentRef::Id(3));
         item.push("end");
 
         let mut it = item.iter();
 
         assert_eq!(it.next(), Some("start".as_component_ref()));
-        assert_eq!(it.next(), Some(ComponentRef::Block(1)));
-        assert_eq!(it.next(), Some(ComponentRef::Closure(2)));
+        assert_eq!(it.next(), Some(ComponentRef::Id(1)));
+        assert_eq!(it.next(), Some(ComponentRef::Id(2)));
         assert_eq!(it.next(), Some("middle".as_component_ref()));
-        assert_eq!(it.next(), Some(ComponentRef::Block(3)));
+        assert_eq!(it.next(), Some(ComponentRef::Id(3)));
         assert_eq!(it.next(), Some("end".as_component_ref()));
         assert_eq!(it.next(), None);
 
@@ -749,19 +729,19 @@ mod tests {
         let mut item = Item::new();
 
         item.push("start");
-        item.push(ComponentRef::Block(1));
-        item.push(ComponentRef::Closure(2));
+        item.push(ComponentRef::Id(1));
+        item.push(ComponentRef::Id(2));
         item.push("middle");
-        item.push(ComponentRef::Block(3));
+        item.push(ComponentRef::Id(3));
         item.push("end");
 
         let mut it = item.iter();
 
         assert_eq!(it.next_back_str(), Some("end"));
-        assert_eq!(it.next_back(), Some(ComponentRef::Block(3)));
+        assert_eq!(it.next_back(), Some(ComponentRef::Id(3)));
         assert_eq!(it.next_back_str(), Some("middle"));
-        assert_eq!(it.next_back(), Some(ComponentRef::Closure(2)));
-        assert_eq!(it.next_back(), Some(ComponentRef::Block(1)));
+        assert_eq!(it.next_back(), Some(ComponentRef::Id(2)));
+        assert_eq!(it.next_back(), Some(ComponentRef::Id(1)));
         assert_eq!(it.next_back_str(), Some("start"));
         assert_eq!(it.next_back(), None);
     }
@@ -771,19 +751,19 @@ mod tests {
         let mut item = Item::new();
 
         item.push("start");
-        item.push(ComponentRef::Block(1));
-        item.push(ComponentRef::Closure(2));
+        item.push(ComponentRef::Id(1));
+        item.push(ComponentRef::Id(2));
         item.push("middle");
-        item.push(ComponentRef::Block(3));
+        item.push(ComponentRef::Id(3));
         item.push("end");
 
         let mut it = item.iter();
 
         assert_eq!(it.next_str(), Some("start"));
         assert_eq!(it.next_back_str(), Some("end"));
-        assert_eq!(it.next(), Some(ComponentRef::Block(1)));
-        assert_eq!(it.next(), Some(ComponentRef::Closure(2)));
-        assert_eq!(it.next_back(), Some(ComponentRef::Block(3)));
+        assert_eq!(it.next(), Some(ComponentRef::Id(1)));
+        assert_eq!(it.next(), Some(ComponentRef::Id(2)));
+        assert_eq!(it.next_back(), Some(ComponentRef::Id(3)));
         assert_eq!(it.next_str(), Some("middle"));
         assert_eq!(it.next_back(), None);
         assert_eq!(it.next(), None);
@@ -792,8 +772,8 @@ mod tests {
     #[test]
     fn store_max_data() {
         let mut item = Item::new();
-        item.push(ComponentRef::Block(super::MAX_DATA - 1));
-        assert_eq!(item.last(), Some(ComponentRef::Block(super::MAX_DATA - 1)));
+        item.push(ComponentRef::Id(super::MAX_DATA - 1));
+        assert_eq!(item.last(), Some(ComponentRef::Id(super::MAX_DATA - 1)));
     }
 
     #[test]
@@ -802,16 +782,16 @@ mod tests {
         let s = std::iter::repeat('x')
             .take(super::MAX_DATA - 1)
             .collect::<String>();
-        item.push(ComponentRef::String(&s));
-        assert_eq!(item.last(), Some(ComponentRef::String(&s)));
+        item.push(ComponentRef::Str(&s));
+        assert_eq!(item.last(), Some(ComponentRef::Str(&s)));
     }
 
     #[test]
     #[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
     fn store_max_data_overflow() {
         let mut item = Item::new();
-        item.push(ComponentRef::Block(super::MAX_DATA));
-        assert_eq!(item.last(), Some(ComponentRef::Block(super::MAX_DATA)));
+        item.push(ComponentRef::Id(super::MAX_DATA));
+        assert_eq!(item.last(), Some(ComponentRef::Id(super::MAX_DATA)));
     }
 
     #[test]
@@ -821,7 +801,7 @@ mod tests {
         let s = std::iter::repeat('x')
             .take(super::MAX_DATA)
             .collect::<String>();
-        item.push(ComponentRef::String(&s));
+        item.push(ComponentRef::Str(&s));
     }
 
     #[test]

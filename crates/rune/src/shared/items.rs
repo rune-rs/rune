@@ -1,4 +1,4 @@
-use runestick::{Component, ComponentRef, Item};
+use runestick::{ComponentRef, Item};
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 
@@ -50,23 +50,11 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub(crate) fn push_block(&mut self) -> Guard {
+    pub(crate) fn push_id(&self) -> Guard {
         let mut inner = self.inner.borrow_mut();
 
         let id = inner.id;
-        inner.item.push(Component::Block(id));
-
-        Guard {
-            inner: self.inner.clone(),
-        }
-    }
-
-    /// Push a closure component and return guard associated with it.
-    pub(crate) fn push_closure(&mut self) -> Guard {
-        let mut inner = self.inner.borrow_mut();
-
-        let id = inner.id;
-        inner.item.push(Component::Closure(id));
+        inner.item.push(ComponentRef::Id(id));
 
         Guard {
             inner: self.inner.clone(),
@@ -74,7 +62,7 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub(crate) fn push_name(&mut self, name: &str) -> Guard {
+    pub(crate) fn push_name(&self, name: &str) -> Guard {
         let mut inner = self.inner.borrow_mut();
 
         inner.id = 0;

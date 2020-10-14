@@ -732,7 +732,7 @@ impl Index for ast::ExprBlock {
             return self.block.index(idx);
         }
 
-        let _guard = idx.items.push_block();
+        let _guard = idx.items.push_id();
 
         let item = idx.query.insert_new_item(
             idx.source_id,
@@ -792,7 +792,7 @@ impl Index for ast::Block {
         let span = self.span();
         log::trace!("Block => {:?}", idx.source.source(span));
 
-        let _guard = idx.items.push_block();
+        let _guard = idx.items.push_id();
         let _guard = idx.scopes.push_scope();
 
         idx.query.insert_new_item(
@@ -1526,7 +1526,7 @@ impl Index for Box<ast::ExprClosure> {
         let span = self.span();
         log::trace!("ExprClosure => {:?}", idx.source.source(span));
 
-        let _guard = idx.items.push_closure();
+        let _guard = idx.items.push_id();
 
         let kind = match self.async_token {
             Some(..) => IndexFnKind::Async,

@@ -33,7 +33,7 @@ impl SourceLoader for FileSourceLoader {
         }
 
         for c in item {
-            if let ComponentRef::String(string) = c {
+            if let ComponentRef::Str(string) = c {
                 base.push(string);
             } else {
                 return Err(CompileError::new(

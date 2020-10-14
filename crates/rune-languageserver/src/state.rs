@@ -630,14 +630,14 @@ impl<'a> SourceLoader<'a> {
         while let Some(c) = it.next() {
             if it.peek().is_none() {
                 last = match c {
-                    ComponentRef::String(string) => Some(string),
+                    ComponentRef::Str(string) => Some(string),
                     _ => return None,
                 };
 
                 break;
             }
 
-            if let ComponentRef::String(string) = c {
+            if let ComponentRef::Str(string) = c {
                 base.push(string);
             } else {
                 return None;
