@@ -21,7 +21,7 @@ struct Timeout;
 const SITE = "https://httpstat.us";
 
 async fn request(timeout) {
-    let request = http::get(`{SITE}/200?sleep={timeout}`);
+    let request = http::get(`${SITE}/200?sleep=${timeout}`);
     let timeout = time::delay_for(time::Duration::from_secs(1));
 
     let result = select {
@@ -33,7 +33,7 @@ async fn request(timeout) {
     Ok(text)
 }
 
-async fn main() {
+pub async fn main() {
     let result = future::join((request(0), request(1500))).await;
     dbg(result);
 }
@@ -60,10 +60,10 @@ const VALUE = {
         timeout = timeout * 2;
     }
 
-    `https://httpstat.us?timeout={timeout}`
+    `https://httpstat.us/200?timeout=${timeout}`
 };
 
-fn main() {
+pub fn main() {
     dbg(VALUE, LIMIT);
 }
 {% end %}
