@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Book now has support for highlighting `rune` blocks ([#14]).
 * Preliminary support for modules without visibility ([#16], [#17]).
 * Debug information for function variable names now reflect source ([#24]).
-* Initial support for macro in item and expression positions ([#29], [#30],
-  [#31]).
+* Initial support for macros ([#29], [#30], [#31], [#114], [#135], [#136],
+  [#137], [#138], [#141], [#142], [#143], [#144]).
 * Add cargo build cache ([#36]) (thanks [shekohex]!).
 * Rust `quote!` macro for Rune macro authors ([#34]).
 * Support for object- and tuple-like field assignments ([#38], [#39], [#40],
@@ -47,13 +47,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Community site at https://rune-rs.github.io ([#75]).
 * Add WASM-based Playground to community site https://rune-rs.github.io ([#77]).
 * Support for limiting execution of `rune-wasm` ([#80]).
+* Support for modules, imports, re-exports, visibility, and path resolution
+  ([#83], [#92], [#98], [#124], [#125], [#128], [#129], [#130], [#131], [#133],
+  [#134], [#148], [#155]) (thanks [dillonhicks]!).
 * Add WASM support for a couple of showcased rune modules ([#89]).
 * Added runtime type information (RTTI) for values in Runestick ([#90], [#112]).
 * Add a `rand` module to `rune-modules` ([#100]) (thanks [aspenluxxxy]!).
-* Initial support for attribute and visibility parsing ([#83], [#92], [#98])
-  (thanks [dillonhicks]!).
 * Initial support for constant evaluation ([#93], [#94], [#99], [#104], [#105],
-  [#106], [#107]).
+  [#106], [#107], [#117], [#122], [#123], [#153]).
+* Add `Args` implementation for `Vec` ([#147]) (thanks [MinusGix]!).
+* Export a `Function` variant called `SyncFunction` that is thread-safe ([#149],
+  [#151]) (thanks [MinusGix]!).
+* Support `move` modifier to async blocks and closures to take ownership of
+  values being used ([#152]).
+* Basic `Iterator` support ([#156]) (thanks [MinusGix]!).
 
 ### Changed
 * Make units more efficient by separating runtime and compile-time metadata ([#24]).
@@ -64,9 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Make hashing less error prone ([#72]).
 * Various parser changes and tests ([#110]).
 * Various internal changes ([#103], [#108], [#109]).
+* Parser simplifications ([#120], [#121]).
+* Negative literals are handled as expressions ([#132]).
+* Syntax for template strings now follows EcmaScript ([#145]).
 
 ### Fixed
-* Introduced custom highlight.js to fix issue with hidden lines ([#10]).
+* Introduced custom highlight.js to fix issue with hidden lines in the book
+  ([#10]).
 * Semi-colons in blocks weren't required, they now are ([#32]).
 * Fixed field assignments ([#38], [#40]) (thanks [MinusGix]!).
 * Book typos ([#11], [#18], [#28], [#37]) (thanks [Sparkpin], [seanchen1991],
@@ -77,6 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([#21], [#22]) (thanks [MinusGix]!).
 * Fixed a number of clippy lints ([#35]) (thanks [shekohex]!).
 * Fix using closures in literals, like `(0, || 42)` or `#{a: || 42}` ([#78]).
+* Shared access guards didn't implement Drop allowing them to leak their guarded
+  value ([#119]).
 
 [`structopt`]: https://docs.rs/structopt
 
@@ -172,5 +185,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#110]: https://github.com/rune-rs/rune/pull/110
 [#112]: https://github.com/rune-rs/rune/pull/112
 [#113]: https://github.com/rune-rs/rune/pull/113
+[#114]: https://github.com/rune-rs/rune/pull/114
+[#117]: https://github.com/rune-rs/rune/pull/117
+[#119]: https://github.com/rune-rs/rune/pull/119
+[#120]: https://github.com/rune-rs/rune/pull/120
+[#121]: https://github.com/rune-rs/rune/pull/121
+[#122]: https://github.com/rune-rs/rune/pull/122
+[#123]: https://github.com/rune-rs/rune/pull/123
+[#124]: https://github.com/rune-rs/rune/pull/124
+[#125]: https://github.com/rune-rs/rune/pull/125
+[#128]: https://github.com/rune-rs/rune/pull/128
+[#129]: https://github.com/rune-rs/rune/pull/129
+[#130]: https://github.com/rune-rs/rune/pull/130
+[#131]: https://github.com/rune-rs/rune/pull/131
+[#132]: https://github.com/rune-rs/rune/pull/132
+[#133]: https://github.com/rune-rs/rune/pull/133
+[#134]: https://github.com/rune-rs/rune/pull/134
+[#135]: https://github.com/rune-rs/rune/pull/135
+[#136]: https://github.com/rune-rs/rune/pull/136
+[#137]: https://github.com/rune-rs/rune/pull/137
+[#138]: https://github.com/rune-rs/rune/pull/138
+[#141]: https://github.com/rune-rs/rune/pull/141
+[#142]: https://github.com/rune-rs/rune/pull/142
+[#143]: https://github.com/rune-rs/rune/pull/143
+[#144]: https://github.com/rune-rs/rune/pull/144
+[#145]: https://github.com/rune-rs/rune/pull/145
+[#147]: https://github.com/rune-rs/rune/pull/147
+[#148]: https://github.com/rune-rs/rune/pull/148
+[#149]: https://github.com/rune-rs/rune/pull/149
+[#151]: https://github.com/rune-rs/rune/pull/151
+[#152]: https://github.com/rune-rs/rune/pull/152
+[#153]: https://github.com/rune-rs/rune/pull/153
+[#155]: https://github.com/rune-rs/rune/pull/155
+[#156]: https://github.com/rune-rs/rune/pull/156
 
 [Unreleased]: https://github.com/rune-rs/rune/compare/0.6.16...master
