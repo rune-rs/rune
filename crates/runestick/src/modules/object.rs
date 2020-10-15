@@ -14,13 +14,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("contains_key", contains_key)?;
     module.inst_fn("get", get)?;
 
-    module.inst_fn("iter", object_iter)?;
-    module.inst_fn(crate::INTO_ITER, object_iter)?;
+    module.inst_fn("iter", Object::into_iterator)?;
+    module.inst_fn(crate::INTO_ITER, Object::into_iterator)?;
     Ok(module)
-}
-
-fn object_iter(object: &Object) -> crate::Iterator {
-    crate::Iterator::from("std::object::Iter", object.clone().into_iter())
 }
 
 fn contains_key(object: &Object, key: &str) -> bool {

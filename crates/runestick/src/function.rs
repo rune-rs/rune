@@ -1,8 +1,8 @@
 use crate::context::Handler;
 use crate::VmErrorKind;
 use crate::{
-    Args, Call, ConstValue, Context, FromValue, Future, Generator, RawRef, Ref, Rtti, Shared,
-    Stack, Stream, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
+    Args, Call, ConstValue, Context, FromValue, RawRef, Ref, Rtti, Shared, Stack, Tuple, Unit,
+    UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -76,7 +76,8 @@ where
     pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
-                (handler.handler)(vm.stack_mut(), args)?;
+                let _guard = crate::interface::EnvGuard::new(&vm.context, &vm.unit);
+                (handler.handler)(&mut vm.stack, args)?;
                 None
             }
             Inner::FnOffset(fn_offset) => {
@@ -346,12 +347,7 @@ impl FnOffset {
         args.into_stack(vm.stack_mut())?;
         extra.into_stack(vm.stack_mut())?;
 
-        Ok(match self.call {
-            Call::Stream => Value::from(Stream::new(vm)),
-            Call::Generator => Value::from(Generator::new(vm)),
-            Call::Immediate => vm.complete()?,
-            Call::Async => Value::from(Future::new(vm.async_complete())),
-        })
+        self.call.call_with_vm(vm)
     }
 
     /// Perform a potentially optimized call into the specified vm.

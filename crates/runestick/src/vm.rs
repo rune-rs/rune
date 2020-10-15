@@ -54,13 +54,13 @@ macro_rules! target_value {
 #[derive(Debug, Clone)]
 pub struct Vm {
     /// Context associated with virtual machine.
-    context: Arc<Context>,
+    pub(crate) context: Arc<Context>,
     /// Unit associated with virtual machine.
-    unit: Arc<Unit>,
+    pub(crate) unit: Arc<Unit>,
     /// The current instruction pointer.
     ip: usize,
     /// The current stack.
-    stack: Stack,
+    pub(crate) stack: Stack,
     /// Frames relative to the stack.
     call_frames: vec::Vec<CallFrame>,
 }
@@ -197,7 +197,7 @@ impl Vm {
     {
         self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack)?;
-        Ok(VmExecution::new(self))
+        Ok(self.into_execution())
     }
 
     /// Call the given function immediately, returning the produced value.
@@ -224,13 +224,18 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
-        let value = VmExecution::new(self).complete()?;
+        let value = self.into_execution().complete()?;
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
         // take any owned references to values held by this.
         drop(guard);
         Ok(value)
+    }
+
+    /// Convert this virtual machine into an execution.
+    fn into_execution(self) -> VmExecution {
+        VmExecution::new(self)
     }
 
     /// Call the given function immediately asynchronously, returning the
@@ -373,6 +378,7 @@ impl Vm {
         self.stack.push(target.clone());
         args.into_stack(&mut self.stack)?;
 
+        let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
         handler(&mut self.stack, count)?;
         Ok(true)
     }
@@ -392,8 +398,9 @@ impl Vm {
         };
 
         args.into_stack(&mut self.stack)?;
-
         self.stack.push(target.clone());
+
+        let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
         handler(&mut self.stack, count)?;
         Ok(true)
     }
@@ -1959,7 +1966,13 @@ impl Vm {
         Ok(())
     }
 
-    fn call_offset_fn(&mut self, offset: usize, call: Call, args: usize) -> Result<(), VmError> {
+    /// Helper function to call the function at the given offset.
+    pub(crate) fn call_offset_fn(
+        &mut self,
+        offset: usize,
+        call: Call,
+        args: usize,
+    ) -> Result<(), VmError> {
         match call {
             Call::Async => {
                 self.call_async_fn(offset, args)?;
@@ -2130,6 +2143,7 @@ impl Vm {
                     .lookup(hash)
                     .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
 
+                let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
                 handler(&mut self.stack, args)?;
             }
         }
@@ -2177,6 +2191,7 @@ impl Vm {
                     }
                 };
 
+                let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
                 handler(&mut self.stack, args)?;
             }
         }

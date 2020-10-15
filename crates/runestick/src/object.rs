@@ -201,6 +201,11 @@ impl Object {
     pub(crate) fn debug_struct<'a>(&'a self, item: &'a Item) -> DebugStruct<'a> {
         DebugStruct { item, st: self }
     }
+
+    /// Convert into a runestick iterator.
+    pub fn into_iterator(&self) -> crate::Iterator {
+        crate::Iterator::from("std::object::Iter", self.clone().into_iter())
+    }
 }
 
 impl<'a> IntoIterator for &'a Object {
