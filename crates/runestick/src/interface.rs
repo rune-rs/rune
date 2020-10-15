@@ -49,10 +49,13 @@ impl Interface {
             call,
         }) = self.unit.lookup(hash)
         {
-            let mut vm = Vm::new(self.context.clone(), self.unit.clone());
             Self::check_args(count, expected)?;
-            vm.stack.push(target);
-            args.into_stack(&mut vm.stack)?;
+
+            let mut stack = Stack::with_capacity(count);
+            stack.push(target);
+            args.into_stack(&mut stack)?;
+
+            let mut vm = Vm::new_with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.set_ip(offset);
             return call.call_with_vm(vm);
         }
@@ -65,6 +68,7 @@ impl Interface {
         let mut stack = Stack::with_capacity(count);
         stack.push(target);
         args.into_stack(&mut stack)?;
+
         handler(&mut stack, count)?;
         Ok(stack.pop()?)
     }
