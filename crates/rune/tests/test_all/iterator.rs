@@ -29,14 +29,13 @@ fn test_rev() {
         }
     );
 
-    assert_eq!(
-        values,
-        (0..100)
-            .map(|n| n * 2)
-            .filter(|n| n % 3 == 0)
-            .rev()
-            .collect::<Vec<i64>>()
-    );
+    let expected = (0..100)
+        .map(|n| n * 2)
+        .filter(|n| n % 3 == 0)
+        .rev()
+        .collect::<Vec<i64>>();
+
+    assert_eq!(values, expected,);
 }
 
 #[test]
@@ -129,6 +128,36 @@ fn test_peekable_take() {
     while let Some(n) = it.next() {
         expected.push(n);
         expected.extend(it.peek().map(|_| 0));
+    }
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_flat_map() {
+    let actual = rune! { Vec<i64> =>
+        use std::iter::range;
+
+        pub fn main() {
+            let it = range(1, 10).flat_map(|n| range(1, n + 1));
+
+            let out = [];
+
+            while let (Some(a), Some(b)) = (it.next(), it.next_back()) {
+                out.push(a);
+                out.push(b);
+            }
+
+            out
+        }
+    };
+
+    let mut it = (1..10).flat_map(|n| 1..=n);
+    let mut expected = Vec::new();
+
+    while let (Some(a), Some(b)) = (it.next(), it.next_back()) {
+        expected.push(a);
+        expected.push(b);
     }
 
     assert_eq!(actual, expected);

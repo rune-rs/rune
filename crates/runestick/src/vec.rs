@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
-    VmError,
+    FromValue, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
+    UnsafeFromValue, Value, VmError,
 };
 use std::fmt;
 use std::ops;
@@ -113,6 +113,18 @@ impl Vec {
     /// vector.
     pub fn clear(&mut self) {
         self.inner.clear();
+    }
+
+    /// Extend this vector with something that implements the into_iter
+    /// protocol.
+    pub fn extend(&mut self, interface: Interface) -> Result<(), VmError> {
+        let mut it = interface.into_iter()?;
+
+        while let Some(value) = it.next()? {
+            self.push(value);
+        }
+
+        Ok(())
     }
 
     /// Convert into a runestick iterator.

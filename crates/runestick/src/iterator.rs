@@ -6,6 +6,44 @@ use std::fmt;
 use std::iter;
 use std::vec;
 
+/// Internal iterator trait used to build useful internal iterator abstractions,
+/// like [Fuse].
+trait RuneIterator: fmt::Debug {
+    /// Test if the iterator is double-ended.
+    fn is_double_ended(&self) -> bool;
+
+    /// The length of the remaining iterator.
+    fn size_hint(&self) -> (usize, Option<usize>);
+
+    /// Get the next value out of the iterator.
+    fn next(&mut self) -> Result<Option<Value>, VmError>;
+
+    /// Get the next back value out of the iterator.
+    fn next_back(&mut self) -> Result<Option<Value>, VmError>;
+
+    /// Get the length of the iterator if it is an exact length iterator.
+    #[inline]
+    fn len(&self) -> Result<usize, VmError> {
+        let (lower, upper) = self.size_hint();
+
+        if !matches!(upper, Some(upper) if lower == upper) {
+            return Err(VmError::panic(format!(
+                "`{:?}` is not an exact-sized iterator",
+                self
+            )));
+        }
+
+        Ok(lower)
+    }
+}
+
+// Note: A fair amount of code in this module is duplicated from the Rust
+// project under the MIT license.
+//
+// https://github.com/rust-lang/rust
+//
+// Copyright 2014-2020 The Rust Project Developers
+
 /// Fuse the iterator if the expression is `None`.
 macro_rules! fuse {
     ($self:ident . $iter:ident . $($call:tt)+) => {
@@ -35,7 +73,7 @@ macro_rules! maybe {
 
 /// An owning iterator.
 pub struct Iterator {
-    inner: Inner,
+    iter: IterRepr,
 }
 
 impl Iterator {
@@ -47,7 +85,7 @@ impl Iterator {
         T: IteratorTrait,
     {
         Self {
-            inner: Inner::Iterator(Box::new(IteratorObj { name, iter })),
+            iter: IterRepr::Iterator(Box::new(IteratorObj { name, iter })),
         }
     }
 
@@ -60,30 +98,30 @@ impl Iterator {
         T: DoubleEndedIteratorTrait,
     {
         Self {
-            inner: Inner::DoubleEndedIterator(Box::new(IteratorObj { name, iter })),
+            iter: IterRepr::DoubleEndedIterator(Box::new(IteratorObj { name, iter })),
         }
     }
 
     /// Get the size hint for the iterator.
     pub fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
+        self.iter.size_hint()
     }
 
     /// Get the next value out of the iterator.
     pub fn next(&mut self) -> Result<Option<Value>, VmError> {
-        self.inner.next()
+        self.iter.next()
     }
 
     /// Get the next back value out of the iterator.
     pub fn next_back(&mut self) -> Result<Option<Value>, VmError> {
-        self.inner.next_back()
+        self.iter.next_back()
     }
 
     /// Enumerate the iterator.
     pub fn enumerate(self) -> Self {
         Self {
-            inner: Inner::Enumerate(Box::new(Enumerate {
-                inner: self.inner,
+            iter: IterRepr::Enumerate(Box::new(Enumerate {
+                iter: self.iter,
                 count: 0,
             })),
         }
@@ -92,9 +130,23 @@ impl Iterator {
     /// Map the iterator using the given function.
     pub fn map(self, map: Function) -> Self {
         Self {
-            inner: Inner::Map(Box::new(Map {
-                inner: self.inner,
+            iter: IterRepr::Map(Box::new(Map {
+                iter: self.iter,
                 map,
+            })),
+        }
+    }
+
+    /// Map and flatten the iterator using the given function.
+    pub fn flat_map(self, map: Function) -> Self {
+        Self {
+            iter: IterRepr::FlatMap(Box::new(FlatMap {
+                map: Fuse::new(Map {
+                    iter: self.iter,
+                    map,
+                }),
+                frontiter: None,
+                backiter: None,
             })),
         }
     }
@@ -102,8 +154,8 @@ impl Iterator {
     /// Filter the iterator using the given function.
     pub fn filter(self, filter: Function) -> Self {
         Self {
-            inner: Inner::Filter(Box::new(Filter {
-                inner: self.inner,
+            iter: IterRepr::Filter(Box::new(Filter {
+                iter: self.iter,
                 filter,
             })),
         }
@@ -114,30 +166,28 @@ impl Iterator {
         let other = other.into_iter()?;
 
         Ok(Self {
-            inner: Inner::Chain(Box::new(Chain {
-                a: Some(self.inner),
-                b: Some(other.inner),
+            iter: IterRepr::Chain(Box::new(Chain {
+                a: Some(self.iter),
+                b: Some(other.iter),
             })),
         })
     }
 
     /// Map the iterator using the given function.
     pub fn rev(self) -> Result<Self, VmError> {
-        if !self.inner.is_double_ended() {
-            let name = self.inner.name();
-
+        if !self.iter.is_double_ended() {
             return Err(VmError::panic(format!(
-                "`{}` is not a double-ended iterator",
-                name
+                "`{:?}` is not a double-ended iterator",
+                self
             )));
         }
 
         Ok(Self {
-            inner: match self.inner {
+            iter: match self.iter {
                 // NB: reversing a reversed iterator restores the original
                 // iterator.
-                Inner::Rev(inner) => *inner,
-                inner => Inner::Rev(Box::new(inner)),
+                IterRepr::Rev(rev) => rev.iter,
+                iter => IterRepr::Rev(Box::new(Rev { iter })),
             },
         })
     }
@@ -145,33 +195,27 @@ impl Iterator {
     /// Take the given number of elements from the iterator.
     pub fn take(self, n: usize) -> Self {
         Self {
-            inner: Inner::Take(Box::new(Take {
-                inner: self.inner,
-                n,
-            })),
+            iter: IterRepr::Take(Box::new(Take { iter: self.iter, n })),
         }
     }
 
     /// Create a peekable iterator.
     pub fn peekable(self) -> Self {
         Self {
-            inner: match self.inner {
-                Inner::Peekable(peekable) => Inner::Peekable(peekable),
-                inner => Inner::Peekable(Box::new(Peekable {
-                    inner,
-                    peeked: None,
-                })),
+            iter: match self.iter {
+                IterRepr::Peekable(peekable) => IterRepr::Peekable(peekable),
+                iter => IterRepr::Peekable(Box::new(Peekable { iter, peeked: None })),
             },
         }
     }
 
     /// Peek the next element if supported.
     pub fn peek(&mut self) -> Result<Option<Value>, VmError> {
-        match &mut self.inner {
-            Inner::Peekable(peekable) => peekable.peek(),
+        match &mut self.iter {
+            IterRepr::Peekable(peekable) => peekable.peek(),
             _ => Err(VmError::panic(format!(
-                "`{}` is not a peekable iterator",
-                self.inner.name()
+                "`{:?}` is not a peekable iterator",
+                self.iter
             ))),
         }
     }
@@ -181,7 +225,7 @@ impl Iterator {
     where
         T: FromValue,
     {
-        let (cap, _) = self.inner.size_hint();
+        let (cap, _) = self.iter.size_hint();
         let mut vec = vec::Vec::with_capacity(cap);
 
         while let Some(value) = self.next()? {
@@ -194,7 +238,7 @@ impl Iterator {
 
 impl fmt::Debug for Iterator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Iterator").field(&self.inner).finish()
+        fmt::Debug::fmt(&self.iter, f)
     }
 }
 
@@ -236,89 +280,66 @@ impl<'a> UnsafeFromValue for &'a mut Iterator {
     }
 }
 
-enum Inner {
+/// The inner representation of an [Iterator]. It handles all the necessary
+/// dynamic dispatch to support dynamic iterators.
+enum IterRepr {
     Iterator(Box<IteratorObj<dyn IteratorTrait>>),
     DoubleEndedIterator(Box<IteratorObj<dyn DoubleEndedIteratorTrait>>),
-    Map(Box<Map>),
-    Filter(Box<Filter>),
-    Rev(Box<Inner>),
-    Chain(Box<Chain>),
-    Enumerate(Box<Enumerate>),
-    Take(Box<Take>),
-    Peekable(Box<Peekable>),
+    Map(Box<Map<Self>>),
+    FlatMap(Box<FlatMap<Map<Self>>>),
+    Filter(Box<Filter<Self>>),
+    Rev(Box<Rev<Self>>),
+    Chain(Box<Chain<Self, Self>>),
+    Enumerate(Box<Enumerate<Self>>),
+    Take(Box<Take<Self>>),
+    Peekable(Box<Peekable<Self>>),
 }
 
-impl Inner {
-    /// Test if this iterator is double-ended.
-    fn name(&self) -> &'static str {
-        match self {
-            Inner::Iterator(iter) => iter.name,
-            Inner::DoubleEndedIterator(iter) => iter.name,
-            Inner::Map(map) => map.inner.name(),
-            Inner::Filter(filter) => filter.inner.name(),
-            Inner::Rev(inner) => inner.name(),
-            Inner::Chain(..) => "std::iter::Chain",
-            Inner::Enumerate(enumerate) => enumerate.inner.name(),
-            Inner::Take(take) => take.inner.name(),
-            Inner::Peekable(peekable) => peekable.inner.name(),
-        }
-    }
-
+impl RuneIterator for IterRepr {
     /// Test if this iterator is double-ended.
     fn is_double_ended(&self) -> bool {
         match self {
-            Inner::Iterator(..) => false,
-            Inner::DoubleEndedIterator(..) => true,
-            Inner::Map(map) => map.inner.is_double_ended(),
-            Inner::Filter(filter) => filter.inner.is_double_ended(),
-            Inner::Rev(..) => true,
-            Inner::Chain(chain) => chain.is_double_ended(),
-            Inner::Enumerate(enumerate) => enumerate.inner.is_double_ended(),
-            Inner::Take(take) => take.inner.is_double_ended(),
-            Inner::Peekable(peekable) => peekable.inner.is_double_ended(),
+            Self::Iterator(..) => false,
+            Self::DoubleEndedIterator(..) => true,
+            Self::Map(iter) => iter.is_double_ended(),
+            Self::FlatMap(iter) => iter.is_double_ended(),
+            Self::Filter(iter) => iter.is_double_ended(),
+            Self::Rev(..) => true,
+            Self::Chain(iter) => iter.is_double_ended(),
+            Self::Enumerate(iter) => iter.is_double_ended(),
+            Self::Take(iter) => iter.is_double_ended(),
+            Self::Peekable(iter) => iter.is_double_ended(),
         }
-    }
-
-    /// Get the length of the iterator if it is an exact length iterator.
-    fn len(&self) -> Result<usize, VmError> {
-        let (lower, upper) = self.size_hint();
-
-        if !matches!(upper, Some(upper) if lower == upper) {
-            return Err(VmError::panic(format!(
-                "`{}` is not an exact-sized iterator",
-                self.name()
-            )));
-        }
-
-        Ok(lower)
     }
 
     /// The length of the remaining iterator.
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
-            Inner::Iterator(iter) => iter.iter.size_hint(),
-            Inner::DoubleEndedIterator(iter) => iter.iter.size_hint(),
-            Inner::Map(map) => map.inner.size_hint(),
-            Inner::Filter(filter) => filter.inner.size_hint(),
-            Inner::Rev(inner) => inner.size_hint(),
-            Inner::Chain(chain) => chain.size_hint(),
-            Inner::Enumerate(enumerate) => enumerate.inner.size_hint(),
-            Inner::Take(take) => take.inner.size_hint(),
-            Inner::Peekable(peekable) => peekable.size_hint(),
+            Self::Iterator(iter) => iter.iter.size_hint(),
+            Self::DoubleEndedIterator(iter) => iter.iter.size_hint(),
+            Self::Map(iter) => iter.size_hint(),
+            Self::FlatMap(iter) => iter.size_hint(),
+            Self::Filter(iter) => iter.size_hint(),
+            Self::Rev(iter) => iter.size_hint(),
+            Self::Chain(iter) => iter.size_hint(),
+            Self::Enumerate(iter) => iter.size_hint(),
+            Self::Take(iter) => iter.size_hint(),
+            Self::Peekable(iter) => iter.size_hint(),
         }
     }
 
     fn next(&mut self) -> Result<Option<Value>, VmError> {
         match self {
-            Self::Iterator(owned) => owned.iter.next(),
-            Self::DoubleEndedIterator(owned) => owned.iter.next(),
-            Self::Map(map) => map.advance(Self::next),
-            Self::Filter(filter) => filter.advance(Self::next),
-            Self::Rev(rev) => rev.next_back(),
-            Inner::Chain(chain) => chain.next(),
-            Inner::Enumerate(enumerate) => enumerate.next(),
-            Inner::Take(take) => take.next(),
-            Inner::Peekable(peekable) => peekable.next(),
+            Self::Iterator(iter) => iter.iter.next(),
+            Self::DoubleEndedIterator(iter) => iter.iter.next(),
+            Self::Map(iter) => iter.next(),
+            Self::FlatMap(iter) => iter.next(),
+            Self::Filter(iter) => iter.next(),
+            Self::Rev(iter) => iter.next(),
+            Self::Chain(iter) => iter.next(),
+            Self::Enumerate(iter) => iter.next(),
+            Self::Take(iter) => iter.next(),
+            Self::Peekable(iter) => iter.next(),
         }
     }
 
@@ -330,49 +351,65 @@ impl Inner {
                     iter.name
                 )));
             }
-            Self::DoubleEndedIterator(owned) => owned.iter.next_back(),
-            Self::Map(map) => map.advance(Self::next_back),
-            Self::Filter(filter) => filter.advance(Self::next_back),
-            Self::Rev(rev) => rev.next(),
-            Inner::Chain(chain) => chain.next_back(),
-            Inner::Enumerate(enumerate) => enumerate.next_back(),
-            Inner::Take(take) => take.next_back(),
-            Inner::Peekable(peekable) => peekable.next_back(),
+            Self::DoubleEndedIterator(iter) => iter.iter.next_back(),
+            Self::Map(iter) => iter.next_back(),
+            Self::FlatMap(iter) => iter.next_back(),
+            Self::Filter(iter) => iter.next_back(),
+            Self::Rev(iter) => iter.next_back(),
+            Self::Chain(iter) => iter.next_back(),
+            Self::Enumerate(iter) => iter.next_back(),
+            Self::Take(iter) => iter.next_back(),
+            Self::Peekable(iter) => iter.next_back(),
         }
     }
 }
 
-impl fmt::Debug for Inner {
+impl fmt::Debug for IterRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Inner::Iterator(iter) => write!(f, "{}", iter.name),
-            Inner::DoubleEndedIterator(iter) => write!(f, "{}", iter.name),
-            Inner::Map(inner) => f.debug_tuple("Map").field(&inner.inner).finish(),
-            Inner::Filter(inner) => f.debug_tuple("Filter").field(&inner.inner).finish(),
-            Inner::Rev(inner) => f.debug_tuple("Rev").field(inner).finish(),
-            Inner::Chain(inner) => f
-                .debug_tuple("Chain")
-                .field(&inner.a)
-                .field(&inner.b)
-                .finish(),
-            Inner::Enumerate(inner) => f.debug_tuple("Enumerate").field(&inner.inner).finish(),
-            Inner::Take(inner) => f.debug_tuple("Take").field(&inner.inner).finish(),
-            Inner::Peekable(inner) => f.debug_tuple("Peekable").field(&inner.inner).finish(),
+            Self::Iterator(iter) => write!(f, "{}", iter.name),
+            Self::DoubleEndedIterator(iter) => write!(f, "{}", iter.name),
+            Self::Map(iter) => write!(f, "{:?}", iter),
+            Self::FlatMap(iter) => write!(f, "{:?}", iter),
+            Self::Filter(iter) => write!(f, "{:?}", iter),
+            Self::Rev(iter) => write!(f, "{:?}", iter),
+            Self::Chain(iter) => write!(f, "{:?}", iter),
+            Self::Enumerate(iter) => write!(f, "{:?}", iter),
+            Self::Take(iter) => write!(f, "{:?}", iter),
+            Self::Peekable(iter) => write!(f, "{:?}", iter),
         }
     }
 }
 
-struct Map {
-    inner: Inner,
+#[derive(Debug)]
+struct Map<I> {
+    iter: I,
     map: Function,
 }
 
-impl Map {
-    fn advance(
-        &mut self,
-        advance: impl FnOnce(&mut Inner) -> Result<Option<Value>, VmError>,
-    ) -> Result<Option<Value>, VmError> {
-        if let Some(value) = advance(&mut self.inner)? {
+impl<I> RuneIterator for Map<I>
+where
+    I: RuneIterator,
+{
+    fn is_double_ended(&self) -> bool {
+        self.iter.is_double_ended()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        if let Some(value) = self.iter.next()? {
+            let out = self.map.call::<_, Value>((value,))?;
+            return Ok(Some(out));
+        }
+
+        Ok(None)
+    }
+
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        if let Some(value) = self.iter.next_back()? {
             let out = self.map.call::<_, Value>((value,))?;
             return Ok(Some(out));
         }
@@ -381,17 +418,132 @@ impl Map {
     }
 }
 
-struct Filter {
-    inner: Inner,
+#[derive(Debug)]
+struct FlatMap<I> {
+    map: Fuse<I>,
+    frontiter: Option<IterRepr>,
+    backiter: Option<IterRepr>,
+}
+
+impl<I> RuneIterator for FlatMap<I>
+where
+    I: RuneIterator,
+{
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (flo, fhi) = self
+            .frontiter
+            .as_ref()
+            .map_or((0, Some(0)), IterRepr::size_hint);
+
+        let (blo, bhi) = self
+            .backiter
+            .as_ref()
+            .map_or((0, Some(0)), IterRepr::size_hint);
+
+        let lo = flo.saturating_add(blo);
+
+        match (self.map.size_hint(), fhi, bhi) {
+            ((0, Some(0)), Some(a), Some(b)) => (lo, a.checked_add(b)),
+            _ => (lo, None),
+        }
+    }
+
+    fn is_double_ended(&self) -> bool {
+        if !self.map.is_double_ended() {
+            return false;
+        }
+
+        if !matches!(&self.frontiter, Some(iter) if !iter.is_double_ended()) {
+            return false;
+        }
+
+        if !matches!(&self.backiter, Some(iter) if !iter.is_double_ended()) {
+            return false;
+        }
+
+        true
+    }
+
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        loop {
+            if let Some(iter) = &mut self.frontiter {
+                match iter.next()? {
+                    None => self.frontiter = None,
+                    item @ Some(_) => return Ok(item),
+                }
+            }
+
+            match self.map.next()? {
+                None => {
+                    return Ok(match &mut self.backiter {
+                        Some(backiter) => backiter.next()?,
+                        None => None,
+                    })
+                }
+                Some(value) => {
+                    let iterator = <Interface as FromValue>::from_value(value)?.into_iter()?;
+                    self.frontiter = Some(iterator.iter)
+                }
+            }
+        }
+    }
+
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        loop {
+            if let Some(ref mut iter) = self.backiter {
+                match iter.next_back()? {
+                    None => self.backiter = None,
+                    item @ Some(_) => return Ok(item),
+                }
+            }
+
+            match self.map.next_back()? {
+                None => {
+                    return Ok(match &mut self.frontiter {
+                        Some(frontiter) => frontiter.next_back()?,
+                        None => None,
+                    })
+                }
+                Some(value) => {
+                    let iterator = <Interface as FromValue>::from_value(value)?.into_iter()?;
+                    self.backiter = Some(iterator.iter);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Filter<I> {
+    iter: I,
     filter: Function,
 }
 
-impl Filter {
-    fn advance(
-        &mut self,
-        advance: impl Fn(&mut Inner) -> Result<Option<Value>, VmError>,
-    ) -> Result<Option<Value>, VmError> {
-        while let Some(value) = advance(&mut self.inner)? {
+impl<I> RuneIterator for Filter<I>
+where
+    I: RuneIterator,
+{
+    fn is_double_ended(&self) -> bool {
+        self.iter.is_double_ended()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        while let Some(value) = self.iter.next()? {
+            if self.filter.call::<_, bool>((value.clone(),))? {
+                return Ok(Some(value));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        while let Some(value) = self.iter.next_back()? {
             if self.filter.call::<_, bool>((value.clone(),))? {
                 return Ok(Some(value));
             }
@@ -466,18 +618,24 @@ where
     iter: T,
 }
 
-struct Chain {
-    a: Option<Inner>,
-    b: Option<Inner>,
+#[derive(Debug)]
+struct Chain<A, B> {
+    a: Option<A>,
+    b: Option<B>,
 }
 
-impl Chain {
+impl<A, B> RuneIterator for Chain<A, B>
+where
+    A: RuneIterator,
+    B: RuneIterator,
+{
     /// Determine if the chain is double ended.
     ///
     /// It is only double ended if all remaining iterators are double ended.
+
     fn is_double_ended(&self) -> bool {
-        self.a.as_ref().map(Inner::is_double_ended).unwrap_or(true)
-            && self.b.as_ref().map(Inner::is_double_ended).unwrap_or(true)
+        !matches!(&self.a, Some(i) if !i.is_double_ended())
+            && !matches!(&self.b, Some(i) if !i.is_double_ended())
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -527,15 +685,27 @@ impl Chain {
     }
 }
 
-struct Enumerate {
-    inner: Inner,
+#[derive(Debug)]
+struct Enumerate<I> {
+    iter: I,
     count: usize,
 }
 
-impl Enumerate {
+impl<I> RuneIterator for Enumerate<I>
+where
+    I: RuneIterator,
+{
+    fn is_double_ended(&self) -> bool {
+        self.iter.is_double_ended()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
     #[inline]
     fn next(&mut self) -> Result<Option<Value>, VmError> {
-        let value = match self.inner.next()? {
+        let value = match self.iter.next()? {
             Some(value) => value,
             None => return Ok(None),
         };
@@ -547,22 +717,80 @@ impl Enumerate {
 
     #[inline]
     fn next_back(&mut self) -> Result<Option<Value>, VmError> {
-        let value = match self.inner.next_back()? {
+        let value = match self.iter.next_back()? {
             Some(value) => value,
             None => return Ok(None),
         };
 
-        let len = self.inner.len()?;
+        let len = self.iter.len()?;
         Ok(Some((self.count + len, value).to_value()?))
     }
 }
 
-struct Take {
-    inner: Inner,
+#[derive(Debug)]
+#[repr(transparent)]
+struct Rev<I> {
+    iter: I,
+}
+
+impl<I> RuneIterator for Rev<I>
+where
+    I: RuneIterator,
+{
+    #[inline]
+    fn is_double_ended(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    #[inline]
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        self.iter.next_back()
+    }
+
+    #[inline]
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        self.iter.next()
+    }
+}
+
+#[derive(Debug)]
+struct Take<I> {
+    iter: I,
     n: usize,
 }
 
-impl Take {
+impl<I> RuneIterator for Take<I>
+where
+    I: RuneIterator,
+{
+    #[inline]
+    fn is_double_ended(&self) -> bool {
+        self.iter.is_double_ended()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.n == 0 {
+            return (0, Some(0));
+        }
+
+        let (lower, upper) = self.iter.size_hint();
+
+        let lower = std::cmp::min(lower, self.n);
+
+        let upper = match upper {
+            Some(x) if x < self.n => Some(x),
+            _ => Some(self.n),
+        };
+
+        (lower, upper)
+    }
+
     #[inline]
     fn next(&mut self) -> Result<Option<Value>, VmError> {
         if self.n == 0 {
@@ -570,7 +798,7 @@ impl Take {
         }
 
         self.n -= 1;
-        self.inner.next()
+        self.iter.next()
     }
 
     #[inline]
@@ -580,31 +808,39 @@ impl Take {
         }
 
         self.n -= 1;
-        self.inner.next_back()
+        self.iter.next_back()
     }
 }
 
-struct Peekable {
-    inner: Inner,
+#[derive(Debug)]
+struct Peekable<I> {
+    iter: I,
     peeked: Option<Option<Value>>,
 }
 
-impl Peekable {
+impl<I> Peekable<I>
+where
+    I: RuneIterator,
+{
     #[inline]
-    fn next(&mut self) -> Result<Option<Value>, VmError> {
-        match self.peeked.take() {
-            Some(v) => Ok(v),
-            None => self.inner.next(),
+    fn peek(&mut self) -> Result<Option<Value>, VmError> {
+        if let Some(value) = &self.peeked {
+            return Ok(value.clone());
         }
-    }
 
+        let value = self.iter.next()?;
+        self.peeked = Some(value.clone());
+        Ok(value)
+    }
+}
+
+impl<I> Peekable<I>
+where
+    I: RuneIterator,
+{
     #[inline]
-    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
-        match self.peeked.as_mut() {
-            Some(v @ Some(_)) => Ok(self.inner.next_back()?.or_else(|| v.take())),
-            Some(None) => Ok(None),
-            None => self.inner.next_back(),
-        }
+    fn is_double_ended(&self) -> bool {
+        self.iter.is_double_ended()
     }
 
     #[inline]
@@ -614,7 +850,7 @@ impl Peekable {
             Some(Some(_)) => 1,
             None => 0,
         };
-        let (lo, hi) = self.inner.size_hint();
+        let (lo, hi) = self.iter.size_hint();
         let lo = lo.saturating_add(peek_len);
         let hi = match hi {
             Some(x) => x.checked_add(peek_len),
@@ -624,13 +860,78 @@ impl Peekable {
     }
 
     #[inline]
-    fn peek(&mut self) -> Result<Option<Value>, VmError> {
-        if let Some(value) = &self.peeked {
-            return Ok(value.clone());
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        match self.peeked.take() {
+            Some(v) => Ok(v),
+            None => self.iter.next(),
+        }
+    }
+
+    #[inline]
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        match self.peeked.as_mut() {
+            Some(v @ Some(_)) => Ok(self.iter.next_back()?.or_else(|| v.take())),
+            Some(None) => Ok(None),
+            None => self.iter.next_back(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Fuse<I> {
+    iter: Option<I>,
+}
+
+impl<I> Fuse<I> {
+    fn new(iter: I) -> Self {
+        Self { iter: Some(iter) }
+    }
+}
+
+impl<I> RuneIterator for Fuse<I>
+where
+    I: RuneIterator,
+{
+    #[inline]
+    fn is_double_ended(&self) -> bool {
+        match &self.iter {
+            Some(iter) => iter.is_double_ended(),
+            // NB: trivially double-ended since it produces no values.
+            None => true,
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match &self.iter {
+            Some(iter) => iter.size_hint(),
+            None => (0, Some(0)),
+        }
+    }
+
+    #[inline]
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        if let Some(iter) = &mut self.iter {
+            if let Some(value) = iter.next()? {
+                return Ok(Some(value));
+            }
+
+            self.iter = None;
         }
 
-        let value = self.inner.next()?;
-        self.peeked = Some(value.clone());
-        Ok(value)
+        Ok(None)
+    }
+
+    #[inline]
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        if let Some(iter) = &mut self.iter {
+            if let Some(value) = iter.next_back()? {
+                return Ok(Some(value));
+            }
+
+            self.iter = None;
+        }
+
+        Ok(None)
     }
 }
