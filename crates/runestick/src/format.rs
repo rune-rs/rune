@@ -27,6 +27,16 @@ pub struct Format {
     pub(crate) spec: FormatSpec,
 }
 
+impl Named for Format {
+    const NAME: RawStr = RawStr::from_str("Format");
+}
+
+impl FromValue for Format {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(*value.into_format()?)
+    }
+}
+
 /// A format specification.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -339,16 +349,6 @@ impl FormatSpec {
         }
 
         Ok(())
-    }
-}
-
-impl Named for Format {
-    const NAME: RawStr = RawStr::from_str("Format");
-}
-
-impl FromValue for Format {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(*value.into_format()?)
     }
 }
 

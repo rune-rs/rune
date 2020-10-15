@@ -1,7 +1,8 @@
 use crate::access::AccessKind;
 use crate::{
-    Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Item, Mut,
-    Object, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, Vec, VmError,
+    Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Item, Iterator,
+    Mut, Object, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, Vec,
+    VmError,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -346,6 +347,8 @@ pub enum Value {
     Function(Shared<Function>),
     /// A value being formatted.
     Format(Box<Format>),
+    /// An iterator.
+    Iterator(Shared<Iterator>),
     /// An opaque value that can be downcasted.
     Any(Shared<AnyObj>),
 }
@@ -417,6 +420,7 @@ impl Value {
             Self::StructVariant(value) => Self::StructVariant(Shared::new(value.take()?)),
             Self::Function(value) => Self::Function(Shared::new(value.take()?)),
             Self::Format(value) => Self::Format(value),
+            Self::Iterator(value) => Self::Iterator(value),
             Self::Any(value) => Self::Any(Shared::new(value.take()?)),
         })
     }
@@ -603,6 +607,15 @@ impl Value {
         }
     }
 
+    /// Try to coerce value into an iterator.
+    #[inline]
+    pub fn into_iterator(self) -> Result<Shared<Iterator>, VmError> {
+        match self {
+            Value::Iterator(format) => Ok(format),
+            actual => Err(VmError::expected::<Iterator>(actual.type_info()?)),
+        }
+    }
+
     /// Try to coerce value into an opaque value.
     #[inline]
     pub fn into_any(self) -> Result<Shared<AnyObj>, VmError> {
@@ -683,6 +696,7 @@ impl Value {
             Self::Option(..) => Type::from(crate::OPTION_TYPE),
             Self::Function(..) => Type::from(crate::FUNCTION_TYPE),
             Self::Format(..) => Type::from(crate::FORMAT_TYPE),
+            Self::Iterator(..) => Type::from(crate::ITERATOR_TYPE),
             Self::Type(hash) => Type::from(*hash),
             Self::UnitStruct(empty) => Type::from(empty.borrow_ref()?.rtti.hash),
             Self::TupleStruct(tuple) => Type::from(tuple.borrow_ref()?.rtti.hash),
@@ -717,6 +731,7 @@ impl Value {
             Self::Result(..) => TypeInfo::StaticType(crate::RESULT_TYPE),
             Self::Function(..) => TypeInfo::StaticType(crate::FUNCTION_TYPE),
             Self::Format(..) => TypeInfo::StaticType(crate::FORMAT_TYPE),
+            Self::Iterator(..) => TypeInfo::StaticType(crate::ITERATOR_TYPE),
             Self::Type(hash) => TypeInfo::Hash(*hash),
             Self::UnitStruct(empty) => empty.borrow_ref()?.type_info(),
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.type_info(),
@@ -909,12 +924,21 @@ impl fmt::Debug for Value {
             Value::Format(value) => {
                 write!(f, "{:?}", value)?;
             }
+            Value::Iterator(value) => {
+                write!(f, "{:?}", value)?;
+            }
             Value::Any(value) => {
                 write!(f, "{:?}", value)?;
             }
         }
 
         Ok(())
+    }
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Self::Unit
     }
 }
 
@@ -996,6 +1020,7 @@ impl_from! {
 impl_from_wrapper! {
     StaticString => Arc<StaticString>,
     Format => Box<Format>,
+    Iterator => Shared<Iterator>,
     Bytes => Shared<Bytes>,
     String => Shared<String>,
     Vec => Shared<Vec>,

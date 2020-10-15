@@ -1,4 +1,8 @@
-use crate::{FromValue, Function, ToValue, Value, VmError};
+use crate::{
+    FromValue, Function, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
+    UnsafeFromValue, Value, VmError,
+};
+use std::fmt;
 use std::iter;
 use std::vec;
 
@@ -33,8 +37,6 @@ macro_rules! maybe {
 pub struct Iterator {
     inner: Inner,
 }
-
-crate::__internal_impl_any!(Iterator);
 
 impl Iterator {
     /// Construct a new owning iterator.
@@ -108,13 +110,15 @@ impl Iterator {
     }
 
     /// Chain this iterator with another.
-    pub fn chain(self, other: Self) -> Self {
-        Self {
+    pub fn chain(self, other: Interface) -> Result<Self, VmError> {
+        let other = other.into_iter()?;
+
+        Ok(Self {
             inner: Inner::Chain(Box::new(Chain {
                 a: Some(self.inner),
                 b: Some(other.inner),
             })),
-        }
+        })
     }
 
     /// Map the iterator using the given function.
@@ -185,6 +189,50 @@ impl Iterator {
         }
 
         Ok(vec)
+    }
+}
+
+impl fmt::Debug for Iterator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Iterator").field(&self.inner).finish()
+    }
+}
+
+impl Named for Iterator {
+    const NAME: RawStr = RawStr::from_str("Iterator");
+}
+
+impl FromValue for Iterator {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_iterator()?.take()?)
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a Iterator {
+    type Output = *const Iterator;
+    type Guard = RawRef;
+
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+        let iterator = value.into_iterator()?;
+        Ok(Ref::into_raw(iterator.into_ref()?))
+    }
+
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
+        &*output
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a mut Iterator {
+    type Output = *mut Iterator;
+    type Guard = RawMut;
+
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+        let iterator = value.into_iterator()?;
+        Ok(Mut::into_raw(iterator.into_mut()?))
+    }
+
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
+        &mut *output
     }
 }
 
@@ -290,6 +338,26 @@ impl Inner {
             Inner::Enumerate(enumerate) => enumerate.next_back(),
             Inner::Take(take) => take.next_back(),
             Inner::Peekable(peekable) => peekable.next_back(),
+        }
+    }
+}
+
+impl fmt::Debug for Inner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Inner::Iterator(iter) => write!(f, "{}", iter.name),
+            Inner::DoubleEndedIterator(iter) => write!(f, "{}", iter.name),
+            Inner::Map(inner) => f.debug_tuple("Map").field(&inner.inner).finish(),
+            Inner::Filter(inner) => f.debug_tuple("Filter").field(&inner.inner).finish(),
+            Inner::Rev(inner) => f.debug_tuple("Rev").field(inner).finish(),
+            Inner::Chain(inner) => f
+                .debug_tuple("Chain")
+                .field(&inner.a)
+                .field(&inner.b)
+                .finish(),
+            Inner::Enumerate(inner) => f.debug_tuple("Enumerate").field(&inner.inner).finish(),
+            Inner::Take(inner) => f.debug_tuple("Take").field(&inner.inner).finish(),
+            Inner::Peekable(inner) => f.debug_tuple("Peekable").field(&inner.inner).finish(),
         }
     }
 }

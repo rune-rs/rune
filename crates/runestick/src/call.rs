@@ -1,3 +1,4 @@
+use crate::{Future, Generator, Stream, Value, Vm, VmError};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -15,6 +16,19 @@ pub enum Call {
     Generator,
     /// Functions are immediately called and control handed over.
     Immediate,
+}
+
+impl Call {
+    /// Perform the call with the given virtual machine.
+    #[inline]
+    pub(crate) fn call_with_vm(self, vm: Vm) -> Result<Value, VmError> {
+        Ok(match self {
+            Call::Stream => Value::from(Stream::new(vm)),
+            Call::Generator => Value::from(Generator::new(vm)),
+            Call::Immediate => vm.complete()?,
+            Call::Async => Value::from(Future::new(vm.async_complete())),
+        })
+    }
 }
 
 impl fmt::Display for Call {

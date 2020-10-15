@@ -114,6 +114,11 @@ impl Vec {
     pub fn clear(&mut self) {
         self.inner.clear();
     }
+
+    /// Convert into a runestick iterator.
+    pub fn into_iterator(&self) -> crate::Iterator {
+        crate::Iterator::from_double_ended("std::vec::Iter", self.clone().into_iter())
+    }
 }
 
 impl Named for Vec {

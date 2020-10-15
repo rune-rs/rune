@@ -88,6 +88,7 @@ impl ser::Serialize for Value {
             }
             Value::Function(..) => Err(ser::Error::custom("cannot serialize function pointers")),
             Value::Format(..) => Err(ser::Error::custom("cannot serialize format specifications")),
+            Value::Iterator(..) => Err(ser::Error::custom("cannot serialize iterators")),
             Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }
