@@ -6,6 +6,13 @@ use std::fmt;
 use std::iter;
 use std::vec;
 
+// Note: A fair amount of code in this module is duplicated from the Rust
+// project under the MIT license.
+//
+// https://github.com/rust-lang/rust
+//
+// Copyright 2014-2020 The Rust Project Developers
+
 /// Internal iterator trait used to build useful internal iterator abstractions,
 /// like [Fuse].
 trait RuneIterator: fmt::Debug {
@@ -36,13 +43,6 @@ trait RuneIterator: fmt::Debug {
         Ok(lower)
     }
 }
-
-// Note: A fair amount of code in this module is duplicated from the Rust
-// project under the MIT license.
-//
-// https://github.com/rust-lang/rust
-//
-// Copyright 2014-2020 The Rust Project Developers
 
 /// Fuse the iterator if the expression is `None`.
 macro_rules! fuse {
