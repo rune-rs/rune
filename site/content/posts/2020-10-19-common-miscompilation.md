@@ -1,7 +1,7 @@
 +++
 title = "Fixing a common miscompilation in Rune"
 date = 2020-10-19
-draft = true
+draft = false
 template = "post.html"
 
 [taxonomies]
@@ -13,8 +13,8 @@ author = "John-John Tedro"
 +++
 
 Hopefully it should be no secret that Rune is a young project. And some
-shortcuts had been taken when initially hacking together the compiler. One such
-was how items and their associated metadata was registered.
+shortcuts have been taken when putting together the compiler. One such was how
+items and their associated metadata was registered.
 
 This particular shortcut happened to be subject to a common source of bugs which
 desperately needed to be fixed. So in this post I'll describe the issue in the
@@ -22,6 +22,8 @@ hopes that it will be useful to other prospective language authors, and describe
 how it was fixed.
 
 <!-- more -->
+
+Relevant pull requests: [#118](https://github.com/rune-rs/rune/pull/118), [#127](https://github.com/rune-rs/rune/pull/127).
 
 Feel free to [**Discuss this on Reddit**](https://reddit.com/r/rust).
 

@@ -60,7 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [#151]) (thanks [MinusGix]!).
 * Support `move` modifier to async blocks and closures to take ownership of
   values being used ([#152]).
-* Basic `Iterator` support ([#156]) (thanks [MinusGix]!).
+* Basic `Iterator` support ([#156], [#157]) (thanks [MinusGix]!).
+* Support for calling protocol functions from native code using `Interface` ([#159]).
 
 ### Changed
 * Make units more efficient by separating runtime and compile-time metadata ([#24]).
@@ -218,5 +219,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#153]: https://github.com/rune-rs/rune/pull/153
 [#155]: https://github.com/rune-rs/rune/pull/155
 [#156]: https://github.com/rune-rs/rune/pull/156
+[#157]: https://github.com/rune-rs/rune/pull/157
+[#159]: https://github.com/rune-rs/rune/pull/159
 
 [Unreleased]: https://github.com/rune-rs/rune/compare/0.6.16...master
