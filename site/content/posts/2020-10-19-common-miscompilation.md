@@ -25,7 +25,7 @@ how it was fixed.
 
 Relevant pull requests: [#118](https://github.com/rune-rs/rune/pull/118), [#127](https://github.com/rune-rs/rune/pull/127).
 
-Feel free to [**Discuss this on Reddit**](https://reddit.com/r/rust).
+Feel free to [**Discuss this on Reddit**](https://www.reddit.com/r/rust/comments/jdvc8r/this_month_and_a_half_in_rune/).
 
 Each item in the language has a unique *name*. This is identified with a
 scope-separated string, like `main::$0::bar`, which could be an inner function
