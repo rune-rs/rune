@@ -1,6 +1,6 @@
 +++
 title = "Fixing a common miscompilation in Rune"
-date = 2020-11-01
+date = 2020-10-19
 draft = true
 template = "post.html"
 
