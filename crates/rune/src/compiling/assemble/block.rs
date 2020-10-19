@@ -37,6 +37,11 @@ impl Assemble for ast::Block {
         for stmt in &self.statements {
             let (expr, term) = match stmt {
                 ast::Stmt::Local(local) => {
+                    if let Some((stmt, _)) = std::mem::take(&mut last) {
+                        // NB: terminated expressions do not need to produce a value.
+                        stmt.assemble(c, Needs::None)?;
+                    }
+
                     local.assemble(c, Needs::None)?;
                     continue;
                 }

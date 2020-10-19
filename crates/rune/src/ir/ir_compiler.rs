@@ -421,6 +421,10 @@ impl IrCompile for ast::Block {
         for stmt in &self.statements {
             let (expr, term) = match stmt {
                 ast::Stmt::Local(local) => {
+                    if let Some((expr, _)) = std::mem::take(&mut last) {
+                        instructions.push(expr.compile(c)?);
+                    }
+
                     instructions.push(local.compile(c)?);
                     continue;
                 }

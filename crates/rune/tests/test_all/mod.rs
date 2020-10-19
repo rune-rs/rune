@@ -11,6 +11,7 @@ mod compiler_warnings;
 mod core_macros;
 mod iterator;
 mod moved;
+mod stmt_reordering;
 mod vm_arithmetic;
 mod vm_assign_exprs;
 mod vm_async_block;
