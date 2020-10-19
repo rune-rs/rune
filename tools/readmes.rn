@@ -13,9 +13,9 @@ pub async fn main() {
 
     for project in projects {
         let status = update_readme(project, "README.md").await?;
-        println(`{project}: {status}`);
+        println(`${project}: ${status}`);
     }
 
     let status = update_readme("crates/rune", "../../README.md").await?;
-    println(`.: {status}`);
+    println(`.: ${status}`);
 }

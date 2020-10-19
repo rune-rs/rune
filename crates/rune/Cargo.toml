@@ -1,6 +1,6 @@
 [package]
 name = "rune"
-version = "0.6.16"
+version = "0.7.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -30,14 +30,14 @@ itoa = "0.4.6"
 ryu = "1.0"
 smallvec = "1.4.2"
 
-runestick = {version = "0.6.16", path = "../runestick"}
-rune-macros = {version = "0.6.16", path = "../rune-macros"}
+runestick = {version = "0.7.0", path = "../runestick"}
+rune-macros = {version = "0.7.0", path = "../rune-macros"}
 
 [dev-dependencies]
 tokio = {version = "0.2.22", features = ["macros"]}
 futures-executor = "0.3.5"
 
-rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["full"]}
+rune-modules = {version = "0.7.0", path = "../rune-modules", features = ["full"]}
 
 [package.metadata.docs.rs]
 all-features = true

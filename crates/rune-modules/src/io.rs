@@ -7,7 +7,7 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! rune-modules = {version = "0.6.16", features = ["io"]}
+//! rune-modules = {version = "0.7.0", features = ["io"]}
 //! ```
 //!
 //! Install it into your context:

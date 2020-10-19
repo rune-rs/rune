@@ -9,14 +9,14 @@ pub async fn main() {
 
     for project in projects {
         let cargo = Command::new("cargo");
-        cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`, "--no-verify"]);
+        cargo.args(["publish", "--manifest-path", `${project}/Cargo.toml`, "--no-verify"]);
 
         let status = select {
             _ = ctrl_c => break,
             status = cargo.spawn()? => status?,
         };
 
-        println(`{project}: {status}`);
+        println(`${project}: ${status}`);
     }
 
     println("Bye");

@@ -47,34 +47,47 @@ These are modules that can be used with the [Rune language].
 [Rune Language]: https://rune-rs.github.io
 
 See each module for documentation:
-* [http]
-* [json]
-* [toml]
-* [time]
+* [core]
+* [experiments]
+* [fmt]
 * [fs]
+* [http]
+* [io]
+* [json]
 * [process]
-* [signal]
 * [rand]
+* [signal]
+* [test]
+* [time]
+* [toml]
 
 ### Features
 
-* `full` includes all modules.
+* `core` for the [core module][toml]
 * `experiments` for the [experiments module][experiments]
-* `http` for the [http module][http]
-* `json` for the [json module][json]
-* `toml` for the [toml module][toml]
-* `time` for the [time module][time]
+* `fmt` for the [fmt module][fmt]
 * `fs` for the [fs module][fs]
+* `full` includes all modules.
+* `http` for the [http module][http]
+* `io` for the [io module][io]
+* `json` for the [json module][json]
 * `process` for the [process module][process]
-* `signal` for the [signal module][signal]
 * `rand` for the [rand module][rand]
+* `signal` for the [signal module][signal]
+* `test` for the [test module][test]
+* `time` for the [time module][time]
+* `toml` for the [toml module][toml]
 
+[core]: https://docs.rs/rune-modules/0/rune_modules/core/
 [experiments]: https://docs.rs/rune-modules/0/rune_modules/experiments/
-[http]: https://docs.rs/rune-modules/0/rune_modules/http/
-[json]: https://docs.rs/rune-modules/0/rune_modules/json/
-[toml]: https://docs.rs/rune-modules/0/rune_modules/toml/
-[time]: https://docs.rs/rune-modules/0/rune_modules/time/
+[fmt]: https://docs.rs/rune-modules/0/rune_modules/fmt/
 [fs]: https://docs.rs/rune-modules/0/rune_modules/fs/
+[http]: https://docs.rs/rune-modules/0/rune_modules/http/
+[io]: https://docs.rs/rune-modules/0/rune_modules/io/
+[json]: https://docs.rs/rune-modules/0/rune_modules/json/
 [process]: https://docs.rs/rune-modules/0/rune_modules/process/
-[signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
 [rand]: https://docs.rs/rune-modules/0/rune_modules/rand/
+[signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
+[test]: https://docs.rs/rune-modules/0/rune_modules/test/
+[time]: https://docs.rs/rune-modules/0/rune_modules/time/
+[toml]: https://docs.rs/rune-modules/0/rune_modules/toml/

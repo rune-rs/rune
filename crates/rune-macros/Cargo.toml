@@ -1,6 +1,6 @@
 [package]
 name = "rune-macros"
-version = "0.6.16"
+version = "0.7.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -20,7 +20,7 @@ quote = "1.0.3"
 proc-macro2 = { version = "1.0.10", features = ["span-locations"] }
 
 [dev-dependencies]
-rune = {version = "0.6.16", path = "../rune"}
+rune = {version = "0.7.0", path = "../rune"}
 
 [lib]
 proc-macro = true
