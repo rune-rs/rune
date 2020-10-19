@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0]
+
 ### Added
 * The Rune project now has a Code of Conduct ([#12]).
 * Support for bitwise operations on numbers ([#13], [#20]).
@@ -222,4 +224,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#157]: https://github.com/rune-rs/rune/pull/157
 [#159]: https://github.com/rune-rs/rune/pull/159
 
-[Unreleased]: https://github.com/rune-rs/rune/compare/0.6.16...master
+[0.7.0]: https://github.com/rune-rs/rune/compare/0.6.16...0.7.0
+
+[Unreleased]: https://github.com/rune-rs/rune/compare/0.7.0...master
