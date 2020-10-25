@@ -110,13 +110,13 @@ impl IrInterpreter<'_> {
             let item = base.extended(name);
 
             if let Some(const_value) = self.consts.get(&item) {
-                return Ok(IrValue::from_const(spanned, const_value)?);
+                return Ok(IrValue::from_const(const_value));
             }
 
             if let Some(meta) = self.query.query_meta(spanned, &item, used)? {
                 match &meta.kind {
                     CompileMetaKind::Const { const_value, .. } => {
-                        return Ok(IrValue::from_const(spanned, const_value.clone())?);
+                        return Ok(IrValue::from_const(const_value.clone()));
                     }
                     _ => {
                         return Err(IrError::new(spanned, IrErrorKind::UnsupportedMeta { meta }));

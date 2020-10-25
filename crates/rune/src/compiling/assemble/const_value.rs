@@ -43,10 +43,33 @@ impl AssembleConst for ConstValue {
                 let slot = c.unit.new_static_string(span, &s)?;
                 c.asm.push(Inst::String { slot }, span);
             }
+            ConstValue::StaticString(s) => {
+                let slot = c.unit.new_static_string(span, s.as_ref())?;
+                c.asm.push(Inst::String { slot }, span);
+            }
             ConstValue::Bytes(b) => {
                 let slot = c.unit.new_static_bytes(span, &*b)?;
                 c.asm.push(Inst::Bytes { slot }, span);
             }
+            ConstValue::Option(option) => match option {
+                Some(value) => {
+                    value.assemble_const(c, Needs::Value, span)?;
+                    c.asm.push(
+                        Inst::Variant {
+                            variant: InstVariant::Some,
+                        },
+                        span,
+                    );
+                }
+                None => {
+                    c.asm.push(
+                        Inst::Variant {
+                            variant: InstVariant::None,
+                        },
+                        span,
+                    );
+                }
+            },
             ConstValue::Vec(vec) => {
                 for value in vec.iter() {
                     value.assemble_const(c, Needs::Value, span)?;
