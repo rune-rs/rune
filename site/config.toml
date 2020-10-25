@@ -5,7 +5,7 @@ description="Party dynamically like it's 1995"
 default_language = "en"
 
 highlight_theme = "nord"
-generate_rss = true
+generate_feed = true
 rss_limit = 20
 compile_sass = true
 highlight_code = true
