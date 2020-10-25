@@ -954,6 +954,9 @@ impl Vm {
             }));
         }
 
+        // Calling index set should not produce a value on the stack, but all
+        // handler functions to produce a value. So pop it here.
+        self.stack.pop()?;
         Ok(())
     }
 
@@ -2537,7 +2540,8 @@ impl Vm {
             }));
         }
 
-        self.stack.pop()?;
+        let value = self.stack.pop()?;
+        <()>::from_value(value)?;
         Ok(())
     }
 
@@ -2633,7 +2637,8 @@ impl Vm {
             }));
         }
 
-        self.stack.pop()?;
+        let value = self.stack.pop()?;
+        <()>::from_value(value)?;
         Ok(())
     }
 
@@ -2696,6 +2701,8 @@ impl Vm {
             }));
         }
 
+        let value = self.stack.pop()?;
+        <()>::from_value(value)?;
         Ok(())
     }
 
