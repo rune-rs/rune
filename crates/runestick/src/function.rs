@@ -229,7 +229,7 @@ impl FunctionImpl<Value> {
                 let mut env = Vec::with_capacity(closure.environment.len());
 
                 for value in closure.environment.into_vec() {
-                    env.push(ConstValue::from_value(value)?);
+                    env.push(FromValue::from_value(value)?);
                 }
 
                 Inner::FnClosureOffset(FnClosureOffset {

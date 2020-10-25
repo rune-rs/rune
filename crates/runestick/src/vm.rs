@@ -4,8 +4,8 @@ use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, Format, FormatSpec, FromValue, Function,
     Future, Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstTarget,
-    IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, Struct, StructVariant, Tuple,
-    TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution,
+    InstVariant, IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, Struct, StructVariant,
+    Tuple, TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution,
     VmHalt, VmIntegerRepr,
 };
 use std::fmt;
@@ -1816,6 +1816,30 @@ impl Vm {
         Ok(())
     }
 
+    /// Push the given variant onto the stack.
+    #[inline]
+    fn op_variant(&mut self, variant: InstVariant) -> Result<(), VmError> {
+        match variant {
+            InstVariant::Some => {
+                let some = self.stack.pop()?;
+                self.stack.push(Value::Option(Shared::new(Some(some))));
+            }
+            InstVariant::None => {
+                self.stack.push(Value::Option(Shared::new(None)));
+            }
+            InstVariant::Ok => {
+                let some = self.stack.pop()?;
+                self.stack.push(Value::Result(Shared::new(Ok(some))));
+            }
+            InstVariant::Err => {
+                let some = self.stack.pop()?;
+                self.stack.push(Value::Result(Shared::new(Err(some))));
+            }
+        }
+
+        Ok(())
+    }
+
     #[inline]
     fn on_tuple<F, O>(&mut self, ty: TypeCheck, value: &Value, f: F) -> Result<Option<O>, VmError>
     where
@@ -2437,6 +2461,9 @@ impl Vm {
                     self.advance();
                     self.stack.push(Value::Unit);
                     return Ok(VmHalt::Yielded);
+                }
+                Inst::Variant { variant } => {
+                    self.op_variant(variant)?;
                 }
                 Inst::Op { op } => {
                     self.op_op(op)?;

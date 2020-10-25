@@ -787,6 +787,21 @@ pub enum Inst {
     /// => <unit>
     /// ```
     YieldUnit,
+    /// Construct a built-in variant onto the stack.
+    ///
+    /// The variant will pop as many values of the stack as necessary to
+    /// construct it.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value..>
+    /// => <variant>
+    /// ```
+    Variant {
+        /// The kind of built-in variant to construct.
+        variant: InstVariant,
+    },
     /// A built-in operation like `a + b` that takes its operands and pushes its
     /// result to and from the stack.
     ///
@@ -1065,6 +1080,9 @@ impl fmt::Display for Inst {
             }
             Self::YieldUnit => {
                 write!(fmt, "yield-unit")?;
+            }
+            Self::Variant { variant } => {
+                write!(fmt, "variant {}", variant)?;
             }
             Self::Op { op } => {
                 write!(fmt, "op {}", op)?;
@@ -1405,6 +1423,40 @@ impl fmt::Display for InstValue {
             Self::Integer(v) => write!(f, "{}", v)?,
             Self::Float(v) => write!(f, "{}", v)?,
             Self::Type(v) => write!(f, "{}", v)?,
+        }
+
+        Ok(())
+    }
+}
+
+/// A variant that can be constructed.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InstVariant {
+    /// `Option::Some`, which uses one value.
+    Some,
+    /// `Option::None`, which uses no values.
+    None,
+    /// `Result::Ok`, which uses one value.
+    Ok,
+    /// `Result::Err`, which uses one value.
+    Err,
+}
+
+impl fmt::Display for InstVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Some => {
+                write!(f, "Some")?;
+            }
+            Self::None => {
+                write!(f, "None")?;
+            }
+            Self::Ok => {
+                write!(f, "Ok")?;
+            }
+            Self::Err => {
+                write!(f, "Err")?;
+            }
         }
 
         Ok(())

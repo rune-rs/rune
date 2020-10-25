@@ -7,6 +7,6 @@ pub(crate) use crate::{
 };
 pub(crate) use runestick::{
     CompileMetaCapture, CompileMetaKind, ConstValue, Hash, Inst, InstAssignOp, InstOp, InstTarget,
-    Item, Span,
+    InstVariant, Item, Span,
 };
 pub(crate) use std::convert::TryFrom;
