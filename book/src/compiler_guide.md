@@ -128,19 +128,19 @@ fn main::$0::$0() (0xca35663d3c51a903):
 A function pointer is pushed on the stack `load-fn 0xca35663d3c51a903`, then
 copied and called with zero arguments.
 
-[`Assemble`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/compiling/assemble/mod.rs
-[`AST`]: https://github.com/rune-rs/rune/tree/master/crates/rune/src/ast
-[`break` expression]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/compiling/assemble/expr_break.rs
-[`closure` expression]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/compiling/assemble/expr_closure.rs
-[`Compiler`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/compiling/compiler.rs
-[`Index`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/indexing/index.rs
-[`Indexer`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/indexing/index.rs
-[`Items`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/shared/items.rs
-[`Loops`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/compiling/loops.rs
-[`Query`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/query.rs
-[`Resolve` implementation of `LitStr`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/ast/lit_str.rs
-[`Resolve`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/parsing/resolve.rs
-[`Scopes`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/compiling/scopes.rs
+[`Assemble`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/assemble/mod.rs
+[`AST`]: https://github.com/rune-rs/rune/tree/main/crates/rune/src/ast
+[`break` expression]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/assemble/expr_break.rs
+[`closure` expression]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/assemble/expr_closure.rs
+[`Compiler`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/compiler.rs
+[`Index`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/indexing/index.rs
+[`Indexer`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/indexing/index.rs
+[`Items`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/shared/items.rs
+[`Loops`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/loops.rs
+[`Query`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/query.rs
+[`Resolve` implementation of `LitStr`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/ast/lit_str.rs
+[`Resolve`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/parsing/resolve.rs
+[`Scopes`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/scopes.rs
 [`Source::insert`]: https://docs.rs/runestick/0/runestick/struct.Source.html#method.insert
-[`Worker`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/worker.rs
-[components]: https://github.com/rune-rs/rune/blob/master/crates/runestick/src/item.rs
+[`Worker`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/worker.rs
+[components]: https://github.com/rune-rs/rune/blob/main/crates/runestick/src/item.rs

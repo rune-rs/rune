@@ -146,5 +146,5 @@ correct compile time metadata. We don't need to invent and enforce a soft rule
 like "always assign anonymous components from left to right". Something that
 would otherwise require near-perfect test coverage to be effective.
 
-[assigned to the relevant AST]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/ast/path.rs#L14
-[guarantees that each assigned identifier is unique]: https://github.com/rune-rs/rune/blob/master/crates/runestick/src/id.rs#L38
+[assigned to the relevant AST]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/ast/path.rs#L14
+[guarantees that each assigned identifier is unique]: https://github.com/rune-rs/rune/blob/main/crates/runestick/src/id.rs#L38

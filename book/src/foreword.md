@@ -109,7 +109,7 @@ it as much as I've enjoyed making it!
 [Joy of Creating]: https://en.wikipedia.org/wiki/The_Joy_of_Painting
 [Rust]: https://rust-lang.org
 [base level of complexity]: https://en.wikipedia.org/wiki/Waterbed_theory
-[compiled straight into the bot]: https://github.com/udoprog/OxidizeBot/tree/master/bot/src/module
+[compiled straight into the bot]: https://github.com/udoprog/OxidizeBot/tree/main/bot/src/module
 [OxidizeBot]: https://github.com/udoprog/OxidizeBot
 [Rust]: https://rust-lang.org
 [Rhai]: https://github.com/jonathandturner/rhai

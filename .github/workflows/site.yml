@@ -3,7 +3,7 @@ name: Site
 on:
   push:
     branches:
-      - master
+      - main
       - site
 
 jobs:
@@ -45,5 +45,5 @@ jobs:
       with:
         deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
         external_repository: rune-rs/rune-rs.github.io
-        publish_branch: master
+        publish_branch: main
         publish_dir: target/site

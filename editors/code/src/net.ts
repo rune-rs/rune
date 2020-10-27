@@ -140,7 +140,7 @@ async function downloadFile(
     // freezes on them, the process waits for no-longer emitted `close` event.
     // The fix was applied in commit 7eed9d6bcc in v13.11.0
     // See the nodejs changelog:
-    // https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V13.md
+    // https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V13.md
     const [, major, minor] = /v(\d+)\.(\d+)\.(\d+)/.exec(process.version)!;
     if (+major > 13 || (+major === 13 && +minor >= 11)) return;
 

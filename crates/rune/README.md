@@ -1,7 +1,7 @@
 # rune
 
 <div align="center">
-    <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/master/assets/icon.png" />
+    <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/main/assets/icon.png" />
 </div>
 
 <br>
@@ -151,10 +151,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
-[in the `examples` folder]: https://github.com/rune-rs/rune/tree/master/crates/rune/examples
-[future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
+[in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/crates/rune/examples
+[future-optimizations]: https://github.com/rune-rs/rune/blob/main/FUTURE_OPTIMIZATIONS.md
 [Open Issues]: https://github.com/rune-rs/rune/issues
-[support-rust-integration]: https://github.com/rune-rs/rune/tree/master/crates/rune-modules
+[support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
 [support-reference-counted]: https://rune-rs.github.io/book/variables.html
 [support-templates]: https://rune-rs.github.io/book/template_strings.html
 [support-try]: https://rune-rs.github.io/book/try_operator.html
@@ -167,4 +167,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
 [support-dynamic-vectors]: https://rune-rs.github.io/book/vectors.html
 [support-anon-objects]: https://rune-rs.github.io/book/objects.html
 [support-anon-tuples]: https://rune-rs.github.io/book/tuples.html
-[support-serde]: https://github.com/rune-rs/rune/blob/master/crates/rune-modules/src/json.rs
+[support-serde]: https://github.com/rune-rs/rune/blob/main/crates/rune-modules/src/json.rs

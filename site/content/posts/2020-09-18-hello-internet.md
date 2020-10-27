@@ -24,8 +24,8 @@ This site is an attempt to address that.
 So let's talk for a second about the tech behind this site. It's driven by
 [Zola](https://www.getzola.org/) and is deployed automatically through [GitHub
 Actions](https://github.com/rune-rs/rune/actions?query=workflow%3ASite) on every
-push to master. [There's a little bit of glue
-involved](https://github.com/rune-rs/rune/tree/master/tools/site) to
+push to main. [There's a little bit of glue
+involved](https://github.com/rune-rs/rune/tree/main/tools/site) to
 download and run Zola, but apart from that the experience has been really
 smooth. It's a great project overall.
 

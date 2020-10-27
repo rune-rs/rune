@@ -1,7 +1,7 @@
 # rune-languageserver
 
 <div align="center">
-    <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/master/assets/icon.png" />
+    <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/main/assets/icon.png" />
 </div>
 
 <br>

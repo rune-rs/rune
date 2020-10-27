@@ -65,4 +65,4 @@ for the [`rune-modules`] crate.
 [`Module::inst_fn`]: https://docs.rs/runestick/0.5.3/runestick/struct.Module.html#method.inst_fn
 [`Module::async_inst_fn`]: https://docs.rs/runestick/0.5.3/runestick/struct.Module.html#method.async_inst_fn
 [`Module::ty`]: https://docs.rs/runestick/0.5.3/runestick/struct.Module.html#method.ty
-[`rune-modules`]: https://github.com/rune-rs/rune/tree/master/crates/rune-modules
+[`rune-modules`]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
