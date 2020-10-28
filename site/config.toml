@@ -6,6 +6,7 @@ default_language = "en"
 
 highlight_theme = "nord"
 generate_feed = true
+feed_filename = "rss.xml"
 rss_limit = 20
 compile_sass = true
 highlight_code = true

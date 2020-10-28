@@ -27,6 +27,10 @@
         <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Montserrat:200,300,300i,400,500,500i,600,700,800,900|Raleway">
         <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css"  integrity="sha384-mzrmE5qonljUremFsqc01SB46JvROS7bZs3IO2EmfFsd15uHvIt+Y8vEf7N7fWAU" crossorigin="anonymous">
       {% endblock head %}
+
+      {% block rss %}
+        <link rel="alternate" type="application/rss+xml" title="RSS" href="{{ get_url(path="rss.xml", trailing_slash=false) }}">
+      {% endblock %}
     </head>
 
     <body>
@@ -37,10 +41,10 @@
           </figure>
   
           <h2 class="site-title">{{config.title}}</h2>
-  
-          <div>{{config.description | markdown(inline=true) | safe }}</div>
 
           {{ macros::nav() }}
+
+          {{ macros::social_list(classes="head-list", bsize="extra-small", extra=config.extra, siteurl=config.base_url, rss=config.generate_feed) }}
         </header>
       {% endblock header %}
 

@@ -22,6 +22,10 @@
 
     {% if extra.discord %}
     <li class="button {{bsize}} font_faint"><a title="Join Community Discord" href="{{extra.discord}}" target="_blank" >discord</a><i class="fab fa-discord" ></i></li>
+
+    {% if rss %}
+    <li class="button {{bsize}} font_faint"><a href="{{siteurl}}/rss.xml" target ="_blank">rss</a><i class="fas fa-rss" ></i></li>
+    {% endif %}
     {% endif %}
 </ul>
 {% endmacro social_list %}
