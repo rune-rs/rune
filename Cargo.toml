@@ -1,28 +1,10 @@
 [workspace]
 members = [
-    "crates/rune-cli",
-    "crates/rune-languageserver",
-    "crates/rune-modules",
-    "crates/rune-wasm",
-    "crates/rune",
-    "crates/rune-macros",
-    "crates/runestick-macros",
-    "crates/runestick",
+    "crates/*"
 ]
 
 exclude = [
     "tools/builder",
     "tools/site",
     "tools/generate",
-]
-
-default-members = [
-    "crates/rune-cli",
-    "crates/rune-languageserver",
-    "crates/rune-macros",
-    "crates/rune-modules",
-    "crates/rune-wasm",
-    "crates/rune",
-    "crates/runestick-macros",
-    "crates/runestick",
 ]
