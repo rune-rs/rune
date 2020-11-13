@@ -49,19 +49,19 @@ impl Assemble for ast::ExprObject {
 
                 match &meta.kind {
                     CompileMetaKind::UnitStruct { .. } => {
-                        check_object_fields(Some(&HashSet::new()), check_keys, span, &meta.item)?;
+                        check_object_fields(&HashSet::new(), check_keys, span, &meta.item)?;
 
                         let hash = Hash::type_hash(&meta.item);
                         c.asm.push(Inst::UnitStruct { hash }, span);
                     }
                     CompileMetaKind::Struct { object, .. } => {
-                        check_object_fields(object.fields.as_ref(), check_keys, span, &meta.item)?;
+                        check_object_fields(&object.fields, check_keys, span, &meta.item)?;
 
                         let hash = Hash::type_hash(&meta.item);
                         c.asm.push(Inst::Struct { hash, slot }, span);
                     }
                     CompileMetaKind::StructVariant { object, .. } => {
-                        check_object_fields(object.fields.as_ref(), check_keys, span, &meta.item)?;
+                        check_object_fields(&object.fields, check_keys, span, &meta.item)?;
 
                         let hash = Hash::type_hash(&meta.item);
                         c.asm.push(Inst::StructVariant { hash, slot }, span);
@@ -90,20 +90,12 @@ impl Assemble for ast::ExprObject {
 }
 
 fn check_object_fields(
-    fields: Option<&HashSet<Box<str>>>,
+    fields: &HashSet<Box<str>>,
     check_keys: Vec<(Box<str>, Span)>,
     span: Span,
     item: &Item,
 ) -> CompileResult<()> {
-    let mut fields = match fields {
-        Some(fields) => fields.clone(),
-        None => {
-            return Err(CompileError::new(
-                span,
-                CompileErrorKind::MissingItem { item: item.clone() },
-            ));
-        }
-    };
+    let mut fields = fields.clone();
 
     for (field, span) in check_keys {
         if !fields.remove(&field) {

@@ -401,7 +401,9 @@ impl Context {
             item,
             kind: CompileMetaKind::Struct {
                 type_hash,
-                object: CompileMetaStruct { fields: None },
+                object: CompileMetaStruct {
+                    fields: Default::default(),
+                },
             },
             source: None,
         })?;

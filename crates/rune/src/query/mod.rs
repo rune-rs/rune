@@ -1734,9 +1734,7 @@ fn struct_body_meta(
         fields.insert(name.into());
     }
 
-    let object = CompileMetaStruct {
-        fields: Some(fields),
-    };
+    let object = CompileMetaStruct { fields };
 
     Ok(match enum_item {
         Some(enum_item) => CompileMetaKind::StructVariant {
