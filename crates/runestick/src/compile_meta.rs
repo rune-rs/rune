@@ -213,7 +213,7 @@ pub struct CompileMetaEmpty {
 #[derive(Debug, Clone)]
 pub struct CompileMetaStruct {
     /// Fields associated with the type.
-    pub fields: Option<HashSet<Box<str>>>,
+    pub fields: HashSet<Box<str>>,
 }
 
 /// The metadata about a variant.

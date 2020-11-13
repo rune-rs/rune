@@ -550,17 +550,7 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                let fields = match &object.fields {
-                    Some(fields) => fields,
-                    None => {
-                        // NB: might want to describe that field composition is unknown because it is an external meta item.
-                        return Err(CompileError::expected_meta(
-                            span,
-                            meta,
-                            "type that can be used in an object pattern",
-                        ));
-                    }
-                };
+                let fields = &object.fields;
 
                 for binding in &bindings {
                     if !fields.contains(binding.key()) {
