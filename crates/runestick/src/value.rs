@@ -1,8 +1,7 @@
 use crate::access::AccessKind;
 use crate::{
     Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Item, Iterator,
-    Mut, Object, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, Vec,
-    VmError,
+    Mut, Object, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, TypeInfo, Vec, VmError,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -673,38 +672,38 @@ impl Value {
         }
     }
 
-    /// Get the type information for the current value.
-    pub fn type_of(&self) -> Result<Type, VmError> {
+    /// Get the type hash for the current value.
+    pub fn type_hash(&self) -> Result<Hash, VmError> {
         Ok(match self {
-            Self::Unit => Type::from(crate::UNIT_TYPE),
-            Self::Bool(..) => Type::from(crate::BOOL_TYPE),
-            Self::Byte(..) => Type::from(crate::BYTE_TYPE),
-            Self::Char(..) => Type::from(crate::CHAR_TYPE),
-            Self::Integer(..) => Type::from(crate::INTEGER_TYPE),
-            Self::Float(..) => Type::from(crate::FLOAT_TYPE),
-            Self::StaticString(..) => Type::from(crate::STRING_TYPE),
-            Self::String(..) => Type::from(crate::STRING_TYPE),
-            Self::Bytes(..) => Type::from(crate::BYTES_TYPE),
-            Self::Vec(..) => Type::from(crate::VEC_TYPE),
-            Self::Tuple(..) => Type::from(crate::TUPLE_TYPE),
-            Self::Object(..) => Type::from(crate::OBJECT_TYPE),
-            Self::Future(..) => Type::from(crate::FUTURE_TYPE),
-            Self::Stream(..) => Type::from(crate::STREAM_TYPE),
-            Self::Generator(..) => Type::from(crate::GENERATOR_TYPE),
-            Self::GeneratorState(..) => Type::from(crate::GENERATOR_STATE_TYPE),
-            Self::Result(..) => Type::from(crate::RESULT_TYPE),
-            Self::Option(..) => Type::from(crate::OPTION_TYPE),
-            Self::Function(..) => Type::from(crate::FUNCTION_TYPE),
-            Self::Format(..) => Type::from(crate::FORMAT_TYPE),
-            Self::Iterator(..) => Type::from(crate::ITERATOR_TYPE),
-            Self::Type(hash) => Type::from(*hash),
-            Self::UnitStruct(empty) => Type::from(empty.borrow_ref()?.rtti.hash),
-            Self::TupleStruct(tuple) => Type::from(tuple.borrow_ref()?.rtti.hash),
-            Self::Struct(object) => Type::from(object.borrow_ref()?.rtti.hash),
-            Self::UnitVariant(empty) => Type::from(empty.borrow_ref()?.rtti.enum_hash),
-            Self::TupleVariant(tuple) => Type::from(tuple.borrow_ref()?.rtti.enum_hash),
-            Self::StructVariant(object) => Type::from(object.borrow_ref()?.rtti.enum_hash),
-            Self::Any(any) => Type::from(any.borrow_ref()?.type_hash()),
+            Self::Unit => crate::UNIT_TYPE.hash,
+            Self::Bool(..) => crate::BOOL_TYPE.hash,
+            Self::Byte(..) => crate::BYTE_TYPE.hash,
+            Self::Char(..) => crate::CHAR_TYPE.hash,
+            Self::Integer(..) => crate::INTEGER_TYPE.hash,
+            Self::Float(..) => crate::FLOAT_TYPE.hash,
+            Self::StaticString(..) => crate::STRING_TYPE.hash,
+            Self::String(..) => crate::STRING_TYPE.hash,
+            Self::Bytes(..) => crate::BYTES_TYPE.hash,
+            Self::Vec(..) => crate::VEC_TYPE.hash,
+            Self::Tuple(..) => crate::TUPLE_TYPE.hash,
+            Self::Object(..) => crate::OBJECT_TYPE.hash,
+            Self::Future(..) => crate::FUTURE_TYPE.hash,
+            Self::Stream(..) => crate::STREAM_TYPE.hash,
+            Self::Generator(..) => crate::GENERATOR_TYPE.hash,
+            Self::GeneratorState(..) => crate::GENERATOR_STATE_TYPE.hash,
+            Self::Result(..) => crate::RESULT_TYPE.hash,
+            Self::Option(..) => crate::OPTION_TYPE.hash,
+            Self::Function(..) => crate::FUNCTION_TYPE.hash,
+            Self::Format(..) => crate::FORMAT_TYPE.hash,
+            Self::Iterator(..) => crate::ITERATOR_TYPE.hash,
+            Self::Type(hash) => *hash,
+            Self::UnitStruct(empty) => empty.borrow_ref()?.rtti.hash,
+            Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
+            Self::Struct(object) => object.borrow_ref()?.rtti.hash,
+            Self::UnitVariant(empty) => empty.borrow_ref()?.rtti.enum_hash,
+            Self::TupleVariant(tuple) => tuple.borrow_ref()?.rtti.enum_hash,
+            Self::StructVariant(object) => object.borrow_ref()?.rtti.enum_hash,
+            Self::Any(any) => any.borrow_ref()?.type_hash(),
         })
     }
 
@@ -732,7 +731,7 @@ impl Value {
             Self::Function(..) => TypeInfo::StaticType(crate::FUNCTION_TYPE),
             Self::Format(..) => TypeInfo::StaticType(crate::FORMAT_TYPE),
             Self::Iterator(..) => TypeInfo::StaticType(crate::ITERATOR_TYPE),
-            Self::Type(hash) => TypeInfo::Hash(*hash),
+            Self::Type(..) => TypeInfo::StaticType(crate::TYPE),
             Self::UnitStruct(empty) => empty.borrow_ref()?.type_info(),
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.type_info(),
             Self::Struct(object) => object.borrow_ref()?.type_info(),

@@ -1,4 +1,4 @@
-use crate::{Any, InstFnNameHash, IntoComponent, Item, Type};
+use crate::{Any, InstFnNameHash, IntoComponent, Item};
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
@@ -56,21 +56,21 @@ impl Hash {
 
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
-    pub fn instance_function<N>(type_of: Type, name: N) -> Self
+    pub fn instance_function<N>(type_hash: Hash, name: N) -> Self
     where
         N: InstFnNameHash,
     {
         let name = name.inst_fn_name_hash();
-        Self::of((INSTANCE_FUNCTION, type_of, SEP, name))
+        Self::of((INSTANCE_FUNCTION, type_hash, SEP, name))
     }
 
     /// Construct a hash corresponding to a getter.
-    pub fn getter<N>(type_of: Type, name: N) -> Self
+    pub fn getter<N>(type_hash: Hash, name: N) -> Self
     where
         N: InstFnNameHash,
     {
         let name = name.inst_fn_name_hash();
-        Self::of((GETTER, type_of, SEP, name))
+        Self::of((GETTER, type_hash, SEP, name))
     }
 
     /// Get the hash corresponding to a static byte array.

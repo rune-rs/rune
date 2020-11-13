@@ -4,9 +4,7 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::{
-    Call, DebugInfo, Hash, Inst, Rtti, StaticString, Type, VariantRtti, VmError, VmErrorKind,
-};
+use crate::{Call, DebugInfo, Hash, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
@@ -18,8 +16,6 @@ pub struct Unit {
     instructions: Vec<Inst>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFn>,
-    /// Declared types.
-    types: HashMap<Hash, UnitTypeInfo>,
     /// A static string.
     static_strings: Vec<Arc<StaticString>>,
     /// A static byte string.
@@ -45,7 +41,6 @@ impl Unit {
     pub fn new(
         instructions: Vec<Inst>,
         functions: HashMap<Hash, UnitFn>,
-        types: HashMap<Hash, UnitTypeInfo>,
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
         static_object_keys: Vec<Box<[String]>>,
@@ -56,7 +51,6 @@ impl Unit {
         Self {
             instructions,
             functions,
-            types,
             static_strings,
             static_bytes,
             static_object_keys,
@@ -64,11 +58,6 @@ impl Unit {
             variant_rtti,
             debug,
         }
-    }
-
-    /// Access the type for the given language item.
-    pub fn lookup_type(&self, hash: Hash) -> Option<&UnitTypeInfo> {
-        self.types.get(&hash)
     }
 
     /// Access debug information for the given location if it is available.
@@ -105,11 +94,6 @@ impl Unit {
     /// Iterate over dynamic functions.
     pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFn)> + '_ {
         self.functions.iter().map(|(h, f)| (*h, f))
-    }
-
-    /// Iterate over dynamic types.
-    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &UnitTypeInfo)> + '_ {
-        self.types.iter().map(|(h, v)| (*h, v))
     }
 
     /// Lookup the static string by slot, if it exists.
@@ -210,15 +194,6 @@ impl fmt::Display for UnitFn {
 
         Ok(())
     }
-}
-
-/// Type information on a unit.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UnitTypeInfo {
-    /// A type declared in a unit.
-    pub hash: Hash,
-    /// value type of the given type.
-    pub type_of: Type,
 }
 
 #[cfg(test)]

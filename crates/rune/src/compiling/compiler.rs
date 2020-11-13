@@ -192,10 +192,12 @@ impl<'a> Compiler<'a> {
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::Function { type_of } => {
-                    let hash = **type_of;
-                    self.asm
-                        .push_with_comment(Inst::LoadFn { hash }, span, meta.to_string());
+                CompileMetaKind::Function { type_hash } => {
+                    self.asm.push_with_comment(
+                        Inst::LoadFn { hash: *type_hash },
+                        span,
+                        meta.to_string(),
+                    );
                 }
                 CompileMetaKind::Const { const_value, .. } => {
                     const_value.assemble_const(self, Needs::Value, span)?;
@@ -209,13 +211,13 @@ impl<'a> Compiler<'a> {
                 }
             }
         } else {
-            let type_of = meta.base_type_of().ok_or_else(|| {
+            let type_hash = meta.type_hash_of().ok_or_else(|| {
                 CompileError::expected_meta(span, meta.clone(), "something that has a type")
             })?;
 
             self.asm.push(
                 Inst::Push {
-                    value: InstValue::Type(*type_of),
+                    value: InstValue::Type(type_hash),
                 },
                 span,
             );
@@ -359,20 +361,24 @@ impl<'a> Compiler<'a> {
             let meta = self.lookup_meta(path.span(), &named.item)?;
 
             let (args, type_check) = match &meta.kind {
-                CompileMetaKind::UnitStruct { type_of, .. } => {
-                    let type_check = TypeCheck::Type(**type_of);
+                CompileMetaKind::UnitStruct { type_hash, .. } => {
+                    let type_check = TypeCheck::Type(*type_hash);
                     (0, type_check)
                 }
-                CompileMetaKind::TupleStruct { tuple, type_of, .. } => {
-                    let type_check = TypeCheck::Type(**type_of);
+                CompileMetaKind::TupleStruct {
+                    tuple, type_hash, ..
+                } => {
+                    let type_check = TypeCheck::Type(*type_hash);
                     (tuple.args, type_check)
                 }
-                CompileMetaKind::UnitVariant { type_of, .. } => {
-                    let type_check = TypeCheck::Variant(**type_of);
+                CompileMetaKind::UnitVariant { type_hash, .. } => {
+                    let type_check = TypeCheck::Variant(*type_hash);
                     (0, type_check)
                 }
-                CompileMetaKind::TupleVariant { tuple, type_of, .. } => {
-                    let type_check = TypeCheck::Variant(**type_of);
+                CompileMetaKind::TupleVariant {
+                    tuple, type_hash, ..
+                } => {
+                    let type_check = TypeCheck::Variant(*type_hash);
                     (tuple.args, type_check)
                 }
                 _ => {
@@ -524,15 +530,15 @@ impl<'a> Compiler<'a> {
 
                 let (object, type_check) = match &meta.kind {
                     CompileMetaKind::Struct {
-                        object, type_of, ..
+                        object, type_hash, ..
                     } => {
-                        let type_check = TypeCheck::Type(**type_of);
+                        let type_check = TypeCheck::Type(*type_hash);
                         (object, type_check)
                     }
                     CompileMetaKind::StructVariant {
-                        object, type_of, ..
+                        object, type_hash, ..
                     } => {
-                        let type_check = TypeCheck::Variant(**type_of);
+                        let type_check = TypeCheck::Variant(*type_hash);
                         (object, type_check)
                     }
                     _ => {
@@ -645,14 +651,14 @@ impl<'a> Compiler<'a> {
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let type_check = match &meta.kind {
-            CompileMetaKind::UnitStruct { type_of, .. } => TypeCheck::Type(**type_of),
-            CompileMetaKind::TupleStruct { tuple, type_of, .. } if tuple.args == 0 => {
-                TypeCheck::Type(**type_of)
-            }
-            CompileMetaKind::UnitVariant { type_of, .. } => TypeCheck::Variant(**type_of),
-            CompileMetaKind::TupleVariant { tuple, type_of, .. } if tuple.args == 0 => {
-                TypeCheck::Variant(**type_of)
-            }
+            CompileMetaKind::UnitStruct { type_hash, .. } => TypeCheck::Type(*type_hash),
+            CompileMetaKind::TupleStruct {
+                tuple, type_hash, ..
+            } if tuple.args == 0 => TypeCheck::Type(*type_hash),
+            CompileMetaKind::UnitVariant { type_hash, .. } => TypeCheck::Variant(*type_hash),
+            CompileMetaKind::TupleVariant {
+                tuple, type_hash, ..
+            } if tuple.args == 0 => TypeCheck::Variant(*type_hash),
             _ => return Ok(false),
         };
 

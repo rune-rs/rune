@@ -6,7 +6,7 @@
 use crate::collections::HashMap;
 use crate::context::{ContextError, Handler, Macro};
 use crate::{
-    Future, GeneratorState, Hash, IntoComponent, Item, Named, Stack, StaticType, ToValue, Type,
+    Future, GeneratorState, Hash, IntoComponent, Item, Named, Stack, StaticType, ToValue,
     TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use std::any;
@@ -54,14 +54,14 @@ impl ModuleInternalEnum {
     {
         let constructor: Arc<Handler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
-        let type_of = C::Return::type_of();
+        let type_hash = C::Return::type_hash();
 
         self.variants.push(ModuleInternalVariant {
             name,
             type_check,
             args: C::args(),
             constructor,
-            type_of,
+            type_hash,
         });
     }
 }
@@ -77,7 +77,7 @@ pub(crate) struct ModuleInternalVariant {
     /// The constructor of the variant.
     pub(crate) constructor: Arc<Handler>,
     /// The value type of the variant.
-    pub(crate) type_of: Type,
+    pub(crate) type_hash: Hash,
 }
 
 pub(crate) struct ModuleType {
@@ -95,7 +95,7 @@ pub(crate) enum ModuleAssociatedKind {
 
 impl ModuleAssociatedKind {
     /// Convert the kind into a hash function.
-    pub fn into_hash_fn(self) -> fn(Type, Hash) -> Hash {
+    pub fn into_hash_fn(self) -> fn(Hash, Hash) -> Hash {
         match self {
             Self::Getter => Hash::getter,
             Self::Instance => Hash::instance_function,
@@ -112,7 +112,7 @@ pub(crate) struct ModuleAssociatedFn {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct ModuleAssocKey {
-    pub(crate) type_of: Type,
+    pub(crate) type_hash: Hash,
     pub(crate) hash: Hash,
     pub(crate) kind: ModuleAssociatedKind,
 }
@@ -138,7 +138,7 @@ pub struct Module {
     /// Instance functions.
     pub(crate) associated_functions: HashMap<ModuleAssocKey, ModuleAssociatedFn>,
     /// Registered types.
-    pub(crate) types: HashMap<Type, ModuleType>,
+    pub(crate) types: HashMap<Hash, ModuleType>,
     /// Registered unit type.
     pub(crate) unit_type: Option<ModuleUnitType>,
     /// Registered generator state type.
@@ -214,7 +214,7 @@ impl Module {
     where
         T: Named + TypeOf,
     {
-        let type_of = T::type_of();
+        let type_hash = T::type_hash();
         let type_info = T::type_info();
 
         let ty = ModuleType {
@@ -222,7 +222,7 @@ impl Module {
             type_info,
         };
 
-        if let Some(old) = self.types.insert(type_of, ty) {
+        if let Some(old) = self.types.insert(type_hash, ty) {
             return Err(ContextError::ConflictingType {
                 item: Item::of(&[T::NAME]),
                 existing: old.type_info,
@@ -569,11 +569,11 @@ impl Module {
         N: InstFnNameHash,
         Func: InstFn<Args>,
     {
-        let type_of = Func::instance_type_of();
-        let type_info = Func::instance_type_of_info();
+        let type_hash = Func::instance_type_hash();
+        let type_info = Func::instance_type_info();
 
         let key = ModuleAssocKey {
-            type_of,
+            type_hash,
             hash: name.inst_fn_name_hash(),
             kind,
         };
@@ -630,11 +630,11 @@ impl Module {
         N: InstFnNameHash,
         Func: AsyncInstFn<Args>,
     {
-        let type_of = Func::instance_type_of();
-        let type_info = Func::instance_type_of_info();
+        let type_hash = Func::instance_type_hash();
+        let type_info = Func::instance_type_info();
 
         let key = ModuleAssocKey {
-            type_of,
+            type_hash,
             hash: name.inst_fn_name_hash(),
             kind: ModuleAssociatedKind::Instance,
         };
@@ -723,10 +723,10 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Access the value type of the instance.
-    fn instance_type_of() -> Type;
+    fn instance_type_hash() -> Hash;
 
     /// Access the value type info of the instance.
-    fn instance_type_of_info() -> TypeInfo;
+    fn instance_type_info() -> TypeInfo;
 
     /// Perform the vm call.
     fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
@@ -743,10 +743,10 @@ pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Access the value type of the instance.
-    fn instance_type_of() -> Type;
+    fn instance_type_hash() -> Hash;
 
     /// Access the value type of the instance.
-    fn instance_type_of_info() -> TypeInfo;
+    fn instance_type_info() -> TypeInfo;
 
     /// Perform the vm call.
     fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
@@ -863,11 +863,11 @@ macro_rules! impl_register {
                 $count + 1
             }
 
-            fn instance_type_of() -> Type {
-                Instance::type_of()
+            fn instance_type_hash() -> Hash {
+                Instance::type_hash()
             }
 
-            fn instance_type_of_info() -> TypeInfo {
+            fn instance_type_info() -> TypeInfo {
                 Instance::type_info()
             }
 
@@ -911,11 +911,11 @@ macro_rules! impl_register {
                 $count + 1
             }
 
-            fn instance_type_of() -> Type {
-                Instance::type_of()
+            fn instance_type_hash() -> Hash {
+                Instance::type_hash()
             }
 
-            fn instance_type_of_info() -> TypeInfo {
+            fn instance_type_info() -> TypeInfo {
                 Instance::type_info()
             }
 

@@ -202,7 +202,7 @@ pub static FORMAT_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(crate::Format => FORMAT_TYPE);
 
-/// The specialized type information for an interface types.
+/// The specialized type information for the iterator type.
 pub static ITERATOR_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Iterator"),
     hash: Hash::new(0xe08fbd4d99f308e9),
@@ -210,10 +210,16 @@ pub static ITERATOR_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(crate::Iterator => ITERATOR_TYPE);
 
-/// The specialized type information for an interface types.
+/// The specialized type information for the interface type.
 pub static INTERFACE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Interface"),
     hash: Hash::new(0xf2b8e210ba53f362),
 };
 
 impl_static_type!(crate::Interface => INTERFACE_TYPE);
+
+/// The specialized type information for type objects.
+pub static TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("Type"),
+    hash: Hash::new(0x3cb9320f24bf56f0),
+};

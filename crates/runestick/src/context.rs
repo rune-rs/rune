@@ -4,8 +4,7 @@ use crate::module::{
 };
 use crate::{
     CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, ComponentRef, Hash,
-    IntoComponent, Item, Module, Names, Stack, StaticType, Type, TypeCheck, TypeInfo, TypeOf,
-    VmError,
+    IntoComponent, Item, Module, Names, Stack, StaticType, TypeCheck, TypeInfo, TypeOf, VmError,
 };
 use std::any;
 use std::fmt;
@@ -71,14 +70,12 @@ pub enum ContextError {
         existing: TypeInfo,
     },
     /// Raised when we try to register a conflicting type hash.
-    #[error("tried to insert conflicting hash type `{hash}` (existing `{existing}`) for type `{type_of}`")]
+    #[error("tried to insert conflicting hash `{hash}` for `{existing}`")]
     ConflictingTypeHash {
         /// The hash we are trying to insert.
         hash: Hash,
         /// The hash that already existed.
         existing: Hash,
-        /// The type we're trying to insert.
-        type_of: Type,
     },
     /// Error raised when attempting to register a conflicting function.
     #[error("variant with `{item}` already exists")]
@@ -112,7 +109,7 @@ pub struct ContextTypeInfo {
     /// The name of the type.
     pub item: Item,
     /// The value type of the type.
-    pub type_of: Type,
+    pub type_hash: Hash,
     /// Information on the type.
     pub type_info: TypeInfo,
 }
@@ -213,7 +210,7 @@ pub struct Context {
     /// Registered types.
     types: HashMap<Hash, ContextTypeInfo>,
     /// Reverse lookup for types.
-    types_rev: HashMap<Type, Hash>,
+    types_rev: HashMap<Hash, Hash>,
     /// Specialized information on unit types, if available.
     unit_type: Option<Hash>,
     /// Registered internal enums.
@@ -336,8 +333,8 @@ impl Context {
 
     /// Install the specified module.
     pub fn install(&mut self, module: &Module) -> Result<(), ContextError> {
-        for (type_of, ty) in &module.types {
-            self.install_type(&module, *type_of, ty)?;
+        for (type_hash, ty) in &module.types {
+            self.install_type(&module, *type_hash, ty)?;
         }
 
         for (name, f) in &module.functions {
@@ -357,7 +354,12 @@ impl Context {
         }
 
         for (key, inst) in &module.associated_functions {
-            self.install_associated_function(key.type_of, key.hash, inst, key.kind.into_hash_fn())?;
+            self.install_associated_function(
+                key.type_hash,
+                key.hash,
+                inst,
+                key.kind.into_hash_fn(),
+            )?;
         }
 
         Ok(())
@@ -379,7 +381,7 @@ impl Context {
     fn install_type(
         &mut self,
         module: &Module,
-        type_of: Type,
+        type_hash: Hash,
         ty: &ModuleType,
     ) -> Result<(), ContextError> {
         let item = module.path.extended(&*ty.name);
@@ -388,9 +390,9 @@ impl Context {
         self.install_type_info(
             hash,
             ContextTypeInfo {
-                type_check: TypeCheck::Type(*type_of),
+                type_check: TypeCheck::Type(type_hash),
                 item: item.clone(),
-                type_of,
+                type_hash,
                 type_info: ty.type_info.clone(),
             },
         )?;
@@ -398,7 +400,7 @@ impl Context {
         self.install_meta(CompileMeta {
             item,
             kind: CompileMetaKind::Struct {
-                type_of,
+                type_hash,
                 object: CompileMetaStruct { fields: None },
             },
             source: None,
@@ -411,12 +413,8 @@ impl Context {
         self.names.insert(&info.item, ());
 
         // reverse lookup for types.
-        if let Some(existing) = self.types_rev.insert(info.type_of, hash) {
-            return Err(ContextError::ConflictingTypeHash {
-                hash,
-                existing,
-                type_of: info.type_of,
-            });
+        if let Some(existing) = self.types_rev.insert(info.type_hash, hash) {
+            return Err(ContextError::ConflictingTypeHash { hash, existing });
         }
 
         if let Some(existing) = self.types.insert(hash, info) {
@@ -459,9 +457,7 @@ impl Context {
             item.clone(),
             CompileMeta {
                 item,
-                kind: CompileMetaKind::Function {
-                    type_of: Type::from(hash),
-                },
+                kind: CompileMetaKind::Function { type_hash: hash },
                 source: None,
             },
         );
@@ -488,14 +484,14 @@ impl Context {
 
     fn install_associated_function(
         &mut self,
-        type_of: Type,
+        type_hash: Hash,
         hash: Hash,
         assoc: &ModuleAssociatedFn,
-        hash_fn: impl FnOnce(Type, Hash) -> Hash,
+        hash_fn: impl FnOnce(Hash, Hash) -> Hash,
     ) -> Result<(), ContextError> {
         let info = match self
             .types_rev
-            .get(&type_of)
+            .get(&type_hash)
             .and_then(|hash| self.types.get(&hash))
         {
             Some(info) => info,
@@ -506,7 +502,7 @@ impl Context {
             }
         };
 
-        let hash = hash_fn(type_of, hash);
+        let hash = hash_fn(type_hash, hash);
 
         let signature = ContextSignature::Instance {
             item: info.item.clone(),
@@ -546,7 +542,7 @@ impl Context {
             ContextTypeInfo {
                 type_check: TypeCheck::Unit,
                 item,
-                type_of: Type::from(crate::UNIT_TYPE),
+                type_hash: crate::UNIT_TYPE.hash,
                 type_info: TypeInfo::StaticType(crate::UNIT_TYPE),
             },
         )?;
@@ -572,7 +568,7 @@ impl Context {
         self.install_meta(CompileMeta {
             item: enum_item.clone(),
             kind: CompileMetaKind::Enum {
-                type_of: Type::from(internal_enum.static_type),
+                type_hash: internal_enum.static_type.hash,
             },
             source: None,
         })?;
@@ -582,7 +578,7 @@ impl Context {
             ContextTypeInfo {
                 type_check: TypeCheck::Type(internal_enum.static_type.hash),
                 item: enum_item.clone(),
-                type_of: Type::from(internal_enum.static_type),
+                type_hash: internal_enum.static_type.hash,
                 type_info: TypeInfo::StaticType(internal_enum.static_type),
             },
         )?;
@@ -596,7 +592,7 @@ impl Context {
                 ContextTypeInfo {
                     type_check: variant.type_check,
                     item: item.clone(),
-                    type_of: Type::from(hash),
+                    type_hash: hash,
                     type_info: TypeInfo::StaticType(internal_enum.static_type),
                 },
             )?;
@@ -604,7 +600,7 @@ impl Context {
             self.install_meta(CompileMeta {
                 item: item.clone(),
                 kind: CompileMetaKind::TupleVariant {
-                    type_of: variant.type_of,
+                    type_hash: variant.type_hash,
                     enum_item: enum_item.clone(),
                     tuple: CompileMetaTuple {
                         args: variant.args,
@@ -644,7 +640,7 @@ impl Context {
         C: crate::module::Function<Args>,
         C::Return: TypeOf,
     {
-        let type_of = <C::Return as TypeOf>::type_of();
+        let type_hash = <C::Return as TypeOf>::type_hash();
         let hash = Hash::type_hash(&item);
 
         let tuple = CompileMetaTuple { args, hash };
@@ -653,7 +649,7 @@ impl Context {
             Some(enum_item) => CompileMeta {
                 item: item.clone(),
                 kind: CompileMetaKind::TupleVariant {
-                    type_of,
+                    type_hash,
                     enum_item,
                     tuple,
                 },
@@ -661,7 +657,7 @@ impl Context {
             },
             None => CompileMeta {
                 item: item.clone(),
-                kind: CompileMetaKind::TupleStruct { type_of, tuple },
+                kind: CompileMetaKind::TupleStruct { type_hash, tuple },
                 source: None,
             },
         };

@@ -374,7 +374,7 @@ impl Vm {
         A: Args,
     {
         let count = args.count() + 1;
-        let hash = Hash::instance_function(target.type_of()?, hash.into_type_hash());
+        let hash = Hash::instance_function(target.type_hash()?, hash.into_type_hash());
 
         if let Some(UnitFn::Offset {
             offset,
@@ -409,7 +409,7 @@ impl Vm {
         A: Args,
     {
         let count = args.count() + 1;
-        let hash = Hash::getter(target.type_of()?, hash.into_type_hash());
+        let hash = Hash::getter(target.type_hash()?, hash.into_type_hash());
 
         let handler = match self.context.lookup(hash) {
             Some(handler) => handler,
@@ -978,7 +978,7 @@ impl Vm {
     #[inline]
     fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmError> {
         let instance = self.stack.pop()?;
-        let ty = instance.type_of()?;
+        let ty = instance.type_hash()?;
         let hash = Hash::instance_function(ty, hash);
         self.stack.push(Value::Type(hash));
         Ok(())
@@ -1678,7 +1678,7 @@ impl Vm {
             }
         };
 
-        Ok(*a.type_of()? == hash)
+        Ok(a.type_hash()? == hash)
     }
 
     #[inline]
@@ -2206,8 +2206,8 @@ impl Vm {
         // NB: +1 to include the instance itself.
         let args = args + 1;
         let instance = self.stack.at_offset_from_top(args)?;
-        let type_of = instance.type_of()?;
-        let hash = Hash::instance_function(type_of, inst_fn);
+        let type_hash = instance.type_hash()?;
+        let hash = Hash::instance_function(type_hash, inst_fn);
 
         match self.unit.lookup(hash) {
             Some(info) => match info {

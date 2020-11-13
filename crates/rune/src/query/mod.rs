@@ -15,7 +15,7 @@ use runestick::format;
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
     CompileMetaTuple, CompileSource, Component, ComponentRef, Hash, IntoComponent, Item, Names,
-    Source, SourceId, Span, Type,
+    Source, SourceId, Span,
 };
 use std::cell::{RefCell, RefMut};
 use std::collections::VecDeque;
@@ -1261,7 +1261,7 @@ impl QueryInner {
 
         let kind = match indexed {
             Indexed::Enum => CompileMetaKind::Enum {
-                type_of: Type::from(Hash::type_hash(&query_item.item)),
+                type_hash: Hash::type_hash(&query_item.item),
             },
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for(query_item.location.span, Some(variant.enum_id))?;
@@ -1290,7 +1290,7 @@ impl QueryInner {
                 });
 
                 CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&query_item.item)),
+                    type_hash: Hash::type_hash(&query_item.item),
                 }
             }
             Indexed::Closure(c) => {
@@ -1306,7 +1306,7 @@ impl QueryInner {
                 });
 
                 CompileMetaKind::Closure {
-                    type_of: Type::from(Hash::type_hash(&query_item.item)),
+                    type_hash: Hash::type_hash(&query_item.item),
                     captures,
                     do_move,
                 }
@@ -1324,7 +1324,7 @@ impl QueryInner {
                 });
 
                 CompileMetaKind::AsyncBlock {
-                    type_of: Type::from(Hash::type_hash(&query_item.item)),
+                    type_hash: Hash::type_hash(&query_item.item),
                     captures,
                     do_move,
                 }
@@ -1678,7 +1678,7 @@ impl fmt::Display for Named {
 
 /// Construct metadata for an empty body.
 fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> CompileMetaKind {
-    let type_of = Type::from(Hash::type_hash(item));
+    let type_hash = Hash::type_hash(item);
 
     let empty = CompileMetaEmpty {
         hash: Hash::type_hash(item),
@@ -1686,11 +1686,11 @@ fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> CompileMetaKind {
 
     match enum_item {
         Some(enum_item) => CompileMetaKind::UnitVariant {
-            type_of,
+            type_hash,
             enum_item: enum_item.clone(),
             empty,
         },
-        None => CompileMetaKind::UnitStruct { type_of, empty },
+        None => CompileMetaKind::UnitStruct { type_hash, empty },
     }
 }
 
@@ -1700,7 +1700,7 @@ fn tuple_body_meta(
     enum_item: Option<&Item>,
     tuple: ast::Parenthesized<ast::Field, T![,]>,
 ) -> CompileMetaKind {
-    let type_of = Type::from(Hash::type_hash(item));
+    let type_hash = Hash::type_hash(item);
 
     let tuple = CompileMetaTuple {
         args: tuple.len(),
@@ -1709,11 +1709,11 @@ fn tuple_body_meta(
 
     match enum_item {
         Some(enum_item) => CompileMetaKind::TupleVariant {
-            type_of,
+            type_hash,
             enum_item: enum_item.clone(),
             tuple,
         },
-        None => CompileMetaKind::TupleStruct { type_of, tuple },
+        None => CompileMetaKind::TupleStruct { type_hash, tuple },
     }
 }
 
@@ -1725,7 +1725,7 @@ fn struct_body_meta(
     source: &Source,
     st: ast::Braced<ast::Field, T![,]>,
 ) -> Result<CompileMetaKind, QueryError> {
-    let type_of = Type::from(Hash::type_hash(item));
+    let type_hash = Hash::type_hash(item);
 
     let mut fields = HashSet::new();
 
@@ -1740,11 +1740,11 @@ fn struct_body_meta(
 
     Ok(match enum_item {
         Some(enum_item) => CompileMetaKind::StructVariant {
-            type_of,
+            type_hash,
             enum_item: enum_item.clone(),
             object,
         },
-        None => CompileMetaKind::Struct { type_of, object },
+        None => CompileMetaKind::Struct { type_hash, object },
     })
 }
 

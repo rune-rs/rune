@@ -18,7 +18,6 @@ use crate::{
 use runestick::format;
 use runestick::{
     Call, CompileMeta, CompileMetaKind, CompileSource, Context, Hash, Item, Source, SourceId, Span,
-    Type,
 };
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -664,7 +663,7 @@ impl Index for ast::ItemFn {
             let meta = CompileMeta {
                 item: item.item.clone(),
                 kind: CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&item.item)),
+                    type_hash: Hash::type_hash(&item.item),
                 },
                 source: Some(CompileSource {
                     span,
@@ -687,7 +686,7 @@ impl Index for ast::ItemFn {
             let meta = CompileMeta {
                 item: item.item.clone(),
                 kind: CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&item.item)),
+                    type_hash: Hash::type_hash(&item.item),
                 },
                 source: Some(CompileSource {
                     span,

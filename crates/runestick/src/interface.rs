@@ -41,7 +41,7 @@ impl Interface {
         A: Args,
     {
         let count = args.count() + 1;
-        let hash = Hash::instance_function(target.type_of()?, hash.into_type_hash());
+        let hash = Hash::instance_function(target.type_hash()?, hash.into_type_hash());
 
         if let Some(UnitFn::Offset {
             offset,

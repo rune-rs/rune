@@ -221,8 +221,8 @@ impl CompileBuildEntry<'_> {
 
                 let meta = compiler.lookup_meta(f.instance_span, &f.impl_item)?;
 
-                let type_of = meta
-                    .base_type_of()
+                let type_hash = meta
+                    .type_hash_of()
                     .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
 
                 f.ast.assemble_fn(&mut compiler, true)?;
@@ -233,7 +233,7 @@ impl CompileBuildEntry<'_> {
                     self.unit.new_instance_function(
                         location,
                         item.item.clone(),
-                        type_of,
+                        type_hash,
                         name.as_ref(),
                         count,
                         asm,

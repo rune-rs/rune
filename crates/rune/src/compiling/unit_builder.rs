@@ -10,7 +10,7 @@ use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, Context, DebugInfo, DebugInst, Hash, Inst, Item, Label,
-    Rtti, Span, StaticString, Type, Unit, UnitFn, UnitTypeInfo, VariantRtti,
+    Rtti, Span, StaticString, Unit, UnitFn, VariantRtti,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -140,7 +140,6 @@ impl UnitBuilder {
         Ok(Unit::new(
             inner.instructions,
             inner.functions,
-            inner.types,
             inner.static_strings,
             inner.static_bytes,
             inner.static_object_keys,
@@ -325,17 +324,6 @@ impl UnitBuilder {
                     });
                 }
 
-                let info = UnitTypeInfo {
-                    hash: empty.hash,
-                    type_of: Type::from(empty.hash),
-                };
-
-                if inner.types.insert(empty.hash, info).is_some() {
-                    return Err(InsertMetaError::TypeConflict {
-                        existing: meta.item.clone(),
-                    });
-                }
-
                 inner
                     .debug_info_mut()
                     .functions
@@ -367,17 +355,6 @@ impl UnitBuilder {
                     });
                 }
 
-                let info = UnitTypeInfo {
-                    hash: tuple.hash,
-                    type_of: Type::from(tuple.hash),
-                };
-
-                if inner.types.insert(tuple.hash, info).is_some() {
-                    return Err(InsertMetaError::TypeConflict {
-                        existing: meta.item.clone(),
-                    });
-                }
-
                 inner
                     .debug_info_mut()
                     .functions
@@ -393,17 +370,6 @@ impl UnitBuilder {
 
                 if inner.rtti.insert(hash, rtti).is_some() {
                     return Err(InsertMetaError::TypeRttiConflict { hash });
-                }
-
-                let info = UnitTypeInfo {
-                    hash,
-                    type_of: Type::from(hash),
-                };
-
-                if inner.types.insert(hash, info).is_some() {
-                    return Err(InsertMetaError::TypeConflict {
-                        existing: meta.item.clone(),
-                    });
                 }
             }
             CompileMetaKind::UnitVariant {
@@ -431,17 +397,6 @@ impl UnitBuilder {
                 if inner.functions.insert(empty.hash, info).is_some() {
                     return Err(InsertMetaError::FunctionConflict {
                         existing: signature,
-                    });
-                }
-
-                let info = UnitTypeInfo {
-                    hash: empty.hash,
-                    type_of: Type::from(enum_hash),
-                };
-
-                if inner.types.insert(empty.hash, info).is_some() {
-                    return Err(InsertMetaError::TypeConflict {
-                        existing: meta.item.clone(),
                     });
                 }
 
@@ -481,17 +436,6 @@ impl UnitBuilder {
                     });
                 }
 
-                let info = UnitTypeInfo {
-                    hash: tuple.hash,
-                    type_of: Type::from(enum_hash),
-                };
-
-                if inner.types.insert(tuple.hash, info).is_some() {
-                    return Err(InsertMetaError::TypeConflict {
-                        existing: meta.item.clone(),
-                    });
-                }
-
                 inner
                     .debug_info_mut()
                     .functions
@@ -510,32 +454,8 @@ impl UnitBuilder {
                 if inner.variant_rtti.insert(hash, rtti).is_some() {
                     return Err(InsertMetaError::VariantRttiConflict { hash });
                 }
-
-                let info = UnitTypeInfo {
-                    hash,
-                    type_of: Type::from(enum_hash),
-                };
-
-                if inner.types.insert(hash, info).is_some() {
-                    return Err(InsertMetaError::TypeConflict {
-                        existing: meta.item.clone(),
-                    });
-                }
             }
-            CompileMetaKind::Enum { .. } => {
-                let hash = Hash::type_hash(&meta.item);
-
-                let info = UnitTypeInfo {
-                    hash,
-                    type_of: Type::from(hash),
-                };
-
-                if inner.types.insert(hash, info).is_some() {
-                    return Err(InsertMetaError::TypeConflict {
-                        existing: meta.item.clone(),
-                    });
-                }
-            }
+            CompileMetaKind::Enum { .. } => {}
             CompileMetaKind::Function { .. } => (),
             CompileMetaKind::Closure { .. } => (),
             CompileMetaKind::AsyncBlock { .. } => (),
@@ -612,7 +532,7 @@ impl UnitBuilder {
         &self,
         location: Location,
         path: Item,
-        type_of: Type,
+        type_hash: Hash,
         name: &str,
         args: usize,
         assembly: Assembly,
@@ -624,7 +544,7 @@ impl UnitBuilder {
         let mut inner = self.inner.borrow_mut();
 
         let offset = inner.instructions.len();
-        let instance_fn = Hash::instance_function(type_of, name);
+        let instance_fn = Hash::instance_function(type_hash, name);
         let hash = Hash::type_hash(&path);
 
         let info = UnitFn::Offset { offset, call, args };
@@ -701,8 +621,6 @@ struct Inner {
     reexports: HashMap<Hash, Hash>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFn>,
-    /// Declared types.
-    types: HashMap<Hash, UnitTypeInfo>,
     /// Function by address.
     functions_rev: HashMap<usize, Hash>,
     /// A static string.
@@ -860,11 +778,5 @@ pub enum InsertMetaError {
     TypeRttiConflict {
         /// The hash of the type.
         hash: Hash,
-    },
-    /// Tried to add an use that conflicts with an existing one.
-    #[error("conflicting type already exists `{existing}`")]
-    TypeConflict {
-        /// The path to the existing type.
-        existing: Item,
     },
 }
