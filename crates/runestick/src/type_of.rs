@@ -1,9 +1,9 @@
-use crate::{Type, TypeInfo};
+use crate::{Hash, TypeInfo};
 
 /// Trait used for Rust types for which we can determine the runtime type of.
 pub trait TypeOf {
-    /// Convert into a value type.
-    fn type_of() -> Type;
+    /// Convert into a type hash.
+    fn type_hash() -> Hash;
 
     /// Access diagnostical information on the value type.
     fn type_info() -> TypeInfo;
@@ -14,8 +14,8 @@ impl<T: ?Sized> TypeOf for &T
 where
     T: TypeOf,
 {
-    fn type_of() -> Type {
-        T::type_of()
+    fn type_hash() -> Hash {
+        T::type_hash()
     }
 
     fn type_info() -> TypeInfo {
@@ -28,8 +28,8 @@ impl<T: ?Sized> TypeOf for &mut T
 where
     T: TypeOf,
 {
-    fn type_of() -> Type {
-        T::type_of()
+    fn type_hash() -> Hash {
+        T::type_hash()
     }
 
     fn type_info() -> TypeInfo {

@@ -99,7 +99,6 @@ mod static_type;
 mod stream;
 mod to_value;
 mod tuple;
-mod type_;
 mod type_info;
 mod type_of;
 mod unit;
@@ -171,12 +170,11 @@ pub use self::static_type::{
     StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FORMAT_TYPE,
     FUNCTION_TYPE, FUTURE_TYPE, GENERATOR_STATE_TYPE, GENERATOR_TYPE, INTEGER_TYPE, INTERFACE_TYPE,
     ITERATOR_TYPE, OBJECT_TYPE, OPTION_TYPE, RESULT_TYPE, STREAM_TYPE, STRING_TYPE, TUPLE_TYPE,
-    UNIT_TYPE, VEC_TYPE,
+    TYPE, UNIT_TYPE, VEC_TYPE,
 };
 pub use self::stream::Stream;
 pub use self::to_value::{ToValue, UnsafeToValue};
 pub use self::tuple::Tuple;
-pub use self::type_::Type;
 pub use self::type_info::TypeInfo;
 pub use self::vec::Vec;
 pub use crate::access::{
@@ -207,7 +205,7 @@ pub use crate::protocol::{
 pub use crate::shared::{Mut, RawMut, RawRef, Ref, Shared, SharedPointerGuard};
 pub use crate::stack::{Stack, StackError};
 pub use crate::type_of::TypeOf;
-pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};
+pub use crate::unit::{Unit, UnitFn};
 pub use crate::value::{
     Rtti, Struct, StructVariant, TupleStruct, TupleVariant, UnitStruct, UnitVariant, Value,
     VariantRtti,

@@ -2,8 +2,8 @@
 macro_rules! impl_static_type {
     (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
         impl<$($p,)*> $crate::TypeOf for $ty {
-            fn type_of() -> $crate::Type {
-                $crate::Type::from($static_type)
+            fn type_hash() -> $crate::Hash {
+                $static_type.hash
             }
 
             fn type_info() -> $crate::TypeInfo {
@@ -14,8 +14,8 @@ macro_rules! impl_static_type {
 
     ($ty:ty => $static_type:expr) => {
         impl $crate::TypeOf for $ty {
-            fn type_of() -> $crate::Type {
-                $crate::Type::from($static_type)
+            fn type_hash() -> $crate::Hash {
+                $static_type.hash
             }
 
             fn type_info() -> $crate::TypeInfo {

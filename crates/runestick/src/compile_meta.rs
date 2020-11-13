@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::{ConstValue, Hash, Id, Item, SourceId, Span, Type};
+use crate::{ConstValue, Hash, Id, Item, SourceId, Span};
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -34,16 +34,20 @@ pub struct CompileSource {
 }
 
 impl CompileMeta {
-    /// Get the value type of the meta item.
-    pub fn base_type_of(&self) -> Option<Type> {
+    /// Get the type hash of the base type (the one to type check for) for the
+    /// given compile meta.
+    ///
+    /// Note: Variants cannot be used for type checking, you should instead
+    /// compare them against the enum type.
+    pub fn type_hash_of(&self) -> Option<Hash> {
         match &self.kind {
-            CompileMetaKind::UnitStruct { type_of, .. } => Some(*type_of),
-            CompileMetaKind::TupleStruct { type_of, .. } => Some(*type_of),
-            CompileMetaKind::Struct { type_of, .. } => Some(*type_of),
-            CompileMetaKind::Enum { type_of, .. } => Some(*type_of),
-            CompileMetaKind::Function { type_of, .. } => Some(*type_of),
-            CompileMetaKind::Closure { type_of, .. } => Some(*type_of),
-            CompileMetaKind::AsyncBlock { type_of, .. } => Some(*type_of),
+            CompileMetaKind::UnitStruct { type_hash, .. } => Some(*type_hash),
+            CompileMetaKind::TupleStruct { type_hash, .. } => Some(*type_hash),
+            CompileMetaKind::Struct { type_hash, .. } => Some(*type_hash),
+            CompileMetaKind::Enum { type_hash, .. } => Some(*type_hash),
+            CompileMetaKind::Function { type_hash, .. } => Some(*type_hash),
+            CompileMetaKind::Closure { type_hash, .. } => Some(*type_hash),
+            CompileMetaKind::AsyncBlock { type_hash, .. } => Some(*type_hash),
             CompileMetaKind::UnitVariant { .. } => None,
             CompileMetaKind::TupleVariant { .. } => None,
             CompileMetaKind::StructVariant { .. } => None,
@@ -107,29 +111,29 @@ impl fmt::Display for CompileMeta {
 pub enum CompileMetaKind {
     /// Metadata about an object.
     UnitStruct {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
         /// The underlying object.
         empty: CompileMetaEmpty,
     },
     /// Metadata about a tuple.
     TupleStruct {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
         /// The underlying tuple.
         tuple: CompileMetaTuple,
     },
     /// Metadata about an object.
     Struct {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
         /// The underlying object.
         object: CompileMetaStruct,
     },
     /// Metadata about an empty variant.
     UnitVariant {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying empty.
@@ -137,8 +141,8 @@ pub enum CompileMetaKind {
     },
     /// Metadata about a tuple variant.
     TupleVariant {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta item.
+        type_hash: Hash,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying tuple.
@@ -146,8 +150,8 @@ pub enum CompileMetaKind {
     },
     /// Metadata about a variant object.
     StructVariant {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying object.
@@ -155,18 +159,18 @@ pub enum CompileMetaKind {
     },
     /// An enum item.
     Enum {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
     },
     /// A function declaration.
     Function {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
     },
     /// A closure.
     Closure {
-        /// The value type associated with this meta item.
-        type_of: Type,
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
         /// Sequence of captured variables.
         captures: Arc<[CompileMetaCapture]>,
         /// If the closure moves its environment.
@@ -175,7 +179,7 @@ pub enum CompileMetaKind {
     /// An async block.
     AsyncBlock {
         /// The span where the async block is declared.
-        type_of: Type,
+        type_hash: Hash,
         /// Sequence of captured variables.
         captures: Arc<[CompileMetaCapture]>,
         /// If the async block moves its environment.

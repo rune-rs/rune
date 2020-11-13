@@ -1,4 +1,4 @@
-use crate::{Hash, RawStr, Rtti, StaticType, VariantRtti};
+use crate::{RawStr, Rtti, StaticType, VariantRtti};
 use std::fmt;
 use std::sync::Arc;
 
@@ -8,8 +8,6 @@ use std::sync::Arc;
 pub enum TypeInfo {
     /// The static type of a value.
     StaticType(&'static StaticType),
-    /// The type hash of a value.
-    Hash(Hash),
     /// Reference to an external type.
     Any(RawStr),
     /// A named type.
@@ -23,9 +21,6 @@ impl fmt::Display for TypeInfo {
         match self {
             Self::StaticType(ty) => {
                 write!(fmt, "{}", ty.name)?;
-            }
-            Self::Hash(ty) => {
-                write!(fmt, "Type({})", *ty)?;
             }
             Self::Any(type_name) => {
                 write!(fmt, "{}", *type_name)?;

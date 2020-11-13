@@ -352,7 +352,6 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         }
 
         let mut functions = unit.iter_functions().peekable();
-        let mut types = unit.iter_types().peekable();
         let mut strings = unit.iter_static_strings().peekable();
         let mut keys = unit.iter_static_object_keys().peekable();
 
@@ -365,14 +364,6 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 } else {
                     writeln!(out, "{} = {}", hash, kind)?;
                 }
-            }
-        }
-
-        if args.dump_types && types.peek().is_some() {
-            writeln!(out, "# dynamic types")?;
-
-            for (hash, ty) in types {
-                writeln!(out, "{} = {}", hash, ty.type_of)?;
             }
         }
 

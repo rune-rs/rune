@@ -32,7 +32,6 @@ pub(crate) struct Context {
     pub(crate) to_value: TokenStream,
     pub(crate) tuple: TokenStream,
     pub(crate) unit_struct: TokenStream,
-    pub(crate) ty: TokenStream,
     pub(crate) type_info: TokenStream,
     pub(crate) type_of: TokenStream,
     pub(crate) unsafe_from_value: TokenStream,
@@ -68,7 +67,6 @@ impl Context {
             to_value: quote!(#module::ToValue),
             tuple: quote!(#module::Tuple),
             unit_struct: quote!(#module::UnitStruct),
-            ty: quote!(#module::Type),
             type_info: quote!(#module::TypeInfo),
             type_of: quote!(#module::TypeOf),
             unsafe_from_value: quote!(#module::UnsafeFromValue),
@@ -158,7 +156,6 @@ impl Context {
         let raw_into_ref = &self.raw_into_ref;
         let shared = &self.shared;
         let pointer_guard = &self.pointer_guard;
-        let ty = &self.ty;
         let hash = &self.hash;
         let type_info = &self.type_info;
         let unsafe_from_value = &self.unsafe_from_value;
@@ -182,8 +179,8 @@ impl Context {
             }
 
             impl #type_of for #ident {
-                fn type_of() -> #ty {
-                    #ty::from_type_hash(<Self as #any>::type_hash())
+                fn type_hash() -> #hash {
+                    <Self as #any>::type_hash()
                 }
 
                 fn type_info() -> #type_info {
