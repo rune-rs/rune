@@ -699,7 +699,7 @@ impl Vm {
             }
             InstOp::Mul => {
                 self.internal_num(
-                    crate::ADD,
+                    crate::MUL,
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
                     std::ops::Mul::mul,
@@ -708,7 +708,7 @@ impl Vm {
             }
             InstOp::Div => {
                 self.internal_num(
-                    crate::ADD,
+                    crate::DIV,
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
                     std::ops::Div::div,
