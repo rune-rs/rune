@@ -15,9 +15,17 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::macros::module()?)?;
+//! context.install(&rune_modules::macros::module(true)?)?;
 //! # Ok(())
 //! # }
+//! ```
+//!
+//! Use it in Rune:
+//!
+//! ```rust,ignore
+//! fn main() {
+//!     println(`Hello from ${file!()}:${line!()});
+//! }
 //! ```
 
 use rune::{Parser, TokenStream};
