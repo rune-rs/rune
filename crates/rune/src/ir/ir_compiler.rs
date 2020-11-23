@@ -116,6 +116,32 @@ impl IrCompile for ast::Expr {
                         let ir_template = template.compile(c)?;
                         ir::Ir::new(self.span(), ir_template)
                     }
+                    BuiltInMacro::File(file) => {
+                        let s = c.resolve(&file.value)?;
+                        ir::Ir::new(file.span, ConstValue::String(s.as_ref().to_owned()))
+                    }
+                    BuiltInMacro::Line(line) => {
+                        let n = c.resolve(&line.value)?;
+
+                        let const_value = match n {
+                            ast::Number::Integer(n) => {
+                                use num::ToPrimitive;
+                                let n = match n.clone().to_i64() {
+                                    Some(n) => n,
+                                    None => {
+                                        return Err(IrError::new(
+                                            line.span,
+                                            IrErrorKind::NotInteger { value: n },
+                                        ))
+                                    }
+                                };
+
+                                ConstValue::Integer(n)
+                            }
+                            ast::Number::Float(n) => ConstValue::Float(n),
+                        };
+                        ir::Ir::new(line.span, const_value)
+                    }
                     _ => {
                         return Err(IrError::msg(self, "unsupported builtin macro"));
                     }

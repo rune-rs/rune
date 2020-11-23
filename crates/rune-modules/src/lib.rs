@@ -131,6 +131,7 @@ modules! {
     http, "http",
     io, "io",
     json, "json",
+    macros, "macros",
     process, "process",
     rand, "rand",
     signal, "signal",

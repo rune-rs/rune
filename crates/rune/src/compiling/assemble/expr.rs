@@ -99,6 +99,12 @@ impl Assemble for ast::Expr {
                     BuiltInMacro::Format(format) => {
                         format.assemble(c, needs)?;
                     }
+                    BuiltInMacro::Line(line) => {
+                        line.value.assemble(c, needs)?;
+                    }
+                    BuiltInMacro::File(file) => {
+                        file.value.assemble(c, needs)?;
+                    }
                 }
             }
             // NB: declarations are not used in this compilation stage.
