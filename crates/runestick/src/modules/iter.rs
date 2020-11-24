@@ -1,6 +1,8 @@
 //! The `std::iter` module.
 
-use crate::{ContextError, FromValue as _, Iterator, Module, Object, Value, Vec, VmError};
+use crate::{
+    ContextError, FromValue as _, Iterator, Module, Object, Protocol, Value, Vec, VmError,
+};
 
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -21,8 +23,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("peekable", Iterator::peekable)?;
     module.inst_fn("peek", Iterator::peek)?;
     module.inst_fn("size_hint", Iterator::size_hint)?;
-    module.inst_fn(crate::NEXT, Iterator::next)?;
-    module.inst_fn(crate::INTO_ITER, <Iterator as From<Iterator>>::from)?;
+    module.inst_fn(Protocol::NEXT, Iterator::next)?;
+    module.inst_fn(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
 
     module.function(&["range"], new_range)?;
     Ok(module)

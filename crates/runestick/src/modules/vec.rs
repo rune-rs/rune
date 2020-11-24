@@ -1,6 +1,6 @@
 //! The `std::vec` module.
 
-use crate::{ContextError, Module, Vec};
+use crate::{ContextError, Module, Protocol, Vec};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -16,6 +16,6 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clear", Vec::clear)?;
     module.inst_fn("pop", Vec::pop)?;
 
-    module.inst_fn(crate::INTO_ITER, Vec::into_iterator)?;
+    module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
     Ok(module)
 }

@@ -7,13 +7,26 @@ use syn::Lit;
 use syn::Meta::*;
 use syn::NestedMeta::*;
 
+#[derive(Clone, Copy)]
+struct Generate<'a> {
+    context: &'a Context,
+    attrs: &'a FieldAttrs,
+    ident: &'a syn::Ident,
+    field: &'a syn::Field,
+    field_ident: &'a syn::Ident,
+    ty: &'a syn::Type,
+    name: &'a syn::LitStr,
+}
+
+pub(crate) struct FieldProtocol {
+    generate: fn(Generate<'_>) -> TokenStream,
+}
+
 /// Parsed field attributes.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub(crate) struct FieldAttrs {
-    /// `#[rune(get)]` to generate a getter.
-    pub(crate) getter: bool,
-    /// `#[rune(set)]` to generate a setter.
-    pub(crate) setter: bool,
+    /// `#[rune(..)]` to generate a protocol function.
+    pub(crate) protocols: Vec<FieldProtocol>,
     /// `#[rune(copy)]` to indicate that a field is copy and does not need to be
     /// cloned.
     pub(crate) copy: bool,
@@ -27,6 +40,7 @@ pub(crate) struct DeriveAttrs {
 }
 
 pub(crate) struct Context {
+    pub(crate) protocol: TokenStream,
     pub(crate) any: TokenStream,
     pub(crate) context_error: TokenStream,
     pub(crate) errors: Vec<syn::Error>,
@@ -65,6 +79,7 @@ impl Context {
         M: Copy + ToTokens,
     {
         Self {
+            protocol: quote!(#module::Protocol),
             any: quote!(#module::Any),
             context_error: quote!(#module::ContextError),
             errors: Vec::new(),
@@ -92,6 +107,12 @@ impl Context {
         }
     }
 
+    /// Define a tokenstream for the specified protocol
+    fn protocol(&self, sym: Symbol) -> TokenStream {
+        let protocol = &self.protocol;
+        quote!(#protocol::#sym)
+    }
+
     /// Parse the toplevel component of the attribute, which must be `#[rune(..)]`.
     fn get_rune_meta_items(&mut self, attr: &syn::Attribute) -> Option<Vec<syn::NestedMeta>> {
         if attr.path != RUNE {
@@ -114,16 +135,122 @@ impl Context {
 
     /// Parse field attributes.
     pub(crate) fn parse_field_attrs(&mut self, attrs: &[syn::Attribute]) -> Option<FieldAttrs> {
+        macro_rules! generate_op {
+            ($proto:ident, $op:tt) => {
+                |g| {
+                    let Generate {
+                        ident,
+                        field_ident,
+                        ty,
+                        name,
+                        ..
+                    } = g;
+
+                    let protocol = g.context.protocol($proto);
+
+                    quote_spanned! { g.field.span() =>
+                        module.field_fn(#protocol, #name, |s: &mut #ident, value: #ty| {
+                            s.#field_ident $op value;
+                        })?;
+                    }
+                }
+            };
+        }
+
         let mut output = FieldAttrs::default();
 
         for attr in attrs {
             for meta in self.get_rune_meta_items(attr)? {
                 match meta {
                     Meta(Path(path)) if path == GET => {
-                        output.getter = true;
+                        output.protocols.push(FieldProtocol {
+                            generate: |g| {
+                                let Generate {
+                                    ident,
+                                    field_ident,
+                                    name,
+                                    ..
+                                } = g;
+
+                                let access = if g.attrs.copy {
+                                    quote!(s.#field_ident)
+                                } else {
+                                    quote!(Clone::clone(&s.#field_ident))
+                                };
+
+                                let protocol = g.context.protocol(PROTOCOL_GET);
+
+                                quote_spanned! { g.field.span() =>
+                                    module.field_fn(#protocol, #name, |s: &#ident| #access)?;
+                                }
+                            },
+                        });
                     }
                     Meta(Path(path)) if path == SET => {
-                        output.setter = true;
+                        output.protocols.push(FieldProtocol {
+                            generate: |g| {
+                                let Generate {
+                                    ident,
+                                    field_ident,
+                                    ty,
+                                    name,
+                                    ..
+                                } = g;
+
+                                let protocol = g.context.protocol(PROTOCOL_SET);
+
+                                quote_spanned! { g.field.span() =>
+                                    module.field_fn(#protocol, #name, |s: &mut #ident, value: #ty| {
+                                        s.#field_ident = value;
+                                    })?;
+                                }
+                            },
+                        });
+                    }
+                    Meta(Path(path)) if path == ADD_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_ADD_ASSIGN, +=),
+                        });
+                    }
+                    Meta(Path(path)) if path == SUB_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_SUB_ASSIGN, -=),
+                        });
+                    }
+                    Meta(Path(path)) if path == DIV_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_DIV_ASSIGN, /=),
+                        });
+                    }
+                    Meta(Path(path)) if path == MUL_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_MUL_ASSIGN, *=),
+                        });
+                    }
+                    Meta(Path(path)) if path == BIT_AND_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_BIT_AND_ASSIGN, &=),
+                        });
+                    }
+                    Meta(Path(path)) if path == BIT_OR_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_BIT_OR_ASSIGN, |=),
+                        });
+                    }
+                    Meta(Path(path)) if path == BIT_XOR_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_BIT_XOR_ASSIGN, ^=),
+                        });
+                    }
+                    Meta(Path(path)) if path == SHL_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_SHL_ASSIGN, <<=),
+                        });
+                    }
+                    Meta(Path(path)) if path == SHR_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            generate: generate_op!(PROTOCOL_SHR_ASSIGN, >>=),
+                        });
                     }
                     Meta(Path(path)) if path == COPY => {
                         output.copy = true;
@@ -183,10 +310,10 @@ impl Context {
                     let field_ident = match &field.ident {
                         Some(ident) => ident,
                         None => {
-                            if attrs.getter || attrs.setter {
+                            if !attrs.protocols.is_empty() {
                                 self.errors.push(syn::Error::new_spanned(
                                     field,
-                                    "only named fields can be used with `#[rune(get)]`",
+                                    "only named fields can be used with protocol generators like `#[rune(get)]`",
                                 ));
                                 return None;
                             }
@@ -195,27 +322,19 @@ impl Context {
                         }
                     };
 
-                    let field_ty = &field.ty;
+                    let ty = &field.ty;
                     let name = &syn::LitStr::new(&field_ident.to_string(), field_ident.span());
 
-                    if attrs.getter {
-                        let access = if attrs.copy {
-                            quote!(s.#field_ident)
-                        } else {
-                            quote!(Clone::clone(&s.#field_ident))
-                        };
-
-                        installers.push(quote_spanned! { field.span() =>
-                            module.getter(#name, |s: &#ident| #access)?;
-                        });
-                    }
-
-                    if attrs.setter {
-                        installers.push(quote_spanned! { field.span() =>
-                            module.setter(#name, |s: &mut #ident, value: #field_ty| {
-                                s.#field_ident = value;
-                            })?;
-                        });
+                    for protocol in &attrs.protocols {
+                        installers.push((protocol.generate)(Generate {
+                            context: self,
+                            attrs: &attrs,
+                            ident,
+                            field,
+                            field_ident,
+                            ty,
+                            name,
+                        }));
                     }
                 }
             }

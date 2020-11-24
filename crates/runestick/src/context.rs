@@ -358,7 +358,7 @@ impl Context {
                 key.type_hash,
                 key.hash,
                 inst,
-                key.kind.into_hash_fn(),
+                |instance_type, field| key.kind.hash(instance_type, field),
             )?;
         }
 

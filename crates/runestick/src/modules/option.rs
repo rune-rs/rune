@@ -1,5 +1,7 @@
 //! The `std::option` module.
 
+use crate::{ContextError, Function, Module, Protocol, Shared, Value, VmError};
+
 /// Construct the `std::option` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "option"]);
@@ -10,11 +12,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("unwrap_or_else", unwrap_or_else_impl)?;
     module.inst_fn("transpose", transpose_impl)?;
     module.inst_fn("iter", option_iter)?;
-    module.inst_fn(crate::INTO_ITER, option_iter)?;
+    module.inst_fn(Protocol::INTO_ITER, option_iter)?;
     Ok(module)
 }
-
-use crate::{ContextError, Function, Module, Shared, Value, VmError};
 
 fn unwrap_or_else_impl(this: &Option<Value>, default: Function) -> Result<Value, VmError> {
     if let Some(this) = this {

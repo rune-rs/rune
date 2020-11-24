@@ -1,6 +1,6 @@
 //! The `std::string` module.
 
-use crate::{Bytes, ContextError, Module};
+use crate::{Bytes, ContextError, Module, Protocol};
 
 /// Construct the `std::string` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -23,8 +23,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clone", String::clone)?;
     module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
     module.inst_fn("char_at", char_at)?;
-    module.inst_fn(crate::ADD, add)?;
-    module.inst_fn(crate::ADD_ASSIGN, String::push_str)?;
+    module.inst_fn(Protocol::ADD, add)?;
+    module.inst_fn(Protocol::ADD_ASSIGN, String::push_str)?;
     Ok(module)
 }
 

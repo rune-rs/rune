@@ -2,7 +2,7 @@
 //! specific type `Foo`.
 
 use rune::{Errors, Options, Sources, Warnings};
-use runestick::{Context, FromValue, Source, Vm};
+use runestick::{Context, FromValue, Protocol, Source, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, runestick::Any)]
@@ -23,7 +23,7 @@ fn main() -> runestick::Result<()> {
 
     let mut module = runestick::Module::new(&["module"]);
     module.ty::<Foo>()?;
-    module.inst_fn(runestick::MUL, Foo::mul)?;
+    module.inst_fn(Protocol::MUL, Foo::mul)?;
     context.install(&module)?;
 
     let mut sources = Sources::new();
