@@ -54,8 +54,6 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
     module.inst_fn("code", ExitStatus::code)?;
 
     module.getter("status", Output::status)?;
-    module.getter("stdout", Output::stdout)?;
-    module.getter("stderr", Output::stderr)?;
     Ok(module)
 }
 
@@ -156,7 +154,9 @@ impl Child {
 #[derive(Any)]
 struct Output {
     status: std::process::ExitStatus,
+    #[rune(get)]
     stdout: Shared<Bytes>,
+    #[rune(get)]
     stderr: Shared<Bytes>,
 }
 
@@ -166,16 +166,6 @@ impl Output {
         ExitStatus {
             status: self.status,
         }
-    }
-
-    /// Grab the stdout of the process.
-    fn stdout(&self) -> Shared<Bytes> {
-        self.stdout.clone()
-    }
-
-    /// Grab the stderr of the process.
-    fn stderr(&self) -> Shared<Bytes> {
-        self.stderr.clone()
     }
 }
 

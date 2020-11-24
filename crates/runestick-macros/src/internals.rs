@@ -8,6 +8,9 @@ pub struct Symbol(&'static str);
 pub const RUNESTICK: Symbol = Symbol("runestick");
 pub const RUNE: Symbol = Symbol("rune");
 pub const NAME: Symbol = Symbol("name");
+pub const GET: Symbol = Symbol("get");
+pub const SET: Symbol = Symbol("set");
+pub const COPY: Symbol = Symbol("copy");
 
 impl PartialEq<Symbol> for syn::Ident {
     fn eq(&self, word: &Symbol) -> bool {

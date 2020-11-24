@@ -36,11 +36,8 @@ impl Assemble for ast::ExprAssign {
                         field_access.expr.assemble(c, Needs::Value)?;
                         c.scopes.decl_anon(span)?;
 
-                        c.asm.push(Inst::String { slot }, span);
-                        c.scopes.decl_anon(span)?;
-
-                        c.asm.push(Inst::IndexSet, span);
-                        c.scopes.undecl_anon(span, 3)?;
+                        c.asm.push(Inst::ObjectIndexSet { slot }, span);
+                        c.scopes.undecl_anon(span, 2)?;
                         true
                     }
                     ast::ExprField::LitNumber(field) => {

@@ -158,7 +158,7 @@ pub use self::id::Id;
 pub use self::interface::Interface;
 pub use self::iterator::Iterator;
 pub use self::label::{DebugLabel, Label};
-pub use self::module::{InstFnNameHash, Module};
+pub use self::module::{InstFnNameHash, InstallInto, Module};
 pub use self::named::Named;
 pub use self::raw_str::RawStr;
 pub use self::select::Select;

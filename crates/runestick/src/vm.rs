@@ -416,8 +416,30 @@ impl Vm {
             None => return Ok(false),
         };
 
-        args.into_stack(&mut self.stack)?;
         self.stack.push(target.clone());
+        args.into_stack(&mut self.stack)?;
+
+        let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
+        handler(&mut self.stack, count)?;
+        Ok(true)
+    }
+
+    /// Helper function to call an external setter.
+    fn call_setter<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
+    where
+        H: IntoTypeHash,
+        A: Args,
+    {
+        let count = args.count() + 1;
+        let hash = Hash::setter(target.type_hash()?, hash.into_type_hash());
+
+        let handler = match self.context.lookup(hash) {
+            Some(handler) => handler,
+            None => return Ok(false),
+        };
+
+        self.stack.push(target.clone());
+        args.into_stack(&mut self.stack)?;
 
         let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
         handler(&mut self.stack, count)?;
@@ -942,7 +964,9 @@ impl Vm {
                         target: variant_object.type_info(),
                     }));
                 }
-                _ => break,
+                _ => {
+                    break;
+                }
             }
         }
 
@@ -1420,6 +1444,59 @@ impl Vm {
         })
     }
 
+    fn try_object_slot_index_set(
+        &mut self,
+        target: &Value,
+        string_slot: usize,
+        value: Value,
+    ) -> Result<Option<()>, VmError> {
+        let field = self.unit.lookup_string(string_slot)?;
+
+        Ok(match target {
+            Value::Object(object) => {
+                let mut object = object.borrow_mut()?;
+                object.insert(field.as_str().to_owned(), value);
+                return Ok(Some(()));
+            }
+            Value::Struct(typed_object) => {
+                let mut typed_object = typed_object.borrow_mut()?;
+
+                if let Some(v) = typed_object.get_mut(field.as_str()) {
+                    *v = value;
+                    return Ok(Some(()));
+                }
+
+                return Err(VmError::from(VmErrorKind::MissingField {
+                    field: field.as_str().to_owned(),
+                    target: typed_object.type_info(),
+                }));
+            }
+            Value::StructVariant(variant_object) => {
+                let mut variant_object = variant_object.borrow_mut()?;
+
+                if let Some(v) = variant_object.get_mut(field.as_str()) {
+                    *v = value;
+                    return Ok(Some(()));
+                }
+
+                return Err(VmError::from(VmErrorKind::MissingField {
+                    field: field.as_str().to_owned(),
+                    target: variant_object.type_info(),
+                }));
+            }
+            target => {
+                let hash = field.hash();
+
+                if self.call_setter(target, hash, (value,))? {
+                    self.stack.pop()?;
+                    Some(())
+                } else {
+                    None
+                }
+            }
+        })
+    }
+
     /// Perform a specialized index get operation on an object.
     #[inline]
     fn op_object_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
@@ -1432,6 +1509,22 @@ impl Vm {
 
         let target = target.type_info()?;
         Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
+            target,
+        }))
+    }
+
+    /// Perform a specialized index set operation on an object.
+    #[inline]
+    fn op_object_index_set(&mut self, string_slot: usize) -> Result<(), VmError> {
+        let target = self.stack.pop()?;
+        let value = self.stack.pop()?;
+
+        if let Some(()) = self.try_object_slot_index_set(&target, string_slot, value)? {
+            return Ok(());
+        }
+
+        let target = target.type_info()?;
+        Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexSet {
             target,
         }))
     }
@@ -2323,6 +2416,9 @@ impl Vm {
                 }
                 Inst::ObjectIndexGet { slot } => {
                     self.op_object_index_get(slot)?;
+                }
+                Inst::ObjectIndexSet { slot } => {
+                    self.op_object_index_set(slot)?;
                 }
                 Inst::ObjectIndexGetAt { offset, slot } => {
                     self.op_object_index_get_at(offset, slot)?;

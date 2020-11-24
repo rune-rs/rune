@@ -13,6 +13,15 @@ use std::any;
 use std::future;
 use std::sync::Arc;
 
+/// Trait to handle the installation of auxilliary functions for a type
+/// installed into a module.
+pub trait InstallInto {
+    /// Install into the given module.
+    fn install_into(_: &mut Module) -> Result<(), ContextError> {
+        Ok(())
+    }
+}
+
 /// Specialized information on `Option` types.
 pub(crate) struct ModuleUnitType {
     /// Item of the unit type.
@@ -90,6 +99,7 @@ pub(crate) struct ModuleType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ModuleAssociatedKind {
     Getter,
+    Setter,
     Instance,
 }
 
@@ -98,6 +108,7 @@ impl ModuleAssociatedKind {
     pub fn into_hash_fn(self) -> fn(Hash, Hash) -> Hash {
         match self {
             Self::Getter => Hash::getter,
+            Self::Setter => Hash::setter,
             Self::Instance => Hash::instance_function,
         }
     }
@@ -212,7 +223,7 @@ impl Module {
     /// ```
     pub fn ty<T>(&mut self) -> Result<(), ContextError>
     where
-        T: Named + TypeOf,
+        T: Named + TypeOf + InstallInto,
     {
         let type_hash = T::type_hash();
         let type_info = T::type_info();
@@ -229,6 +240,7 @@ impl Module {
             });
         }
 
+        T::install_into(self)?;
         Ok(())
     }
 
@@ -556,6 +568,15 @@ impl Module {
         Func: InstFn<Args>,
     {
         self.assoc_fn(name, f, ModuleAssociatedKind::Getter)
+    }
+
+    /// Install a setter for the specified field.
+    pub fn setter<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    where
+        N: InstFnNameHash,
+        Func: InstFn<Args>,
+    {
+        self.assoc_fn(name, f, ModuleAssociatedKind::Setter)
     }
 
     /// Install an associated function.

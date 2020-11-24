@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, Function, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
+    FromValue, Function, InstallInto, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
     UnsafeFromValue, Value, VmError,
 };
 use std::fmt;
@@ -245,6 +245,8 @@ impl fmt::Debug for Iterator {
 impl Named for Iterator {
     const NAME: RawStr = RawStr::from_str("Iterator");
 }
+
+impl InstallInto for Iterator {}
 
 impl FromValue for Iterator {
     fn from_value(value: Value) -> Result<Self, VmError> {

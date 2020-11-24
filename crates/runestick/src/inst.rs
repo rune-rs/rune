@@ -233,6 +233,23 @@ pub enum Inst {
         /// The static string slot corresponding to the index to fetch.
         slot: usize,
     },
+    /// Set the given index out of an object on the top of the stack.
+    /// Errors if the item doesn't exist or the item is not an object.
+    ///
+    /// The index is identifier by a static string slot, which is provided as an
+    /// argument.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <object>
+    /// <value>
+    /// =>
+    /// ```
+    ObjectIndexSet {
+        /// The static string slot corresponding to the index to set.
+        slot: usize,
+    },
     /// Get the given index out of an object from the given variable slot.
     /// Errors if the item doesn't exist or the item is not an object.
     ///
@@ -928,6 +945,9 @@ impl fmt::Display for Inst {
             }
             Self::ObjectIndexGet { slot } => {
                 write!(fmt, "object-index-get {}", slot)?;
+            }
+            Self::ObjectIndexSet { slot } => {
+                write!(fmt, "object-index-set {}", slot)?;
             }
             Self::ObjectIndexGetAt { offset, slot } => {
                 write!(fmt, "object-index-get-at {}, {}", offset, slot)?;
