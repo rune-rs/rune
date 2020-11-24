@@ -234,6 +234,8 @@ pub enum VmErrorKind {
     UnsupportedTupleIndexSet { target: TypeInfo },
     #[error("field not available on `{target}`")]
     UnsupportedObjectSlotIndexGet { target: TypeInfo },
+    #[error("field not available on `{target}`")]
+    UnsupportedObjectSlotIndexSet { target: TypeInfo },
     #[error("`{value} is {test_type}` is not supported")]
     UnsupportedIs {
         value: TypeInfo,

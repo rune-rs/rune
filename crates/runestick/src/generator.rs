@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, GeneratorState, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
-    Value, Vm, VmError, VmErrorKind, VmExecution,
+    FromValue, GeneratorState, InstallInto, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared,
+    UnsafeFromValue, Value, Vm, VmError, VmErrorKind, VmExecution,
 };
 use std::fmt;
 use std::mem;
@@ -61,6 +61,8 @@ impl fmt::Debug for Generator {
 impl Named for Generator {
     const NAME: RawStr = RawStr::from_str("Generator");
 }
+
+impl InstallInto for Generator {}
 
 impl FromValue for Shared<Generator> {
     fn from_value(value: Value) -> Result<Self, VmError> {

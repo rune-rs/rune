@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
 use crate::{
-    FromValue, Item, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
-    VmError,
+    FromValue, InstallInto, Item, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
+    UnsafeFromValue, Value, VmError,
 };
 use std::borrow;
 use std::cmp;
@@ -305,6 +305,8 @@ impl UnsafeFromValue for &mut Object {
 impl Named for Object {
     const NAME: RawStr = RawStr::from_str("Object");
 }
+
+impl InstallInto for Object {}
 
 pub struct DebugStruct<'a> {
     item: &'a Item,

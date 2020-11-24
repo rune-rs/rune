@@ -9,6 +9,7 @@ mod compiler_use;
 mod compiler_visibility;
 mod compiler_warnings;
 mod core_macros;
+mod getter_setter;
 mod iterator;
 mod moved;
 mod stmt_reordering;

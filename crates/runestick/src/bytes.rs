@@ -2,7 +2,10 @@
 //!
 //! [Value::Bytes]: crate::Value::Bytes.
 
-use crate::{FromValue, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError};
+use crate::{
+    FromValue, InstallInto, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value,
+    VmError,
+};
 
 use std::cmp;
 use std::fmt;
@@ -178,6 +181,8 @@ impl<'a> UnsafeFromValue for &'a [u8] {
 impl Named for Bytes {
     const NAME: RawStr = RawStr::from_str("Bytes");
 }
+
+impl InstallInto for Bytes {}
 
 impl cmp::PartialEq<[u8]> for Bytes {
     fn eq(&self, other: &[u8]) -> bool {

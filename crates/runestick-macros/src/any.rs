@@ -41,7 +41,11 @@ impl InternalCall {
             },
         };
 
-        ctx.expand_any(&self.path, &name)
+        let expand_into = quote! {
+            Ok(())
+        };
+
+        ctx.expand_any(&self.path, &name, &expand_into)
     }
 }
 
@@ -67,12 +71,18 @@ impl Derive {
             None => return Err(ctx.errors),
         };
 
+        let install_into = match ctx.expand_install_into(&self.input) {
+            Some(install_into) => install_into,
+            None => return Err(ctx.errors),
+        };
+
         let name = match attrs.name {
             Some(name) => name,
             None => syn::LitStr::new(&self.input.ident.to_string(), self.input.ident.span()),
         };
 
         let name = &quote!(#name);
-        ctx.expand_any(&self.input.ident, &name)
+
+        ctx.expand_any(&self.input.ident, &name, &install_into)
     }
 }
