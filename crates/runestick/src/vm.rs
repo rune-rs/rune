@@ -4,31 +4,42 @@ use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, Format, FormatSpec, FromValue, Function,
     Future, Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstTarget,
-    InstVariant, IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, Struct, StructVariant,
-    Tuple, TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution,
-    VmHalt, VmIntegerRepr, VmSendExecution,
+    InstVariant, IntoTypeHash, Object, Panic, Protocol, Select, Shared, Stack, Stream, Struct,
+    StructVariant, Tuple, TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec, VmError,
+    VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
 };
 use std::fmt;
 use std::mem;
 use std::sync::Arc;
 use std::vec;
 
+enum TargetFallback<'a> {
+    Value(Value, Value),
+    Field(&'a Value, Hash, Value),
+    Index(&'a Value, usize, Value),
+}
+
+enum TargetValue<'a, 'b> {
+    /// Resolved internal target to mutable value.
+    Value(&'a mut Value, Value),
+    /// Fallback to a different kind of operation.
+    Fallback(TargetFallback<'b>),
+}
+
 macro_rules! target_value {
     ($vm:ident, $target:expr, $guard:ident, $lhs:ident) => {{
         let rhs = $vm.stack.pop()?;
 
-        let lhs = match $target {
-            InstTarget::Offset(offset) => $vm.stack.at_offset_mut(offset)?,
+        match $target {
+            InstTarget::Offset(offset) => TargetValue::Value($vm.stack.at_offset_mut(offset)?, rhs),
             InstTarget::TupleField(index) => {
                 $lhs = $vm.stack.pop()?;
 
                 if let Some(value) = Vm::try_tuple_like_index_get_mut(&$lhs, index)? {
                     $guard = value;
-                    &mut *$guard
+                    TargetValue::Value(&mut *$guard, rhs)
                 } else {
-                    return Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
-                        target: $lhs.type_info()?,
-                    }));
+                    TargetValue::Fallback(TargetFallback::Index(&$lhs, index, rhs))
                 }
             }
             InstTarget::Field(field) => {
@@ -37,16 +48,12 @@ macro_rules! target_value {
 
                 if let Some(value) = Vm::try_object_like_index_get_mut(&$lhs, field)? {
                     $guard = value;
-                    &mut *$guard
+                    TargetValue::Value(&mut *$guard, rhs)
                 } else {
-                    return Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
-                        target: $lhs.type_info()?,
-                    }));
+                    TargetValue::Fallback(TargetFallback::Field(&$lhs, field.hash(), rhs))
                 }
             }
-        };
-
-        (lhs, rhs)
+        }
     }};
 }
 
@@ -402,36 +409,20 @@ impl Vm {
         Ok(true)
     }
 
-    /// Helper function to call an external getter.
-    fn call_getter<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
+    /// Helper function to call a field function.
+    fn call_field_fn<H, A>(
+        &mut self,
+        protocol: Protocol,
+        target: &Value,
+        hash: H,
+        args: A,
+    ) -> Result<bool, VmError>
     where
         H: IntoTypeHash,
         A: Args,
     {
         let count = args.count() + 1;
-        let hash = Hash::getter(target.type_hash()?, hash.into_type_hash());
-
-        let handler = match self.context.lookup(hash) {
-            Some(handler) => handler,
-            None => return Ok(false),
-        };
-
-        self.stack.push(target.clone());
-        args.into_stack(&mut self.stack)?;
-
-        let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
-        handler(&mut self.stack, count)?;
-        Ok(true)
-    }
-
-    /// Helper function to call an external setter.
-    fn call_setter<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
-    where
-        H: IntoTypeHash,
-        A: Args,
-    {
-        let count = args.count() + 1;
-        let hash = Hash::setter(target.type_hash()?, hash.into_type_hash());
+        let hash = Hash::field_fn(protocol, target.type_hash()?, hash.into_type_hash());
 
         let handler = match self.context.lookup(hash) {
             Some(handler) => handler,
@@ -512,8 +503,8 @@ impl Vm {
 
     fn internal_boolean_ops(
         &mut self,
-        int_op: impl FnOnce(i64, i64) -> bool,
-        float_op: impl FnOnce(f64, f64) -> bool,
+        int_op: fn(i64, i64) -> bool,
+        float_op: fn(f64, f64) -> bool,
         op: &'static str,
     ) -> Result<(), VmError> {
         let rhs = self.stack.pop()?;
@@ -703,68 +694,62 @@ impl Vm {
         match op {
             InstOp::Add => {
                 self.internal_num(
-                    crate::ADD,
+                    Protocol::ADD,
                     || VmErrorKind::Overflow,
                     i64::checked_add,
                     std::ops::Add::add,
-                    "+",
                 )?;
             }
             InstOp::Sub => {
                 self.internal_num(
-                    crate::SUB,
+                    Protocol::SUB,
                     || VmErrorKind::Underflow,
                     i64::checked_sub,
                     std::ops::Sub::sub,
-                    "-",
                 )?;
             }
             InstOp::Mul => {
                 self.internal_num(
-                    crate::MUL,
+                    Protocol::MUL,
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
                     std::ops::Mul::mul,
-                    "*",
                 )?;
             }
             InstOp::Div => {
                 self.internal_num(
-                    crate::DIV,
+                    Protocol::DIV,
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
                     std::ops::Div::div,
-                    "+",
                 )?;
             }
             InstOp::Rem => {
                 self.internal_num(
-                    crate::REM,
+                    Protocol::REM,
                     || VmErrorKind::DivideByZero,
                     i64::checked_rem,
                     std::ops::Rem::rem,
-                    "%",
                 )?;
             }
             InstOp::BitAnd => {
-                self.internal_infallible_bitwise(crate::BIT_AND, std::ops::BitAnd::bitand, "&")?;
+                self.internal_infallible_bitwise(Protocol::BIT_AND, std::ops::BitAnd::bitand)?;
             }
             InstOp::BitXor => {
-                self.internal_infallible_bitwise(crate::BIT_XOR, std::ops::BitXor::bitxor, "^")?;
+                self.internal_infallible_bitwise(Protocol::BIT_XOR, std::ops::BitXor::bitxor)?;
             }
             InstOp::BitOr => {
-                self.internal_infallible_bitwise(crate::BIT_OR, std::ops::BitOr::bitor, "|")?;
+                self.internal_infallible_bitwise(Protocol::BIT_OR, std::ops::BitOr::bitor)?;
             }
             InstOp::Shl => {
                 self.internal_bitwise(
-                    crate::SHL,
+                    Protocol::SHL,
                     || VmErrorKind::Overflow,
                     |a, b| a.checked_shl(u32::try_from(b).ok()?),
-                    "<<",
                 )?;
             }
             InstOp::Shr => {
-                self.internal_infallible_bitwise(crate::SHR, std::ops::Shr::shr, ">>")?;
+                self.internal_infallible_bitwise(Protocol::SHR, std::ops::Shr::shr)?;
             }
             InstOp::Gt => {
                 self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">")?;
@@ -817,92 +802,82 @@ impl Vm {
             InstAssignOp::Add => {
                 self.internal_num_assign(
                     target,
-                    crate::ADD_ASSIGN,
+                    Protocol::ADD_ASSIGN,
                     || VmErrorKind::Overflow,
                     i64::checked_add,
                     std::ops::Add::add,
-                    "+=",
                 )?;
             }
             InstAssignOp::Sub => {
                 self.internal_num_assign(
                     target,
-                    crate::SUB_ASSIGN,
+                    Protocol::SUB_ASSIGN,
                     || VmErrorKind::Underflow,
                     i64::checked_sub,
                     std::ops::Sub::sub,
-                    "-=",
                 )?;
             }
             InstAssignOp::Mul => {
                 self.internal_num_assign(
                     target,
-                    crate::MUL_ASSIGN,
+                    Protocol::MUL_ASSIGN,
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
                     std::ops::Mul::mul,
-                    "*=",
                 )?;
             }
             InstAssignOp::Div => {
                 self.internal_num_assign(
                     target,
-                    crate::DIV_ASSIGN,
+                    Protocol::DIV_ASSIGN,
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
                     std::ops::Div::div,
-                    "/=",
                 )?;
             }
             InstAssignOp::Rem => {
                 self.internal_num_assign(
                     target,
-                    crate::REM_ASSIGN,
+                    Protocol::REM_ASSIGN,
                     || VmErrorKind::DivideByZero,
                     i64::checked_rem,
                     std::ops::Rem::rem,
-                    "%=",
                 )?;
             }
             InstAssignOp::BitAnd => {
                 self.internal_infallible_bitwise_assign(
                     target,
-                    crate::BIT_AND_ASSIGN,
+                    Protocol::BIT_AND_ASSIGN,
                     std::ops::BitAndAssign::bitand_assign,
-                    "&=",
                 )?;
             }
             InstAssignOp::BitXor => {
                 self.internal_infallible_bitwise_assign(
                     target,
-                    crate::BIT_XOR_ASSIGN,
+                    Protocol::BIT_XOR_ASSIGN,
                     std::ops::BitXorAssign::bitxor_assign,
-                    "^=",
                 )?;
             }
             InstAssignOp::BitOr => {
                 self.internal_infallible_bitwise_assign(
                     target,
-                    crate::BIT_OR_ASSIGN,
+                    Protocol::BIT_OR_ASSIGN,
                     std::ops::BitOrAssign::bitor_assign,
-                    "|=",
                 )?;
             }
             InstAssignOp::Shl => {
                 self.internal_bitwise_assign(
                     target,
-                    crate::SHL_ASSIGN,
+                    Protocol::SHL_ASSIGN,
                     || VmErrorKind::Overflow,
                     |a, b| a.checked_shl(u32::try_from(b).ok()?),
-                    "<<=",
                 )?;
             }
             InstAssignOp::Shr => {
                 self.internal_infallible_bitwise_assign(
                     target,
-                    crate::SHR_ASSIGN,
+                    Protocol::SHR_ASSIGN,
                     std::ops::ShrAssign::shr_assign,
-                    ">>=",
                 )?;
             }
         }
@@ -970,7 +945,7 @@ impl Vm {
             }
         }
 
-        if !self.call_instance_fn(&target, crate::INDEX_SET, (&index, &value))? {
+        if !self.call_instance_fn(&target, Protocol::INDEX_SET, (&index, &value))? {
             return Err(VmError::from(VmErrorKind::UnsupportedIndexSet {
                 target: target.type_info()?,
                 index: index.type_info()?,
@@ -1016,7 +991,7 @@ impl Vm {
         match value {
             Value::Future(future) => Ok(Ok(future)),
             value => {
-                if !self.call_instance_fn(&value, crate::INTO_FUTURE, ())? {
+                if !self.call_instance_fn(&value, Protocol::INTO_FUTURE, ())? {
                     return Ok(Err(value));
                 }
 
@@ -1332,7 +1307,7 @@ impl Vm {
             };
         }
 
-        if !self.call_instance_fn(&target, crate::INDEX_GET, (&index,))? {
+        if !self.call_instance_fn(&target, Protocol::INDEX_GET, (&index,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
                 target: target.type_info()?,
                 index: index.type_info()?,
@@ -1435,7 +1410,7 @@ impl Vm {
             target => {
                 let hash = index.hash();
 
-                if self.call_getter(target, hash, ())? {
+                if self.call_field_fn(Protocol::GET, target, hash, ())? {
                     Some(self.stack.pop()?)
                 } else {
                     None
@@ -1487,7 +1462,7 @@ impl Vm {
             target => {
                 let hash = field.hash();
 
-                if self.call_setter(target, hash, (value,))? {
+                if self.call_field_fn(Protocol::SET, target, hash, (value,))? {
                     self.stack.pop()?;
                     Some(())
                 } else {
@@ -1693,11 +1668,11 @@ impl Vm {
 
                     if !self.call_instance_fn(
                         &actual,
-                        crate::STRING_DISPLAY,
+                        Protocol::STRING_DISPLAY,
                         (Value::String(b.clone()),),
                     )? {
                         return Err(VmError::from(VmErrorKind::MissingProtocol {
-                            protocol: crate::STRING_DISPLAY,
+                            protocol: Protocol::STRING_DISPLAY,
                             actual: actual.type_info()?,
                         }));
                     }
@@ -2603,52 +2578,80 @@ impl Vm {
     fn internal_num_assign(
         &mut self,
         target: InstTarget,
-        hash: impl IntoTypeHash,
-        error: impl FnOnce() -> VmErrorKind,
-        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
-        float_op: impl FnOnce(f64, f64) -> f64,
-        op: &'static str,
+        protocol: Protocol,
+        error: fn() -> VmErrorKind,
+        integer_op: fn(i64, i64) -> Option<i64>,
+        float_op: fn(f64, f64) -> f64,
     ) -> Result<(), VmError> {
         let lhs;
         let mut guard;
 
-        let (lhs, rhs) = target_value!(self, target, guard, lhs);
-
-        let (lhs, rhs) = match (lhs, rhs) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => {
-                let out = integer_op(*lhs, rhs).ok_or_else(error)?;
-                *lhs = out;
-                return Ok(());
-            }
-            (Value::Float(lhs), Value::Float(rhs)) => {
-                let out = float_op(*lhs, rhs);
-                *lhs = out;
-                return Ok(());
-            }
-            (lhs, rhs) => (lhs.clone(), rhs),
+        let fallback = match target_value!(self, target, guard, lhs) {
+            TargetValue::Value(lhs, rhs) => match (lhs, rhs) {
+                (Value::Integer(lhs), Value::Integer(rhs)) => {
+                    let out = integer_op(*lhs, rhs).ok_or_else(error)?;
+                    *lhs = out;
+                    return Ok(());
+                }
+                (Value::Float(lhs), Value::Float(rhs)) => {
+                    let out = float_op(*lhs, rhs);
+                    *lhs = out;
+                    return Ok(());
+                }
+                (lhs, rhs) => TargetFallback::Value(lhs.clone(), rhs),
+            },
+            TargetValue::Fallback(fallback) => fallback,
         };
 
-        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
-            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                op,
-                lhs: lhs.type_info()?,
-                rhs: rhs.type_info()?,
-            }));
-        }
+        self.target_fallback(fallback, protocol)
+    }
 
-        let value = self.stack.pop()?;
-        <()>::from_value(value)?;
-        Ok(())
+    /// Execute a fallback operation.
+    fn target_fallback(
+        &mut self,
+        fallback: TargetFallback<'_>,
+        protocol: Protocol,
+    ) -> Result<(), VmError> {
+        match fallback {
+            TargetFallback::Value(lhs, rhs) => {
+                if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
+                    return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                        op: protocol.name,
+                        lhs: lhs.type_info()?,
+                        rhs: rhs.type_info()?,
+                    }));
+                }
+
+                let value = self.stack.pop()?;
+                <()>::from_value(value)?;
+                Ok(())
+            }
+            TargetFallback::Field(lhs, hash, rhs) => {
+                if !self.call_field_fn(protocol, lhs, hash, (rhs,))? {
+                    return Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
+                        target: lhs.type_info()?,
+                    }));
+                }
+
+                let value = self.stack.pop()?;
+                <()>::from_value(value)?;
+                Ok(())
+            }
+            TargetFallback::Index(lhs, ..) => {
+                Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
+                    target: lhs.type_info()?,
+                }))
+            }
+        }
     }
 
     /// Internal impl of a numeric operation.
     fn internal_num(
         &mut self,
-        hash: impl IntoTypeHash,
-        error: impl FnOnce() -> VmErrorKind,
-        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
-        float_op: impl FnOnce(f64, f64) -> f64,
-        op: &'static str,
+        protocol: Protocol,
+        error: fn() -> VmErrorKind,
+        integer_op: fn(i64, i64) -> Option<i64>,
+        float_op: fn(f64, f64) -> f64,
     ) -> Result<(), VmError> {
         let rhs = self.stack.pop()?;
         let lhs = self.stack.pop()?;
@@ -2665,9 +2668,9 @@ impl Vm {
             (lhs, rhs) => (lhs, rhs),
         };
 
-        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+        if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                op,
+                op: protocol.name,
                 lhs: lhs.type_info()?,
                 rhs: rhs.type_info()?,
             }));
@@ -2679,9 +2682,8 @@ impl Vm {
     /// Internal impl of a numeric operation.
     fn internal_infallible_bitwise(
         &mut self,
-        hash: impl IntoTypeHash,
-        integer_op: impl FnOnce(i64, i64) -> i64,
-        op: &'static str,
+        protocol: Protocol,
+        integer_op: fn(i64, i64) -> i64,
     ) -> Result<(), VmError> {
         let rhs = self.stack.pop()?;
         let lhs = self.stack.pop()?;
@@ -2694,9 +2696,9 @@ impl Vm {
             (lhs, rhs) => (lhs, rhs),
         };
 
-        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+        if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                op,
+                op: protocol.name,
                 lhs: lhs.type_info()?,
                 rhs: rhs.type_info()?,
             }));
@@ -2708,42 +2710,31 @@ impl Vm {
     fn internal_infallible_bitwise_assign(
         &mut self,
         target: InstTarget,
-        hash: impl IntoTypeHash,
-        integer_op: impl FnOnce(&mut i64, i64),
-        op: &'static str,
+        protocol: Protocol,
+        integer_op: fn(&mut i64, i64),
     ) -> Result<(), VmError> {
         let lhs;
         let mut guard;
 
-        let (lhs, rhs) = target_value!(self, target, guard, lhs);
-
-        let (lhs, rhs) = match (lhs, rhs) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => {
-                integer_op(lhs, rhs);
-                return Ok(());
-            }
-            (lhs, rhs) => (lhs.clone(), rhs),
+        let fallback = match target_value!(self, target, guard, lhs) {
+            TargetValue::Value(lhs, rhs) => match (lhs, rhs) {
+                (Value::Integer(lhs), Value::Integer(rhs)) => {
+                    integer_op(lhs, rhs);
+                    return Ok(());
+                }
+                (lhs, rhs) => TargetFallback::Value(lhs.clone(), rhs),
+            },
+            TargetValue::Fallback(fallback) => fallback,
         };
 
-        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
-            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                op,
-                lhs: lhs.type_info()?,
-                rhs: rhs.type_info()?,
-            }));
-        }
-
-        let value = self.stack.pop()?;
-        <()>::from_value(value)?;
-        Ok(())
+        self.target_fallback(fallback, protocol)
     }
 
     fn internal_bitwise(
         &mut self,
-        hash: impl IntoTypeHash,
-        error: impl FnOnce() -> VmErrorKind,
-        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
-        op: &'static str,
+        protocol: Protocol,
+        error: fn() -> VmErrorKind,
+        integer_op: fn(i64, i64) -> Option<i64>,
     ) -> Result<(), VmError> {
         let rhs = self.stack.pop()?;
         let lhs = self.stack.pop()?;
@@ -2756,9 +2747,9 @@ impl Vm {
             (lhs, rhs) => (lhs, rhs),
         };
 
-        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+        if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                op,
+                op: protocol.name,
                 lhs: lhs.type_info()?,
                 rhs: rhs.type_info()?,
             }));
@@ -2770,36 +2761,26 @@ impl Vm {
     fn internal_bitwise_assign(
         &mut self,
         target: InstTarget,
-        hash: impl IntoTypeHash,
-        error: impl FnOnce() -> VmErrorKind,
-        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
-        op: &'static str,
+        protocol: Protocol,
+        error: fn() -> VmErrorKind,
+        integer_op: fn(i64, i64) -> Option<i64>,
     ) -> Result<(), VmError> {
         let lhs;
         let mut guard;
 
-        let (lhs, rhs) = target_value!(self, target, guard, lhs);
-
-        let (lhs, rhs) = match (lhs, rhs) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => {
-                let out = integer_op(*lhs, rhs).ok_or_else(error)?;
-                *lhs = out;
-                return Ok(());
-            }
-            (lhs, rhs) => (lhs.clone(), rhs),
+        let fallback = match target_value!(self, target, guard, lhs) {
+            TargetValue::Value(lhs, rhs) => match (lhs, rhs) {
+                (Value::Integer(lhs), Value::Integer(rhs)) => {
+                    let out = integer_op(*lhs, rhs).ok_or_else(error)?;
+                    *lhs = out;
+                    return Ok(());
+                }
+                (lhs, rhs) => TargetFallback::Value(lhs.clone(), rhs),
+            },
+            TargetValue::Fallback(fallback) => fallback,
         };
 
-        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
-            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                op,
-                lhs: lhs.type_info()?,
-                rhs: rhs.type_info()?,
-            }));
-        }
-
-        let value = self.stack.pop()?;
-        <()>::from_value(value)?;
-        Ok(())
+        self.target_fallback(fallback, protocol)
     }
 
     /// Check that arguments matches expected or raise the appropriate error.

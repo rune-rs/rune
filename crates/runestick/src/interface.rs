@@ -1,6 +1,6 @@
 use crate::{
-    Args, Context, FromValue, Hash, IntoTypeHash, Iterator, Stack, Unit, UnitFn, Value, Vm,
-    VmError, VmErrorKind,
+    Args, Context, FromValue, Hash, IntoTypeHash, Iterator, Protocol, Stack, Unit, UnitFn, Value,
+    Vm, VmError, VmErrorKind,
 };
 use std::cell::Cell;
 use std::marker;
@@ -30,7 +30,7 @@ impl Interface {
             target => target,
         };
 
-        let value = self.call_instance_fn(crate::INTO_ITER, target, ())?;
+        let value = self.call_instance_fn(Protocol::INTO_ITER, target, ())?;
         Iterator::from_value(value)
     }
 

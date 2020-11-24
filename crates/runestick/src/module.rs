@@ -6,7 +6,7 @@
 use crate::collections::HashMap;
 use crate::context::{ContextError, Handler, Macro};
 use crate::{
-    Future, GeneratorState, Hash, IntoComponent, Item, Named, Stack, StaticType, ToValue,
+    Future, GeneratorState, Hash, IntoComponent, Item, Named, Protocol, Stack, StaticType, ToValue,
     TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use std::any;
@@ -98,18 +98,16 @@ pub(crate) struct ModuleType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ModuleAssociatedKind {
-    Getter,
-    Setter,
+    FieldFn(Protocol),
     Instance,
 }
 
 impl ModuleAssociatedKind {
     /// Convert the kind into a hash function.
-    pub fn into_hash_fn(self) -> fn(Hash, Hash) -> Hash {
+    pub fn hash(self, instance_type: Hash, field: Hash) -> Hash {
         match self {
-            Self::Getter => Hash::getter,
-            Self::Setter => Hash::setter,
-            Self::Instance => Hash::instance_function,
+            Self::FieldFn(protocol) => Hash::field_fn(protocol, instance_type, field),
+            Self::Instance => Hash::instance_function(instance_type, field),
         }
     }
 }
@@ -561,22 +559,18 @@ impl Module {
         self.assoc_fn(name, f, ModuleAssociatedKind::Instance)
     }
 
-    /// Install a getter for the specified field.
-    pub fn getter<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    /// Install a protocol function for the given field.
+    pub fn field_fn<N, Func, Args>(
+        &mut self,
+        protocol: Protocol,
+        name: N,
+        f: Func,
+    ) -> Result<(), ContextError>
     where
         N: InstFnNameHash,
         Func: InstFn<Args>,
     {
-        self.assoc_fn(name, f, ModuleAssociatedKind::Getter)
-    }
-
-    /// Install a setter for the specified field.
-    pub fn setter<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
-    where
-        N: InstFnNameHash,
-        Func: InstFn<Args>,
-    {
-        self.assoc_fn(name, f, ModuleAssociatedKind::Setter)
+        self.assoc_fn(name, f, ModuleAssociatedKind::FieldFn(protocol))
     }
 
     /// Install an associated function.

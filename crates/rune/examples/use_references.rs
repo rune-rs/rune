@@ -1,5 +1,5 @@
 use rune::{Errors, Options, Sources, Warnings};
-use runestick::{Any, Context, Item, Module, Source, Vm};
+use runestick::{Any, Context, Item, Module, Protocol, Source, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
@@ -16,7 +16,7 @@ impl Foo {
 fn main() -> runestick::Result<()> {
     let mut module = Module::new(Item::new());
     module.ty::<Foo>()?;
-    module.inst_fn(runestick::ADD_ASSIGN, Foo::add_assign)?;
+    module.inst_fn(Protocol::ADD_ASSIGN, Foo::add_assign)?;
 
     let mut context = Context::with_default_modules()?;
     context.install(&module)?;

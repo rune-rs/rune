@@ -1,4 +1,4 @@
-use crate::{Any, InstFnNameHash, IntoComponent, Item};
+use crate::{Any, InstFnNameHash, IntoComponent, Item, Protocol};
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
@@ -10,9 +10,8 @@ use twox_hash::XxHash64;
 const SEP: usize = 0x7f;
 const TYPE: usize = 1;
 const INSTANCE_FUNCTION: usize = 2;
-const GETTER: usize = 3;
-const SETTER: usize = 4;
-const OBJECT_KEYS: usize = 5;
+const FIELD_FN: usize = 3;
+const OBJECT_KEYS: usize = 4;
 
 /// The hash of a primitive thing.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -65,22 +64,13 @@ impl Hash {
         Self::of((INSTANCE_FUNCTION, type_hash, SEP, name))
     }
 
-    /// Construct a hash corresponding to a getter.
-    pub fn getter<N>(type_hash: Hash, name: N) -> Self
+    /// Construct a hash corresponding to a field function.
+    pub fn field_fn<N>(protocol: Protocol, type_hash: Hash, name: N) -> Self
     where
         N: InstFnNameHash,
     {
         let name = name.inst_fn_name_hash();
-        Self::of((GETTER, type_hash, SEP, name))
-    }
-
-    /// Construct a hash corresponding to a setter.
-    pub fn setter<N>(type_hash: Hash, name: N) -> Self
-    where
-        N: InstFnNameHash,
-    {
-        let name = name.inst_fn_name_hash();
-        Self::of((SETTER, type_hash, SEP, name))
+        Self::of((FIELD_FN, protocol.hash, SEP, type_hash, SEP, name))
     }
 
     /// Get the hash corresponding to a static byte array.

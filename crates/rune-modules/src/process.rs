@@ -31,14 +31,14 @@
 //! }
 //! ```
 
-use runestick::{Any, Bytes, Shared, Value, VmError};
+use runestick::{Any, Bytes, Shared, Value, VmError, Protocol, Module, ContextError};
 use std::fmt;
 use std::io;
 use tokio::process;
 
 /// Construct the `process` module.
-pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["process"]);
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
+    let mut module = Module::new(&["process"]);
     module.ty::<Command>()?;
     module.ty::<Child>()?;
     module.ty::<ExitStatus>()?;
@@ -48,12 +48,12 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
     module.inst_fn("spawn", Command::spawn)?;
     module.inst_fn("arg", Command::arg)?;
     module.inst_fn("args", Command::args)?;
-    module.async_inst_fn(runestick::INTO_FUTURE, Child::into_future)?;
+    module.async_inst_fn(Protocol::INTO_FUTURE, Child::into_future)?;
     module.async_inst_fn("wait_with_output", Child::wait_with_output)?;
-    module.inst_fn(runestick::STRING_DISPLAY, ExitStatus::display)?;
+    module.inst_fn(Protocol::STRING_DISPLAY, ExitStatus::display)?;
     module.inst_fn("code", ExitStatus::code)?;
 
-    module.getter("status", Output::status)?;
+    module.field_fn(Protocol::INDEX_GET, "status", Output::status)?;
     Ok(module)
 }
 

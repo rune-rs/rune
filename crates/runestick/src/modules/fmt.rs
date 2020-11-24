@@ -1,6 +1,6 @@
 //! The `std::fmt` module.
 
-use crate::{ContextError, Module};
+use crate::{ContextError, Module, Protocol};
 use std::fmt;
 use std::fmt::Write as _;
 
@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "fmt"]);
     module.ty::<std::fmt::Error>()?;
-    module.inst_fn(crate::STRING_DISPLAY, format_fmt_error)?;
+    module.inst_fn(Protocol::STRING_DISPLAY, format_fmt_error)?;
 
     module.ty::<crate::Format>()?;
     Ok(module)

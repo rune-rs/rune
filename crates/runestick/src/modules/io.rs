@@ -1,6 +1,6 @@
 //! The `std::io` module.
 
-use crate::{ContextError, Module, Panic, Stack, Value, VmError};
+use crate::{ContextError, Module, Panic, Protocol, Stack, Value, VmError};
 use std::fmt;
 use std::fmt::Write as _;
 use std::io;
@@ -10,7 +10,7 @@ use std::io::Write as _;
 pub fn module(stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "io"]);
     module.ty::<io::Error>()?;
-    module.inst_fn(crate::STRING_DISPLAY, format_io_error)?;
+    module.inst_fn(Protocol::STRING_DISPLAY, format_io_error)?;
 
     if stdio {
         module.function(&["print"], print_impl)?;

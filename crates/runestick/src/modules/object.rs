@@ -1,6 +1,6 @@
 //! The `std::object` module.
 
-use crate::{ContextError, Module, Object, Value};
+use crate::{ContextError, Module, Object, Protocol, Value};
 
 /// Construct the `std::object` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -15,7 +15,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("get", get)?;
 
     module.inst_fn("iter", Object::into_iterator)?;
-    module.inst_fn(crate::INTO_ITER, Object::into_iterator)?;
+    module.inst_fn(Protocol::INTO_ITER, Object::into_iterator)?;
     Ok(module)
 }
 

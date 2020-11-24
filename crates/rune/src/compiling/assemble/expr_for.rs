@@ -19,7 +19,7 @@ impl Assemble for ast::ExprFor {
             let iter_offset = c.scopes.decl_anon(span)?;
             c.asm.push_with_comment(
                 Inst::CallInstance {
-                    hash: *runestick::INTO_ITER,
+                    hash: *runestick::Protocol::INTO_ITER,
                     args: 0,
                 },
                 span,
@@ -61,7 +61,7 @@ impl Assemble for ast::ExprFor {
 
             c.asm.push_with_comment(
                 Inst::LoadInstanceFn {
-                    hash: *runestick::NEXT,
+                    hash: *runestick::Protocol::NEXT,
                 },
                 span,
                 "load instance fn (memoize)",
@@ -112,7 +112,7 @@ impl Assemble for ast::ExprFor {
 
             c.asm.push_with_comment(
                 Inst::CallInstance {
-                    hash: *runestick::NEXT,
+                    hash: *runestick::Protocol::NEXT,
                     args: 0,
                 },
                 span,

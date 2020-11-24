@@ -197,11 +197,7 @@ pub use crate::item::{Component, ComponentRef, IntoComponent, Item};
 pub use crate::names::Names;
 pub use crate::object::Object;
 pub use crate::panic::Panic;
-pub use crate::protocol::{
-    Protocol, ADD, ADD_ASSIGN, BIT_AND, BIT_AND_ASSIGN, BIT_OR, BIT_OR_ASSIGN, BIT_XOR,
-    BIT_XOR_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL, MUL_ASSIGN,
-    NEXT, REM, REM_ASSIGN, SHL, SHL_ASSIGN, SHR, SHR_ASSIGN, STRING_DISPLAY, SUB, SUB_ASSIGN,
-};
+pub use crate::protocol::Protocol;
 pub use crate::shared::{Mut, RawMut, RawRef, Ref, Shared, SharedPointerGuard};
 pub use crate::stack::{Stack, StackError};
 pub use crate::type_of::TypeOf;

@@ -50,13 +50,13 @@
 //! }
 //! ```
 
-use runestick::{Any, Bytes, Value};
+use runestick::{Any, Bytes, Value, Protocol, Module, ContextError};
 use std::fmt;
 use std::fmt::Write as _;
 
 /// Construct the `http` module.
-pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["http"]);
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
+    let mut module = Module::new(&["http"]);
 
     module.ty::<Client>()?;
     module.ty::<Response>()?;
@@ -78,7 +78,7 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
     module.inst_fn("header", RequestBuilder::header)?;
     module.async_inst_fn("body_bytes", RequestBuilder::body_bytes)?;
 
-    module.inst_fn(runestick::STRING_DISPLAY, StatusCode::display)?;
+    module.inst_fn(Protocol::STRING_DISPLAY, StatusCode::display)?;
     Ok(module)
 }
 
