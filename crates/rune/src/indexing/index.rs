@@ -6,8 +6,8 @@ use crate::load::{SourceLoader, Sources};
 use crate::macros::MacroCompiler;
 use crate::parsing::{Parse, Parser};
 use crate::query::{
-    Build, BuildEntry, BuiltInFormat, BuiltInMacro, BuiltInTemplate, Function, Indexed,
-    IndexedEntry, InstanceFunction, Query, QueryMod, Used,
+    Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
+    Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
 };
 use crate::shared::{Consts, Items, Location};
 use crate::worker::{Import, LoadFileKind, Task};
@@ -88,6 +88,8 @@ impl<'a> Indexer<'a> {
         let mut internal_macro = match ident.as_ref() {
             "template" => self.expand_template_macro(ast, &args)?,
             "format" => self.expand_format_macro(ast, &args)?,
+            "file" => self.expand_file_macro(ast)?,
+            "line" => self.expand_line_macro(ast)?,
             _ => {
                 return Err(CompileError::new(
                     ast.path.span(),
@@ -107,6 +109,8 @@ impl<'a> Indexer<'a> {
             BuiltInMacro::Format(format) => {
                 format.value.index(self)?;
             }
+
+            BuiltInMacro::Line(_) | BuiltInMacro::File(_) => { /* Nothing to index */ }
         }
 
         let id = self.query.insert_new_builtin_macro(internal_macro)?;
@@ -282,6 +286,46 @@ impl<'a> Indexer<'a> {
             flags,
             format_type,
             value,
+        }))
+    }
+
+    /// Expand a macro returning the current file
+    fn expand_file_macro(&mut self, ast: &mut ast::MacroCall) -> Result<BuiltInMacro, ParseError> {
+        let id = self.storage.insert_str(self.source.name());
+        let source = ast::StrSource::Synthetic(id);
+        let node = ast::LitStr {
+            token: ast::Token {
+                kind: ast::Kind::Str(ast::StrSource::Synthetic(id)),
+                span: ast.span(),
+            },
+            source,
+        };
+        Ok(BuiltInMacro::File(BuiltInFile {
+            span: ast.span(),
+            value: node,
+        }))
+    }
+
+    /// Expand a macro returning the current line for where the macro invocation begins
+    fn expand_line_macro(&mut self, ast: &mut ast::MacroCall) -> Result<BuiltInMacro, ParseError> {
+        let (l, _) = self
+            .source
+            .position_to_utf16cu_line_char(ast.open.span.start.into_usize())
+            .unwrap_or((0, 0));
+
+        let id = self.storage.insert_number(l + 1); // 1-indexed as that is what most editors will use
+        let source = ast::NumberSource::Synthetic(id);
+
+        Ok(BuiltInMacro::Line(BuiltInLine {
+            span: ast.span(),
+
+            value: ast::LitNumber {
+                token: ast::Token {
+                    kind: ast::Kind::Number(source),
+                    span: ast.span(),
+                },
+                source,
+            },
         }))
     }
 

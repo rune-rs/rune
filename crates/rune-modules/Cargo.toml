@@ -11,12 +11,12 @@ documentation = "https://docs.rs/rune-modules"
 keywords = ["language", "scripting"]
 categories = []
 description = """
-Native modules for Rune, an embeddable dynamic programming language for Rust. 
+Native modules for Rune, an embeddable dynamic programming language for Rust.
 """
 
 [features]
-default = ["test", "core", "io", "fmt"]
-full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand", "io", "fmt"]
+default = ["test", "core", "io", "fmt", "macros"]
+full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand", "io", "fmt", "macros"]
 time = ["tokio", "tokio/time"]
 fs = ["tokio", "tokio/fs"]
 http = ["reqwest"]
@@ -29,6 +29,7 @@ test = []
 core = []
 io = []
 fmt = []
+macros = []
 
 [dependencies]
 reqwest = {version = "0.10.7", optional = true, default-features = false, features = ["rustls-tls", "gzip", "json"]}

@@ -31,6 +31,8 @@ mod query_error;
 pub(crate) enum BuiltInMacro {
     Template(BuiltInTemplate),
     Format(BuiltInFormat),
+    File(BuiltInFile),
+    Line(BuiltInLine),
 }
 
 /// An internally resolved template.
@@ -60,6 +62,22 @@ pub(crate) struct BuiltInFormat {
     pub(crate) format_type: Option<(ast::Ident, format::Type)>,
     /// The value being formatted.
     pub(crate) value: ast::Expr,
+}
+
+/// Macro data for `file!()`
+pub struct BuiltInFile {
+    /// The span of the built-in-file
+    pub(crate) span: Span,
+    /// Path value to use
+    pub(crate) value: ast::LitStr,
+}
+
+/// Macro data for `line!()`
+pub struct BuiltInLine {
+    /// The span of the built-in-file
+    pub(crate) span: Span,
+    /// The line number
+    pub(crate) value: ast::LitNumber,
 }
 
 pub use self::query_error::{QueryError, QueryErrorKind};

@@ -101,6 +101,9 @@ impl UnitBuilder {
         this.prelude
             .insert("assert_eq".into(), Item::of(&["std", "test", "assert_eq"]));
 
+        this.prelude.insert("line".into(), Item::of(&["std", "macros", "builtin", "line"]));
+        this.prelude.insert("file".into(), Item::of(&["std", "macros", "builtin", "file"]));
+
         Self {
             inner: Rc::new(RefCell::new(this)),
         }
