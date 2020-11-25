@@ -46,6 +46,7 @@ are:
 | [`Protocol::BIT_XOR_ASSIGN`] | `#[rune(bit_xor_assign)]` | The `^=` operation. |
 | [`Protocol::SHL_ASSIGN`] | `#[rune(shl_assign)]` | The `<<=` operation. |
 | [`Protocol::SHR_ASSIGN`] | `#[rune(shr_assign)]` | The `>>=` operation. |
+| [`Protocol::REM_ASSIGN`] | `#[rune(rem_assign)]` | The `%=` operation. |
 
 The manual way to register these functions is to use the new `Module::field_fn`
 function. This clearly showcases that there's no relationship between the field
@@ -76,6 +77,23 @@ pub fn main(external) {
 }
 ```
 
+## Custom field function
+
+Using the `Any` derive, you can specify a custom field function by using an
+argument to the corresponding attribute pointing to the function to use instead.
+
+The following uses an implementation of `add_assign` which performs checked
+addition:
+
+```rust,noplaypen
+{{#include ../../crates/rune/examples/checked_add_assign.rs}}
+```
+
+```text
+$> cargo run --example checked_add_assign
+Error: numerical overflow (at inst 2)
+```
+
 [`Protocol::GET`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.GET
 [`Protocol::SET`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.SET
 [`Protocol::ADD_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.ADD_ASSIGN
@@ -87,3 +105,4 @@ pub fn main(external) {
 [`Protocol::BIT_XOR_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.BIT_XOR_ASSIGN
 [`Protocol::SHL_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.SHL_ASSIGN
 [`Protocol::SHR_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.SHR_ASSIGN
+[`Protocol::REM_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.REM_ASSIGN

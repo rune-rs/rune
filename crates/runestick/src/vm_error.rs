@@ -215,11 +215,6 @@ pub enum VmErrorKind {
         error: VmError,
         arg: usize,
     },
-    #[error("bad return value: {error}")]
-    BadReturn {
-        #[source]
-        error: VmError,
-    },
     #[error("the index set operation `{target}[{index}] = {value}` is not supported")]
     UnsupportedIndexSet {
         target: TypeInfo,

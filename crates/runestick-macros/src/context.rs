@@ -11,6 +11,7 @@ use syn::NestedMeta::*;
 struct Generate<'a> {
     context: &'a Context,
     attrs: &'a FieldAttrs,
+    protocol: &'a FieldProtocol,
     ident: &'a syn::Ident,
     field: &'a syn::Field,
     field_ident: &'a syn::Ident,
@@ -20,6 +21,7 @@ struct Generate<'a> {
 
 pub(crate) struct FieldProtocol {
     generate: fn(Generate<'_>) -> TokenStream,
+    custom: Option<syn::Path>,
 }
 
 /// Parsed field attributes.
@@ -148,10 +150,16 @@ impl Context {
 
                     let protocol = g.context.protocol($proto);
 
-                    quote_spanned! { g.field.span() =>
-                        module.field_fn(#protocol, #name, |s: &mut #ident, value: #ty| {
-                            s.#field_ident $op value;
-                        })?;
+                    if let Some(custom) = &g.protocol.custom {
+                        quote_spanned! { g.field.span() =>
+                            module.field_fn(#protocol, #name, #custom)?;
+                        }
+                    } else {
+                        quote_spanned! { g.field.span() =>
+                            module.field_fn(#protocol, #name, |s: &mut #ident, value: #ty| {
+                                s.#field_ident $op value;
+                            })?;
+                        }
                     }
                 }
             };
@@ -162,8 +170,12 @@ impl Context {
         for attr in attrs {
             for meta in self.get_rune_meta_items(attr)? {
                 match meta {
-                    Meta(Path(path)) if path == GET => {
+                    Meta(Path(path)) if path == COPY => {
+                        output.copy = true;
+                    }
+                    Meta(meta) if meta.path() == GET => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: |g| {
                                 let Generate {
                                     ident,
@@ -186,8 +198,9 @@ impl Context {
                             },
                         });
                     }
-                    Meta(Path(path)) if path == SET => {
+                    Meta(meta) if meta.path() == SET => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: |g| {
                                 let Generate {
                                     ident,
@@ -207,53 +220,65 @@ impl Context {
                             },
                         });
                     }
-                    Meta(Path(path)) if path == ADD_ASSIGN => {
+                    Meta(meta) if meta.path() == ADD_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_ADD_ASSIGN, +=),
                         });
                     }
-                    Meta(Path(path)) if path == SUB_ASSIGN => {
+                    Meta(meta) if meta.path() == SUB_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_SUB_ASSIGN, -=),
                         });
                     }
-                    Meta(Path(path)) if path == DIV_ASSIGN => {
+                    Meta(meta) if meta.path() == DIV_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_DIV_ASSIGN, /=),
                         });
                     }
-                    Meta(Path(path)) if path == MUL_ASSIGN => {
+                    Meta(meta) if meta.path() == MUL_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_MUL_ASSIGN, *=),
                         });
                     }
-                    Meta(Path(path)) if path == BIT_AND_ASSIGN => {
+                    Meta(meta) if meta.path() == BIT_AND_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_BIT_AND_ASSIGN, &=),
                         });
                     }
-                    Meta(Path(path)) if path == BIT_OR_ASSIGN => {
+                    Meta(meta) if meta.path() == BIT_OR_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_BIT_OR_ASSIGN, |=),
                         });
                     }
-                    Meta(Path(path)) if path == BIT_XOR_ASSIGN => {
+                    Meta(meta) if meta.path() == BIT_XOR_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_BIT_XOR_ASSIGN, ^=),
                         });
                     }
-                    Meta(Path(path)) if path == SHL_ASSIGN => {
+                    Meta(meta) if meta.path() == SHL_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_SHL_ASSIGN, <<=),
                         });
                     }
-                    Meta(Path(path)) if path == SHR_ASSIGN => {
+                    Meta(meta) if meta.path() == SHR_ASSIGN => {
                         output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
                             generate: generate_op!(PROTOCOL_SHR_ASSIGN, >>=),
                         });
                     }
-                    Meta(Path(path)) if path == COPY => {
-                        output.copy = true;
+                    Meta(meta) if meta.path() == REM_ASSIGN => {
+                        output.protocols.push(FieldProtocol {
+                            custom: self.parse_field_custom(meta)?,
+                            generate: generate_op!(PROTOCOL_REM_ASSIGN, %=),
+                        });
                     }
                     _ => {
                         self.errors
@@ -266,6 +291,30 @@ impl Context {
         }
 
         Some(output)
+    }
+
+    /// Parse path to custom field function.
+    fn parse_field_custom(&mut self, meta: syn::Meta) -> Option<Option<syn::Path>> {
+        let s = match meta {
+            Path(..) => return Some(None),
+            NameValue(syn::MetaNameValue {
+                lit: syn::Lit::Str(s),
+                ..
+            }) => s,
+            _ => {
+                self.errors
+                    .push(syn::Error::new(meta.span(), "unsupported meta"));
+                return None;
+            }
+        };
+
+        match s.parse_with(syn::Path::parse_mod_style) {
+            Ok(path) => Some(Some(path)),
+            Err(error) => {
+                self.errors.push(error);
+                None
+            }
+        }
     }
 
     /// Parse field attributes.
@@ -328,6 +377,7 @@ impl Context {
                     for protocol in &attrs.protocols {
                         installers.push((protocol.generate)(Generate {
                             context: self,
+                            protocol,
                             attrs: &attrs,
                             ident,
                             field,

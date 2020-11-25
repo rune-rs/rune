@@ -11,6 +11,7 @@ pub const NAME: Symbol = Symbol("name");
 
 pub const GET: Symbol = Symbol("get");
 pub const SET: Symbol = Symbol("set");
+pub const COPY: Symbol = Symbol("copy");
 
 pub const ADD_ASSIGN: Symbol = Symbol("add_assign");
 pub const SUB_ASSIGN: Symbol = Symbol("sub_assign");
@@ -21,8 +22,7 @@ pub const BIT_OR_ASSIGN: Symbol = Symbol("bit_or_assign");
 pub const BIT_XOR_ASSIGN: Symbol = Symbol("bit_xor_assign");
 pub const SHL_ASSIGN: Symbol = Symbol("shl_assign");
 pub const SHR_ASSIGN: Symbol = Symbol("shr_assign");
-
-pub const COPY: Symbol = Symbol("copy");
+pub const REM_ASSIGN: Symbol = Symbol("rem_assign");
 
 pub const PROTOCOL_GET: Symbol = Symbol("GET");
 pub const PROTOCOL_SET: Symbol = Symbol("SET");
@@ -35,6 +35,7 @@ pub const PROTOCOL_BIT_OR_ASSIGN: Symbol = Symbol("BIT_OR_ASSIGN");
 pub const PROTOCOL_BIT_XOR_ASSIGN: Symbol = Symbol("BIT_XOR_ASSIGN");
 pub const PROTOCOL_SHL_ASSIGN: Symbol = Symbol("SHL_ASSIGN");
 pub const PROTOCOL_SHR_ASSIGN: Symbol = Symbol("SHR_ASSIGN");
+pub const PROTOCOL_REM_ASSIGN: Symbol = Symbol("REM_ASSIGN");
 
 impl PartialEq<Symbol> for syn::Ident {
     fn eq(&self, word: &Symbol) -> bool {

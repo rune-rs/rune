@@ -967,9 +967,7 @@ macro_rules! impl_register {
     (@return $stack:ident, $ret:ident, $ty:ty) => {
         let $ret = match $ret.to_value() {
             Ok($ret) => $ret,
-            Err(e) => return Err(VmError::from(VmErrorKind::BadReturn {
-                error: e.unpack_critical()?,
-            })),
+            Err(e) => return Err(VmError::from(e.unpack_critical()?)),
         };
 
         $stack.push($ret);
