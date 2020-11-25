@@ -29,6 +29,16 @@ pub enum RunError {
     VmError(#[source] VmError),
 }
 
+impl RunError {
+    /// Unpack into a vm error or panic with the given message.
+    pub fn expect_vm_error(self, msg: &str) -> VmError {
+        match self {
+            Self::VmError(error) => error,
+            _ => panic!("{}", msg),
+        }
+    }
+}
+
 /// Compile the given source into a unit and collection of warnings.
 pub fn compile_source(
     context: &runestick::Context,

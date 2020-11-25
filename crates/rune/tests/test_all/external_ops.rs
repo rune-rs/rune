@@ -13,6 +13,8 @@ fn test_external_ops() {
                 field: i64,
                 #[rune($derived)]
                 derived: i64,
+                #[rune($derived = "External::custom")]
+                custom: i64,
             }
 
             impl External {
@@ -22,6 +24,10 @@ fn test_external_ops() {
 
                 fn field(&mut self, value: i64) {
                     self.field $($op)* value;
+                }
+
+                fn custom(&mut self, value: i64) {
+                    self.custom $($op)* value;
                 }
             }
 
@@ -49,6 +55,7 @@ fn test_external_ops() {
                     number {op} {arg};
                     number.field {op} {arg};
                     number.derived {op} {arg};
+                    number.custom {op} {arg};
                 }}
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
             ));
@@ -72,12 +79,14 @@ fn test_external_ops() {
                 foo.value = $initial;
                 foo.field = $initial;
                 foo.derived = $initial;
+                foo.custom = $initial;
 
                 let output = vm.clone().call(&["type"], (&mut foo,)).unwrap();
 
-                assert_eq!(foo.value, $expected);
-                assert_eq!(foo.field, $expected);
-                assert_eq!(foo.derived, $expected);
+                assert_eq!(foo.value, $expected, "{} != {} (value)", foo.value, $expected);
+                assert_eq!(foo.field, $expected, "{} != {} (field)", foo.value, $expected);
+                assert_eq!(foo.derived, $expected, "{} != {} (derived)", foo.value, $expected);
+                assert_eq!(foo.custom, $expected, "{} != {} (custom)", foo.value, $expected);
                 assert!(matches!(output, Value::Unit));
             }
         }};
@@ -92,4 +101,5 @@ fn test_external_ops() {
     test_case!([^=], BIT_XOR_ASSIGN, bit_xor_assign, 0b1001, 0b0011, 0b1010);
     test_case!([<<=], SHL_ASSIGN, shl_assign, 0b1001, 0b0001, 0b10010);
     test_case!([>>=], SHR_ASSIGN, shr_assign, 0b1001, 0b0001, 0b100);
+    test_case!([%=], REM_ASSIGN, rem_assign, 25, 10, 5);
 }
