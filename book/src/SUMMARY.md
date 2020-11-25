@@ -12,6 +12,7 @@
   - [Pattern matching](./pattern_matching.md)
   - [Template literals](./template_literals.md)
   - [Instance functions](./instance_functions.md)
+  - [Field functions](./field_functions.md)
 - [Built-in types](./types.md)
   - [Primitives and references](./primitives.md)
   - [Vectors](./vectors.md)
