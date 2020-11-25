@@ -53,6 +53,11 @@ pub enum QueryErrorKind {
     MissingId { what: &'static str, id: Option<Id> },
     #[error("cannot define conflicting item `{item}`")]
     ItemConflict { item: Item, other: Location },
+    #[error("`{item}` can refer to multiple things")]
+    AmbiguousItem {
+        item: Item,
+        locations: Vec<(Location, Item)>,
+    },
     #[error("item `{item}` with {visibility} visibility, is not accessible from `{from}`")]
     NotVisible {
         chain: Vec<Location>,

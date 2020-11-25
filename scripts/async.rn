@@ -1,5 +1,3 @@
-use http;
-
 struct Timeout;
 
 async fn test(timeout, helpful_hint) {

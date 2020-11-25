@@ -38,7 +38,7 @@ use runestick::{Any, ContextError, Module, Value};
 
 /// Construct the `rand` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::new(&["rand"]);
+    let mut module = Module::from_crate("rand");
 
     module.ty::<WyRand>()?;
     module.function(&["WyRand", "new"], WyRand::new)?;

@@ -5,7 +5,7 @@ use std::num::ParseIntError;
 
 /// Construct the `std::int` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "int"]);
+    let mut module = Module::with_crate("std", &["int"]);
 
     module.ty::<ParseIntError>()?;
 

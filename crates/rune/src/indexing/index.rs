@@ -10,7 +10,7 @@ use crate::query::{
     Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
 };
 use crate::shared::{Consts, Items, Location};
-use crate::worker::{Import, LoadFileKind, Task};
+use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _, Options,
     ParseError, Resolve as _, Spanned as _, Storage, Warnings,
@@ -371,25 +371,22 @@ impl<'a> Indexer<'a> {
             match item {
                 ast::Item::Use(item_use) => {
                     let visibility = Visibility::from_ast(&item_use.visibility)?;
-                    let queue = &mut *self.queue;
 
                     let import = Import {
+                        kind: ImportKind::Global,
                         visibility,
-                        item: &*self.items.item(),
-                        source: &self.source,
+                        module: self.mod_item.clone(),
+                        item: self.items.item().clone(),
+                        source: self.source.clone(),
                         source_id: self.source_id,
                         ast: item_use,
                     };
 
-                    import.process(
-                        &self.mod_item,
-                        &self.context,
-                        &self.storage,
-                        &self.query,
-                        |expand| {
-                            queue.push_back(Task::ExpandUnitWildcard(expand));
-                        },
-                    )?;
+                    let queue = &mut self.queue;
+
+                    import.process(&self.context, &self.storage, &self.query, &mut |task| {
+                        queue.push_back(task);
+                    })?;
                 }
                 ast::Item::MacroCall(mut macro_call) => {
                     let mut attributes = attrs::Attributes::new(
@@ -431,25 +428,22 @@ impl<'a> Indexer<'a> {
             match stmt {
                 ast::Stmt::Item(ast::Item::Use(item_use), _) => {
                     let visibility = Visibility::from_ast(&item_use.visibility)?;
-                    let queue = &mut *self.queue;
 
                     let import = Import {
+                        kind: ImportKind::Global,
                         visibility,
-                        item: &*self.items.item(),
-                        source: &self.source,
+                        module: self.mod_item.clone(),
+                        item: self.items.item().clone(),
+                        source: self.source.clone(),
                         source_id: self.source_id,
                         ast: item_use,
                     };
 
-                    import.process(
-                        &self.mod_item,
-                        self.context,
-                        &self.storage,
-                        &self.query,
-                        |expand| {
-                            queue.push_back(Task::ExpandUnitWildcard(expand));
-                        },
-                    )?;
+                    let queue = &mut self.queue;
+
+                    import.process(&self.context, &self.storage, &self.query, &mut |task| {
+                        queue.push_back(task);
+                    })?;
                 }
                 ast::Stmt::Item(ast::Item::MacroCall(mut macro_call), semi) => {
                     let mut attributes = attrs::Attributes::new(
@@ -745,7 +739,7 @@ impl Index for ast::ItemFn {
                 query_item: item,
                 source: idx.source.clone(),
                 indexed: Indexed::Function(fun),
-            })?;
+            });
         }
 
         Ok(())

@@ -85,10 +85,8 @@ fn test_rust_example() {
         pub fn public_api() {}
 
         pub mod submodule {
-            use crate_helper_module;
-
             pub fn my_method() {
-                crate_helper_module::crate_helper();
+                crate::crate_helper_module::crate_helper();
             }
 
             fn my_implementation() {}

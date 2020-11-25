@@ -9,8 +9,8 @@ use crate::shared::Location;
 use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
-    Call, CompileMeta, CompileMetaKind, Context, DebugInfo, DebugInst, Hash, Inst, Item, Label,
-    Rtti, Span, StaticString, Unit, UnitFn, VariantRtti,
+    Call, CompileMeta, CompileMetaKind, Context, DebugInfo, DebugInst, Hash, Inst, IntoComponent,
+    Item, Label, Rtti, Span, StaticString, Unit, UnitFn, VariantRtti,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -39,76 +39,34 @@ impl UnitBuilder {
     pub fn with_default_prelude() -> Self {
         let mut this = Inner::default();
 
-        this.prelude
-            .insert("dbg".into(), Item::of(&["std", "io", "dbg"]));
-        this.prelude
-            .insert("drop".into(), Item::of(&["std", "core", "drop"]));
-        this.prelude.insert(
-            "is_readable".into(),
-            Item::of(&["std", "core", "is_readable"]),
-        );
-        this.prelude.insert(
-            "is_writable".into(),
-            Item::of(&["std", "core", "is_writable"]),
-        );
-        this.prelude
-            .insert("panic".into(), Item::of(&["std", "core", "panic"]));
-        this.prelude
-            .insert("print".into(), Item::of(&["std", "io", "print"]));
-        this.prelude
-            .insert("println".into(), Item::of(&["std", "io", "println"]));
-        this.prelude
-            .insert("format".into(), Item::of(&["std", "fmt", "format"]));
-        this.prelude
-            .insert("unit".into(), Item::of(&["std", "core", "unit"]));
-        this.prelude
-            .insert("bool".into(), Item::of(&["std", "core", "bool"]));
-        this.prelude
-            .insert("byte".into(), Item::of(&["std", "core", "byte"]));
-        this.prelude
-            .insert("char".into(), Item::of(&["std", "core", "char"]));
-        this.prelude
-            .insert("int".into(), Item::of(&["std", "core", "int"]));
-        this.prelude
-            .insert("float".into(), Item::of(&["std", "core", "float"]));
-        this.prelude
-            .insert("Object".into(), Item::of(&["std", "object", "Object"]));
-        this.prelude
-            .insert("Vec".into(), Item::of(&["std", "vec", "Vec"]));
-        this.prelude
-            .insert("String".into(), Item::of(&["std", "string", "String"]));
-        this.prelude
-            .insert("Result".into(), Item::of(&["std", "result", "Result"]));
-        this.prelude
-            .insert("Err".into(), Item::of(&["std", "result", "Result", "Err"]));
-        this.prelude
-            .insert("Ok".into(), Item::of(&["std", "result", "Result", "Ok"]));
-        this.prelude
-            .insert("Option".into(), Item::of(&["std", "option", "Option"]));
-        this.prelude.insert(
-            "Some".into(),
-            Item::of(&["std", "option", "Option", "Some"]),
-        );
-        this.prelude.insert(
-            "None".into(),
-            Item::of(&["std", "option", "Option", "None"]),
-        );
-
-        this.prelude
-            .insert("stringify".into(), Item::of(&["std", "core", "stringify"]));
-        this.prelude
-            .insert("assert".into(), Item::of(&["std", "test", "assert"]));
-        this.prelude
-            .insert("assert_eq".into(), Item::of(&["std", "test", "assert_eq"]));
-
-        this.prelude.insert(
-            "line".into(),
-            Item::of(&["std", "macros", "builtin", "line"]),
-        );
-        this.prelude.insert(
-            "file".into(),
-            Item::of(&["std", "macros", "builtin", "file"]),
-        );
+        this.prelude("assert_eq", &["test", "assert_eq"]);
+        this.prelude("assert", &["test", "assert"]);
+        this.prelude("bool", &["core", "bool"]);
+        this.prelude("byte", &["core", "byte"]);
+        this.prelude("char", &["core", "char"]);
+        this.prelude("dbg", &["io", "dbg"]);
+        this.prelude("drop", &["core", "drop"]);
+        this.prelude("Err", &["result", "Result", "Err"]);
+        this.prelude("file", &["macros", "builtin", "file"]);
+        this.prelude("float", &["core", "float"]);
+        this.prelude("format", &["fmt", "format"]);
+        this.prelude("int", &["core", "int"]);
+        this.prelude("is_readable", &["core", "is_readable"]);
+        this.prelude("is_writable", &["core", "is_writable"]);
+        this.prelude("line", &["macros", "builtin", "line"]);
+        this.prelude("None", &["option", "Option", "None"]);
+        this.prelude("Object", &["object", "Object"]);
+        this.prelude("Ok", &["result", "Result", "Ok"]);
+        this.prelude("Option", &["option", "Option"]);
+        this.prelude("panic", &["core", "panic"]);
+        this.prelude("print", &["io", "print"]);
+        this.prelude("println", &["io", "println"]);
+        this.prelude("Result", &["result", "Result"]);
+        this.prelude("Some", &["option", "Option", "Some"]);
+        this.prelude("String", &["string", "String"]);
+        this.prelude("stringify", &["core", "stringify"]);
+        this.prelude("unit", &["core", "unit"]);
+        this.prelude("Vec", &["vec", "Vec"]);
 
         Self {
             inner: Rc::new(RefCell::new(this)),
@@ -662,6 +620,16 @@ struct Inner {
 }
 
 impl Inner {
+    /// Define a prelude item.
+    fn prelude<I>(&mut self, local: &str, path: I)
+    where
+        I: IntoIterator,
+        I::Item: IntoComponent,
+    {
+        self.prelude
+            .insert(local.into(), Item::with_crate("std", path));
+    }
+
     /// Insert and access debug information.
     fn debug_info_mut(&mut self) -> &mut DebugInfo {
         self.debug.get_or_insert_with(Default::default)

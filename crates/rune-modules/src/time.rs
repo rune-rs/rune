@@ -35,7 +35,7 @@ use runestick::{Any, ContextError, Module};
 
 /// Construct the `time` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::new(&["time"]);
+    let mut module = Module::from_crate("time");
     module.function(&["Duration", "from_secs"], Duration::from_secs)?;
     module.async_function(&["delay_for"], delay_for)?;
     Ok(module)

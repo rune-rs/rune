@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
-use crate::query::{Build, BuildEntry, Query, Used};
+use crate::query::{Build, BuildEntry, Query};
 use crate::shared::Consts;
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
@@ -296,27 +296,30 @@ impl CompileBuildEntry<'_> {
             }
             Build::Import(import) => {
                 // Issue the import to check access.
-                let result = self.query.import(
-                    &item.module,
-                    location.span,
-                    &import.entry.imported,
-                    Used::Used,
-                )?;
+                let result = self
+                    .query
+                    .import(location.span, &item.module, &item.item, used)?;
 
                 if used.is_unused() {
                     self.warnings
                         .not_used(location.source_id, location.span, None);
                 }
 
-                if result.is_none()
-                    && !self.context.contains_prefix(&import.entry.imported)
-                    && !self.query.contains_module(&import.entry.imported)
-                {
+                let missing = match &result {
+                    Some(item) => {
+                        if self.context.contains_prefix(item) || self.query.contains_prefix(item) {
+                            None
+                        } else {
+                            Some(item)
+                        }
+                    }
+                    None => Some(&import.entry.target),
+                };
+
+                if let Some(item) = missing {
                     return Err(CompileError::new(
                         location.span,
-                        CompileErrorKind::MissingItem {
-                            item: item.item.clone(),
-                        },
+                        CompileErrorKind::MissingItem { item: item.clone() },
                     ));
                 }
             }
@@ -324,7 +327,7 @@ impl CompileBuildEntry<'_> {
                 let import =
                     match self
                         .query
-                        .import(&item.module, location.span, &item.item, used)?
+                        .import(location.span, &item.module, &item.item, used)?
                     {
                         Some(item) => item,
                         None => {

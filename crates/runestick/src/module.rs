@@ -139,7 +139,7 @@ pub(crate) struct ModuleMacro {
 #[derive(Default)]
 pub struct Module {
     /// The name of the module.
-    pub(crate) path: Item,
+    pub(crate) item: Item,
     /// Free functions.
     pub(crate) functions: HashMap<Item, ModuleFn>,
     /// Macro handlers.
@@ -155,14 +155,37 @@ pub struct Module {
 }
 
 impl Module {
-    /// Construct a new module.
-    pub fn new<I>(path: I) -> Self
+    /// Create an empty module for the root path.
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    /// Construct a new module for the given item.
+    pub fn new<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
+        Self::with_item(Item::of(iter))
+    }
+
+    /// Construct a new module for the given crate.
+    pub fn from_crate(name: &str) -> Self {
+        Self::with_item(Item::from_crate(name))
+    }
+
+    /// Construct a new module for the given crate.
+    pub fn with_crate<I>(name: &str, iter: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: IntoComponent,
+    {
+        Self::with_item(Item::with_crate(name, iter))
+    }
+
+    fn with_item(item: Item) -> Self {
         Self {
-            path: Item::of(path),
+            item,
             functions: Default::default(),
             macros: Default::default(),
             associated_functions: Default::default(),
@@ -170,11 +193,6 @@ impl Module {
             unit_type: None,
             internal_enums: Vec::new(),
         }
-    }
-
-    /// Create an empty module for the root path.
-    pub fn empty() -> Self {
-        Self::default()
     }
 
     /// Register a type. Registering a type is mandatory in order to register

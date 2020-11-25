@@ -38,9 +38,12 @@ impl MacroCompiler<'_> {
 
         // TODO: include information on the module the macro is being called
         // from.
-        let named = self
-            .query
-            .convert_path(&macro_call.path, &self.storage, &*self.source)?;
+        let named = self.query.convert_path(
+            self.context,
+            &self.storage,
+            &*self.source,
+            &macro_call.path,
+        )?;
 
         let hash = Hash::type_hash(&named.item);
 

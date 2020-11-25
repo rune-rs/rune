@@ -33,7 +33,7 @@ use tokio::signal;
 
 /// Construct the `signal` module.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["signal"]);
+    let mut module = runestick::Module::from_crate("signal");
     module.async_function(&["ctrl_c"], signal::ctrl_c)?;
     Ok(module)
 }

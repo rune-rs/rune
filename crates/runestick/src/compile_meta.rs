@@ -198,7 +198,7 @@ pub enum CompileMetaKind {
     /// Purely an import.
     Import {
         /// The imported target.
-        imported: Item,
+        target: Item,
     },
 }
 

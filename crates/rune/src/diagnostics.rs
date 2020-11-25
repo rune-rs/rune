@@ -454,6 +454,14 @@ impl EmitDiagnostics for Error {
                             .with_message("module defined here"),
                     );
                 }
+                QueryErrorKind::AmbiguousItem { locations, .. } => {
+                    for (Location { source_id, span }, item) in locations {
+                        labels.push(
+                            Label::secondary(*source_id, span.range())
+                                .with_message(format!("here as `{}`", item)),
+                        );
+                    }
+                }
                 _ => (),
             }
 
