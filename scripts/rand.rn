@@ -1,5 +1,3 @@
-use rand;
-
 pub fn main() {
      let rng = rand::WyRand::new();
      let rand_int = rng.int();

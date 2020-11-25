@@ -126,6 +126,8 @@ pub enum CompileErrorKind {
     MissingLocal { name: String },
     #[error("missing item `{item}`")]
     MissingItem { item: Item },
+    #[error("unsupported crate prefix `::`")]
+    UnsupportedGlobal,
     #[error("cannot load modules using a source without an associated URL")]
     UnsupportedModuleSource,
     #[error("cannot load modules relative to `{root}`")]
@@ -281,7 +283,7 @@ pub enum CompileErrorKind {
 }
 
 /// A single stap as an import entry.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ImportEntryStep {
     /// The location of the import.
     pub location: Location,

@@ -4,7 +4,7 @@ use crate::{Bytes, ContextError, Module, Protocol};
 
 /// Construct the `std::string` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "string"]);
+    let mut module = Module::with_crate("std", &["string"]);
 
     module.ty::<String>()?;
 

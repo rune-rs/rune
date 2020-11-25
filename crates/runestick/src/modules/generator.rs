@@ -4,7 +4,7 @@ use crate::{ContextError, Generator, Module};
 
 /// Construct the `std::generator` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "generator"]);
+    let mut module = Module::with_crate("std", &["generator"]);
     module.ty::<Generator>()?;
     module.generator_state(&["GeneratorState"])?;
 

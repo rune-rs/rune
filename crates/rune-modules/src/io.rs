@@ -25,7 +25,7 @@ use rune::{quote, Parser, TokenStream};
 
 /// Construct the supplemental `std::io` module.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["std", "io"]);
+    let mut module = runestick::Module::with_crate("std", &["io"]);
     module.macro_(&["println"], println_macro)?;
     Ok(module)
 }

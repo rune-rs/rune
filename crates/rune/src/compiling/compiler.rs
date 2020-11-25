@@ -234,7 +234,7 @@ impl<'a> Compiler<'a> {
     pub(crate) fn convert_path_to_named(&mut self, path: &ast::Path) -> CompileResult<Named> {
         let named = self
             .query
-            .convert_path(path, &self.storage, &*self.source)?;
+            .convert_path(self.context, &self.storage, &*self.source, path)?;
 
         Ok(named)
     }

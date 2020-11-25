@@ -57,13 +57,13 @@ fn test_access() {
     assert!(rune! { bool =>
         mod a { pub struct Foo; }
 
-        mod c {
-            use a::Foo;
-            use crate::a;
-            pub fn test() { Foo is a::Foo }
+        mod b {
+            use c::Foo;
+            use crate::a as c;
+            pub fn test() { Foo is c::Foo }
         }
 
-        pub fn main() { c::test() }
+        pub fn main() { b::test() }
     });
 
     assert_compile_error! {

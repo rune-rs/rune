@@ -7,11 +7,12 @@ use std::hash;
 use std::hash::Hash as _;
 
 // Types available.
-const STRING: u8 = 0;
-const ID: u8 = 1;
+const CRATE: u8 = 0;
+const STRING: u8 = 1;
+const ID: u8 = 2;
 
 /// How many bits the type of a tag takes up.
-const TYPE_BITS: usize = 1;
+const TYPE_BITS: usize = 2;
 /// Mask of the type of a tag.
 const TYPE_MASK: usize = (0b1 << TYPE_BITS) - 1;
 /// Total tag size in bytes.
@@ -78,6 +79,50 @@ impl Item {
         }
 
         Self { content }
+    }
+
+    /// Get the crate corresponding to the item.
+    pub fn as_crate(&self) -> Option<&str> {
+        if let Some(ComponentRef::Crate(s)) = self.iter().next() {
+            Some(s)
+        } else {
+            None
+        }
+    }
+
+    /// Construct item for a crate.
+    pub fn from_crate(name: &str) -> Self {
+        Self::of(&[ComponentRef::Crate(name)])
+    }
+
+    /// Create a crated item with the given name.
+    pub fn with_crate<I>(name: &str, iter: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: IntoComponent,
+    {
+        let mut content = Vec::new();
+        ComponentRef::Crate(name).write_component(&mut content);
+
+        for c in iter {
+            c.write_component(&mut content);
+        }
+
+        Self { content }
+    }
+
+    /// Access the first component of this item.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{ComponentRef, Item};
+    ///
+    /// let item = Item::of(&["foo", "bar"]);
+    /// assert_eq!(item.first(), Some(ComponentRef::Str("foo")));
+    /// ```
+    pub fn first(&self) -> Option<ComponentRef<'_>> {
+        self.iter().next()
     }
 
     /// Push the given component to the current item.
@@ -339,25 +384,36 @@ impl<'a> Iterator for Iter<'a> {
         let (b, n) = read_tag(head_tag);
 
         let c = match b {
-            STRING => {
-                let (buf, content) = content.split_at(n);
-
-                // consume the head tag.
-                let (tail_tag, content) = content.split_at(TAG_BYTES);
+            CRATE => {
+                let (s, content, tail_tag) = read_string(content, n);
                 debug_assert_eq!(head_tag, tail_tag);
                 self.content = content;
-
-                // Safety: we control the construction of the item.
-                return Some(ComponentRef::Str(unsafe {
-                    std::str::from_utf8_unchecked(buf)
-                }));
+                return Some(ComponentRef::Crate(s));
+            }
+            STRING => {
+                let (s, content, tail_tag) = read_string(content, n);
+                debug_assert_eq!(head_tag, tail_tag);
+                self.content = content;
+                return Some(ComponentRef::Str(s));
             }
             ID => ComponentRef::Id(n),
             b => panic!("unsupported control byte {:?}", b),
         };
 
         self.content = content;
-        Some(c)
+        return Some(c);
+
+        fn read_string<'a>(content: &'a [u8], n: usize) -> (&'a str, &'a [u8], &'a [u8]) {
+            let (buf, content) = content.split_at(n);
+
+            // consume the head tag.
+            let (tail_tag, content) = content.split_at(TAG_BYTES);
+
+            // Safety: we control the construction of the item.
+            let s = unsafe { std::str::from_utf8_unchecked(buf) };
+
+            (s, content, tail_tag)
+        }
     }
 }
 
@@ -377,30 +433,40 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
         let (b, n) = read_tag(tail);
 
         let c = match b {
-            STRING => {
-                let (content, buf) =
-                    content.split_at(content.len().checked_sub(n).expect("length underflow"));
-
-                // consume the head tag.
-                let (content, _) = content.split_at(
-                    content
-                        .len()
-                        .checked_sub(TAG_BYTES)
-                        .expect("length underflow"),
-                );
+            CRATE => {
+                let (s, content) = read_string_back(content, n);
                 self.content = content;
-
-                // Safety: we control the construction of the item.
-                return Some(ComponentRef::Str(unsafe {
-                    std::str::from_utf8_unchecked(buf)
-                }));
+                return Some(ComponentRef::Crate(s));
+            }
+            STRING => {
+                let (s, content) = read_string_back(content, n);
+                self.content = content;
+                return Some(ComponentRef::Str(s));
             }
             ID => ComponentRef::Id(n),
             b => panic!("unsupported control byte {:?}", b),
         };
 
         self.content = content;
-        Some(c)
+        return Some(c);
+
+        fn read_string_back<'a>(content: &'a [u8], n: usize) -> (&'a str, &'a [u8]) {
+            let (content, buf) =
+                content.split_at(content.len().checked_sub(n).expect("length underflow"));
+
+            // consume the head tag.
+            let (content, _) = content.split_at(
+                content
+                    .len()
+                    .checked_sub(TAG_BYTES)
+                    .expect("length underflow"),
+            );
+
+            // Safety: we control the construction of the item.
+            let s = unsafe { std::str::from_utf8_unchecked(buf) };
+
+            (s, content)
+        }
     }
 }
 
@@ -434,6 +500,8 @@ impl PartialEq<Iter<'_>> for &Item {
 /// have the indexes `1` and `2` respectively.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Component {
+    /// A crate component.
+    Crate(Box<str>),
     /// A regular string component.
     Str(Box<str>),
     /// A nested anonymous part with an identifier.
@@ -444,14 +512,15 @@ impl Component {
     /// Get the identifier of the component.
     pub fn id(&self) -> Option<usize> {
         match self {
-            Self::Str(..) => None,
             Self::Id(n) => Some(*n),
+            _ => None,
         }
     }
 
     /// Convert into component reference.
     pub fn as_component_ref(&self) -> ComponentRef<'_> {
         match self {
+            Self::Crate(s) => ComponentRef::Crate(&*s),
             Self::Str(s) => ComponentRef::Str(&*s),
             Self::Id(n) => ComponentRef::Id(*n),
         }
@@ -461,6 +530,7 @@ impl Component {
 impl fmt::Display for Component {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Crate(s) => write!(fmt, "::{}", s),
             Self::Str(s) => write!(fmt, "{}", s),
             Self::Id(n) => write!(fmt, "${}", n),
         }
@@ -473,6 +543,8 @@ impl fmt::Display for Component {
 /// have the indexes `1` and `2` respectively.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ComponentRef<'a> {
+    /// A crate string component.
+    Crate(&'a str),
     /// A regular string component.
     Str(&'a str),
     /// A nested anonymous part with an identifier.
@@ -483,14 +555,15 @@ impl ComponentRef<'_> {
     /// Get the identifier of the component if it is an identifier component.
     pub fn id(self) -> Option<usize> {
         match self {
-            Self::Str(..) => None,
             Self::Id(n) => Some(n),
+            _ => None,
         }
     }
 
     /// Convert into an owned component.
     pub fn into_component(self) -> Component {
         match self {
+            Self::Crate(s) => Component::Crate(s.into()),
             Self::Str(s) => Component::Str(s.into()),
             Self::Id(n) => Component::Id(n),
         }
@@ -499,6 +572,9 @@ impl ComponentRef<'_> {
     /// Write the current component to the given vector.
     pub fn write_component(self, output: &mut Vec<u8>) {
         match self {
+            ComponentRef::Crate(s) => {
+                write_crate(s, output);
+            }
             ComponentRef::Str(s) => {
                 write_str(s, output);
             }
@@ -514,6 +590,10 @@ impl ComponentRef<'_> {
         H: hash::Hasher,
     {
         match self {
+            ComponentRef::Crate(s) => {
+                CRATE.hash(hasher);
+                s.hash(hasher);
+            }
             ComponentRef::Str(s) => {
                 STRING.hash(hasher);
                 s.hash(hasher);
@@ -529,6 +609,7 @@ impl ComponentRef<'_> {
 impl fmt::Display for ComponentRef<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Crate(s) => write!(fmt, "::{}", s),
             Self::Str(s) => write!(fmt, "{}", s),
             Self::Id(n) => write!(fmt, "${}", n),
         }
@@ -658,6 +739,13 @@ fn write_tag(output: &mut Vec<u8>, tag: u8, n: usize) {
     output.write_u16::<NativeEndian>(n).unwrap();
 }
 
+/// Internal function to write only the crate of a component.
+fn write_crate(s: &str, output: &mut Vec<u8>) {
+    write_tag(output, CRATE, s.len());
+    output.extend(s.as_bytes());
+    write_tag(output, CRATE, s.len());
+}
+
 /// Internal function to write only the string of a component.
 fn write_str(s: &str, output: &mut Vec<u8>) {
     write_tag(output, STRING, s.len());
@@ -728,6 +816,7 @@ mod tests {
     fn test_next_back_str() {
         let mut item = Item::new();
 
+        item.push(ComponentRef::Crate("std"));
         item.push("start");
         item.push(ComponentRef::Id(1));
         item.push(ComponentRef::Id(2));
@@ -743,6 +832,7 @@ mod tests {
         assert_eq!(it.next_back(), Some(ComponentRef::Id(2)));
         assert_eq!(it.next_back(), Some(ComponentRef::Id(1)));
         assert_eq!(it.next_back_str(), Some("start"));
+        assert_eq!(it.next_back(), Some(ComponentRef::Crate("std")));
         assert_eq!(it.next_back(), None);
     }
 
@@ -750,6 +840,7 @@ mod tests {
     fn alternate() {
         let mut item = Item::new();
 
+        item.push(ComponentRef::Crate("std"));
         item.push("start");
         item.push(ComponentRef::Id(1));
         item.push(ComponentRef::Id(2));
@@ -759,6 +850,7 @@ mod tests {
 
         let mut it = item.iter();
 
+        assert_eq!(it.next(), Some(ComponentRef::Crate("std")));
         assert_eq!(it.next_str(), Some("start"));
         assert_eq!(it.next_back_str(), Some("end"));
         assert_eq!(it.next(), Some(ComponentRef::Id(1)));

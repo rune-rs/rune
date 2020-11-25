@@ -6,7 +6,7 @@ use crate::{
 
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "iter"]);
+    let mut module = Module::with_crate("std", &["iter"]);
     module.ty::<Iterator>()?;
 
     module.inst_fn("chain", Iterator::chain)?;

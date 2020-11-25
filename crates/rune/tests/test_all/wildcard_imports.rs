@@ -3,15 +3,8 @@ fn test_wildcard_precedence() {
     assert!(rune! { bool =>
         mod a { pub struct Foo; }
         mod b { pub struct Foo; }
-        use a::*;
-        use b::*;
-        pub fn main() { Foo is b::Foo }
-    });
-
-    assert!(rune! { bool =>
-        mod a { pub struct Foo; }
-        mod b { pub struct Foo; }
         use {a::*, b::*};
+        use b::Foo;
         pub fn main() { Foo is b::Foo }
     });
 
@@ -19,6 +12,7 @@ fn test_wildcard_precedence() {
         mod a { pub struct Foo; }
         mod b { pub struct Foo; }
         use {b::*, a::*};
+        use a::Foo;
         pub fn main() { Foo is a::Foo }
     });
 

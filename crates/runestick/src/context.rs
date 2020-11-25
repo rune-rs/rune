@@ -217,6 +217,8 @@ pub struct Context {
     internal_enums: HashSet<&'static StaticType>,
     /// All available names in the context.
     names: Names<()>,
+    /// Registered crates.
+    crates: HashSet<Box<str>>,
 }
 
 impl Context {
@@ -259,6 +261,11 @@ impl Context {
         this.install(&crate::modules::fmt::module()?)?;
         this.has_default_modules = true;
         Ok(this)
+    }
+
+    /// Check if context contains the given crate.
+    pub fn contains_crate(&self, name: &str) -> bool {
+        self.crates.contains(name)
     }
 
     /// Test if the context has the default modules installed.
@@ -333,6 +340,10 @@ impl Context {
 
     /// Install the specified module.
     pub fn install(&mut self, module: &Module) -> Result<(), ContextError> {
+        if let Some(ComponentRef::Crate(name)) = module.item.first() {
+            self.crates.insert(name.into());
+        }
+
         for (type_hash, ty) in &module.types {
             self.install_type(&module, *type_hash, ty)?;
         }
@@ -384,7 +395,7 @@ impl Context {
         type_hash: Hash,
         ty: &ModuleType,
     ) -> Result<(), ContextError> {
-        let item = module.path.extended(&*ty.name);
+        let item = module.item.extended(&*ty.name);
         let hash = Hash::type_hash(&item);
 
         self.install_type_info(
@@ -436,7 +447,7 @@ impl Context {
         item: &Item,
         f: &ModuleFn,
     ) -> Result<(), ContextError> {
-        let item = module.path.join(item);
+        let item = module.item.join(item);
         self.names.insert(&item, ());
 
         let hash = Hash::type_hash(&item);
@@ -474,7 +485,7 @@ impl Context {
         item: &Item,
         m: &ModuleMacro,
     ) -> Result<(), ContextError> {
-        let item = module.path.join(item);
+        let item = module.item.join(item);
 
         self.names.insert(&item, ());
 
@@ -534,7 +545,7 @@ impl Context {
             return Err(ContextError::UnitAlreadyPresent);
         }
 
-        let item = module.path.extended(&*unit_type.name);
+        let item = module.item.extended(&*unit_type.name);
         let hash = Hash::type_hash(&item);
         self.unit_type = Some(Hash::type_hash(&item));
         self.add_internal_tuple(None, item.clone(), 0, || ())?;
@@ -564,7 +575,7 @@ impl Context {
             });
         }
 
-        let enum_item = module.path.join(&internal_enum.base_type);
+        let enum_item = module.item.join(&internal_enum.base_type);
         let enum_hash = Hash::type_hash(&enum_item);
 
         self.install_meta(CompileMeta {

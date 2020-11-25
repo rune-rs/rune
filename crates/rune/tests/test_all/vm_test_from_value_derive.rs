@@ -92,10 +92,11 @@ fn test_enum_proxy() {
     }
 
     let proxy = rune! { Proxy =>
-    pub fn main() {
-        enum Proxy { Unit, Tuple(a), Struct { field } }
-        Proxy::Unit
-    }};
+        pub fn main() {
+            enum Proxy { Unit, Tuple(a), Struct { field } }
+            Proxy::Unit
+        }
+    };
 
     assert_eq!(proxy, Proxy::Unit);
 
