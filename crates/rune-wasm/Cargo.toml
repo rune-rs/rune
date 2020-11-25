@@ -25,7 +25,7 @@ parking_lot = "0.11.0"
 
 rune = {version = "0.7.0", path = "../rune", features = []}
 rune-macros = {version = "0.7.0", path = "../rune-macros"}
-rune-modules = {version = "0.7.0", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand", "experiments"]}
+rune-modules = {version = "0.7.0", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand", "experiments", "macros"]}
 runestick = {version = "0.7.0", path = "../runestick"}
 
 [dependencies.web-sys]

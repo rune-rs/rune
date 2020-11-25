@@ -169,6 +169,7 @@ fn setup_context(experimental: bool) -> Result<runestick::Context, ContextError>
     context.install(&rune_modules::core::module(false)?)?;
     context.install(&rune_modules::test::module(false)?)?;
     context.install(&rune_modules::io::module(false)?)?;
+    context.install(&rune_modules::macros::module(false)?)?;
 
     if experimental {
         context.install(&rune_modules::experiments::module(false)?)?;
