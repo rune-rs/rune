@@ -105,6 +105,7 @@ mod type_of;
 mod unit;
 mod vec;
 mod vec_tuple;
+mod visibility;
 mod vm_call;
 mod vm_error;
 mod vm_execution;
@@ -209,6 +210,7 @@ pub use crate::value::{
     VariantRtti,
 };
 pub use crate::vec_tuple::VecTuple;
+pub use crate::visibility::Visibility;
 pub use crate::vm::{CallFrame, Vm};
 pub use crate::vm_call::VmCall;
 pub use crate::vm_error::{VmError, VmErrorKind, VmIntegerRepr};

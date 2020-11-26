@@ -1,7 +1,6 @@
-use crate::indexing::Visibility;
 use crate::query::{Query, QueryMod};
 use crate::{CompileError, CompileErrorKind, CompileResult};
-use runestick::{Context, Item, Source, SourceId, Span};
+use runestick::{Context, Item, Source, SourceId, Span, Visibility};
 
 use std::rc::Rc;
 use std::sync::Arc;

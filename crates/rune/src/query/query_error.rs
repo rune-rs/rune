@@ -1,9 +1,8 @@
 use crate::compiling::{ImportEntryStep, InsertMetaError};
-use crate::indexing::Visibility;
 use crate::{
     Id, IrError, IrErrorKind, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind, Spanned,
 };
-use runestick::{CompileMeta, Item, Location};
+use runestick::{CompileMeta, Item, Location, Visibility};
 use thiserror::Error;
 
 error! {
