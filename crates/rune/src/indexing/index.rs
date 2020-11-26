@@ -698,11 +698,13 @@ impl Index for ast::ItemFn {
                 used: Used::Used,
             });
 
+            let kind = CompileMetaKind::Function {
+                type_hash: Hash::type_hash(&item.item),
+            };
+
             let meta = CompileMeta {
-                item: item.item.clone(),
-                kind: CompileMetaKind::Function {
-                    type_hash: Hash::type_hash(&item.item),
-                },
+                item,
+                kind,
                 source: Some(CompileSource {
                     span,
                     path: idx.source.path().map(ToOwned::to_owned),
@@ -721,11 +723,13 @@ impl Index for ast::ItemFn {
                 used: Used::Used,
             });
 
+            let kind = CompileMetaKind::Function {
+                type_hash: Hash::type_hash(&item.item),
+            };
+
             let meta = CompileMeta {
-                item: item.item.clone(),
-                kind: CompileMetaKind::Function {
-                    type_hash: Hash::type_hash(&item.item),
-                },
+                item,
+                kind,
                 source: Some(CompileSource {
                     span,
                     path: idx.source.path().map(ToOwned::to_owned),

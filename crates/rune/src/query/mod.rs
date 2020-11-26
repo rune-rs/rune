@@ -247,36 +247,28 @@ impl Query {
         Ok(query_mod)
     }
 
-    /// Get the item indexed item for the given item.
-    pub(crate) fn get_item(
-        &self,
-        spanned: Span,
-        item: &Item,
-    ) -> Result<Arc<CompileItem>, QueryError> {
+    /// Get the compile item for the given item.
+    pub(crate) fn get_item(&self, span: Span, item: &Item) -> Result<Arc<CompileItem>, QueryError> {
         let inner = self.inner.borrow();
+        let id = self.get_item_id(span, item)?;
 
-        if let Some(existing) = inner.items_rev.get(item) {
-            Ok(existing.clone())
-        } else {
-            Err(QueryError::new(
-                spanned,
-                QueryErrorKind::MissingRevItem { item: item.clone() },
-            ))
+        if let Some(item) = inner.items.get(&id) {
+            return Ok(item.clone());
         }
+
+        Err(QueryError::new(
+            span,
+            QueryErrorKind::MissingRevItem { item: item.clone() },
+        ))
     }
 
-    /// Get the id of an existing item.
-    pub(crate) fn get_item_id(&self, spanned: Span, item: &Item) -> Result<Id, QueryError> {
+    /// Get the id of the given item.
+    ///
+    /// This will error in case none or multiple entries are registered for the
+    /// given item.
+    pub(crate) fn get_item_id(&self, span: Span, item: &Item) -> Result<Id, QueryError> {
         let inner = self.inner.borrow();
-
-        if let Some(existing) = inner.items_rev.get(item) {
-            Ok(existing.id)
-        } else {
-            Err(QueryError::new(
-                spanned,
-                QueryErrorKind::MissingRevItem { item: item.clone() },
-            ))
-        }
+        inner.get_item_id(span, item)
     }
 
     /// Insert a new item with the given parameters.
@@ -669,7 +661,7 @@ struct QueryInner {
     /// that the AST element was indexed.
     items: HashMap<Id, Arc<CompileItem>>,
     /// Reverse lookup for items to reduce the number of items used.
-    items_rev: HashMap<Item, Arc<CompileItem>>,
+    items_rev: HashMap<Item, Vec<Id>>,
     /// All available names in the context.
     names: Names<()>,
     /// Modules and associated metadata.
@@ -684,6 +676,24 @@ impl QueryInner {
             .ok_or_else(|| QueryError::new(span, QueryErrorKind::MissingId { what: "item", id }))?;
 
         Ok(item.clone())
+    }
+
+    /// Get the given item id.
+    fn get_item_id(&self, span: Span, item: &Item) -> Result<Id, QueryError> {
+        if let Some(existing) = self.items_rev.get(item) {
+            let mut it = existing.iter().copied();
+
+            if let Some(id) = it.next() {
+                if it.next().is_none() {
+                    return Ok(id);
+                }
+            }
+        }
+
+        Err(QueryError::new(
+            span,
+            QueryErrorKind::MissingRevItem { item: item.clone() },
+        ))
     }
 
     /// Get the internally resolved macro for the specified id.
@@ -749,7 +759,7 @@ impl QueryInner {
             visibility,
         });
 
-        self.items_rev.insert(item.clone(), query_item.clone());
+        self.items_rev.entry(item.clone()).or_default().push(id);
         self.items.insert(id, query_item.clone());
         Ok(query_item)
     }
@@ -893,20 +903,20 @@ impl QueryInner {
 
             // resolve query.
             let entry = match self.remove_indexed(span, &current)? {
-                Some(entry) => match entry.indexed {
-                    Indexed::Import(import) => import.entry,
-                    indexed => {
-                        break Some(self.import_indexed(
-                            span,
-                            entry.query_item,
-                            entry.source,
-                            indexed,
-                            used,
-                        )?);
-                    }
-                },
-                _ => {
-                    break None;
+                Some(entry) => entry,
+                _ => break None,
+            };
+
+            let import = match entry.indexed {
+                Indexed::Import(import) => import.entry,
+                indexed => {
+                    break Some(self.import_indexed(
+                        span,
+                        entry.query_item,
+                        entry.source,
+                        indexed,
+                        used,
+                    )?);
                 }
             };
 
@@ -914,9 +924,9 @@ impl QueryInner {
                 span,
                 &*from,
                 path,
-                &entry.module,
-                entry.location,
-                entry.visibility,
+                &import.module,
+                import.location,
+                import.visibility,
                 &current,
             )?;
 
@@ -924,16 +934,16 @@ impl QueryInner {
             debug_assert!(inserted, "visited is checked just prior to this");
 
             let step = ImportEntryStep {
-                location: entry.location,
-                visibility: entry.visibility,
+                location: import.location,
+                visibility: import.visibility,
                 item: current.clone(),
             };
 
-            local.push(current.clone());
+            local.push(entry.query_item);
             path.push(step.clone());
 
-            from = entry.module.clone();
-            current = entry.target.clone();
+            from = import.module.clone();
+            current = import.target.clone();
         };
 
         let (kind, source) = match meta {
@@ -1059,7 +1069,9 @@ impl QueryInner {
         spanned: Span,
         meta: CompileMeta,
     ) -> Result<(), QueryError> {
-        if let Some(existing) = self.meta.insert(meta.item.clone(), meta.clone()) {
+        let item = meta.item.item.clone();
+
+        if let Some(existing) = self.meta.insert(item, meta.clone()) {
             return Err(QueryError::new(
                 spanned,
                 QueryErrorKind::MetaConflict {
@@ -1193,19 +1205,19 @@ impl QueryInner {
         }
 
         if let Some(new) = self.import(path.span(), &qp.module, &item, Used::Used)? {
-            item = new;
-        } else {
-            if let Some(item) = self.items_rev.get(&item) {
-                self.check_access_to(
-                    path.span(),
-                    &qp.module,
-                    &mut Vec::new(),
-                    &item.module,
-                    item.location,
-                    item.visibility,
-                    &item.item,
-                )?;
-            }
+            return Ok(Named { local, item: new });
+        }
+
+        if let Some(meta) = self.query_meta(path.span(), &item, Used::Used)? {
+            self.check_access_to(
+                path.span(),
+                &qp.module,
+                &mut Vec::new(),
+                &meta.item.module,
+                meta.item.location,
+                meta.item.visibility,
+                &meta.item.item,
+            )?;
         }
 
         Ok(Named { local, item })
@@ -1360,14 +1372,16 @@ impl QueryInner {
             }
         };
 
+        let source = CompileSource {
+            source_id: query_item.location.source_id,
+            span: query_item.location.span,
+            path,
+        };
+
         Ok(CompileMeta {
-            item: query_item.item.clone(),
+            item: query_item,
             kind,
-            source: Some(CompileSource {
-                source_id: query_item.location.source_id,
-                span: query_item.location.span,
-                path,
-            }),
+            source: Some(source),
         })
     }
 

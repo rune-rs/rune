@@ -271,13 +271,13 @@ impl UnitBuilder {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
 
                 let signature = DebugSignature {
-                    path: meta.item.clone(),
+                    path: meta.item.item.clone(),
                     args: DebugArgs::EmptyArgs,
                 };
 
                 let rtti = Arc::new(Rtti {
                     hash: empty.hash,
-                    item: meta.item.clone(),
+                    item: meta.item.item.clone(),
                 });
 
                 if inner.rtti.insert(empty.hash, rtti).is_some() {
@@ -302,13 +302,13 @@ impl UnitBuilder {
                 };
 
                 let signature = DebugSignature {
-                    path: meta.item.clone(),
+                    path: meta.item.item.clone(),
                     args: DebugArgs::TupleArgs(tuple.args),
                 };
 
                 let rtti = Arc::new(Rtti {
                     hash: tuple.hash,
-                    item: meta.item.clone(),
+                    item: meta.item.item.clone(),
                 });
 
                 if inner.rtti.insert(tuple.hash, rtti).is_some() {
@@ -327,11 +327,11 @@ impl UnitBuilder {
                     .insert(tuple.hash, signature);
             }
             CompileMetaKind::Struct { .. } => {
-                let hash = Hash::type_hash(&meta.item);
+                let hash = Hash::type_hash(&meta.item.item);
 
                 let rtti = Arc::new(Rtti {
                     hash,
-                    item: meta.item.clone(),
+                    item: meta.item.item.clone(),
                 });
 
                 if inner.rtti.insert(hash, rtti).is_some() {
@@ -346,7 +346,7 @@ impl UnitBuilder {
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: empty.hash,
-                    item: meta.item.clone(),
+                    item: meta.item.item.clone(),
                 });
 
                 if inner.variant_rtti.insert(empty.hash, rtti).is_some() {
@@ -356,7 +356,7 @@ impl UnitBuilder {
                 let info = UnitFn::UnitVariant { hash: empty.hash };
 
                 let signature = DebugSignature {
-                    path: meta.item.clone(),
+                    path: meta.item.item.clone(),
                     args: DebugArgs::EmptyArgs,
                 };
 
@@ -379,7 +379,7 @@ impl UnitBuilder {
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: tuple.hash,
-                    item: meta.item.clone(),
+                    item: meta.item.item.clone(),
                 });
 
                 if inner.variant_rtti.insert(tuple.hash, rtti).is_some() {
@@ -392,7 +392,7 @@ impl UnitBuilder {
                 };
 
                 let signature = DebugSignature {
-                    path: meta.item.clone(),
+                    path: meta.item.item.clone(),
                     args: DebugArgs::TupleArgs(tuple.args),
                 };
 
@@ -408,13 +408,13 @@ impl UnitBuilder {
                     .insert(tuple.hash, signature);
             }
             CompileMetaKind::StructVariant { enum_item, .. } => {
-                let hash = Hash::type_hash(&meta.item);
+                let hash = Hash::type_hash(&meta.item.item);
                 let enum_hash = Hash::type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash,
-                    item: meta.item.clone(),
+                    item: meta.item.item.clone(),
                 });
 
                 if inner.variant_rtti.insert(hash, rtti).is_some() {
