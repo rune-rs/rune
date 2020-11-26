@@ -153,7 +153,7 @@ impl Assemble for ast::ExprCall {
             c.scopes.decl_anon(span)?;
         }
 
-        let hash = Hash::type_hash(&meta.item);
+        let hash = Hash::type_hash(&meta.item.item);
         c.asm
             .push_with_comment(Inst::Call { hash, args }, span, meta.to_string());
 

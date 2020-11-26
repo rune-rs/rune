@@ -15,7 +15,7 @@ pub struct CompileMetaCapture {
 #[derive(Debug, Clone)]
 pub struct CompileMeta {
     /// The item of the returned compile meta.
-    pub item: Item,
+    pub item: Arc<CompileItem>,
     /// The kind of the compile meta.
     pub kind: CompileMetaKind,
     /// The source of the meta.
@@ -62,43 +62,43 @@ impl fmt::Display for CompileMeta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             CompileMetaKind::UnitStruct { .. } => {
-                write!(fmt, "struct {}", self.item)?;
+                write!(fmt, "struct {}", self.item.item)?;
             }
             CompileMetaKind::TupleStruct { .. } => {
-                write!(fmt, "struct {}", self.item)?;
+                write!(fmt, "struct {}", self.item.item)?;
             }
             CompileMetaKind::Struct { .. } => {
-                write!(fmt, "struct {}", self.item)?;
+                write!(fmt, "struct {}", self.item.item)?;
             }
             CompileMetaKind::UnitVariant { .. } => {
-                write!(fmt, "unit variant {}", self.item)?;
+                write!(fmt, "unit variant {}", self.item.item)?;
             }
             CompileMetaKind::TupleVariant { .. } => {
-                write!(fmt, "variant {}", self.item)?;
+                write!(fmt, "variant {}", self.item.item)?;
             }
             CompileMetaKind::StructVariant { .. } => {
-                write!(fmt, "variant {}", self.item)?;
+                write!(fmt, "variant {}", self.item.item)?;
             }
             CompileMetaKind::Enum { .. } => {
-                write!(fmt, "enum {}", self.item)?;
+                write!(fmt, "enum {}", self.item.item)?;
             }
             CompileMetaKind::Function { .. } => {
-                write!(fmt, "fn {}", self.item)?;
+                write!(fmt, "fn {}", self.item.item)?;
             }
             CompileMetaKind::Closure { .. } => {
-                write!(fmt, "closure {}", self.item)?;
+                write!(fmt, "closure {}", self.item.item)?;
             }
             CompileMetaKind::AsyncBlock { .. } => {
-                write!(fmt, "async block {}", self.item)?;
+                write!(fmt, "async block {}", self.item.item)?;
             }
             CompileMetaKind::Const { .. } => {
-                write!(fmt, "const {}", self.item)?;
+                write!(fmt, "const {}", self.item.item)?;
             }
             CompileMetaKind::ConstFn { .. } => {
-                write!(fmt, "const fn {}", self.item)?;
+                write!(fmt, "const fn {}", self.item.item)?;
             }
             CompileMetaKind::Import { .. } => {
-                write!(fmt, "import {}", self.item)?;
+                write!(fmt, "import {}", self.item.item)?;
             }
         }
 
@@ -238,6 +238,18 @@ pub struct CompileItem {
     pub module: Arc<CompileMod>,
     /// The visibility of the item.
     pub visibility: Visibility,
+}
+
+impl From<Item> for CompileItem {
+    fn from(item: Item) -> Self {
+        Self {
+            location: Default::default(),
+            id: Default::default(),
+            item,
+            module: Default::default(),
+            visibility: Default::default(),
+        }
+    }
 }
 
 /// Module, its item and its visibility.

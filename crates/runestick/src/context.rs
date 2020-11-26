@@ -378,7 +378,7 @@ impl Context {
 
     /// Install the given meta.
     fn install_meta(&mut self, meta: CompileMeta) -> Result<(), ContextError> {
-        if let Some(existing) = self.meta.insert(meta.item.clone(), meta.clone()) {
+        if let Some(existing) = self.meta.insert(meta.item.item.clone(), meta.clone()) {
             return Err(ContextError::ConflictingMeta {
                 existing: Box::new(existing),
                 current: Box::new(meta),
@@ -409,7 +409,7 @@ impl Context {
         )?;
 
         self.install_meta(CompileMeta {
-            item,
+            item: Arc::new(item.into()),
             kind: CompileMetaKind::Struct {
                 type_hash,
                 object: CompileMetaStruct {
@@ -469,7 +469,7 @@ impl Context {
         self.meta.insert(
             item.clone(),
             CompileMeta {
-                item,
+                item: Arc::new(item.into()),
                 kind: CompileMetaKind::Function { type_hash: hash },
                 source: None,
             },
@@ -579,7 +579,7 @@ impl Context {
         let enum_hash = Hash::type_hash(&enum_item);
 
         self.install_meta(CompileMeta {
-            item: enum_item.clone(),
+            item: Arc::new(enum_item.clone().into()),
             kind: CompileMetaKind::Enum {
                 type_hash: internal_enum.static_type.hash,
             },
@@ -611,7 +611,7 @@ impl Context {
             )?;
 
             self.install_meta(CompileMeta {
-                item: item.clone(),
+                item: Arc::new(item.clone().into()),
                 kind: CompileMetaKind::TupleVariant {
                     type_hash: variant.type_hash,
                     enum_item: enum_item.clone(),
@@ -660,7 +660,7 @@ impl Context {
 
         let meta = match enum_item {
             Some(enum_item) => CompileMeta {
-                item: item.clone(),
+                item: Arc::new(item.clone().into()),
                 kind: CompileMetaKind::TupleVariant {
                     type_hash,
                     enum_item,
@@ -669,7 +669,7 @@ impl Context {
                 source: None,
             },
             None => CompileMeta {
-                item: item.clone(),
+                item: Arc::new(item.clone().into()),
                 kind: CompileMetaKind::TupleStruct { type_hash, tuple },
                 source: None,
             },

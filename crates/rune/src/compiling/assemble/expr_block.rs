@@ -36,7 +36,7 @@ impl Assemble for ast::ExprBlock {
                     }
                 }
 
-                let hash = Hash::type_hash(&meta.item);
+                let hash = Hash::type_hash(&meta.item.item);
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash,

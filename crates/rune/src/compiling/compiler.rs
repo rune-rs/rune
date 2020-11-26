@@ -403,7 +403,7 @@ impl<'a> Compiler<'a> {
                 ));
             }
 
-            match self.context.type_check_for(&meta.item) {
+            match self.context.type_check_for(&meta.item.item) {
                 Some(type_check) => type_check,
                 None => type_check,
             }
@@ -558,7 +558,7 @@ impl<'a> Compiler<'a> {
                             span,
                             CompileErrorKind::LitObjectNotField {
                                 field: binding.key().into(),
-                                item: meta.item.clone(),
+                                item: meta.item.item.clone(),
                             },
                         ));
                     }
@@ -652,7 +652,7 @@ impl<'a> Compiler<'a> {
             _ => return Ok(false),
         };
 
-        let type_check = match self.context.type_check_for(&meta.item) {
+        let type_check = match self.context.type_check_for(&meta.item.item) {
             Some(type_check) => type_check,
             None => type_check,
         };

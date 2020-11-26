@@ -49,21 +49,21 @@ impl Assemble for ast::ExprObject {
 
                 match &meta.kind {
                     CompileMetaKind::UnitStruct { .. } => {
-                        check_object_fields(&HashSet::new(), check_keys, span, &meta.item)?;
+                        check_object_fields(&HashSet::new(), check_keys, span, &meta.item.item)?;
 
-                        let hash = Hash::type_hash(&meta.item);
+                        let hash = Hash::type_hash(&meta.item.item);
                         c.asm.push(Inst::UnitStruct { hash }, span);
                     }
                     CompileMetaKind::Struct { object, .. } => {
-                        check_object_fields(&object.fields, check_keys, span, &meta.item)?;
+                        check_object_fields(&object.fields, check_keys, span, &meta.item.item)?;
 
-                        let hash = Hash::type_hash(&meta.item);
+                        let hash = Hash::type_hash(&meta.item.item);
                         c.asm.push(Inst::Struct { hash, slot }, span);
                     }
                     CompileMetaKind::StructVariant { object, .. } => {
-                        check_object_fields(&object.fields, check_keys, span, &meta.item)?;
+                        check_object_fields(&object.fields, check_keys, span, &meta.item.item)?;
 
-                        let hash = Hash::type_hash(&meta.item);
+                        let hash = Hash::type_hash(&meta.item.item);
                         c.asm.push(Inst::StructVariant { hash, slot }, span);
                     }
                     _ => {
