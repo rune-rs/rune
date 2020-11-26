@@ -2,8 +2,7 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{CompileError, CompileErrorKind};
-use crate::shared::Location;
-use runestick::{Hash, Inst, Label, Span};
+use runestick::{Hash, Inst, Label, Location, Span};
 
 #[derive(Debug, Clone)]
 pub enum AssemblyInst {

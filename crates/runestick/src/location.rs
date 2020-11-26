@@ -1,4 +1,4 @@
-use runestick::{SourceId, Span};
+use crate::{SourceId, Span};
 use std::fmt;
 
 /// A source location.
