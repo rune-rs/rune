@@ -2,7 +2,6 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::indexing::Visibility;
 use crate::ir;
 use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter, IrQuery};
 use crate::parsing::Opaque;
@@ -15,7 +14,7 @@ use runestick::format;
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
     CompileMetaTuple, CompileSource, Component, ComponentRef, Context, Hash, IntoComponent, Item,
-    Location, Names, Source, SourceId, Span,
+    Location, Names, Source, SourceId, Span, Visibility,
 };
 use std::cell::{RefCell, RefMut};
 use std::collections::VecDeque;

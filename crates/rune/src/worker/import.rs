@@ -1,9 +1,8 @@
 use crate::ast;
-use crate::indexing::Visibility;
 use crate::query::{Query, QueryMod};
 use crate::worker::{ImportKind, Task, WildcardImport};
 use crate::{CompileError, CompileErrorKind, CompileResult, Resolve as _, Spanned as _, Storage};
-use runestick::{Context, Item, Source};
+use runestick::{Context, Item, Source, Visibility};
 use std::collections::VecDeque;
 
 use std::rc::Rc;

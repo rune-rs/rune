@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::attrs;
 use crate::collections::HashMap;
-use crate::indexing::{IndexFnKind, IndexScopes, Visibility};
+use crate::indexing::{IndexFnKind, IndexScopes};
 use crate::load::{SourceLoader, Sources};
 use crate::macros::MacroCompiler;
 use crate::parsing::{Parse, Parser};
@@ -18,7 +18,7 @@ use crate::{
 use runestick::format;
 use runestick::{
     Call, CompileMeta, CompileMetaKind, CompileSource, Context, Hash, Item, Location, Source,
-    SourceId, Span,
+    SourceId, Span, Visibility,
 };
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -371,7 +371,7 @@ impl<'a> Indexer<'a> {
         while let Some((item, semi)) = queue.pop_front() {
             match item {
                 ast::Item::Use(item_use) => {
-                    let visibility = Visibility::from_ast(&item_use.visibility)?;
+                    let visibility = ast_to_visibility(&item_use.visibility)?;
 
                     let import = Import {
                         kind: ImportKind::Global,
@@ -428,7 +428,7 @@ impl<'a> Indexer<'a> {
         while let Some(stmt) = queue.pop_front() {
             match stmt {
                 ast::Stmt::Item(ast::Item::Use(item_use), _) => {
-                    let visibility = Visibility::from_ast(&item_use.visibility)?;
+                    let visibility = ast_to_visibility(&item_use.visibility)?;
 
                     let import = Import {
                         kind: ImportKind::Global,
@@ -517,7 +517,7 @@ impl<'a> Indexer<'a> {
         };
 
         let item = self.items.item();
-        let visibility = Visibility::from_ast(&item_mod.visibility)?;
+        let visibility = ast_to_visibility(&item_mod.visibility)?;
 
         let (id, mod_item) = self.query.insert_mod(
             self.source_id,
@@ -603,7 +603,7 @@ impl Index for ast::ItemFn {
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
         let _guard = idx.items.push_name(name.as_ref());
 
-        let visibility = Visibility::from_ast(&self.visibility)?;
+        let visibility = ast_to_visibility(&self.visibility)?;
         let item = idx.query.insert_new_item(
             idx.source_id,
             span,
@@ -1242,7 +1242,7 @@ impl Index for ast::ItemEnum {
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
         let _guard = idx.items.push_name(name.as_ref());
 
-        let visibility = Visibility::from_ast(&self.visibility)?;
+        let visibility = ast_to_visibility(&self.visibility)?;
         let enum_item = idx.query.insert_new_item(
             idx.source_id,
             span,
@@ -1319,7 +1319,7 @@ impl Index for Box<ast::ItemStruct> {
         let ident = self.ident.resolve(&idx.storage, &*idx.source)?;
         let _guard = idx.items.push_name(ident.as_ref());
 
-        let visibility = Visibility::from_ast(&self.visibility)?;
+        let visibility = ast_to_visibility(&self.visibility)?;
         let item = idx.query.insert_new_item(
             idx.source_id,
             span,
@@ -1391,7 +1391,7 @@ impl Index for ast::ItemMod {
                 let name = self.name.resolve(&idx.storage, &*idx.source)?;
                 let _guard = idx.items.push_name(name.as_ref());
 
-                let visibility = Visibility::from_ast(&self.visibility)?;
+                let visibility = ast_to_visibility(&self.visibility)?;
                 let (id, mod_item) = idx.query.insert_mod(
                     idx.source_id,
                     name_span,
@@ -1429,7 +1429,7 @@ impl Index for Box<ast::ItemConst> {
             span,
             &*idx.items.item(),
             &idx.mod_item,
-            Visibility::from_ast(&self.visibility)?,
+            ast_to_visibility(&self.visibility)?,
         )?;
 
         self.id = Some(item.id);
@@ -1837,4 +1837,21 @@ impl Index for ast::ExprObject {
 
         Ok(())
     }
+}
+
+/// Construct visibility from ast.
+pub(crate) fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility, CompileError> {
+    let span = match vis {
+        ast::Visibility::Inherited => return Ok(Visibility::Inherited),
+        ast::Visibility::Public(..) => return Ok(Visibility::Public),
+        ast::Visibility::Crate(..) => return Ok(Visibility::Crate),
+        ast::Visibility::Super(..) => return Ok(Visibility::Super),
+        ast::Visibility::SelfValue(..) => return Ok(Visibility::SelfValue),
+        ast::Visibility::In(restrict) => restrict.span(),
+    };
+
+    Err(CompileError::new(
+        span,
+        CompileErrorKind::UnsupportedVisibility,
+    ))
 }
