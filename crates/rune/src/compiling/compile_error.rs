@@ -1,13 +1,12 @@
 use crate::ast;
 use crate::compiling::InsertMetaError;
 use crate::indexing::Visibility;
-use crate::shared::Location;
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, ResolveError,
     ResolveErrorKind, Spanned,
 };
 use runestick::debug::DebugSignature;
-use runestick::{CompileMeta, Hash, Item, Label, SourceId, Span, SpannedError};
+use runestick::{CompileMeta, Hash, Item, Label, Location, SourceId, Span, SpannedError};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;

@@ -1,11 +1,10 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
-use crate::shared::Location;
 use crate::{
     CompileErrorKind, Error, ErrorKind, Errors, IrErrorKind, LinkerError, QueryErrorKind,
     ResolveErrorKind, Sources, Spanned as _, WarningKind, Warnings,
 };
-use runestick::{Source, SourceId, Span, Unit, VmError};
+use runestick::{Location, Source, SourceId, Span, Unit, VmError};
 use std::error::Error as _;
 use std::fmt;
 use std::fmt::Write as _;

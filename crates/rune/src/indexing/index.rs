@@ -9,7 +9,7 @@ use crate::query::{
     Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
     Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
 };
-use crate::shared::{Consts, Items, Location};
+use crate::shared::{Consts, Items};
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _, Options,
@@ -17,7 +17,8 @@ use crate::{
 };
 use runestick::format;
 use runestick::{
-    Call, CompileMeta, CompileMetaKind, CompileSource, Context, Hash, Item, Source, SourceId, Span,
+    Call, CompileMeta, CompileMetaKind, CompileSource, Context, Hash, Item, Location, Source,
+    SourceId, Span,
 };
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;

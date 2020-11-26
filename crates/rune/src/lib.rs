@@ -223,7 +223,7 @@ pub use self::parsing::{
     ResolveErrorKind, ResolveOwned,
 };
 pub use self::query::{QueryError, QueryErrorKind, Used};
-pub use self::shared::{Location, ScopeError, ScopeErrorKind};
+pub use self::shared::{ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use compiling::compile;
 
