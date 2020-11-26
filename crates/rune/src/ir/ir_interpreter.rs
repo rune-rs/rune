@@ -1,11 +1,11 @@
 use crate::ir;
 use crate::ir::eval::{IrEval, IrEvalOutcome};
 use crate::ir::{IrQuery, IrValue};
-use crate::query::{QueryMod, Used};
+use crate::query::Used;
 use crate::shared::Consts;
 use crate::{IrError, IrErrorKind, Spanned};
-use runestick::{CompileMetaKind, ConstValue, Item, Span};
-use std::rc::Rc;
+use runestick::{CompileMetaKind, CompileMod, ConstValue, Item, Span};
+use std::sync::Arc;
 
 /// Ir Scopes.
 pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
@@ -16,7 +16,7 @@ pub struct IrInterpreter<'a> {
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
     /// The module in which the interpreter is run.
-    pub(crate) module: Rc<QueryMod>,
+    pub(crate) module: Arc<CompileMod>,
     /// The item where the constant expression is located.
     pub(crate) item: Item,
     /// Constant scopes.

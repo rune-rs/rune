@@ -12,9 +12,10 @@ use crate::{
 };
 use runestick::format;
 use runestick::{
-    Call, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
-    CompileMetaTuple, CompileSource, Component, ComponentRef, Context, Hash, IntoComponent, Item,
-    Location, Names, Source, SourceId, Span, Visibility,
+    Call, CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
+    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileModKind, CompileSource, Component,
+    ComponentRef, Context, Hash, IntoComponent, Item, Location, Names, Source, SourceId, Span,
+    Visibility,
 };
 use std::cell::{RefCell, RefMut};
 use std::collections::VecDeque;
@@ -94,11 +95,11 @@ impl IrQuery for QueryInner {
         &self,
         spanned: Span,
         id: Option<Id>,
-    ) -> Result<Rc<BuiltInMacro>, QueryError> {
+    ) -> Result<Arc<BuiltInMacro>, QueryError> {
         QueryInner::builtin_macro_for(self, spanned, id)
     }
 
-    fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Rc<QueryConstFn>, QueryError> {
+    fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Arc<QueryConstFn>, QueryError> {
         QueryInner::const_fn_for(self, spanned, id)
     }
 }
@@ -171,13 +172,13 @@ impl Query {
     /// Insert path information.
     pub(crate) fn insert_path(
         &self,
-        module: &Rc<QueryMod>,
-        impl_item: Option<&Rc<Item>>,
+        module: &Arc<CompileMod>,
+        impl_item: Option<&Arc<Item>>,
         item: &Item,
     ) -> Id {
         let mut inner = self.inner.borrow_mut();
 
-        let query_path = Rc::new(QueryPath {
+        let query_path = Arc::new(QueryPath {
             module: module.clone(),
             impl_item: impl_item.cloned(),
             item: item.clone(),
@@ -202,19 +203,19 @@ impl Query {
         &self,
         source_id: SourceId,
         spanned: Span,
-        parent: &Rc<QueryMod>,
+        parent: &Arc<CompileMod>,
         item: &Item,
         visibility: Visibility,
-    ) -> Result<(Id, Rc<QueryMod>), QueryError> {
+    ) -> Result<(Id, Arc<CompileMod>), QueryError> {
         let mut inner = self.inner.borrow_mut();
 
         let id = inner.next_id.next().expect("ran out of ids");
 
-        let query_mod = Rc::new(QueryMod {
+        let query_mod = Arc::new(CompileMod {
             location: Location::new(source_id, spanned),
             item: item.clone(),
             visibility,
-            kind: QueryModKind::Nested {
+            kind: CompileModKind::Nested {
                 parent: parent.clone(),
             },
         });
@@ -231,14 +232,14 @@ impl Query {
         &self,
         source_id: SourceId,
         spanned: Span,
-    ) -> Result<Rc<QueryMod>, QueryError> {
+    ) -> Result<Arc<CompileMod>, QueryError> {
         let mut inner = self.inner.borrow_mut();
 
-        let query_mod = Rc::new(QueryMod {
+        let query_mod = Arc::new(CompileMod {
             location: Location::new(source_id, spanned),
             item: Item::new(),
             visibility: Visibility::Public,
-            kind: QueryModKind::Root,
+            kind: CompileModKind::Root,
         });
 
         inner.modules.insert(Item::new(), query_mod.clone());
@@ -247,7 +248,11 @@ impl Query {
     }
 
     /// Get the item indexed item for the given item.
-    pub(crate) fn get_item(&self, spanned: Span, item: &Item) -> Result<Rc<QueryItem>, QueryError> {
+    pub(crate) fn get_item(
+        &self,
+        spanned: Span,
+        item: &Item,
+    ) -> Result<Arc<CompileItem>, QueryError> {
         let inner = self.inner.borrow();
 
         if let Some(existing) = inner.items_rev.get(item) {
@@ -280,9 +285,9 @@ impl Query {
         source_id: SourceId,
         spanned: Span,
         item: &Item,
-        module: &Rc<QueryMod>,
+        module: &Arc<CompileMod>,
         visibility: Visibility,
-    ) -> Result<Rc<QueryItem>, QueryError> {
+    ) -> Result<Arc<CompileItem>, QueryError> {
         self.inner
             .borrow_mut()
             .insert_new_item(source_id, spanned, item, module, visibility)
@@ -299,7 +304,7 @@ impl Query {
     }
 
     /// Get the item for the given identifier.
-    pub(crate) fn item_for<T>(&self, ast: T) -> Result<Rc<QueryItem>, QueryError>
+    pub(crate) fn item_for<T>(&self, ast: T) -> Result<Arc<CompileItem>, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -307,7 +312,7 @@ impl Query {
     }
 
     /// Get the expanded internal macro for the given identifier.
-    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> Result<Rc<BuiltInMacro>, QueryError>
+    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> Result<Arc<BuiltInMacro>, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -315,7 +320,7 @@ impl Query {
     }
 
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for<T>(&self, ast: T) -> Result<Rc<QueryConstFn>, QueryError>
+    pub(crate) fn const_fn_for<T>(&self, ast: T) -> Result<Arc<QueryConstFn>, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -330,7 +335,7 @@ impl Query {
     /// Index a constant expression.
     pub fn index_const<T>(
         &self,
-        query_item: &Rc<QueryItem>,
+        query_item: &Arc<CompileItem>,
         source: &Arc<Source>,
         expr: &T,
     ) -> Result<(), QueryError>
@@ -364,7 +369,7 @@ impl Query {
     /// Index a constant function.
     pub fn index_const_fn(
         &self,
-        query_item: &Rc<QueryItem>,
+        query_item: &Arc<CompileItem>,
         source: &Arc<Source>,
         item_fn: Box<ast::ItemFn>,
     ) -> Result<(), QueryError> {
@@ -382,7 +387,7 @@ impl Query {
     /// Add a new enum item.
     pub fn index_enum(
         &self,
-        query_item: &Rc<QueryItem>,
+        query_item: &Arc<CompileItem>,
         source: &Arc<Source>,
     ) -> Result<(), QueryError> {
         log::trace!("new enum: {:?}", query_item.item);
@@ -399,7 +404,7 @@ impl Query {
     /// Add a new struct item that can be queried.
     pub fn index_struct(
         &self,
-        query_item: &Rc<QueryItem>,
+        query_item: &Arc<CompileItem>,
         source: &Arc<Source>,
         ast: Box<ast::ItemStruct>,
     ) -> Result<(), QueryError> {
@@ -417,7 +422,7 @@ impl Query {
     /// Add a new variant item that can be queried.
     pub fn index_variant(
         &self,
-        query_item: &Rc<QueryItem>,
+        query_item: &Arc<CompileItem>,
         source: &Arc<Source>,
         enum_id: Id,
         ast: ast::ItemVariant,
@@ -436,7 +441,7 @@ impl Query {
     /// Add a new function that can be queried for.
     pub fn index_closure(
         &self,
-        query_item: &Rc<QueryItem>,
+        query_item: &Arc<CompileItem>,
         source: &Arc<Source>,
         ast: Box<ast::ExprClosure>,
         captures: Arc<[CompileMetaCapture]>,
@@ -462,7 +467,7 @@ impl Query {
     /// Add a new async block.
     pub fn index_async_block(
         &self,
-        query_item: &Rc<QueryItem>,
+        query_item: &Arc<CompileItem>,
         source: &Arc<Source>,
         ast: ast::Block,
         captures: Arc<[CompileMetaCapture]>,
@@ -553,7 +558,7 @@ impl Query {
         source_id: SourceId,
         spanned: Span,
         source: &Arc<Source>,
-        module: &Rc<QueryMod>,
+        module: &Arc<CompileMod>,
         visibility: Visibility,
         at: Item,
         target: Item,
@@ -623,7 +628,7 @@ impl Query {
     pub(crate) fn import(
         &self,
         spanned: Span,
-        module: &Rc<QueryMod>,
+        module: &Arc<CompileMod>,
         item: &Item,
         used: Used,
     ) -> Result<Option<Item>, QueryError> {
@@ -652,28 +657,28 @@ struct QueryInner {
     /// be compiled.
     indexed: HashMap<Item, Vec<IndexedEntry>>,
     /// Compiled constant functions.
-    const_fns: HashMap<Id, Rc<QueryConstFn>>,
+    const_fns: HashMap<Id, Arc<QueryConstFn>>,
     /// Query paths.
-    query_paths: HashMap<Id, Rc<QueryPath>>,
+    query_paths: HashMap<Id, Arc<QueryPath>>,
     /// The result of internally resolved macros.
-    internal_macros: HashMap<Id, Rc<BuiltInMacro>>,
+    internal_macros: HashMap<Id, Arc<BuiltInMacro>>,
     /// Associated between `id` and `Item`. Use to look up items through
     /// `item_for` with an opaque id.
     ///
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
-    items: HashMap<Id, Rc<QueryItem>>,
+    items: HashMap<Id, Arc<CompileItem>>,
     /// Reverse lookup for items to reduce the number of items used.
-    items_rev: HashMap<Item, Rc<QueryItem>>,
+    items_rev: HashMap<Item, Arc<CompileItem>>,
     /// All available names in the context.
     names: Names<()>,
     /// Modules and associated metadata.
-    modules: HashMap<Item, Rc<QueryMod>>,
+    modules: HashMap<Item, Arc<CompileMod>>,
 }
 
 impl QueryInner {
     /// Get the item for the given identifier.
-    fn item_for(&self, span: Span, id: Option<Id>) -> Result<Rc<QueryItem>, QueryError> {
+    fn item_for(&self, span: Span, id: Option<Id>) -> Result<Arc<CompileItem>, QueryError> {
         let item = id
             .and_then(|n| self.items.get(&n))
             .ok_or_else(|| QueryError::new(span, QueryErrorKind::MissingId { what: "item", id }))?;
@@ -686,7 +691,7 @@ impl QueryInner {
         &self,
         span: Span,
         id: Option<Id>,
-    ) -> Result<Rc<BuiltInMacro>, QueryError> {
+    ) -> Result<Arc<BuiltInMacro>, QueryError> {
         let internal_macro = id
             .and_then(|n| self.internal_macros.get(&n))
             .ok_or_else(|| {
@@ -703,7 +708,7 @@ impl QueryInner {
     }
 
     /// Get the constant function associated with the opaque.
-    fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Rc<QueryConstFn>, QueryError> {
+    fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Arc<QueryConstFn>, QueryError> {
         let const_fn = id.and_then(|n| self.const_fns.get(&n)).ok_or_else(|| {
             QueryError::new(
                 spanned,
@@ -731,12 +736,12 @@ impl QueryInner {
         source_id: SourceId,
         spanned: Span,
         item: &Item,
-        module: &Rc<QueryMod>,
+        module: &Arc<CompileMod>,
         visibility: Visibility,
-    ) -> Result<Rc<QueryItem>, QueryError> {
+    ) -> Result<Arc<CompileItem>, QueryError> {
         let id = self.next_id.next().expect("ran out of ids");
 
-        let query_item = Rc::new(QueryItem {
+        let query_item = Arc::new(CompileItem {
             location: Location::new(source_id, spanned),
             id,
             item: item.clone(),
@@ -755,7 +760,7 @@ impl QueryInner {
         internal_macro: BuiltInMacro,
     ) -> Result<Id, QueryError> {
         let id = self.next_id.next().expect("ran out of ids");
-        self.internal_macros.insert(id, Rc::new(internal_macro));
+        self.internal_macros.insert(id, Arc::new(internal_macro));
         Ok(id)
     }
 
@@ -774,7 +779,7 @@ impl QueryInner {
     fn import_indexed(
         &mut self,
         spanned: Span,
-        query_item: Rc<QueryItem>,
+        query_item: Arc<CompileItem>,
         source: Arc<Source>,
         indexed: Indexed,
         used: Used,
@@ -802,7 +807,7 @@ impl QueryInner {
     fn import(
         &mut self,
         span: Span,
-        module: &Rc<QueryMod>,
+        module: &Arc<CompileMod>,
         item: &Item,
         used: Used,
     ) -> Result<Option<Item>, QueryError> {
@@ -855,7 +860,7 @@ impl QueryInner {
     fn inner_import(
         &mut self,
         span: Span,
-        module: &Rc<QueryMod>,
+        module: &Arc<CompileMod>,
         item: &Item,
         used: Used,
         visited: &mut HashSet<Item>,
@@ -1071,7 +1076,7 @@ impl QueryInner {
     fn lookup_initial(
         &mut self,
         context: &Context,
-        module: &Rc<QueryMod>,
+        module: &Arc<CompileMod>,
         base: &Item,
         local: &str,
     ) -> Result<Item, CompileError> {
@@ -1367,12 +1372,12 @@ impl QueryInner {
     }
 
     /// Insert an item and return its Id.
-    fn insert_const_fn(&mut self, item: &Rc<QueryItem>, ir_fn: ir::IrFn) -> Id {
+    fn insert_const_fn(&mut self, item: &Arc<CompileItem>, ir_fn: ir::IrFn) -> Id {
         let id = self.next_id.next().expect("ran out of ids");
 
         self.const_fns.insert(
             id,
-            Rc::new(QueryConstFn {
+            Arc::new(QueryConstFn {
                 item: item.clone(),
                 ir_fn,
             }),
@@ -1385,9 +1390,9 @@ impl QueryInner {
     fn check_access_to(
         &self,
         spanned: Span,
-        from: &QueryMod,
+        from: &CompileMod,
         chain: &mut Vec<ImportEntryStep>,
-        module: &QueryMod,
+        module: &CompileMod,
         location: Location,
         visibility: Visibility,
         item: &Item,
@@ -1524,7 +1529,7 @@ pub(crate) struct InstanceFunction {
     /// Ast for the instance function.
     pub(crate) ast: Box<ast::ItemFn>,
     /// The item of the instance function.
-    pub(crate) impl_item: Rc<Item>,
+    pub(crate) impl_item: Arc<Item>,
     /// The span of the instance function.
     pub(crate) instance_span: Span,
     /// Calling convention of the instance function.
@@ -1558,7 +1563,7 @@ pub(crate) struct AsyncBlock {
 #[derive(Debug, Clone)]
 pub(crate) struct Const {
     /// The module item the constant is defined in.
-    pub(crate) module: Rc<QueryMod>,
+    pub(crate) module: Arc<CompileMod>,
     /// The intermediate representation of the constant expression.
     pub(crate) ir: ir::Ir,
 }
@@ -1588,7 +1593,7 @@ pub(crate) struct BuildEntry {
     /// The location of the build entry.
     pub(crate) location: Location,
     /// The item of the build entry.
-    pub(crate) item: Rc<QueryItem>,
+    pub(crate) item: Arc<CompileItem>,
     /// The build entry.
     pub(crate) build: Build,
     /// The source of the build entry.
@@ -1600,7 +1605,7 @@ pub(crate) struct BuildEntry {
 #[derive(Debug, Clone)]
 pub(crate) struct IndexedEntry {
     /// The query item this indexed entry belongs to.
-    pub(crate) query_item: Rc<QueryItem>,
+    pub(crate) query_item: Arc<CompileItem>,
     /// The source of the indexed entry.
     pub(crate) source: Arc<Source>,
     /// The entry data.
@@ -1620,51 +1625,18 @@ impl IndexedEntry {
 /// Query information for a path.
 #[derive(Debug)]
 pub(crate) struct QueryPath {
-    pub(crate) module: Rc<QueryMod>,
-    pub(crate) impl_item: Option<Rc<Item>>,
+    pub(crate) module: Arc<CompileMod>,
+    pub(crate) impl_item: Option<Arc<Item>>,
     pub(crate) item: Item,
-}
-
-/// Item and the module that the item belongs to.
-#[derive(Default, Debug, Clone)]
-pub(crate) struct QueryItem {
-    pub(crate) location: Location,
-    pub(crate) id: Id,
-    pub(crate) item: Item,
-    pub(crate) module: Rc<QueryMod>,
-    pub(crate) visibility: Visibility,
 }
 
 /// An indexed constant function.
 #[derive(Debug)]
 pub(crate) struct QueryConstFn {
     /// The item of the const fn.
-    pub(crate) item: Rc<QueryItem>,
+    pub(crate) item: Arc<CompileItem>,
     /// The compiled constant function.
     pub(crate) ir_fn: ir::IrFn,
-}
-
-/// Module, its item and its visibility.
-#[derive(Default, Debug)]
-pub(crate) struct QueryMod {
-    pub(crate) location: Location,
-    pub(crate) item: Item,
-    pub(crate) visibility: Visibility,
-    /// The kind of the module.
-    pub(crate) kind: QueryModKind,
-}
-
-/// The module kind.
-#[derive(Debug)]
-pub(crate) enum QueryModKind {
-    Root,
-    Nested { parent: Rc<QueryMod> },
-}
-
-impl Default for QueryModKind {
-    fn default() -> Self {
-        Self::Root
-    }
 }
 
 /// The result of calling [Query::find_named].
@@ -1803,7 +1775,7 @@ pub struct ImportEntry {
     /// The item being imported.
     pub target: Item,
     /// The module in which the imports is located.
-    pub(crate) module: Rc<QueryMod>,
+    pub(crate) module: Arc<CompileMod>,
 }
 
 fn into_chain(chain: Vec<ImportEntryStep>) -> Vec<Location> {

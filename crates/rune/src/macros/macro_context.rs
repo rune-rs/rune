@@ -8,14 +8,13 @@ use crate::ir::{
 use crate::macros::{Storage, ToTokens, TokenStream};
 use crate::parsing::{ResolveError, ResolveOwned};
 use crate::query;
-use crate::query::{QueryItem, Used};
+use crate::query::Used;
 use crate::shared::Consts;
 use crate::{IrError, Spanned};
 use query::Query;
-use runestick::{Source, Span};
+use runestick::{CompileItem, Source, Span};
 use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
 use std::sync::Arc;
 
 thread_local! {
@@ -108,7 +107,7 @@ pub struct MacroContext {
     /// Query engine.
     pub(crate) query: Query,
     /// The item where the macro is being evaluated.
-    pub(crate) item: Rc<QueryItem>,
+    pub(crate) item: Arc<CompileItem>,
     /// Constants storage.
     pub(crate) consts: Consts,
 }

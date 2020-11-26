@@ -1,8 +1,6 @@
-use crate::query::{Query, QueryMod};
+use crate::query::Query;
 use crate::{CompileError, CompileErrorKind, CompileResult};
-use runestick::{Context, Item, Source, SourceId, Span, Visibility};
-
-use std::rc::Rc;
+use runestick::{CompileMod, Context, Item, Source, SourceId, Span, Visibility};
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -13,7 +11,7 @@ pub(crate) struct WildcardImport {
     pub(crate) source_id: SourceId,
     pub(crate) source: Arc<Source>,
     pub(crate) span: Span,
-    pub(crate) module: Rc<QueryMod>,
+    pub(crate) module: Arc<CompileMod>,
     pub(crate) found: bool,
 }
 

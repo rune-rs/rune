@@ -1,18 +1,17 @@
 //! Macro compiler.
 
 use crate::macros::{MacroContext, Storage, TokenStream};
-use crate::query::{Query, QueryItem};
+use crate::query::Query;
 use crate::shared::Consts;
 use crate::CompileResult;
 use crate::{
     ast, CompileError, CompileErrorKind, IrError, Options, Parse, ParseError, Parser, Spanned as _,
 };
-use runestick::{Context, Hash, Source};
-use std::rc::Rc;
+use runestick::{CompileItem, Context, Hash, Source};
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
-    pub(crate) item: Rc<QueryItem>,
+    pub(crate) item: Arc<CompileItem>,
     pub(crate) storage: Storage,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,

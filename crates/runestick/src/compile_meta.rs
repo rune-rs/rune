@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::{ConstValue, Hash, Id, Item, SourceId, Span};
+use crate::{ConstValue, Hash, Id, Item, Location, SourceId, Span, Visibility};
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -223,4 +223,50 @@ pub struct CompileMetaTuple {
     pub args: usize,
     /// Hash of the constructor function.
     pub hash: Hash,
+}
+
+/// Item and the module that the item belongs to.
+#[derive(Default, Debug, Clone)]
+pub struct CompileItem {
+    /// The location of the item.
+    pub location: Location,
+    /// The id of the item.
+    pub id: Id,
+    /// The name of the item.
+    pub item: Item,
+    /// The module associated with the item.
+    pub module: Arc<CompileMod>,
+    /// The visibility of the item.
+    pub visibility: Visibility,
+}
+
+/// Module, its item and its visibility.
+#[derive(Default, Debug)]
+pub struct CompileMod {
+    /// The location of the module.
+    pub location: Location,
+    /// The item of the module.
+    pub item: Item,
+    /// The visibility of the module.
+    pub visibility: Visibility,
+    /// The kind of the module.
+    pub kind: CompileModKind,
+}
+
+/// The module kind.
+#[derive(Debug)]
+pub enum CompileModKind {
+    /// Referenced module is the root module.
+    Root,
+    /// Reference module is a nested module.
+    Nested {
+        /// Associated parent module.
+        parent: Arc<CompileMod>,
+    },
+}
+
+impl Default for CompileModKind {
+    fn default() -> Self {
+        Self::Root
+    }
 }
