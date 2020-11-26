@@ -147,8 +147,8 @@ pub type Error = anyhow::Error;
 pub use self::any_obj::{AnyObj, AnyObjVtable};
 pub use self::args::Args;
 pub use self::compile_meta::{
-    CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
-    CompileMetaTuple, CompileSource,
+    CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
+    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileModKind, CompileSource,
 };
 pub use self::const_value::ConstValue;
 pub use self::format::{Format, FormatSpec};

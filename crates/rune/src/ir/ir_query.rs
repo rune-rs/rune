@@ -1,7 +1,7 @@
 use crate::parsing::Id;
 use crate::query::{BuiltInMacro, QueryConstFn, QueryError, Used};
 use runestick::{CompileMeta, Item, Span};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Query interface for the interpreter.
 pub(crate) trait IrQuery {
@@ -18,8 +18,8 @@ pub(crate) trait IrQuery {
         &self,
         spanned: Span,
         id: Option<Id>,
-    ) -> Result<Rc<BuiltInMacro>, QueryError>;
+    ) -> Result<Arc<BuiltInMacro>, QueryError>;
 
     /// Query for the constant function related to the given id.
-    fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Rc<QueryConstFn>, QueryError>;
+    fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Arc<QueryConstFn>, QueryError>;
 }

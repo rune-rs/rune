@@ -4,15 +4,15 @@ use crate::compiling::{
     Assemble as _, AssembleConst as _, Assembly, CompileVisitor, Loops, Scope, ScopeGuard, Scopes,
 };
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
-use crate::query::{Named, Query, QueryConstFn, QueryItem, Used};
+use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::shared::Consts;
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, Options, Resolve as _, Spanned, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
-    CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label, Source, Span,
-    TypeCheck,
+    CompileItem, CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label,
+    Source, Span, TypeCheck,
 };
 use std::sync::Arc;
 
@@ -837,7 +837,7 @@ impl<'a> Compiler<'a> {
         &mut self,
         spanned: S,
         meta: &CompileMeta,
-        from: &QueryItem,
+        from: &CompileItem,
         query_const_fn: &QueryConstFn,
         args: &[(ast::Expr, Option<T![,]>)],
     ) -> Result<ConstValue, CompileError>

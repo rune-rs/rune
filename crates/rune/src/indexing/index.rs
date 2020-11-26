@@ -7,7 +7,7 @@ use crate::macros::MacroCompiler;
 use crate::parsing::{Parse, Parser};
 use crate::query::{
     Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
-    Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
+    Function, Indexed, IndexedEntry, InstanceFunction, Query, Used,
 };
 use crate::shared::{Consts, Items};
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
@@ -17,13 +17,12 @@ use crate::{
 };
 use runestick::format;
 use runestick::{
-    Call, CompileMeta, CompileMetaKind, CompileSource, Context, Hash, Item, Location, Source,
-    SourceId, Span, Visibility,
+    Call, CompileMeta, CompileMetaKind, CompileMod, CompileSource, Context, Hash, Item, Location,
+    Source, SourceId, Span, Visibility,
 };
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::Arc;
 
 pub(crate) struct Indexer<'a> {
@@ -50,9 +49,9 @@ pub(crate) struct Indexer<'a> {
     pub(crate) items: Items,
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
-    pub(crate) mod_item: Rc<QueryMod>,
+    pub(crate) mod_item: Arc<CompileMod>,
     /// Set if we are inside of an impl self.
-    pub(crate) impl_item: Option<Rc<Item>>,
+    pub(crate) impl_item: Option<Arc<Item>>,
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
 }
@@ -1360,7 +1359,7 @@ impl Index for ast::ItemImpl {
             guards.push(idx.items.push_name(ident.as_ref()));
         }
 
-        let new = Rc::new(idx.items.item().clone());
+        let new = Arc::new(idx.items.item().clone());
         let old = std::mem::replace(&mut idx.impl_item, Some(new));
 
         for item_fn in &mut self.functions {

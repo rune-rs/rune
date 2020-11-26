@@ -1,18 +1,17 @@
 use crate::ast;
-use crate::query::{Query, QueryMod};
+use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
 use crate::{CompileError, CompileErrorKind, CompileResult, Resolve as _, Spanned as _, Storage};
-use runestick::{Context, Item, Source, Visibility};
+use runestick::{CompileMod, Context, Item, Source, Visibility};
 use std::collections::VecDeque;
 
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// Import to process.
 #[derive(Debug)]
 pub(crate) struct Import {
     pub(crate) kind: ImportKind,
-    pub(crate) module: Rc<QueryMod>,
+    pub(crate) module: Arc<CompileMod>,
     pub(crate) visibility: Visibility,
     pub(crate) item: Item,
     pub(crate) source: Arc<Source>,
