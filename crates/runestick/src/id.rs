@@ -24,23 +24,18 @@ impl Id {
     pub fn new(index: usize) -> Option<Id> {
         NonZeroUsize::new(index).map(Self)
     }
+
+    /// Get the next id.
+    pub fn next(self) -> Option<Id> {
+        let n = self.0.get().checked_add(1)?;
+        let n = NonZeroUsize::new(n)?;
+        Some(Self(n))
+    }
 }
 
 impl Default for Id {
     fn default() -> Self {
         Self::initial()
-    }
-}
-
-impl Iterator for Id {
-    type Item = Self;
-
-    /// Return the next id based on the current. Returns `None` if the next ID
-    /// could not be generated.
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.0.get().checked_add(1).and_then(NonZeroUsize::new)?;
-        *self = Self(next);
-        Some(*self)
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
-use crate::shared::Consts;
+use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
 use runestick::{Context, Source, Span};
@@ -65,6 +65,8 @@ pub fn compile_with_options(
 ) -> Result<(), ()> {
     // Global storage.
     let storage = Storage::new();
+    // Shared id generator.
+    let gen = Gen::new();
     // Constants storage.
     let consts = Consts::default();
 
@@ -80,6 +82,7 @@ pub fn compile_with_options(
         visitor,
         source_loader,
         storage.clone(),
+        gen,
     );
 
     // Queue up the initial sources to be loaded.
