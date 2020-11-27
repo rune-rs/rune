@@ -28,7 +28,7 @@ impl IntoTypeHash for Protocol {
     }
 
     fn into_item(self) -> Item {
-        Item::of(&[self.name])
+        Item::with_item(&[self.name])
     }
 }
 

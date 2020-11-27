@@ -12,7 +12,7 @@ struct Foo {
 
 #[test]
 fn test_getter_setter() {
-    let mut module = Module::empty();
+    let mut module = Module::new();
     module.ty::<Foo>().unwrap();
 
     let mut context = Context::with_default_modules().unwrap();

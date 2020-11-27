@@ -4,7 +4,7 @@ use crate::{ContextError, Module, Panic, Value, VmError};
 
 /// Construct the `std` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("std", &["core"]);
+    let mut module = Module::with_crate_item("std", &["core"]);
 
     module.unit("unit")?;
     module.ty::<bool>()?;

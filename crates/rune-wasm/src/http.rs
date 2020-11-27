@@ -4,7 +4,7 @@ use wasm_bindgen_futures::JsFuture;
 
 /// The wasm `http` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["http"]);
+    let mut module = Module::with_crate("http");
     module.ty::<Response>()?;
     module.ty::<Error>()?;
     module.async_function(&["get"], get)?;

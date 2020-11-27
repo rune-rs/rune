@@ -83,7 +83,7 @@ where
     let vm = runestick::Vm::new(context.clone(), Arc::new(unit));
 
     let output = vm
-        .execute(&Item::of(function), args)
+        .execute(&Item::with_item(function), args)
         .map_err(RunError::VmError)?
         .async_complete()
         .await

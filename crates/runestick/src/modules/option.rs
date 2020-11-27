@@ -4,7 +4,7 @@ use crate::{ContextError, Function, Module, Protocol, Shared, Value, VmError};
 
 /// Construct the `std::option` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("std", &["option"]);
+    let mut module = Module::with_crate_item("std", &["option"]);
     module.option(&["Option"])?;
     module.inst_fn("unwrap_or", Option::<Value>::unwrap_or)?;
     module.inst_fn("is_none", Option::<Value>::is_none)?;

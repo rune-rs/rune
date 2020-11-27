@@ -163,6 +163,6 @@ where
     }
 
     fn into_item(self) -> Item {
-        Item::of(self)
+        Item::with_item(self)
     }
 }

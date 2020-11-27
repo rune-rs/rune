@@ -49,7 +49,7 @@ impl ModuleInternalEnum {
     {
         ModuleInternalEnum {
             name,
-            base_type: Item::of(base_type),
+            base_type: Item::with_item(base_type),
             static_type,
             variants: Vec::new(),
         }
@@ -156,34 +156,34 @@ pub struct Module {
 
 impl Module {
     /// Create an empty module for the root path.
-    pub fn empty() -> Self {
+    pub fn new() -> Self {
         Self::default()
     }
 
     /// Construct a new module for the given item.
-    pub fn new<I>(iter: I) -> Self
+    pub fn with_item<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        Self::with_item(Item::of(iter))
+        Self::inner_new(Item::with_item(iter))
     }
 
     /// Construct a new module for the given crate.
-    pub fn from_crate(name: &str) -> Self {
-        Self::with_item(Item::from_crate(name))
+    pub fn with_crate(name: &str) -> Self {
+        Self::inner_new(Item::with_crate(name))
     }
 
     /// Construct a new module for the given crate.
-    pub fn with_crate<I>(name: &str, iter: I) -> Self
+    pub fn with_crate_item<I>(name: &str, iter: I) -> Self
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        Self::with_item(Item::with_crate(name, iter))
+        Self::inner_new(Item::with_crate_item(name, iter))
     }
 
-    fn with_item(item: Item) -> Self {
+    fn inner_new(item: Item) -> Self {
         Self {
             item,
             functions: Default::default(),
@@ -234,8 +234,7 @@ impl Module {
     ///
     /// let mut context = runestick::Context::new();
     /// assert!(context.install(&module).is_ok());
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     /// ```
     pub fn ty<T>(&mut self) -> Result<(), ContextError>
     where
@@ -251,7 +250,7 @@ impl Module {
 
         if let Some(old) = self.types.insert(type_hash, ty) {
             return Err(ContextError::ConflictingType {
-                item: Item::of(&[T::NAME]),
+                item: Item::with_item(&[T::NAME]),
                 existing: old.type_info,
             });
         }
@@ -270,11 +269,12 @@ impl Module {
     /// This shows how to register the unit type `()` as `nonstd::unit`.
     ///
     /// ```rust
+    /// use runestick::Module;
+    ///
     /// # fn main() -> runestick::Result<()> {
-    /// let mut module = runestick::Module::new(&["nonstd"]);
+    /// let mut module = Module::with_item(&["nonstd"]);
     /// module.unit("unit")?;
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: AsRef<str>,
@@ -300,11 +300,12 @@ impl Module {
     /// This shows how to register the `Option` as `nonstd::option::Option`.
     ///
     /// ```rust
+    /// use runestick::Module;
+    ///
     /// # fn main() -> runestick::Result<()> {
-    /// let mut module = runestick::Module::new(&["nonstd", "option"]);
+    /// let mut module = Module::with_crate_item("nonstd", &["option"]);
     /// module.result(&["Option"])?;
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -331,11 +332,12 @@ impl Module {
     /// This shows how to register the `Result` as `nonstd::result::Result`.
     ///
     /// ```rust
+    /// use runestick::Module;
+    ///
     /// # fn main() -> runestick::Result<()> {
-    /// let mut module = runestick::Module::new(&["nonstd", "result"]);
+    /// let mut module = Module::with_crate_item("nonstd", &["result"]);
     /// module.result(&["Result"])?;
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     pub fn result<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -363,11 +365,12 @@ impl Module {
     /// `nonstd::generator::GeneratorState`.
     ///
     /// ```rust
+    /// use runestick::Module;
+    ///
     /// # fn main() -> runestick::Result<()> {
-    /// let mut module = runestick::Module::new(&["nonstd", "generator"]);
+    /// let mut module = Module::with_crate_item("nonstd", &["generator"]);
     /// module.generator_state(&["GeneratorState"])?;
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -410,8 +413,7 @@ impl Module {
     /// module.function(&["empty"], || Ok::<_, runestick::Error>(()))?;
     /// module.function(&["string"], |a: String| Ok::<_, runestick::Error>(()))?;
     /// module.function(&["optional"], |a: Option<String>| Ok::<_, runestick::Error>(()))?;
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     /// ```
     pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
@@ -419,7 +421,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = Item::of(name);
+        let name = Item::with_item(name);
 
         if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
@@ -445,7 +447,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = Item::of(name);
+        let name = Item::with_item(name);
 
         if self.macros.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
@@ -482,8 +484,7 @@ impl Module {
     /// module.async_function(&["empty_fallible"], || async { Ok::<_, runestick::Error>(()) })?;
     /// module.async_function(&["string"], |a: String| async { Ok::<_, runestick::Error>(()) })?;
     /// module.async_function(&["optional"], |a: Option<String>| async { Ok::<_, runestick::Error>(()) })?;
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     /// ```
     pub fn async_function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
@@ -491,7 +492,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = Item::of(name);
+        let name = Item::with_item(name);
 
         if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
@@ -516,7 +517,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = Item::of(name);
+        let name = Item::with_item(name);
 
         if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
@@ -566,8 +567,7 @@ impl Module {
     ///
     /// let mut context = runestick::Context::new();
     /// context.install(&module)?;
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     /// ```
     pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
@@ -655,8 +655,7 @@ impl Module {
     ///
     /// module.ty::<MyType>()?;
     /// module.async_inst_fn("test", MyType::test)?;
-    /// # Ok(())
-    /// # }
+    /// # Ok(()) }
     /// ```
     pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where

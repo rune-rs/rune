@@ -32,7 +32,7 @@ use rune::{Parser, TokenStream};
 
 /// Construct the supplemental `std::macros` module.
 pub fn module(_unused: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut builtins = runestick::Module::with_crate("std", &["macros", "builtin"]);
+    let mut builtins = runestick::Module::with_crate_item("std", &["macros", "builtin"]);
     builtins.macro_(&["file"], emit_file)?;
     builtins.macro_(&["line"], emit_line)?;
     Ok(builtins)

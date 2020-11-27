@@ -5,7 +5,7 @@ use crate::{ContextError, Future, Module, Shared, Stack, Value, VmError, VmError
 
 /// Construct the `std::future` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("std", &["future"]);
+    let mut module = Module::with_crate_item("std", &["future"]);
     module.ty::<Future>()?;
     module.raw_fn(&["join"], raw_join)?;
     Ok(module)

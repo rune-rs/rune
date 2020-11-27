@@ -35,7 +35,7 @@ use runestick::{Bytes, ContextError, Module, Value};
 
 /// Construct the `json` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::from_crate("json");
+    let mut module = Module::with_crate("json");
     module.function(&["from_bytes"], from_bytes)?;
     module.function(&["from_string"], from_string)?;
     module.function(&["to_string"], to_string)?;

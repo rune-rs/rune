@@ -8,7 +8,7 @@ use std::io::Write as _;
 
 /// Construct the `std::io` module.
 pub fn module(stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("std", &["io"]);
+    let mut module = Module::with_crate_item("std", &["io"]);
 
     module.ty::<io::Error>()?;
     module.inst_fn(Protocol::STRING_DISPLAY, format_io_error)?;

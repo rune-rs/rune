@@ -96,7 +96,7 @@ pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// }
 ///
 /// fn install() -> Result<runestick::Module, runestick::ContextError> {
-///     let mut module = runestick::Module::empty();
+///     let mut module = runestick::Module::new();
 ///     module.ty::<Foo>()?;
 ///     Ok(module)
 /// }

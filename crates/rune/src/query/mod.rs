@@ -1087,7 +1087,7 @@ impl QueryInner {
         }
 
         if context.contains_crate(local) {
-            return Ok(Item::from_crate(local));
+            return Ok(Item::with_crate(local));
         }
 
         Ok(module.item.extended(local))
@@ -1114,7 +1114,7 @@ impl QueryInner {
         let mut item = match (&path.global, &path.first) {
             (Some(..), ast::PathSegment::Ident(ident)) => {
                 let ident = ident.resolve(storage, source)?;
-                Item::from_crate(ident.as_ref())
+                Item::with_crate(ident.as_ref())
             }
             (Some(global), _) => {
                 return Err(CompileError::new(

@@ -4,7 +4,7 @@ use std::io::Write as _;
 /// Provide a bunch of `std` functions which does something appropriate to the
 /// wasm context.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "io"]);
+    let mut module = Module::with_crate_item("std", &["io"]);
     module.function(&["print"], print_impl)?;
     module.function(&["println"], println_impl)?;
     module.raw_fn(&["dbg"], dbg_impl)?;

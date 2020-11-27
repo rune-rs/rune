@@ -27,7 +27,7 @@ use rune::{quote, Parser, TokenStream};
 
 /// Construct the `std::test` module.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_crate("std", &["test"]);
+    let mut module = runestick::Module::with_crate_item("std", &["test"]);
     module.macro_(&["assert"], assert_macro)?;
     module.macro_(&["assert_eq"], assert_eq_macro)?;
     Ok(module)

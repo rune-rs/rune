@@ -56,7 +56,7 @@ use std::fmt::Write as _;
 
 /// Construct the `http` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::from_crate("http");
+    let mut module = Module::with_crate("http");
 
     module.ty::<Client>()?;
     module.ty::<Response>()?;

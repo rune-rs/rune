@@ -31,7 +31,7 @@ impl Import {
         }
 
         if context.contains_crate(local) {
-            return Item::from_crate(local);
+            return Item::with_crate(local);
         }
 
         item
@@ -51,7 +51,7 @@ impl Import {
                     Some(global) => match &self.ast.path.first {
                         ast::ItemUseSegment::PathSegment(ast::PathSegment::Ident(ident)) => {
                             let ident = ident.resolve(storage, &self.source)?;
-                            (Item::from_crate(ident.as_ref()), None, false)
+                            (Item::with_crate(ident.as_ref()), None, false)
                         }
                         _ => {
                             return Err(CompileError::new(

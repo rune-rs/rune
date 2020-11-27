@@ -34,7 +34,7 @@ use tokio::fs;
 
 /// Construct the `fs` module.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::from_crate("fs");
+    let mut module = runestick::Module::with_crate("fs");
     module.async_function(&["read_to_string"], read_to_string)?;
     Ok(module)
 }

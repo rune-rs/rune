@@ -8,7 +8,7 @@ fn divide_by_three(value: i64) -> i64 {
 
 #[tokio::main]
 async fn main() -> runestick::Result<()> {
-    let mut my_module = Module::new(&["mymodule"]);
+    let mut my_module = Module::with_item(&["mymodule"]);
     my_module.inst_fn("divide_by_three", divide_by_three)?;
 
     let mut context = Context::with_default_modules()?;

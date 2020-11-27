@@ -12,7 +12,7 @@ struct Bar {}
 
 #[test]
 fn test_rename() {
-    let mut module = runestick::Module::empty();
+    let mut module = runestick::Module::new();
     module.ty::<Foo>().unwrap();
     module.ty::<Bar>().unwrap();
 
@@ -21,7 +21,7 @@ fn test_rename() {
 
     match e {
         ContextError::ConflictingType { item, .. } => {
-            assert_eq!(item, Item::of(&["Bar"]));
+            assert_eq!(item, Item::with_item(&["Bar"]));
         }
         actual => {
             panic!("expected conflicting type but got: {:?}", actual);

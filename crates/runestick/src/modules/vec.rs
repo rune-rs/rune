@@ -4,7 +4,7 @@ use crate::{ContextError, Module, Protocol, Vec};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("std", &["vec"]);
+    let mut module = Module::with_crate_item("std", &["vec"]);
 
     module.ty::<Vec>()?;
 

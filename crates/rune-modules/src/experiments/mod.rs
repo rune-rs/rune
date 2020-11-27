@@ -45,7 +45,7 @@ fn make_function(stream: &TokenStream) -> runestick::Result<TokenStream> {
 
 /// Construct the `std::experiments` module, which contains experiments.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_crate("std", &["experiments"]);
+    let mut module = runestick::Module::with_crate_item("std", &["experiments"]);
     module.macro_(&["passthrough"], passthrough_impl)?;
     module.macro_(&["stringy_math"], stringy_math_macro::stringy_math)?;
     module.macro_(&["make_function"], make_function)?;

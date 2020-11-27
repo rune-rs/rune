@@ -4,7 +4,7 @@ use rune::{Errors, Options, Sources, Warnings};
 use runestick::{Context, Module, Source, Value, Vm, VmError};
 
 fn main() -> runestick::Result<()> {
-    let mut my_module = Module::new(&["mymodule"]);
+    let mut my_module = Module::with_item(&["mymodule"]);
     my_module.function(
         &["pass_along"],
         |func: runestick::Function, args: Vec<Value>| -> Result<Value, VmError> { func.call(args) },

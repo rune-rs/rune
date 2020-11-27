@@ -67,7 +67,7 @@ impl Item {
     }
 
     /// Construct a new item path.
-    pub fn of<I>(iter: I) -> Self
+    pub fn with_item<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -81,22 +81,40 @@ impl Item {
         Self { content }
     }
 
-    /// Get the crate corresponding to the item.
-    pub fn as_crate(&self) -> Option<&str> {
-        if let Some(ComponentRef::Crate(s)) = self.iter().next() {
-            Some(s)
-        } else {
-            None
-        }
-    }
-
     /// Construct item for a crate.
-    pub fn from_crate(name: &str) -> Self {
-        Self::of(&[ComponentRef::Crate(name)])
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Item, ComponentRef};
+    ///
+    /// let item = Item::with_crate("std");
+    /// assert_eq!(item.as_crate(), Some("std"));
+    ///
+    /// let mut it = item.iter();
+    /// assert_eq!(it.next(), Some(ComponentRef::Crate("std")));
+    /// assert_eq!(it.next(), None);
+    /// ```
+    pub fn with_crate(name: &str) -> Self {
+        Self::with_item(&[ComponentRef::Crate(name)])
     }
 
     /// Create a crated item with the given name.
-    pub fn with_crate<I>(name: &str, iter: I) -> Self
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Item, ComponentRef};
+    ///
+    /// let item = Item::with_crate_item("std", &["option"]);
+    /// assert_eq!(item.as_crate(), Some("std"));
+    ///
+    /// let mut it = item.iter();
+    /// assert_eq!(it.next(), Some(ComponentRef::Crate("std")));
+    /// assert_eq!(it.next(), Some(ComponentRef::Str("option")));
+    /// assert_eq!(it.next(), None);
+    /// ```
+    pub fn with_crate_item<I>(name: &str, iter: I) -> Self
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -111,6 +129,27 @@ impl Item {
         Self { content }
     }
 
+    /// Get the crate corresponding to the item.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::Item;
+    ///
+    /// let item = Item::with_crate("std");
+    /// assert_eq!(item.as_crate(), Some("std"));
+    ///
+    /// let item = Item::with_item(&["local"]);
+    /// assert_eq!(item.as_crate(), None);
+    /// ```
+    pub fn as_crate(&self) -> Option<&str> {
+        if let Some(ComponentRef::Crate(s)) = self.iter().next() {
+            Some(s)
+        } else {
+            None
+        }
+    }
+
     /// Access the first component of this item.
     ///
     /// # Examples
@@ -118,7 +157,7 @@ impl Item {
     /// ```rust
     /// use runestick::{ComponentRef, Item};
     ///
-    /// let item = Item::of(&["foo", "bar"]);
+    /// let item = Item::with_item(&["foo", "bar"]);
     /// assert_eq!(item.first(), Some(ComponentRef::Str("foo")));
     /// ```
     pub fn first(&self) -> Option<ComponentRef<'_>> {
@@ -133,6 +172,15 @@ impl Item {
         c.write_component(&mut self.content);
     }
 
+    /// Push the given component to the current item.
+    pub fn pop(&mut self) -> Option<Component> {
+        let mut it = self.iter();
+        let c = it.next_back()?.into_component();
+        let new_len = it.content.len();
+        self.content.resize(new_len, 0);
+        Some(c)
+    }
+
     /// Extend the current item with an iterator.
     pub fn extend<I>(&mut self, i: I)
     where
@@ -145,6 +193,18 @@ impl Item {
     }
 
     /// Check if the item is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::Item;
+    ///
+    /// let item = Item::new();
+    /// assert!(item.is_empty());
+    ///
+    /// let item = Item::with_crate("std");
+    /// assert!(!item.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.content.is_empty()
     }
@@ -152,15 +212,6 @@ impl Item {
     /// Clear the current item.
     pub fn clear(&mut self) {
         self.content.clear();
-    }
-
-    /// Push the given component to the current item.
-    pub fn pop(&mut self) -> Option<Component> {
-        let mut it = self.iter();
-        let c = it.next_back()?.into_component();
-        let new_len = it.content.len();
-        self.content.resize(new_len, 0);
-        Some(c)
     }
 
     /// Construct a new vector from the current item.
@@ -172,9 +223,7 @@ impl Item {
 
     /// Convert into a vector from the current item.
     pub fn into_vec(self) -> Vec<Component> {
-        self.iter()
-            .map(ComponentRef::into_component)
-            .collect::<Vec<_>>()
+        self.into_iter().collect::<Vec<_>>()
     }
 
     /// If the item only contains one element, return that element.
@@ -294,7 +343,7 @@ impl Item {
 /// use runestick::{Item, ComponentRef::*};
 ///
 /// assert_eq!("{root}", Item::new().to_string());
-/// assert_eq!("hello::$0", Item::of(&[Str("hello"), Id(0)]).to_string());
+/// assert_eq!("hello::$0", Item::with_item(&[Str("hello"), Id(0)]).to_string());
 /// ```
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -899,11 +948,11 @@ mod tests {
     #[test]
     fn test_is_super_of() {
         assert!(Item::new().is_super_of(&Item::new(), 1));
-        assert!(!Item::of(&["a"]).is_super_of(&Item::new(), 1));
+        assert!(!Item::with_item(&["a"]).is_super_of(&Item::new(), 1));
 
-        assert!(!Item::of(&["a", "b"]).is_super_of(&Item::of(&["a"]), 1));
-        assert!(Item::of(&["a", "b"]).is_super_of(&Item::of(&["a", "b"]), 1));
-        assert!(!Item::of(&["a"]).is_super_of(&Item::of(&["a", "b", "c"]), 1));
+        assert!(!Item::with_item(&["a", "b"]).is_super_of(&Item::with_item(&["a"]), 1));
+        assert!(Item::with_item(&["a", "b"]).is_super_of(&Item::with_item(&["a", "b"]), 1));
+        assert!(!Item::with_item(&["a"]).is_super_of(&Item::with_item(&["a", "b", "c"]), 1));
     }
 
     #[test]
@@ -914,23 +963,23 @@ mod tests {
         );
 
         assert_eq!(
-            (Item::new(), Item::of(&["a"])),
-            Item::new().ancestry(&Item::of(&["a"]))
+            (Item::new(), Item::with_item(&["a"])),
+            Item::new().ancestry(&Item::with_item(&["a"]))
         );
 
         assert_eq!(
-            (Item::new(), Item::of(&["a", "b"])),
-            Item::new().ancestry(&Item::of(&["a", "b"]))
+            (Item::new(), Item::with_item(&["a", "b"])),
+            Item::new().ancestry(&Item::with_item(&["a", "b"]))
         );
 
         assert_eq!(
-            (Item::of(&["a"]), Item::of(&["b"])),
-            Item::of(&["a", "c"]).ancestry(&Item::of(&["a", "b"]))
+            (Item::with_item(&["a"]), Item::with_item(&["b"])),
+            Item::with_item(&["a", "c"]).ancestry(&Item::with_item(&["a", "b"]))
         );
 
         assert_eq!(
-            (Item::of(&["a", "b"]), Item::of(&["d", "e"])),
-            Item::of(&["a", "b", "c"]).ancestry(&Item::of(&["a", "b", "d", "e"]))
+            (Item::with_item(&["a", "b"]), Item::with_item(&["d", "e"])),
+            Item::with_item(&["a", "b", "c"]).ancestry(&Item::with_item(&["a", "b", "d", "e"]))
         );
     }
 }

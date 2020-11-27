@@ -4,7 +4,7 @@ use crate::{Bytes, ContextError, Module};
 
 /// Construct the `std::bytes` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("std", &["bytes"]);
+    let mut module = Module::with_crate_item("std", &["bytes"]);
 
     module.ty::<Bytes>()?;
     module.function(&["Bytes", "new"], Bytes::new)?;

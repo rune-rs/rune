@@ -15,7 +15,7 @@ fn test_reference_error() {
         Ok(())
     }
 
-    let mut module = Module::empty();
+    let mut module = Module::new();
     module.function(&["take_it"], take_it).unwrap();
 
     let mut context = Context::with_default_modules().unwrap();

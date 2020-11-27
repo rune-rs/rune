@@ -31,7 +31,7 @@ fn test_external_ops() {
                 }
             }
 
-            let mut module = Module::empty();
+            let mut module = Module::new();
             module.ty::<External>().unwrap();
 
             module

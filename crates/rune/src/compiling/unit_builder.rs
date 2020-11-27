@@ -626,7 +626,7 @@ impl Inner {
         I::Item: IntoComponent,
     {
         self.prelude
-            .insert(local.into(), Item::with_crate("std", path));
+            .insert(local.into(), Item::with_crate_item("std", path));
     }
 
     /// Insert and access debug information.

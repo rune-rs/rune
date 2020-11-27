@@ -38,7 +38,7 @@ use tokio::process;
 
 /// Construct the `process` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::from_crate("process");
+    let mut module = Module::with_crate("process");
     module.ty::<Command>()?;
     module.ty::<Child>()?;
     module.ty::<ExitStatus>()?;

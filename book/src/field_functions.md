@@ -65,7 +65,7 @@ impl External {
     }
 }
 
-let mut module = Module::empty();
+let mut module = Module::new();
 module.field_fn(Protocol::GET, "field", External::field_get)?;
 ```
 

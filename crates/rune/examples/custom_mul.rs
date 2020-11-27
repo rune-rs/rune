@@ -2,10 +2,10 @@
 //! specific type `Foo`.
 
 use rune::{Errors, Options, Sources, Warnings};
-use runestick::{Context, FromValue, Protocol, Source, Vm};
+use runestick::{Any, Context, FromValue, Module, Protocol, Source, Vm};
 use std::sync::Arc;
 
-#[derive(Debug, Default, runestick::Any)]
+#[derive(Debug, Default, Any)]
 struct Foo {
     field: u32,
 }
@@ -21,7 +21,7 @@ impl Foo {
 fn main() -> runestick::Result<()> {
     let mut context = Context::with_default_modules()?;
 
-    let mut module = runestick::Module::new(&["module"]);
+    let mut module = Module::with_item(&["module"]);
     module.ty::<Foo>()?;
     module.inst_fn(Protocol::MUL, Foo::mul)?;
     context.install(&module)?;
