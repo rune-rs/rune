@@ -4,7 +4,7 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::indexing::{Index as _, IndexScopes, Indexer};
 use crate::query::Query;
-use crate::shared::{Consts, Items};
+use crate::shared::{Consts, Gen, Items};
 use crate::{
     CompileVisitor, Error, Errors, Options, SourceLoader, Sources, Storage, UnitBuilder, Warnings,
 };
@@ -35,6 +35,8 @@ pub(crate) struct Worker<'a> {
     pub(crate) query: Query,
     /// Macro storage.
     pub(crate) storage: Storage,
+    /// Id generator.
+    pub(crate) gen: Gen,
     /// Files that have been loaded.
     pub(crate) loaded: HashMap<Item, (SourceId, Span)>,
 }
@@ -52,6 +54,7 @@ impl<'a> Worker<'a> {
         visitor: &'a mut dyn CompileVisitor,
         source_loader: &'a mut dyn SourceLoader,
         storage: Storage,
+        gen: Gen,
     ) -> Self {
         Self {
             context,
@@ -63,8 +66,9 @@ impl<'a> Worker<'a> {
             source_loader,
             consts: consts.clone(),
             queue: VecDeque::new(),
-            query: Query::new(storage.clone(), unit, consts),
+            query: Query::new(storage.clone(), unit, consts, gen.clone()),
             storage,
+            gen,
             loaded: HashMap::new(),
         }
     }
@@ -109,7 +113,7 @@ impl<'a> Worker<'a> {
                     };
 
                     log::trace!("index: {}", mod_item.item);
-                    let items = Items::new(mod_item.item.clone());
+                    let items = Items::new(mod_item.item.clone(), self.gen.clone());
 
                     let mut indexer = Indexer {
                         root,

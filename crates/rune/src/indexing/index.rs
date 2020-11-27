@@ -503,7 +503,7 @@ impl<'a> Indexer<'a> {
     pub(crate) fn handle_file_mod(&mut self, item_mod: &mut ast::ItemMod) -> CompileResult<()> {
         let span = item_mod.span();
         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
-        let _guard = self.items.push_name(self.query.id(), name.as_ref());
+        let _guard = self.items.push_name(name.as_ref());
 
         let root = match &self.root {
             Some(root) => root,
@@ -602,7 +602,7 @@ impl Index for ast::ItemFn {
 
         let is_toplevel = idx.items.is_empty();
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
-        let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
+        let _guard = idx.items.push_name(name.as_ref());
 
         let visibility = ast_to_visibility(&self.visibility)?;
         let item = idx.query.insert_new_item(
@@ -775,7 +775,7 @@ impl Index for ast::ExprBlock {
             return self.block.index(idx);
         }
 
-        let _guard = idx.items.push_id(idx.query.id());
+        let _guard = idx.items.push_id();
 
         let item = idx.query.insert_new_item(
             &idx.items,
@@ -835,7 +835,7 @@ impl Index for ast::Block {
         let span = self.span();
         log::trace!("Block => {:?}", idx.source.source(span));
 
-        let _guard = idx.items.push_id(idx.query.id());
+        let _guard = idx.items.push_id();
         let _guard = idx.scopes.push_scope();
 
         idx.query.insert_new_item(
@@ -1245,7 +1245,7 @@ impl Index for ast::ItemEnum {
         }
 
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
-        let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
+        let _guard = idx.items.push_name(name.as_ref());
 
         let visibility = ast_to_visibility(&self.visibility)?;
         let enum_item = idx.query.insert_new_item(
@@ -1277,7 +1277,7 @@ impl Index for ast::ItemEnum {
 
             let span = variant.name.span();
             let name = variant.name.resolve(&idx.storage, &*idx.source)?;
-            let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
+            let _guard = idx.items.push_name(name.as_ref());
 
             let item = idx.query.insert_new_item(
                 &idx.items,
@@ -1322,7 +1322,7 @@ impl Index for Box<ast::ItemStruct> {
         }
 
         let ident = self.ident.resolve(&idx.storage, &*idx.source)?;
-        let _guard = idx.items.push_name(idx.query.id(), ident.as_ref());
+        let _guard = idx.items.push_name(ident.as_ref());
 
         let visibility = ast_to_visibility(&self.visibility)?;
         let item = idx.query.insert_new_item(
@@ -1362,7 +1362,7 @@ impl Index for ast::ItemImpl {
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path_segment, "unsupported path segment"))?;
             let ident = ident_segment.resolve(&idx.storage, &*idx.source)?;
-            guards.push(idx.items.push_name(idx.query.id(), ident.as_ref()));
+            guards.push(idx.items.push_name(ident.as_ref()));
         }
 
         let new = Arc::new(idx.items.item().clone());
@@ -1394,7 +1394,7 @@ impl Index for ast::ItemMod {
             }
             ast::ItemModBody::InlineBody(body) => {
                 let name = self.name.resolve(&idx.storage, &*idx.source)?;
-                let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
+                let _guard = idx.items.push_name(name.as_ref());
 
                 let visibility = ast_to_visibility(&self.visibility)?;
                 let mod_item = idx.query.insert_mod(
@@ -1428,7 +1428,7 @@ impl Index for Box<ast::ItemConst> {
 
         let span = self.span();
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
-        let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
+        let _guard = idx.items.push_name(name.as_ref());
 
         let item = idx.query.insert_new_item(
             &idx.items,
@@ -1570,7 +1570,7 @@ impl Index for Box<ast::ExprClosure> {
         let span = self.span();
         log::trace!("ExprClosure => {:?}", idx.source.source(span));
 
-        let _guard = idx.items.push_id(idx.query.id());
+        let _guard = idx.items.push_id();
 
         let kind = match self.async_token {
             Some(..) => IndexFnKind::Async,

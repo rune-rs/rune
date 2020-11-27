@@ -5,7 +5,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::ir;
 use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter, IrQuery};
 use crate::parsing::Opaque;
-use crate::shared::{Consts, Items};
+use crate::shared::{Consts, Gen, Items};
 use crate::{
     CompileError, CompileErrorKind, CompileVisitor, Id, ImportEntryStep, Resolve as _, Spanned,
     Storage, UnitBuilder,
@@ -110,15 +110,15 @@ pub(crate) struct Query {
 
 impl Query {
     /// Construct a new compilation context.
-    pub fn new(storage: Storage, unit: UnitBuilder, consts: Consts) -> Self {
+    pub fn new(storage: Storage, unit: UnitBuilder, consts: Consts, gen: Gen) -> Self {
         Self {
             inner: Rc::new(RefCell::new(QueryInner {
                 meta: HashMap::new(),
-                next_id: Id::initial(),
                 storage,
                 prelude: unit.prelude(),
                 unit,
                 consts,
+                gen,
                 queue: VecDeque::new(),
                 indexed: HashMap::new(),
                 const_fns: HashMap::new(),
@@ -129,11 +129,6 @@ impl Query {
                 modules: HashMap::new(),
             })),
         }
-    }
-
-    /// Get the next unique identifier generated from the query system.
-    pub(crate) fn id(&self) -> Id {
-        self.inner.borrow_mut().id()
     }
 
     /// Acquire mutable access and coerce into a `&mut dyn IrQuery`, suitable
@@ -187,7 +182,7 @@ impl Query {
             item: item.clone(),
         });
 
-        let id = inner.next_id.next().expect("ran out of ids");
+        let id = inner.gen.next();
         inner.query_paths.insert(id, query_path);
         id
     }
@@ -561,7 +556,7 @@ impl Query {
             module: module.clone(),
         };
 
-        let id = inner.id();
+        let id = inner.gen.next();
         let query_item =
             inner.insert_new_item_with(id, &item, source_id, spanned, module, visibility)?;
 
@@ -617,12 +612,10 @@ impl Query {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Default, Clone)]
 struct QueryInner {
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<Item, CompileMeta>,
-    /// Next opaque id generated.
-    next_id: Id,
     /// Macro storage.
     storage: Storage,
     /// Prelude from the prelude.
@@ -631,6 +624,8 @@ struct QueryInner {
     unit: UnitBuilder,
     /// Cache of constants that have been expanded.
     consts: Consts,
+    /// Shared id generator.
+    gen: Gen,
     /// Build queue.
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
@@ -655,11 +650,6 @@ struct QueryInner {
 }
 
 impl QueryInner {
-    /// Generate the next unique identifier.
-    fn id(&mut self) -> Id {
-        self.next_id.next().expect("ran out of ids")
-    }
-
     /// Get the item for the given identifier.
     fn item_for(&self, span: Span, id: Option<Id>) -> Result<Arc<CompileItem>, QueryError> {
         let item = id
@@ -754,7 +744,7 @@ impl QueryInner {
         &mut self,
         internal_macro: BuiltInMacro,
     ) -> Result<Id, QueryError> {
-        let id = self.id();
+        let id = self.gen.next();
         self.internal_macros.insert(id, Arc::new(internal_macro));
         Ok(id)
     }
@@ -1372,7 +1362,7 @@ impl QueryInner {
 
     /// Insert an item and return its Id.
     fn insert_const_fn(&mut self, item: &Arc<CompileItem>, ir_fn: ir::IrFn) -> Id {
-        let id = self.id();
+        let id = self.gen.next();
 
         self.const_fns.insert(
             id,
