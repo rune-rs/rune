@@ -660,7 +660,7 @@ struct QueryInner {
     /// Reverse lookup for items to reduce the number of items used.
     items_rev: HashMap<Item, Vec<Id>>,
     /// All available names in the context.
-    names: Names<()>,
+    names: Names,
     /// Modules and associated metadata.
     modules: HashMap<Item, Arc<CompileMod>>,
 }
@@ -731,7 +731,7 @@ impl QueryInner {
 
     /// Insert the given name into the unit.
     fn insert_name(&mut self, item: &Item) {
-        self.names.insert(item, ());
+        self.names.insert(item);
     }
 
     /// Inserts an item that *has* to be unique, else cause an error.
