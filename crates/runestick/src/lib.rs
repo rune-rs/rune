@@ -89,7 +89,6 @@ mod panic;
 mod protocol;
 mod raw_str;
 mod select;
-mod serde;
 mod shared;
 mod source;
 mod span;
