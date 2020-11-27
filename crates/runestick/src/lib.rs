@@ -148,7 +148,7 @@ pub use self::any_obj::{AnyObj, AnyObjVtable};
 pub use self::args::Args;
 pub use self::compile_meta::{
     CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
-    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileModKind, CompileSource,
+    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource,
 };
 pub use self::const_value::ConstValue;
 pub use self::format::{Format, FormatSpec};

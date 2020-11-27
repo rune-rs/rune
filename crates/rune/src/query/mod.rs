@@ -13,9 +13,8 @@ use crate::{
 use runestick::format;
 use runestick::{
     Call, CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
-    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileModKind, CompileSource, Component,
-    ComponentRef, Context, Hash, IntoComponent, Item, Location, Names, Source, SourceId, Span,
-    Visibility,
+    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource, Component, ComponentRef,
+    Context, Hash, IntoComponent, Item, Location, Names, Source, SourceId, Span, Visibility,
 };
 use std::cell::{RefCell, RefMut};
 use std::collections::VecDeque;
@@ -215,9 +214,7 @@ impl Query {
             location: Location::new(source_id, spanned),
             item: item.clone(),
             visibility,
-            kind: CompileModKind::Nested {
-                parent: parent.clone(),
-            },
+            parent: Some(parent.clone()),
         });
 
         inner.modules.insert(item.clone(), query_mod.clone());
@@ -239,7 +236,7 @@ impl Query {
             location: Location::new(source_id, spanned),
             item: Item::new(),
             visibility: Visibility::Public,
-            kind: CompileModKind::Root,
+            parent: None,
         });
 
         inner.modules.insert(Item::new(), query_mod.clone());
