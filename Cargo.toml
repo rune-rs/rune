@@ -1,6 +1,13 @@
 [workspace]
 members = [
-    "crates/*"
+    "crates/rune",
+    "crates/rune-cli",
+    "crates/rune-languageserver",
+    "crates/rune-macros",
+    "crates/rune-modules",
+    "crates/rune-wasm",
+    "crates/runestick",
+    "crates/runestick-macros",
 ]
 
 exclude = [

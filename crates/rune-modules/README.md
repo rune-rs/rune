@@ -54,6 +54,7 @@ See each module for documentation:
 * [http]
 * [io]
 * [json]
+* [macros]
 * [process]
 * [rand]
 * [signal]
@@ -71,6 +72,7 @@ See each module for documentation:
 * `http` for the [http module][http]
 * `io` for the [io module][io]
 * `json` for the [json module][json]
+* `macros` for the [macros module][macros]
 * `process` for the [process module][process]
 * `rand` for the [rand module][rand]
 * `signal` for the [signal module][signal]
@@ -85,6 +87,7 @@ See each module for documentation:
 [http]: https://docs.rs/rune-modules/0/rune_modules/http/
 [io]: https://docs.rs/rune-modules/0/rune_modules/io/
 [json]: https://docs.rs/rune-modules/0/rune_modules/json/
+[macros]: https://docs.rs/rune-modules/0/rune_modules/macros/
 [process]: https://docs.rs/rune-modules/0/rune_modules/process/
 [rand]: https://docs.rs/rune-modules/0/rune_modules/rand/
 [signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
