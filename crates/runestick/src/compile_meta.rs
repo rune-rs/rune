@@ -228,26 +228,26 @@ pub struct CompileMetaTuple {
 /// Item and the module that the item belongs to.
 #[derive(Default, Debug, Clone)]
 pub struct CompileItem {
-    /// The location of the item.
-    pub location: Location,
     /// The id of the item.
     pub id: Id,
+    /// The location of the item.
+    pub location: Location,
     /// The name of the item.
     pub item: Item,
-    /// The module associated with the item.
-    pub module: Arc<CompileMod>,
     /// The visibility of the item.
     pub visibility: Visibility,
+    /// The module associated with the item.
+    pub module: Arc<CompileMod>,
 }
 
 impl From<Item> for CompileItem {
     fn from(item: Item) -> Self {
         Self {
-            location: Default::default(),
             id: Default::default(),
+            location: Default::default(),
             item,
-            module: Default::default(),
             visibility: Default::default(),
+            module: Default::default(),
         }
     }
 }
@@ -262,23 +262,5 @@ pub struct CompileMod {
     /// The visibility of the module.
     pub visibility: Visibility,
     /// The kind of the module.
-    pub kind: CompileModKind,
-}
-
-/// The module kind.
-#[derive(Debug)]
-pub enum CompileModKind {
-    /// Referenced module is the root module.
-    Root,
-    /// Reference module is a nested module.
-    Nested {
-        /// Associated parent module.
-        parent: Arc<CompileMod>,
-    },
-}
-
-impl Default for CompileModKind {
-    fn default() -> Self {
-        Self::Root
-    }
+    pub parent: Option<Arc<CompileMod>>,
 }
