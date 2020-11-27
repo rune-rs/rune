@@ -5,7 +5,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::ir;
 use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter, IrQuery};
 use crate::parsing::Opaque;
-use crate::shared::Consts;
+use crate::shared::{Consts, Items};
 use crate::{
     CompileError, CompileErrorKind, CompileVisitor, Id, ImportEntryStep, Resolve as _, Spanned,
     Storage, UnitBuilder,
@@ -125,11 +125,15 @@ impl Query {
                 query_paths: HashMap::new(),
                 internal_macros: HashMap::new(),
                 items: HashMap::new(),
-                items_rev: HashMap::new(),
                 names: Names::default(),
                 modules: HashMap::new(),
             })),
         }
+    }
+
+    /// Get the next unique identifier generated from the query system.
+    pub(crate) fn id(&self) -> Id {
+        self.inner.borrow_mut().id()
     }
 
     /// Acquire mutable access and coerce into a `&mut dyn IrQuery`, suitable
@@ -200,28 +204,26 @@ impl Query {
     /// Insert module and associated metadata.
     pub(crate) fn insert_mod(
         &self,
+        items: &Items,
         source_id: SourceId,
-        spanned: Span,
+        span: Span,
         parent: &Arc<CompileMod>,
-        item: &Item,
         visibility: Visibility,
-    ) -> Result<(Id, Arc<CompileMod>), QueryError> {
+    ) -> Result<Arc<CompileMod>, QueryError> {
         let mut inner = self.inner.borrow_mut();
 
-        let id = inner.next_id.next().expect("ran out of ids");
+        let item = inner.insert_new_item(items, source_id, span, parent, visibility)?;
 
         let query_mod = Arc::new(CompileMod {
-            location: Location::new(source_id, spanned),
-            item: item.clone(),
+            location: Location::new(source_id, span),
+            item: item.item.clone(),
             visibility,
             parent: Some(parent.clone()),
         });
 
-        inner.modules.insert(item.clone(), query_mod.clone());
-
-        inner.insert_name(item);
-        inner.insert_new_item(source_id, spanned, item, parent, visibility)?;
-        Ok((id, query_mod))
+        inner.modules.insert(item.item.clone(), query_mod.clone());
+        inner.insert_name(&item.item);
+        Ok(query_mod)
     }
 
     /// Insert module and associated metadata.
@@ -245,41 +247,28 @@ impl Query {
     }
 
     /// Get the compile item for the given item.
-    pub(crate) fn get_item(&self, span: Span, item: &Item) -> Result<Arc<CompileItem>, QueryError> {
+    pub(crate) fn get_item(&self, span: Span, id: Id) -> Result<Arc<CompileItem>, QueryError> {
         let inner = self.inner.borrow();
-        let id = self.get_item_id(span, item)?;
 
         if let Some(item) = inner.items.get(&id) {
             return Ok(item.clone());
         }
 
-        Err(QueryError::new(
-            span,
-            QueryErrorKind::MissingRevItem { item: item.clone() },
-        ))
-    }
-
-    /// Get the id of the given item.
-    ///
-    /// This will error in case none or multiple entries are registered for the
-    /// given item.
-    pub(crate) fn get_item_id(&self, span: Span, item: &Item) -> Result<Id, QueryError> {
-        let inner = self.inner.borrow();
-        inner.get_item_id(span, item)
+        Err(QueryError::new(span, QueryErrorKind::MissingRevId { id }))
     }
 
     /// Insert a new item with the given parameters.
     pub(crate) fn insert_new_item(
         &self,
+        items: &Items,
         source_id: SourceId,
         spanned: Span,
-        item: &Item,
         module: &Arc<CompileMod>,
         visibility: Visibility,
     ) -> Result<Arc<CompileItem>, QueryError> {
         self.inner
             .borrow_mut()
-            .insert_new_item(source_id, spanned, item, module, visibility)
+            .insert_new_item(items, source_id, spanned, module, visibility)
     }
 
     /// Insert a new expanded internal macro.
@@ -572,7 +561,9 @@ impl Query {
             module: module.clone(),
         };
 
-        let query_item = inner.insert_new_item(source_id, spanned, &item, module, visibility)?;
+        let id = inner.id();
+        let query_item =
+            inner.insert_new_item_with(id, &item, source_id, spanned, module, visibility)?;
 
         // toplevel public uses are re-exported.
         if module.item.is_empty() && query_item.visibility.is_public() {
@@ -657,8 +648,6 @@ struct QueryInner {
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
     items: HashMap<Id, Arc<CompileItem>>,
-    /// Reverse lookup for items to reduce the number of items used.
-    items_rev: HashMap<Item, Vec<Id>>,
     /// All available names in the context.
     names: Names,
     /// Modules and associated metadata.
@@ -666,6 +655,11 @@ struct QueryInner {
 }
 
 impl QueryInner {
+    /// Generate the next unique identifier.
+    fn id(&mut self) -> Id {
+        self.next_id.next().expect("ran out of ids")
+    }
+
     /// Get the item for the given identifier.
     fn item_for(&self, span: Span, id: Option<Id>) -> Result<Arc<CompileItem>, QueryError> {
         let item = id
@@ -673,24 +667,6 @@ impl QueryInner {
             .ok_or_else(|| QueryError::new(span, QueryErrorKind::MissingId { what: "item", id }))?;
 
         Ok(item.clone())
-    }
-
-    /// Get the given item id.
-    fn get_item_id(&self, span: Span, item: &Item) -> Result<Id, QueryError> {
-        if let Some(existing) = self.items_rev.get(item) {
-            let mut it = existing.iter().copied();
-
-            if let Some(id) = it.next() {
-                if it.next().is_none() {
-                    return Ok(id);
-                }
-            }
-        }
-
-        Err(QueryError::new(
-            span,
-            QueryErrorKind::MissingRevItem { item: item.clone() },
-        ))
     }
 
     /// Get the internally resolved macro for the specified id.
@@ -738,16 +714,29 @@ impl QueryInner {
     ///
     /// This are not indexed and does not generate an ID, they're only visible
     /// in reverse lookup.
-    pub(crate) fn insert_new_item(
+    fn insert_new_item(
         &mut self,
+        items: &Items,
         source_id: SourceId,
         spanned: Span,
-        item: &Item,
         module: &Arc<CompileMod>,
         visibility: Visibility,
     ) -> Result<Arc<CompileItem>, QueryError> {
-        let id = self.next_id.next().expect("ran out of ids");
+        let id = items.id();
+        let item = &*items.item();
 
+        self.insert_new_item_with(id, item, source_id, spanned, module, visibility)
+    }
+
+    fn insert_new_item_with(
+        &mut self,
+        id: Id,
+        item: &Item,
+        source_id: SourceId,
+        spanned: Span,
+        module: &Arc<CompileMod>,
+        visibility: Visibility,
+    ) -> Result<Arc<CompileItem>, QueryError> {
         let query_item = Arc::new(CompileItem {
             location: Location::new(source_id, spanned),
             id,
@@ -756,7 +745,6 @@ impl QueryInner {
             visibility,
         });
 
-        self.items_rev.entry(item.clone()).or_default().push(id);
         self.items.insert(id, query_item.clone());
         Ok(query_item)
     }
@@ -766,7 +754,7 @@ impl QueryInner {
         &mut self,
         internal_macro: BuiltInMacro,
     ) -> Result<Id, QueryError> {
-        let id = self.next_id.next().expect("ran out of ids");
+        let id = self.id();
         self.internal_macros.insert(id, Arc::new(internal_macro));
         Ok(id)
     }
@@ -1384,7 +1372,7 @@ impl QueryInner {
 
     /// Insert an item and return its Id.
     fn insert_const_fn(&mut self, item: &Arc<CompileItem>, ir_fn: ir::IrFn) -> Id {
-        let id = self.next_id.next().expect("ran out of ids");
+        let id = self.id();
 
         self.const_fns.insert(
             id,

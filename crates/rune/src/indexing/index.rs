@@ -339,7 +339,7 @@ impl<'a> Indexer<'a> {
                 .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
         ast.path.id = Some(id);
 
-        let item = self.query.get_item(ast.span(), &*self.items.item())?;
+        let item = self.query.get_item(ast.span(), self.items.id())?;
 
         let mut compiler = MacroCompiler {
             item,
@@ -503,7 +503,7 @@ impl<'a> Indexer<'a> {
     pub(crate) fn handle_file_mod(&mut self, item_mod: &mut ast::ItemMod) -> CompileResult<()> {
         let span = item_mod.span();
         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
-        let _guard = self.items.push_name(name.as_ref());
+        let _guard = self.items.push_name(self.query.id(), name.as_ref());
 
         let root = match &self.root {
             Some(root) => root,
@@ -515,26 +515,28 @@ impl<'a> Indexer<'a> {
             }
         };
 
-        let item = self.items.item();
         let visibility = ast_to_visibility(&item_mod.visibility)?;
 
-        let (id, mod_item) = self.query.insert_mod(
+        let mod_item = self.query.insert_mod(
+            &self.items,
             self.source_id,
             item_mod.name_span(),
             &self.mod_item,
-            &*item,
             visibility,
         )?;
 
-        item_mod.id = Some(id);
+        item_mod.id = Some(self.items.id());
 
-        let source = self.source_loader.load(root, &*item, span)?;
+        let source = self.source_loader.load(root, &mod_item.item, span)?;
 
-        if let Some(existing) = self.loaded.insert(item.clone(), (self.source_id, span)) {
+        if let Some(existing) = self
+            .loaded
+            .insert(mod_item.item.clone(), (self.source_id, span))
+        {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::ModAlreadyLoaded {
-                    item: item.clone(),
+                    item: mod_item.item.clone(),
                     existing,
                 },
             ));
@@ -600,13 +602,13 @@ impl Index for ast::ItemFn {
 
         let is_toplevel = idx.items.is_empty();
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
-        let _guard = idx.items.push_name(name.as_ref());
+        let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
 
         let visibility = ast_to_visibility(&self.visibility)?;
         let item = idx.query.insert_new_item(
+            &idx.items,
             idx.source_id,
             span,
-            &*idx.items.item(),
             &idx.mod_item,
             visibility,
         )?;
@@ -773,12 +775,12 @@ impl Index for ast::ExprBlock {
             return self.block.index(idx);
         }
 
-        let _guard = idx.items.push_id();
+        let _guard = idx.items.push_id(idx.query.id());
 
         let item = idx.query.insert_new_item(
+            &idx.items,
             idx.source_id,
             span,
-            &*idx.items.item(),
             &idx.mod_item,
             Visibility::default(),
         )?;
@@ -833,13 +835,13 @@ impl Index for ast::Block {
         let span = self.span();
         log::trace!("Block => {:?}", idx.source.source(span));
 
-        let _guard = idx.items.push_id();
+        let _guard = idx.items.push_id(idx.query.id());
         let _guard = idx.scopes.push_scope();
 
         idx.query.insert_new_item(
+            &idx.items,
             idx.source_id,
             span,
-            &*idx.items.item(),
             &idx.mod_item,
             Visibility::Inherited,
         )?;
@@ -1243,13 +1245,13 @@ impl Index for ast::ItemEnum {
         }
 
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
-        let _guard = idx.items.push_name(name.as_ref());
+        let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
 
         let visibility = ast_to_visibility(&self.visibility)?;
         let enum_item = idx.query.insert_new_item(
+            &idx.items,
             idx.source_id,
             span,
-            &*idx.items.item(),
             &idx.mod_item,
             visibility,
         )?;
@@ -1275,12 +1277,12 @@ impl Index for ast::ItemEnum {
 
             let span = variant.name.span();
             let name = variant.name.resolve(&idx.storage, &*idx.source)?;
-            let _guard = idx.items.push_name(name.as_ref());
+            let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
 
             let item = idx.query.insert_new_item(
+                &idx.items,
                 idx.source_id,
                 span,
-                &*idx.items.item(),
                 &idx.mod_item,
                 Visibility::Public,
             )?;
@@ -1320,13 +1322,13 @@ impl Index for Box<ast::ItemStruct> {
         }
 
         let ident = self.ident.resolve(&idx.storage, &*idx.source)?;
-        let _guard = idx.items.push_name(ident.as_ref());
+        let _guard = idx.items.push_name(idx.query.id(), ident.as_ref());
 
         let visibility = ast_to_visibility(&self.visibility)?;
         let item = idx.query.insert_new_item(
+            &idx.items,
             idx.source_id,
             span,
-            &*idx.items.item(),
             &idx.mod_item,
             visibility,
         )?;
@@ -1360,7 +1362,7 @@ impl Index for ast::ItemImpl {
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path_segment, "unsupported path segment"))?;
             let ident = ident_segment.resolve(&idx.storage, &*idx.source)?;
-            guards.push(idx.items.push_name(ident.as_ref()));
+            guards.push(idx.items.push_name(idx.query.id(), ident.as_ref()));
         }
 
         let new = Arc::new(idx.items.item().clone());
@@ -1392,17 +1394,18 @@ impl Index for ast::ItemMod {
             }
             ast::ItemModBody::InlineBody(body) => {
                 let name = self.name.resolve(&idx.storage, &*idx.source)?;
-                let _guard = idx.items.push_name(name.as_ref());
+                let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
 
                 let visibility = ast_to_visibility(&self.visibility)?;
-                let (id, mod_item) = idx.query.insert_mod(
+                let mod_item = idx.query.insert_mod(
+                    &idx.items,
                     idx.source_id,
                     name_span,
                     &idx.mod_item,
-                    &*idx.items.item(),
                     visibility,
                 )?;
-                self.id = Some(id);
+
+                self.id = Some(idx.items.id());
 
                 let replaced = std::mem::replace(&mut idx.mod_item, mod_item);
                 body.file.index(idx)?;
@@ -1425,12 +1428,12 @@ impl Index for Box<ast::ItemConst> {
 
         let span = self.span();
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
-        let _guard = idx.items.push_name(name.as_ref());
+        let _guard = idx.items.push_name(idx.query.id(), name.as_ref());
 
         let item = idx.query.insert_new_item(
+            &idx.items,
             idx.source_id,
             span,
-            &*idx.items.item(),
             &idx.mod_item,
             ast_to_visibility(&self.visibility)?,
         )?;
@@ -1567,7 +1570,7 @@ impl Index for Box<ast::ExprClosure> {
         let span = self.span();
         log::trace!("ExprClosure => {:?}", idx.source.source(span));
 
-        let _guard = idx.items.push_id();
+        let _guard = idx.items.push_id(idx.query.id());
 
         let kind = match self.async_token {
             Some(..) => IndexFnKind::Async,
@@ -1578,14 +1581,14 @@ impl Index for Box<ast::ExprClosure> {
         let span = self.span();
 
         let item = idx.query.insert_new_item(
+            &idx.items,
             idx.source_id,
             span,
-            &*idx.items.item(),
             &idx.mod_item,
             Visibility::Inherited,
         )?;
 
-        self.id = Some(item.id);
+        self.id = Some(idx.items.id());
 
         for (arg, _) in self.args.as_slice() {
             match arg {
@@ -1759,7 +1762,7 @@ impl Index for ast::ExprCall {
         let span = self.span();
         log::trace!("ExprCall => {:?}", idx.source.source(span));
 
-        self.id = Some(idx.query.get_item_id(span, &*idx.items.item())?);
+        self.id = Some(idx.items.id());
 
         for (expr, _) in &mut self.args {
             expr.index(idx)?;

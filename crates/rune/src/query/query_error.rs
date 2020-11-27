@@ -72,8 +72,6 @@ pub enum QueryErrorKind {
         item: Item,
         from: Item,
     },
-    #[error("missing reverse lookup for `{item}`")]
-    MissingRevItem { item: Item },
     #[error("missing item for id {id:?}")]
     MissingRevId { id: Id },
     #[error("missing query meta for module {item}")]
