@@ -124,12 +124,14 @@ impl fmt::Display for ContextTypeInfo {
 /// A description of a function signature.
 #[derive(Debug, Clone)]
 pub enum ContextSignature {
+    /// An unbound or static function
     Function {
         /// Path to the function.
         item: Item,
         /// Arguments.
         args: Option<usize>,
     },
+    /// An instance function or method
     Instance {
         /// Path to the instance function.
         item: Item,
