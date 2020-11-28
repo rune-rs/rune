@@ -56,7 +56,7 @@ pub enum QueryErrorKind {
         item: Item,
         locations: Vec<(Location, Item)>,
     },
-    #[error("item `{item}` with {visibility} visibility, is not accessible from `{from}`")]
+    #[error("`{item}` with {visibility} visibility, is not accessible from module `{from}`")]
     NotVisible {
         chain: Vec<Location>,
         location: Location,
@@ -64,7 +64,9 @@ pub enum QueryErrorKind {
         item: Item,
         from: Item,
     },
-    #[error("module `{item}` with {visibility} visibility, is not accessible from `{from}`")]
+    #[error(
+        "module `{item}` with {visibility} visibility, is not accessible from module `{from}`"
+    )]
     NotVisibleMod {
         chain: Vec<Location>,
         location: Location,

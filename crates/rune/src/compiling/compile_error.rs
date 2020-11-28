@@ -5,9 +5,7 @@ use crate::{
     ResolveErrorKind, Spanned,
 };
 use runestick::debug::DebugSignature;
-use runestick::{
-    CompileMeta, Hash, Item, Label, Location, SourceId, Span, SpannedError, Visibility,
-};
+use runestick::{CompileMeta, Hash, Item, Label, Location, SourceId, Span, SpannedError};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -287,8 +285,6 @@ pub enum CompileErrorKind {
 pub struct ImportEntryStep {
     /// The location of the import.
     pub location: Location,
-    /// The visibility of the import.
-    pub visibility: Visibility,
     /// The item being imported.
     pub item: Item,
 }
