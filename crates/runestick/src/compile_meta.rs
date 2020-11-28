@@ -197,6 +197,10 @@ pub enum CompileMetaKind {
     },
     /// Purely an import.
     Import {
+        /// The module of the target.
+        module: Arc<CompileMod>,
+        /// The location of the import.
+        location: Location,
         /// The imported target.
         target: Item,
     },

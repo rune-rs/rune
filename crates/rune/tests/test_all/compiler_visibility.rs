@@ -46,6 +46,25 @@ fn test_access_hidden() {
 }
 
 #[test]
+fn test_hidden_reexport() {
+    assert_compile_error! {
+        r#"
+        mod a { struct Foo; }
+
+        mod b {
+            use crate::a::Foo;
+            pub fn test() { Foo }
+        }
+
+        pub fn main() { b::test() }
+        "#,
+        span, QueryError { error: NotVisible { .. } } => {
+            assert_eq!(span, Span::new(107, 110));
+        }
+    }
+}
+
+#[test]
 fn test_indirect_access() {
     let result = rune! { i64 =>
         mod d {

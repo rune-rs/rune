@@ -742,7 +742,7 @@ impl Index for ast::ItemFn {
             idx.query.insert_meta(span, meta)?;
         } else {
             idx.query.index(IndexedEntry {
-                query_item: item,
+                item,
                 source: idx.source.clone(),
                 indexed: Indexed::Function(fun),
             });

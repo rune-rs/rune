@@ -37,7 +37,7 @@ fn test_import_cycle() {
         "#,
         span, QueryError { error: ImportCycle { path, .. } } => {
             assert_eq!(span, Span::new(177, 183));
-            assert_eq!(2, path.len());
+            assert_eq!(3, path.len());
             assert_eq!(Span::new(107, 120), path[0].location.span);
             assert_eq!(Span::new(37, 50), path[1].location.span);
         }
