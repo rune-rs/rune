@@ -295,8 +295,8 @@ impl fmt::Debug for Access {
 
 /// A shared access guard.
 ///
-/// This is created with [Access::shared], and must not outlive the [Access]
-/// instance it was created from.
+/// This must not outlive the access controlled instance it was constructed
+/// from.
 pub struct RawSharedGuard(*const Access);
 
 impl Drop for RawSharedGuard {
@@ -383,8 +383,8 @@ impl Drop for SharedGuard<'_> {
 
 /// An exclusive access guard.
 ///
-/// This is created with [Access::exclusive], and must not outlive the [Access]
-/// instance it was created from.
+/// This must not outlive the access controlled instance it was constructed
+/// from.
 pub struct RawExclusiveGuard(*const Access);
 
 impl Drop for RawExclusiveGuard {

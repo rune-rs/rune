@@ -236,7 +236,7 @@ impl VmSendExecution {
     /// Complete the current execution with support for async instructions.
     ///
     /// This requires that the result of the Vm is converted into a
-    /// [`FromValue`] that also implements [`Send`],  which prevents non-Send
+    /// [crate::FromValue] that also implements [Send],  which prevents non-Send
     /// values from escaping from the virtual machine.
     pub fn async_complete(
         mut self,

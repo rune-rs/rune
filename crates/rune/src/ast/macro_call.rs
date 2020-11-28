@@ -9,8 +9,7 @@ use runestick::{Id, Span};
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct MacroCall {
     /// Opaque identifier for macro call. Use to store reference to internally
-    /// expanded macros through
-    /// [builtin_macro_for][crate::query::Query::builtin_macro_for].
+    /// expanded macros.
     #[rune(id)]
     pub id: Option<Id>,
     /// Attributes associated with macro call.

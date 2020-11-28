@@ -216,7 +216,9 @@ pub use self::load::{
     WarningKind, Warnings,
 };
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
-pub use self::macros::{MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter};
+pub use self::macros::{
+    with_context, MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter,
+};
 pub use self::options::Options;
 pub use self::parsing::{
     Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,
@@ -234,7 +236,7 @@ pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 pub use diagnostics::{termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource};
 
 /// Parse the given input as the given type that implements
-/// [Parse][crate::traits::Parse].
+/// [Parse][crate::parsing::Parse].
 pub fn parse_all<T>(source: &str) -> Result<T, ParseError>
 where
     T: crate::parsing::Parse,

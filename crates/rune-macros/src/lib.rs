@@ -90,16 +90,14 @@ pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream
 /// Macro helper function for quoting the token stream as macro output.
 ///
 /// Is capable of quoting everything in Rune, except for the following:
-/// * Pound signs (`#`), which can be inserted by using `#(ast::Pound)` instead.
-///   These are used in object literal, and are a limitiation in the quote macro
-///   because we use the pound sign to delimit variables.
-/// * Labels, which must be created using [crate::MacroContext::label].
-/// * Template strings, which must be created using [crate::MacroContext::template_string].
+/// * Labels, which must be created using `Label::new`.
+/// * Dynamic quoted strings and other literals, which must be created using
+///   `Lit::new`.
 ///
 /// # Panics
 ///
-/// Calling this macro will panic if called outside of a macro context.
-/// A macro context can be setup using [with_context](crate::macros::with_context).
+/// Calling this macro will panic if called outside of a macro context. A macro
+/// context can be setup using `with_context`.
 ///
 /// ```rust
 /// use rune::macros::{with_context, MacroContext};

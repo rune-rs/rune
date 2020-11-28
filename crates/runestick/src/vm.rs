@@ -234,12 +234,12 @@ impl Vm {
     /// # Panics
     ///
     /// If any of the arguments passed in are references, and that references is
-    /// captured somewhere in the call as [`StrongMut<T>`] or [`StrongRef<T>`]
+    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`]
     /// this call will panic as we are trying to free the metadata relatedc to
     /// the reference.
     ///
-    /// [`StrongMut<T>`]: crate::StrongMut
-    /// [`StrongRef<T>`]: crate::StrongRef
+    /// [`Mut<T>`]: crate::Mut
+    /// [`Ref<T>`]: crate::Ref
     pub fn call<A, N>(mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: IntoTypeHash,
@@ -273,12 +273,12 @@ impl Vm {
     /// # Panics
     ///
     /// If any of the arguments passed in are references, and that references is
-    /// captured somewhere in the call as [`StrongMut<T>`] or [`StrongRef<T>`]
+    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`]
     /// this call will panic as we are trying to free the metadata relatedc to
     /// the reference.
     ///
-    /// [`StrongMut<T>`]: crate::StrongMut
-    /// [`StrongRef<T>`]: crate::StrongRef
+    /// [`Mut<T>`]: crate::Mut
+    /// [`Ref<T>`]: crate::Ref
     pub async fn async_call<A, N>(mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: IntoTypeHash,

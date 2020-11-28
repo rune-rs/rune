@@ -6,10 +6,6 @@ use std::num::NonZeroUsize;
 /// The default implementation for an identifier is empty, meaning it does not
 /// hold any value, and attempting to perform lookups over it will fail with an
 /// error indicating that it's empty with the string `Id(*)`.
-///
-/// This is used to store associated metadata to AST items through:
-/// * [Query::insert_item](crate::Query::insert_item)
-/// * [Query::insert_template](crate::Query::insert_template)
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Id(NonZeroUsize);

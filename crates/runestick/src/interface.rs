@@ -12,7 +12,7 @@ thread_local! { static ENV: Cell<Env> = Cell::new(Env::null()) }
 /// An interface which wraps a value and allows for accessing protocols.
 ///
 /// This can be used as an argument type for native functions who wants to call
-/// a protocol function like [INTO_ITER](crate::INTO_ITER) (see
+/// a protocol function like [INTO_ITER][crate::Protocol::INTO_ITER] (see
 /// [into_iter][Self::into_iter]).
 pub struct Interface {
     target: Value,

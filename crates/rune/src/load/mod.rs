@@ -26,7 +26,8 @@ pub struct LoadSourcesError;
 
 /// Load and compile the given sources.
 ///
-/// Uses the [Source::name] when generating diagnostics to reference the file.
+/// Uses the [Source::name](runestick::Source::name) when generating diagnostics
+/// to reference the file.
 ///
 /// # Examples
 ///
