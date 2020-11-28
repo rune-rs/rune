@@ -187,7 +187,7 @@ pub use crate::any::Any;
 pub use crate::awaited::Awaited;
 pub use crate::bytes::Bytes;
 pub use crate::call::Call;
-pub use crate::context::{Context, ContextError};
+pub use crate::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
 pub use crate::debug::{DebugInfo, DebugInst};
 pub use crate::function::{Function, SyncFunction};
 pub use crate::future::Future;
