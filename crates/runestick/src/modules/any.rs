@@ -1,7 +1,3 @@
-/*!
-
-*/
-
 //! `std::any` module.
 
 use crate as runestick; // for #[derive(Any)] to work

@@ -2128,7 +2128,7 @@ impl Vm {
                         .lookup_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
 
-                    Function::from_unit_struct(rtti.clone(), hash)
+                    Function::from_unit_struct(rtti.clone())
                 }
                 UnitFn::TupleStruct { hash, args } => {
                     let rtti = self
@@ -2136,7 +2136,7 @@ impl Vm {
                         .lookup_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
 
-                    Function::from_tuple_struct(rtti.clone(), args, hash)
+                    Function::from_tuple_struct(rtti.clone(), args)
                 }
                 UnitFn::UnitVariant { hash } => {
                     let rtti = self
@@ -2144,7 +2144,7 @@ impl Vm {
                         .lookup_variant_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
-                    Function::from_empty_variant(rtti.clone(), hash)
+                    Function::from_empty_variant(rtti.clone())
                 }
                 UnitFn::TupleVariant { hash, args } => {
                     let rtti = self
@@ -2152,7 +2152,7 @@ impl Vm {
                         .lookup_variant_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
-                    Function::from_tuple_variant(rtti.clone(), args, hash)
+                    Function::from_tuple_variant(rtti.clone(), args)
                 }
             },
             None => {

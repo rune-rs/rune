@@ -1,6 +1,4 @@
-/*!
-Tests for `std::any::type_name_of_val(v)`
-*/
+//! Tests for `std::any::type_name_of_val(v)` for native types
 
 use rune::{
     load_sources,

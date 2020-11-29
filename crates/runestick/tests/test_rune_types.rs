@@ -1,7 +1,4 @@
-/*!
-
-Tests for `std::any::type_name_of_val(v)`
-*/
+//! Tests for `std::any::type_name_of_val(v)` for rune types
 
 use rune::{
     load_sources,

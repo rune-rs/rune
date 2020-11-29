@@ -45,7 +45,6 @@ impl Interface {
             }
         }
 
-        let hash = Hash::instance_function(self.target.type_hash()?, Protocol::INTO_TYPE_NAME);
         if let Some(name) = self.unit.constant(hash) {
             match name {
                 ConstValue::String(s) => return Ok(s.clone()),
@@ -54,8 +53,9 @@ impl Interface {
             }
         }
 
-        self.target.type_info().map(|v| format!("<{}>", v))
+        self.target.type_info().map(|v| format!("{}", v))
     }
+
     /// Helper function to call an instance function.
     pub(crate) fn call_instance_fn<H, A>(
         self,

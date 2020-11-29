@@ -23,7 +23,6 @@ where
     Tuple: From<Box<[V]>>,
 {
     inner: Inner<V>,
-    hash: Hash,
 }
 
 impl<V> FunctionImpl<V>
@@ -168,8 +167,7 @@ where
     /// Create a function pointer from a handler.
     pub(crate) fn from_handler(handler: Arc<Handler>, hash: Hash) -> Self {
         Self {
-            inner: Inner::FnHandler(FnHandler { handler }),
-            hash,
+            inner: Inner::FnHandler(FnHandler { handler, hash }),
         }
     }
 
@@ -189,8 +187,8 @@ where
                 offset,
                 call,
                 args,
+                hash,
             }),
-            hash,
         }
     }
 
@@ -212,42 +210,38 @@ where
                     offset,
                     call,
                     args,
+                    hash,
                 },
                 environment,
             }),
-            hash,
         }
     }
 
     /// Create a function pointer from an offset.
-    pub(crate) fn from_unit_struct(rtti: Arc<Rtti>, hash: Hash) -> Self {
+    pub(crate) fn from_unit_struct(rtti: Arc<Rtti>) -> Self {
         Self {
             inner: Inner::FnUnitStruct(FnUnitStruct { rtti }),
-            hash,
         }
     }
 
     /// Create a function pointer from an offset.
-    pub(crate) fn from_tuple_struct(rtti: Arc<Rtti>, args: usize, hash: Hash) -> Self {
+    pub(crate) fn from_tuple_struct(rtti: Arc<Rtti>, args: usize) -> Self {
         Self {
             inner: Inner::FnTupleStruct(FnTupleStruct { rtti, args }),
-            hash,
         }
     }
 
     /// Create a function pointer that constructs a empty variant.
-    pub(crate) fn from_empty_variant(rtti: Arc<VariantRtti>, hash: Hash) -> Self {
+    pub(crate) fn from_empty_variant(rtti: Arc<VariantRtti>) -> Self {
         Self {
             inner: Inner::FnUnitVariant(FnUnitVariant { rtti }),
-            hash,
         }
     }
 
     /// Create a function pointer that constructs a tuple variant.
-    pub(crate) fn from_tuple_variant(rtti: Arc<VariantRtti>, args: usize, hash: Hash) -> Self {
+    pub(crate) fn from_tuple_variant(rtti: Arc<VariantRtti>, args: usize) -> Self {
         Self {
             inner: Inner::FnTupleVariant(FnTupleVariant { rtti, args }),
-            hash,
         }
     }
 
@@ -265,7 +259,16 @@ where
 
     #[inline]
     pub fn type_hash(&self) -> Hash {
-        self.hash
+        match &self.inner {
+            Inner::FnHandler(FnHandler { hash, .. }) | Inner::FnOffset(FnOffset { hash, .. }) => {
+                *hash
+            }
+            Inner::FnClosureOffset(fco) => fco.fn_offset.hash,
+            Inner::FnUnitStruct(func) => func.rtti.hash,
+            Inner::FnTupleStruct(func) => func.rtti.hash,
+            Inner::FnUnitVariant(func) => func.rtti.hash,
+            Inner::FnTupleVariant(func) => func.rtti.hash,
+        }
     }
 }
 
@@ -293,10 +296,7 @@ impl FunctionImpl<Value> {
             Inner::FnTupleVariant(inner) => Inner::FnTupleVariant(inner),
         };
 
-        Ok(SyncFunction {
-            inner,
-            hash: self.hash,
-        })
+        Ok(SyncFunction { inner })
     }
 }
 
@@ -362,6 +362,8 @@ enum Inner<V> {
 struct FnHandler {
     /// The function handler.
     handler: Arc<Handler>,
+    /// Hash for the function type
+    hash: Hash,
 }
 
 impl fmt::Debug for FnHandler {
@@ -381,6 +383,8 @@ struct FnOffset {
     call: Call,
     /// The number of arguments the function takes.
     args: usize,
+    /// Hash for the function type
+    hash: Hash,
 }
 
 impl FnOffset {
