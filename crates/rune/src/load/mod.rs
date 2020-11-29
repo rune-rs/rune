@@ -44,7 +44,7 @@ pub struct LoadSourcesError;
 /// use std::error::Error;
 ///
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let context = Arc::new(rune_modules::default_context()?);
+/// let context = rune_modules::default_context()?;
 /// let mut options = rune::Options::default();
 /// let mut sources = rune::Sources::new();
 /// sources.insert(Source::new("entry", r#"
@@ -56,7 +56,7 @@ pub struct LoadSourcesError;
 /// let mut errors = rune::Errors::new();
 /// let mut warnings = rune::Warnings::new();
 ///
-/// let unit = match rune::load_sources(&*context, &options, &mut sources, &mut errors, &mut warnings) {
+/// let unit = match rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings) {
 ///     Ok(unit) => unit,
 ///     Err(rune::LoadSourcesError) => {
 ///         let mut writer = StandardStream::stderr(ColorChoice::Always);
@@ -66,7 +66,7 @@ pub struct LoadSourcesError;
 /// };
 ///
 /// let unit = Arc::new(unit);
-/// let vm = runestick::Vm::new(context.clone(), unit.clone());
+/// let vm = runestick::Vm::new(Arc::new(context.runtime()), unit.clone());
 ///
 /// if !warnings.is_empty() {
 ///     let mut writer = StandardStream::stderr(ColorChoice::Always);

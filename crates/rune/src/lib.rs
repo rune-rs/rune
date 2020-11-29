@@ -106,7 +106,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
-//!     let context = Arc::new(rune_modules::default_context()?);
+//!     let context = rune_modules::default_context()?;
 //!     let options = rune::Options::default();
 //!
 //!     let mut sources = rune::Sources::new();
@@ -123,7 +123,7 @@
 //!     let mut errors = rune::Errors::new();
 //!     let mut warnings = rune::Warnings::new();
 //!
-//!     let unit = match rune::load_sources(&*context, &options, &mut sources, &mut errors, &mut warnings) {
+//!     let unit = match rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings) {
 //!         Ok(unit) => unit,
 //!         Err(rune::LoadSourcesError) => {
 //!             let mut writer = StandardStream::stderr(ColorChoice::Always);
@@ -137,7 +137,7 @@
 //!         warnings.emit_diagnostics(&mut writer, &sources)?;
 //!     }
 //!
-//!     let vm = Vm::new(context.clone(), Arc::new(unit));
+//!     let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 //!
 //!     let mut execution = vm.execute(&["calculate"], (10i64, 20i64))?;
 //!     let value = execution.async_complete().await?;

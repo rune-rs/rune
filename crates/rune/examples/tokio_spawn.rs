@@ -13,11 +13,8 @@ async fn main() -> runestick::Result<()> {
         "#,
     )?;
 
-    let context = Arc::new(context);
-
     let main = runestick::Hash::type_hash(&["main"]);
-
-    let vm = runestick::Vm::new(context.clone(), unit.clone());
+    let vm = runestick::Vm::new(Arc::new(context.runtime()), unit.clone());
 
     let execution = vm.clone().send_execute(main, (5,))?;
     let t1 = tokio::spawn(async move {

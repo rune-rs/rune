@@ -21,8 +21,6 @@ fn test_reference_error() {
     let mut context = Context::with_default_modules().unwrap();
     context.install(&module).unwrap();
 
-    let context = Arc::new(context);
-
     let mut sources = Sources::new();
     sources.insert(Source::new(
         "test",
@@ -40,7 +38,7 @@ fn test_reference_error() {
     )
     .unwrap();
 
-    let vm = Vm::new(context, Arc::new(unit));
+    let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
     let mut foo = Foo::default();
     assert_eq!(foo.value, 0);
