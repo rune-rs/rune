@@ -14,9 +14,11 @@ use std::sync::Arc;
 pub struct RuntimeContext {
     /// Registered native function handlers.
     pub(crate) functions: HashMap<Hash, Arc<Handler>>,
+
     /// Registered types.
     pub(crate) types: HashMap<Hash, TypeCheck>,
 
+    /// Named constant values
     pub(crate) constants: HashMap<Hash, ConstValue>,
 }
 

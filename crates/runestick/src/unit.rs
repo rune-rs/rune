@@ -34,8 +34,7 @@ pub struct Unit {
     variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
-
-    /// Associated constants for various fields
+    /// Named constants
     constants: HashMap<Hash, ConstValue>,
 }
 
