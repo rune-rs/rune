@@ -190,7 +190,6 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
 
     let context = setup_context(config.experimental)?;
 
-    let context = Arc::new(context);
     let mut options = rune::Options::default();
 
     for option in &config.options {
@@ -202,13 +201,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
 
     let mut diagnostics = Vec::new();
 
-    let result = rune::load_sources(
-        &*context,
-        &options,
-        &mut sources,
-        &mut errors,
-        &mut warnings,
-    );
+    let result = rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings);
 
     for warning in &warnings {
         let span = warning.span();
@@ -340,7 +333,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
         None
     };
 
-    let vm = runestick::Vm::new(context, unit);
+    let vm = runestick::Vm::new(Arc::new(context.runtime()), unit);
 
     let mut execution = match vm.execute(&["main"], ()) {
         Ok(execution) => execution,

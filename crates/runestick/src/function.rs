@@ -2,8 +2,8 @@ use crate::context::Handler;
 use crate::internal::AssertSend;
 use crate::VmErrorKind;
 use crate::{
-    Args, Call, ConstValue, Context, FromValue, RawRef, Ref, Rtti, Shared, Stack, Tuple, Unit,
-    UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
+    Args, Call, ConstValue, FromValue, RawRef, Ref, Rtti, RuntimeContext, Shared, Stack, Tuple,
+    Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
 use std::future::Future;
@@ -173,7 +173,7 @@ where
 
     /// Create a function pointer from an offset.
     pub(crate) fn from_offset(
-        context: Arc<Context>,
+        context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
         offset: usize,
         call: Call,
@@ -192,7 +192,7 @@ where
 
     /// Create a function pointer from an offset.
     pub(crate) fn from_closure(
-        context: Arc<Context>,
+        context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
         offset: usize,
         call: Call,
@@ -354,7 +354,7 @@ impl fmt::Debug for FnHandler {
 
 #[derive(Clone)]
 struct FnOffset {
-    context: Arc<Context>,
+    context: Arc<RuntimeContext>,
     /// The unit where the function resides.
     unit: Arc<Unit>,
     /// The offset of the function.

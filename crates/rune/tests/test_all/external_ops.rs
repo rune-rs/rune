@@ -45,8 +45,6 @@ fn test_external_ops() {
             let mut context = Context::with_default_modules().unwrap();
             context.install(&module).unwrap();
 
-            let context = Arc::new(context);
-
             let mut sources = Sources::new();
             sources.insert(Source::new(
                 "test",
@@ -72,7 +70,7 @@ fn test_external_ops() {
             .unwrap();
             let unit = Arc::new(unit);
 
-            let vm = Vm::new(context, unit);
+            let vm = Vm::new(Arc::new(context.runtime()), unit);
 
             {
                 let mut foo = External::default();

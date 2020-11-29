@@ -2,11 +2,11 @@ use crate::budget;
 use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
-    Args, Awaited, BorrowMut, Bytes, Call, Context, Format, FormatSpec, FromValue, Function,
-    Future, Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstTarget,
-    InstVariant, IntoTypeHash, Object, Panic, Protocol, Select, Shared, Stack, Stream, Struct,
-    StructVariant, Tuple, TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec, VmError,
-    VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
+    Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
+    Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstTarget,
+    InstVariant, IntoTypeHash, Object, Panic, Protocol, RuntimeContext, Select, Shared, Stack,
+    Stream, Struct, StructVariant, Tuple, TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec,
+    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
 };
 use std::fmt;
 use std::mem;
@@ -61,7 +61,7 @@ macro_rules! target_value {
 #[derive(Debug, Clone)]
 pub struct Vm {
     /// Context associated with virtual machine.
-    pub(crate) context: Arc<Context>,
+    pub(crate) context: Arc<RuntimeContext>,
     /// Unit associated with virtual machine.
     pub(crate) unit: Arc<Unit>,
     /// The current instruction pointer.
@@ -74,12 +74,16 @@ pub struct Vm {
 
 impl Vm {
     /// Construct a new runestick virtual machine.
-    pub const fn new(context: Arc<Context>, unit: Arc<Unit>) -> Self {
+    pub const fn new(context: Arc<RuntimeContext>, unit: Arc<Unit>) -> Self {
         Self::new_with_stack(context, unit, Stack::new())
     }
 
     /// Construct a new runestick virtual machine.
-    pub const fn new_with_stack(context: Arc<Context>, unit: Arc<Unit>, stack: Stack) -> Self {
+    pub const fn new_with_stack(
+        context: Arc<RuntimeContext>,
+        unit: Arc<Unit>,
+        stack: Stack,
+    ) -> Self {
         Self {
             context,
             unit,
@@ -104,7 +108,7 @@ impl Vm {
     }
 
     /// Test if the virtual machine is the same context and unit as specified.
-    pub fn is_same(&self, context: &Arc<Context>, unit: &Arc<Unit>) -> bool {
+    pub fn is_same(&self, context: &Arc<RuntimeContext>, unit: &Arc<Unit>) -> bool {
         Arc::ptr_eq(&self.context, context) && Arc::ptr_eq(&self.unit, unit)
     }
 
@@ -133,7 +137,7 @@ impl Vm {
     }
 
     /// Access the context related to the virtual machine.
-    pub fn context(&self) -> &Arc<Context> {
+    pub fn context(&self) -> &Arc<RuntimeContext> {
         &self.context
     }
 
@@ -183,7 +187,8 @@ impl Vm {
     /// use std::sync::Arc;
     ///
     /// fn main() -> runestick::Result<()> {
-    ///     let context = Arc::new(Context::with_default_modules()?);
+    ///     let context = Context::with_default_modules()?;
+    ///     let context = Arc::new(context.runtime());
     ///     let unit = Arc::new(Unit::default());
     ///     // NB: normally the unit would be created by compiling some source,
     ///     // and since this one is empty it won't do anything.

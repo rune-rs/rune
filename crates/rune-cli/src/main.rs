@@ -266,7 +266,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     let source = runestick::Source::from_path(path)
         .with_context(|| format!("reading file: {}", path.display()))?;
 
-    let context = Arc::new(context);
+    let runtime = Arc::new(context.runtime());
     let mut sources = rune::Sources::new();
 
     sources.insert(source);
@@ -297,7 +297,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             let mut warnings = rune::Warnings::new();
 
             let unit = match rune::load_sources(
-                &*context,
+                &context,
                 &options,
                 &mut sources,
                 &mut errors,
@@ -324,7 +324,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         }
     };
 
-    let vm = runestick::Vm::new(context.clone(), unit.clone());
+    let vm = runestick::Vm::new(runtime, unit.clone());
 
     if args.dump_native_functions {
         writeln!(out, "# functions")?;

@@ -79,8 +79,9 @@ where
     T: FromValue,
 {
     let (unit, _) = compile_source(context, &source).map_err(RunError::Errors)?;
+    let context = Arc::new(context.runtime());
 
-    let vm = runestick::Vm::new(context.clone(), Arc::new(unit));
+    let vm = runestick::Vm::new(context, Arc::new(unit));
 
     let output = vm
         .execute(&Item::with_item(function), args)

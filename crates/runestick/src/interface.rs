@@ -1,6 +1,6 @@
 use crate::{
-    Args, Context, FromValue, Hash, IntoTypeHash, Iterator, Protocol, Stack, Unit, UnitFn, Value,
-    Vm, VmError, VmErrorKind,
+    Args, FromValue, Hash, IntoTypeHash, Iterator, Protocol, RuntimeContext, Stack, Unit, UnitFn,
+    Value, Vm, VmError, VmErrorKind,
 };
 use std::cell::Cell;
 use std::marker;
@@ -17,7 +17,7 @@ thread_local! { static ENV: Cell<Env> = Cell::new(Env::null()) }
 pub struct Interface {
     target: Value,
     unit: Arc<Unit>,
-    context: Arc<Context>,
+    context: Arc<RuntimeContext>,
 }
 
 impl Interface {
@@ -113,7 +113,7 @@ pub(crate) struct EnvGuard<'a> {
 
 impl<'a> EnvGuard<'a> {
     /// Construct a new environment guard with the given context and unit.
-    pub(crate) fn new(context: &'a Arc<Context>, unit: &'a Arc<Unit>) -> EnvGuard<'a> {
+    pub(crate) fn new(context: &'a Arc<RuntimeContext>, unit: &'a Arc<Unit>) -> EnvGuard<'a> {
         let old = ENV.with(|e| e.replace(Env { context, unit }));
 
         EnvGuard {
@@ -131,7 +131,7 @@ impl Drop for EnvGuard<'_> {
 
 #[derive(Debug, Clone, Copy)]
 struct Env {
-    context: *const Arc<Context>,
+    context: *const Arc<RuntimeContext>,
     unit: *const Arc<Unit>,
 }
 

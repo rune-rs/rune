@@ -47,7 +47,7 @@ fn main() -> runestick::Result<()> {
         &mut Warnings::disabled(),
     )?;
 
-    let vm = Vm::new(Arc::new(context), Arc::new(unit));
+    let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let output = vm.execute(&["main"], (Foo { field: 5 },))?.complete()?;
     let output = Foo::from_value(output)?;
 

@@ -4,11 +4,13 @@ use crate::module::{
 };
 use crate::{
     CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, ComponentRef, Hash,
-    IntoComponent, Item, Module, Names, Stack, StaticType, TypeCheck, TypeInfo, TypeOf, VmError,
+    IntoComponent, Item, Module, Names, RuntimeContext, Stack, StaticType, TypeCheck, TypeInfo,
+    TypeOf, VmError,
 };
 use std::any;
 use std::fmt;
 use std::sync::Arc;
+
 use thiserror::Error;
 
 /// An error raised when building the context.
@@ -226,7 +228,29 @@ pub struct Context {
 impl Context {
     /// Construct a new empty collection of functions.
     pub fn new() -> Self {
-        Context::default()
+        Self::default()
+    }
+
+    /// Construct a runtime context used when executing the virtual machine.
+    ///
+    /// ```rust
+    /// use runestick::{Context, Vm, Unit};
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let context = Context::with_default_modules()?;
+    ///
+    /// let runtime = Arc::new(context.runtime());
+    /// let unit = Arc::new(Unit::default());
+    ///
+    /// let vm = Vm::new(runtime, unit);
+    /// # Ok(()) }
+    /// ```
+    pub fn runtime(&self) -> RuntimeContext {
+        RuntimeContext {
+            functions: self.functions.clone(),
+            types: self.types.iter().map(|(k, t)| (*k, t.type_check)).collect(),
+        }
     }
 
     /// Use the specified type check.
@@ -702,21 +726,5 @@ impl Context {
 impl fmt::Debug for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Context")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Context;
-
-    fn assert_send_sync<T>()
-    where
-        T: Send + Sync,
-    {
-    }
-
-    #[test]
-    fn assert_thread_safe_context() {
-        assert_send_sync::<Context>();
     }
 }
