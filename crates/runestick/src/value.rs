@@ -693,7 +693,7 @@ impl Value {
             Self::GeneratorState(..) => crate::GENERATOR_STATE_TYPE.hash,
             Self::Result(..) => crate::RESULT_TYPE.hash,
             Self::Option(..) => crate::OPTION_TYPE.hash,
-            Self::Function(..) => crate::FUNCTION_TYPE.hash,
+            Self::Function(func) => func.borrow_ref()?.type_hash(),
             Self::Format(..) => crate::FORMAT_TYPE.hash,
             Self::Iterator(..) => crate::ITERATOR_TYPE.hash,
             Self::Type(hash) => *hash,

@@ -228,4 +228,10 @@ impl Protocol {
         name: "into_future",
         hash: Hash::new(0x596e6428deabfda2),
     };
+
+    /// Function used to convert an argument into a future.
+    pub const INTO_TYPE_NAME: Protocol = Protocol {
+        name: "into_type_name",
+        hash: Hash::new(0xbffd08b816c24682),
+    };
 }

@@ -2120,6 +2120,7 @@ impl Vm {
                     offset,
                     call,
                     args,
+                    hash,
                 ),
                 UnitFn::UnitStruct { hash } => {
                     let rtti = self
@@ -2127,7 +2128,7 @@ impl Vm {
                         .lookup_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
 
-                    Function::from_unit_struct(rtti.clone())
+                    Function::from_unit_struct(rtti.clone(), hash)
                 }
                 UnitFn::TupleStruct { hash, args } => {
                     let rtti = self
@@ -2135,7 +2136,7 @@ impl Vm {
                         .lookup_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
 
-                    Function::from_tuple_struct(rtti.clone(), args)
+                    Function::from_tuple_struct(rtti.clone(), args, hash)
                 }
                 UnitFn::UnitVariant { hash } => {
                     let rtti = self
@@ -2143,7 +2144,7 @@ impl Vm {
                         .lookup_variant_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
-                    Function::from_empty_variant(rtti.clone())
+                    Function::from_empty_variant(rtti.clone(), hash)
                 }
                 UnitFn::TupleVariant { hash, args } => {
                     let rtti = self
@@ -2151,7 +2152,7 @@ impl Vm {
                         .lookup_variant_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
-                    Function::from_tuple_variant(rtti.clone(), args)
+                    Function::from_tuple_variant(rtti.clone(), args, hash)
                 }
             },
             None => {
@@ -2160,7 +2161,7 @@ impl Vm {
                     .lookup(hash)
                     .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
 
-                Function::from_handler(handler.clone())
+                Function::from_handler(handler.clone(), hash)
             }
         };
 
@@ -2189,6 +2190,7 @@ impl Vm {
             call,
             args,
             environment,
+            hash,
         );
 
         self.stack.push(Value::Function(Shared::new(function)));

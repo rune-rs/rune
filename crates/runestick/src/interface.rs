@@ -1,6 +1,6 @@
 use crate::{
-    Args, FromValue, Hash, IntoTypeHash, Iterator, Protocol, RuntimeContext, Stack, Unit, UnitFn,
-    Value, Vm, VmError, VmErrorKind,
+    Args, ConstValue, FromValue, Hash, IntoTypeHash, Iterator, Protocol, RuntimeContext, Stack,
+    Unit, UnitFn, Value, Vm, VmError, VmErrorKind,
 };
 use std::cell::Cell;
 use std::marker;
@@ -34,8 +34,35 @@ impl Interface {
         Iterator::from_value(value)
     }
 
+    /// Retrieves the type name of the type
+    pub fn into_type_name(self) -> Result<String, VmError> {
+        let hash = Hash::instance_function(self.target.type_hash()?, Protocol::INTO_TYPE_NAME);
+        if let Some(name) = self.context.constant(hash) {
+            match name {
+                ConstValue::String(s) => return Ok(s.clone()),
+                ConstValue::StaticString(s) => return Ok((*s).to_string()),
+                _ => Err(VmError::expected::<String>(name.type_info()))?,
+            }
+        }
+
+        let hash = Hash::instance_function(self.target.type_hash()?, Protocol::INTO_TYPE_NAME);
+        if let Some(name) = self.unit.constant(hash) {
+            match name {
+                ConstValue::String(s) => return Ok(s.clone()),
+                ConstValue::StaticString(s) => return Ok((*s).to_string()),
+                _ => Err(VmError::expected::<String>(name.type_info()))?,
+            }
+        }
+
+        self.target.type_info().map(|v| format!("<{}>", v))
+    }
     /// Helper function to call an instance function.
-    fn call_instance_fn<H, A>(self, hash: H, target: Value, args: A) -> Result<Value, VmError>
+    pub(crate) fn call_instance_fn<H, A>(
+        self,
+        hash: H,
+        target: Value,
+        args: A,
+    ) -> Result<Value, VmError>
     where
         H: IntoTypeHash,
         A: Args,

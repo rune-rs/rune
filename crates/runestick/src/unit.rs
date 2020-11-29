@@ -4,6 +4,7 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
+use crate::ConstValue;
 use crate::{Call, DebugInfo, Hash, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -33,6 +34,9 @@ pub struct Unit {
     variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
+
+    /// Associated constants for various fields
+    constants: HashMap<Hash, ConstValue>,
 }
 
 impl Unit {
@@ -47,6 +51,7 @@ impl Unit {
         rtti: HashMap<Hash, Arc<Rtti>>,
         variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
         debug: Option<Box<DebugInfo>>,
+        constants: HashMap<Hash, ConstValue>,
     ) -> Self {
         Self {
             instructions,
@@ -57,6 +62,7 @@ impl Unit {
             rtti,
             variant_rtti,
             debug,
+            constants,
         }
     }
 
@@ -131,6 +137,11 @@ impl Unit {
     /// Lookup information of a function.
     pub fn lookup(&self, hash: Hash) -> Option<UnitFn> {
         self.functions.get(&hash).copied()
+    }
+
+    /// Read a constant value from the unit.
+    pub fn constant(&self, hash: Hash) -> Option<&ConstValue> {
+        self.constants.get(&hash)
     }
 }
 

@@ -1,15 +1,13 @@
-use crate::collections::{HashMap, HashSet};
-use crate::module::{
-    ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
-};
 use crate::{
-    CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, ComponentRef, Hash,
-    IntoComponent, Item, Module, Names, RuntimeContext, Stack, StaticType, TypeCheck, TypeInfo,
-    TypeOf, VmError,
+    collections::{HashMap, HashSet},
+    module::{
+        ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
+    },
+    CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, ComponentRef, ConstValue,
+    Hash, IntoComponent, Item, Module, Names, Protocol, RuntimeContext, Stack, StaticType,
+    TypeCheck, TypeInfo, TypeOf, VmError,
 };
-use std::any;
-use std::fmt;
-use std::sync::Arc;
+use std::{any, fmt, sync::Arc};
 
 use thiserror::Error;
 
@@ -128,6 +126,8 @@ impl fmt::Display for ContextTypeInfo {
 pub enum ContextSignature {
     /// An unbound or static function
     Function {
+        /// The type hash of the function
+        type_hash: Hash,
         /// Path to the function.
         item: Item,
         /// Arguments.
@@ -135,6 +135,8 @@ pub enum ContextSignature {
     },
     /// An instance function or method
     Instance {
+        /// The type hash of the function
+        type_hash: Hash,
         /// Path to the instance function.
         item: Item,
         /// Name of the instance function.
@@ -149,7 +151,7 @@ pub enum ContextSignature {
 impl fmt::Display for ContextSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Function { item, args } => {
+            Self::Function { item, args, .. } => {
                 write!(fmt, "{}(", item)?;
 
                 if let Some(args) = args {
@@ -174,6 +176,7 @@ impl fmt::Display for ContextSignature {
                 name,
                 self_type_info,
                 args,
+                ..
             } => {
                 write!(fmt, "{}::{}(self: {}", item, name, self_type_info)?;
 
@@ -223,6 +226,8 @@ pub struct Context {
     names: Names,
     /// Registered crates.
     crates: HashSet<Box<str>>,
+    /// Constants visible in this context
+    constants: HashMap<Hash, ConstValue>,
 }
 
 impl Context {
@@ -250,6 +255,7 @@ impl Context {
         RuntimeContext {
             functions: self.functions.clone(),
             types: self.types.iter().map(|(k, t)| (*k, t.type_check)).collect(),
+            constants: self.constants.clone(),
         }
     }
 
@@ -270,6 +276,7 @@ impl Context {
     ///   stdout and stderr by default, like `dbg`, `print`, and `println`.
     pub fn with_config(stdio: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
+        this.install(&crate::modules::any::module()?)?;
         this.install(&crate::modules::core::module()?)?;
         this.install(&crate::modules::generator::module()?)?;
         this.install(&crate::modules::bytes::module()?)?;
@@ -337,6 +344,20 @@ impl Context {
     /// Lookup the given macro handler.
     pub fn lookup_macro(&self, hash: Hash) -> Option<&Arc<Macro>> {
         self.macros.get(&hash)
+    }
+
+    /// Lookup the type corresponding to the given hash.
+    pub fn lookup_type(&self, hash: Hash) -> Option<&ContextTypeInfo> {
+        if let Some(typ) = self.types.get(&hash) {
+            Some(typ)
+        } else {
+            self.types_rev.get(&hash).and_then(|v| self.types.get(v))
+        }
+    }
+
+    /// Lookup the function corresponding to the given hash.
+    pub fn lookup_function(&self, hash: Hash) -> Option<&ContextSignature> {
+        self.functions_info.get(&hash)
     }
 
     /// Access the meta for the given language item.
@@ -434,6 +455,12 @@ impl Context {
             },
         )?;
 
+        // eprintln!("{:?} {}", hash, item);
+        // self.constants.insert(
+        //     Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+        //     ConstValue::String(item.to_string()),
+        // );
+
         self.install_meta(CompileMeta {
             item: Arc::new(item.into()),
             kind: CompileMetaKind::Struct {
@@ -455,6 +482,11 @@ impl Context {
         if let Some(existing) = self.types_rev.insert(info.type_hash, hash) {
             return Err(ContextError::ConflictingTypeHash { hash, existing });
         }
+
+        self.constants.insert(
+            Hash::instance_function(info.type_hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(info.item.to_string()),
+        );
 
         if let Some(existing) = self.types.insert(hash, info) {
             return Err(ContextError::ConflictingType {
@@ -479,6 +511,7 @@ impl Context {
         let hash = Hash::type_hash(&item);
 
         let signature = ContextSignature::Function {
+            type_hash: hash,
             item: item.clone(),
             args: f.args,
         };
@@ -490,8 +523,12 @@ impl Context {
             });
         }
 
-        self.functions.insert(hash, f.handler.clone());
+        self.constants.insert(
+            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(item.to_string()),
+        );
 
+        self.functions.insert(hash, f.handler.clone());
         self.meta.insert(
             item.clone(),
             CompileMeta {
@@ -544,11 +581,18 @@ impl Context {
         let hash = hash_fn(type_hash, hash);
 
         let signature = ContextSignature::Instance {
+            type_hash,
             item: info.item.clone(),
             name: assoc.name.clone(),
             args: assoc.args,
             self_type_info: info.type_info.clone(),
         };
+        let item = info.item.extended(&assoc.name);
+
+        self.constants.insert(
+            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(item.to_string()),
+        );
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
@@ -556,6 +600,14 @@ impl Context {
                 hash,
             });
         }
+        self.meta.insert(
+            item.clone(),
+            CompileMeta {
+                item: Arc::new(item.into()),
+                kind: CompileMetaKind::Function { type_hash: hash },
+                source: None,
+            },
+        );
 
         self.functions.insert(hash, assoc.handler.clone());
         Ok(())
@@ -650,6 +702,7 @@ impl Context {
             })?;
 
             let signature = ContextSignature::Function {
+                type_hash: variant.type_hash,
                 item,
                 args: Some(variant.args),
             };
@@ -660,7 +713,6 @@ impl Context {
                     hash,
                 });
             }
-
             self.functions.insert(hash, variant.constructor.clone());
         }
 
@@ -705,8 +757,14 @@ impl Context {
 
         let constructor: Arc<Handler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
+        eprintln!("44 {:?} {}", type_hash, item);
+        self.constants.insert(
+            Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(item.to_string()),
+        );
 
         let signature = ContextSignature::Function {
+            type_hash,
             item,
             args: Some(args),
         };
@@ -717,7 +775,6 @@ impl Context {
                 hash,
             });
         }
-
         self.functions.insert(hash, constructor);
         Ok(())
     }

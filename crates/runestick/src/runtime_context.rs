@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::context::Handler;
-use crate::{Hash, Item, TypeCheck};
+use crate::{ConstValue, Hash, Item, TypeCheck};
 use std::fmt;
 use std::sync::Arc;
 
@@ -16,6 +16,8 @@ pub struct RuntimeContext {
     pub(crate) functions: HashMap<Hash, Arc<Handler>>,
     /// Registered types.
     pub(crate) types: HashMap<Hash, TypeCheck>,
+
+    pub(crate) constants: HashMap<Hash, ConstValue>,
 }
 
 impl RuntimeContext {
@@ -32,6 +34,11 @@ impl RuntimeContext {
     /// Lookup the given native function handler in the context.
     pub fn lookup(&self, hash: Hash) -> Option<&Arc<Handler>> {
         self.functions.get(&hash)
+    }
+
+    /// Read a constant value from the unit.
+    pub fn constant(&self, hash: Hash) -> Option<&ConstValue> {
+        self.constants.get(&hash)
     }
 }
 
