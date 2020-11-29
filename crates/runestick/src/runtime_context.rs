@@ -42,17 +42,4 @@ impl fmt::Debug for RuntimeContext {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::RuntimeContext;
-
-    fn assert_send_sync<T>()
-    where
-        T: Send + Sync,
-    {
-    }
-
-    #[test]
-    fn assert_thread_safe_context() {
-        assert_send_sync::<RuntimeContext>();
-    }
-}
+static_assertions::assert_impl_all!(RuntimeContext: Send, Sync);

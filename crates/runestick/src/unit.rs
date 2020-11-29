@@ -197,17 +197,4 @@ impl fmt::Display for UnitFn {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::Unit;
-
-    fn assert_send_sync<T>()
-    where
-        T: Send + Sync,
-    {
-    }
-
-    #[test]
-    fn assert_thread_safe_unit() {
-        assert_send_sync::<Unit>();
-    }
-}
+static_assertions::assert_impl_all!(Unit: Send, Sync);
