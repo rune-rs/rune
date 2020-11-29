@@ -346,20 +346,6 @@ impl Context {
         self.macros.get(&hash)
     }
 
-    /// Lookup the type corresponding to the given hash.
-    pub fn lookup_type(&self, hash: Hash) -> Option<&ContextTypeInfo> {
-        if let Some(typ) = self.types.get(&hash) {
-            Some(typ)
-        } else {
-            self.types_rev.get(&hash).and_then(|v| self.types.get(v))
-        }
-    }
-
-    /// Lookup the function corresponding to the given hash.
-    pub fn lookup_function(&self, hash: Hash) -> Option<&ContextSignature> {
-        self.functions_info.get(&hash)
-    }
-
     /// Access the meta for the given language item.
     pub fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
         self.meta.get(name).cloned()
@@ -454,12 +440,6 @@ impl Context {
                 type_info: ty.type_info.clone(),
             },
         )?;
-
-        // eprintln!("{:?} {}", hash, item);
-        // self.constants.insert(
-        //     Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
-        //     ConstValue::String(item.to_string()),
-        // );
 
         self.install_meta(CompileMeta {
             item: Arc::new(item.into()),
@@ -757,7 +737,7 @@ impl Context {
 
         let constructor: Arc<Handler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
-        eprintln!("44 {:?} {}", type_hash, item);
+
         self.constants.insert(
             Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
             ConstValue::String(item.to_string()),

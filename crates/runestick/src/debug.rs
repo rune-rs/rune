@@ -28,11 +28,6 @@ impl DebugInfo {
         let signature = self.functions.get(&hash)?;
         Some((hash, signature))
     }
-
-    /// Get the function corresponding to the given type hash.
-    pub fn lookup_function(&self, hash: Hash) -> Option<&DebugSignature> {
-        self.functions.get(&hash)
-    }
 }
 
 /// Debug information for every instruction.

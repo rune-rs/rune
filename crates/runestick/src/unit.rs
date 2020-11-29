@@ -4,8 +4,9 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::ConstValue;
-use crate::{Call, DebugInfo, Hash, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind};
+use crate::{
+    Call, ConstValue, DebugInfo, Hash, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
