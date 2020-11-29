@@ -728,3 +728,6 @@ impl fmt::Debug for Context {
         write!(f, "Context")
     }
 }
+
+#[cfg(test)]
+static_assertions::assert_impl_all!(Context: Send, Sync);

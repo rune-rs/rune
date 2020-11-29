@@ -37,3 +37,4 @@ runestick-macros = {version = "0.7.0", path = "../runestick-macros"}
 [dev-dependencies]
 tokio = {version = "0.2.22", features = ["full"]}
 checkers = "0.5.6"
+static_assertions = "1.1.0"
