@@ -199,6 +199,37 @@ macro_rules! rune {
     }};
 }
 
+/// Same as [rune!] macro, except it takes an external context, allowing testing
+/// of native Rust data. This also accepts a tuple of arguments in the second
+/// position, to pass native objects as arguments to the script.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::testing::*;
+/// use runestick::Module;
+/// fn get_native_module() -> Module {
+///     Module::new()
+/// }
+///
+/// # fn main() {
+/// assert_eq! {
+///     rune::rune_n!(get_native_module(), (), bool => pub fn main() { true || false }),
+///     true,
+/// };
+/// # }
+#[macro_export]
+macro_rules! rune_n {
+    ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
+        let mut context = ::rune_modules::default_context().expect("failed to build context");
+        context.install(&$module);
+        let context = std::sync::Arc::new(context);
+
+        $crate::testing::run::<_, _, $ty>(&context, &["main"], $args, stringify!($($tt)*))
+            .expect("program to run successfully")
+    }};
+}
+
 /// Function used during parse testing to take the source, parse it as the given
 /// type, tokenize it using [ToTokens][crate::macros::ToTokens], and parse the
 /// token stream.

@@ -2,8 +2,8 @@ use crate::context::Handler;
 use crate::internal::AssertSend;
 use crate::VmErrorKind;
 use crate::{
-    Args, Call, ConstValue, FromValue, RawRef, Ref, Rtti, RuntimeContext, Shared, Stack, Tuple,
-    Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
+    Args, Call, ConstValue, FromValue, Hash, RawRef, Ref, Rtti, RuntimeContext, Shared, Stack,
+    Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
 use std::future::Future;
@@ -165,9 +165,9 @@ where
     }
 
     /// Create a function pointer from a handler.
-    pub(crate) fn from_handler(handler: Arc<Handler>) -> Self {
+    pub(crate) fn from_handler(handler: Arc<Handler>, hash: Hash) -> Self {
         Self {
-            inner: Inner::FnHandler(FnHandler { handler }),
+            inner: Inner::FnHandler(FnHandler { handler, hash }),
         }
     }
 
@@ -178,6 +178,7 @@ where
         offset: usize,
         call: Call,
         args: usize,
+        hash: Hash,
     ) -> Self {
         Self {
             inner: Inner::FnOffset(FnOffset {
@@ -186,6 +187,7 @@ where
                 offset,
                 call,
                 args,
+                hash,
             }),
         }
     }
@@ -198,6 +200,7 @@ where
         call: Call,
         args: usize,
         environment: Box<[V]>,
+        hash: Hash,
     ) -> Self {
         Self {
             inner: Inner::FnClosureOffset(FnClosureOffset {
@@ -207,6 +210,7 @@ where
                     offset,
                     call,
                     args,
+                    hash,
                 },
                 environment,
             }),
@@ -251,6 +255,20 @@ where
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn type_hash(&self) -> Hash {
+        match &self.inner {
+            Inner::FnHandler(FnHandler { hash, .. }) | Inner::FnOffset(FnOffset { hash, .. }) => {
+                *hash
+            }
+            Inner::FnClosureOffset(fco) => fco.fn_offset.hash,
+            Inner::FnUnitStruct(func) => func.rtti.hash,
+            Inner::FnTupleStruct(func) => func.rtti.hash,
+            Inner::FnUnitVariant(func) => func.rtti.hash,
+            Inner::FnTupleVariant(func) => func.rtti.hash,
+        }
     }
 }
 
@@ -344,6 +362,8 @@ enum Inner<V> {
 struct FnHandler {
     /// The function handler.
     handler: Arc<Handler>,
+    /// Hash for the function type
+    hash: Hash,
 }
 
 impl fmt::Debug for FnHandler {
@@ -363,6 +383,8 @@ struct FnOffset {
     call: Call,
     /// The number of arguments the function takes.
     args: usize,
+    /// Hash for the function type
+    hash: Hash,
 }
 
 impl FnOffset {

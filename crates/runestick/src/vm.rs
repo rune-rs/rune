@@ -2120,6 +2120,7 @@ impl Vm {
                     offset,
                     call,
                     args,
+                    hash,
                 ),
                 UnitFn::UnitStruct { hash } => {
                     let rtti = self
@@ -2160,7 +2161,7 @@ impl Vm {
                     .lookup(hash)
                     .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
 
-                Function::from_handler(handler.clone())
+                Function::from_handler(handler.clone(), hash)
             }
         };
 
@@ -2189,6 +2190,7 @@ impl Vm {
             call,
             args,
             environment,
+            hash,
         );
 
         self.stack.push(Value::Function(Shared::new(function)));

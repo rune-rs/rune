@@ -15,6 +15,8 @@ mod iterator;
 mod moved;
 mod reference_error;
 mod stmt_reordering;
+mod type_name_native;
+mod type_name_rune;
 mod vm_arithmetic;
 mod vm_assign_exprs;
 mod vm_async_block;

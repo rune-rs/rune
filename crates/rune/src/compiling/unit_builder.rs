@@ -8,8 +8,9 @@ use crate::compiling::{Assembly, AssemblyInst};
 use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
-    Call, CompileMeta, CompileMetaKind, Context, DebugInfo, DebugInst, Hash, Inst, IntoComponent,
-    Item, Label, Location, Rtti, Span, StaticString, Unit, UnitFn, VariantRtti,
+    Call, CompileMeta, CompileMetaKind, ConstValue, Context, DebugInfo, DebugInst, Hash, Inst,
+    IntoComponent, Item, Label, Location, Protocol, Rtti, Span, StaticString, Unit, UnitFn,
+    VariantRtti,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -112,6 +113,7 @@ impl UnitBuilder {
             inner.rtti,
             inner.variant_rtti,
             inner.debug,
+            inner.constants,
         ))
     }
 
@@ -290,6 +292,11 @@ impl UnitBuilder {
                     });
                 }
 
+                inner.constants.insert(
+                    Hash::instance_function(empty.hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(signature.path.to_string()),
+                );
+
                 inner
                     .debug_info_mut()
                     .functions
@@ -321,6 +328,11 @@ impl UnitBuilder {
                     });
                 }
 
+                inner.constants.insert(
+                    Hash::instance_function(tuple.hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(signature.path.to_string()),
+                );
+
                 inner
                     .debug_info_mut()
                     .functions
@@ -333,6 +345,11 @@ impl UnitBuilder {
                     hash,
                     item: meta.item.item.clone(),
                 });
+
+                inner.constants.insert(
+                    Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(rtti.item.to_string()),
+                );
 
                 if inner.rtti.insert(hash, rtti).is_some() {
                     return Err(InsertMetaError::TypeRttiConflict { hash });
@@ -421,7 +438,12 @@ impl UnitBuilder {
                     return Err(InsertMetaError::VariantRttiConflict { hash });
                 }
             }
-            CompileMetaKind::Enum { .. } => {}
+            CompileMetaKind::Enum { type_hash } => {
+                inner.constants.insert(
+                    Hash::instance_function(*type_hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(meta.item.item.to_string()),
+                );
+            }
             CompileMetaKind::Function { .. } => (),
             CompileMetaKind::Closure { .. } => (),
             CompileMetaKind::AsyncBlock { .. } => (),
@@ -467,7 +489,13 @@ impl UnitBuilder {
             ));
         }
 
+        inner.constants.insert(
+            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(signature.path.to_string()),
+        );
+
         inner.debug_info_mut().functions.insert(hash, signature);
+
         inner.add_assembly(location, assembly)?;
         Ok(())
     }
@@ -533,6 +561,11 @@ impl UnitBuilder {
                 },
             ));
         }
+
+        inner.constants.insert(
+            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(signature.path.to_string()),
+        );
 
         inner
             .debug_info_mut()
@@ -616,6 +649,9 @@ struct Inner {
     required_functions: HashMap<Hash, Vec<(Span, usize)>>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
+
+    /// Constant values
+    constants: HashMap<Hash, ConstValue>,
 }
 
 impl Inner {
