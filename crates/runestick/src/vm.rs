@@ -3,10 +3,11 @@ use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
-    Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstTarget,
-    InstVariant, IntoTypeHash, Object, Panic, Protocol, RuntimeContext, Select, Shared, Stack,
-    Stream, Struct, StructVariant, Tuple, TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec,
-    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
+    Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstRangeLimits,
+    InstTarget, InstVariant, IntoTypeHash, Object, Panic, Protocol, Range, RangeLimits,
+    RuntimeContext, Select, Shared, Stack, Stream, Struct, StructVariant, Tuple, TypeCheck, Unit,
+    UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    VmSendExecution,
 };
 use std::fmt;
 use std::mem;
@@ -1544,6 +1545,22 @@ impl Vm {
         Ok(())
     }
 
+    /// Operation to allocate an object.
+    #[inline]
+    fn op_range(&mut self, limits: InstRangeLimits) -> Result<(), VmError> {
+        let end = Option::<Value>::from_value(self.stack.pop()?)?;
+        let start = Option::<Value>::from_value(self.stack.pop()?)?;
+
+        let limits = match limits {
+            InstRangeLimits::HalfOpen => RangeLimits::HalfOpen,
+            InstRangeLimits::Closed => RangeLimits::Closed,
+        };
+
+        let range = Range::new(start, end, limits);
+        self.stack.push(Shared::new(range));
+        Ok(())
+    }
+
     /// Operation to allocate an empty struct.
     #[inline]
     fn op_empty_struct(&mut self, hash: Hash) -> Result<(), VmError> {
@@ -2493,6 +2510,9 @@ impl Vm {
                 }
                 Inst::Object { slot } => {
                     self.op_object(slot)?;
+                }
+                Inst::Range { limits } => {
+                    self.op_range(limits)?;
                 }
                 Inst::UnitStruct { hash } => {
                     self.op_empty_struct(hash)?;

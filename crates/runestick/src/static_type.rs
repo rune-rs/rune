@@ -135,6 +135,14 @@ impl_static_type!(crate::Object => OBJECT_TYPE);
 impl_static_type!(crate::Struct => OBJECT_TYPE);
 impl_static_type!(crate::StructVariant => OBJECT_TYPE);
 
+/// The specialized type information for the range type.
+pub static RANGE_TYPE: &StaticType = &StaticType {
+    name: RawStr::from_str("Range"),
+    hash: Hash::new(0xde6d8aadf191516b),
+};
+
+impl_static_type!(crate::Range => RANGE_TYPE);
+
 /// The specialized type information for a future type.
 pub static FUTURE_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Future"),

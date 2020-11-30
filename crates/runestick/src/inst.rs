@@ -562,6 +562,20 @@ pub enum Inst {
         /// The static slot of the object keys.
         slot: usize,
     },
+    /// Construct a range. This will pop the start and end of the range from the
+    /// stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <from>
+    /// <to>
+    /// => <range>
+    /// ```
+    Range {
+        /// The limits of the range.
+        limits: InstRangeLimits,
+    },
     /// Construct a push an object of the given type onto the stack. The type is
     /// an empty struct.
     ///
@@ -1039,6 +1053,9 @@ impl fmt::Display for Inst {
             Self::Object { slot } => {
                 write!(fmt, "object {}", slot)?;
             }
+            Self::Range { limits } => {
+                write!(fmt, "range {}", limits)?;
+            }
             Self::String { slot } => {
                 write!(fmt, "string {}", slot)?;
             }
@@ -1133,6 +1150,24 @@ impl fmt::Display for Inst {
                     None => write!(f, "?"),
                 }
             }
+        }
+    }
+}
+
+/// Range limits of a range expression.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InstRangeLimits {
+    /// A half-open range `a .. b`.
+    HalfOpen,
+    /// A closed range `a ..= b`.
+    Closed,
+}
+
+impl fmt::Display for InstRangeLimits {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::HalfOpen => write!(f, ".."),
+            Self::Closed => write!(f, "..="),
         }
     }
 }

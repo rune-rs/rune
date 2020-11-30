@@ -12,6 +12,7 @@ pub mod int;
 pub mod io;
 pub mod iter;
 pub mod object;
+pub mod ops;
 pub mod option;
 pub mod result;
 pub mod stream;

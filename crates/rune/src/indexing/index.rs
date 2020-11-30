@@ -1120,6 +1120,9 @@ impl Index for ast::Expr {
             ast::Expr::Object(expr_object) => {
                 expr_object.index(idx)?;
             }
+            ast::Expr::Range(expr_range) => {
+                expr_range.index(idx)?;
+            }
             // NB: macros have nothing to index, they don't export language
             // items.
             ast::Expr::MacroCall(macro_call) => {
@@ -1839,6 +1842,23 @@ impl Index for ast::ExprObject {
             if let Some((_, expr)) = &mut assign.assign {
                 expr.index(idx)?;
             }
+        }
+
+        Ok(())
+    }
+}
+
+impl Index for ast::ExprRange {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprRange => {:?}", idx.source.source(span));
+
+        if let Some(from) = &mut self.from {
+            from.index(idx)?;
+        }
+
+        if let Some(to) = &mut self.to {
+            to.index(idx)?;
         }
 
         Ok(())

@@ -114,6 +114,10 @@
   variant: DotDot
   doc: "`..`."
   punct: ".."
+- kind: punct
+  variant: DotDotEq
+  doc: "`..=`."
+  punct: "..="
 - kind: keyword
   variant: Else
   doc: "The `else` keyword."

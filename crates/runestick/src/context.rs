@@ -236,6 +236,33 @@ impl Context {
         Self::default()
     }
 
+    /// Construct a default set of modules with the given configuration.
+    ///
+    /// * `stdio` determines if we include I/O functions that interact with
+    ///   stdout and stderr by default, like `dbg`, `print`, and `println`.
+    pub fn with_config(stdio: bool) -> Result<Self, ContextError> {
+        let mut this = Self::new();
+        this.install(&crate::modules::any::module()?)?;
+        this.install(&crate::modules::bytes::module()?)?;
+        this.install(&crate::modules::core::module()?)?;
+        this.install(&crate::modules::float::module()?)?;
+        this.install(&crate::modules::fmt::module()?)?;
+        this.install(&crate::modules::future::module()?)?;
+        this.install(&crate::modules::generator::module()?)?;
+        this.install(&crate::modules::int::module()?)?;
+        this.install(&crate::modules::io::module(stdio)?)?;
+        this.install(&crate::modules::iter::module()?)?;
+        this.install(&crate::modules::object::module()?)?;
+        this.install(&crate::modules::ops::module()?)?;
+        this.install(&crate::modules::option::module()?)?;
+        this.install(&crate::modules::result::module()?)?;
+        this.install(&crate::modules::stream::module()?)?;
+        this.install(&crate::modules::string::module()?)?;
+        this.install(&crate::modules::vec::module()?)?;
+        this.has_default_modules = true;
+        Ok(this)
+    }
+
     /// Construct a runtime context used when executing the virtual machine.
     ///
     /// ```rust
@@ -268,32 +295,6 @@ impl Context {
     /// Construct a new collection of functions with default packages installed.
     pub fn with_default_modules() -> Result<Self, ContextError> {
         Self::with_config(true)
-    }
-
-    /// Construct a default set of modules with the given configuration.
-    ///
-    /// * `stdio` determines if we include I/O functions that interact with
-    ///   stdout and stderr by default, like `dbg`, `print`, and `println`.
-    pub fn with_config(stdio: bool) -> Result<Self, ContextError> {
-        let mut this = Self::new();
-        this.install(&crate::modules::any::module()?)?;
-        this.install(&crate::modules::core::module()?)?;
-        this.install(&crate::modules::generator::module()?)?;
-        this.install(&crate::modules::bytes::module()?)?;
-        this.install(&crate::modules::string::module()?)?;
-        this.install(&crate::modules::int::module()?)?;
-        this.install(&crate::modules::float::module()?)?;
-        this.install(&crate::modules::iter::module()?)?;
-        this.install(&crate::modules::vec::module()?)?;
-        this.install(&crate::modules::object::module()?)?;
-        this.install(&crate::modules::result::module()?)?;
-        this.install(&crate::modules::option::module()?)?;
-        this.install(&crate::modules::future::module()?)?;
-        this.install(&crate::modules::stream::module()?)?;
-        this.install(&crate::modules::io::module(stdio)?)?;
-        this.install(&crate::modules::fmt::module()?)?;
-        this.has_default_modules = true;
-        Ok(this)
     }
 
     /// Check if context contains the given crate.

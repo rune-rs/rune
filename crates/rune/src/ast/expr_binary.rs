@@ -98,6 +98,10 @@ pub enum BinOp {
     ShlAssign,
     /// Right shift assign `a >>= b`.
     ShrAssign,
+    /// `a ..= b`.
+    DotDot,
+    /// `a ..= b`.
+    DotDotEq,
 }
 
 impl BinOp {
@@ -131,16 +135,17 @@ impl BinOp {
     pub(super) fn precedence(self) -> usize {
         // NB: Rules from: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
         match self {
-            Self::Is | Self::IsNot => 11,
-            Self::Mul | Self::Div | Self::Rem => 10,
-            Self::Add | Self::Sub => 9,
-            Self::Shl | Self::Shr => 8,
-            Self::BitAnd => 7,
-            Self::BitXor => 6,
-            Self::BitOr => 5,
-            Self::Eq | Self::Neq | Self::Lt | Self::Gt | Self::Lte | Self::Gte => 4,
-            Self::And => 3,
-            Self::Or => 2,
+            Self::Is | Self::IsNot => 12,
+            Self::Mul | Self::Div | Self::Rem => 11,
+            Self::Add | Self::Sub => 10,
+            Self::Shl | Self::Shr => 9,
+            Self::BitAnd => 8,
+            Self::BitXor => 7,
+            Self::BitOr => 6,
+            Self::Eq | Self::Neq | Self::Lt | Self::Gt | Self::Lte | Self::Gte => 5,
+            Self::And => 4,
+            Self::Or => 3,
+            Self::DotDot | Self::DotDotEq => 2,
             // assign operators
             _ => 1,
         }
@@ -200,6 +205,8 @@ impl BinOp {
             K![|=] => Self::BitOrAssign,
             K![<<=] => Self::ShlAssign,
             K![>>=] => Self::ShrAssign,
+            K![..] => Self::DotDot,
+            K![..=] => Self::DotDotEq,
             _ => return None,
         })
     }
@@ -249,6 +256,8 @@ impl fmt::Display for BinOp {
             Self::RemAssign => write!(f, "%="),
             Self::ShlAssign => write!(f, "<<="),
             Self::ShrAssign => write!(f, ">>="),
+            Self::DotDot => write!(f, ".."),
+            Self::DotDotEq => write!(f, "..="),
         }
     }
 }

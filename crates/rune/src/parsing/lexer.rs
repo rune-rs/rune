@@ -134,7 +134,7 @@ impl<'a> Lexer<'a> {
                 c if char::is_alphanumeric(c) => {
                     self.iter.next();
                 }
-                '.' if !is_fractional => {
+                '.' if !is_fractional && self.iter.peek2() != Some('.') => {
                     self.iter.next();
                     is_fractional = true;
 
@@ -554,7 +554,13 @@ impl<'a> Lexer<'a> {
                         }
                         ('.', '.') => {
                             self.iter.next();
-                            break ast::Kind::DotDot;
+
+                            break if matches!(self.iter.peek(), Some('=')) {
+                                self.iter.next();
+                                ast::Kind::DotDotEq
+                            } else {
+                                ast::Kind::DotDot
+                            };
                         }
                         ('=', '>') => {
                             self.iter.next();
@@ -726,6 +732,13 @@ impl<'a> SourceIter<'a> {
     /// Peek the next index.
     fn peek(&self) -> Option<char> {
         self.chars.clone().next()
+    }
+
+    /// Peek the next next char.
+    fn peek2(&self) -> Option<char> {
+        let mut it = self.chars.clone();
+        it.next()?;
+        it.next()
     }
 
     /// Peek the next character with position.
