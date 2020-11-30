@@ -1051,6 +1051,42 @@ impl macros::ToTokens for DotDot {
     }
 }
 
+/// `..=`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DotDotEq {
+    /// Associated token.
+    pub token: ast::Token,
+}
+
+impl crate::Spanned for DotDotEq {
+    fn span(&self) -> runestick::Span {
+        self.token.span()
+    }
+}
+
+impl parsing::Parse for DotDotEq {
+    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+        let token = p.next()?;
+
+        match token.kind {
+            ast::Kind::DotDotEq => Ok(Self { token }),
+            _ => Err(parsing::ParseError::expected(&token, "..=")),
+        }
+    }
+}
+
+impl parsing::Peek for DotDotEq {
+    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+        matches!(peeker.nth(0), ast::Kind::DotDotEq)
+    }
+}
+
+impl macros::ToTokens for DotDotEq {
+    fn to_tokens(&self, _: &macros::MacroContext, stream: &mut macros::TokenStream) {
+        stream.push(self.token);
+    }
+}
+
 /// The `else` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Else {
@@ -3655,6 +3691,9 @@ macro_rules! T {
     (..) => {
         $crate::ast::generated::DotDot
     };
+    (..=) => {
+        $crate::ast::generated::DotDotEq
+    };
     (=) => {
         $crate::ast::generated::Eq
     };
@@ -3827,6 +3866,7 @@ macro_rules! K {
     ($) => { $crate::ast::Kind::Dollar };
     (.) => { $crate::ast::Kind::Dot };
     (..) => { $crate::ast::Kind::DotDot };
+    (..=) => { $crate::ast::Kind::DotDotEq };
     (=) => { $crate::ast::Kind::Eq };
     (==) => { $crate::ast::Kind::EqEq };
     (>) => { $crate::ast::Kind::Gt };
@@ -3938,6 +3978,8 @@ pub enum Kind {
     Dot,
     /// `..`.
     DotDot,
+    /// `..=`.
+    DotDotEq,
     /// The `else` keyword.
     Else,
     /// The `enum` keyword.
@@ -4180,6 +4222,7 @@ impl Kind {
             Self::Dollar => "$",
             Self::Dot => ".",
             Self::DotDot => "..",
+            Self::DotDotEq => "..=",
             Self::Else => "else",
             Self::Enum => "enum",
             Self::Eq => "=",

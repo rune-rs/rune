@@ -6,7 +6,7 @@ pub(crate) use crate::{
     CompileError, CompileErrorKind, CompileResult, ParseErrorKind, Resolve, Spanned,
 };
 pub(crate) use runestick::{
-    CompileMetaCapture, CompileMetaKind, ConstValue, Hash, Inst, InstAssignOp, InstOp, InstTarget,
-    InstVariant, Item, Span,
+    CompileMetaCapture, CompileMetaKind, ConstValue, Hash, Inst, InstAssignOp, InstOp,
+    InstRangeLimits, InstTarget, InstVariant, Item, Span,
 };
 pub(crate) use std::convert::TryFrom;

@@ -1,7 +1,8 @@
 use crate::access::AccessKind;
 use crate::{
     Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Item, Iterator,
-    Mut, Object, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, TypeInfo, Vec, VmError,
+    Mut, Object, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, TypeInfo, Vec,
+    VmError,
 };
 use serde::{de, ser, Deserialize, Serialize};
 use std::fmt;
@@ -318,6 +319,8 @@ pub enum Value {
     Tuple(Shared<Tuple>),
     /// An object.
     Object(Shared<Object>),
+    /// A range.
+    Range(Shared<Range>),
     /// A stored future.
     Future(Shared<Future>),
     /// A Stream.
@@ -405,6 +408,7 @@ impl Value {
             Self::Vec(value) => Self::Vec(Shared::new(value.take()?)),
             Self::Tuple(value) => Self::Tuple(Shared::new(value.take()?)),
             Self::Object(value) => Self::Object(Shared::new(value.take()?)),
+            Self::Range(value) => Self::Range(Shared::new(value.take()?)),
             Self::Future(value) => Self::Future(Shared::new(value.take()?)),
             Self::Stream(value) => Self::Stream(Shared::new(value.take()?)),
             Self::Generator(value) => Self::Generator(Shared::new(value.take()?)),
@@ -588,6 +592,15 @@ impl Value {
         }
     }
 
+    /// Try to coerce value into a range.
+    #[inline]
+    pub fn into_range(self) -> Result<Shared<Range>, VmError> {
+        match self {
+            Self::Range(object) => Ok(object),
+            actual => Err(VmError::expected::<Range>(actual.type_info()?)),
+        }
+    }
+
     /// Try to coerce value into a function pointer.
     #[inline]
     pub fn into_function(self) -> Result<Shared<Function>, VmError> {
@@ -687,6 +700,7 @@ impl Value {
             Self::Vec(..) => crate::VEC_TYPE.hash,
             Self::Tuple(..) => crate::TUPLE_TYPE.hash,
             Self::Object(..) => crate::OBJECT_TYPE.hash,
+            Self::Range(..) => crate::RANGE_TYPE.hash,
             Self::Future(..) => crate::FUTURE_TYPE.hash,
             Self::Stream(..) => crate::STREAM_TYPE.hash,
             Self::Generator(..) => crate::GENERATOR_TYPE.hash,
@@ -722,6 +736,7 @@ impl Value {
             Self::Vec(..) => TypeInfo::StaticType(crate::VEC_TYPE),
             Self::Tuple(..) => TypeInfo::StaticType(crate::TUPLE_TYPE),
             Self::Object(..) => TypeInfo::StaticType(crate::OBJECT_TYPE),
+            Self::Range(..) => TypeInfo::StaticType(crate::RANGE_TYPE),
             Self::Future(..) => TypeInfo::StaticType(crate::FUTURE_TYPE),
             Self::Stream(..) => TypeInfo::StaticType(crate::STREAM_TYPE),
             Self::Generator(..) => TypeInfo::StaticType(crate::GENERATOR_TYPE),
@@ -779,6 +794,11 @@ impl Value {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
                 Object::value_ptr_eq(&*a, &*b)?
+            }
+            (Self::Range(a), Self::Range(b)) => {
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
+                Range::value_ptr_eq(&*a, &*b)?
             }
             (Self::UnitStruct(a), Self::UnitStruct(b)) => {
                 a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash
@@ -879,6 +899,9 @@ impl fmt::Debug for Value {
                 write!(f, "{:?}", value)?;
             }
             Value::Object(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Range(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::Future(value) => {
@@ -1025,6 +1048,7 @@ impl_from_wrapper! {
     Vec => Shared<Vec>,
     Tuple => Shared<Tuple>,
     Object => Shared<Object>,
+    Range => Shared<Range>,
     Future => Shared<Future>,
     Stream => Shared<Stream>,
     Generator => Shared<Generator>,
@@ -1125,6 +1149,7 @@ impl ser::Serialize for Value {
             Value::Function(..) => Err(ser::Error::custom("cannot serialize function pointers")),
             Value::Format(..) => Err(ser::Error::custom("cannot serialize format specifications")),
             Value::Iterator(..) => Err(ser::Error::custom("cannot serialize iterators")),
+            Value::Range(..) => Err(ser::Error::custom("cannot serialize ranges")),
             Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }

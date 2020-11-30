@@ -89,6 +89,9 @@ impl Assemble for ast::Expr {
             ast::Expr::Object(expr_object) => {
                 expr_object.assemble(c, needs)?;
             }
+            ast::Expr::Range(expr_range) => {
+                expr_range.assemble(c, needs)?;
+            }
             ast::Expr::MacroCall(expr_call_macro) => {
                 let internal_macro = c.query.builtin_macro_for(&**expr_call_macro)?;
 

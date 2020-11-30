@@ -19,6 +19,7 @@ mod expr_loop;
 mod expr_match;
 mod expr_object;
 mod expr_path;
+mod expr_range;
 mod expr_return;
 mod expr_select;
 mod expr_try;

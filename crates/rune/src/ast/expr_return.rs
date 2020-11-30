@@ -1,7 +1,8 @@
 use crate::ast;
 use crate::{Parse, Spanned, ToTokens};
 
-/// A return statement `return [expr]`.
+/// A return expression `return [expr]`.
+///
 /// ```rust
 /// use rune::{testing, ast};
 ///
