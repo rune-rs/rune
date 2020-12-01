@@ -79,6 +79,10 @@
   doc: "The `const` keyword."
   keyword: "const"
 - kind: keyword
+  variant: Continue
+  doc: "The `continue` keyword."
+  keyword: "continue"
+- kind: keyword
   variant: Crate
   doc: "The `crate` keyword."
   keyword: "crate"

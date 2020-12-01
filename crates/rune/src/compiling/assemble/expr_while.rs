@@ -6,37 +6,42 @@ impl Assemble for ast::ExprWhile {
         let span = self.span();
         log::trace!("ExprWhile => {:?}", c.source.source(span));
 
-        let start_label = c.asm.new_label("while_test");
-        let then_label = c.asm.new_label("while_then");
+        let continue_label = c.asm.new_label("while_continue");
+        let then_label = c.asm.new_label("whiel_then");
         let end_label = c.asm.new_label("while_end");
         let break_label = c.asm.new_label("while_break");
 
+        let var_count = c.scopes.total_var_count(span)?;
+
         let _guard = c.loops.push(Loop {
             label: self.label.map(|(label, _)| label),
+            continue_label,
+            continue_var_count: var_count,
             break_label,
-            total_var_count: c.scopes.total_var_count(span)?,
+            break_var_count: var_count,
             needs,
             drop: None,
         });
 
-        c.asm.label(start_label)?;
+        c.asm.label(continue_label)?;
 
         let then_scope = c.compile_condition(&self.condition, then_label)?;
+        let expected = c.scopes.push(then_scope);
+
         c.asm.jump(end_label, span);
         c.asm.label(then_label)?;
 
-        let expected = c.scopes.push(then_scope);
         self.body.assemble(c, Needs::None)?;
         c.clean_last_scope(span, expected, Needs::None)?;
 
-        c.asm.jump(start_label, span);
+        c.asm.jump(continue_label, span);
         c.asm.label(end_label)?;
 
         if needs.value() {
             c.asm.push(Inst::unit(), span);
         }
 
-        // NB: breaks produce their own value.
+        // NB: breaks produce their own value / perform their own cleanup.
         c.asm.label(break_label)?;
         Ok(())
     }

@@ -16,6 +16,7 @@ mod iterator;
 mod moved;
 mod reference_error;
 mod stmt_reordering;
+mod test_continue;
 mod test_range;
 mod type_name_native;
 mod type_name_rune;

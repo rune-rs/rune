@@ -186,6 +186,8 @@ pub enum CompileErrorKind {
     UnsupportedTupleIndex { number: ast::Number },
     #[error("break outside of loop")]
     BreakOutsideOfLoop,
+    #[error("continue outside of loop")]
+    ContinueOutsideOfLoop,
     #[error("multiple `default` branches in select")]
     SelectMultipleDefaults,
     #[error("expected expression to be terminated by a semicolon `;`")]

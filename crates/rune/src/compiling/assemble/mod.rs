@@ -10,6 +10,7 @@ mod expr_block;
 mod expr_break;
 mod expr_call;
 mod expr_closure;
+mod expr_continue;
 mod expr_field_access;
 mod expr_for;
 mod expr_if;
