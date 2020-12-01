@@ -1,10 +1,11 @@
-use crate::context::Context;
+use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
 struct Expander {
     ctx: Context,
+    tokens: Tokens,
 }
 
 impl Expander {
@@ -17,9 +18,9 @@ impl Expander {
         let inner = self.expand_fields(&st.fields)?;
 
         let ident = &input.ident;
-        let value = &self.ctx.value;
-        let vm_error = &self.ctx.vm_error;
-        let to_value = &self.ctx.to_value;
+        let value = &self.tokens.value;
+        let vm_error = &self.tokens.vm_error;
+        let to_value = &self.tokens.to_value;
 
         Some(quote! {
             impl #to_value for #ident {
@@ -68,7 +69,7 @@ impl Expander {
 
             let index = syn::Index::from(index);
 
-            let to_value = &self.ctx.to_value;
+            let to_value = &self.tokens.to_value;
 
             to_values.push(quote_spanned! {
                 field.span() =>
@@ -77,8 +78,8 @@ impl Expander {
         }
 
         let cap = unnamed.unnamed.len();
-        let value = &self.ctx.value;
-        let tuple = &self.ctx.tuple;
+        let value = &self.tokens.value;
+        let tuple = &self.tokens.tuple;
 
         Some(quote_spanned! {
             unnamed.span() =>
@@ -98,7 +99,7 @@ impl Expander {
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
-            let to_value = &self.ctx.to_value;
+            let to_value = &self.tokens.to_value;
 
             to_values.push(quote_spanned! {
                 field.span() =>
@@ -106,8 +107,8 @@ impl Expander {
             });
         }
 
-        let value = &self.ctx.value;
-        let object = &self.ctx.object;
+        let value = &self.tokens.value;
+        let object = &self.tokens.object;
 
         Some(quote_spanned! {
             named.span() =>
@@ -119,8 +120,20 @@ impl Expander {
 }
 
 pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
+    let mut ctx = Context::new();
+
+    let attrs = match ctx.parse_derive_attrs(&input.attrs) {
+        Some(attrs) => attrs,
+        None => {
+            return Err(ctx.errors);
+        }
+    };
+
+    let tokens = ctx.tokens_with_module(&attrs);
+
     let mut expander = Expander {
         ctx: Context::new(),
+        tokens,
     };
 
     match &input.data {

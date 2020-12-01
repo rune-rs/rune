@@ -9,7 +9,7 @@ use syn::NestedMeta::*;
 
 #[derive(Clone, Copy)]
 struct Generate<'a> {
-    context: &'a Context,
+    tokens: &'a Tokens,
     attrs: &'a FieldAttrs,
     protocol: &'a FieldProtocol,
     ident: &'a syn::Ident,
@@ -39,13 +39,14 @@ pub(crate) struct FieldAttrs {
 pub(crate) struct DeriveAttrs {
     /// `#[rune(name = "TypeName")]` to override the default type name.
     pub(crate) name: Option<syn::LitStr>,
+    /// `#[rune(module = "...")]`.
+    pub(crate) module: Option<syn::Path>,
 }
 
-pub(crate) struct Context {
+pub(crate) struct Tokens {
     pub(crate) protocol: TokenStream,
     pub(crate) any: TokenStream,
     pub(crate) context_error: TokenStream,
-    pub(crate) errors: Vec<syn::Error>,
     pub(crate) from_value: TokenStream,
     pub(crate) hash: TokenStream,
     pub(crate) module: TokenStream,
@@ -69,22 +70,52 @@ pub(crate) struct Context {
     pub(crate) install_into: TokenStream,
 }
 
+impl Tokens {
+    /// Define a tokenstream for the specified protocol
+    pub(crate) fn protocol(&self, sym: Symbol) -> TokenStream {
+        let protocol = &self.protocol;
+        quote!(#protocol::#sym)
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Context {
+    pub(crate) errors: Vec<syn::Error>,
+    pub(crate) module: Option<TokenStream>,
+}
+
 impl Context {
-    /// Construct a new context.
-    pub fn new() -> Self {
-        Self::with_module(RUNESTICK)
+    pub(crate) fn new() -> Self {
+        Self::default()
     }
 
-    /// Construct a new context.
-    pub fn with_module<M>(module: M) -> Self
+    /// Construct a context with a different default module.
+    pub(crate) fn with_module<M>(module: M) -> Self
     where
-        M: Copy + ToTokens,
+        M: ToTokens,
     {
         Self {
+            errors: Vec::new(),
+            module: Some(quote!(#module)),
+        }
+    }
+
+    pub(crate) fn tokens_with_module(&self, attrs: &DeriveAttrs) -> Tokens {
+        let module = &match &attrs.module {
+            Some(module) => quote!(#module),
+            None => match &self.module {
+                Some(module) => module.clone(),
+                None => {
+                    let runestick = RUNESTICK;
+                    quote!(#runestick)
+                }
+            },
+        };
+
+        Tokens {
             protocol: quote!(#module::Protocol),
             any: quote!(#module::Any),
             context_error: quote!(#module::ContextError),
-            errors: Vec::new(),
             from_value: quote!(#module::FromValue),
             hash: quote!(#module::Hash),
             module: quote!(#module::Module),
@@ -107,12 +138,6 @@ impl Context {
             vm_error: quote!(#module::VmError),
             install_into: quote!(#module::InstallInto),
         }
-    }
-
-    /// Define a tokenstream for the specified protocol
-    fn protocol(&self, sym: Symbol) -> TokenStream {
-        let protocol = &self.protocol;
-        quote!(#protocol::#sym)
     }
 
     /// Parse the toplevel component of the attribute, which must be `#[rune(..)]`.
@@ -148,7 +173,7 @@ impl Context {
                         ..
                     } = g;
 
-                    let protocol = g.context.protocol($proto);
+                    let protocol = g.tokens.protocol($proto);
 
                     if let Some(custom) = &g.protocol.custom {
                         quote_spanned! { g.field.span() =>
@@ -190,7 +215,7 @@ impl Context {
                                     quote!(Clone::clone(&s.#field_ident))
                                 };
 
-                                let protocol = g.context.protocol(PROTOCOL_GET);
+                                let protocol = g.tokens.protocol(PROTOCOL_GET);
 
                                 quote_spanned! { g.field.span() =>
                                     module.field_fn(#protocol, #name, |s: &#ident| #access)?;
@@ -210,7 +235,7 @@ impl Context {
                                     ..
                                 } = g;
 
-                                let protocol = g.context.protocol(PROTOCOL_SET);
+                                let protocol = g.tokens.protocol(PROTOCOL_SET);
 
                                 quote_spanned! { g.field.span() =>
                                     module.field_fn(#protocol, #name, |s: &mut #ident, value: #ty| {
@@ -332,6 +357,22 @@ impl Context {
                     })) if path == NAME => {
                         output.name = Some(name);
                     }
+                    // Parse `#[rune(module = "..")]`.
+                    Meta(NameValue(syn::MetaNameValue {
+                        path,
+                        lit: Lit::Str(s),
+                        ..
+                    })) if path == MODULE => {
+                        let module = match s.parse_with(syn::Path::parse_mod_style) {
+                            Ok(module) => module,
+                            Err(e) => {
+                                self.errors.push(e);
+                                return None;
+                            }
+                        };
+
+                        output.module = Some(module);
+                    }
                     meta => {
                         self.errors
                             .push(syn::Error::new_spanned(meta, "unsupported attribute"));
@@ -346,7 +387,11 @@ impl Context {
     }
 
     /// Expannd the install into impl.
-    pub(crate) fn expand_install_into(&mut self, input: &syn::DeriveInput) -> Option<TokenStream> {
+    pub(crate) fn expand_install_into(
+        &mut self,
+        input: &syn::DeriveInput,
+        tokens: &Tokens,
+    ) -> Option<TokenStream> {
         let mut installers = Vec::new();
 
         let ident = &input.ident;
@@ -376,7 +421,7 @@ impl Context {
 
                     for protocol in &attrs.protocols {
                         installers.push((protocol.generate)(Generate {
-                            context: self,
+                            tokens,
                             protocol,
                             attrs: &attrs,
                             ident,
@@ -416,27 +461,28 @@ impl Context {
         ident: T,
         name: &TokenStream,
         install_into: &TokenStream,
+        tokens: &Tokens,
     ) -> Result<TokenStream, Vec<syn::Error>>
     where
         T: Copy + ToTokens,
     {
-        let any = &self.any;
-        let context_error = &self.context_error;
-        let hash = &self.hash;
-        let module = &self.module;
-        let named = &self.named;
-        let pointer_guard = &self.pointer_guard;
-        let raw_into_mut = &self.raw_into_mut;
-        let raw_into_ref = &self.raw_into_ref;
-        let raw_str = &self.raw_str;
-        let shared = &self.shared;
-        let type_info = &self.type_info;
-        let type_of = &self.type_of;
-        let unsafe_from_value = &self.unsafe_from_value;
-        let unsafe_to_value = &self.unsafe_to_value;
-        let value = &self.value;
-        let vm_error = &self.vm_error;
-        let install_into_trait = &self.install_into;
+        let any = &tokens.any;
+        let context_error = &tokens.context_error;
+        let hash = &tokens.hash;
+        let module = &tokens.module;
+        let named = &tokens.named;
+        let pointer_guard = &tokens.pointer_guard;
+        let raw_into_mut = &tokens.raw_into_mut;
+        let raw_into_ref = &tokens.raw_into_ref;
+        let raw_str = &tokens.raw_str;
+        let shared = &tokens.shared;
+        let type_info = &tokens.type_info;
+        let type_of = &tokens.type_of;
+        let unsafe_from_value = &tokens.unsafe_from_value;
+        let unsafe_to_value = &tokens.unsafe_to_value;
+        let value = &tokens.value;
+        let vm_error = &tokens.vm_error;
+        let install_into_trait = &tokens.install_into;
 
         Ok(quote! {
             impl #any for #ident {

@@ -1,4 +1,4 @@
-use crate::context::Context;
+use crate::context::{Context, DeriveAttrs};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned as _;
@@ -26,6 +26,8 @@ impl syn::parse::Parse for InternalCall {
 impl InternalCall {
     pub fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
         let ctx = Context::with_module(&quote!(crate));
+        let attrs = DeriveAttrs::default();
+        let tokens = ctx.tokens_with_module(&attrs);
 
         let name = match self.name {
             Some((_, name)) => quote!(#name),
@@ -45,7 +47,7 @@ impl InternalCall {
             Ok(())
         };
 
-        ctx.expand_any(&self.path, &name, &expand_into)
+        ctx.expand_any(&self.path, &name, &expand_into, &tokens)
     }
 }
 
@@ -71,7 +73,9 @@ impl Derive {
             None => return Err(ctx.errors),
         };
 
-        let install_into = match ctx.expand_install_into(&self.input) {
+        let tokens = ctx.tokens_with_module(&attrs);
+
+        let install_into = match ctx.expand_install_into(&self.input, &tokens) {
             Some(install_into) => install_into,
             None => return Err(ctx.errors),
         };
@@ -83,6 +87,6 @@ impl Derive {
 
         let name = &quote!(#name);
 
-        ctx.expand_any(&self.input.ident, &name, &install_into)
+        ctx.expand_any(&self.input.ident, &name, &install_into, &tokens)
     }
 }

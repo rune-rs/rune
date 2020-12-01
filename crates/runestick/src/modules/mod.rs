@@ -3,6 +3,7 @@
 
 pub mod any;
 pub mod bytes;
+pub mod collections;
 pub mod core;
 pub mod float;
 pub mod fmt;

@@ -2,6 +2,7 @@ use crate::{
     FromValue, InstallInto, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
     UnsafeFromValue, Value, VmError,
 };
+use std::cmp;
 use std::fmt;
 use std::ops;
 use std::slice;
@@ -37,6 +38,14 @@ impl Vec {
         Self {
             inner: vec::Vec::new(),
         }
+    }
+
+    /// Sort the vector with the given comparison function.
+    pub fn sort_by<F>(&mut self, compare: F)
+    where
+        F: FnMut(&Value, &Value) -> cmp::Ordering,
+    {
+        self.inner.sort_by(compare)
     }
 
     /// Construct a new dynamic vector guaranteed to have at least the given

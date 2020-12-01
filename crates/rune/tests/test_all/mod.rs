@@ -1,3 +1,4 @@
+mod collections;
 mod compiler_attributes;
 mod compiler_expr_assign;
 mod compiler_expr_binary;

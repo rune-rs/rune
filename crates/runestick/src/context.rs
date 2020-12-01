@@ -244,6 +244,7 @@ impl Context {
         let mut this = Self::new();
         this.install(&crate::modules::any::module()?)?;
         this.install(&crate::modules::bytes::module()?)?;
+        this.install(&crate::modules::collections::module()?)?;
         this.install(&crate::modules::core::module()?)?;
         this.install(&crate::modules::float::module()?)?;
         this.install(&crate::modules::fmt::module()?)?;

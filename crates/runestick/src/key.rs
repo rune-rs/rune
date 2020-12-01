@@ -370,3 +370,15 @@ impl<'de> de::Visitor<'de> for KeyVisitor {
         Ok(Key::Vec(vec))
     }
 }
+
+impl From<String> for Key {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<i64> for Key {
+    fn from(value: i64) -> Self {
+        Self::Integer(value)
+    }
+}

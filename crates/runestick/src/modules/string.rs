@@ -1,6 +1,6 @@
 //! The `std::string` module.
 
-use crate::{Bytes, ContextError, Module, Protocol};
+use crate::{Bytes, ContextError, Iterator, Module, Protocol};
 
 /// Construct the `std::string` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -23,8 +23,14 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clone", String::clone)?;
     module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
     module.inst_fn("char_at", char_at)?;
+    module.inst_fn("split", string_split)?;
+    module.inst_fn("is_empty", str::is_empty)?;
     module.inst_fn(Protocol::ADD, add)?;
     module.inst_fn(Protocol::ADD_ASSIGN, String::push_str)?;
+
+    // TODO: parameterize once generics are available.
+    module.function(&["parse_int"], parse_int)?;
+
     Ok(module)
 }
 
@@ -42,6 +48,15 @@ fn char_at(s: &str, index: usize) -> Result<Option<char>, NotCharBoundary> {
     }
 
     Ok(s[index..].chars().next())
+}
+
+fn string_split(s: &str, pat: char) -> Iterator {
+    let parts = s.split(pat).map(String::from).collect::<Vec<String>>();
+    Iterator::from_double_ended("std::str::Split", parts.into_iter())
+}
+
+fn parse_int(s: &str) -> Result<i64, std::num::ParseIntError> {
+    str::parse::<i64>(s)
 }
 
 /// The add operation for strings.
