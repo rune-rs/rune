@@ -79,21 +79,35 @@ pub(crate) fn assert_eq_macro(
         None
     };
 
-    let expr = quote!(#left == #right);
-
     let output = if let Some(message) = &message {
-        let expanded = message.expand()?;
+        let message = message.expand()?;
 
-        quote!(if !(#expr) {
-            panic("assertion failed (left == right): " + (#expanded));
-        })
+        quote! {{
+            let left = #left;
+            let right = #right;
+
+            if !(left == right) {
+                let message = #message;
+                message += format!("\nleft: {:?}", left);
+                message += format!("\nright: {:?}", right);
+                panic("assertion failed (left == right): " + message);
+            }
+        }}
     } else {
-        let message = format!("assertion failed (left == right): {}", macros::stringify(&expr));
+        let message = format!("assertion failed (left == right):");
         let message = ast::Lit::new(&message);
 
-        quote!(if !(#expr) {
-            panic(#message);
-        })
+        quote! {{
+            let left = #left;
+            let right = #right;
+
+            if !(left == right) {
+                let message = String::from_str(#message);
+                message += format!("\nleft: {:?}", left);
+                message += format!("\nright: {:?}", right);
+                panic(message);
+            }
+        }}
     };
 
     Ok(output.into_token_stream())
