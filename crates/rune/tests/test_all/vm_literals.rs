@@ -6,6 +6,7 @@ fn test_literals() {
         rune!(String => pub fn main() { "Hello World" }),
         "Hello World"
     );
+
     assert_eq!(
         rune!(runestick::Bytes => pub fn main() { b"Hello World" }),
         b"Hello World"[..]
@@ -13,10 +14,9 @@ fn test_literals() {
 
     assert_eq!(rune!(i64 => pub fn main() { 0xff }), 0xff);
     assert_eq!(rune!(i64 => pub fn main() { -0xff }), -0xff);
-
+    assert_eq!(rune!(i64 => pub fn main() { -42 }), -42);
     assert_eq!(rune!(i64 => pub fn main() { 0b10010001 }), 0b10010001);
     assert_eq!(rune!(i64 => pub fn main() { -0b10010001 }), -0b10010001);
-
     assert_eq!(rune!(i64 => pub fn main() { 0o77 }), 0o77);
     assert_eq!(rune!(i64 => pub fn main() { -0o77 }), -0o77);
 
@@ -26,6 +26,11 @@ fn test_literals() {
     assert_eq!(rune!(char => pub fn main() { '\x60' }), '\x60');
     assert_eq!(rune!(char => pub fn main() { '\u{1F4AF}' }), '\u{1F4AF}');
     assert_eq!(rune!(char => pub fn main() { '💯' }), '💯');
+
+    assert_eq!(rune!(f64 => pub fn main() { 42.42 }), 42.42);
+    assert_eq!(rune!(f64 => pub fn main() { -42.42 }), -42.42);
+    assert_eq!(rune!(f64 => pub fn main() { 1.9e10 }), 1.9e10);
+    assert_eq!(rune!(f64 => pub fn main() { 1e10 }), 1e10);
 }
 
 #[test]
