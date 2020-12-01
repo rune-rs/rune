@@ -1,6 +1,8 @@
 use crate::Hash;
 use serde::{Deserialize, Serialize};
+use std::cmp;
 use std::fmt;
+use std::hash;
 use std::ops;
 
 /// Struct representing a static string.
@@ -8,6 +10,32 @@ use std::ops;
 pub struct StaticString {
     inner: String,
     hash: Hash,
+}
+
+impl cmp::PartialEq for StaticString {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash && self.inner == other.inner
+    }
+}
+
+impl cmp::Eq for StaticString {}
+
+impl cmp::PartialOrd for StaticString {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
+}
+
+impl cmp::Ord for StaticString {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
+}
+
+impl hash::Hash for StaticString {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state)
+    }
 }
 
 impl StaticString {
