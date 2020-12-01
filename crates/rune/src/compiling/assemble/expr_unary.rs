@@ -13,8 +13,28 @@ impl Assemble for ast::ExprUnary {
 
         if let (ast::UnOp::Neg, ast::Expr::Lit(expr_lit)) = (self.op, &self.expr) {
             if let ast::Lit::Number(n) = &expr_lit.lit {
-                let n = n.resolve(&c.storage, &*c.source)?.as_i64(span, true)?;
-                c.asm.push(Inst::integer(n), span);
+                match n.resolve(&c.storage, &*c.source)? {
+                    ast::Number::Float(n) => {
+                        c.asm.push(Inst::float(-n), span);
+                    }
+                    ast::Number::Integer(int) => {
+                        use num::ToPrimitive as _;
+                        use std::ops::Neg as _;
+
+                        let n = match int.neg().to_i64() {
+                            Some(n) => n,
+                            None => {
+                                return Err(CompileError::new(
+                                    span,
+                                    ParseErrorKind::BadNumberOutOfBounds,
+                                ));
+                            }
+                        };
+
+                        c.asm.push(Inst::integer(n), span);
+                    }
+                }
+
                 return Ok(());
             }
         }

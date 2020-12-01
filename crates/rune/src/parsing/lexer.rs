@@ -128,9 +128,15 @@ impl<'a> Lexer<'a> {
         };
 
         let mut is_fractional = false;
+        let mut has_exponent = false;
 
         while let Some(c) = self.iter.peek() {
             match c {
+                'e' if base == ast::NumberBase::Decimal && !has_exponent => {
+                    self.iter.next();
+                    is_fractional = true;
+                    has_exponent = true;
+                }
                 c if char::is_alphanumeric(c) => {
                     self.iter.next();
                 }
