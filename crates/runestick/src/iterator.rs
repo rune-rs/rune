@@ -1,6 +1,6 @@
 use crate::{
     FromValue, Function, InstallInto, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
-    UnsafeFromValue, Value, VmError,
+    UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::iter;
@@ -233,6 +233,28 @@ impl Iterator {
         }
 
         Ok(vec)
+    }
+
+    /// Integrate over the iterator, using accumulator as the initial value and
+    /// then forwarding the result of each stage.
+    pub fn fold(mut self, mut accumulator: Value, f: Function) -> Result<Value, VmError> {
+        while let Some(value) = self.next()? {
+            accumulator = f.call::<_, Value>((accumulator, value.clone()))?
+        }
+
+        Ok(accumulator)
+    }
+
+    /// Compute the product under the assumption of a homogeonous iterator of type T.
+    pub fn product(self) -> Result<Option<Value>, VmError> {
+        let product = Product { iter: self.iter };
+        product.resolve()
+    }
+
+    /// Compute the sum under the assumption of a homogeonous iterator of type T.
+    pub fn sum(self) -> Result<Option<Value>, VmError> {
+        let sum = Sum { iter: self.iter };
+        sum.resolve()
     }
 }
 
@@ -935,5 +957,93 @@ where
         }
 
         Ok(None)
+    }
+}
+
+struct Product<I>
+where
+    I: RuneIterator,
+{
+    iter: I,
+}
+
+impl<I> Product<I>
+where
+    I: RuneIterator,
+{
+    fn next<T: FromValue>(&mut self) -> Result<Option<T>, VmError> {
+        self.iter.next()?.map(T::from_value).transpose()
+    }
+
+    fn resolve_internal_simple<T: FromValue + std::ops::Mul<Output = T>>(
+        &mut self,
+        first: T,
+    ) -> Result<T, VmError> {
+        let mut product = first;
+        while let Some(v) = self.next()? {
+            product = product * v;
+        }
+
+        Ok(product)
+    }
+
+    fn resolve(mut self) -> Result<Option<Value>, VmError> {
+        match self.iter.next()? {
+            Some(v) => match v {
+                Value::Byte(v) => Ok(Some(Value::Byte(self.resolve_internal_simple(v)?))),
+                Value::Integer(v) => Ok(Some(Value::Integer(self.resolve_internal_simple(v)?))),
+                Value::Float(v) => Ok(Some(Value::Float(self.resolve_internal_simple(v)?))),
+                _ => Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                    op: "*",
+                    lhs: v.type_info()?,
+                    rhs: v.type_info()?,
+                })),
+            },
+            None => Ok(None),
+        }
+    }
+}
+
+struct Sum<I>
+where
+    I: RuneIterator,
+{
+    iter: I,
+}
+
+impl<I> Sum<I>
+where
+    I: RuneIterator,
+{
+    fn next<T: FromValue>(&mut self) -> Result<Option<T>, VmError> {
+        self.iter.next()?.map(T::from_value).transpose()
+    }
+
+    fn resolve_internal_simple<T: FromValue + std::ops::Add<Output = T>>(
+        &mut self,
+        first: T,
+    ) -> Result<T, VmError> {
+        let mut sum = first;
+        while let Some(v) = self.next()? {
+            sum = sum + v;
+        }
+
+        Ok(sum)
+    }
+
+    fn resolve(mut self) -> Result<Option<Value>, VmError> {
+        match self.iter.next()? {
+            Some(v) => match v {
+                Value::Byte(v) => Ok(Some(Value::Byte(self.resolve_internal_simple(v)?))),
+                Value::Integer(v) => Ok(Some(Value::Integer(self.resolve_internal_simple(v)?))),
+                Value::Float(v) => Ok(Some(Value::Float(self.resolve_internal_simple(v)?))),
+                _ => Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                    op: "*",
+                    lhs: v.type_info()?,
+                    rhs: v.type_info()?,
+                })),
+            },
+            None => Ok(None),
+        }
     }
 }
