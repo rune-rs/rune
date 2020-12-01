@@ -1,4 +1,4 @@
-// Parts of these projects have been copied and modified from rust-analyzer under the MIT license: 
+// Parts of these projects have been copied and modified from rust-analyzer under the MIT license:
 // https://github.com/rust-analyzer/rust-analyzer
 //
 // Copyright of the rust-analyzer developers.
@@ -11,7 +11,7 @@ import * as os from 'os';
 import { log, isValidExecutable, assert, pathExists } from './util'
 import { fetchRelease, download } from './net';
 import { PersistentState } from './persistent_state';
-
+import { load } from './settings';
 export async function activate(context: vscode.ExtensionContext) {
     log.info('activating rune language server...');
     await tryActivate(context).catch(err => {
@@ -28,7 +28,9 @@ async function tryActivate(context: vscode.ExtensionContext) {
     }
 
     const state = new PersistentState(context.globalState);
-    let command = await findCommand(context, state, platform);
+
+    let settings = load("rune");
+    let command = settings.binaryPath || await findCommand(context, state, platform);
 
     if (!command) {
         log.error('could not find rune language server!');
@@ -113,35 +115,35 @@ function detectPlatform(): Platform | undefined {
 
     if (process.arch === "x64") {
         switch (process.platform) {
-        case "win32":
-            name = "windows"
-            break;
-        case "linux":
-            name = "linux"
-            break;
-        case "darwin":
-            name = "macos"
-            break;
-        default:
-            break;
+            case "win32":
+                name = "windows"
+                break;
+            case "linux":
+                name = "linux"
+                break;
+            case "darwin":
+                name = "macos"
+                break;
+            default:
+                break;
         }
     }
 
     switch (name) {
-    case "windows":
-        return {name, ext: ".exe"};
-    case "linux":
-        return {name, ext: ""};
-    case "macos":
-        return {name, ext: ""};
-    default:
-        vscode.window.showErrorMessage(
-            `Unfortunately we don't support your platform yet.
+        case "windows":
+            return { name, ext: ".exe" };
+        case "linux":
+            return { name, ext: "" };
+        case "macos":
+            return { name, ext: "" };
+        default:
+            vscode.window.showErrorMessage(
+                `Unfortunately we don't support your platform yet.
             You can open an issue about that [here](https://github.com/rune-rs/rune/issues).
             Please include (platform: ${process.platform}, arch: ${process.arch}).`
-        );
+            );
 
-        return undefined;
+            return undefined;
     }
 }
 
@@ -184,7 +186,7 @@ async function getServer(
     let lastCheck = state.lastCheck;
 
     let timedOut = !lastCheck || (now - lastCheck) > CACHE_TIME;
-    log.debug("Check cache timeout", {now, lastCheck, timedOut, timeout: CACHE_TIME});
+    log.debug("Check cache timeout", { now, lastCheck, timedOut, timeout: CACHE_TIME });
 
     if (destExists && !timedOut) {
         // Only check for updates once every two hours.
