@@ -62,7 +62,17 @@
                 "scopeName": "source.rune",
                 "path": "./syntaxes/rune.tmGrammar.json"
             }
-        ]
+        ],
+        "configuration": {
+            "title": "Rune",
+            "properties": {
+                "rune.binaryPath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Path to LSP server"
+                }
+            }
+        }
     },
     "activationEvents": [
         "onLanguage:rune"
