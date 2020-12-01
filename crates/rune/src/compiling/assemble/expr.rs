@@ -44,6 +44,9 @@ impl Assemble for ast::Expr {
             ast::Expr::Break(expr_break) => {
                 expr_break.assemble(c, needs)?;
             }
+            ast::Expr::Continue(expr_continue) => {
+                expr_continue.assemble(c, needs)?;
+            }
             ast::Expr::Yield(expr_yield) => {
                 expr_yield.assemble(c, needs)?;
             }

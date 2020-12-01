@@ -19,12 +19,16 @@ impl Drop for LoopGuard {
 /// Loops we are inside.
 #[derive(Clone, Copy)]
 pub(crate) struct Loop {
-    /// The optional label of the loop.
+    /// The optional label of the start of the loop.
     pub(crate) label: Option<ast::Label>,
-    /// The end label of the loop.
+    /// The start label of the loop, used for `continue`.
+    pub(crate) continue_label: Label,
+    /// The number of local variables inside the loop.
+    pub(crate) continue_var_count: usize,
+    /// The end label of the loop, used for `break`.
     pub(crate) break_label: Label,
-    /// The number of variables observed at the start of the loop.
-    pub(crate) total_var_count: usize,
+    /// The number of local variables before the loop.
+    pub(crate) break_var_count: usize,
     /// If the loop needs a value.
     pub(crate) needs: Needs,
     /// Locals to drop when breaking.

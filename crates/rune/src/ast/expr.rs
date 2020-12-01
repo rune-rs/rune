@@ -78,6 +78,8 @@ pub enum Expr {
     Index(Box<ast::ExprIndex>),
     /// A break expression.
     Break(Box<ast::ExprBreak>),
+    /// A continue expression.
+    Continue(Box<ast::ExprContinue>),
     /// A yield expression.
     Yield(Box<ast::ExprYield>),
     /// A block as an expression.
@@ -146,6 +148,7 @@ impl Expr {
             Self::Path(_) => Vec::new(),
             Self::Item(item) => item.take_attributes(),
             Self::Break(expr) => take(&mut expr.attributes),
+            Self::Continue(expr) => take(&mut expr.attributes),
             Self::Yield(expr) => take(&mut expr.attributes),
             Self::Block(expr) => take(&mut expr.attributes),
             Self::Return(expr) => take(&mut expr.attributes),
@@ -182,6 +185,7 @@ impl Expr {
             Self::Path(_) => &[],
             Self::Item(expr) => expr.attributes(),
             Self::Break(expr) => &expr.attributes,
+            Self::Continue(expr) => &expr.attributes,
             Self::Yield(expr) => &expr.attributes,
             Self::Block(expr) => &expr.attributes,
             Self::Return(expr) => &expr.attributes,
@@ -444,6 +448,10 @@ impl Expr {
                 take(&mut move_token),
             )?)),
             K![break] => Self::Break(Box::new(ast::ExprBreak::parse_with_meta(
+                p,
+                take(attributes),
+            )?)),
+            K![continue] => Self::Continue(Box::new(ast::ExprContinue::parse_with_meta(
                 p,
                 take(attributes),
             )?)),
@@ -787,6 +795,7 @@ impl Peek for Expr {
             K![let] => true,
             K![if] => true,
             K![break] => true,
+            K![continue] => true,
             K![return] => true,
             K![true] => true,
             K![false] => true,

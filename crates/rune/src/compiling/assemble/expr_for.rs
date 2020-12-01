@@ -6,11 +6,11 @@ impl Assemble for ast::ExprFor {
         let span = self.span();
         log::trace!("ExprFor => {:?}", c.source.source(span));
 
-        let start_label = c.asm.new_label("for_start");
+        let continue_label = c.asm.new_label("for_continue");
         let end_label = c.asm.new_label("for_end");
         let break_label = c.asm.new_label("for_break");
 
-        let total_var_count = c.scopes.total_var_count(span)?;
+        let break_var_count = c.scopes.total_var_count(span)?;
 
         let (iter_offset, loop_scope_expected) = {
             let loop_scope_expected = c.scopes.push_child(span)?;
@@ -28,14 +28,6 @@ impl Assemble for ast::ExprFor {
 
             (iter_offset, loop_scope_expected)
         };
-
-        let _guard = c.loops.push(Loop {
-            label: self.label.map(|(label, _)| label),
-            break_label,
-            total_var_count,
-            needs,
-            drop: Some(iter_offset),
-        });
 
         // Declare named loop variable.
         let binding_offset = {
@@ -72,7 +64,18 @@ impl Assemble for ast::ExprFor {
             None
         };
 
-        c.asm.label(start_label)?;
+        let continue_var_count = c.scopes.total_var_count(span)?;
+        c.asm.label(continue_label)?;
+
+        let _guard = c.loops.push(Loop {
+            label: self.label.map(|(label, _)| label),
+            continue_label,
+            continue_var_count,
+            break_label,
+            break_var_count,
+            needs,
+            drop: Some(iter_offset),
+        });
 
         // Use the memoized loop variable.
         if let Some(next_offset) = next_offset {
@@ -154,7 +157,7 @@ impl Assemble for ast::ExprFor {
         }
 
         self.body.assemble(c, Needs::None)?;
-        c.asm.jump(start_label, span);
+        c.asm.jump(continue_label, span);
         c.asm.label(end_label)?;
 
         // Drop the iterator.

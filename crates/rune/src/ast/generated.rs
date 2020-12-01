@@ -727,6 +727,42 @@ impl macros::ToTokens for Const {
     }
 }
 
+/// The `continue` keyword.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Continue {
+    /// Associated token.
+    pub token: ast::Token,
+}
+
+impl crate::Spanned for Continue {
+    fn span(&self) -> runestick::Span {
+        self.token.span()
+    }
+}
+
+impl parsing::Parse for Continue {
+    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+        let token = p.next()?;
+
+        match token.kind {
+            ast::Kind::Continue => Ok(Self { token }),
+            _ => Err(parsing::ParseError::expected(&token, "continue")),
+        }
+    }
+}
+
+impl parsing::Peek for Continue {
+    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+        matches!(peeker.nth(0), ast::Kind::Continue)
+    }
+}
+
+impl macros::ToTokens for Continue {
+    fn to_tokens(&self, _: &macros::MacroContext, stream: &mut macros::TokenStream) {
+        stream.push(self.token);
+    }
+}
+
 /// The `crate` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Crate {
@@ -3508,6 +3544,9 @@ macro_rules! T {
     (const) => {
         $crate::ast::generated::Const
     };
+    (continue) => {
+        $crate::ast::generated::Continue
+    };
     (crate) => {
         $crate::ast::generated::Crate
     };
@@ -3805,6 +3844,7 @@ macro_rules! K {
     (become) => { $crate::ast::Kind::Become };
     (break) => { $crate::ast::Kind::Break };
     (const) => { $crate::ast::Kind::Const };
+    (continue) => { $crate::ast::Kind::Continue };
     (crate) => { $crate::ast::Kind::Crate };
     (default) => { $crate::ast::Kind::Default };
     (do) => { $crate::ast::Kind::Do };
@@ -3960,6 +4000,8 @@ pub enum Kind {
     Comma,
     /// The `const` keyword.
     Const,
+    /// The `continue` keyword.
+    Continue,
     /// The `crate` keyword.
     Crate,
     /// `-`.
@@ -4132,6 +4174,7 @@ impl Kind {
             "become" => Some(Self::Become),
             "break" => Some(Self::Break),
             "const" => Some(Self::Const),
+            "continue" => Some(Self::Continue),
             "crate" => Some(Self::Crate),
             "default" => Some(Self::Default),
             "do" => Some(Self::Do),
@@ -4213,6 +4256,7 @@ impl Kind {
             Self::ColonColon => "::",
             Self::Comma => ",",
             Self::Const => "const",
+            Self::Continue => "continue",
             Self::Crate => "crate",
             Self::Dash => "-",
             Self::DashEq => "-=",

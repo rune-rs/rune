@@ -1086,6 +1086,9 @@ impl Index for ast::Expr {
             ast::Expr::Break(expr_break) => {
                 expr_break.index(idx)?;
             }
+            ast::Expr::Continue(expr_continue) => {
+                expr_continue.index(idx)?;
+            }
             ast::Expr::Yield(expr_yield) => {
                 expr_yield.index(idx)?;
             }
@@ -1671,6 +1674,14 @@ impl Index for ast::ExprBreak {
             }
         }
 
+        Ok(())
+    }
+}
+
+impl Index for ast::ExprContinue {
+    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
+        let span = self.span();
+        log::trace!("ExprContinue => {:?}", idx.source.source(span));
         Ok(())
     }
 }
