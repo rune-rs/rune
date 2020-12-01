@@ -294,6 +294,8 @@ pub enum VmErrorKind {
     ExpectedVariant { actual: TypeInfo },
     #[error("{actual} can't be converted to a constant value")]
     ConstNotSupported { actual: TypeInfo },
+    #[error("{actual} can't be converted to a hash key")]
+    KeyNotSupported { actual: TypeInfo },
     #[error("missing interface environment")]
     MissingInterfaceEnvironment,
 }
