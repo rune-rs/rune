@@ -9,20 +9,24 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", &["iter"]);
     module.ty::<Iterator>()?;
 
+    // Sorted for ease of finding
     module.inst_fn("chain", Iterator::chain)?;
     module.inst_fn("collect_object", collect_object)?;
     module.inst_fn("collect_vec", collect_vec)?;
     module.inst_fn("enumerate", Iterator::enumerate)?;
     module.inst_fn("filter", Iterator::filter)?;
-    module.inst_fn("map", Iterator::map)?;
     module.inst_fn("flat_map", Iterator::flat_map)?;
-    module.inst_fn("next_back", Iterator::next_back)?;
+    module.inst_fn("map", Iterator::map)?;
     module.inst_fn("next", Iterator::next)?;
-    module.inst_fn("rev", Iterator::rev)?;
-    module.inst_fn("take", Iterator::take)?;
-    module.inst_fn("peekable", Iterator::peekable)?;
+    module.inst_fn("next_back", Iterator::next_back)?;
     module.inst_fn("peek", Iterator::peek)?;
+    module.inst_fn("peekable", Iterator::peekable)?;
+    module.inst_fn("product", Iterator::product)?;
+    module.inst_fn("fold", Iterator::fold)?;
+    module.inst_fn("rev", Iterator::rev)?;
     module.inst_fn("size_hint", Iterator::size_hint)?;
+    module.inst_fn("sum", Iterator::sum)?;
+    module.inst_fn("take", Iterator::take)?;
     module.inst_fn(Protocol::NEXT, Iterator::next)?;
     module.inst_fn(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
 
