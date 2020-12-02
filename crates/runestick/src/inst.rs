@@ -748,6 +748,19 @@ pub enum Inst {
         /// The integer to test against.
         integer: i64,
     },
+
+    /// Test if the top of the stack is a specific boolean.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqBool {
+        /// The bool to test against.
+        boolean: bool,
+    },
     /// Compare the top of the stack against a static string slot.
     ///
     /// # Operation
@@ -1094,6 +1107,9 @@ impl fmt::Display for Inst {
             }
             Self::EqInteger { integer } => {
                 write!(fmt, "eq-integer {}", integer)?;
+            }
+            Self::EqBool { boolean } => {
+                write!(fmt, "eq-integer {}", boolean)?;
             }
             Self::EqStaticString { slot } => {
                 write!(fmt, "eq-static-string {}", slot)?;
