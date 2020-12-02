@@ -739,13 +739,24 @@ impl Vm {
                 )?;
             }
             InstOp::BitAnd => {
-                self.internal_infallible_bitwise(Protocol::BIT_AND, std::ops::BitAnd::bitand)?;
+                use std::ops::BitAnd as _;
+                self.internal_infallible_bitwise_bool(
+                    Protocol::BIT_AND,
+                    i64::bitand,
+                    bool::bitand,
+                )?;
             }
             InstOp::BitXor => {
-                self.internal_infallible_bitwise(Protocol::BIT_XOR, std::ops::BitXor::bitxor)?;
+                use std::ops::BitXor as _;
+                self.internal_infallible_bitwise_bool(
+                    Protocol::BIT_XOR,
+                    i64::bitxor,
+                    bool::bitxor,
+                )?;
             }
             InstOp::BitOr => {
-                self.internal_infallible_bitwise(Protocol::BIT_OR, std::ops::BitOr::bitor)?;
+                use std::ops::BitOr as _;
+                self.internal_infallible_bitwise_bool(Protocol::BIT_OR, i64::bitor, bool::bitor)?;
             }
             InstOp::Shl => {
                 self.internal_bitwise(
@@ -2718,6 +2729,39 @@ impl Vm {
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
                 self.stack.push(integer_op(lhs, rhs));
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs, rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                op: protocol.name,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            }));
+        }
+
+        Ok(())
+    }
+
+    /// Internal impl of a numeric operation.
+    fn internal_infallible_bitwise_bool(
+        &mut self,
+        protocol: Protocol,
+        integer_op: fn(i64, i64) -> i64,
+        bool_op: fn(bool, bool) -> bool,
+    ) -> Result<(), VmError> {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.pop()?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                self.stack.push(integer_op(lhs, rhs));
+                return Ok(());
+            }
+            (Value::Bool(lhs), Value::Bool(rhs)) => {
+                self.stack.push(bool_op(lhs, rhs));
                 return Ok(());
             }
             (lhs, rhs) => (lhs, rhs),

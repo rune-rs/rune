@@ -23,13 +23,16 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clone", String::clone)?;
     module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
     module.inst_fn("char_at", char_at)?;
-    module.inst_fn("split", string_split)?;
+    module.inst_fn("split", string_split_char)?;
+    module.inst_fn("split_str", string_split_str)?;
     module.inst_fn("is_empty", str::is_empty)?;
+    module.inst_fn("chars", string_chars)?;
     module.inst_fn(Protocol::ADD, add)?;
     module.inst_fn(Protocol::ADD_ASSIGN, String::push_str)?;
 
     // TODO: parameterize once generics are available.
     module.function(&["parse_int"], parse_int)?;
+    module.function(&["parse_char"], parse_char)?;
 
     Ok(module)
 }
@@ -50,7 +53,12 @@ fn char_at(s: &str, index: usize) -> Result<Option<char>, NotCharBoundary> {
     Ok(s[index..].chars().next())
 }
 
-fn string_split(s: &str, pat: char) -> Iterator {
+fn string_split_char(s: &str, pat: char) -> Iterator {
+    let parts = s.split(pat).map(String::from).collect::<Vec<String>>();
+    Iterator::from_double_ended("std::str::Split", parts.into_iter())
+}
+
+fn string_split_str(s: &str, pat: &str) -> Iterator {
     let parts = s.split(pat).map(String::from).collect::<Vec<String>>();
     Iterator::from_double_ended("std::str::Split", parts.into_iter())
 }
@@ -59,12 +67,21 @@ fn parse_int(s: &str) -> Result<i64, std::num::ParseIntError> {
     str::parse::<i64>(s)
 }
 
+fn parse_char(s: &str) -> Result<char, std::char::ParseCharError> {
+    str::parse::<char>(s)
+}
+
 /// The add operation for strings.
 fn add(a: &str, b: &str) -> String {
     let mut string = String::with_capacity(a.len() + b.len());
     string.push_str(a);
     string.push_str(b);
     string
+}
+
+fn string_chars(s: &str) -> Iterator {
+    let iter = s.chars().collect::<Vec<_>>().into_iter();
+    Iterator::from_double_ended("std::str::Chars", iter)
 }
 
 crate::__internal_impl_any!(NotCharBoundary);
