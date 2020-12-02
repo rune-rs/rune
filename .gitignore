@@ -6,3 +6,6 @@
 /.vscode/spellright.dict
 *.rnc
 /.idea
+/flamegraph.svg
+/perf.data
+/perf.data.*

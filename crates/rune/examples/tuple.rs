@@ -6,13 +6,13 @@ fn main() -> runestick::Result<()> {
 
     let object: (i64, i64) = run(
         &context,
-        &["calc"],
-        ((1, 2),),
         r#"
         pub fn calc(input) {
             (input.0 + 1, input.1 + 2)
         }
         "#,
+        &["calc"],
+        ((1, 2),),
     )?;
 
     println!("{:?}", object);

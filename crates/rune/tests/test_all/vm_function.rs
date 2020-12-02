@@ -53,9 +53,9 @@ fn test_function() {
     // closure with captures
     let function: Function = run(
         &context,
+        r#"pub fn main(a, b) { || a + b }"#,
         &["main"],
         (1i64, 2i64),
-        r#"pub fn main(a, b) { || a + b }"#,
     )
     .unwrap();
 

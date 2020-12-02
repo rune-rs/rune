@@ -22,13 +22,13 @@ fn main() -> runestick::Result<()> {
 
     let mut proxy: Proxy = run(
         &context,
-        &["passthrough"],
-        (my_bytes,),
         r#"
         pub fn passthrough(my_bytes) {
             #{ field: String::from_str("hello world"), my_bytes }
         }
         "#,
+        &["passthrough"],
+        (my_bytes,),
     )?;
 
     println!("field: {}", &*proxy.field);

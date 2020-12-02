@@ -8,8 +8,6 @@ fn main() -> runestick::Result<()> {
 
     let output: Vec<i64> = run(
         &context,
-        &["calc"],
-        (input,),
         r#"
         pub fn calc(input) {
             let output = 0;
@@ -21,6 +19,8 @@ fn main() -> runestick::Result<()> {
             [output]
         }
         "#,
+        &["calc"],
+        (input,),
     )?;
 
     println!("{:?}", output);
