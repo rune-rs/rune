@@ -358,6 +358,16 @@ fn test_match() {
         rune!(String => pub fn main() { match "hello world" { "hello world" => "hello john", n => n } }),
         "hello john",
     };
+
+    assert_eq! {
+        rune!(String => pub fn main() { match (true, false) { (true, false) => "aaaa" , _ => "no", } }),
+        "aaaa",
+    };
+
+    assert_eq! {
+        rune!(String => pub fn main() { match (1==1, 1==2) { (true, false) => "aaaa" , _ => "no", } }),
+        "aaaa",
+    };
 }
 
 #[test]
