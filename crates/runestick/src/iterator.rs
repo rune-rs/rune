@@ -199,6 +199,17 @@ impl Iterator {
         }
     }
 
+    /// Count the number of elements remaining in the iterator.
+    pub fn count(&mut self) -> Result<usize, VmError> {
+        let mut c = 0;
+
+        while self.iter.next()?.is_some() {
+            c += 1;
+        }
+
+        Ok(c)
+    }
+
     /// Create a peekable iterator.
     pub fn peekable(self) -> Self {
         Self {

@@ -122,6 +122,9 @@ struct Args {
     /// Rune scripts to run.
     #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
+    /// Display warnings.
+    #[structopt(long)]
+    warnings: bool,
     /// Set the given compiler option (see `--help` for available options).
     ///
     /// memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
@@ -316,7 +319,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 bincode::serialize_into(f, &unit)?;
             }
 
-            if !warnings.is_empty() {
+            if args.warnings && !warnings.is_empty() {
                 warnings.emit_diagnostics(&mut out, &sources)?;
             }
 
