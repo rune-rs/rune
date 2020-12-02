@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate rune;
+
 /// Assert that the given parse error happens with the given rune program.
 #[macro_export]
 macro_rules! assert_parse_error {
@@ -38,7 +41,7 @@ macro_rules! assert_vm_error {
     // Second variant which allows for specifyinga type.
     ($ty:ty => $source:expr, $pat:pat => $cond:block) => {{
         let context = std::sync::Arc::new(rune_modules::default_context().unwrap());
-        let e = rune::testing::run::<_, _, $ty>(&context, &["main"], (), $source).unwrap_err();
+        let e = rune::testing::run::<_, _, $ty>(&context, $source, &["main"], ()).unwrap_err();
 
         let (e, _) = match e {
             rune::testing::RunError::VmError(e) => e.into_unwound(),
@@ -127,59 +130,6 @@ macro_rules! assert_matches {
             other => panic!("expected {}, but was {:?}", stringify!($pat), other),
         }
     };
-}
-
-/// Rune the given string as a rune program.
-macro_rules! rune_s {
-    ($ty:ty => $source:expr) => {{
-        let context = rune_modules::default_context().expect("failed to build context");
-        let context = std::sync::Arc::new(context);
-
-        rune::testing::run::<_, (), $ty>(&context, &["main"], (), $source)
-            .expect("program to run successfully")
-    }};
-}
-
-/// Rune the given ast as a rune program.
-macro_rules! rune {
-    ($ty:ty => $($tt:tt)*) => {{
-        let context = rune_modules::default_context().expect("failed to build context");
-        let context = std::sync::Arc::new(context);
-
-        rune::testing::run::<_, (), $ty>(&context, &["main"], (), stringify!($($tt)*))
-            .expect("program to run successfully")
-    }};
-}
-
-/// Same as [rune!] macro, except it takes an external context, allowing testing
-/// of native Rust data. This also accepts a tuple of arguments in the second
-/// position, to pass native objects as arguments to the script.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::testing::*;
-/// use runestick::Module;
-/// fn get_native_module() -> Module {
-///     Module::new()
-/// }
-///
-/// # fn main() {
-/// assert_eq! {
-///     rune::rune_n!(get_native_module(), (), bool => pub fn main() { true || false }),
-///     true,
-/// };
-/// # }
-#[macro_export]
-macro_rules! rune_n {
-    ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
-        let mut context = rune_modules::default_context().expect("failed to build context");
-        context.install(&$module).expect("failed to install native module");
-        let context = std::sync::Arc::new(context);
-
-        rune::testing::run::<_, _, $ty>(&context, &["main"], $args, stringify!($($tt)*))
-            .expect("program to run successfully")
-    }};
 }
 
 #[path = "test_all/mod.rs"]

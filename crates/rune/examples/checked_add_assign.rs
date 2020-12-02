@@ -32,9 +32,9 @@ fn main() -> runestick::Result<()> {
 
     let result = rune::testing::run::<_, _, ()>(
         &context,
+        "pub fn main(external) { external.value += 1; }",
         &["main"],
         (external,),
-        "pub fn main(external) { external.value += 1; }",
     );
 
     let error = result.expect_err("expected error");

@@ -9,8 +9,6 @@ fn main() -> runestick::Result<()> {
 
     let output: VecTuple<(i64, String)> = run(
         &context,
-        &["calc"],
-        (input,),
         r#"
         pub fn calc(input) {
             let a = input[0] + 1;
@@ -18,6 +16,8 @@ fn main() -> runestick::Result<()> {
             [a, b]
         }
         "#,
+        &["calc"],
+        (input,),
     )?;
 
     let VecTuple((a, b)) = output;

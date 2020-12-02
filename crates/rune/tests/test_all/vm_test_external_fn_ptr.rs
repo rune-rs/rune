@@ -11,21 +11,21 @@ fn test_external_function() -> runestick::Result<()> {
 
     let function: Function = run(
         &context,
-        &["main"],
-        (),
         r#"
         fn test() { 42 }
         pub fn main() { test }
         "#,
+        &["main"],
+        (),
     )?;
 
     let output: i64 = run(
         &context,
-        &["main"],
-        (function,),
         r#"
         pub fn main(f) { f() }
         "#,
+        &["main"],
+        (function,),
     )?;
 
     assert_eq!(42, output);
@@ -42,21 +42,21 @@ fn test_external_generator() -> runestick::Result<()> {
 
     let function: Function = run(
         &context,
-        &["main"],
-        (),
         r#"
         fn test() { yield 42; }
         pub fn main() { test }
         "#,
+        &["main"],
+        (),
     )?;
 
     let output: (Option<i64>, Option<i64>) = run(
         &context,
-        &["main"],
-        (function,),
         r#"
         pub fn main(f) { let gen = f(); (gen.next(), gen.next()) }
         "#,
+        &["main"],
+        (function,),
     )?;
 
     assert_eq!((Some(42), None), output);

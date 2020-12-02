@@ -10,8 +10,6 @@ fn main() -> runestick::Result<()> {
 
     let object: Object = run(
         &context,
-        &["calc"],
-        (object,),
         r#"
         pub fn calc(input) {
             dbg(input["Hello"]);
@@ -19,6 +17,8 @@ fn main() -> runestick::Result<()> {
             input
         }
         "#,
+        &["calc"],
+        (object,),
     )?;
 
     println!("{:?}", object.get("Hello"));
