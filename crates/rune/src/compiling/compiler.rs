@@ -791,7 +791,13 @@ impl<'a> Compiler<'a> {
                         self.asm.push(Inst::EqInteger { integer }, span);
                         break;
                     }
-                    ast::Lit::Bool(_) => {}
+                    ast::Lit::Bool(lit_bool) => {
+                        let span = lit_bool.span();
+                        let boolean = lit_bool.value;
+                        load(self, Needs::Value)?;
+                        self.asm.push(Inst::EqBool { boolean }, span);
+                        break;
+                    }
                     ast::Lit::ByteStr(_) => {}
                 },
                 _ => (),

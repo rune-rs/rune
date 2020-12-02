@@ -1867,6 +1867,18 @@ impl Vm {
         Ok(())
     }
 
+    #[inline]
+    fn op_eq_bool(&mut self, boolean: bool) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        self.stack.push(match value {
+            Value::Bool(actual) => actual == boolean,
+            _ => false,
+        });
+
+        Ok(())
+    }
+
     /// Test if the top of stack is equal to the string at the given static
     /// string location.
     #[inline]
@@ -2566,6 +2578,9 @@ impl Vm {
                 }
                 Inst::EqInteger { integer } => {
                     self.op_eq_integer(integer)?;
+                }
+                Inst::EqBool { boolean } => {
+                    self.op_eq_bool(boolean)?;
                 }
                 Inst::EqStaticString { slot } => {
                     self.op_eq_static_string(slot)?;

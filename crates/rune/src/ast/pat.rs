@@ -65,6 +65,12 @@ impl Parse for Pat {
                     expr: ast::Expr::from_lit(ast::Lit::ByteStr(p.parse()?)),
                 }));
             }
+            K![true] | K![false] => {
+                return Ok(Self::PatLit(PatLit {
+                    attributes,
+                    expr: ast::Expr::from_lit(ast::Lit::Bool(p.parse()?)),
+                }));
+            }
             K![str] => {
                 return Ok(match p.nth(1)? {
                     K![:] => Self::PatBinding(PatBinding {
@@ -165,6 +171,7 @@ impl Peek for Pat {
             K![_] => true,
             K![..] => true,
             K![byte] | K![char] | K![number] | K![str] => true,
+            K![true] | K![false] => true,
             K![-] => matches!(p.nth(1), K![number]),
             _ => ast::Path::peek(p),
         }
