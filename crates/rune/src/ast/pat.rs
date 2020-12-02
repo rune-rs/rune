@@ -126,7 +126,7 @@ impl Parse for Pat {
                     underscore: p.parse()?,
                 }))
             }
-            K![ident] => {
+            _ if ast::Path::peek(p.peeker()) => {
                 let path = p.parse::<ast::Path>()?;
 
                 return Ok(match p.nth(0)? {
@@ -163,10 +163,10 @@ impl Peek for Pat {
             K!['['] => true,
             K![#] => matches!(p.nth(1), K!['{']),
             K![_] => true,
+            K![..] => true,
             K![byte] | K![char] | K![number] | K![str] => true,
             K![-] => matches!(p.nth(1), K![number]),
-            K![ident] => true,
-            _ => false,
+            _ => ast::Path::peek(p),
         }
     }
 }

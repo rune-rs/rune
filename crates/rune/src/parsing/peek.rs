@@ -3,7 +3,7 @@ use crate::parsing::{Parse, Peeker};
 /// Implemented by tokens that can be peeked for.
 pub trait Peek {
     /// Peek the parser for the given token.
-    fn peek(peeker: &mut Peeker<'_>) -> bool;
+    fn peek(p: &mut Peeker<'_>) -> bool;
 }
 
 /// Peek implementation for something that is boxed.
@@ -11,8 +11,8 @@ impl<T> Peek for Box<T>
 where
     T: Peek,
 {
-    fn peek(peeker: &mut Peeker<'_>) -> bool {
-        T::peek(peeker)
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        T::peek(p)
     }
 }
 
@@ -21,7 +21,7 @@ where
     A: Parse + Peek,
     B: Parse,
 {
-    fn peek(peeker: &mut Peeker<'_>) -> bool {
-        A::peek(peeker)
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        A::peek(p)
     }
 }
