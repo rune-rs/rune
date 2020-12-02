@@ -9,6 +9,7 @@ pub const RUNESTICK: Symbol = Symbol("runestick");
 pub const RUNE: Symbol = Symbol("rune");
 pub const NAME: Symbol = Symbol("name");
 pub const MODULE: Symbol = Symbol("module");
+pub const INSTALL_WITH: Symbol = Symbol("install_with");
 
 pub const GET: Symbol = Symbol("get");
 pub const SET: Symbol = Symbol("set");

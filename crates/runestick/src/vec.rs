@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, InstallInto, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
+    FromValue, InstallWith, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
     UnsafeFromValue, Value, VmError,
 };
 use std::cmp;
@@ -146,7 +146,7 @@ impl Named for Vec {
     const NAME: RawStr = RawStr::from_str("Vec");
 }
 
-impl InstallInto for Vec {}
+impl InstallWith for Vec {}
 
 impl fmt::Debug for Vec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

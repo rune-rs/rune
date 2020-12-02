@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::{
-    FromValue, InstallInto, Item, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
+    FromValue, InstallWith, Item, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
     UnsafeFromValue, Value, VmError,
 };
 use std::borrow;
@@ -306,7 +306,7 @@ impl Named for Object {
     const NAME: RawStr = RawStr::from_str("Object");
 }
 
-impl InstallInto for Object {}
+impl InstallWith for Object {}
 
 pub struct DebugStruct<'a> {
     item: &'a Item,

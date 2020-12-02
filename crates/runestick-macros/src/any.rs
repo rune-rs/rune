@@ -75,8 +75,8 @@ impl Derive {
 
         let tokens = ctx.tokens_with_module(&attrs);
 
-        let install_into = match ctx.expand_install_into(&self.input, &tokens) {
-            Some(install_into) => install_into,
+        let install_with = match ctx.expand_install_with(&self.input, &tokens, &attrs) {
+            Some(install_with) => install_with,
             None => return Err(ctx.errors),
         };
 
@@ -87,6 +87,6 @@ impl Derive {
 
         let name = &quote!(#name);
 
-        ctx.expand_any(&self.input.ident, &name, &install_into, &tokens)
+        ctx.expand_any(&self.input.ident, &name, &install_with, &tokens)
     }
 }

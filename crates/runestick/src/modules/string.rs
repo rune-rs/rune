@@ -1,6 +1,6 @@
 //! The `std::string` module.
 
-use crate::{Bytes, ContextError, Iterator, Module, Protocol};
+use crate::{Any, Bytes, ContextError, Iterator, Module, Protocol};
 
 /// Construct the `std::string` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -37,8 +37,21 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Any, Debug, Clone, Copy)]
+#[rune(module = "crate", install_with = "NotCharBoundary::install")]
 struct NotCharBoundary(());
+
+impl NotCharBoundary {
+    fn string_display(&self, s: &mut String) -> std::fmt::Result {
+        use std::fmt::Write as _;
+        write!(s, "index outside of character boundary")
+    }
+
+    fn install(m: &mut Module) -> Result<(), ContextError> {
+        m.inst_fn(crate::Protocol::STRING_DISPLAY, Self::string_display)?;
+        Ok(())
+    }
+}
 
 /// into_bytes shim for strings.
 fn into_bytes(s: String) -> Bytes {
@@ -83,5 +96,3 @@ fn string_chars(s: &str) -> Iterator {
     let iter = s.chars().collect::<Vec<_>>().into_iter();
     Iterator::from_double_ended("std::str::Chars", iter)
 }
-
-crate::__internal_impl_any!(NotCharBoundary);

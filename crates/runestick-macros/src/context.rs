@@ -41,6 +41,8 @@ pub(crate) struct DeriveAttrs {
     pub(crate) name: Option<syn::LitStr>,
     /// `#[rune(module = "...")]`.
     pub(crate) module: Option<syn::Path>,
+    /// `#[rune(install_with = "...")]`.
+    pub(crate) install_with: Option<syn::Path>,
 }
 
 pub(crate) struct Tokens {
@@ -67,7 +69,7 @@ pub(crate) struct Tokens {
     pub(crate) value: TokenStream,
     pub(crate) vm_error_kind: TokenStream,
     pub(crate) vm_error: TokenStream,
-    pub(crate) install_into: TokenStream,
+    pub(crate) install_with: TokenStream,
 }
 
 impl Tokens {
@@ -136,7 +138,7 @@ impl Context {
             value: quote!(#module::Value),
             vm_error_kind: quote!(#module::VmErrorKind),
             vm_error: quote!(#module::VmError),
-            install_into: quote!(#module::InstallInto),
+            install_with: quote!(#module::InstallWith),
         }
     }
 
@@ -373,6 +375,22 @@ impl Context {
 
                         output.module = Some(module);
                     }
+                    // Parse `#[rune(install_with = "..")]`.
+                    Meta(NameValue(syn::MetaNameValue {
+                        path,
+                        lit: Lit::Str(s),
+                        ..
+                    })) if path == INSTALL_WITH => {
+                        let install_with = match s.parse_with(syn::Path::parse_mod_style) {
+                            Ok(install_with) => install_with,
+                            Err(e) => {
+                                self.errors.push(e);
+                                return None;
+                            }
+                        };
+
+                        output.install_with = Some(install_with);
+                    }
                     meta => {
                         self.errors
                             .push(syn::Error::new_spanned(meta, "unsupported attribute"));
@@ -387,12 +405,19 @@ impl Context {
     }
 
     /// Expannd the install into impl.
-    pub(crate) fn expand_install_into(
+    pub(crate) fn expand_install_with(
         &mut self,
         input: &syn::DeriveInput,
         tokens: &Tokens,
+        attrs: &DeriveAttrs,
     ) -> Option<TokenStream> {
         let mut installers = Vec::new();
+
+        if let Some(install_with) = &attrs.install_with {
+            installers.push(quote_spanned! { input.span() =>
+                #install_with(module)?;
+            });
+        }
 
         let ident = &input.ident;
 
@@ -460,7 +485,7 @@ impl Context {
         &self,
         ident: T,
         name: &TokenStream,
-        install_into: &TokenStream,
+        install_with: &TokenStream,
         tokens: &Tokens,
     ) -> Result<TokenStream, Vec<syn::Error>>
     where
@@ -482,7 +507,7 @@ impl Context {
         let unsafe_to_value = &tokens.unsafe_to_value;
         let value = &tokens.value;
         let vm_error = &tokens.vm_error;
-        let install_into_trait = &tokens.install_into;
+        let install_into_trait = &tokens.install_with;
 
         Ok(quote! {
             impl #any for #ident {
@@ -494,8 +519,8 @@ impl Context {
             }
 
             impl #install_into_trait for #ident {
-                fn install_into(module: &mut #module) -> Result<(), #context_error> {
-                    #install_into
+                fn install_with(module: &mut #module) -> Result<(), #context_error> {
+                    #install_with
                 }
             }
 

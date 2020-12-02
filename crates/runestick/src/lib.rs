@@ -164,7 +164,7 @@ pub use self::iterator::Iterator;
 pub use self::key::Key;
 pub use self::label::{DebugLabel, Label};
 pub use self::location::Location;
-pub use self::module::{InstFnNameHash, InstallInto, Module};
+pub use self::module::{InstFnNameHash, InstallWith, Module};
 pub use self::named::Named;
 pub use self::raw_str::RawStr;
 pub use self::runtime_context::RuntimeContext;

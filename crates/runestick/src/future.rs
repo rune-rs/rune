@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, InstallInto, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
+    FromValue, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
     UnsafeFromValue, Value, VmError,
 };
 use pin_project::pin_project;
@@ -148,4 +148,4 @@ impl Named for Future {
     const NAME: RawStr = RawStr::from_str("Future");
 }
 
-impl InstallInto for Future {}
+impl InstallWith for Future {}

@@ -1,6 +1,6 @@
 //! Types for dealing with formatting specifications.
 
-use crate::{FromValue, InstallInto, Named, RawStr, Value, VmError, VmErrorKind};
+use crate::{FromValue, InstallWith, Named, RawStr, Value, VmError, VmErrorKind};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Write as _;
@@ -31,7 +31,7 @@ impl Named for Format {
     const NAME: RawStr = RawStr::from_str("Format");
 }
 
-impl InstallInto for Format {}
+impl InstallWith for Format {}
 
 impl FromValue for Format {
     fn from_value(value: Value) -> Result<Self, VmError> {

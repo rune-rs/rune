@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, InstallInto, Iterator, Mut, Named, Panic, RawMut, RawRef, RawStr, Ref, ToValue,
+    FromValue, InstallWith, Iterator, Mut, Named, Panic, RawMut, RawRef, RawStr, Ref, ToValue,
     UnsafeFromValue, Value, VmError,
 };
 use std::fmt;
@@ -231,8 +231,8 @@ impl Named for Range {
     const NAME: RawStr = RawStr::from_str("Range");
 }
 
-impl InstallInto for Range {
-    fn install_into(module: &mut crate::Module) -> Result<(), crate::ContextError> {
+impl InstallWith for Range {
+    fn install_with(module: &mut crate::Module) -> Result<(), crate::ContextError> {
         module.field_fn(crate::Protocol::GET, "start", |r: &Range| r.start.clone())?;
         module.field_fn(crate::Protocol::GET, "end", |r: &Range| r.end.clone())?;
         module.inst_fn(crate::Protocol::INTO_ITER, Range::into_iterator)?;

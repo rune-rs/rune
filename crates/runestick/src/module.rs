@@ -15,9 +15,9 @@ use std::sync::Arc;
 
 /// Trait to handle the installation of auxilliary functions for a type
 /// installed into a module.
-pub trait InstallInto {
-    /// Install into the given module.
-    fn install_into(_: &mut Module) -> Result<(), ContextError> {
+pub trait InstallWith {
+    /// Hook to install more things into the module.
+    fn install_with(_: &mut Module) -> Result<(), ContextError> {
         Ok(())
     }
 }
@@ -238,7 +238,7 @@ impl Module {
     /// ```
     pub fn ty<T>(&mut self) -> Result<(), ContextError>
     where
-        T: Named + TypeOf + InstallInto,
+        T: Named + TypeOf + InstallWith,
     {
         let type_hash = T::type_hash();
         let type_info = T::type_info();
@@ -255,7 +255,7 @@ impl Module {
             });
         }
 
-        T::install_into(self)?;
+        T::install_with(self)?;
         Ok(())
     }
 

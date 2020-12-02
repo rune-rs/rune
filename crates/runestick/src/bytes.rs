@@ -3,7 +3,7 @@
 //! [Value::Bytes]: crate::Value::Bytes.
 
 use crate::{
-    FromValue, InstallInto, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value,
+    FromValue, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value,
     VmError,
 };
 
@@ -182,7 +182,7 @@ impl Named for Bytes {
     const NAME: RawStr = RawStr::from_str("Bytes");
 }
 
-impl InstallInto for Bytes {}
+impl InstallWith for Bytes {}
 
 impl cmp::PartialEq<[u8]> for Bytes {
     fn eq(&self, other: &[u8]) -> bool {
