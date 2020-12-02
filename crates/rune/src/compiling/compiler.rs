@@ -796,7 +796,8 @@ impl<'a> Compiler<'a> {
                         let boolean = lit_bool.value;
                         load(self, Needs::Value)?;
                         self.asm.push(Inst::EqBool { boolean }, span);
-                        break;}
+                        break;
+                    }
                     ast::Lit::ByteStr(_) => {}
                 },
                 _ => (),
