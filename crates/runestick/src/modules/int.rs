@@ -10,6 +10,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<ParseIntError>()?;
 
     module.function(&["parse"], parse)?;
+    module.function(&["max"], i64::max)?;
+    module.function(&["min"], i64::min)?;
 
     module.inst_fn("to_float", to_float)?;
 

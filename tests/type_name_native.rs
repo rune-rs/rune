@@ -73,11 +73,11 @@ fn test_field_fn() {
             (t1, ),
             String => pub fn main(val) { std::any::type_name_of_val(val.x) }
         },
-        "::std::core::int"
+        "::std::int"
     );
 }
 
-// Not sure what the right return should be here - it returns the field name, but it probably should return ::std::core::int?
+// Not sure what the right return should be here - it returns the field name, but it probably should return ::std::int?
 // #[test]
 // fn test_field_fn_ref() {
 //     assert_eq!(
@@ -89,6 +89,6 @@ fn test_field_fn() {
 //                 std::any::type_name_of_val(native_crate::NativeStruct::x)
 //             }
 //         },
-//         "::std::core::int"
+//         "::std::int"
 //     );
 // }

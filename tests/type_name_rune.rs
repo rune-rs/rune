@@ -17,10 +17,10 @@ fn test_trivial_types() {
             }
         },
         [
-            "::std::core::bool".to_owned(),
-            "::std::core::int".to_owned(),
-            "::std::core::float".to_owned(),
-            "::std::core::char".to_owned(),
+            "::std::bool".to_owned(),
+            "::std::int".to_owned(),
+            "::std::float".to_owned(),
+            "::std::char".to_owned(),
             "::std::string::String".to_owned(),
             "::std::option::Option".to_owned()
         ]

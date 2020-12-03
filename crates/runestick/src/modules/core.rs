@@ -1,10 +1,10 @@
 //! The core `std` module.
 
-use crate::{ContextError, Module, Panic, Value, VmError};
+use crate::{ContextError, Module, Panic, Value};
 
 /// Construct the `std` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["core"]);
+    let mut module = Module::with_crate("std");
 
     module.unit("unit")?;
     module.ty::<bool>()?;
@@ -14,54 +14,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<i64>()?;
 
     module.function(&["panic"], panic_impl)?;
-    module.function(&["drop"], drop_impl)?;
     module.function(&["is_readable"], is_readable)?;
     module.function(&["is_writable"], is_writable)?;
     Ok(module)
-}
-
-fn drop_impl(value: Value) -> Result<(), VmError> {
-    match value {
-        Value::Any(any) => {
-            any.take()?;
-        }
-        Value::String(string) => {
-            string.take()?;
-        }
-        Value::Bytes(bytes) => {
-            bytes.take()?;
-        }
-        Value::Vec(vec) => {
-            vec.take()?;
-        }
-        Value::Tuple(tuple) => {
-            tuple.take()?;
-        }
-        Value::Object(object) => {
-            object.take()?;
-        }
-        Value::UnitStruct(empty) => {
-            empty.take()?;
-        }
-        Value::TupleStruct(tuple) => {
-            tuple.take()?;
-        }
-        Value::Struct(object) => {
-            object.take()?;
-        }
-        Value::UnitVariant(empty) => {
-            empty.take()?;
-        }
-        Value::TupleVariant(tuple) => {
-            tuple.take()?;
-        }
-        Value::StructVariant(object) => {
-            object.take()?;
-        }
-        _ => (),
-    }
-
-    Ok::<(), VmError>(())
 }
 
 fn panic_impl(m: &str) -> Result<(), Panic> {
