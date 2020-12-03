@@ -48,8 +48,8 @@ fn aoc_2020_1b(b: &mut Bencher) -> runestick::Result<()> {
 
         fn filter_inner(items) {
             while let Some(i) = items.next() {
-                if i.iter().sum() == Some(2020) {
-                    return i.iter().product().unwrap();
+                if i.iter().sum() == 2020 {
+                    return i.iter().product();
                 }
             }
         }
