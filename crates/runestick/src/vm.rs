@@ -448,9 +448,11 @@ impl Vm {
         int_op: fn(i64, i64) -> bool,
         float_op: fn(f64, f64) -> bool,
         op: &'static str,
+        lhs: InstAddress,
+        rhs: InstAddress,
     ) -> Result<(), VmError> {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.pop()?;
+        let rhs = self.stack.address(rhs)?;
+        let lhs = self.stack.address(lhs)?;
 
         let out = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => int_op(lhs, rhs),
@@ -970,9 +972,9 @@ impl Vm {
     }
 
     /// Internal implementation of the instance check.
-    fn is_instance(&mut self) -> Result<bool, VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
+    fn is_instance(&mut self, lhs: InstAddress, rhs: InstAddress) -> Result<bool, VmError> {
+        let b = self.stack.address(rhs)?;
+        let a = self.stack.address(lhs)?;
 
         let hash = match b {
             Value::Type(hash) => hash,
@@ -991,12 +993,14 @@ impl Vm {
         &mut self,
         bool_op: impl FnOnce(bool, bool) -> bool,
         op: &'static str,
+        lhs: InstAddress,
+        rhs: InstAddress,
     ) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
+        let rhs = self.stack.address(rhs)?;
+        let lhs = self.stack.address(lhs)?;
 
-        let out = match (a, b) {
-            (Value::Bool(a), Value::Bool(b)) => bool_op(a, b),
+        let out = match (lhs, rhs) {
+            (Value::Bool(lhs), Value::Bool(rhs)) => bool_op(lhs, rhs),
             (lhs, rhs) => {
                 return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                     op,
@@ -1180,9 +1184,11 @@ impl Vm {
         error: fn() -> VmErrorKind,
         integer_op: fn(i64, i64) -> Option<i64>,
         float_op: fn(f64, f64) -> f64,
+        lhs: InstAddress,
+        rhs: InstAddress,
     ) -> Result<(), VmError> {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.pop()?;
+        let rhs = self.stack.address(rhs)?;
+        let lhs = self.stack.address(lhs)?;
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
@@ -1212,9 +1218,11 @@ impl Vm {
         &mut self,
         protocol: Protocol,
         integer_op: fn(i64, i64) -> i64,
+        lhs: InstAddress,
+        rhs: InstAddress,
     ) -> Result<(), VmError> {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.pop()?;
+        let rhs = self.stack.address(rhs)?;
+        let lhs = self.stack.address(lhs)?;
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
@@ -1241,9 +1249,11 @@ impl Vm {
         protocol: Protocol,
         integer_op: fn(i64, i64) -> i64,
         bool_op: fn(bool, bool) -> bool,
+        lhs: InstAddress,
+        rhs: InstAddress,
     ) -> Result<(), VmError> {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.pop()?;
+        let rhs = self.stack.address(rhs)?;
+        let lhs = self.stack.address(lhs)?;
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
@@ -1296,9 +1306,11 @@ impl Vm {
         protocol: Protocol,
         error: fn() -> VmErrorKind,
         integer_op: fn(i64, i64) -> Option<i64>,
+        lhs: InstAddress,
+        rhs: InstAddress,
     ) -> Result<(), VmError> {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.pop()?;
+        let rhs = self.stack.address(rhs)?;
+        let lhs = self.stack.address(lhs)?;
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
@@ -1563,6 +1575,19 @@ impl Vm {
         Ok(())
     }
 
+    /// Construct a new tuple with a fixed number of arguments.
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_tuple_n(&mut self, args: &[InstAddress]) -> Result<(), VmError> {
+        let mut tuple = vec![Value::Unit; args.len()];
+
+        for (n, arg) in args.iter().enumerate().rev() {
+            tuple[n] = self.stack.address(*arg)?;
+        }
+
+        self.stack.push(Tuple::from(tuple));
+        Ok(())
+    }
+
     /// Push the tuple that is on top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_push_tuple(&mut self) -> Result<(), VmError> {
@@ -1612,7 +1637,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_op(&mut self, op: InstOp) -> Result<(), VmError> {
+    fn op_op(&mut self, op: InstOp, lhs: InstAddress, rhs: InstAddress) -> Result<(), VmError> {
         use std::convert::TryFrom as _;
 
         match op {
@@ -1622,6 +1647,8 @@ impl Vm {
                     || VmErrorKind::Overflow,
                     i64::checked_add,
                     std::ops::Add::add,
+                    lhs,
+                    rhs,
                 )?;
             }
             InstOp::Sub => {
@@ -1630,6 +1657,8 @@ impl Vm {
                     || VmErrorKind::Underflow,
                     i64::checked_sub,
                     std::ops::Sub::sub,
+                    lhs,
+                    rhs,
                 )?;
             }
             InstOp::Mul => {
@@ -1638,6 +1667,8 @@ impl Vm {
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
                     std::ops::Mul::mul,
+                    lhs,
+                    rhs,
                 )?;
             }
             InstOp::Div => {
@@ -1646,6 +1677,8 @@ impl Vm {
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
                     std::ops::Div::div,
+                    lhs,
+                    rhs,
                 )?;
             }
             InstOp::Rem => {
@@ -1654,6 +1687,8 @@ impl Vm {
                     || VmErrorKind::DivideByZero,
                     i64::checked_rem,
                     std::ops::Rem::rem,
+                    lhs,
+                    rhs,
                 )?;
             }
             InstOp::BitAnd => {
@@ -1662,6 +1697,8 @@ impl Vm {
                     Protocol::BIT_AND,
                     i64::bitand,
                     bool::bitand,
+                    lhs,
+                    rhs,
                 )?;
             }
             InstOp::BitXor => {
@@ -1670,58 +1707,68 @@ impl Vm {
                     Protocol::BIT_XOR,
                     i64::bitxor,
                     bool::bitxor,
+                    lhs,
+                    rhs,
                 )?;
             }
             InstOp::BitOr => {
                 use std::ops::BitOr as _;
-                self.internal_infallible_bitwise_bool(Protocol::BIT_OR, i64::bitor, bool::bitor)?;
+                self.internal_infallible_bitwise_bool(
+                    Protocol::BIT_OR,
+                    i64::bitor,
+                    bool::bitor,
+                    lhs,
+                    rhs,
+                )?;
             }
             InstOp::Shl => {
                 self.internal_bitwise(
                     Protocol::SHL,
                     || VmErrorKind::Overflow,
                     |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    lhs,
+                    rhs,
                 )?;
             }
             InstOp::Shr => {
-                self.internal_infallible_bitwise(Protocol::SHR, std::ops::Shr::shr)?;
+                self.internal_infallible_bitwise(Protocol::SHR, std::ops::Shr::shr, lhs, rhs)?;
             }
             InstOp::Gt => {
-                self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">")?;
+                self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">", lhs, rhs)?;
             }
             InstOp::Gte => {
-                self.internal_boolean_ops(|a, b| a >= b, |a, b| a >= b, ">=")?;
+                self.internal_boolean_ops(|a, b| a >= b, |a, b| a >= b, ">=", lhs, rhs)?;
             }
             InstOp::Lt => {
-                self.internal_boolean_ops(|a, b| a < b, |a, b| a < b, "<")?;
+                self.internal_boolean_ops(|a, b| a < b, |a, b| a < b, "<", lhs, rhs)?;
             }
             InstOp::Lte => {
-                self.internal_boolean_ops(|a, b| a <= b, |a, b| a <= b, "<=")?;
+                self.internal_boolean_ops(|a, b| a <= b, |a, b| a <= b, "<=", lhs, rhs)?;
             }
             InstOp::Eq => {
-                let b = self.stack.pop()?;
-                let a = self.stack.pop()?;
-                let test = Value::value_ptr_eq(&a, &b)?;
+                let rhs = self.stack.address(rhs)?;
+                let lhs = self.stack.address(lhs)?;
+                let test = Value::value_ptr_eq(&lhs, &rhs)?;
                 self.stack.push(test);
             }
             InstOp::Neq => {
-                let b = self.stack.pop()?;
-                let a = self.stack.pop()?;
-                let test = Value::value_ptr_eq(&a, &b)?;
+                let rhs = self.stack.address(rhs)?;
+                let lhs = self.stack.address(lhs)?;
+                let test = Value::value_ptr_eq(&lhs, &rhs)?;
                 self.stack.push(!test);
             }
             InstOp::And => {
-                self.internal_boolean_op(|a, b| a && b, "&&")?;
+                self.internal_boolean_op(|a, b| a && b, "&&", lhs, rhs)?;
             }
             InstOp::Or => {
-                self.internal_boolean_op(|a, b| a || b, "||")?;
+                self.internal_boolean_op(|a, b| a || b, "||", lhs, rhs)?;
             }
             InstOp::Is => {
-                let is_instance = self.is_instance()?;
+                let is_instance = self.is_instance(lhs, rhs)?;
                 self.stack.push(is_instance);
             }
             InstOp::IsNot => {
-                let is_instance = self.is_instance()?;
+                let is_instance = self.is_instance(lhs, rhs)?;
                 self.stack.push(!is_instance);
             }
         }
@@ -2844,6 +2891,18 @@ impl Vm {
                 Inst::Tuple { count } => {
                     self.op_tuple(count)?;
                 }
+                Inst::Tuple1 { args } => {
+                    self.op_tuple_n(&args[..])?;
+                }
+                Inst::Tuple2 { args } => {
+                    self.op_tuple_n(&args[..])?;
+                }
+                Inst::Tuple3 { args } => {
+                    self.op_tuple_n(&args[..])?;
+                }
+                Inst::Tuple4 { args } => {
+                    self.op_tuple_n(&args[..])?;
+                }
                 Inst::PushTuple => {
                     self.op_push_tuple()?;
                 }
@@ -2927,8 +2986,8 @@ impl Vm {
                 Inst::Variant { variant } => {
                     self.op_variant(variant)?;
                 }
-                Inst::Op { op } => {
-                    self.op_op(op)?;
+                Inst::Op { op, a, b } => {
+                    self.op_op(op, a, b)?;
                 }
                 Inst::Assign { target, op } => {
                     self.op_assign(target, op)?;
