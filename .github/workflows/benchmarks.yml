@@ -1,0 +1,30 @@
+name: Benchmarks
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  benchmark:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+      - name: Run benchmarks
+        run: cargo +nightly bench --package rune-benches | tee output.txt
+      - name: Download previous benchmark data
+        uses: actions/cache@v1
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+      - name: Store benchmark results
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
