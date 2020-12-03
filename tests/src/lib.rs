@@ -15,6 +15,8 @@ use runestick::{Item, Source, Unit};
 use std::sync::Arc;
 use thiserror::Error;
 
+pub mod capture_output;
+
 /// Macro internals.
 #[doc(hidden)]
 pub mod macros {
@@ -200,6 +202,31 @@ pub fn build(
 macro_rules! rune_vm {
     ($($tt:tt)*) => {{
         let context = $crate::macros::rune_modules::default_context().expect("failed to build context");
+        let context = std::sync::Arc::new(context);
+        $crate::vm(&context, stringify!($($tt)*)).expect("program to compile successfully")
+    }};
+}
+
+/// Construct a rune virtual machine from the given program which will capture
+/// all output into a buffer, which can be retrieved from
+/// `rune_tests::capture_output::drain_output()`
+///
+/// # Examples
+///
+/// ```rust
+/// use rune_tests::*;
+/// use runestick::Value;
+///
+/// # fn main() {
+/// let vm = rune_tests::rune_vm!(pub fn main() { true || false });
+/// let result = vm.execute(&["main"], ()).unwrap().complete().unwrap();
+/// assert_eq!(result.into_bool().unwrap(), true);
+/// # }
+#[macro_export]
+macro_rules! rune_vm_capture {
+    ($($tt:tt)*) => {{
+        let mut context = $crate::macros::rune_modules::with_config(false).expect("failed to build context");
+        context.install(&$crate::capture_output::output_redirect_module()?)?;
         let context = std::sync::Arc::new(context);
         $crate::vm(&context, stringify!($($tt)*)).expect("program to compile successfully")
     }};
