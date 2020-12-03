@@ -41,31 +41,31 @@ impl UnitBuilder {
 
         this.prelude("assert_eq", &["test", "assert_eq"]);
         this.prelude("assert", &["test", "assert"]);
-        this.prelude("bool", &["core", "bool"]);
-        this.prelude("byte", &["core", "byte"]);
-        this.prelude("char", &["core", "char"]);
+        this.prelude("bool", &["bool"]);
+        this.prelude("byte", &["byte"]);
+        this.prelude("char", &["char"]);
         this.prelude("dbg", &["io", "dbg"]);
-        this.prelude("drop", &["core", "drop"]);
+        this.prelude("drop", &["mem", "drop"]);
         this.prelude("Err", &["result", "Result", "Err"]);
         this.prelude("file", &["macros", "builtin", "file"]);
-        this.prelude("float", &["core", "float"]);
+        this.prelude("float", &["float"]);
         this.prelude("format", &["fmt", "format"]);
-        this.prelude("int", &["core", "int"]);
-        this.prelude("is_readable", &["core", "is_readable"]);
-        this.prelude("is_writable", &["core", "is_writable"]);
+        this.prelude("int", &["int"]);
+        this.prelude("is_readable", &["is_readable"]);
+        this.prelude("is_writable", &["is_writable"]);
         this.prelude("line", &["macros", "builtin", "line"]);
         this.prelude("None", &["option", "Option", "None"]);
         this.prelude("Object", &["object", "Object"]);
         this.prelude("Ok", &["result", "Result", "Ok"]);
         this.prelude("Option", &["option", "Option"]);
-        this.prelude("panic", &["core", "panic"]);
+        this.prelude("panic", &["panic"]);
         this.prelude("print", &["io", "print"]);
         this.prelude("println", &["io", "println"]);
         this.prelude("Result", &["result", "Result"]);
         this.prelude("Some", &["option", "Option", "Some"]);
         this.prelude("String", &["string", "String"]);
-        this.prelude("stringify", &["core", "stringify"]);
-        this.prelude("unit", &["core", "unit"]);
+        this.prelude("stringify", &["stringify"]);
+        this.prelude("unit", &["unit"]);
         this.prelude("Vec", &["vec", "Vec"]);
 
         Self {

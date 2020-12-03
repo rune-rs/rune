@@ -13,6 +13,7 @@ pub mod generator;
 pub mod int;
 pub mod io;
 pub mod iter;
+pub mod mem;
 pub mod object;
 pub mod ops;
 pub mod option;

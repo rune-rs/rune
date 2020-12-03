@@ -257,13 +257,13 @@ impl Iterator {
     }
 
     /// Compute the product under the assumption of a homogeonous iterator of type T.
-    pub fn product(self) -> Result<Option<Value>, VmError> {
+    pub fn product(self) -> Result<Value, VmError> {
         let product = Product { iter: self.iter };
         product.resolve()
     }
 
     /// Compute the sum under the assumption of a homogeonous iterator of type T.
-    pub fn sum(self) -> Result<Option<Value>, VmError> {
+    pub fn sum(self) -> Result<Value, VmError> {
         let sum = Sum { iter: self.iter };
         sum.resolve()
     }
@@ -998,19 +998,21 @@ where
         Ok(product)
     }
 
-    fn resolve(mut self) -> Result<Option<Value>, VmError> {
+    fn resolve(mut self) -> Result<Value, VmError> {
         match self.iter.next()? {
             Some(v) => match v {
-                Value::Byte(v) => Ok(Some(Value::Byte(self.resolve_internal_simple(v)?))),
-                Value::Integer(v) => Ok(Some(Value::Integer(self.resolve_internal_simple(v)?))),
-                Value::Float(v) => Ok(Some(Value::Float(self.resolve_internal_simple(v)?))),
+                Value::Byte(v) => Ok(Value::Byte(self.resolve_internal_simple(v)?)),
+                Value::Integer(v) => Ok(Value::Integer(self.resolve_internal_simple(v)?)),
+                Value::Float(v) => Ok(Value::Float(self.resolve_internal_simple(v)?)),
                 _ => Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                     op: "*",
                     lhs: v.type_info()?,
                     rhs: v.type_info()?,
                 })),
             },
-            None => Ok(None),
+            None => Err(VmError::panic(
+                "cannot take the product of an empty iterator",
+            )),
         }
     }
 }
@@ -1042,19 +1044,19 @@ where
         Ok(sum)
     }
 
-    fn resolve(mut self) -> Result<Option<Value>, VmError> {
+    fn resolve(mut self) -> Result<Value, VmError> {
         match self.iter.next()? {
             Some(v) => match v {
-                Value::Byte(v) => Ok(Some(Value::Byte(self.resolve_internal_simple(v)?))),
-                Value::Integer(v) => Ok(Some(Value::Integer(self.resolve_internal_simple(v)?))),
-                Value::Float(v) => Ok(Some(Value::Float(self.resolve_internal_simple(v)?))),
+                Value::Byte(v) => Ok(Value::Byte(self.resolve_internal_simple(v)?)),
+                Value::Integer(v) => Ok(Value::Integer(self.resolve_internal_simple(v)?)),
+                Value::Float(v) => Ok(Value::Float(self.resolve_internal_simple(v)?)),
                 _ => Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                     op: "*",
                     lhs: v.type_info()?,
                     rhs: v.type_info()?,
                 })),
             },
-            None => Ok(None),
+            None => Err(VmError::panic("cannot take the sum of an empty iterator")),
         }
     }
 }

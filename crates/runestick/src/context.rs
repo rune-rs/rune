@@ -254,6 +254,7 @@ impl Context {
         this.install(&crate::modules::int::module()?)?;
         this.install(&crate::modules::io::module(stdio)?)?;
         this.install(&crate::modules::iter::module()?)?;
+        this.install(&crate::modules::mem::module()?)?;
         this.install(&crate::modules::object::module()?)?;
         this.install(&crate::modules::ops::module()?)?;
         this.install(&crate::modules::option::module()?)?;
