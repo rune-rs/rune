@@ -21,8 +21,7 @@ impl Assemble for ast::Path {
         if let Needs::Value = needs {
             if let Some(local) = named.as_local() {
                 if let Some(var) = c.scopes.try_get_var(local, c.source_id, c.visitor, span)? {
-                    var.copy(&mut c.asm, span, format!("var `{}`", local));
-                    return Ok(Asm::top(span));
+                    return Ok(Asm::var(span, *var, local.into()));
                 }
             }
         }
