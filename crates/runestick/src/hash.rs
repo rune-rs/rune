@@ -9,8 +9,8 @@ use twox_hash::XxHash64;
 
 const SEP: usize = 0x7f;
 const TYPE: usize = 1;
-const INSTANCE_FUNCTION: usize = 2;
-const FIELD_FN: usize = 3;
+const INSTANCE_FUNCTION_HASH: u64 = 0x5ea77ffbcdf5f302;
+const FIELD_FUNCTION_HASH: u64 = 0xab53b6a7a53c757e;
 const OBJECT_KEYS: usize = 4;
 
 /// The hash of a primitive thing.
@@ -56,21 +56,23 @@ impl Hash {
 
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
+    #[inline]
     pub fn instance_function<N>(type_hash: Hash, name: N) -> Self
     where
         N: InstFnNameHash,
     {
         let name = name.inst_fn_name_hash();
-        Self::of((INSTANCE_FUNCTION, type_hash, SEP, name))
+        Self(INSTANCE_FUNCTION_HASH ^ (type_hash.0 ^ name.0))
     }
 
     /// Construct a hash corresponding to a field function.
+    #[inline]
     pub fn field_fn<N>(protocol: Protocol, type_hash: Hash, name: N) -> Self
     where
         N: InstFnNameHash,
     {
         let name = name.inst_fn_name_hash();
-        Self::of((FIELD_FN, protocol.hash, SEP, type_hash, SEP, name))
+        Self(FIELD_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ name.0))
     }
 
     /// Get the hash corresponding to a static byte array.
