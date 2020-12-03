@@ -3,11 +3,11 @@ use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
-    Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstRangeLimits,
-    InstTarget, InstValue, InstVariant, IntoTypeHash, Object, Panic, Protocol, Range, RangeLimits,
-    RuntimeContext, Select, Shared, Stack, Stream, Struct, StructVariant, Tuple, TypeCheck, Unit,
-    UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
-    VmSendExecution,
+    Generator, GuardedArgs, Hash, Inst, InstAddress, InstAssignOp, InstFnNameHash, InstOp,
+    InstRangeLimits, InstTarget, InstValue, InstVariant, IntoTypeHash, Object, Panic, Protocol,
+    Range, RangeLimits, RuntimeContext, Select, Shared, Stack, Stream, Struct, StructVariant,
+    Tuple, TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution,
+    VmHalt, VmIntegerRepr, VmSendExecution,
 };
 use std::fmt;
 use std::mem;
@@ -1920,9 +1920,9 @@ impl Vm {
 
     /// Perform an index get operation.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_index_get(&mut self) -> Result<(), VmError> {
-        let index = self.stack.pop()?;
-        let target = self.stack.pop()?;
+    fn op_index_get(&mut self, target: InstAddress, index: InstAddress) -> Result<(), VmError> {
+        let index = self.stack.address(index)?;
+        let target = self.stack.address(target)?;
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
@@ -2740,8 +2740,8 @@ impl Vm {
                 Inst::LoadInstanceFn { hash } => {
                     self.op_load_instance_fn(hash)?;
                 }
-                Inst::IndexGet => {
-                    self.op_index_get()?;
+                Inst::IndexGet { target, index } => {
+                    self.op_index_get(target, index)?;
                 }
                 Inst::TupleIndexGet { index } => {
                     self.op_tuple_index_get(index)?;

@@ -3,7 +3,7 @@ use crate::query::BuiltInTemplate;
 
 /// Compile a literal template string.
 impl Assemble for BuiltInTemplate {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span;
         log::trace!("BuiltInTemplate => {:?}", c.source.source(span));
 
@@ -29,7 +29,7 @@ impl Assemble for BuiltInTemplate {
             }
 
             expansions += 1;
-            expr.assemble(c, Needs::Value)?;
+            expr.assemble(c, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(span)?;
         }
 
@@ -51,6 +51,6 @@ impl Assemble for BuiltInTemplate {
         }
 
         let _ = c.scopes.pop(expected, span)?;
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

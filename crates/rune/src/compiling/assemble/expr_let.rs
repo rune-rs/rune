@@ -2,13 +2,13 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a let expression.
 impl Assemble for ast::ExprLet {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprLet => {:?}", c.source.source(span));
 
         let load = |c: &mut Compiler, needs: Needs| {
             // NB: assignments "move" the value being assigned.
-            self.expr.assemble(c, needs)?;
+            self.expr.assemble(c, needs)?.apply(c)?;
             Ok(())
         };
 
@@ -36,6 +36,6 @@ impl Assemble for ast::ExprLet {
             c.asm.push(Inst::unit(), span);
         }
 
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

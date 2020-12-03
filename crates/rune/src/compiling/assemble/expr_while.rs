@@ -2,7 +2,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a while loop.
 impl Assemble for ast::ExprWhile {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprWhile => {:?}", c.source.source(span));
 
@@ -31,7 +31,7 @@ impl Assemble for ast::ExprWhile {
         c.asm.jump(end_label, span);
         c.asm.label(then_label)?;
 
-        self.body.assemble(c, Needs::None)?;
+        self.body.assemble(c, Needs::None)?.apply(c)?;
         c.clean_last_scope(span, expected, Needs::None)?;
 
         c.asm.jump(continue_label, span);
@@ -43,6 +43,6 @@ impl Assemble for ast::ExprWhile {
 
         // NB: breaks produce their own value / perform their own cleanup.
         c.asm.label(break_label)?;
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

@@ -2,14 +2,14 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile an `.await` expression.
 impl Assemble for ast::ExprAssign {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprAssign => {:?}", c.source.source(span));
 
         let supported = match &self.lhs {
             // <var> = <value>
             ast::Expr::Path(path) if path.rest.is_empty() => {
-                self.rhs.assemble(c, Needs::Value)?;
+                self.rhs.assemble(c, Needs::Value)?.apply(c)?;
 
                 let segment = path
                     .first
@@ -30,10 +30,10 @@ impl Assemble for ast::ExprAssign {
                         let slot = index.resolve(c.storage, &*c.source)?;
                         let slot = c.unit.new_static_string(index, slot.as_ref())?;
 
-                        self.rhs.assemble(c, Needs::Value)?;
+                        self.rhs.assemble(c, Needs::Value)?.apply(c)?;
                         c.scopes.decl_anon(self.rhs.span())?;
 
-                        field_access.expr.assemble(c, Needs::Value)?;
+                        field_access.expr.assemble(c, Needs::Value)?.apply(c)?;
                         c.scopes.decl_anon(span)?;
 
                         c.asm.push(Inst::ObjectIndexSet { slot }, span);
@@ -49,10 +49,10 @@ impl Assemble for ast::ExprAssign {
                             )
                         })?;
 
-                        self.rhs.assemble(c, Needs::Value)?;
+                        self.rhs.assemble(c, Needs::Value)?.apply(c)?;
                         c.scopes.decl_anon(self.rhs.span())?;
 
-                        field_access.expr.assemble(c, Needs::Value)?;
+                        field_access.expr.assemble(c, Needs::Value)?.apply(c)?;
                         c.asm.push(Inst::TupleIndexSet { index }, span);
                         c.scopes.undecl_anon(span, 1)?;
                         true
@@ -63,13 +63,13 @@ impl Assemble for ast::ExprAssign {
                 let span = expr_index_get.span();
                 log::trace!("ExprIndexSet => {:?}", c.source.source(span));
 
-                self.rhs.assemble(c, Needs::Value)?;
+                self.rhs.assemble(c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
 
-                expr_index_get.target.assemble(c, Needs::Value)?;
+                expr_index_get.target.assemble(c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
 
-                expr_index_get.index.assemble(c, Needs::Value)?;
+                expr_index_get.index.assemble(c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
 
                 c.asm.push(Inst::IndexSet, span);
@@ -90,6 +90,6 @@ impl Assemble for ast::ExprAssign {
             c.asm.push(Inst::unit(), span);
         }
 
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

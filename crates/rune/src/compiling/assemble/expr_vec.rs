@@ -2,14 +2,14 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a literal vector.
 impl Assemble for ast::ExprVec {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprVec => {:?}", c.source.source(span));
 
         let count = self.items.len();
 
         for (expr, _) in &self.items {
-            expr.assemble(c, Needs::Value)?;
+            expr.assemble(c, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(expr.span())?;
         }
 
@@ -23,6 +23,6 @@ impl Assemble for ast::ExprVec {
             c.asm.push(Inst::Pop, span);
         }
 
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

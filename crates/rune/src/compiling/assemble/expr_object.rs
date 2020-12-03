@@ -3,7 +3,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a literal object.
 impl Assemble for ast::ExprObject {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprObject => {:?} {:?}", c.source.source(span), needs);
 
@@ -32,7 +32,7 @@ impl Assemble for ast::ExprObject {
             let span = assign.span();
 
             if let Some((_, expr)) = &assign.assign {
-                expr.assemble(c, Needs::Value)?;
+                expr.assemble(c, Needs::Value)?.apply(c)?;
             } else {
                 let key = assign.key.resolve(&c.storage, &*c.source)?;
                 let var = c.scopes.get_var(&*key, c.source_id, c.visitor, span)?;
@@ -85,7 +85,7 @@ impl Assemble for ast::ExprObject {
             c.asm.push(Inst::Pop, span);
         }
 
-        Ok(())
+        Ok(Asm::top(span))
     }
 }
 

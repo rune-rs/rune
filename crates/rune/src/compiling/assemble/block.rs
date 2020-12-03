@@ -16,7 +16,7 @@ impl AssembleClosure for ast::Block {
             c.scopes.new_var(&capture.ident, span)?;
         }
 
-        self.assemble(c, Needs::Value)?;
+        self.assemble(c, Needs::Value)?.apply(c)?;
         c.clean_last_scope(span, guard, Needs::Value)?;
         c.asm.push(Inst::Return, span);
         Ok(())
@@ -25,7 +25,7 @@ impl AssembleClosure for ast::Block {
 
 /// Call a block.
 impl Assemble for ast::Block {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("Block => {:?}", c.source.source(span));
 
@@ -39,10 +39,10 @@ impl Assemble for ast::Block {
                 ast::Stmt::Local(local) => {
                     if let Some((stmt, _)) = std::mem::take(&mut last) {
                         // NB: terminated expressions do not need to produce a value.
-                        stmt.assemble(c, Needs::None)?;
+                        stmt.assemble(c, Needs::None)?.apply(c)?;
                     }
 
-                    local.assemble(c, Needs::None)?;
+                    local.assemble(c, Needs::None)?.apply(c)?;
                     continue;
                 }
                 ast::Stmt::Expr(expr, semi) => (expr, semi.is_some()),
@@ -51,16 +51,16 @@ impl Assemble for ast::Block {
 
             if let Some((stmt, _)) = std::mem::replace(&mut last, Some((expr, term))) {
                 // NB: terminated expressions do not need to produce a value.
-                stmt.assemble(c, Needs::None)?;
+                stmt.assemble(c, Needs::None)?.apply(c)?;
             }
         }
 
         let produced = if let Some((expr, term)) = last {
             if term {
-                expr.assemble(c, Needs::None)?;
+                expr.assemble(c, Needs::None)?.apply(c)?;
                 false
             } else {
-                expr.assemble(c, needs)?;
+                expr.assemble(c, needs)?.apply(c)?;
                 true
             }
         } else {
@@ -84,6 +84,6 @@ impl Assemble for ast::Block {
             .pop()
             .ok_or_else(|| CompileError::msg(&span, "missing parent context"))?;
 
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

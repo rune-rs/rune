@@ -44,18 +44,16 @@ impl RunError {
     }
 }
 
-/// Compile the given source into a unit and collection of warnings.
-pub fn compile_source(
+fn internal_compile_source(
     context: &runestick::Context,
-    source: &str,
+    sources: &mut Sources,
 ) -> Result<(Unit, Warnings), Errors> {
     let mut errors = Errors::new();
     let mut warnings = Warnings::new();
-    let mut sources = Sources::new();
-    sources.insert(Source::new("main", source.to_owned()));
+
     let unit = UnitBuilder::with_default_prelude();
 
-    if let Err(()) = rune::compile(context, &mut sources, &unit, &mut errors, &mut warnings) {
+    if let Err(()) = rune::compile(context, sources, &unit, &mut errors, &mut warnings) {
         return Err(errors);
     }
 
@@ -70,18 +68,40 @@ pub fn compile_source(
     Ok((unit, warnings))
 }
 
-/// Construct a virtual machine for the given source.
-pub fn vm(context: &runestick::Context, source: &str) -> Result<runestick::Vm, RunError> {
-    let (unit, _) = compile_source(context, &source).map_err(RunError::Errors)?;
+/// Compile the given source into a unit and collection of warnings.
+pub fn compile_source(
+    context: &runestick::Context,
+    source: &str,
+) -> Result<(Unit, Warnings), Errors> {
+    let mut sources = Sources::new();
+    sources.insert(Source::new("main", source.to_owned()));
+
+    internal_compile_source(context, &mut sources)
+}
+
+/// Construct a virtual machine for the given sources.
+pub fn vm(context: &runestick::Context, sources: &mut Sources) -> Result<runestick::Vm, RunError> {
+    let (unit, _) = internal_compile_source(context, sources).map_err(RunError::Errors)?;
     let context = Arc::new(context.runtime());
 
     Ok(runestick::Vm::new(context, Arc::new(unit)))
 }
 
-/// Call the specified function in the given script.
-pub async fn run_async<N, A, T>(
-    context: &Arc<runestick::Context>,
+/// Construct a virtual machine for the given source.
+pub fn vm_with_source(
+    context: &runestick::Context,
     source: &str,
+) -> Result<runestick::Vm, RunError> {
+    let mut sources = Sources::new();
+    sources.insert(Source::new("main", source.to_owned()));
+
+    vm(context, &mut sources)
+}
+
+/// Call the specified function in the given script.
+async fn internal_run_async<N, A, T>(
+    context: &Arc<runestick::Context>,
+    sources: &mut Sources,
     function: N,
     args: A,
 ) -> Result<T, RunError>
@@ -91,7 +111,7 @@ where
     A: runestick::Args,
     T: FromValue,
 {
-    let vm = vm(context, source)?;
+    let vm = vm(context, sources)?;
 
     let output = vm
         .execute(&Item::with_item(function), args)
@@ -103,11 +123,11 @@ where
     T::from_value(output).map_err(RunError::VmError)
 }
 
-/// Call the specified function in the given script.
+/// Call the specified function in the given script sources.
 #[cfg(feature = "futures-executor")]
-pub fn run<N, A, T>(
+fn internal_run<N, A, T>(
     context: &Arc<runestick::Context>,
-    source: &str,
+    sources: &mut Sources,
     function: N,
     args: A,
 ) -> Result<T, RunError>
@@ -115,16 +135,16 @@ where
     N: IntoIterator,
     N::Item: IntoComponent,
     A: runestick::Args,
-    T: runestick::FromValue,
+    T: FromValue,
 {
-    ::futures_executor::block_on(run_async(context, source, function, args))
+    ::futures_executor::block_on(internal_run_async(context, sources, function, args))
 }
 
-/// Call the specified function in the given script.
+/// Call the specified function in the given script sources.
 #[cfg(not(feature = "futures-executor"))]
-pub fn run<N, A, T>(
+fn internal_run<N, A, T>(
     context: &Arc<runestick::Context>,
-    source: &str,
+    sources: &mut Sources,
     function: N,
     args: A,
 ) -> Result<T, RunError>
@@ -132,9 +152,9 @@ where
     N: IntoIterator,
     N::Item: IntoComponent,
     A: runestick::Args,
-    T: runestick::FromValue,
+    T: FromValue,
 {
-    let vm = vm(context, source)?;
+    let vm = vm(context, sources)?;
 
     let output = vm
         .execute(&Item::with_item(function), args)
@@ -143,6 +163,64 @@ where
         .map_err(RunError::VmError)?;
 
     T::from_value(output).map_err(RunError::VmError)
+}
+
+/// Run the given source with diagnostics being printed to stderr.
+pub fn run_with_diagnostics<N, A, T>(
+    context: &Arc<runestick::Context>,
+    source: &str,
+    function: N,
+    args: A,
+) -> Result<T, RunError>
+where
+    N: IntoIterator,
+    N::Item: IntoComponent,
+    A: runestick::Args,
+    T: runestick::FromValue,
+{
+    use rune::diagnostics::EmitDiagnostics as _;
+
+    let mut sources = Sources::new();
+    sources.insert(Source::new("main", source.to_owned()));
+
+    let e = match internal_run(context, &mut sources, function, args) {
+        Ok(value) => return Ok(value),
+        Err(e) => e,
+    };
+
+    let mut writer = rune::termcolor::StandardStream::stdout(rune::termcolor::ColorChoice::Never);
+
+    match &e {
+        RunError::Errors(e) => {
+            e.emit_diagnostics(&mut writer, &sources)
+                .expect("emit diagnostics");
+        }
+        RunError::VmError(e) => {
+            e.emit_diagnostics(&mut writer, &sources)
+                .expect("emit diagnostics");
+        }
+    }
+
+    Err(e)
+}
+
+/// Call the specified function in the given script.
+pub fn run<N, A, T>(
+    context: &Arc<runestick::Context>,
+    source: &str,
+    function: N,
+    args: A,
+) -> Result<T, RunError>
+where
+    N: IntoIterator,
+    N::Item: IntoComponent,
+    A: runestick::Args,
+    T: runestick::FromValue,
+{
+    let mut sources = Sources::new();
+    sources.insert(Source::new("main", source.to_owned()));
+
+    internal_run(context, &mut sources, function, args)
 }
 
 /// Helper function to construct a context and unit from a Rune source for
@@ -203,7 +281,7 @@ macro_rules! rune_vm {
     ($($tt:tt)*) => {{
         let context = $crate::macros::rune_modules::default_context().expect("failed to build context");
         let context = std::sync::Arc::new(context);
-        $crate::vm(&context, stringify!($($tt)*)).expect("program to compile successfully")
+        $crate::vm_with_source(&context, stringify!($($tt)*)).expect("program to compile successfully")
     }};
 }
 
@@ -228,7 +306,7 @@ macro_rules! rune_vm_capture {
         let mut context = $crate::macros::rune_modules::with_config(false).expect("failed to build context");
         context.install(&$crate::capture_output::output_redirect_module()?)?;
         let context = std::sync::Arc::new(context);
-        $crate::vm(&context, stringify!($($tt)*)).expect("program to compile successfully")
+        $crate::vm_with_source(&context, stringify!($($tt)*)).expect("program to compile successfully")
     }};
 }
 
@@ -252,7 +330,7 @@ macro_rules! rune {
         let context = $crate::macros::rune_modules::default_context().expect("failed to build context");
         let context = std::sync::Arc::new(context);
 
-        $crate::run::<_, (), $ty>(&context, stringify!($($tt)*), &["main"], ())
+        $crate::run_with_diagnostics::<_, (), $ty>(&context, stringify!($($tt)*), &["main"], ())
             .expect("program to run successfully")
     }};
 }
@@ -278,7 +356,7 @@ macro_rules! rune_s {
             $crate::macros::rune_modules::default_context().expect("failed to build context");
         let context = std::sync::Arc::new(context);
 
-        $crate::run::<_, (), $ty>(&context, $source, &["main"], ())
+        $crate::run_with_diagnostics::<_, (), $ty>(&context, $source, &["main"], ())
             .expect("program to run successfully")
     }};
 }
@@ -309,7 +387,7 @@ macro_rules! rune_n {
         context.install(&$module).expect("failed to install native module");
         let context = std::sync::Arc::new(context);
 
-        $crate::run::<_, _, $ty>(&context, stringify!($($tt)*), &["main"], $args)
+        $crate::run_with_diagnostics::<_, _, $ty>(&context, stringify!($($tt)*), &["main"], $args)
             .expect("program to run successfully")
     }};
 }

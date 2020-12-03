@@ -2,7 +2,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a call expression.
 impl Assemble for ast::ExprCall {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprCall => {:?}", c.source.source(span));
 
@@ -29,10 +29,10 @@ impl Assemble for ast::ExprCall {
                     {
                         log::trace!("ExprCall(ExprFieldAccess) => {:?}", c.source.source(span));
 
-                        expr.assemble(c, Needs::Value)?;
+                        expr.assemble(c, Needs::Value)?.apply(c)?;
 
                         for (expr, _) in &self.args {
-                            expr.assemble(c, Needs::Value)?;
+                            expr.assemble(c, Needs::Value)?.apply(c)?;
                             c.scopes.decl_anon(span)?;
                         }
 
@@ -51,11 +51,11 @@ impl Assemble for ast::ExprCall {
                 log::trace!("ExprCall(Other) => {:?}", c.source.source(span));
 
                 for (expr, _) in &self.args {
-                    expr.assemble(c, Needs::Value)?;
+                    expr.assemble(c, Needs::Value)?.apply(c)?;
                     c.scopes.decl_anon(span)?;
                 }
 
-                expr.assemble(c, Needs::Value)?;
+                expr.assemble(c, Needs::Value)?.apply(c)?;
                 c.asm.push(Inst::CallFn { args }, span);
             }
 
@@ -64,7 +64,7 @@ impl Assemble for ast::ExprCall {
             }
 
             c.scopes.pop(guard, span)?;
-            return Ok(());
+            return Ok(Asm::top(span));
         };
 
         let named = c.convert_path_to_named(path)?;
@@ -77,7 +77,7 @@ impl Assemble for ast::ExprCall {
 
             if let Some(var) = local {
                 for (expr, _) in &self.args {
-                    expr.assemble(c, Needs::Value)?;
+                    expr.assemble(c, Needs::Value)?.apply(c)?;
                     c.scopes.decl_anon(span)?;
                 }
 
@@ -89,7 +89,7 @@ impl Assemble for ast::ExprCall {
                 }
 
                 c.scopes.pop(guard, span)?;
-                return Ok(());
+                return Ok(Asm::top(span));
             }
         }
 
@@ -137,7 +137,7 @@ impl Assemble for ast::ExprCall {
 
                 value.assemble_const(c, Needs::Value, self.span())?;
                 c.scopes.pop(guard, span)?;
-                return Ok(());
+                return Ok(Asm::top(span));
             }
             _ => {
                 return Err(CompileError::expected_meta(
@@ -149,7 +149,7 @@ impl Assemble for ast::ExprCall {
         };
 
         for (expr, _) in &self.args {
-            expr.assemble(c, Needs::Value)?;
+            expr.assemble(c, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(span)?;
         }
 
@@ -164,6 +164,6 @@ impl Assemble for ast::ExprCall {
         }
 
         c.scopes.pop(guard, span)?;
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

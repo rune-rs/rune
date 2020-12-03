@@ -21,7 +21,7 @@ pub use self::scopes::Var;
 pub use self::unit_builder::{BuildError, InsertMetaError, LinkerError, UnitBuilder};
 use crate::parsing::Resolve as _;
 
-pub(crate) use self::assemble::{Assemble, AssembleClosure, AssembleConst, AssembleFn};
+pub(crate) use self::assemble::{Asm, Assemble, AssembleClosure, AssembleConst, AssembleFn};
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
 pub(crate) use self::compiler::{Compiler, Needs};
 pub(crate) use self::loops::{Loop, Loops};
