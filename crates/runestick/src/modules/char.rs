@@ -11,14 +11,13 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn char_from_int_impl(value: Value) -> Result<Option<Value>, VmError> {
-    let inner: i64 = value.into_integer()?;
-    if inner < 0 {
+fn char_from_int_impl(value: i64) -> Result<Option<Value>, VmError> {
+    if value < 0 {
         Err(VmError::from(VmErrorKind::Underflow))
-    } else if inner > u32::MAX as i64 {
+    } else if value > u32::MAX as i64 {
         Err(VmError::from(VmErrorKind::Overflow))
     } else {
-        Ok(std::char::from_u32(inner as u32).map(|v| v.into()))
+        Ok(std::char::from_u32(value as u32).map(|v| v.into()))
     }
 }
 

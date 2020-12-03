@@ -113,7 +113,7 @@ fn bf_hello_world(b: &mut Bencher) -> runestick::Result<()> {
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });
-    assert!(runestick::modules::tests::drain_output()
+    assert!(rune_tests::capture_output::drain_output()
         .map(|v| v.starts_with("Hello World!"))
         .unwrap_or(false));
     Ok(())
@@ -132,7 +132,7 @@ fn bf_hello_world2(b: &mut Bencher) -> runestick::Result<()> {
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });
-    assert!(runestick::modules::tests::drain_output()
+    assert!(rune_tests::capture_output::drain_output()
         .map(|v| v.starts_with("hello world"))
         .unwrap_or(false));
     Ok(())
@@ -151,7 +151,7 @@ fn bf_fib(b: &mut Bencher) -> runestick::Result<()> {
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution");
     });
-    assert!(runestick::modules::tests::drain_output()
+    assert!(rune_tests::capture_output::drain_output()
         .map(|v| v.starts_with("1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 121, 98, 219, ..."))
         .unwrap_or(false));
     Ok(())
@@ -169,7 +169,7 @@ fn bf_loopity(b: &mut Bencher) -> runestick::Result<()> {
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution");
     });
-    assert!(runestick::modules::tests::drain_output()
+    assert!(rune_tests::capture_output::drain_output()
         .map(|v| v.len() == 0)
         .unwrap_or(false));
     Ok(())

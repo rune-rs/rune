@@ -15,6 +15,8 @@ use runestick::{Item, Source, Unit};
 use std::sync::Arc;
 use thiserror::Error;
 
+pub mod capture_output;
+
 /// Macro internals.
 #[doc(hidden)]
 pub mod macros {
@@ -224,7 +226,7 @@ macro_rules! rune_vm {
 macro_rules! rune_vm_capture {
     ($($tt:tt)*) => {{
         let mut context = $crate::macros::rune_modules::with_config(false).expect("failed to build context");
-        context.install(&runestick::modules::tests::output_redirect_module()?)?;
+        context.install(&$crate::capture_output::output_redirect_module()?)?;
         let context = std::sync::Arc::new(context);
         $crate::vm(&context, stringify!($($tt)*)).expect("program to compile successfully")
     }};
