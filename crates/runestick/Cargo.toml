@@ -14,7 +14,9 @@ description = """
 Runescript, a generic stack-based virtual machine for Rust.
 """
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = []
+bench = []
 
 [dependencies]
 log = "0.4.11"
