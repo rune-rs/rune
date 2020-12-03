@@ -209,7 +209,7 @@ macro_rules! rune_vm {
 
 /// Construct a rune virtual machine from the given program which will capture
 /// all output into a buffer, which can be retrieved from
-/// `runestick::modules::tests::drain_output()`
+/// `rune_tests::capture_output::drain_output()`
 ///
 /// # Examples
 ///
