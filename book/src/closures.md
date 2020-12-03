@@ -59,7 +59,7 @@ Below we showcase this, with the help of the `rune_s!` macro from the `testing`
 module.
 
 ```rust,noplaypen
-{{#include ../../crates/rune/examples/call_rune_fn.rs}}
+{{#include ../../examples/call_rune_fn.rs}}
 ```
 
 ```text

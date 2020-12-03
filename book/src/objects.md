@@ -45,7 +45,7 @@ always strings, but its value must be specified as the sole type parameter.
 Note that the dynamic [`Value`] can be used if the type is unknown.
 
 ```rust,noplaypen
-{{#include ../../crates/rune/examples/object.rs}}
+{{#include ../../examples/object.rs}}
 ```
 
 ```text
