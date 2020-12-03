@@ -4,7 +4,7 @@ use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
     Generator, GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstRangeLimits,
-    InstTarget, InstVariant, IntoTypeHash, Object, Panic, Protocol, Range, RangeLimits,
+    InstTarget, InstValue, InstVariant, IntoTypeHash, Object, Panic, Protocol, Range, RangeLimits,
     RuntimeContext, Select, Shared, Stack, Stream, Struct, StructVariant, Tuple, TypeCheck, Unit,
     UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
     VmSendExecution,
@@ -25,6 +25,19 @@ enum TargetValue<'a, 'b> {
     Value(&'a mut Value, Value),
     /// Fallback to a different kind of operation.
     Fallback(TargetFallback<'b>),
+}
+
+/// Adds `#[inline(never)]` to marked functions in case we are benchmarking to
+/// improve information of which operation contributes to runtime overhead.
+macro_rules! op {
+    (
+        $(#[$meta:meta])*
+        fn $($tt:tt)*
+    ) => {
+        #[cfg_attr(feature = "bench", inline(never))]
+        $(#[$meta])*
+        fn $($tt)*
+    }
 }
 
 macro_rules! target_value {
@@ -340,53 +353,28 @@ impl Vm {
         Ok(())
     }
 
-    fn op_await(&mut self) -> Result<Shared<Future>, VmError> {
-        let value = self.stack.pop()?;
-
-        match self.try_into_future(value)? {
-            Ok(future) => Ok(future),
-            Err(value) => Err(VmError::from(VmErrorKind::UnsupportedAwait {
-                actual: value.type_info()?,
-            })),
-        }
-    }
-
-    fn op_select(&mut self, len: usize) -> Result<Option<Select>, VmError> {
-        let futures = futures_util::stream::FuturesUnordered::new();
-
-        let arguments = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
-
-        for (branch, value) in arguments.into_iter().enumerate() {
-            let future = match self.try_into_future(value)? {
-                Ok(future) => future.into_mut()?,
-                Err(value) => {
-                    return Err(VmError::from(VmErrorKind::UnsupportedAwait {
-                        actual: value.type_info()?,
-                    }));
-                }
-            };
-
-            if !future.is_completed() {
-                futures.push(SelectFuture::new(branch, future));
-            }
-        }
-
-        // NB: nothing to poll.
-        if futures.is_empty() {
-            self.stack.push(());
-            return Ok(None);
-        }
-
-        Ok(Some(Select::new(futures)))
-    }
-
     /// Helper function to call an instance function.
+    #[inline(always)]
     fn call_instance_fn<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
     where
         H: IntoTypeHash,
         A: Args,
     {
-        let count = args.count() + 1;
+        let count = args.count();
+        self.stack.push(target.clone());
+        args.into_stack(&mut self.stack)?;
+        self.inner_call_instance_fn(target, hash.into_type_hash(), count)
+    }
+
+    #[inline(never)]
+    fn inner_call_instance_fn(
+        &mut self,
+        target: &Value,
+        hash: Hash,
+        count: usize,
+    ) -> Result<bool, VmError> {
+        // NB: +1 to include the instance as well.
+        let count = count + 1;
         let hash = Hash::instance_function(target.type_hash()?, hash.into_type_hash());
 
         if let Some(UnitFn::Offset {
@@ -396,26 +384,26 @@ impl Vm {
         }) = self.unit.lookup(hash)
         {
             Self::check_args(count, expected)?;
-            self.stack.push(target.clone());
-            args.into_stack(&mut self.stack)?;
             self.call_offset_fn(offset, call, count)?;
             return Ok(true);
         }
 
         let handler = match self.context.lookup(hash) {
             Some(handler) => handler,
-            None => return Ok(false),
+            None => {
+                // NB: restore the stack
+                self.stack.popn(count)?;
+                return Ok(false);
+            }
         };
-
-        self.stack.push(target.clone());
-        args.into_stack(&mut self.stack)?;
 
         let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
         handler(&mut self.stack, count)?;
         Ok(true)
     }
 
-    /// Helper function to call a field function.
+    /// Helper to call a field function.
+    #[inline(always)]
     fn call_field_fn<H, A>(
         &mut self,
         protocol: Protocol,
@@ -427,84 +415,36 @@ impl Vm {
         H: IntoTypeHash,
         A: Args,
     {
-        let count = args.count() + 1;
-        let hash = Hash::field_fn(protocol, target.type_hash()?, hash.into_type_hash());
+        let count = args.count();
+        self.stack.push(target.clone());
+        args.into_stack(&mut self.stack)?;
+        self.inner_call_field_fn(protocol, target, hash.into_type_hash(), count)
+    }
+
+    /// non-monomorphized version of the call function.
+    #[inline(never)]
+    fn inner_call_field_fn(
+        &mut self,
+        protocol: Protocol,
+        target: &Value,
+        hash: Hash,
+        count: usize,
+    ) -> Result<bool, VmError> {
+        let count = count + 1;
+        let hash = Hash::field_fn(protocol, target.type_hash()?, hash);
 
         let handler = match self.context.lookup(hash) {
             Some(handler) => handler,
-            None => return Ok(false),
+            None => {
+                // NB: restore the stack
+                self.stack.popn(count)?;
+                return Ok(false);
+            }
         };
-
-        self.stack.push(target.clone());
-        args.into_stack(&mut self.stack)?;
 
         let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
         handler(&mut self.stack, count)?;
         Ok(true)
-    }
-
-    /// Pop a number of values from the stack.
-    fn op_popn(&mut self, n: usize) -> Result<(), VmError> {
-        self.stack.popn(n)?;
-        Ok(())
-    }
-
-    /// pop-and-jump-if-not instruction.
-    fn op_pop_and_jump_if_not(&mut self, count: usize, offset: isize) -> Result<(), VmError> {
-        if self.stack.pop()?.into_bool()? {
-            return Ok(());
-        }
-
-        self.stack.popn(count)?;
-        self.modify_ip(offset)?;
-        Ok(())
-    }
-
-    /// Pop a number of values from the stack, while preserving the top of the
-    /// stack.
-    fn op_clean(&mut self, n: usize) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-        self.op_popn(n)?;
-        self.stack.push(value);
-        Ok(())
-    }
-
-    /// Copy a value from a position relative to the top of the stack, to the
-    /// top of the stack.
-    fn op_copy(&mut self, offset: usize) -> Result<(), VmError> {
-        let value = self.stack.at_offset(offset)?.clone();
-        self.stack.push(value);
-        Ok(())
-    }
-
-    /// Move a value from a position relative to the top of the stack, to the
-    /// top of the stack.
-    fn op_move(&mut self, offset: usize) -> Result<(), VmError> {
-        let value = self.stack.at_offset(offset)?.clone();
-        self.stack.push(value.take()?);
-        Ok(())
-    }
-
-    #[inline]
-    fn op_drop(&mut self, offset: usize) -> Result<(), VmError> {
-        let _ = self.stack.at_offset(offset)?;
-        Ok(())
-    }
-
-    /// Duplicate the value at the top of the stack.
-    fn op_dup(&mut self) -> Result<(), VmError> {
-        let value = self.stack.last()?.clone();
-        self.stack.push(value);
-        Ok(())
-    }
-
-    /// Copy a value from a position relative to the top of the stack, to the
-    /// top of the stack.
-    fn op_replace(&mut self, offset: usize) -> Result<(), VmError> {
-        let mut value = self.stack.pop()?;
-        let stack_value = self.stack.at_offset_mut(offset)?;
-        mem::swap(stack_value, &mut value);
-        Ok(())
     }
 
     fn internal_boolean_ops(
@@ -561,443 +501,6 @@ impl Vm {
         self.stack.pop_stack_top(frame.stack_bottom)?;
         self.ip = frame.ip;
         Ok(false)
-    }
-
-    /// Perform a jump operation.
-    #[inline]
-    fn op_jump(&mut self, offset: isize) -> Result<(), VmError> {
-        self.modify_ip(offset)?;
-        Ok(())
-    }
-
-    /// Perform a conditional jump operation.
-    #[inline]
-    fn op_jump_if(&mut self, offset: isize) -> Result<(), VmError> {
-        if self.stack.pop()?.into_bool()? {
-            self.modify_ip(offset)?;
-        }
-
-        Ok(())
-    }
-
-    /// Perform a conditional jump operation.
-    #[inline]
-    fn op_jump_if_not(&mut self, offset: isize) -> Result<(), VmError> {
-        if !self.stack.pop()?.into_bool()? {
-            self.modify_ip(offset)?;
-        }
-
-        Ok(())
-    }
-
-    /// Perform a conditional jump operation. Pops the stack if the jump is
-    /// not performed.
-    #[inline]
-    fn op_jump_if_or_pop(&mut self, offset: isize) -> Result<(), VmError> {
-        if self.stack.last()?.as_bool()? {
-            self.modify_ip(offset)?;
-        } else {
-            self.stack.pop()?;
-        }
-
-        Ok(())
-    }
-
-    /// Perform a conditional jump operation. Pops the stack if the jump is
-    /// not performed.
-    #[inline]
-    fn op_jump_if_not_or_pop(&mut self, offset: isize) -> Result<(), VmError> {
-        if !self.stack.last()?.as_bool()? {
-            self.modify_ip(offset)?;
-        } else {
-            self.stack.pop()?;
-        }
-
-        Ok(())
-    }
-
-    /// Perform a branch-conditional jump operation.
-    #[inline]
-    fn op_jump_if_branch(&mut self, branch: i64, offset: isize) -> Result<(), VmError> {
-        if let Some(Value::Integer(current)) = self.stack.peek() {
-            if *current == branch {
-                self.modify_ip(offset)?;
-                self.stack.pop()?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Construct a new vec.
-    #[inline]
-    fn op_vec(&mut self, count: usize) -> Result<(), VmError> {
-        let vec = Vec::from(self.stack.pop_sequence(count)?);
-        self.stack.push(Shared::new(vec));
-        Ok(())
-    }
-
-    /// Construct a new tuple.
-    #[inline]
-    fn op_tuple(&mut self, count: usize) -> Result<(), VmError> {
-        let tuple = self.stack.pop_sequence(count)?;
-        self.stack.push(Tuple::from(tuple));
-        Ok(())
-    }
-
-    /// Push the tuple that is on top of the stack.
-    #[inline]
-    fn op_push_tuple(&mut self) -> Result<(), VmError> {
-        let tuple = self.stack.pop()?.into_tuple()?;
-        self.stack.extend(tuple.borrow_ref()?.iter().cloned());
-        Ok(())
-    }
-
-    #[inline]
-    fn op_not(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let value = match value {
-            Value::Bool(value) => Value::from(!value),
-            Value::Integer(value) => Value::from(!value),
-            other => {
-                let operand = other.type_info()?;
-                return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
-                    op: "!",
-                    operand,
-                }));
-            }
-        };
-
-        self.stack.push(value);
-        Ok(())
-    }
-
-    #[inline]
-    fn op_neg(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let value = match value {
-            Value::Float(value) => Value::from(-value),
-            Value::Integer(value) => Value::from(-value),
-            other => {
-                let operand = other.type_info()?;
-                return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
-                    op: "-",
-                    operand,
-                }));
-            }
-        };
-
-        self.stack.push(value);
-        Ok(())
-    }
-
-    #[inline]
-    fn op_op(&mut self, op: InstOp) -> Result<(), VmError> {
-        use std::convert::TryFrom as _;
-
-        match op {
-            InstOp::Add => {
-                self.internal_num(
-                    Protocol::ADD,
-                    || VmErrorKind::Overflow,
-                    i64::checked_add,
-                    std::ops::Add::add,
-                )?;
-            }
-            InstOp::Sub => {
-                self.internal_num(
-                    Protocol::SUB,
-                    || VmErrorKind::Underflow,
-                    i64::checked_sub,
-                    std::ops::Sub::sub,
-                )?;
-            }
-            InstOp::Mul => {
-                self.internal_num(
-                    Protocol::MUL,
-                    || VmErrorKind::Overflow,
-                    i64::checked_mul,
-                    std::ops::Mul::mul,
-                )?;
-            }
-            InstOp::Div => {
-                self.internal_num(
-                    Protocol::DIV,
-                    || VmErrorKind::DivideByZero,
-                    i64::checked_div,
-                    std::ops::Div::div,
-                )?;
-            }
-            InstOp::Rem => {
-                self.internal_num(
-                    Protocol::REM,
-                    || VmErrorKind::DivideByZero,
-                    i64::checked_rem,
-                    std::ops::Rem::rem,
-                )?;
-            }
-            InstOp::BitAnd => {
-                use std::ops::BitAnd as _;
-                self.internal_infallible_bitwise_bool(
-                    Protocol::BIT_AND,
-                    i64::bitand,
-                    bool::bitand,
-                )?;
-            }
-            InstOp::BitXor => {
-                use std::ops::BitXor as _;
-                self.internal_infallible_bitwise_bool(
-                    Protocol::BIT_XOR,
-                    i64::bitxor,
-                    bool::bitxor,
-                )?;
-            }
-            InstOp::BitOr => {
-                use std::ops::BitOr as _;
-                self.internal_infallible_bitwise_bool(Protocol::BIT_OR, i64::bitor, bool::bitor)?;
-            }
-            InstOp::Shl => {
-                self.internal_bitwise(
-                    Protocol::SHL,
-                    || VmErrorKind::Overflow,
-                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
-                )?;
-            }
-            InstOp::Shr => {
-                self.internal_infallible_bitwise(Protocol::SHR, std::ops::Shr::shr)?;
-            }
-            InstOp::Gt => {
-                self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">")?;
-            }
-            InstOp::Gte => {
-                self.internal_boolean_ops(|a, b| a >= b, |a, b| a >= b, ">=")?;
-            }
-            InstOp::Lt => {
-                self.internal_boolean_ops(|a, b| a < b, |a, b| a < b, "<")?;
-            }
-            InstOp::Lte => {
-                self.internal_boolean_ops(|a, b| a <= b, |a, b| a <= b, "<=")?;
-            }
-            InstOp::Eq => {
-                let b = self.stack.pop()?;
-                let a = self.stack.pop()?;
-                let test = Value::value_ptr_eq(&a, &b)?;
-                self.stack.push(test);
-            }
-            InstOp::Neq => {
-                let b = self.stack.pop()?;
-                let a = self.stack.pop()?;
-                let test = Value::value_ptr_eq(&a, &b)?;
-                self.stack.push(!test);
-            }
-            InstOp::And => {
-                self.internal_boolean_op(|a, b| a && b, "&&")?;
-            }
-            InstOp::Or => {
-                self.internal_boolean_op(|a, b| a || b, "||")?;
-            }
-            InstOp::Is => {
-                let is_instance = self.is_instance()?;
-                self.stack.push(is_instance);
-            }
-            InstOp::IsNot => {
-                let is_instance = self.is_instance()?;
-                self.stack.push(!is_instance);
-            }
-        }
-
-        Ok(())
-    }
-
-    #[inline]
-    fn op_assign(&mut self, target: InstTarget, op: InstAssignOp) -> Result<(), VmError> {
-        use std::convert::TryFrom as _;
-
-        match op {
-            InstAssignOp::Add => {
-                self.internal_num_assign(
-                    target,
-                    Protocol::ADD_ASSIGN,
-                    || VmErrorKind::Overflow,
-                    i64::checked_add,
-                    std::ops::Add::add,
-                )?;
-            }
-            InstAssignOp::Sub => {
-                self.internal_num_assign(
-                    target,
-                    Protocol::SUB_ASSIGN,
-                    || VmErrorKind::Underflow,
-                    i64::checked_sub,
-                    std::ops::Sub::sub,
-                )?;
-            }
-            InstAssignOp::Mul => {
-                self.internal_num_assign(
-                    target,
-                    Protocol::MUL_ASSIGN,
-                    || VmErrorKind::Overflow,
-                    i64::checked_mul,
-                    std::ops::Mul::mul,
-                )?;
-            }
-            InstAssignOp::Div => {
-                self.internal_num_assign(
-                    target,
-                    Protocol::DIV_ASSIGN,
-                    || VmErrorKind::DivideByZero,
-                    i64::checked_div,
-                    std::ops::Div::div,
-                )?;
-            }
-            InstAssignOp::Rem => {
-                self.internal_num_assign(
-                    target,
-                    Protocol::REM_ASSIGN,
-                    || VmErrorKind::DivideByZero,
-                    i64::checked_rem,
-                    std::ops::Rem::rem,
-                )?;
-            }
-            InstAssignOp::BitAnd => {
-                self.internal_infallible_bitwise_assign(
-                    target,
-                    Protocol::BIT_AND_ASSIGN,
-                    std::ops::BitAndAssign::bitand_assign,
-                )?;
-            }
-            InstAssignOp::BitXor => {
-                self.internal_infallible_bitwise_assign(
-                    target,
-                    Protocol::BIT_XOR_ASSIGN,
-                    std::ops::BitXorAssign::bitxor_assign,
-                )?;
-            }
-            InstAssignOp::BitOr => {
-                self.internal_infallible_bitwise_assign(
-                    target,
-                    Protocol::BIT_OR_ASSIGN,
-                    std::ops::BitOrAssign::bitor_assign,
-                )?;
-            }
-            InstAssignOp::Shl => {
-                self.internal_bitwise_assign(
-                    target,
-                    Protocol::SHL_ASSIGN,
-                    || VmErrorKind::Overflow,
-                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
-                )?;
-            }
-            InstAssignOp::Shr => {
-                self.internal_infallible_bitwise_assign(
-                    target,
-                    Protocol::SHR_ASSIGN,
-                    std::ops::ShrAssign::shr_assign,
-                )?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Perform an index set operation.
-    #[inline]
-    fn op_index_set(&mut self) -> Result<(), VmError> {
-        let index = self.stack.pop()?;
-        let target = self.stack.pop()?;
-        let value = self.stack.pop()?;
-
-        // This is a useful pattern.
-        #[allow(clippy::never_loop)]
-        loop {
-            // NB: local storage for string.
-            let local_field;
-
-            let field = match &index {
-                Value::String(string) => {
-                    local_field = string.borrow_ref()?;
-                    local_field.as_str()
-                }
-                Value::StaticString(string) => string.as_ref(),
-                _ => break,
-            };
-
-            match &target {
-                Value::Object(object) => {
-                    let mut object = object.borrow_mut()?;
-                    object.insert(field.to_owned(), value);
-                    return Ok(());
-                }
-                Value::Struct(typed_object) => {
-                    let mut typed_object = typed_object.borrow_mut()?;
-
-                    if let Some(v) = typed_object.get_mut(field) {
-                        *v = value;
-                        return Ok(());
-                    }
-
-                    return Err(VmError::from(VmErrorKind::MissingField {
-                        field: field.to_owned(),
-                        target: typed_object.type_info(),
-                    }));
-                }
-                Value::StructVariant(variant_object) => {
-                    let mut variant_object = variant_object.borrow_mut()?;
-
-                    if let Some(v) = variant_object.get_mut(field) {
-                        *v = value;
-                        return Ok(());
-                    }
-
-                    return Err(VmError::from(VmErrorKind::MissingField {
-                        field: field.to_owned(),
-                        target: variant_object.type_info(),
-                    }));
-                }
-                _ => {
-                    break;
-                }
-            }
-        }
-
-        if !self.call_instance_fn(&target, Protocol::INDEX_SET, (&index, &value))? {
-            return Err(VmError::from(VmErrorKind::UnsupportedIndexSet {
-                target: target.type_info()?,
-                index: index.type_info()?,
-                value: value.type_info()?,
-            }));
-        }
-
-        // Calling index set should not produce a value on the stack, but all
-        // handler functions to produce a value. So pop it here.
-        self.stack.pop()?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_return(&mut self) -> Result<bool, VmError> {
-        let return_value = self.stack.pop()?;
-        let exit = self.pop_call_frame()?;
-        self.stack.push(return_value);
-        Ok(exit)
-    }
-
-    #[inline]
-    fn op_return_unit(&mut self) -> Result<bool, VmError> {
-        let exit = self.pop_call_frame()?;
-        self.stack.push(());
-        Ok(exit)
-    }
-
-    #[inline]
-    fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmError> {
-        let instance = self.stack.pop()?;
-        let ty = instance.type_hash()?;
-        let hash = Hash::instance_function(ty, hash);
-        self.stack.push(Value::Type(hash));
-        Ok(())
     }
 
     /// Try to convert the given value into a future.
@@ -1280,105 +783,6 @@ impl Vm {
         }
     }
 
-    /// Perform an index get operation.
-    #[inline]
-    fn op_index_get(&mut self) -> Result<(), VmError> {
-        let index = self.stack.pop()?;
-        let target = self.stack.pop()?;
-
-        // This is a useful pattern.
-        #[allow(clippy::never_loop)]
-        loop {
-            match &index {
-                Value::String(string) => {
-                    let string_ref = string.borrow_ref()?;
-
-                    if self.try_object_like_index_get(&target, string_ref.as_str())? {
-                        return Ok(());
-                    }
-                }
-                Value::StaticString(string) => {
-                    if self.try_object_like_index_get(&target, string.as_ref())? {
-                        return Ok(());
-                    }
-                }
-                Value::Integer(index) => {
-                    use std::convert::TryInto as _;
-
-                    let index = match (*index).try_into() {
-                        Ok(index) => index,
-                        Err(..) => {
-                            return Err(VmError::from(VmErrorKind::MissingIndex {
-                                target: target.type_info()?,
-                                index: VmIntegerRepr::from(*index),
-                            }));
-                        }
-                    };
-
-                    if let Some(value) = Self::try_tuple_like_index_get(&target, index)? {
-                        self.stack.push(value);
-                        return Ok(());
-                    }
-                }
-                _ => break,
-            };
-        }
-
-        if !self.call_instance_fn(&target, Protocol::INDEX_GET, (&index,))? {
-            return Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
-                target: target.type_info()?,
-                index: index.type_info()?,
-            }));
-        }
-
-        Ok(())
-    }
-
-    /// Perform an index get operation specialized for tuples.
-    #[inline]
-    fn op_tuple_index_get(&mut self, index: usize) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        if let Some(value) = Self::try_tuple_like_index_get(&value, index)? {
-            self.stack.push(value);
-            return Ok(());
-        }
-
-        Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
-            target: value.type_info()?,
-        }))
-    }
-
-    /// Perform an index get operation specialized for tuples.
-    #[inline]
-    fn op_tuple_index_set(&mut self, index: usize) -> Result<(), VmError> {
-        let tuple = self.stack.pop()?;
-        let value = self.stack.pop()?;
-
-        if Self::try_tuple_like_index_set(&tuple, index, value)? {
-            return Ok(());
-        }
-
-        Err(VmError::from(VmErrorKind::UnsupportedTupleIndexSet {
-            target: tuple.type_info()?,
-        }))
-    }
-
-    /// Perform an index get operation specialized for tuples.
-    #[inline]
-    fn op_tuple_index_get_at(&mut self, offset: usize, index: usize) -> Result<(), VmError> {
-        let value = self.stack.at_offset(offset)?;
-
-        if let Some(value) = Self::try_tuple_like_index_get(value, index)? {
-            self.stack.push(value);
-            return Ok(());
-        }
-
-        Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
-            target: value.type_info()?,
-        }))
-    }
-
     /// Implementation of getting a string index on an object-like type.
     fn try_object_slot_index_get(
         &mut self,
@@ -1489,493 +893,6 @@ impl Vm {
         })
     }
 
-    /// Perform a specialized index get operation on an object.
-    #[inline]
-    fn op_object_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
-        let target = self.stack.pop()?;
-
-        if let Some(value) = self.try_object_slot_index_get(&target, string_slot)? {
-            self.stack.push(value);
-            return Ok(());
-        }
-
-        let target = target.type_info()?;
-        Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
-            target,
-        }))
-    }
-
-    /// Perform a specialized index set operation on an object.
-    #[inline]
-    fn op_object_index_set(&mut self, string_slot: usize) -> Result<(), VmError> {
-        let target = self.stack.pop()?;
-        let value = self.stack.pop()?;
-
-        if let Some(()) = self.try_object_slot_index_set(&target, string_slot, value)? {
-            return Ok(());
-        }
-
-        let target = target.type_info()?;
-        Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexSet {
-            target,
-        }))
-    }
-
-    /// Perform a specialized index get operation on an object.
-    #[inline]
-    fn op_object_index_get_at(&mut self, offset: usize, string_slot: usize) -> Result<(), VmError> {
-        let target = self.stack.at_offset(offset)?.clone();
-
-        if let Some(value) = self.try_object_slot_index_get(&target, string_slot)? {
-            self.stack.push(value);
-            return Ok(());
-        }
-
-        let target = target.type_info()?;
-        Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
-            target,
-        }))
-    }
-
-    /// Operation to allocate an object.
-    #[inline]
-    fn op_object(&mut self, slot: usize) -> Result<(), VmError> {
-        let keys = self
-            .unit
-            .lookup_object_keys(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
-
-        let mut object = Object::with_capacity(keys.len());
-        let values = self.stack.drain_stack_top(keys.len())?;
-
-        for (key, value) in keys.iter().zip(values) {
-            object.insert(key.clone(), value);
-        }
-
-        self.stack.push(Shared::new(object));
-        Ok(())
-    }
-
-    /// Operation to allocate an object.
-    #[inline]
-    fn op_range(&mut self, limits: InstRangeLimits) -> Result<(), VmError> {
-        let end = Option::<Value>::from_value(self.stack.pop()?)?;
-        let start = Option::<Value>::from_value(self.stack.pop()?)?;
-
-        let limits = match limits {
-            InstRangeLimits::HalfOpen => RangeLimits::HalfOpen,
-            InstRangeLimits::Closed => RangeLimits::Closed,
-        };
-
-        let range = Range::new(start, end, limits);
-        self.stack.push(Shared::new(range));
-        Ok(())
-    }
-
-    /// Operation to allocate an empty struct.
-    #[inline]
-    fn op_empty_struct(&mut self, hash: Hash) -> Result<(), VmError> {
-        let rtti = self
-            .unit
-            .lookup_rtti(hash)
-            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
-
-        self.stack.push(UnitStruct { rtti: rtti.clone() });
-        Ok(())
-    }
-
-    /// Operation to allocate an object struct.
-    #[inline]
-    fn op_struct(&mut self, hash: Hash, slot: usize) -> Result<(), VmError> {
-        let keys = self
-            .unit
-            .lookup_object_keys(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
-
-        let rtti = self
-            .unit
-            .lookup_rtti(hash)
-            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
-
-        let values = self.stack.drain_stack_top(keys.len())?;
-        let mut data = Object::with_capacity(keys.len());
-
-        for (key, value) in keys.iter().zip(values) {
-            data.insert(key.clone(), value);
-        }
-
-        self.stack.push(Struct {
-            rtti: rtti.clone(),
-            data,
-        });
-
-        Ok(())
-    }
-
-    /// Operation to allocate an object.
-    #[inline]
-    fn op_empty_variant(&mut self, hash: Hash) -> Result<(), VmError> {
-        let rtti = self
-            .unit
-            .lookup_variant_rtti(hash)
-            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
-
-        self.stack.push(UnitVariant { rtti: rtti.clone() });
-        Ok(())
-    }
-
-    /// Operation to allocate an object variant.
-    #[inline]
-    fn op_object_variant(&mut self, hash: Hash, slot: usize) -> Result<(), VmError> {
-        let keys = self
-            .unit
-            .lookup_object_keys(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
-
-        let rtti = self
-            .unit
-            .lookup_variant_rtti(hash)
-            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
-
-        let mut data = Object::with_capacity(keys.len());
-        let values = self.stack.drain_stack_top(keys.len())?;
-
-        for (key, value) in keys.iter().zip(values) {
-            data.insert(key.clone(), value);
-        }
-
-        self.stack.push(StructVariant {
-            rtti: rtti.clone(),
-            data,
-        });
-
-        Ok(())
-    }
-
-    #[inline]
-    fn op_string(&mut self, slot: usize) -> Result<(), VmError> {
-        let string = self.unit.lookup_string(slot)?;
-        self.stack.push(string.clone());
-        Ok(())
-    }
-
-    #[inline]
-    fn op_bytes(&mut self, slot: usize) -> Result<(), VmError> {
-        let bytes = self.unit.lookup_bytes(slot)?.to_owned();
-        self.stack.push(Bytes::from_vec(bytes));
-        Ok(())
-    }
-
-    /// Optimize operation to perform string concatenation.
-    #[inline]
-    fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
-        let values = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
-
-        let mut out = String::with_capacity(size_hint);
-        let mut buf = String::new();
-
-        for value in values {
-            match value {
-                Value::Format(format) => {
-                    format.spec.format(&format.value, &mut out, &mut buf)?;
-                }
-                Value::Char(c) => {
-                    out.push(c);
-                }
-                Value::String(string) => {
-                    out.push_str(&*string.borrow_ref()?);
-                }
-                Value::StaticString(string) => {
-                    out.push_str(string.as_ref());
-                }
-                Value::Integer(integer) => {
-                    let mut buffer = itoa::Buffer::new();
-                    out.push_str(buffer.format(integer));
-                }
-                Value::Float(float) => {
-                    let mut buffer = ryu::Buffer::new();
-                    out.push_str(buffer.format(float));
-                }
-                actual => {
-                    let b = Shared::new(std::mem::take(&mut out));
-
-                    if !self.call_instance_fn(
-                        &actual,
-                        Protocol::STRING_DISPLAY,
-                        (Value::String(b.clone()),),
-                    )? {
-                        return Err(VmError::from(VmErrorKind::MissingProtocol {
-                            protocol: Protocol::STRING_DISPLAY,
-                            actual: actual.type_info()?,
-                        }));
-                    }
-
-                    let value = fmt::Result::from_value(self.stack.pop()?)?;
-
-                    if let Err(fmt::Error) = value {
-                        return Err(VmError::from(VmErrorKind::FormatError));
-                    }
-
-                    out = b.take()?;
-                }
-            }
-        }
-
-        self.stack.push(out);
-        Ok(())
-    }
-
-    /// Push a format specification onto the stack.
-    #[inline]
-    fn op_format(&mut self, spec: FormatSpec) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        self.stack.push(Format { value, spec });
-        Ok(())
-    }
-
-    #[inline]
-    fn op_unwrap(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let value = match value {
-            Value::Option(option) => match option.take()? {
-                Some(value) => value,
-                None => {
-                    return Err(VmError::from(VmErrorKind::UnsupportedUnwrapNone));
-                }
-            },
-            Value::Result(result) => match result.take()? {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(VmError::from(VmErrorKind::UnsupportedUnwrapErr {
-                        err: err.type_info()?,
-                    }));
-                }
-            },
-            other => {
-                return Err(VmError::from(VmErrorKind::UnsupportedUnwrap {
-                    actual: other.type_info()?,
-                }));
-            }
-        };
-
-        self.stack.push(value);
-        Ok(())
-    }
-
-    /// Internal implementation of the instance check.
-    fn is_instance(&mut self) -> Result<bool, VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-
-        let hash = match b {
-            Value::Type(hash) => hash,
-            _ => {
-                return Err(VmError::from(VmErrorKind::UnsupportedIs {
-                    value: a.type_info()?,
-                    test_type: b.type_info()?,
-                }));
-            }
-        };
-
-        Ok(a.type_hash()? == hash)
-    }
-
-    #[inline]
-    fn op_is_unit(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-        self.stack.push(matches!(value, Value::Unit));
-        Ok(())
-    }
-
-    /// Test if the top of the stack is an error.
-    #[inline]
-    fn op_is_value(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let is_value = match value {
-            Value::Result(result) => result.borrow_ref()?.is_ok(),
-            Value::Option(option) => option.borrow_ref()?.is_some(),
-            other => {
-                return Err(VmError::from(VmErrorKind::UnsupportedIsValueOperand {
-                    actual: other.type_info()?,
-                }))
-            }
-        };
-
-        self.stack.push(is_value);
-        Ok(())
-    }
-
-    fn internal_boolean_op(
-        &mut self,
-        bool_op: impl FnOnce(bool, bool) -> bool,
-        op: &'static str,
-    ) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-
-        let out = match (a, b) {
-            (Value::Bool(a), Value::Bool(b)) => bool_op(a, b),
-            (lhs, rhs) => {
-                return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                    op,
-                    lhs: lhs.type_info()?,
-                    rhs: rhs.type_info()?,
-                }));
-            }
-        };
-
-        self.stack.push(out);
-        Ok(())
-    }
-
-    #[inline]
-    fn op_eq_byte(&mut self, byte: u8) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        self.stack.push(match value {
-            Value::Byte(actual) => actual == byte,
-            _ => false,
-        });
-
-        Ok(())
-    }
-
-    #[inline]
-    fn op_eq_character(&mut self, character: char) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        self.stack.push(match value {
-            Value::Char(actual) => actual == character,
-            _ => false,
-        });
-
-        Ok(())
-    }
-
-    #[inline]
-    fn op_eq_integer(&mut self, integer: i64) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        self.stack.push(match value {
-            Value::Integer(actual) => actual == integer,
-            _ => false,
-        });
-
-        Ok(())
-    }
-
-    #[inline]
-    fn op_eq_bool(&mut self, boolean: bool) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        self.stack.push(match value {
-            Value::Bool(actual) => actual == boolean,
-            _ => false,
-        });
-
-        Ok(())
-    }
-
-    /// Test if the top of stack is equal to the string at the given static
-    /// string location.
-    #[inline]
-    fn op_eq_static_string(&mut self, slot: usize) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let equal = match value {
-            Value::String(actual) => {
-                let string = self.unit.lookup_string(slot)?;
-                let actual = actual.borrow_ref()?;
-                *actual == ***string
-            }
-            Value::StaticString(actual) => {
-                let string = self.unit.lookup_string(slot)?;
-                **actual == ***string
-            }
-            _ => false,
-        };
-
-        self.stack.push(Value::Bool(equal));
-
-        Ok(())
-    }
-
-    #[inline]
-    fn op_match_sequence(&mut self, ty: TypeCheck, len: usize, exact: bool) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let result = self.on_tuple(ty, &value, move |tuple| {
-            if exact {
-                tuple.len() == len
-            } else {
-                tuple.len() >= len
-            }
-        })?;
-
-        self.stack.push(Value::Bool(result.unwrap_or_default()));
-        Ok(())
-    }
-
-    #[inline]
-    fn op_match_object(
-        &mut self,
-        type_check: TypeCheck,
-        slot: usize,
-        exact: bool,
-    ) -> Result<(), VmError> {
-        let result = self.on_object_keys(type_check, slot, |object, keys| {
-            if exact {
-                if object.len() != keys.len() {
-                    return false;
-                }
-            } else if object.len() < keys.len() {
-                return false;
-            }
-
-            let mut is_match = true;
-
-            for key in keys {
-                if !object.contains_key(key) {
-                    is_match = false;
-                    break;
-                }
-            }
-
-            is_match
-        })?;
-
-        self.stack.push(Value::Bool(result.unwrap_or_default()));
-        Ok(())
-    }
-
-    /// Push the given variant onto the stack.
-    #[inline]
-    fn op_variant(&mut self, variant: InstVariant) -> Result<(), VmError> {
-        match variant {
-            InstVariant::Some => {
-                let some = self.stack.pop()?;
-                self.stack.push(Value::Option(Shared::new(Some(some))));
-            }
-            InstVariant::None => {
-                self.stack.push(Value::Option(Shared::new(None)));
-            }
-            InstVariant::Ok => {
-                let some = self.stack.pop()?;
-                self.stack.push(Value::Result(Shared::new(Ok(some))));
-            }
-            InstVariant::Err => {
-                let some = self.stack.pop()?;
-                self.stack.push(Value::Result(Shared::new(Err(some))));
-            }
-        }
-
-        Ok(())
-    }
-
-    #[inline]
     fn on_tuple<F, O>(&mut self, ty: TypeCheck, value: &Value, f: F) -> Result<Option<O>, VmError>
     where
         F: FnOnce(&[Value]) -> O,
@@ -2056,7 +973,47 @@ impl Vm {
         })
     }
 
-    #[inline]
+    /// Internal implementation of the instance check.
+    fn is_instance(&mut self) -> Result<bool, VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+
+        let hash = match b {
+            Value::Type(hash) => hash,
+            _ => {
+                return Err(VmError::from(VmErrorKind::UnsupportedIs {
+                    value: a.type_info()?,
+                    test_type: b.type_info()?,
+                }));
+            }
+        };
+
+        Ok(a.type_hash()? == hash)
+    }
+
+    fn internal_boolean_op(
+        &mut self,
+        bool_op: impl FnOnce(bool, bool) -> bool,
+        op: &'static str,
+    ) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+
+        let out = match (a, b) {
+            (Value::Bool(a), Value::Bool(b)) => bool_op(a, b),
+            (lhs, rhs) => {
+                return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                    op,
+                    lhs: lhs.type_info()?,
+                    rhs: rhs.type_info()?,
+                }));
+            }
+        };
+
+        self.stack.push(out);
+        Ok(())
+    }
+
     fn on_object_keys<F, O>(
         &mut self,
         type_check: TypeCheck,
@@ -2148,484 +1105,6 @@ impl Vm {
         }
 
         Ok(())
-    }
-
-    /// Load a function as a value onto the stack.
-    fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
-        let function = match self.unit.lookup(hash) {
-            Some(info) => match info {
-                UnitFn::Offset { offset, call, args } => Function::from_offset(
-                    self.context.clone(),
-                    self.unit.clone(),
-                    offset,
-                    call,
-                    args,
-                    hash,
-                ),
-                UnitFn::UnitStruct { hash } => {
-                    let rtti = self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
-
-                    Function::from_unit_struct(rtti.clone())
-                }
-                UnitFn::TupleStruct { hash, args } => {
-                    let rtti = self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
-
-                    Function::from_tuple_struct(rtti.clone(), args)
-                }
-                UnitFn::UnitVariant { hash } => {
-                    let rtti = self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
-
-                    Function::from_empty_variant(rtti.clone())
-                }
-                UnitFn::TupleVariant { hash, args } => {
-                    let rtti = self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
-
-                    Function::from_tuple_variant(rtti.clone(), args)
-                }
-            },
-            None => {
-                let handler = self
-                    .context
-                    .lookup(hash)
-                    .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
-
-                Function::from_handler(handler.clone(), hash)
-            }
-        };
-
-        self.stack.push(Value::Function(Shared::new(function)));
-        Ok(())
-    }
-
-    /// Construct a closure on the top of the stack.
-    fn op_closure(&mut self, hash: Hash, count: usize) -> Result<(), VmError> {
-        let info = self
-            .unit
-            .lookup(hash)
-            .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
-
-        let (offset, call, args) = match info {
-            UnitFn::Offset { offset, call, args } => (offset, call, args),
-            _ => return Err(VmError::from(VmErrorKind::MissingFunction { hash })),
-        };
-
-        let environment = self.stack.pop_sequence(count)?.into_boxed_slice();
-
-        let function = Function::from_closure(
-            self.context.clone(),
-            self.unit.clone(),
-            offset,
-            call,
-            args,
-            environment,
-            hash,
-        );
-
-        self.stack.push(Value::Function(Shared::new(function)));
-        Ok(())
-    }
-
-    /// Implementation of a function call.
-    fn op_call(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
-        match self.unit.lookup(hash) {
-            Some(info) => match info {
-                UnitFn::Offset {
-                    offset,
-                    call,
-                    args: expected,
-                } => {
-                    Self::check_args(args, expected)?;
-                    self.call_offset_fn(offset, call, args)?;
-                }
-                UnitFn::UnitStruct { hash } => {
-                    Self::check_args(args, 0)?;
-
-                    let rtti = self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
-
-                    self.stack.push(Value::unit_struct(rtti.clone()));
-                }
-                UnitFn::TupleStruct {
-                    hash,
-                    args: expected,
-                } => {
-                    Self::check_args(args, expected)?;
-                    let tuple = self.stack.pop_sequence(args)?;
-
-                    let rtti = self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
-
-                    self.stack.push(Value::tuple_struct(rtti.clone(), tuple));
-                }
-                UnitFn::TupleVariant {
-                    hash,
-                    args: expected,
-                } => {
-                    Self::check_args(args, expected)?;
-
-                    let rtti = self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
-
-                    let tuple = self.stack.pop_sequence(args)?;
-                    self.stack.push(Value::tuple_variant(rtti.clone(), tuple));
-                }
-                UnitFn::UnitVariant { hash } => {
-                    Self::check_args(args, 0)?;
-
-                    let rtti = self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
-
-                    self.stack.push(Value::empty_variant(rtti.clone()));
-                }
-            },
-            None => {
-                let handler = self
-                    .context
-                    .lookup(hash)
-                    .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
-
-                let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
-                handler(&mut self.stack, args)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    #[inline]
-    fn op_call_instance(
-        &mut self,
-        inst_fn: impl InstFnNameHash,
-        args: usize,
-    ) -> Result<(), VmError> {
-        // NB: +1 to include the instance itself.
-        let args = args + 1;
-        let instance = self.stack.at_offset_from_top(args)?;
-        let type_hash = instance.type_hash()?;
-        let hash = Hash::instance_function(type_hash, inst_fn);
-
-        match self.unit.lookup(hash) {
-            Some(info) => match info {
-                UnitFn::Offset {
-                    offset,
-                    call,
-                    args: expected,
-                } => {
-                    Self::check_args(args, expected)?;
-                    self.call_offset_fn(offset, call, args)?;
-                }
-                _ => {
-                    return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
-                        instance: instance.type_info()?,
-                        hash,
-                    }));
-                }
-            },
-            None => {
-                let handler = match self.context.lookup(hash) {
-                    Some(handler) => handler,
-                    None => {
-                        return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
-                            instance: instance.type_info()?,
-                            hash,
-                        }));
-                    }
-                };
-
-                let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
-                handler(&mut self.stack, args)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn op_call_fn(&mut self, args: usize) -> Result<Option<VmHalt>, VmError> {
-        let function = self.stack.pop()?;
-
-        let hash = match function {
-            Value::Type(hash) => hash,
-            Value::Function(function) => {
-                let function = function.into_ref()?;
-                return function.call_with_vm(self, args);
-            }
-            actual => {
-                let actual_type = actual.type_info()?;
-                return Err(VmError::from(VmErrorKind::UnsupportedCallFn {
-                    actual_type,
-                }));
-            }
-        };
-
-        self.op_call(hash, args)?;
-        Ok(None)
-    }
-
-    /// Advance the instruction pointer.
-    pub(crate) fn advance(&mut self) {
-        self.ip = self.ip.overflowing_add(1).0;
-    }
-
-    /// Evaluate a single instruction.
-    pub(crate) fn run(&mut self) -> Result<VmHalt, VmError> {
-        loop {
-            if !budget::take() {
-                return Ok(VmHalt::Limited);
-            }
-
-            let inst = *self
-                .unit
-                .instruction_at(self.ip)
-                .ok_or_else(|| VmErrorKind::IpOutOfBounds)?;
-
-            log::trace!("{}: {}", self.ip, inst);
-
-            match inst {
-                Inst::Not => {
-                    self.op_not()?;
-                }
-                Inst::Neg => {
-                    self.op_neg()?;
-                }
-                Inst::Closure { hash, count } => {
-                    self.op_closure(hash, count)?;
-                }
-                Inst::Call { hash, args } => {
-                    self.op_call(hash, args)?;
-                }
-                Inst::CallInstance { hash, args } => {
-                    self.op_call_instance(hash, args)?;
-                }
-                Inst::CallFn { args } => {
-                    if let Some(reason) = self.op_call_fn(args)? {
-                        return Ok(reason);
-                    }
-                }
-                Inst::LoadInstanceFn { hash } => {
-                    self.op_load_instance_fn(hash)?;
-                }
-                Inst::IndexGet => {
-                    self.op_index_get()?;
-                }
-                Inst::TupleIndexGet { index } => {
-                    self.op_tuple_index_get(index)?;
-                }
-                Inst::TupleIndexSet { index } => {
-                    self.op_tuple_index_set(index)?;
-                }
-                Inst::TupleIndexGetAt { offset, index } => {
-                    self.op_tuple_index_get_at(offset, index)?;
-                }
-                Inst::ObjectIndexGet { slot } => {
-                    self.op_object_index_get(slot)?;
-                }
-                Inst::ObjectIndexSet { slot } => {
-                    self.op_object_index_set(slot)?;
-                }
-                Inst::ObjectIndexGetAt { offset, slot } => {
-                    self.op_object_index_get_at(offset, slot)?;
-                }
-                Inst::IndexSet => {
-                    self.op_index_set()?;
-                }
-                Inst::Return => {
-                    if self.op_return()? {
-                        self.advance();
-                        return Ok(VmHalt::Exited);
-                    }
-                }
-                Inst::ReturnUnit => {
-                    if self.op_return_unit()? {
-                        self.advance();
-                        return Ok(VmHalt::Exited);
-                    }
-                }
-                Inst::Await => {
-                    let future = self.op_await()?;
-                    // NB: the future itself will advance the virtual machine.
-                    return Ok(VmHalt::Awaited(Awaited::Future(future)));
-                }
-                Inst::Select { len } => {
-                    if let Some(select) = self.op_select(len)? {
-                        // NB: the future itself will advance the virtual machine.
-                        return Ok(VmHalt::Awaited(Awaited::Select(select)));
-                    }
-                }
-                Inst::LoadFn { hash } => {
-                    self.op_load_fn(hash)?;
-                }
-                Inst::Push { value } => {
-                    self.stack.push(value.into_value());
-                }
-                Inst::Pop => {
-                    self.stack.pop()?;
-                }
-                Inst::PopN { count } => {
-                    self.op_popn(count)?;
-                }
-                Inst::PopAndJumpIfNot { count, offset } => {
-                    self.op_pop_and_jump_if_not(count, offset)?;
-                }
-                Inst::Clean { count } => {
-                    self.op_clean(count)?;
-                }
-                Inst::Copy { offset } => {
-                    self.op_copy(offset)?;
-                }
-                Inst::Move { offset } => {
-                    self.op_move(offset)?;
-                }
-                Inst::Drop { offset } => {
-                    self.op_drop(offset)?;
-                }
-                Inst::Dup => {
-                    self.op_dup()?;
-                }
-                Inst::Replace { offset } => {
-                    self.op_replace(offset)?;
-                }
-                Inst::Jump { offset } => {
-                    self.op_jump(offset)?;
-                }
-                Inst::JumpIf { offset } => {
-                    self.op_jump_if(offset)?;
-                }
-                Inst::JumpIfNot { offset } => {
-                    self.op_jump_if_not(offset)?;
-                }
-                Inst::JumpIfOrPop { offset } => {
-                    self.op_jump_if_or_pop(offset)?;
-                }
-                Inst::JumpIfNotOrPop { offset } => {
-                    self.op_jump_if_not_or_pop(offset)?;
-                }
-                Inst::JumpIfBranch { branch, offset } => {
-                    self.op_jump_if_branch(branch, offset)?;
-                }
-                Inst::Vec { count } => {
-                    self.op_vec(count)?;
-                }
-                Inst::Tuple { count } => {
-                    self.op_tuple(count)?;
-                }
-                Inst::PushTuple => {
-                    self.op_push_tuple()?;
-                }
-                Inst::Object { slot } => {
-                    self.op_object(slot)?;
-                }
-                Inst::Range { limits } => {
-                    self.op_range(limits)?;
-                }
-                Inst::UnitStruct { hash } => {
-                    self.op_empty_struct(hash)?;
-                }
-                Inst::Struct { hash, slot } => {
-                    self.op_struct(hash, slot)?;
-                }
-                Inst::UnitVariant { hash } => {
-                    self.op_empty_variant(hash)?;
-                }
-                Inst::StructVariant { hash, slot } => {
-                    self.op_object_variant(hash, slot)?;
-                }
-                Inst::String { slot } => {
-                    self.op_string(slot)?;
-                }
-                Inst::Bytes { slot } => {
-                    self.op_bytes(slot)?;
-                }
-                Inst::StringConcat { len, size_hint } => {
-                    self.op_string_concat(len, size_hint)?;
-                }
-                Inst::Format { spec } => {
-                    self.op_format(spec)?;
-                }
-                Inst::IsUnit => {
-                    self.op_is_unit()?;
-                }
-                Inst::IsValue => {
-                    self.op_is_value()?;
-                }
-                Inst::Unwrap => {
-                    self.op_unwrap()?;
-                }
-                Inst::EqByte { byte } => {
-                    self.op_eq_byte(byte)?;
-                }
-                Inst::EqCharacter { character } => {
-                    self.op_eq_character(character)?;
-                }
-                Inst::EqInteger { integer } => {
-                    self.op_eq_integer(integer)?;
-                }
-                Inst::EqBool { boolean } => {
-                    self.op_eq_bool(boolean)?;
-                }
-                Inst::EqStaticString { slot } => {
-                    self.op_eq_static_string(slot)?;
-                }
-                Inst::MatchSequence {
-                    type_check,
-                    len,
-                    exact,
-                } => {
-                    self.op_match_sequence(type_check, len, exact)?;
-                }
-                Inst::MatchObject {
-                    type_check,
-                    slot,
-                    exact,
-                } => {
-                    self.op_match_object(type_check, slot, exact)?;
-                }
-                Inst::Yield => {
-                    self.advance();
-                    return Ok(VmHalt::Yielded);
-                }
-                Inst::YieldUnit => {
-                    self.advance();
-                    self.stack.push(Value::Unit);
-                    return Ok(VmHalt::Yielded);
-                }
-                Inst::Variant { variant } => {
-                    self.op_variant(variant)?;
-                }
-                Inst::Op { op } => {
-                    self.op_op(op)?;
-                }
-                Inst::Assign { target, op } => {
-                    self.op_assign(target, op)?;
-                }
-                Inst::Panic { reason } => {
-                    return Err(VmError::from(VmErrorKind::Panic {
-                        reason: Panic::from(reason),
-                    }));
-                }
-            }
-
-            self.advance();
-        }
     }
 
     fn internal_num_assign(
@@ -2879,6 +1358,1662 @@ impl Vm {
         }
 
         Ok(())
+    }
+
+    op! {
+        fn op_await(&mut self) -> Result<Shared<Future>, VmError> {
+            let value = self.stack.pop()?;
+
+            match self.try_into_future(value)? {
+                Ok(future) => Ok(future),
+                Err(value) => Err(VmError::from(VmErrorKind::UnsupportedAwait {
+                    actual: value.type_info()?,
+                })),
+            }
+        }
+    }
+
+    op! {
+        fn op_select(&mut self, len: usize) -> Result<Option<Select>, VmError> {
+            let futures = futures_util::stream::FuturesUnordered::new();
+
+            let arguments = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
+
+            for (branch, value) in arguments.into_iter().enumerate() {
+                let future = match self.try_into_future(value)? {
+                    Ok(future) => future.into_mut()?,
+                    Err(value) => {
+                        return Err(VmError::from(VmErrorKind::UnsupportedAwait {
+                            actual: value.type_info()?,
+                        }));
+                    }
+                };
+
+                if !future.is_completed() {
+                    futures.push(SelectFuture::new(branch, future));
+                }
+            }
+
+            // NB: nothing to poll.
+            if futures.is_empty() {
+                self.stack.push(());
+                return Ok(None);
+            }
+
+            Ok(Some(Select::new(futures)))
+        }
+    }
+
+    op! {
+        /// Pop a number of values from the stack.
+        fn op_popn(&mut self, n: usize) -> Result<(), VmError> {
+            self.stack.popn(n)?;
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_push(&mut self, value: InstValue) -> Result<(), VmError> {
+            self.stack.push(value.into_value());
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_pop(&mut self) -> Result<(), VmError> {
+            self.stack.pop()?;
+            Ok(())
+        }
+    }
+
+    op! {
+        /// pop-and-jump-if-not instruction.
+        fn op_pop_and_jump_if_not(&mut self, count: usize, offset: isize) -> Result<(), VmError> {
+            if self.stack.pop()?.into_bool()? {
+                return Ok(());
+            }
+
+            self.stack.popn(count)?;
+            self.modify_ip(offset)?;
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Pop a number of values from the stack, while preserving the top of the
+        /// stack.
+        fn op_clean(&mut self, n: usize) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+            self.op_popn(n)?;
+            self.stack.push(value);
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Copy a value from a position relative to the top of the stack, to the
+        /// top of the stack.
+        fn op_copy(&mut self, offset: usize) -> Result<(), VmError> {
+            let value = self.stack.at_offset(offset)?.clone();
+            self.stack.push(value);
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Move a value from a position relative to the top of the stack, to the
+        /// top of the stack.
+        fn op_move(&mut self, offset: usize) -> Result<(), VmError> {
+            let value = self.stack.at_offset(offset)?.clone();
+            self.stack.push(value.take()?);
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_drop(&mut self, offset: usize) -> Result<(), VmError> {
+            let _ = self.stack.at_offset(offset)?;
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Duplicate the value at the top of the stack.
+        fn op_dup(&mut self) -> Result<(), VmError> {
+            let value = self.stack.last()?.clone();
+            self.stack.push(value);
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Copy a value from a position relative to the top of the stack, to the
+        /// top of the stack.
+        fn op_replace(&mut self, offset: usize) -> Result<(), VmError> {
+            let mut value = self.stack.pop()?;
+            let stack_value = self.stack.at_offset_mut(offset)?;
+            mem::swap(stack_value, &mut value);
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform a jump operation.
+        fn op_jump(&mut self, offset: isize) -> Result<(), VmError> {
+            self.modify_ip(offset)?;
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform a conditional jump operation.
+        fn op_jump_if(&mut self, offset: isize) -> Result<(), VmError> {
+            if self.stack.pop()?.into_bool()? {
+                self.modify_ip(offset)?;
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform a conditional jump operation.
+        fn op_jump_if_not(&mut self, offset: isize) -> Result<(), VmError> {
+            if !self.stack.pop()?.into_bool()? {
+                self.modify_ip(offset)?;
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform a conditional jump operation. Pops the stack if the jump is
+        /// not performed.
+        fn op_jump_if_or_pop(&mut self, offset: isize) -> Result<(), VmError> {
+            if self.stack.last()?.as_bool()? {
+                self.modify_ip(offset)?;
+            } else {
+                self.stack.pop()?;
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform a conditional jump operation. Pops the stack if the jump is
+        /// not performed.
+        fn op_jump_if_not_or_pop(&mut self, offset: isize) -> Result<(), VmError> {
+            if !self.stack.last()?.as_bool()? {
+                self.modify_ip(offset)?;
+            } else {
+                self.stack.pop()?;
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform a branch-conditional jump operation.
+        fn op_jump_if_branch(&mut self, branch: i64, offset: isize) -> Result<(), VmError> {
+            if let Some(Value::Integer(current)) = self.stack.peek() {
+                if *current == branch {
+                    self.modify_ip(offset)?;
+                    self.stack.pop()?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Construct a new vec.
+        fn op_vec(&mut self, count: usize) -> Result<(), VmError> {
+            let vec = Vec::from(self.stack.pop_sequence(count)?);
+            self.stack.push(Shared::new(vec));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Construct a new tuple.
+        fn op_tuple(&mut self, count: usize) -> Result<(), VmError> {
+            let tuple = self.stack.pop_sequence(count)?;
+            self.stack.push(Tuple::from(tuple));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Push the tuple that is on top of the stack.
+        fn op_push_tuple(&mut self) -> Result<(), VmError> {
+            let tuple = self.stack.pop()?.into_tuple()?;
+            self.stack.extend(tuple.borrow_ref()?.iter().cloned());
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_not(&mut self) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            let value = match value {
+                Value::Bool(value) => Value::from(!value),
+                Value::Integer(value) => Value::from(!value),
+                other => {
+                    let operand = other.type_info()?;
+                    return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
+                        op: "!",
+                        operand,
+                    }));
+                }
+            };
+
+            self.stack.push(value);
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_neg(&mut self) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            let value = match value {
+                Value::Float(value) => Value::from(-value),
+                Value::Integer(value) => Value::from(-value),
+                other => {
+                    let operand = other.type_info()?;
+                    return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
+                        op: "-",
+                        operand,
+                    }));
+                }
+            };
+
+            self.stack.push(value);
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_op(&mut self, op: InstOp) -> Result<(), VmError> {
+            use std::convert::TryFrom as _;
+
+            match op {
+                InstOp::Add => {
+                    self.internal_num(
+                        Protocol::ADD,
+                        || VmErrorKind::Overflow,
+                        i64::checked_add,
+                        std::ops::Add::add,
+                    )?;
+                }
+                InstOp::Sub => {
+                    self.internal_num(
+                        Protocol::SUB,
+                        || VmErrorKind::Underflow,
+                        i64::checked_sub,
+                        std::ops::Sub::sub,
+                    )?;
+                }
+                InstOp::Mul => {
+                    self.internal_num(
+                        Protocol::MUL,
+                        || VmErrorKind::Overflow,
+                        i64::checked_mul,
+                        std::ops::Mul::mul,
+                    )?;
+                }
+                InstOp::Div => {
+                    self.internal_num(
+                        Protocol::DIV,
+                        || VmErrorKind::DivideByZero,
+                        i64::checked_div,
+                        std::ops::Div::div,
+                    )?;
+                }
+                InstOp::Rem => {
+                    self.internal_num(
+                        Protocol::REM,
+                        || VmErrorKind::DivideByZero,
+                        i64::checked_rem,
+                        std::ops::Rem::rem,
+                    )?;
+                }
+                InstOp::BitAnd => {
+                    use std::ops::BitAnd as _;
+                    self.internal_infallible_bitwise_bool(
+                        Protocol::BIT_AND,
+                        i64::bitand,
+                        bool::bitand,
+                    )?;
+                }
+                InstOp::BitXor => {
+                    use std::ops::BitXor as _;
+                    self.internal_infallible_bitwise_bool(
+                        Protocol::BIT_XOR,
+                        i64::bitxor,
+                        bool::bitxor,
+                    )?;
+                }
+                InstOp::BitOr => {
+                    use std::ops::BitOr as _;
+                    self.internal_infallible_bitwise_bool(Protocol::BIT_OR, i64::bitor, bool::bitor)?;
+                }
+                InstOp::Shl => {
+                    self.internal_bitwise(
+                        Protocol::SHL,
+                        || VmErrorKind::Overflow,
+                        |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    )?;
+                }
+                InstOp::Shr => {
+                    self.internal_infallible_bitwise(Protocol::SHR, std::ops::Shr::shr)?;
+                }
+                InstOp::Gt => {
+                    self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">")?;
+                }
+                InstOp::Gte => {
+                    self.internal_boolean_ops(|a, b| a >= b, |a, b| a >= b, ">=")?;
+                }
+                InstOp::Lt => {
+                    self.internal_boolean_ops(|a, b| a < b, |a, b| a < b, "<")?;
+                }
+                InstOp::Lte => {
+                    self.internal_boolean_ops(|a, b| a <= b, |a, b| a <= b, "<=")?;
+                }
+                InstOp::Eq => {
+                    let b = self.stack.pop()?;
+                    let a = self.stack.pop()?;
+                    let test = Value::value_ptr_eq(&a, &b)?;
+                    self.stack.push(test);
+                }
+                InstOp::Neq => {
+                    let b = self.stack.pop()?;
+                    let a = self.stack.pop()?;
+                    let test = Value::value_ptr_eq(&a, &b)?;
+                    self.stack.push(!test);
+                }
+                InstOp::And => {
+                    self.internal_boolean_op(|a, b| a && b, "&&")?;
+                }
+                InstOp::Or => {
+                    self.internal_boolean_op(|a, b| a || b, "||")?;
+                }
+                InstOp::Is => {
+                    let is_instance = self.is_instance()?;
+                    self.stack.push(is_instance);
+                }
+                InstOp::IsNot => {
+                    let is_instance = self.is_instance()?;
+                    self.stack.push(!is_instance);
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_assign(&mut self, target: InstTarget, op: InstAssignOp) -> Result<(), VmError> {
+            use std::convert::TryFrom as _;
+
+            match op {
+                InstAssignOp::Add => {
+                    self.internal_num_assign(
+                        target,
+                        Protocol::ADD_ASSIGN,
+                        || VmErrorKind::Overflow,
+                        i64::checked_add,
+                        std::ops::Add::add,
+                    )?;
+                }
+                InstAssignOp::Sub => {
+                    self.internal_num_assign(
+                        target,
+                        Protocol::SUB_ASSIGN,
+                        || VmErrorKind::Underflow,
+                        i64::checked_sub,
+                        std::ops::Sub::sub,
+                    )?;
+                }
+                InstAssignOp::Mul => {
+                    self.internal_num_assign(
+                        target,
+                        Protocol::MUL_ASSIGN,
+                        || VmErrorKind::Overflow,
+                        i64::checked_mul,
+                        std::ops::Mul::mul,
+                    )?;
+                }
+                InstAssignOp::Div => {
+                    self.internal_num_assign(
+                        target,
+                        Protocol::DIV_ASSIGN,
+                        || VmErrorKind::DivideByZero,
+                        i64::checked_div,
+                        std::ops::Div::div,
+                    )?;
+                }
+                InstAssignOp::Rem => {
+                    self.internal_num_assign(
+                        target,
+                        Protocol::REM_ASSIGN,
+                        || VmErrorKind::DivideByZero,
+                        i64::checked_rem,
+                        std::ops::Rem::rem,
+                    )?;
+                }
+                InstAssignOp::BitAnd => {
+                    self.internal_infallible_bitwise_assign(
+                        target,
+                        Protocol::BIT_AND_ASSIGN,
+                        std::ops::BitAndAssign::bitand_assign,
+                    )?;
+                }
+                InstAssignOp::BitXor => {
+                    self.internal_infallible_bitwise_assign(
+                        target,
+                        Protocol::BIT_XOR_ASSIGN,
+                        std::ops::BitXorAssign::bitxor_assign,
+                    )?;
+                }
+                InstAssignOp::BitOr => {
+                    self.internal_infallible_bitwise_assign(
+                        target,
+                        Protocol::BIT_OR_ASSIGN,
+                        std::ops::BitOrAssign::bitor_assign,
+                    )?;
+                }
+                InstAssignOp::Shl => {
+                    self.internal_bitwise_assign(
+                        target,
+                        Protocol::SHL_ASSIGN,
+                        || VmErrorKind::Overflow,
+                        |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    )?;
+                }
+                InstAssignOp::Shr => {
+                    self.internal_infallible_bitwise_assign(
+                        target,
+                        Protocol::SHR_ASSIGN,
+                        std::ops::ShrAssign::shr_assign,
+                    )?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform an index set operation.
+        fn op_index_set(&mut self) -> Result<(), VmError> {
+            let index = self.stack.pop()?;
+            let target = self.stack.pop()?;
+            let value = self.stack.pop()?;
+
+            // This is a useful pattern.
+            #[allow(clippy::never_loop)]
+            loop {
+                // NB: local storage for string.
+                let local_field;
+
+                let field = match &index {
+                    Value::String(string) => {
+                        local_field = string.borrow_ref()?;
+                        local_field.as_str()
+                    }
+                    Value::StaticString(string) => string.as_ref(),
+                    _ => break,
+                };
+
+                match &target {
+                    Value::Object(object) => {
+                        let mut object = object.borrow_mut()?;
+                        object.insert(field.to_owned(), value);
+                        return Ok(());
+                    }
+                    Value::Struct(typed_object) => {
+                        let mut typed_object = typed_object.borrow_mut()?;
+
+                        if let Some(v) = typed_object.get_mut(field) {
+                            *v = value;
+                            return Ok(());
+                        }
+
+                        return Err(VmError::from(VmErrorKind::MissingField {
+                            field: field.to_owned(),
+                            target: typed_object.type_info(),
+                        }));
+                    }
+                    Value::StructVariant(variant_object) => {
+                        let mut variant_object = variant_object.borrow_mut()?;
+
+                        if let Some(v) = variant_object.get_mut(field) {
+                            *v = value;
+                            return Ok(());
+                        }
+
+                        return Err(VmError::from(VmErrorKind::MissingField {
+                            field: field.to_owned(),
+                            target: variant_object.type_info(),
+                        }));
+                    }
+                    _ => {
+                        break;
+                    }
+                }
+            }
+
+            if !self.call_instance_fn(&target, Protocol::INDEX_SET, (&index, &value))? {
+                return Err(VmError::from(VmErrorKind::UnsupportedIndexSet {
+                    target: target.type_info()?,
+                    index: index.type_info()?,
+                    value: value.type_info()?,
+                }));
+            }
+
+            // Calling index set should not produce a value on the stack, but all
+            // handler functions to produce a value. So pop it here.
+            self.stack.pop()?;
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_return(&mut self) -> Result<bool, VmError> {
+            let return_value = self.stack.pop()?;
+            let exit = self.pop_call_frame()?;
+            self.stack.push(return_value);
+            Ok(exit)
+        }
+    }
+
+    op! {
+        fn op_return_unit(&mut self) -> Result<bool, VmError> {
+            let exit = self.pop_call_frame()?;
+            self.stack.push(());
+            Ok(exit)
+        }
+    }
+
+    op! {
+        fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmError> {
+            let instance = self.stack.pop()?;
+            let ty = instance.type_hash()?;
+            let hash = Hash::instance_function(ty, hash);
+            self.stack.push(Value::Type(hash));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform an index get operation.
+        fn op_index_get(&mut self) -> Result<(), VmError> {
+            let index = self.stack.pop()?;
+            let target = self.stack.pop()?;
+
+            // This is a useful pattern.
+            #[allow(clippy::never_loop)]
+            loop {
+                match &index {
+                    Value::String(string) => {
+                        let string_ref = string.borrow_ref()?;
+
+                        if self.try_object_like_index_get(&target, string_ref.as_str())? {
+                            return Ok(());
+                        }
+                    }
+                    Value::StaticString(string) => {
+                        if self.try_object_like_index_get(&target, string.as_ref())? {
+                            return Ok(());
+                        }
+                    }
+                    Value::Integer(index) => {
+                        use std::convert::TryInto as _;
+
+                        let index = match (*index).try_into() {
+                            Ok(index) => index,
+                            Err(..) => {
+                                return Err(VmError::from(VmErrorKind::MissingIndex {
+                                    target: target.type_info()?,
+                                    index: VmIntegerRepr::from(*index),
+                                }));
+                            }
+                        };
+
+                        if let Some(value) = Self::try_tuple_like_index_get(&target, index)? {
+                            self.stack.push(value);
+                            return Ok(());
+                        }
+                    }
+                    _ => break,
+                };
+            }
+
+            if !self.call_instance_fn(&target, Protocol::INDEX_GET, (&index,))? {
+                return Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
+                    target: target.type_info()?,
+                    index: index.type_info()?,
+                }));
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform an index get operation specialized for tuples.
+        fn op_tuple_index_get(&mut self, index: usize) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            if let Some(value) = Self::try_tuple_like_index_get(&value, index)? {
+                self.stack.push(value);
+                return Ok(());
+            }
+
+            Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
+                target: value.type_info()?,
+            }))
+        }
+    }
+
+    op! {
+        /// Perform an index get operation specialized for tuples.
+        fn op_tuple_index_set(&mut self, index: usize) -> Result<(), VmError> {
+            let tuple = self.stack.pop()?;
+            let value = self.stack.pop()?;
+
+            if Self::try_tuple_like_index_set(&tuple, index, value)? {
+                return Ok(());
+            }
+
+            Err(VmError::from(VmErrorKind::UnsupportedTupleIndexSet {
+                target: tuple.type_info()?,
+            }))
+        }
+    }
+
+    op! {
+        /// Perform an index get operation specialized for tuples.
+        fn op_tuple_index_get_at(&mut self, offset: usize, index: usize) -> Result<(), VmError> {
+            let value = self.stack.at_offset(offset)?;
+
+            if let Some(value) = Self::try_tuple_like_index_get(value, index)? {
+                self.stack.push(value);
+                return Ok(());
+            }
+
+            Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
+                target: value.type_info()?,
+            }))
+        }
+    }
+
+    op! {
+        fn op_eq_bool(&mut self, boolean: bool) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            self.stack.push(match value {
+                Value::Bool(actual) => actual == boolean,
+                _ => false,
+            });
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Perform a specialized index get operation on an object.
+        fn op_object_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
+            let target = self.stack.pop()?;
+
+            if let Some(value) = self.try_object_slot_index_get(&target, string_slot)? {
+                self.stack.push(value);
+                return Ok(());
+            }
+
+            let target = target.type_info()?;
+            Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
+                target,
+            }))
+        }
+    }
+
+    op! {
+        /// Perform a specialized index set operation on an object.
+        fn op_object_index_set(&mut self, string_slot: usize) -> Result<(), VmError> {
+            let target = self.stack.pop()?;
+            let value = self.stack.pop()?;
+
+            if let Some(()) = self.try_object_slot_index_set(&target, string_slot, value)? {
+                return Ok(());
+            }
+
+            let target = target.type_info()?;
+            Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexSet {
+                target,
+            }))
+        }
+    }
+
+    op! {
+        /// Perform a specialized index get operation on an object.
+        fn op_object_index_get_at(&mut self, offset: usize, string_slot: usize) -> Result<(), VmError> {
+            let target = self.stack.at_offset(offset)?.clone();
+
+            if let Some(value) = self.try_object_slot_index_get(&target, string_slot)? {
+                self.stack.push(value);
+                return Ok(());
+            }
+
+            let target = target.type_info()?;
+            Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
+                target,
+            }))
+        }
+    }
+
+    op! {
+        /// Operation to allocate an object.
+        fn op_object(&mut self, slot: usize) -> Result<(), VmError> {
+            let keys = self
+                .unit
+                .lookup_object_keys(slot)
+                .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
+
+            let mut object = Object::with_capacity(keys.len());
+            let values = self.stack.drain_stack_top(keys.len())?;
+
+            for (key, value) in keys.iter().zip(values) {
+                object.insert(key.clone(), value);
+            }
+
+            self.stack.push(Shared::new(object));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Operation to allocate an object.
+        fn op_range(&mut self, limits: InstRangeLimits) -> Result<(), VmError> {
+            let end = Option::<Value>::from_value(self.stack.pop()?)?;
+            let start = Option::<Value>::from_value(self.stack.pop()?)?;
+
+            let limits = match limits {
+                InstRangeLimits::HalfOpen => RangeLimits::HalfOpen,
+                InstRangeLimits::Closed => RangeLimits::Closed,
+            };
+
+            let range = Range::new(start, end, limits);
+            self.stack.push(Shared::new(range));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Operation to allocate an empty struct.
+        fn op_empty_struct(&mut self, hash: Hash) -> Result<(), VmError> {
+            let rtti = self
+                .unit
+                .lookup_rtti(hash)
+                .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+            self.stack.push(UnitStruct { rtti: rtti.clone() });
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Operation to allocate an object struct.
+        fn op_struct(&mut self, hash: Hash, slot: usize) -> Result<(), VmError> {
+            let keys = self
+                .unit
+                .lookup_object_keys(slot)
+                .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
+
+            let rtti = self
+                .unit
+                .lookup_rtti(hash)
+                .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+            let values = self.stack.drain_stack_top(keys.len())?;
+            let mut data = Object::with_capacity(keys.len());
+
+            for (key, value) in keys.iter().zip(values) {
+                data.insert(key.clone(), value);
+            }
+
+            self.stack.push(Struct {
+                rtti: rtti.clone(),
+                data,
+            });
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Operation to allocate an object.
+        fn op_empty_variant(&mut self, hash: Hash) -> Result<(), VmError> {
+            let rtti = self
+                .unit
+                .lookup_variant_rtti(hash)
+                .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+            self.stack.push(UnitVariant { rtti: rtti.clone() });
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Operation to allocate an object variant.
+        fn op_object_variant(&mut self, hash: Hash, slot: usize) -> Result<(), VmError> {
+            let keys = self
+                .unit
+                .lookup_object_keys(slot)
+                .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
+
+            let rtti = self
+                .unit
+                .lookup_variant_rtti(hash)
+                .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+            let mut data = Object::with_capacity(keys.len());
+            let values = self.stack.drain_stack_top(keys.len())?;
+
+            for (key, value) in keys.iter().zip(values) {
+                data.insert(key.clone(), value);
+            }
+
+            self.stack.push(StructVariant {
+                rtti: rtti.clone(),
+                data,
+            });
+
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_string(&mut self, slot: usize) -> Result<(), VmError> {
+            let string = self.unit.lookup_string(slot)?;
+            self.stack.push(string.clone());
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_bytes(&mut self, slot: usize) -> Result<(), VmError> {
+            let bytes = self.unit.lookup_bytes(slot)?.to_owned();
+            self.stack.push(Bytes::from_vec(bytes));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Optimize operation to perform string concatenation.
+        fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
+            let values = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
+
+            let mut out = String::with_capacity(size_hint);
+            let mut buf = String::new();
+
+            for value in values {
+                match value {
+                    Value::Format(format) => {
+                        format.spec.format(&format.value, &mut out, &mut buf)?;
+                    }
+                    Value::Char(c) => {
+                        out.push(c);
+                    }
+                    Value::String(string) => {
+                        out.push_str(&*string.borrow_ref()?);
+                    }
+                    Value::StaticString(string) => {
+                        out.push_str(string.as_ref());
+                    }
+                    Value::Integer(integer) => {
+                        let mut buffer = itoa::Buffer::new();
+                        out.push_str(buffer.format(integer));
+                    }
+                    Value::Float(float) => {
+                        let mut buffer = ryu::Buffer::new();
+                        out.push_str(buffer.format(float));
+                    }
+                    actual => {
+                        let b = Shared::new(std::mem::take(&mut out));
+
+                        if !self.call_instance_fn(
+                            &actual,
+                            Protocol::STRING_DISPLAY,
+                            (Value::String(b.clone()),),
+                        )? {
+                            return Err(VmError::from(VmErrorKind::MissingProtocol {
+                                protocol: Protocol::STRING_DISPLAY,
+                                actual: actual.type_info()?,
+                            }));
+                        }
+
+                        let value = fmt::Result::from_value(self.stack.pop()?)?;
+
+                        if let Err(fmt::Error) = value {
+                            return Err(VmError::from(VmErrorKind::FormatError));
+                        }
+
+                        out = b.take()?;
+                    }
+                }
+            }
+
+            self.stack.push(out);
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Push a format specification onto the stack.
+        fn op_format(&mut self, spec: FormatSpec) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            self.stack.push(Format { value, spec });
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_unwrap(&mut self) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            let value = match value {
+                Value::Option(option) => match option.take()? {
+                    Some(value) => value,
+                    None => {
+                        return Err(VmError::from(VmErrorKind::UnsupportedUnwrapNone));
+                    }
+                },
+                Value::Result(result) => match result.take()? {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(VmError::from(VmErrorKind::UnsupportedUnwrapErr {
+                            err: err.type_info()?,
+                        }));
+                    }
+                },
+                other => {
+                    return Err(VmError::from(VmErrorKind::UnsupportedUnwrap {
+                        actual: other.type_info()?,
+                    }));
+                }
+            };
+
+            self.stack.push(value);
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_is_unit(&mut self) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+            self.stack.push(matches!(value, Value::Unit));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Test if the top of the stack is an error.
+        fn op_is_value(&mut self) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            let is_value = match value {
+                Value::Result(result) => result.borrow_ref()?.is_ok(),
+                Value::Option(option) => option.borrow_ref()?.is_some(),
+                other => {
+                    return Err(VmError::from(VmErrorKind::UnsupportedIsValueOperand {
+                        actual: other.type_info()?,
+                    }))
+                }
+            };
+
+            self.stack.push(is_value);
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_eq_byte(&mut self, byte: u8) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            self.stack.push(match value {
+                Value::Byte(actual) => actual == byte,
+                _ => false,
+            });
+
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_eq_character(&mut self, character: char) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            self.stack.push(match value {
+                Value::Char(actual) => actual == character,
+                _ => false,
+            });
+
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_eq_integer(&mut self, integer: i64) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            self.stack.push(match value {
+                Value::Integer(actual) => actual == integer,
+                _ => false,
+            });
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Test if the top of stack is equal to the string at the given static
+        /// string location.
+        fn op_eq_static_string(&mut self, slot: usize) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            let equal = match value {
+                Value::String(actual) => {
+                    let string = self.unit.lookup_string(slot)?;
+                    let actual = actual.borrow_ref()?;
+                    *actual == ***string
+                }
+                Value::StaticString(actual) => {
+                    let string = self.unit.lookup_string(slot)?;
+                    **actual == ***string
+                }
+                _ => false,
+            };
+
+            self.stack.push(Value::Bool(equal));
+
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_match_sequence(&mut self, ty: TypeCheck, len: usize, exact: bool) -> Result<(), VmError> {
+            let value = self.stack.pop()?;
+
+            let result = self.on_tuple(ty, &value, move |tuple| {
+                if exact {
+                    tuple.len() == len
+                } else {
+                    tuple.len() >= len
+                }
+            })?;
+
+            self.stack.push(Value::Bool(result.unwrap_or_default()));
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_match_object(
+            &mut self,
+            type_check: TypeCheck,
+            slot: usize,
+            exact: bool,
+        ) -> Result<(), VmError> {
+            let result = self.on_object_keys(type_check, slot, |object, keys| {
+                if exact {
+                    if object.len() != keys.len() {
+                        return false;
+                    }
+                } else if object.len() < keys.len() {
+                    return false;
+                }
+
+                let mut is_match = true;
+
+                for key in keys {
+                    if !object.contains_key(key) {
+                        is_match = false;
+                        break;
+                    }
+                }
+
+                is_match
+            })?;
+
+            self.stack.push(Value::Bool(result.unwrap_or_default()));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Push the given variant onto the stack.
+        fn op_variant(&mut self, variant: InstVariant) -> Result<(), VmError> {
+            match variant {
+                InstVariant::Some => {
+                    let some = self.stack.pop()?;
+                    self.stack.push(Value::Option(Shared::new(Some(some))));
+                }
+                InstVariant::None => {
+                    self.stack.push(Value::Option(Shared::new(None)));
+                }
+                InstVariant::Ok => {
+                    let some = self.stack.pop()?;
+                    self.stack.push(Value::Result(Shared::new(Ok(some))));
+                }
+                InstVariant::Err => {
+                    let some = self.stack.pop()?;
+                    self.stack.push(Value::Result(Shared::new(Err(some))));
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Load a function as a value onto the stack.
+        fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
+            let function = match self.unit.lookup(hash) {
+                Some(info) => match info {
+                    UnitFn::Offset { offset, call, args } => Function::from_offset(
+                        self.context.clone(),
+                        self.unit.clone(),
+                        offset,
+                        call,
+                        args,
+                        hash,
+                    ),
+                    UnitFn::UnitStruct { hash } => {
+                        let rtti = self
+                            .unit
+                            .lookup_rtti(hash)
+                            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+                        Function::from_unit_struct(rtti.clone())
+                    }
+                    UnitFn::TupleStruct { hash, args } => {
+                        let rtti = self
+                            .unit
+                            .lookup_rtti(hash)
+                            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+                        Function::from_tuple_struct(rtti.clone(), args)
+                    }
+                    UnitFn::UnitVariant { hash } => {
+                        let rtti = self
+                            .unit
+                            .lookup_variant_rtti(hash)
+                            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+                        Function::from_empty_variant(rtti.clone())
+                    }
+                    UnitFn::TupleVariant { hash, args } => {
+                        let rtti = self
+                            .unit
+                            .lookup_variant_rtti(hash)
+                            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+                        Function::from_tuple_variant(rtti.clone(), args)
+                    }
+                },
+                None => {
+                    let handler = self
+                        .context
+                        .lookup(hash)
+                        .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
+
+                    Function::from_handler(handler.clone(), hash)
+                }
+            };
+
+            self.stack.push(Value::Function(Shared::new(function)));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Construct a closure on the top of the stack.
+        fn op_closure(&mut self, hash: Hash, count: usize) -> Result<(), VmError> {
+            let info = self
+                .unit
+                .lookup(hash)
+                .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
+
+            let (offset, call, args) = match info {
+                UnitFn::Offset { offset, call, args } => (offset, call, args),
+                _ => return Err(VmError::from(VmErrorKind::MissingFunction { hash })),
+            };
+
+            let environment = self.stack.pop_sequence(count)?.into_boxed_slice();
+
+            let function = Function::from_closure(
+                self.context.clone(),
+                self.unit.clone(),
+                offset,
+                call,
+                args,
+                environment,
+                hash,
+            );
+
+            self.stack.push(Value::Function(Shared::new(function)));
+            Ok(())
+        }
+    }
+
+    op! {
+        /// Implementation of a function call.
+        fn op_call(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
+            match self.unit.lookup(hash) {
+                Some(info) => match info {
+                    UnitFn::Offset {
+                        offset,
+                        call,
+                        args: expected,
+                    } => {
+                        Self::check_args(args, expected)?;
+                        self.call_offset_fn(offset, call, args)?;
+                    }
+                    UnitFn::UnitStruct { hash } => {
+                        Self::check_args(args, 0)?;
+
+                        let rtti = self
+                            .unit
+                            .lookup_rtti(hash)
+                            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+                        self.stack.push(Value::unit_struct(rtti.clone()));
+                    }
+                    UnitFn::TupleStruct {
+                        hash,
+                        args: expected,
+                    } => {
+                        Self::check_args(args, expected)?;
+                        let tuple = self.stack.pop_sequence(args)?;
+
+                        let rtti = self
+                            .unit
+                            .lookup_rtti(hash)
+                            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+                        self.stack.push(Value::tuple_struct(rtti.clone(), tuple));
+                    }
+                    UnitFn::TupleVariant {
+                        hash,
+                        args: expected,
+                    } => {
+                        Self::check_args(args, expected)?;
+
+                        let rtti = self
+                            .unit
+                            .lookup_variant_rtti(hash)
+                            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+                        let tuple = self.stack.pop_sequence(args)?;
+                        self.stack.push(Value::tuple_variant(rtti.clone(), tuple));
+                    }
+                    UnitFn::UnitVariant { hash } => {
+                        Self::check_args(args, 0)?;
+
+                        let rtti = self
+                            .unit
+                            .lookup_variant_rtti(hash)
+                            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+                        self.stack.push(Value::empty_variant(rtti.clone()));
+                    }
+                },
+                None => {
+                    let handler = self
+                        .context
+                        .lookup(hash)
+                        .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
+
+                    let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
+                    handler(&mut self.stack, args)?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    op! {
+        fn op_call_instance(
+            &mut self,
+            inst_fn: impl InstFnNameHash,
+            args: usize,
+        ) -> Result<(), VmError> {
+            self.inner_op_call_instance(inst_fn.inst_fn_name_hash(), args)
+        }
+    }
+
+    #[inline(never)]
+    fn inner_op_call_instance(&mut self, inst_fn: Hash, args: usize) -> Result<(), VmError> {
+        // NB: +1 to include the instance itself.
+        let args = args + 1;
+        let instance = self.stack.at_offset_from_top(args)?;
+        let type_hash = instance.type_hash()?;
+        let hash = Hash::instance_function(type_hash, inst_fn);
+
+        match self.unit.lookup(hash) {
+            Some(info) => match info {
+                UnitFn::Offset {
+                    offset,
+                    call,
+                    args: expected,
+                } => {
+                    Self::check_args(args, expected)?;
+                    self.call_offset_fn(offset, call, args)?;
+                }
+                _ => {
+                    return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
+                        instance: instance.type_info()?,
+                        hash,
+                    }));
+                }
+            },
+            None => {
+                let handler = match self.context.lookup(hash) {
+                    Some(handler) => handler,
+                    None => {
+                        return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
+                            instance: instance.type_info()?,
+                            hash,
+                        }));
+                    }
+                };
+
+                let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
+                handler(&mut self.stack, args)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    op! {
+        fn op_call_fn(&mut self, args: usize) -> Result<Option<VmHalt>, VmError> {
+            let function = self.stack.pop()?;
+
+            let hash = match function {
+                Value::Type(hash) => hash,
+                Value::Function(function) => {
+                    let function = function.into_ref()?;
+                    return function.call_with_vm(self, args);
+                }
+                actual => {
+                    let actual_type = actual.type_info()?;
+                    return Err(VmError::from(VmErrorKind::UnsupportedCallFn {
+                        actual_type,
+                    }));
+                }
+            };
+
+            self.op_call(hash, args)?;
+            Ok(None)
+        }
+    }
+
+    /// Advance the instruction pointer.
+    #[inline(always)]
+    pub(crate) fn advance(&mut self) {
+        self.ip = self.ip.overflowing_add(1).0;
+    }
+
+    /// Evaluate a single instruction.
+    pub(crate) fn run(&mut self) -> Result<VmHalt, VmError> {
+        loop {
+            if !budget::take() {
+                return Ok(VmHalt::Limited);
+            }
+
+            let inst = *self
+                .unit
+                .instruction_at(self.ip)
+                .ok_or_else(|| VmErrorKind::IpOutOfBounds)?;
+
+            log::trace!("{}: {}", self.ip, inst);
+
+            match inst {
+                Inst::Not => {
+                    self.op_not()?;
+                }
+                Inst::Neg => {
+                    self.op_neg()?;
+                }
+                Inst::Closure { hash, count } => {
+                    self.op_closure(hash, count)?;
+                }
+                Inst::Call { hash, args } => {
+                    self.op_call(hash, args)?;
+                }
+                Inst::CallInstance { hash, args } => {
+                    self.op_call_instance(hash, args)?;
+                }
+                Inst::CallFn { args } => {
+                    if let Some(reason) = self.op_call_fn(args)? {
+                        return Ok(reason);
+                    }
+                }
+                Inst::LoadInstanceFn { hash } => {
+                    self.op_load_instance_fn(hash)?;
+                }
+                Inst::IndexGet => {
+                    self.op_index_get()?;
+                }
+                Inst::TupleIndexGet { index } => {
+                    self.op_tuple_index_get(index)?;
+                }
+                Inst::TupleIndexSet { index } => {
+                    self.op_tuple_index_set(index)?;
+                }
+                Inst::TupleIndexGetAt { offset, index } => {
+                    self.op_tuple_index_get_at(offset, index)?;
+                }
+                Inst::ObjectIndexGet { slot } => {
+                    self.op_object_index_get(slot)?;
+                }
+                Inst::ObjectIndexSet { slot } => {
+                    self.op_object_index_set(slot)?;
+                }
+                Inst::ObjectIndexGetAt { offset, slot } => {
+                    self.op_object_index_get_at(offset, slot)?;
+                }
+                Inst::IndexSet => {
+                    self.op_index_set()?;
+                }
+                Inst::Return => {
+                    if self.op_return()? {
+                        self.advance();
+                        return Ok(VmHalt::Exited);
+                    }
+                }
+                Inst::ReturnUnit => {
+                    if self.op_return_unit()? {
+                        self.advance();
+                        return Ok(VmHalt::Exited);
+                    }
+                }
+                Inst::Await => {
+                    let future = self.op_await()?;
+                    // NB: the future itself will advance the virtual machine.
+                    return Ok(VmHalt::Awaited(Awaited::Future(future)));
+                }
+                Inst::Select { len } => {
+                    if let Some(select) = self.op_select(len)? {
+                        // NB: the future itself will advance the virtual machine.
+                        return Ok(VmHalt::Awaited(Awaited::Select(select)));
+                    }
+                }
+                Inst::LoadFn { hash } => {
+                    self.op_load_fn(hash)?;
+                }
+                Inst::Push { value } => {
+                    self.op_push(value)?;
+                }
+                Inst::Pop => {
+                    self.op_pop()?;
+                }
+                Inst::PopN { count } => {
+                    self.op_popn(count)?;
+                }
+                Inst::PopAndJumpIfNot { count, offset } => {
+                    self.op_pop_and_jump_if_not(count, offset)?;
+                }
+                Inst::Clean { count } => {
+                    self.op_clean(count)?;
+                }
+                Inst::Copy { offset } => {
+                    self.op_copy(offset)?;
+                }
+                Inst::Move { offset } => {
+                    self.op_move(offset)?;
+                }
+                Inst::Drop { offset } => {
+                    self.op_drop(offset)?;
+                }
+                Inst::Dup => {
+                    self.op_dup()?;
+                }
+                Inst::Replace { offset } => {
+                    self.op_replace(offset)?;
+                }
+                Inst::Jump { offset } => {
+                    self.op_jump(offset)?;
+                }
+                Inst::JumpIf { offset } => {
+                    self.op_jump_if(offset)?;
+                }
+                Inst::JumpIfNot { offset } => {
+                    self.op_jump_if_not(offset)?;
+                }
+                Inst::JumpIfOrPop { offset } => {
+                    self.op_jump_if_or_pop(offset)?;
+                }
+                Inst::JumpIfNotOrPop { offset } => {
+                    self.op_jump_if_not_or_pop(offset)?;
+                }
+                Inst::JumpIfBranch { branch, offset } => {
+                    self.op_jump_if_branch(branch, offset)?;
+                }
+                Inst::Vec { count } => {
+                    self.op_vec(count)?;
+                }
+                Inst::Tuple { count } => {
+                    self.op_tuple(count)?;
+                }
+                Inst::PushTuple => {
+                    self.op_push_tuple()?;
+                }
+                Inst::Object { slot } => {
+                    self.op_object(slot)?;
+                }
+                Inst::Range { limits } => {
+                    self.op_range(limits)?;
+                }
+                Inst::UnitStruct { hash } => {
+                    self.op_empty_struct(hash)?;
+                }
+                Inst::Struct { hash, slot } => {
+                    self.op_struct(hash, slot)?;
+                }
+                Inst::UnitVariant { hash } => {
+                    self.op_empty_variant(hash)?;
+                }
+                Inst::StructVariant { hash, slot } => {
+                    self.op_object_variant(hash, slot)?;
+                }
+                Inst::String { slot } => {
+                    self.op_string(slot)?;
+                }
+                Inst::Bytes { slot } => {
+                    self.op_bytes(slot)?;
+                }
+                Inst::StringConcat { len, size_hint } => {
+                    self.op_string_concat(len, size_hint)?;
+                }
+                Inst::Format { spec } => {
+                    self.op_format(spec)?;
+                }
+                Inst::IsUnit => {
+                    self.op_is_unit()?;
+                }
+                Inst::IsValue => {
+                    self.op_is_value()?;
+                }
+                Inst::Unwrap => {
+                    self.op_unwrap()?;
+                }
+                Inst::EqByte { byte } => {
+                    self.op_eq_byte(byte)?;
+                }
+                Inst::EqCharacter { character } => {
+                    self.op_eq_character(character)?;
+                }
+                Inst::EqInteger { integer } => {
+                    self.op_eq_integer(integer)?;
+                }
+                Inst::EqBool { boolean } => {
+                    self.op_eq_bool(boolean)?;
+                }
+                Inst::EqStaticString { slot } => {
+                    self.op_eq_static_string(slot)?;
+                }
+                Inst::MatchSequence {
+                    type_check,
+                    len,
+                    exact,
+                } => {
+                    self.op_match_sequence(type_check, len, exact)?;
+                }
+                Inst::MatchObject {
+                    type_check,
+                    slot,
+                    exact,
+                } => {
+                    self.op_match_object(type_check, slot, exact)?;
+                }
+                Inst::Yield => {
+                    self.advance();
+                    return Ok(VmHalt::Yielded);
+                }
+                Inst::YieldUnit => {
+                    self.advance();
+                    self.stack.push(Value::Unit);
+                    return Ok(VmHalt::Yielded);
+                }
+                Inst::Variant { variant } => {
+                    self.op_variant(variant)?;
+                }
+                Inst::Op { op } => {
+                    self.op_op(op)?;
+                }
+                Inst::Assign { target, op } => {
+                    self.op_assign(target, op)?;
+                }
+                Inst::Panic { reason } => {
+                    return Err(VmError::from(VmErrorKind::Panic {
+                        reason: Panic::from(reason),
+                    }));
+                }
+            }
+
+            self.advance();
+        }
     }
 }
 

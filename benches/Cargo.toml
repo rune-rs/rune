@@ -7,5 +7,5 @@ edition = "2018"
 [dependencies]
 tokio = { version = "0.2.22", features = ["macros"] }
 
-runestick = { path = "../crates/runestick" }
+runestick = { path = "../crates/runestick", features = ["bench"] }
 rune-tests = { path = "../tests", default-features = false }
