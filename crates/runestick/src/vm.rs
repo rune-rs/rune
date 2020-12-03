@@ -523,12 +523,12 @@ impl Vm {
     }
 
     /// Implementation of getting a string index on an object-like type.
-    fn try_object_like_index_get(&mut self, target: &Value, field: &str) -> Result<bool, VmError> {
+    fn try_object_like_index_get(target: &Value, field: &str) -> Result<Option<Value>, VmError> {
         let value = match &target {
             Value::Object(target) => target.borrow_ref()?.get(field).cloned(),
             Value::Struct(target) => target.borrow_ref()?.get(field).cloned(),
             Value::StructVariant(target) => target.borrow_ref()?.get(field).cloned(),
-            _ => return Ok(false),
+            _ => return Ok(None),
         };
 
         let value = match value {
@@ -541,8 +541,7 @@ impl Vm {
             }
         };
 
-        self.stack.push(value);
-        Ok(true)
+        Ok(Some(value))
     }
 
     /// Implementation of getting a string index on an object-like type.
@@ -1969,7 +1968,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_index_get(&mut self, target: InstAddress, index: InstAddress) -> Result<(), VmError> {
         let index = self.stack.address(index)?;
-        let target = self.stack.address(target)?;
+        let target = self.stack.address_ref(target)?;
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
@@ -1978,12 +1977,17 @@ impl Vm {
                 Value::String(string) => {
                     let string_ref = string.borrow_ref()?;
 
-                    if self.try_object_like_index_get(&target, string_ref.as_str())? {
+                    if let Some(value) =
+                        Self::try_object_like_index_get(&target, string_ref.as_str())?
+                    {
+                        self.stack.push(value);
                         return Ok(());
                     }
                 }
                 Value::StaticString(string) => {
-                    if self.try_object_like_index_get(&target, string.as_ref())? {
+                    if let Some(value) = Self::try_object_like_index_get(&target, string.as_ref())?
+                    {
+                        self.stack.push(value);
                         return Ok(());
                     }
                 }
@@ -2008,6 +2012,8 @@ impl Vm {
                 _ => break,
             };
         }
+
+        let target = target.into_owned();
 
         if !self.call_instance_fn(&target, Protocol::INDEX_GET, (&index,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
