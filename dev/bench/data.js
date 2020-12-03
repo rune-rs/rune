@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1606997461881,
+  "lastUpdate": 1606999469859,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -107,6 +107,42 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 1056845,
             "range": "± 210067",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "44a86a0446188e40738e0d0e34d1087a55b731aa",
+          "message": "Improve runtime hashing performance",
+          "timestamp": "2020-12-03T13:41:05+01:00",
+          "tree_id": "44ac7e34c157ba3965867ba63c0948c7aa54822a",
+          "url": "https://github.com/rune-rs/rune/commit/44a86a0446188e40738e0d0e34d1087a55b731aa"
+        },
+        "date": 1606999469231,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 361338,
+            "range": "± 45567",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1050672,
+            "range": "± 137448",
             "unit": "ns/iter"
           }
         ]
