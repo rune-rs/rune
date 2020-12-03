@@ -17,6 +17,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("pop", Vec::pop)?;
 
     module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
+    module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
 
     // TODO: parameterize with generics.
     module.inst_fn("sort_int", sort_int)?;

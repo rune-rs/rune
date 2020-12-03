@@ -245,6 +245,11 @@ pub enum VmErrorKind {
         target: TypeInfo,
         index: VmIntegerRepr,
     },
+    #[error("index out of bounds: the len is ${len} but the index is {index}")]
+    OutOfRange {
+        index: VmIntegerRepr,
+        len: VmIntegerRepr,
+    },
     #[error("missing field `{field}` on `{target}`")]
     MissingField { target: TypeInfo, field: String },
     #[error("missing dynamic field for struct field `{target}::{name}`")]

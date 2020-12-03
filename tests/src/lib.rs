@@ -205,6 +205,31 @@ macro_rules! rune_vm {
     }};
 }
 
+/// Construct a rune virtual machine from the given program which will capture
+/// all output into a buffer, which can be retrieved from
+/// `runestick::modules::tests::drain_output()`
+///
+/// # Examples
+///
+/// ```rust
+/// use rune_tests::*;
+/// use runestick::Value;
+///
+/// # fn main() {
+/// let vm = rune_tests::rune_vm!(pub fn main() { true || false });
+/// let result = vm.execute(&["main"], ()).unwrap().complete().unwrap();
+/// assert_eq!(result.into_bool().unwrap(), true);
+/// # }
+#[macro_export]
+macro_rules! rune_vm_capture {
+    ($($tt:tt)*) => {{
+        let mut context = $crate::macros::rune_modules::with_config(false).expect("failed to build context");
+        context.install(&runestick::modules::tests::output_redirect_module()?)?;
+        let context = std::sync::Arc::new(context);
+        $crate::vm(&context, stringify!($($tt)*)).expect("program to compile successfully")
+    }};
+}
+
 /// Same as [rune_s!] macro, except it takes a Rust token tree. This works
 /// fairly well because Rust and Rune has very similar token trees.
 ///

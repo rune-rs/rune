@@ -72,6 +72,19 @@ impl Vec {
         self.inner.len()
     }
 
+    /// Set by index
+    pub fn set(&mut self, index: usize, value: Value) -> Result<(), VmError> {
+        if index >= self.len() {
+            Err(VmError::from(crate::VmErrorKind::OutOfRange {
+                index: index.into(),
+                len: self.len().into(),
+            }))
+        } else {
+            self.inner[index] = value;
+            Ok(())
+        }
+    }
+
     /// Appends an element to the back of a dynamic vector.
     pub fn push(&mut self, value: Value) {
         self.inner.push(value);
