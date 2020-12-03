@@ -45,7 +45,7 @@ $> cargo run --bin rune -- scripts/book/tuples/tuple_patterns.rn
 Tuples are represented externally as [primitive tuple types].
 
 ```rust,noplaypen
-{{#include ../../crates/rune/examples/tuple.rs}}
+{{#include ../../examples/tuple.rs}}
 ```
 
 ```text

@@ -1,0 +1,18 @@
+[package]
+name = "rune-examples"
+version = "0.0.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2018"
+
+[features]
+full = ["rune-modules/full"]
+default = ["full"]
+
+[dependencies]
+futures-executor = "0.3.5"
+tokio = {version = "0.2.22", features = ["macros"]}
+
+rune = {path = "../crates/rune"}
+rune-modules = {path = "../crates/rune-modules"}
+rune-tests = {path = "../tests"}
+runestick = {path = "../crates/runestick"}

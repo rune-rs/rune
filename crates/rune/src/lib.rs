@@ -106,7 +106,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
-//!     let context = rune_modules::default_context()?;
+//!     let context = runestick::Context::with_default_modules()?;
 //!     let options = rune::Options::default();
 //!
 //!     let mut sources = rune::Sources::new();
@@ -194,10 +194,7 @@ mod shared;
 mod spanned;
 mod worker;
 
-// NB: this has to be defined before the `tests` module, because it's used in
-// there.
-#[cfg(any(test, feature = "testing"))]
-#[macro_use]
+#[doc(hidden)]
 pub mod testing;
 
 /// Internal collection re-export.
