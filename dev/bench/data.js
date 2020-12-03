@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1606995585393,
+  "lastUpdate": 1606997461881,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -71,6 +71,42 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 1140928,
             "range": "± 173251",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "2b994527727d73e5934f3af08fcda8bda7611b22",
+          "message": "Make it easier to profile Vm",
+          "timestamp": "2020-12-03T13:07:55+01:00",
+          "tree_id": "fcb57eafa941c6a0bc53a394728b7332539573d2",
+          "url": "https://github.com/rune-rs/rune/commit/2b994527727d73e5934f3af08fcda8bda7611b22"
+        },
+        "date": 1606997458853,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 314425,
+            "range": "± 59748",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1056845,
+            "range": "± 210067",
             "unit": "ns/iter"
           }
         ]
