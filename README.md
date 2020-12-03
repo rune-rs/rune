@@ -108,7 +108,7 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let context = rune_modules::default_context()?;
+    let context = runestick::Context::with_default_modules()?;
     let options = rune::Options::default();
 
     let mut sources = rune::Sources::new();
