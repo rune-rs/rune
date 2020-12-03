@@ -40,45 +40,96 @@ mod lit_str;
 mod local;
 mod prelude;
 
-use runestick::{CompileMetaCapture, Span};
+use crate::compiling::{CompileResult, Compiler, Needs, Var};
+use runestick::{CompileMetaCapture, InstAddress, Span};
+
+#[derive(Debug)]
+#[must_use = "must be consumed to make sure the value is realized"]
+pub(crate) struct Asm {
+    span: Span,
+    kind: AsmKind,
+    decl_anon: bool,
+}
+
+impl Asm {
+    /// Construct an assembly result that leaves the value on the top of the
+    /// stack.
+    pub(crate) fn top(span: Span) -> Self {
+        Self {
+            span,
+            kind: AsmKind::Top,
+            decl_anon: false,
+        }
+    }
+
+    pub(crate) fn var(span: Span, var: Var, local: Box<str>) -> Self {
+        Self {
+            span,
+            kind: AsmKind::Var(var, local),
+            decl_anon: false,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum AsmKind {
+    // Result is pushed onto the top of the stack.
+    Top,
+    // Result belongs to the the given stack offset.
+    Var(Var, Box<str>),
+}
+
+impl Asm {
+    /// Assemble into an instruction.
+    pub(crate) fn apply(self, c: &mut Compiler) -> CompileResult<()> {
+        match self.kind {
+            AsmKind::Top => (),
+            AsmKind::Var(var, local) => {
+                var.copy(&mut c.asm, self.span, format!("var `{}`", local));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Assemble into an instruction declaring an anonymous variable if appropriate.
+    pub(crate) fn apply_targeted(self, c: &mut Compiler) -> CompileResult<InstAddress> {
+        let address = match self.kind {
+            AsmKind::Top => {
+                c.scopes.decl_anon(self.span)?;
+                InstAddress::Top
+            }
+            AsmKind::Var(var, ..) => InstAddress::Offset(var.offset),
+        };
+
+        Ok(address)
+    }
+}
 
 /// Compiler trait implemented for things that can be compiled.
 ///
 /// This is the new compiler trait to implement.
 pub(crate) trait Assemble {
     /// Walk the current type with the given item.
-    fn assemble(
-        &self,
-        c: &mut crate::compiling::Compiler<'_>,
-        needs: crate::compiling::Needs,
-    ) -> crate::compiling::CompileResult<()>;
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm>;
 }
 
 /// Assemble a constant.
 pub(crate) trait AssembleConst {
-    fn assemble_const(
-        &self,
-        c: &mut crate::compiling::Compiler<'_>,
-        needs: crate::compiling::Needs,
-        span: Span,
-    ) -> crate::compiling::CompileResult<()>;
+    fn assemble_const(&self, c: &mut Compiler<'_>, needs: Needs, span: Span) -> CompileResult<()>;
 }
 
 /// Assemble a function.
 pub(crate) trait AssembleFn {
     /// Walk the current type with the given item.
-    fn assemble_fn(
-        &self,
-        c: &mut crate::compiling::Compiler<'_>,
-        instance_fn: bool,
-    ) -> crate::compiling::CompileResult<()>;
+    fn assemble_fn(&self, c: &mut Compiler<'_>, instance_fn: bool) -> CompileResult<()>;
 }
 
 /// Assemble a closure with captures.
 pub(crate) trait AssembleClosure {
     fn assemble_closure(
         &self,
-        c: &mut crate::compiling::Compiler<'_>,
+        c: &mut Compiler<'_>,
         captures: &[CompileMetaCapture],
-    ) -> crate::compiling::CompileResult<()>;
+    ) -> CompileResult<()>;
 }

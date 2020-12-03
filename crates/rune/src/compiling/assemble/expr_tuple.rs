@@ -2,7 +2,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a literal tuple.
 impl Assemble for ast::ExprTuple {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprTuple => {:?}", c.source.source(span));
 
@@ -10,7 +10,7 @@ impl Assemble for ast::ExprTuple {
             c.asm.push(Inst::unit(), span);
         } else {
             for (expr, _) in &self.items {
-                expr.assemble(c, Needs::Value)?;
+                expr.assemble(c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(expr.span())?;
             }
 
@@ -27,9 +27,8 @@ impl Assemble for ast::ExprTuple {
         if !needs.value() {
             c.warnings.not_used(c.source_id, span, c.context());
             c.asm.push(Inst::Pop, span);
-            return Ok(());
         }
 
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

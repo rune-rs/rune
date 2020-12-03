@@ -6,7 +6,7 @@ extern crate rune_tests;
 macro_rules! assert_parse_error {
     ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
         let context = std::sync::Arc::new(rune_modules::default_context().unwrap());
-        let errors = rune_tests::compile_source(&context, &$source).unwrap_err();
+        let errors = ::rune_tests::compile_source(&context, &$source).unwrap_err();
         let err = errors.into_iter().next().expect("expected one error");
 
         let e = match err.into_kind() {
@@ -41,10 +41,10 @@ macro_rules! assert_vm_error {
     // Second variant which allows for specifyinga type.
     ($ty:ty => $source:expr, $pat:pat => $cond:block) => {{
         let context = std::sync::Arc::new(rune_modules::default_context().unwrap());
-        let e = rune_tests::run::<_, _, $ty>(&context, $source, &["main"], ()).unwrap_err();
+        let e = ::rune_tests::run::<_, _, $ty>(&context, $source, &["main"], ()).unwrap_err();
 
         let (e, _) = match e {
-            rune_tests::RunError::VmError(e) => e.into_unwound(),
+            ::rune_tests::RunError::VmError(e) => e.into_unwound(),
             actual => {
                 panic!("expected vm error `{}` but was `{:?}`", stringify!($pat), actual);
             }
@@ -63,7 +63,7 @@ macro_rules! assert_vm_error {
 macro_rules! assert_parse {
     ($source:expr) => {{
         let context = rune_modules::default_context().unwrap();
-        rune_tests::compile_source(&context, $source).unwrap()
+        ::rune_tests::compile_source(&context, $source).unwrap()
     }};
 }
 
@@ -71,7 +71,7 @@ macro_rules! assert_parse {
 macro_rules! assert_compile_error {
     ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
         let context = rune_modules::default_context().unwrap();
-        let e = rune_tests::compile_source(&context, $source).unwrap_err();
+        let e = ::rune_tests::compile_source(&context, $source).unwrap_err();
         let e = e.into_iter().next().expect("expected one error");
 
         let e = match e.into_kind() {
@@ -101,7 +101,7 @@ macro_rules! assert_compile_error {
 macro_rules! assert_warnings {
     ($source:expr $(, $pat:pat => $cond:expr)*) => {{
         let context = rune_modules::default_context().unwrap();
-        let (_, warnings) = rune_tests::compile_source(&context, $source).expect("source should compile");
+        let (_, warnings) = ::rune_tests::compile_source(&context, $source).expect("source should compile");
         assert!(!warnings.is_empty(), "no warnings produced");
 
         let mut it = warnings.into_iter();

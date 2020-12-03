@@ -2,19 +2,18 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile `self`.
 impl Assemble for ast::Path {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("Path => {:?}", c.source.source(span));
 
         if let Some(ast::PathKind::SelfValue) = self.as_kind() {
             let var = c.scopes.get_var("self", c.source_id, c.visitor, span)?;
 
-            if !needs.value() {
-                return Ok(());
+            if needs.value() {
+                var.copy(&mut c.asm, span, "self");
             }
 
-            var.copy(&mut c.asm, span, "self");
-            return Ok(());
+            return Ok(Asm::top(span));
         }
 
         let named = c.convert_path_to_named(self)?;
@@ -23,14 +22,14 @@ impl Assemble for ast::Path {
             if let Some(local) = named.as_local() {
                 if let Some(var) = c.scopes.try_get_var(local, c.source_id, c.visitor, span)? {
                     var.copy(&mut c.asm, span, format!("var `{}`", local));
-                    return Ok(());
+                    return Ok(Asm::top(span));
                 }
             }
         }
 
         if let Some(meta) = c.try_lookup_meta(span, &named.item)? {
             c.compile_meta(&meta, span, needs)?;
-            return Ok(());
+            return Ok(Asm::top(span));
         }
 
         if let (Needs::Value, Some(local)) = (needs, named.as_local()) {

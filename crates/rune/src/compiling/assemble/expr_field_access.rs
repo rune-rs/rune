@@ -2,7 +2,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile an expr field access, like `<value>.<field>`.
 impl Assemble for ast::ExprFieldAccess {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
 
         // Optimizations!
@@ -14,13 +14,13 @@ impl Assemble for ast::ExprFieldAccess {
         match (&self.expr, &self.expr_field) {
             (ast::Expr::Path(path), ast::ExprField::LitNumber(n)) => {
                 if try_immediate_field_access_optimization(c, span, path, n, needs)? {
-                    return Ok(());
+                    return Ok(Asm::top(span));
                 }
             }
             _ => (),
         }
 
-        self.expr.assemble(c, Needs::Value)?;
+        self.expr.assemble(c, Needs::Value)?.apply(c)?;
 
         // This loop is actually useful.
         #[allow(clippy::never_loop)]
@@ -39,7 +39,7 @@ impl Assemble for ast::ExprFieldAccess {
                         c.asm.push(Inst::Pop, span);
                     }
 
-                    return Ok(());
+                    return Ok(Asm::top(span));
                 }
                 ast::ExprField::Ident(ident) => {
                     let field = ident.resolve(&c.storage, &*c.source)?;
@@ -52,7 +52,7 @@ impl Assemble for ast::ExprFieldAccess {
                         c.asm.push(Inst::Pop, span);
                     }
 
-                    return Ok(());
+                    return Ok(Asm::top(span));
                 }
             }
         }

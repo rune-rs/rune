@@ -2,7 +2,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile an if expression.
 impl Assemble for ast::ExprIf {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprIf => {:?}", c.source.source(span));
 
@@ -20,7 +20,7 @@ impl Assemble for ast::ExprIf {
 
         // use fallback as fall through.
         if let Some(fallback) = &self.expr_else {
-            fallback.block.assemble(c, needs)?;
+            fallback.block.assemble(c, needs)?.apply(c)?;
         } else {
             // NB: if we must produce a value and there is no fallback branch,
             // encode the result of the statement as a unit.
@@ -34,7 +34,7 @@ impl Assemble for ast::ExprIf {
         c.asm.label(then_label)?;
 
         let expected = c.scopes.push(then_scope);
-        self.block.assemble(c, needs)?;
+        self.block.assemble(c, needs)?.apply(c)?;
         c.clean_last_scope(span, expected, needs)?;
 
         if !self.expr_else_ifs.is_empty() {
@@ -49,7 +49,7 @@ impl Assemble for ast::ExprIf {
             c.asm.label(label)?;
 
             let scopes = c.scopes.push(scope);
-            branch.block.assemble(c, needs)?;
+            branch.block.assemble(c, needs)?.apply(c)?;
             c.clean_last_scope(span, scopes, needs)?;
 
             if it.peek().is_some() {
@@ -58,6 +58,6 @@ impl Assemble for ast::ExprIf {
         }
 
         c.asm.label(end_label)?;
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

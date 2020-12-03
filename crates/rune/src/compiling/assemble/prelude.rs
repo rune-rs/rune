@@ -1,6 +1,6 @@
 pub(crate) use crate::ast;
 pub(crate) use crate::compiling::{
-    Assemble, AssembleClosure, AssembleConst, AssembleFn, Compiler, Loop, Needs,
+    Asm, Assemble, AssembleClosure, AssembleConst, AssembleFn, Compiler, Loop, Needs,
 };
 pub(crate) use crate::{
     CompileError, CompileErrorKind, CompileResult, ParseErrorKind, Resolve, Spanned,

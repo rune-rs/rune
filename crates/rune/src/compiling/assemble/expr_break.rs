@@ -4,7 +4,7 @@ use crate::compiling::assemble::prelude::*;
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
 impl Assemble for ast::ExprBreak {
-    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprBreak => {:?}", c.source.source(span));
 
@@ -21,7 +21,7 @@ impl Assemble for ast::ExprBreak {
         let (last_loop, to_drop, has_value) = if let Some(expr) = &self.expr {
             match expr {
                 ast::ExprBreakValue::Expr(expr) => {
-                    expr.assemble(c, current_loop.needs)?;
+                    expr.assemble(c, current_loop.needs)?.apply(c)?;
                     (current_loop, current_loop.drop.into_iter().collect(), true)
                 }
                 ast::ExprBreakValue::Label(label) => {
@@ -57,6 +57,6 @@ impl Assemble for ast::ExprBreak {
         }
 
         c.asm.jump(last_loop.break_label, span);
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

@@ -2,7 +2,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a range expression.
 impl Assemble for ast::ExprRange {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprRange => {:?}", c.source.source(span));
 
@@ -10,7 +10,7 @@ impl Assemble for ast::ExprRange {
 
         if needs.value() {
             let from = if let Some(from) = &self.from {
-                from.assemble(c, needs)?;
+                from.assemble(c, needs)?.apply(c)?;
                 c.asm.push(
                     Inst::Variant {
                         variant: InstVariant::Some,
@@ -31,7 +31,7 @@ impl Assemble for ast::ExprRange {
             c.scopes.decl_anon(from)?;
 
             let to = if let Some(to) = &self.to {
-                to.assemble(c, needs)?;
+                to.assemble(c, needs)?.apply(c)?;
                 c.asm.push(
                     Inst::Variant {
                         variant: InstVariant::Some,
@@ -60,15 +60,15 @@ impl Assemble for ast::ExprRange {
             c.scopes.undecl_anon(span, 2)?;
         } else {
             if let Some(from) = &self.from {
-                from.assemble(c, needs)?;
+                from.assemble(c, needs)?.apply(c)?;
             }
 
             if let Some(to) = &self.to {
-                to.assemble(c, needs)?;
+                to.assemble(c, needs)?.apply(c)?;
             }
         }
 
         c.scopes.pop(guard, span)?;
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

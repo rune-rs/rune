@@ -2,7 +2,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a return.
 impl Assemble for ast::ExprReturn {
-    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprReturn => {:?}", c.source.source(span));
 
@@ -18,7 +18,7 @@ impl Assemble for ast::ExprReturn {
         let total_var_count = c.scopes.total_var_count(span)?;
 
         if let Some(expr) = &self.expr {
-            expr.assemble(c, Needs::Value)?;
+            expr.assemble(c, Needs::Value)?.apply(c)?;
             c.locals_clean(total_var_count, span);
             c.asm.push(Inst::Return, span);
         } else {
@@ -26,6 +26,6 @@ impl Assemble for ast::ExprReturn {
             c.asm.push(Inst::ReturnUnit, span);
         }
 
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

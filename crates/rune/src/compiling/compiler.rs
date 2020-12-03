@@ -251,7 +251,7 @@ impl<'a> Compiler<'a> {
             ast::Condition::Expr(expr) => {
                 let span = expr.span();
 
-                expr.assemble(self, Needs::Value)?;
+                expr.assemble(self, Needs::Value)?.apply(self)?;
                 self.asm.jump_if(then_label, span);
 
                 Ok(self.scopes.child(span)?)
@@ -265,7 +265,7 @@ impl<'a> Compiler<'a> {
                 let expected = self.scopes.push(scope);
 
                 let load = |c: &mut Self, needs: Needs| {
-                    expr_let.expr.assemble(c, needs)?;
+                    expr_let.expr.assemble(c, needs)?.apply(c)?;
                     Ok(())
                 };
 

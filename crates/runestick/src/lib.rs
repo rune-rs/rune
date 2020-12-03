@@ -198,8 +198,8 @@ pub use crate::function::{Function, SyncFunction};
 pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{
-    Inst, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue, InstVariant, PanicReason,
-    TypeCheck,
+    Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue, InstVariant,
+    PanicReason, TypeCheck,
 };
 pub use crate::item::{Component, ComponentRef, IntoComponent, Item};
 pub use crate::names::Names;

@@ -2,20 +2,16 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile an expression.
 impl Assemble for ast::ExprIndex {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprIndex => {:?}", c.source.source(span));
 
         let guard = c.scopes.push_child(span)?;
 
-        self.target.assemble(c, Needs::Value)?;
-        c.scopes.decl_anon(span)?;
+        let target = self.target.assemble(c, Needs::Value)?.apply_targeted(c)?;
+        let index = self.index.assemble(c, Needs::Value)?.apply_targeted(c)?;
 
-        self.index.assemble(c, Needs::Value)?;
-        c.scopes.decl_anon(span)?;
-
-        c.asm.push(Inst::IndexGet, span);
-        c.scopes.undecl_anon(span, 2)?;
+        c.asm.push(Inst::IndexGet { index, target }, span);
 
         // NB: we still need to perform the operation since it might have side
         // effects, but pop the result in case a value is not needed.
@@ -24,6 +20,6 @@ impl Assemble for ast::ExprIndex {
         }
 
         c.scopes.pop(guard, span)?;
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

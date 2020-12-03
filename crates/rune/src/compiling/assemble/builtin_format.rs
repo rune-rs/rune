@@ -4,7 +4,7 @@ use runestick::format;
 
 /// Compile a literal template string.
 impl Assemble for BuiltInFormat {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span;
         log::trace!("BuiltInFormat => {:?}", c.source.source(span));
 
@@ -46,13 +46,13 @@ impl Assemble for BuiltInFormat {
 
         let spec = format::FormatSpec::new(flags, fill, align, width, precision, format_type);
 
-        self.value.assemble(c, Needs::Value)?;
+        self.value.assemble(c, Needs::Value)?.apply(c)?;
         c.asm.push(Inst::Format { spec }, span);
 
         if !needs.value() {
             c.asm.push(Inst::Pop, span);
         }
 
-        Ok(())
+        Ok(Asm::top(span))
     }
 }

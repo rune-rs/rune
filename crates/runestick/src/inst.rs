@@ -176,7 +176,12 @@ pub enum Inst {
     /// <index>
     /// => <value>
     /// ```
-    IndexGet,
+    IndexGet {
+        /// How the target is addressed.
+        target: InstAddress,
+        /// How the index is addressed.
+        index: InstAddress,
+    },
     /// Get the given index out of a tuple on the top of the stack.
     /// Errors if the item doesn't exist or the item is not a tuple.
     ///
@@ -958,8 +963,8 @@ impl fmt::Display for Inst {
             Self::LoadInstanceFn { hash } => {
                 write!(fmt, "load-instance-fn {}", hash)?;
             }
-            Self::IndexGet => {
-                write!(fmt, "index-get")?;
+            Self::IndexGet { target, index } => {
+                write!(fmt, "index-get {}, {}", target, index)?;
             }
             Self::TupleIndexGet { index } => {
                 write!(fmt, "tuple-index-get {}", index)?;
@@ -1166,6 +1171,24 @@ impl fmt::Display for Inst {
                     None => write!(f, "?"),
                 }
             }
+        }
+    }
+}
+
+/// How an instruction addresses a value.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InstAddress {
+    /// Addressed from the top of the stack.
+    Top,
+    /// Value addressed at the given offset.
+    Offset(usize),
+}
+
+impl fmt::Display for InstAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Top => write!(f, "top"),
+            Self::Offset(offset) => write!(f, "offset({})", offset),
         }
     }
 }

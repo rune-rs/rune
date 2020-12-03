@@ -2,7 +2,7 @@ use crate::compiling::assemble::prelude::*;
 
 /// Compile a binary expression.
 impl Assemble for ast::ExprBinary {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprBinary => {:?}", c.source.source(span));
         log::trace!(
@@ -18,22 +18,20 @@ impl Assemble for ast::ExprBinary {
         // Special expressions which operates on the stack in special ways.
         if self.op.is_assign() {
             compile_assign_binop(c, &self.lhs, &self.rhs, self.op, needs)?;
-
-            return Ok(());
+            return Ok(Asm::top(span));
         }
 
         if self.op.is_conditional() {
             compile_conditional_binop(c, &self.lhs, &self.rhs, self.op, needs)?;
-
-            return Ok(());
+            return Ok(Asm::top(span));
         }
 
         // NB: need to declare these as anonymous local variables so that they
         // get cleaned up in case there is an early break (return, try, ...).
-        self.lhs.assemble(c, Needs::Value)?;
+        self.lhs.assemble(c, Needs::Value)?.apply(c)?;
         c.scopes.decl_anon(span)?;
 
-        self.rhs.assemble(c, rhs_needs_of(self.op))?;
+        self.rhs.assemble(c, rhs_needs_of(self.op))?.apply(c)?;
         c.scopes.decl_anon(span)?;
 
         let inst = match self.op {
@@ -75,7 +73,7 @@ impl Assemble for ast::ExprBinary {
         }
 
         c.scopes.undecl_anon(span, 2)?;
-        Ok(())
+        Ok(Asm::top(span))
     }
 }
 
@@ -99,7 +97,7 @@ fn compile_conditional_binop(
 
     let end_label = c.asm.new_label("conditional_end");
 
-    lhs.assemble(c, Needs::Value)?;
+    lhs.assemble(c, Needs::Value)?.apply(c)?;
 
     match bin_op {
         ast::BinOp::And => {
@@ -116,7 +114,7 @@ fn compile_conditional_binop(
         }
     }
 
-    rhs.assemble(c, Needs::Value)?;
+    rhs.assemble(c, Needs::Value)?.apply(c)?;
 
     c.asm.label(end_label)?;
 
@@ -139,7 +137,7 @@ fn compile_assign_binop(
     let supported = match lhs {
         // <var> <op> <expr>
         ast::Expr::Path(path) if path.rest.is_empty() => {
-            rhs.assemble(c, Needs::Value)?;
+            rhs.assemble(c, Needs::Value)?.apply(c)?;
 
             let segment = path
                 .first
@@ -152,8 +150,8 @@ fn compile_assign_binop(
         }
         // <expr>.<field> <op> <value>
         ast::Expr::FieldAccess(field_access) => {
-            field_access.expr.assemble(c, Needs::Value)?;
-            rhs.assemble(c, Needs::Value)?;
+            field_access.expr.assemble(c, Needs::Value)?.apply(c)?;
+            rhs.assemble(c, Needs::Value)?.apply(c)?;
 
             // field assignment
             match &field_access.expr_field {

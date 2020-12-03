@@ -1,4 +1,4 @@
-use crate::Value;
+use crate::{InstAddress, Value};
 use std::iter;
 use std::mem;
 use std::slice;
@@ -126,6 +126,14 @@ impl Stack {
         }
 
         self.stack.pop().ok_or_else(|| StackError(()))
+    }
+
+    /// Address a value on the stack.
+    pub fn address(&mut self, address: InstAddress) -> Result<Value, StackError> {
+        Ok(match address {
+            InstAddress::Top => self.pop()?,
+            InstAddress::Offset(offset) => self.at_offset(offset)?.clone(),
+        })
     }
 
     /// Pop the given number of elements from the stack.
