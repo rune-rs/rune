@@ -2,7 +2,7 @@ use crate::access::AccessKind;
 use crate::{
     Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Item, Iterator,
     Mut, Object, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, TypeInfo, Vec,
-    VmError,
+    VmError, VmErrorKind,
 };
 use serde::{de, ser, Deserialize, Serialize};
 use std::fmt;
@@ -762,100 +762,121 @@ impl Value {
     ///
     /// This is the basis for the eq operation (`==`).
     pub(crate) fn value_ptr_eq(a: &Value, b: &Value) -> Result<bool, VmError> {
-        Ok(match (a, b) {
-            (Self::Unit, Self::Unit) => true,
-            (Self::Bool(a), Self::Bool(b)) => a == b,
-            (Self::Byte(a), Self::Byte(b)) => a == b,
-            (Self::Char(a), Self::Char(b)) => a == b,
-            (Self::Integer(a), Self::Integer(b)) => a == b,
-            (Self::Float(a), Self::Float(b)) => a == b,
+        match (a, b) {
+            (Self::Unit, Self::Unit) => return Ok(true),
+            (Self::Bool(a), Self::Bool(b)) => return Ok(a == b),
+            (Self::Byte(a), Self::Byte(b)) => return Ok(a == b),
+            (Self::Char(a), Self::Char(b)) => return Ok(a == b),
+            (Self::Integer(a), Self::Integer(b)) => return Ok(a == b),
+            (Self::Float(a), Self::Float(b)) => return Ok(a == b),
             (Self::Vec(a), Self::Vec(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-
-                if a.len() != b.len() {
-                    return Ok(false);
-                }
-
-                for (a, b) in a.iter().zip(b.iter()) {
-                    if !Self::value_ptr_eq(a, b)? {
-                        return Ok(false);
-                    }
-                }
-
-                true
+                return Vec::value_ptr_eq(&*a, &*b);
             }
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                Tuple::value_ptr_eq(&*a, &*b)?
+                return Tuple::value_ptr_eq(&*a, &*b);
             }
             (Self::Object(a), Self::Object(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                Object::value_ptr_eq(&*a, &*b)?
+                return Object::value_ptr_eq(&*a, &*b);
             }
             (Self::Range(a), Self::Range(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                Range::value_ptr_eq(&*a, &*b)?
+                return Range::value_ptr_eq(&*a, &*b);
             }
             (Self::UnitStruct(a), Self::UnitStruct(b)) => {
-                a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash
+                if a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash {
+                    // NB: don't get any future ideas, this must fall through to
+                    // the VmError below since it's otherwise a comparison
+                    // between two incompatible types.
+                    //
+                    // Other than that, all units are equal.
+                    return Ok(true);
+                }
             }
             (Self::TupleStruct(a), Self::TupleStruct(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
 
-                a.rtti.hash == b.rtti.hash && Tuple::value_ptr_eq(&a.data, &b.data)?
+                if a.rtti.hash == b.rtti.hash {
+                    return Tuple::value_ptr_eq(&a.data, &b.data);
+                }
             }
             (Self::Struct(a), Self::Struct(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
 
-                a.rtti.hash == b.rtti.hash && Object::value_ptr_eq(&a.data, &b.data)?
+                if a.rtti.hash == b.rtti.hash {
+                    return Object::value_ptr_eq(&a.data, &b.data);
+                }
             }
             (Self::UnitVariant(a), Self::UnitVariant(b)) => {
-                a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash
+                if a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash {
+                    // NB: don't get any future ideas, this must fall through to
+                    // the VmError below since it's otherwise a comparison
+                    // between two incompatible types.
+                    //
+                    // Other than that, all units are equal.
+                    return Ok(true);
+                }
             }
             (Self::TupleVariant(a), Self::TupleVariant(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
 
-                a.rtti.hash == b.rtti.hash && Tuple::value_ptr_eq(&a.data, &b.data)?
+                if a.rtti.hash == b.rtti.hash {
+                    return Tuple::value_ptr_eq(&a.data, &b.data);
+                }
             }
             (Self::StructVariant(a), Self::StructVariant(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
 
-                a.rtti.hash == b.rtti.hash && Object::value_ptr_eq(&a.data, &b.data)?
+                if a.rtti.hash == b.rtti.hash {
+                    return Object::value_ptr_eq(&a.data, &b.data);
+                }
             }
-            (Self::String(a), Self::String(b)) => *a.borrow_ref()? == *b.borrow_ref()?,
+            (Self::String(a), Self::String(b)) => {
+                return Ok(*a.borrow_ref()? == *b.borrow_ref()?);
+            }
             (Self::StaticString(a), Self::String(b)) => {
                 let b = b.borrow_ref()?;
-                ***a == *b
+                return Ok(***a == *b);
             }
             (Self::String(a), Self::StaticString(b)) => {
                 let a = a.borrow_ref()?;
-                *a == ***b
+                return Ok(*a == ***b);
             }
             // fast string comparison: exact string slot.
-            (Self::StaticString(a), Self::StaticString(b)) => ***a == ***b,
+            (Self::StaticString(a), Self::StaticString(b)) => {
+                return Ok(***a == ***b);
+            }
             (Self::Option(a), Self::Option(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
-                (Some(a), Some(b)) => Self::value_ptr_eq(a, b)?,
-                (None, None) => true,
-                _ => false,
+                (Some(a), Some(b)) => return Self::value_ptr_eq(a, b),
+                (None, None) => return Ok(true),
+                _ => (),
             },
             (Self::Result(a), Self::Result(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
-                (Ok(a), Ok(b)) => Self::value_ptr_eq(a, b)?,
-                (Err(a), Err(b)) => Self::value_ptr_eq(a, b)?,
-                _ => false,
+                (Ok(a), Ok(b)) => return Self::value_ptr_eq(a, b),
+                (Err(a), Err(b)) => return Self::value_ptr_eq(a, b),
+                _ => (),
             },
             // fast external comparison by slot.
             // TODO: implement ptr equals.
             // (Self::Any(a), Self::Any(b)) => a == b,
-            _ => false,
-        })
+            _ => (),
+        }
+
+        Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+            op: "==",
+            lhs: a.type_info()?,
+            rhs: b.type_info()?,
+        }))
     }
 }
 

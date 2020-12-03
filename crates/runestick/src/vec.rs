@@ -153,6 +153,21 @@ impl Vec {
     pub fn into_iterator(&self) -> crate::Iterator {
         crate::Iterator::from_double_ended("std::vec::Iter", self.clone().into_iter())
     }
+
+    /// Compare two vectors for equality.
+    pub(crate) fn value_ptr_eq(a: &Self, b: &Self) -> Result<bool, VmError> {
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+
+        for (a, b) in a.iter().zip(b.iter()) {
+            if !Value::value_ptr_eq(a, b)? {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
 }
 
 impl Named for Vec {
