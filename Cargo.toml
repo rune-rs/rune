@@ -21,3 +21,4 @@ exclude = [
 
 [profile.bench]
 lto = false
+debug = true
