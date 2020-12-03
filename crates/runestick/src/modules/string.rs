@@ -13,6 +13,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.function(&["String", "with_capacity"], String::with_capacity)?;
 
     module.inst_fn("len", String::len)?;
+    module.inst_fn("starts_with", str::starts_with::<&str>)?;
+    module.inst_fn("ends_with", str::ends_with::<&str>)?;
     module.inst_fn("capacity", String::capacity)?;
     module.inst_fn("clear", String::clear)?;
     module.inst_fn("push", String::push)?;

@@ -12,6 +12,10 @@ pub async fn main() {
     let projects = cargo_toml.workspace.members;
 
     for project in projects {
+        if !project.starts_with("crates") {
+            continue;
+        }
+
         let status = update_readme(project, "README.md").await?;
         println(`${project}: ${status}`);
     }
