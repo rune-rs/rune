@@ -525,6 +525,50 @@ pub enum Inst {
         /// The size of the vector.
         count: usize,
     },
+    /// Construct a push a one-tuple value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <tuple>
+    /// ```
+    Tuple1 {
+        /// First element of the tuple.
+        args: [InstAddress; 1],
+    },
+    /// Construct a push a two-tuple value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <tuple>
+    /// ```
+    Tuple2 {
+        /// Tuple arguments.
+        args: [InstAddress; 2],
+    },
+    /// Construct a push a three-tuple value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <tuple>
+    /// ```
+    Tuple3 {
+        /// Tuple arguments.
+        args: [InstAddress; 3],
+    },
+    /// Construct a push a four-tuple value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <tuple>
+    /// ```
+    Tuple4 {
+        /// Tuple arguments.
+        args: [InstAddress; 4],
+    },
     /// Construct a push a tuple value onto the stack. The number of elements
     /// in the tuple are determined by `count` and are popped from the stack.
     ///
@@ -857,13 +901,15 @@ pub enum Inst {
     /// # Operation
     ///
     /// ```text
-    /// <value>
-    /// <value>
     /// => <value>
     /// ```
     Op {
         /// The actual operation.
         op: InstOp,
+        /// The address of the first argument.
+        a: InstAddress,
+        /// The address of the second argument.
+        b: InstAddress,
     },
     /// A built-in operation that assigns to the left-hand side operand. Like
     /// `a += b`.
@@ -1050,6 +1096,18 @@ impl fmt::Display for Inst {
             Self::Vec { count } => {
                 write!(fmt, "vec {}", count)?;
             }
+            Self::Tuple1 { args: [a] } => {
+                write!(fmt, "tuple-1 {}", a)?;
+            }
+            Self::Tuple2 { args: [a, b] } => {
+                write!(fmt, "tuple-2 {}, {}", a, b)?;
+            }
+            Self::Tuple3 { args: [a, b, c] } => {
+                write!(fmt, "tuple-3 {}, {}, {}", a, b, c)?;
+            }
+            Self::Tuple4 { args: [a, b, c, d] } => {
+                write!(fmt, "tuple-4 {}, {}, {}, {}", a, b, c, d)?;
+            }
             Self::Tuple { count } => {
                 write!(fmt, "tuple {}", count)?;
             }
@@ -1142,8 +1200,8 @@ impl fmt::Display for Inst {
             Self::Variant { variant } => {
                 write!(fmt, "variant {}", variant)?;
             }
-            Self::Op { op } => {
-                write!(fmt, "op {}", op)?;
+            Self::Op { op, a, b } => {
+                write!(fmt, "op {}, {}, {}", op, a, b)?;
             }
             Self::Assign { target, op } => {
                 write!(fmt, "assign {}, {}", target, op)?;

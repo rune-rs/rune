@@ -26,35 +26,37 @@ impl Assemble for ast::ExprBinary {
             return Ok(Asm::top(span));
         }
 
+        let guard = c.scopes.push_child(span)?;
+
         // NB: need to declare these as anonymous local variables so that they
         // get cleaned up in case there is an early break (return, try, ...).
-        self.lhs.assemble(c, Needs::Value)?.apply(c)?;
-        c.scopes.decl_anon(span)?;
+        let a = self.lhs.assemble(c, Needs::Value)?.apply_targeted(c)?;
+        let b = self
+            .rhs
+            .assemble(c, rhs_needs_of(self.op))?
+            .apply_targeted(c)?;
 
-        self.rhs.assemble(c, rhs_needs_of(self.op))?.apply(c)?;
-        c.scopes.decl_anon(span)?;
-
-        let inst = match self.op {
-            ast::BinOp::Eq => Inst::Op { op: InstOp::Eq },
-            ast::BinOp::Neq => Inst::Op { op: InstOp::Neq },
-            ast::BinOp::Lt => Inst::Op { op: InstOp::Lt },
-            ast::BinOp::Gt => Inst::Op { op: InstOp::Gt },
-            ast::BinOp::Lte => Inst::Op { op: InstOp::Lte },
-            ast::BinOp::Gte => Inst::Op { op: InstOp::Gte },
-            ast::BinOp::Is => Inst::Op { op: InstOp::Is },
-            ast::BinOp::IsNot => Inst::Op { op: InstOp::IsNot },
-            ast::BinOp::And => Inst::Op { op: InstOp::And },
-            ast::BinOp::Or => Inst::Op { op: InstOp::Or },
-            ast::BinOp::Add => Inst::Op { op: InstOp::Add },
-            ast::BinOp::Sub => Inst::Op { op: InstOp::Sub },
-            ast::BinOp::Div => Inst::Op { op: InstOp::Div },
-            ast::BinOp::Mul => Inst::Op { op: InstOp::Mul },
-            ast::BinOp::Rem => Inst::Op { op: InstOp::Rem },
-            ast::BinOp::BitAnd => Inst::Op { op: InstOp::BitAnd },
-            ast::BinOp::BitXor => Inst::Op { op: InstOp::BitXor },
-            ast::BinOp::BitOr => Inst::Op { op: InstOp::BitOr },
-            ast::BinOp::Shl => Inst::Op { op: InstOp::Shl },
-            ast::BinOp::Shr => Inst::Op { op: InstOp::Shr },
+        let op = match self.op {
+            ast::BinOp::Eq => InstOp::Eq,
+            ast::BinOp::Neq => InstOp::Neq,
+            ast::BinOp::Lt => InstOp::Lt,
+            ast::BinOp::Gt => InstOp::Gt,
+            ast::BinOp::Lte => InstOp::Lte,
+            ast::BinOp::Gte => InstOp::Gte,
+            ast::BinOp::Is => InstOp::Is,
+            ast::BinOp::IsNot => InstOp::IsNot,
+            ast::BinOp::And => InstOp::And,
+            ast::BinOp::Or => InstOp::Or,
+            ast::BinOp::Add => InstOp::Add,
+            ast::BinOp::Sub => InstOp::Sub,
+            ast::BinOp::Div => InstOp::Div,
+            ast::BinOp::Mul => InstOp::Mul,
+            ast::BinOp::Rem => InstOp::Rem,
+            ast::BinOp::BitAnd => InstOp::BitAnd,
+            ast::BinOp::BitXor => InstOp::BitXor,
+            ast::BinOp::BitOr => InstOp::BitOr,
+            ast::BinOp::Shl => InstOp::Shl,
+            ast::BinOp::Shr => InstOp::Shr,
 
             op => {
                 return Err(CompileError::new(
@@ -64,7 +66,7 @@ impl Assemble for ast::ExprBinary {
             }
         };
 
-        c.asm.push(inst, span);
+        c.asm.push(Inst::Op { op, a, b }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
@@ -72,7 +74,7 @@ impl Assemble for ast::ExprBinary {
             c.asm.push(Inst::Pop, span);
         }
 
-        c.scopes.undecl_anon(span, 2)?;
+        c.scopes.pop(guard, span)?;
         Ok(Asm::top(span))
     }
 }
