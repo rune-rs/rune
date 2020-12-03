@@ -1,5 +1,7 @@
 # Benchmarks for Rune
 
+Site: https://rune-rs.github.io/rune/dev/bench/
+
 You can run a benchmark by:
 
 ```sh
