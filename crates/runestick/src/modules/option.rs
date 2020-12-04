@@ -13,6 +13,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("is_some", Option::<Value>::is_some)?;
     module.inst_fn("iter", option_iter)?;
     module.inst_fn("map", map_impl)?;
+    module.inst_fn("take", take_impl)?;
     module.inst_fn("transpose", transpose_impl)?;
     module.inst_fn("unwrap", unwrap_impl)?;
     module.inst_fn("unwrap_or", Option::<Value>::unwrap_or)?;
@@ -52,16 +53,22 @@ fn expect_impl(option: Option<Value>, message: &str) -> Result<Value, VmError> {
     option.ok_or_else(|| VmError::panic(message.to_owned()))
 }
 
-fn map_impl(option: Option<Value>, then: Function) -> Result<Option<Value>, VmError> {
+fn map_impl(option: &Option<Value>, then: Function) -> Result<Option<Value>, VmError> {
     match option {
+        // no need to clone v, passing the same reference forward
         Some(v) => then.call::<_, _>((v,)).map(Some),
         None => Ok(None),
     }
 }
 
-fn and_then_impl(option: Option<Value>, then: Function) -> Result<Option<Value>, VmError> {
+fn and_then_impl(option: &Option<Value>, then: Function) -> Result<Option<Value>, VmError> {
     match option {
+        // no need to clone v, passing the same reference forward
         Some(v) => then.call::<_, _>((v,)),
         None => Ok(None),
     }
+}
+
+fn take_impl(option: &mut Option<Value>) -> Option<Value> {
+    option.take()
 }
