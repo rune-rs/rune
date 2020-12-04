@@ -41,7 +41,7 @@ mod local;
 mod prelude;
 
 use crate::compiling::{CompileResult, Compiler, Needs, Var};
-use runestick::{CompileMetaCapture, InstAddress, Span};
+use runestick::{CompileMetaCapture, Inst, InstAddress, Span};
 
 #[derive(Debug)]
 #[must_use = "must be consumed to make sure the value is realized"]
@@ -62,10 +62,20 @@ impl Asm {
         }
     }
 
+    /// Declare that the assembly resulted in a value in a variable location.
     pub(crate) fn var(span: Span, var: Var, local: Box<str>) -> Self {
         Self {
             span,
             kind: AsmKind::Var(var, local),
+            decl_anon: false,
+        }
+    }
+
+    /// Declare that the assembly resulted in a value in a offset location.
+    pub(crate) fn offset(span: Span, offset: usize) -> Self {
+        Self {
+            span,
+            kind: AsmKind::Offset(offset),
             decl_anon: false,
         }
     }
@@ -77,6 +87,8 @@ pub(crate) enum AsmKind {
     Top,
     // Result belongs to the the given stack offset.
     Var(Var, Box<str>),
+    // Result belongs to the the given stack offset.
+    Offset(usize),
 }
 
 impl Asm {
@@ -86,6 +98,9 @@ impl Asm {
             AsmKind::Top => (),
             AsmKind::Var(var, local) => {
                 var.copy(&mut c.asm, self.span, format!("var `{}`", local));
+            }
+            AsmKind::Offset(offset) => {
+                c.asm.push(Inst::Copy { offset }, self.span);
             }
         }
 
@@ -100,9 +115,28 @@ impl Asm {
                 InstAddress::Top
             }
             AsmKind::Var(var, ..) => InstAddress::Offset(var.offset),
+            AsmKind::Offset(offset) => InstAddress::Offset(offset),
         };
 
         Ok(address)
+    }
+
+    /// Declare a variable based on the assembled result.
+    pub(crate) fn decl_var(&self, c: &mut Compiler, ident: &str) -> CompileResult<()> {
+        match self.kind {
+            AsmKind::Top => {
+                c.scopes.decl_var(ident, self.span)?;
+            }
+            AsmKind::Var(var, ..) => {
+                c.scopes
+                    .decl_var_with_offset(ident, var.offset, self.span)?;
+            }
+            AsmKind::Offset(offset) => {
+                c.scopes.decl_var_with_offset(ident, offset, self.span)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
