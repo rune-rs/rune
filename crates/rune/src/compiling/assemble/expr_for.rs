@@ -130,32 +130,8 @@ impl Assemble for ast::ExprFor {
             );
         }
 
-        // test loop condition and unwrap the option.
-        // TODO: introduce a dedicated instruction for this :|.
-        {
-            c.asm.push(
-                Inst::Copy {
-                    offset: binding_offset,
-                },
-                binding_span,
-            );
-            c.asm.push(Inst::IsValue, self.span());
-            c.asm.jump_if_not(end_label, self.span());
-            c.asm.push(
-                Inst::Copy {
-                    offset: binding_offset,
-                },
-                binding_span,
-            );
-            // unwrap the optional value.
-            c.asm.push(Inst::Unwrap, self.span());
-            c.asm.push(
-                Inst::Replace {
-                    offset: binding_offset,
-                },
-                binding_span,
-            );
-        }
+        // Test loop condition and unwrap the option, or jump to `end_label` if the current value is `None`.
+        c.asm.iter_next(binding_offset, end_label, binding_span);
 
         let body_span = self.body.span();
         let guard = c.scopes.push_child(body_span)?;

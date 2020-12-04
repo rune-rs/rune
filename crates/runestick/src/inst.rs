@@ -459,19 +459,6 @@ pub enum Inst {
         offset: isize,
     },
     /// Jump to `offset` relative to the current instruction pointer if the
-    /// condition is `false`.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <boolean>
-    /// => *nothing*
-    /// ```
-    JumpIfNot {
-        /// Offset to jump to.
-        offset: isize,
-    },
-    /// Jump to `offset` relative to the current instruction pointer if the
     /// condition is `true`. Will only pop the stack is a jump is not performed.
     ///
     /// # Operation
@@ -928,6 +915,13 @@ pub enum Inst {
         /// The actual operation.
         op: InstAssignOp,
     },
+    /// Advance an iterator at the given position.
+    IterNext {
+        /// The offset of the value being advanced.
+        offset: usize,
+        /// A relative jump to perform if the iterator could not be advanced.
+        jump: isize,
+    },
     /// Cause the VM to panic and error out without a reason.
     ///
     /// This should only be used during testing or extreme scenarios that are
@@ -1081,9 +1075,6 @@ impl fmt::Display for Inst {
             Self::JumpIf { offset } => {
                 write!(fmt, "jump-if {}", offset)?;
             }
-            Self::JumpIfNot { offset } => {
-                write!(fmt, "jump-if-not {}", offset)?;
-            }
             Self::JumpIfOrPop { offset } => {
                 write!(fmt, "jump-if-or-pop {}", offset)?;
             }
@@ -1205,6 +1196,9 @@ impl fmt::Display for Inst {
             }
             Self::Assign { target, op } => {
                 write!(fmt, "assign {}, {}", target, op)?;
+            }
+            Self::IterNext { offset, jump } => {
+                write!(fmt, "iter-next {}, {}", offset, jump)?;
             }
             Self::Panic { reason } => {
                 write!(fmt, "panic {}", reason.ident())?;
