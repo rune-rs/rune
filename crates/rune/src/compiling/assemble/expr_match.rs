@@ -28,7 +28,7 @@ impl Assemble for ast::ExprMatch {
                     this.asm.push(Inst::Copy { offset }, span);
                 }
 
-                Ok(())
+                Ok(Asm::top(span))
             };
 
             c.compile_pat(&branch.pat, match_false, &load)?;
