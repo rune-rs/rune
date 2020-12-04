@@ -9,6 +9,7 @@ use crate::{ParseError, Parser, Spanned, ToTokens};
 /// use rune::{testing, ast};
 ///
 /// testing::roundtrip::<ast::ExprFor>("for i in x {}");
+/// testing::roundtrip::<ast::ExprFor>("for (a, _) in x {}");
 /// testing::roundtrip::<ast::ExprFor>("'label: for i in x {}");
 /// testing::roundtrip::<ast::ExprFor>("#[attr] 'label: for i in x {}");
 /// ```
@@ -22,9 +23,9 @@ pub struct ExprFor {
     pub label: Option<(ast::Label, T![:])>,
     /// The `for` keyword.
     pub for_token: T![for],
-    /// The variable binding.
-    /// TODO: should be a pattern when that is supported.
-    pub var: ast::Ident,
+    /// The pattern binding to use.
+    /// Non-trivial pattern bindings will panic if the value doesn't match.
+    pub binding: ast::Pat,
     /// The `in` keyword.
     pub in_: T![in],
     /// Expression producing the iterator.
@@ -44,7 +45,7 @@ impl ExprFor {
             attributes,
             label,
             for_token: parser.parse()?,
-            var: parser.parse()?,
+            binding: parser.parse()?,
             in_: parser.parse()?,
             iter: ast::Expr::parse_without_eager_brace(parser)?,
             body: parser.parse()?,

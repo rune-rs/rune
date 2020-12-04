@@ -29,11 +29,12 @@ impl Assemble for ast::ExprFor {
             (iter_offset, loop_scope_expected)
         };
 
+        let binding_span = self.binding.span();
+
         // Declare named loop variable.
         let binding_offset = {
             c.asm.push(Inst::unit(), self.iter.span());
-            let name = self.var.resolve(&c.storage, &*c.source)?;
-            c.scopes.decl_var(name.as_ref(), self.var.span())?
+            c.scopes.decl_anon(binding_span)?
         };
 
         // Declare storage for memoized `next` instance fn.
@@ -101,7 +102,7 @@ impl Assemble for ast::ExprFor {
                 Inst::Replace {
                     offset: binding_offset,
                 },
-                self.var.span(),
+                binding_span,
             );
         } else {
             // call the `next` function to get the next level of iteration, bind the
@@ -125,7 +126,7 @@ impl Assemble for ast::ExprFor {
                 Inst::Replace {
                     offset: binding_offset,
                 },
-                self.var.span(),
+                binding_span,
             );
         }
 
@@ -136,7 +137,7 @@ impl Assemble for ast::ExprFor {
                 Inst::Copy {
                     offset: binding_offset,
                 },
-                self.var.span(),
+                binding_span,
             );
             c.asm.push(Inst::IsValue, self.span());
             c.asm.jump_if_not(end_label, self.span());
@@ -144,7 +145,7 @@ impl Assemble for ast::ExprFor {
                 Inst::Copy {
                     offset: binding_offset,
                 },
-                self.var.span(),
+                binding_span,
             );
             // unwrap the optional value.
             c.asm.push(Inst::Unwrap, self.span());
@@ -152,11 +153,47 @@ impl Assemble for ast::ExprFor {
                 Inst::Replace {
                     offset: binding_offset,
                 },
-                self.var.span(),
+                binding_span,
             );
         }
 
+        let load = |c: &mut Compiler, needs: Needs| {
+            if needs.value() {
+                c.asm.push(
+                    Inst::Copy {
+                        offset: binding_offset,
+                    },
+                    binding_span,
+                );
+            }
+
+            Ok(())
+        };
+
+        let body_span = self.body.span();
+        let guard = c.scopes.push_child(body_span)?;
+        let false_label = c.asm.new_label("let_panic");
+
+        if c.compile_pat(&self.binding, false_label, &load)? {
+            c.warnings
+                .let_pattern_might_panic(c.source_id, binding_span, c.context());
+
+            let ok_label = c.asm.new_label("let_ok");
+            c.asm.jump(ok_label, binding_span);
+            c.asm.label(false_label)?;
+            c.asm.push(
+                Inst::Panic {
+                    reason: runestick::PanicReason::UnmatchedPattern,
+                },
+                binding_span,
+            );
+
+            c.asm.label(ok_label)?;
+        }
+
         self.body.assemble(c, Needs::None)?.apply(c)?;
+        c.clean_last_scope(span, guard, Needs::None)?;
+
         c.asm.jump(continue_label, span);
         c.asm.label(end_label)?;
 
