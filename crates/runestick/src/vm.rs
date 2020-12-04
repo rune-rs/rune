@@ -1509,16 +1509,6 @@ impl Vm {
         Ok(())
     }
 
-    /// Perform a conditional jump operation.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if_not(&mut self, offset: isize) -> Result<(), VmError> {
-        if !self.stack.pop()?.into_bool()? {
-            self.modify_ip(offset)?;
-        }
-
-        Ok(())
-    }
-
     /// Perform a conditional jump operation. Pops the stack if the jump is
     /// not performed.
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2755,6 +2745,33 @@ impl Vm {
         Ok(None)
     }
 
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_iter_next(&mut self, offset: usize, jump: isize) -> Result<(), VmError> {
+        let value = self.stack.at_offset_mut(offset)?;
+
+        let some = match value {
+            Value::Option(option) => {
+                let option = option.borrow_ref()?.clone();
+
+                match option {
+                    Some(some) => some,
+                    None => {
+                        self.modify_ip(jump)?;
+                        return Ok(());
+                    }
+                }
+            }
+            other => {
+                return Err(VmError::from(VmErrorKind::UnsupportedIsValueOperand {
+                    actual: other.type_info()?,
+                }))
+            }
+        };
+
+        *value = some;
+        Ok(())
+    }
+
     /// Evaluate a single instruction.
     pub(crate) fn run(&mut self) -> Result<VmHalt, VmError> {
         loop {
@@ -2879,9 +2896,6 @@ impl Vm {
                 Inst::JumpIf { offset } => {
                     self.op_jump_if(offset)?;
                 }
-                Inst::JumpIfNot { offset } => {
-                    self.op_jump_if_not(offset)?;
-                }
                 Inst::JumpIfOrPop { offset } => {
                     self.op_jump_if_or_pop(offset)?;
                 }
@@ -2997,6 +3011,9 @@ impl Vm {
                 }
                 Inst::Assign { target, op } => {
                     self.op_assign(target, op)?;
+                }
+                Inst::IterNext { offset, jump } => {
+                    self.op_iter_next(offset, jump)?;
                 }
                 Inst::Panic { reason } => {
                     return Err(VmError::from(VmErrorKind::Panic {

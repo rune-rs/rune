@@ -691,11 +691,6 @@ impl Inner {
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIf { offset });
                 }
-                AssemblyInst::JumpIfNot { label } => {
-                    comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions.push(Inst::JumpIfNot { offset });
-                }
                 AssemblyInst::JumpIfOrPop { label } => {
                     comment = Some(format!("label:{}", label));
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
@@ -717,6 +712,11 @@ impl Inner {
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions
                         .push(Inst::PopAndJumpIfNot { count, offset });
+                }
+                AssemblyInst::IterNext { offset, label } => {
+                    comment = Some(format!("label:{}", label));
+                    let jump = translate_offset(span, pos, label, &assembly.labels)?;
+                    self.instructions.push(Inst::IterNext { offset, jump });
                 }
                 AssemblyInst::Raw { raw } => {
                     self.instructions.push(raw);

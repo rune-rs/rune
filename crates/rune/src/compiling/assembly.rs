@@ -8,11 +8,11 @@ use runestick::{Hash, Inst, Label, Location, Span};
 pub enum AssemblyInst {
     Jump { label: Label },
     JumpIf { label: Label },
-    JumpIfNot { label: Label },
     JumpIfOrPop { label: Label },
     JumpIfNotOrPop { label: Label },
     JumpIfBranch { branch: i64, label: Label },
     PopAndJumpIfNot { count: usize, label: Label },
+    IterNext { offset: usize, label: Label },
     Raw { raw: Inst },
 }
 
@@ -82,12 +82,6 @@ impl Assembly {
             .push((AssemblyInst::JumpIf { label }, span));
     }
 
-    /// Add a conditional jump to the given label.
-    pub(crate) fn jump_if_not(&mut self, label: Label, span: Span) {
-        self.instructions
-            .push((AssemblyInst::JumpIfNot { label }, span));
-    }
-
     /// Add a conditional jump to the given label. Only pops the top of the
     /// stack if the jump is not executed.
     pub(crate) fn jump_if_or_pop(&mut self, label: Label, span: Span) {
@@ -112,6 +106,12 @@ impl Assembly {
     pub(crate) fn pop_and_jump_if_not(&mut self, count: usize, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::PopAndJumpIfNot { count, label }, span));
+    }
+
+    /// Add an instruction that advanced an iterator.
+    pub(crate) fn iter_next(&mut self, offset: usize, label: Label, span: Span) {
+        self.instructions
+            .push((AssemblyInst::IterNext { offset, label }, span));
     }
 
     /// Push a raw instruction.
