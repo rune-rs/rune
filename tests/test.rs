@@ -145,6 +145,7 @@ mod compiler_visibility;
 mod compiler_warnings;
 mod core_macros;
 mod external_ops;
+mod for_loop;
 mod getter_setter;
 mod iterator;
 mod moved;

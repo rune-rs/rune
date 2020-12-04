@@ -1565,7 +1565,7 @@ impl Index for ast::ExprFor {
         self.iter.index(idx)?;
 
         let _guard = idx.scopes.push_scope();
-        self.var.index(idx)?;
+        self.binding.index(idx)?;
         self.body.index(idx)?;
         Ok(())
     }
