@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607028535951,
+  "lastUpdate": 1607070206619,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -395,6 +395,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5266871,
             "range": "± 945604",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "cef662213857456eb4acc1181ac751addbfa41b7",
+          "message": "Add dedicated instruction for loop iteration advancement",
+          "timestamp": "2020-12-04T09:18:35+01:00",
+          "tree_id": "b75114950d37171061836b35172d7bfa8121e474",
+          "url": "https://github.com/rune-rs/rune/commit/cef662213857456eb4acc1181ac751addbfa41b7"
+        },
+        "date": 1607070205717,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 277254,
+            "range": "± 20797",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 887695,
+            "range": "± 55891",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 76044970,
+            "range": "± 3534789",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1330552,
+            "range": "± 174886",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 14152560,
+            "range": "± 1587875",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 12110324,
+            "range": "± 2152032",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 437036,
+            "range": "± 87490",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4823466,
+            "range": "± 562557",
             "unit": "ns/iter"
           }
         ]
