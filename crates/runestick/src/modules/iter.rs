@@ -16,6 +16,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("collect_tuple", collect_tuple)?;
     module.inst_fn("enumerate", Iterator::enumerate)?;
     module.inst_fn("filter", Iterator::filter)?;
+    module.inst_fn("find", Iterator::find)?;
     module.inst_fn("flat_map", Iterator::flat_map)?;
     module.inst_fn("map", Iterator::map)?;
     module.inst_fn("next", Iterator::next)?;

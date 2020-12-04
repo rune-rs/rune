@@ -48,6 +48,35 @@ impl Generator {
 
         Ok(state)
     }
+
+    /// Convert into iterator
+    pub fn into_iterator(self) -> Result<crate::Iterator, VmError> {
+        Ok(crate::Iterator::from(
+            "std::generator::GeneratorIterator",
+            self.into_iter(),
+        ))
+    }
+}
+
+impl IntoIterator for Generator {
+    type Item = Result<Value, VmError>;
+    type IntoIter = GeneratorIterator;
+
+    fn into_iter(self) -> GeneratorIterator {
+        GeneratorIterator { generator: self }
+    }
+}
+
+pub struct GeneratorIterator {
+    generator: Generator,
+}
+
+impl std::iter::Iterator for GeneratorIterator {
+    type Item = Result<Value, VmError>;
+
+    fn next(&mut self) -> Option<Result<Value, VmError>> {
+        self.generator.next().transpose()
+    }
 }
 
 impl fmt::Debug for Generator {

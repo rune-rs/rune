@@ -42,6 +42,7 @@ fn and_then_impl(
     then: Function,
 ) -> Result<Result<Value, Value>, VmError> {
     match this {
+        // No need to clone v, passing the same reference forward
         Ok(v) => Ok(then.call::<_, _>((v,))?),
         Err(e) => Ok(Err(e.clone())),
     }
@@ -49,6 +50,7 @@ fn and_then_impl(
 
 fn map_impl(this: &Result<Value, Value>, then: Function) -> Result<Result<Value, Value>, VmError> {
     match this {
+        // No need to clone v, passing the same reference forward
         Ok(v) => Ok(Ok(then.call::<_, _>((v,))?)),
         Err(e) => Ok(Err(e.clone())),
     }

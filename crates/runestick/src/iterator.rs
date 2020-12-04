@@ -161,6 +161,18 @@ impl Iterator {
         }
     }
 
+    /// Find the first matching value in the iterator using the given function.
+    pub fn find(mut self, find: Function) -> Result<Option<Value>, VmError> {
+        while let Some(value) = self.next()? {
+            let result = find.call::<_, bool>((value.clone(),))?;
+            if result {
+                return Ok(Some(value.clone()));
+            }
+        }
+
+        Ok(None)
+    }
+
     /// Chain this iterator with another.
     pub fn chain(self, other: Interface) -> Result<Self, VmError> {
         let other = other.into_iter()?;
