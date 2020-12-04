@@ -157,39 +157,10 @@ impl Assemble for ast::ExprFor {
             );
         }
 
-        let load = |c: &mut Compiler, needs: Needs| {
-            if needs.value() {
-                c.asm.push(
-                    Inst::Copy {
-                        offset: binding_offset,
-                    },
-                    binding_span,
-                );
-            }
-
-            Ok(())
-        };
-
         let body_span = self.body.span();
         let guard = c.scopes.push_child(body_span)?;
-        let false_label = c.asm.new_label("let_panic");
 
-        if c.compile_pat(&self.binding, false_label, &load)? {
-            c.warnings
-                .let_pattern_might_panic(c.source_id, binding_span, c.context());
-
-            let ok_label = c.asm.new_label("let_ok");
-            c.asm.jump(ok_label, binding_span);
-            c.asm.label(false_label)?;
-            c.asm.push(
-                Inst::Panic {
-                    reason: runestick::PanicReason::UnmatchedPattern,
-                },
-                binding_span,
-            );
-
-            c.asm.label(ok_label)?;
-        }
+        c.compile_pat_offset(&self.binding, binding_offset)?;
 
         self.body.assemble(c, Needs::None)?.apply(c)?;
         c.clean_last_scope(span, guard, Needs::None)?;

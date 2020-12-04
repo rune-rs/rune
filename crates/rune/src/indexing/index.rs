@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::attrs;
 use crate::collections::HashMap;
-use crate::indexing::{IndexFnKind, IndexScopes};
+use crate::indexing::{IndexFnKind, IndexLocal as _, IndexScopes};
 use crate::load::{SourceLoader, Sources};
 use crate::macros::MacroCompiler;
 use crate::parsing::{Parse, Parser};
@@ -634,18 +634,15 @@ impl Index for ast::ItemFn {
 
         let guard = idx.scopes.push_function(kind);
 
-        for (arg, _) in &self.args {
+        for (arg, _) in &mut self.args {
             match arg {
                 ast::FnArg::SelfValue(s) => {
                     let span = s.span();
                     idx.scopes.declare("self", span)?;
                 }
-                ast::FnArg::Ident(ident) => {
-                    let span = ident.span();
-                    let ident = ident.resolve(&idx.storage, &*idx.source)?;
-                    idx.scopes.declare(ident.as_ref(), span)?;
+                ast::FnArg::Pat(pat) => {
+                    pat.index_local(idx)?;
                 }
-                _ => (),
             }
         }
 
@@ -1596,16 +1593,14 @@ impl Index for Box<ast::ExprClosure> {
 
         self.id = Some(idx.items.id());
 
-        for (arg, _) in self.args.as_slice() {
+        for (arg, _) in self.args.as_slice_mut() {
             match arg {
                 ast::FnArg::SelfValue(s) => {
                     return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
                 }
-                ast::FnArg::Ident(ident) => {
-                    let ident = ident.resolve(&idx.storage, &*idx.source)?;
-                    idx.scopes.declare(ident.as_ref(), span)?;
+                ast::FnArg::Pat(pat) => {
+                    pat.index_local(idx)?;
                 }
-                ast::FnArg::Ignore(..) => (),
             }
         }
 
