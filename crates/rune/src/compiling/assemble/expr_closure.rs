@@ -11,20 +11,16 @@ impl AssembleClosure for ast::ExprClosure {
         log::trace!("ExprClosure => {:?}", c.source.source(span));
 
         let count = {
-            for (arg, _) in self.args.as_slice() {
-                let span = arg.span();
+            let mut patterns = Vec::new();
 
+            for (arg, _) in self.args.as_slice() {
                 match arg {
                     ast::FnArg::SelfValue(s) => {
                         return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf))
                     }
-                    ast::FnArg::Ident(ident) => {
-                        let ident = ident.resolve(&c.storage, &*c.source)?;
-                        c.scopes.new_var(ident.as_ref(), span)?;
-                    }
-                    ast::FnArg::Ignore(..) => {
-                        // Ignore incoming variable.
-                        let _ = c.scopes.decl_anon(span)?;
+                    ast::FnArg::Pat(pat) => {
+                        let offset = c.scopes.decl_anon(pat.span())?;
+                        patterns.push((pat, offset));
                     }
                 }
             }
@@ -35,6 +31,10 @@ impl AssembleClosure for ast::ExprClosure {
                 for capture in captures {
                     c.scopes.new_var(&capture.ident, span)?;
                 }
+            }
+
+            for (pat, offset) in patterns {
+                c.compile_pat_offset(pat, offset)?;
             }
 
             c.scopes.total_var_count(span)?

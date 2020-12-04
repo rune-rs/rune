@@ -190,8 +190,7 @@ impl CompileBuildEntry<'_> {
 
         match build {
             Build::Function(f) => {
-                let args =
-                    format_fn_args(self.storage, &*source, f.ast.args.iter().map(|(a, _)| a))?;
+                let args = format_fn_args(&*source, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
@@ -212,8 +211,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::InstanceFunction(f) => {
-                let args =
-                    format_fn_args(self.storage, &*source, f.ast.args.iter().map(|(a, _)| a))?;
+                let args = format_fn_args(&*source, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
@@ -246,11 +244,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Closure(c) => {
-                let args = format_fn_args(
-                    self.storage,
-                    &*source,
-                    c.ast.args.as_slice().iter().map(|(a, _)| a),
-                )?;
+                let args = format_fn_args(&*source, c.ast.args.as_slice().iter().map(|(a, _)| a))?;
 
                 let count = c.ast.args.len();
                 let span = c.ast.span();
@@ -352,11 +346,7 @@ impl CompileBuildEntry<'_> {
     }
 }
 
-fn format_fn_args<'a, I>(
-    storage: &Storage,
-    source: &Source,
-    arguments: I,
-) -> Result<Vec<String>, CompileError>
+fn format_fn_args<'a, I>(source: &Source, arguments: I) -> Result<Vec<String>, CompileError>
 where
     I: IntoIterator<Item = &'a ast::FnArg>,
 {
@@ -367,11 +357,14 @@ where
             ast::FnArg::SelfValue(..) => {
                 args.push(String::from("self"));
             }
-            ast::FnArg::Ignore(..) => {
-                args.push(String::from("_"));
-            }
-            ast::FnArg::Ident(ident) => {
-                args.push(ident.resolve(storage, source)?.to_string());
+            ast::FnArg::Pat(pat) => {
+                let span = pat.span();
+
+                if let Some(s) = source.source(span) {
+                    args.push(s.to_owned());
+                } else {
+                    args.push(String::from("*"));
+                }
             }
         }
     }

@@ -144,6 +144,7 @@ mod compiler_use;
 mod compiler_visibility;
 mod compiler_warnings;
 mod core_macros;
+mod destructuring;
 mod external_ops;
 mod for_loop;
 mod getter_setter;

@@ -5,6 +5,7 @@ impl AssembleFn for ast::ItemFn {
         let span = self.span();
         log::trace!("ItemFn => {:?}", c.source.source(span));
 
+        let mut patterns = Vec::new();
         let mut first = true;
 
         for (arg, _) in &self.args {
@@ -19,18 +20,17 @@ impl AssembleFn for ast::ItemFn {
                     let span = s.span();
                     c.scopes.new_var("self", span)?;
                 }
-                ast::FnArg::Ident(ident) => {
-                    let span = ident.span();
-                    let name = ident.resolve(&c.storage, &*c.source)?;
-                    c.scopes.new_var(name.as_ref(), span)?;
-                }
-                ast::FnArg::Ignore(ignore) => {
-                    let span = ignore.span();
-                    c.scopes.decl_anon(span)?;
+                ast::FnArg::Pat(pat) => {
+                    let offset = c.scopes.decl_anon(pat.span())?;
+                    patterns.push((pat, offset));
                 }
             }
 
             first = false;
+        }
+
+        for (pat, offset) in patterns {
+            c.compile_pat_offset(pat, offset)?;
         }
 
         if self.body.statements.is_empty() {
