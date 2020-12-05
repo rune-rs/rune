@@ -228,6 +228,13 @@ impl Iterator {
         })
     }
 
+    /// Skip over the given number of elements from the iterator.
+    pub fn skip(self, n: usize) -> Self {
+        Self {
+            iter: IterRepr::Skip(Box::new(Skip { iter: self.iter, n })),
+        }
+    }
+
     /// Take the given number of elements from the iterator.
     pub fn take(self, n: usize) -> Self {
         Self {
@@ -362,6 +369,7 @@ enum IterRepr {
     Rev(Box<Rev<Self>>),
     Chain(Box<Chain<Self, Self>>),
     Enumerate(Box<Enumerate<Self>>),
+    Skip(Box<Skip<Self>>),
     Take(Box<Take<Self>>),
     Peekable(Box<Peekable<Self>>),
 }
@@ -378,6 +386,7 @@ impl RuneIterator for IterRepr {
             Self::Rev(..) => true,
             Self::Chain(iter) => iter.is_double_ended(),
             Self::Enumerate(iter) => iter.is_double_ended(),
+            Self::Skip(iter) => iter.is_double_ended(),
             Self::Take(iter) => iter.is_double_ended(),
             Self::Peekable(iter) => iter.is_double_ended(),
         }
@@ -394,6 +403,7 @@ impl RuneIterator for IterRepr {
             Self::Rev(iter) => iter.size_hint(),
             Self::Chain(iter) => iter.size_hint(),
             Self::Enumerate(iter) => iter.size_hint(),
+            Self::Skip(iter) => iter.size_hint(),
             Self::Take(iter) => iter.size_hint(),
             Self::Peekable(iter) => iter.size_hint(),
         }
@@ -409,6 +419,7 @@ impl RuneIterator for IterRepr {
             Self::Rev(iter) => iter.next(),
             Self::Chain(iter) => iter.next(),
             Self::Enumerate(iter) => iter.next(),
+            Self::Skip(iter) => iter.next(),
             Self::Take(iter) => iter.next(),
             Self::Peekable(iter) => iter.next(),
         }
@@ -429,6 +440,7 @@ impl RuneIterator for IterRepr {
             Self::Rev(iter) => iter.next_back(),
             Self::Chain(iter) => iter.next_back(),
             Self::Enumerate(iter) => iter.next_back(),
+            Self::Skip(iter) => iter.next_back(),
             Self::Take(iter) => iter.next_back(),
             Self::Peekable(iter) => iter.next_back(),
         }
@@ -446,6 +458,7 @@ impl fmt::Debug for IterRepr {
             Self::Rev(iter) => write!(f, "{:?}", iter),
             Self::Chain(iter) => write!(f, "{:?}", iter),
             Self::Enumerate(iter) => write!(f, "{:?}", iter),
+            Self::Skip(iter) => write!(f, "{:?}", iter),
             Self::Take(iter) => write!(f, "{:?}", iter),
             Self::Peekable(iter) => write!(f, "{:?}", iter),
         }
@@ -826,6 +839,63 @@ where
     #[inline]
     fn next_back(&mut self) -> Result<Option<Value>, VmError> {
         self.iter.next()
+    }
+}
+
+#[derive(Debug)]
+struct Skip<I> {
+    iter: I,
+    n: usize,
+}
+
+impl<I> RuneIterator for Skip<I>
+where
+    I: RuneIterator,
+{
+    #[inline]
+    fn is_double_ended(&self) -> bool {
+        self.iter.is_double_ended()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (lower, upper) = self.iter.size_hint();
+
+        let lower = lower.saturating_sub(self.n);
+        let upper = match upper {
+            Some(x) => Some(x.saturating_sub(self.n)),
+            None => None,
+        };
+
+        (lower, upper)
+    }
+
+    #[inline]
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        if self.n == 0 {
+            self.iter.next()
+        } else {
+            let old_n = self.n;
+            self.n = 0;
+
+            for _ in 0..old_n {
+                match self.iter.next()? {
+                    Some(..) => (),
+                    None => return Ok(None),
+                }
+            }
+
+            self.iter.next()
+        }
+    }
+
+    #[inline]
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        Ok(if self.len()? > 0 {
+            self.iter.next_back()?
+        } else {
+            None
+        })
     }
 }
 

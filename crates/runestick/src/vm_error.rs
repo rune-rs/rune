@@ -303,6 +303,10 @@ pub enum VmErrorKind {
     KeyNotSupported { actual: TypeInfo },
     #[error("missing interface environment")]
     MissingInterfaceEnvironment,
+    #[error("index out of bounds")]
+    IndexOutOfBounds,
+    #[error("unsupported range")]
+    UnsupportedRange,
 }
 
 impl VmErrorKind {
