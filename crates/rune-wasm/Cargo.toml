@@ -21,7 +21,7 @@ wasm-bindgen-futures = "0.4.19"
 js-sys = "0.3.46"
 anyhow = "1.0.34"
 lazy_static = "1.4.0"
-parking_lot = "0.11.1"
+parking_lot = { version = "0.11.1", features = ["wasm-bindgen"] }
 
 rune = {version = "0.7.0", path = "../rune", features = []}
 rune-macros = {version = "0.7.0", path = "../rune-macros"}
