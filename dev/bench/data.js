@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607199573158,
+  "lastUpdate": 1607207620146,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -611,6 +611,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4547687,
             "range": "± 460676",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mail@tomolsson.se",
+            "name": "Tom Solberg",
+            "username": "tgolsson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "847c2cba31983f37183e5a410bb1cdf2bcb62c7a",
+          "message": "Merge pull request #198 from rune-rs/broken-wasm-deps\n\nFix broken WASM dep with parking_lot_core 0.8.1",
+          "timestamp": "2020-12-05T23:28:51+01:00",
+          "tree_id": "4c7c4975293a0fda167b0675d5c9975e9cae397e",
+          "url": "https://github.com/rune-rs/rune/commit/847c2cba31983f37183e5a410bb1cdf2bcb62c7a"
+        },
+        "date": 1607207619521,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 211660,
+            "range": "± 65647",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 709397,
+            "range": "± 231656",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 68119425,
+            "range": "± 20600338",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1159709,
+            "range": "± 337638",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 13470683,
+            "range": "± 5034224",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 10450647,
+            "range": "± 2975640",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 377661,
+            "range": "± 105507",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 3954546,
+            "range": "± 1154744",
             "unit": "ns/iter"
           }
         ]
