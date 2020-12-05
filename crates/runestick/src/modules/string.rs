@@ -1,6 +1,6 @@
 //! The `std::string` module.
 
-use crate::{Any, Bytes, ContextError, Iterator, Module, Protocol};
+use crate::{Any, Bytes, ContextError, Iterator, Module, Protocol, Value, VmError, VmErrorKind};
 
 /// Construct the `std::string` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -31,6 +31,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("chars", string_chars)?;
     module.inst_fn(Protocol::ADD, add)?;
     module.inst_fn(Protocol::ADD_ASSIGN, String::push_str)?;
+    module.inst_fn(Protocol::INDEX_GET, string_index_get)?;
+    module.inst_fn("get", string_get)?;
 
     // TODO: parameterize once generics are available.
     module.function(&["parse_int"], parse_int)?;
@@ -97,4 +99,53 @@ fn add(a: &str, b: &str) -> String {
 fn string_chars(s: &str) -> Iterator {
     let iter = s.chars().collect::<Vec<_>>().into_iter();
     Iterator::from_double_ended("std::str::Chars", iter)
+}
+
+/// Get a specific string index.
+fn string_get(s: &str, key: Value) -> Result<Option<String>, VmError> {
+    use crate::{FromValue as _, RangeLimits, TypeOf as _};
+
+    match key {
+        Value::Range(range) => {
+            let range = range.borrow_ref()?;
+
+            let start = match range.start.clone() {
+                Some(value) => Some(<usize>::from_value(value)?),
+                None => None,
+            };
+
+            let end = match range.end.clone() {
+                Some(value) => Some(<usize>::from_value(value)?),
+                None => None,
+            };
+
+            let out = match range.limits {
+                RangeLimits::HalfOpen => match (start, end) {
+                    (Some(start), Some(end)) => s.get(start..end),
+                    (Some(start), None) => s.get(start..),
+                    (None, Some(end)) => s.get(..end),
+                    (None, None) => s.get(..),
+                },
+                RangeLimits::Closed => match (start, end) {
+                    (Some(start), Some(end)) => s.get(start..=end),
+                    (None, Some(end)) => s.get(..=end),
+                    _ => return Err(VmError::from(VmErrorKind::UnsupportedRange)),
+                },
+            };
+
+            return Ok(match out {
+                Some(out) => Some(out.to_owned()),
+                None => None,
+            });
+        }
+        index => Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
+            target: String::type_info(),
+            index: index.type_info()?,
+        })),
+    }
+}
+
+/// Get a specific string index.
+fn string_index_get(s: &str, key: Value) -> Result<String, VmError> {
+    string_get(s, key)?.ok_or_else(|| VmError::panic("missing string slice"))
 }

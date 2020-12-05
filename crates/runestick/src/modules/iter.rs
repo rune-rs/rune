@@ -28,6 +28,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("rev", Iterator::rev)?;
     module.inst_fn("size_hint", Iterator::size_hint)?;
     module.inst_fn("sum", Iterator::sum)?;
+    module.inst_fn("skip", Iterator::skip)?;
     module.inst_fn("take", Iterator::take)?;
     module.inst_fn("count", Iterator::count)?;
     module.inst_fn("all", Iterator::all)?;

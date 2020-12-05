@@ -35,6 +35,24 @@ pub type IterMut<'a> = crate::collections::hash_map::IterMut<'a, String, Value>;
 /// [`Object`]: struct.Object.html
 pub type Iter<'a> = crate::collections::hash_map::Iter<'a, String, Value>;
 
+/// An iterator over the keys of a `HashMap`.
+///
+/// This `struct` is created by the [`keys`] method on [`Object`]. See its
+/// documentation for more.
+///
+/// [`keys`]: struct.Object.html#method.keys
+/// [`Object`]: struct.Object.html
+pub type Keys<'a> = crate::collections::hash_map::Keys<'a, String, Value>;
+
+/// An iterator over the values of a `HashMap`.
+///
+/// This `struct` is created by the [`values`] method on [`Object`]. See its
+/// documentation for more.
+///
+/// [`values`]: struct.Object.html#method.values
+/// [`Object`]: struct.Object.html
+pub type Values<'a> = crate::collections::hash_map::Values<'a, String, Value>;
+
 /// Struct representing a dynamic anonymous object.
 ///
 /// # Examples
@@ -61,18 +79,29 @@ pub struct Object {
 
 impl Object {
     /// Construct a new object.
+    #[inline]
     pub fn new() -> Self {
         Self {
             inner: HashMap::new(),
         }
     }
 
+    /// Construct a new object with the given capacity.
+    #[inline]
+    pub fn with_capacity(cap: usize) -> Self {
+        Self {
+            inner: HashMap::with_capacity(cap),
+        }
+    }
+
     /// Returns the number of elements in the object.
+    #[inline]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
     /// Returns `true` if the Object contains no elements.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -103,6 +132,7 @@ impl Object {
     }
 
     /// Returns a mutable reference to the value corresponding to the key.
+    #[inline]
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
     where
         String: borrow::Borrow<Q>,
@@ -112,6 +142,7 @@ impl Object {
     }
 
     /// Returns `true` if the map contains a value for the specified key.
+    #[inline]
     pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
     where
         String: borrow::Borrow<Q>,
@@ -122,6 +153,7 @@ impl Object {
 
     /// Removes a key from the object, returning the value at the key if the key
     /// was previously in the object.
+    #[inline]
     pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<Value>
     where
         String: borrow::Borrow<Q>,
@@ -132,6 +164,7 @@ impl Object {
 
     /// Inserts a key-value pair into the dynamic object, converting it as
     /// necessary through the [`ToValue`] trait.
+    #[inline]
     pub fn insert_value<T>(&mut self, k: String, v: T) -> Result<(), VmError>
     where
         T: ToValue,
@@ -141,21 +174,16 @@ impl Object {
     }
 
     /// Inserts a key-value pair into the dynamic object.
+    #[inline]
     pub fn insert(&mut self, k: String, v: Value) -> Option<Value> {
         self.inner.insert(k, v)
     }
 
     /// Clears the object, removing all key-value pairs. Keeps the allocated
     /// memory for reuse.
+    #[inline]
     pub fn clear(&mut self) {
         self.inner.clear();
-    }
-
-    /// Construct a new object with the given capacity.
-    pub fn with_capacity(cap: usize) -> Self {
-        Self {
-            inner: HashMap::with_capacity(cap),
-        }
     }
 
     /// Convert into inner.
@@ -167,6 +195,18 @@ impl Object {
     /// The iterator element type is `(&'a String, &'a Value)`.
     pub fn iter(&self) -> Iter<'_> {
         self.inner.iter()
+    }
+
+    /// An iterator visiting all keys in arbitrary order.
+    /// The iterator element type is `&'a String`.
+    pub fn keys(&self) -> Keys<'_> {
+        self.inner.keys()
+    }
+
+    /// An iterator visiting all values in arbitrary order.
+    /// The iterator element type is `&'a Value`.
+    pub fn values(&self) -> Values<'_> {
+        self.inner.values()
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order,

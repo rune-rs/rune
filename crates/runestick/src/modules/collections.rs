@@ -1,6 +1,6 @@
 //! `std::collections` module.
 
-use crate::{Any, ContextError, Iterator, Key, Module, Value};
+use crate::{Any, ContextError, Interface, Iterator, Key, Module, Value, VmError};
 
 #[derive(Any)]
 #[rune(module = "crate")]
@@ -19,6 +19,23 @@ impl HashMap {
     fn iter(&self) -> Iterator {
         let iter = self.map.clone().into_iter();
         Iterator::from("std::collections::map::Iter", iter)
+    }
+
+    #[inline]
+    fn keys(&self) -> Iterator {
+        let iter = self.map.keys().cloned().collect::<Vec<_>>().into_iter();
+        Iterator::from("std::collections::map::Keys", iter)
+    }
+
+    #[inline]
+    fn values(&self) -> Iterator {
+        let iter = self.map.values().cloned().collect::<Vec<_>>().into_iter();
+        Iterator::from("std::collections::map::Values", iter)
+    }
+
+    #[inline]
+    fn contains_key(&self, key: Key) -> bool {
+        self.map.contains_key(&key)
     }
 
     #[inline]
@@ -97,7 +114,11 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", &["collections"]);
     module.ty::<HashMap>()?;
     module.function(&["HashMap", "new"], HashMap::new)?;
+    module.function(&["HashMap", "from"], hashmap_from)?;
     module.inst_fn("iter", HashMap::iter)?;
+    module.inst_fn("keys", HashMap::keys)?;
+    module.inst_fn("contains_key", HashMap::contains_key)?;
+    module.inst_fn("values", HashMap::values)?;
     module.inst_fn("insert", HashMap::insert)?;
     module.inst_fn("get", HashMap::get)?;
     module.inst_fn("is_empty", HashMap::is_empty)?;
@@ -109,6 +130,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty::<HashSet>()?;
     module.function(&["HashSet", "new"], HashSet::new)?;
+    module.function(&["HashSet", "from"], hashset_from)?;
     module.inst_fn("iter", HashSet::iter)?;
     module.inst_fn("insert", HashSet::insert)?;
     module.inst_fn("contains", HashSet::contains)?;
@@ -117,4 +139,29 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clear", HashSet::clear)?;
     module.inst_fn(crate::Protocol::INTO_ITER, HashSet::iter)?;
     Ok(module)
+}
+
+fn hashmap_from(interface: Interface) -> Result<HashMap, VmError> {
+    use crate::FromValue as _;
+
+    let mut map = HashMap::new();
+    let mut it = interface.into_iter()?;
+
+    while let Some(value) = it.next()? {
+        let (key, value) = <(Key, Value)>::from_value(value)?;
+        map.insert(key, value);
+    }
+
+    Ok(map)
+}
+
+fn hashset_from(interface: Interface) -> Result<HashSet, VmError> {
+    let mut set = HashSet::new();
+    let mut it = interface.into_iter()?;
+
+    while let Some(value) = it.next()? {
+        set.insert(Key::from_value(&value)?);
+    }
+
+    Ok(set)
 }
