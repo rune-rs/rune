@@ -9,15 +9,15 @@ default = ["full", "tokio", "futures-executor"]
 full = ["rune-modules/full"]
 
 [dependencies]
-thiserror = "1.0.20"
-futures-executor = { version = "0.3.5", optional = true }
+thiserror = "1.0.22"
+futures-executor = { version = "0.3.8", optional = true }
 tokio = { version = "0.2.22", optional = true, features = ["macros"] }
 
 rune = { path = "../crates/rune" }
 rune-modules = { path = "../crates/rune-modules" }
 runestick = { path = "../crates/runestick" }
 lazy_static = "1.4.0"
-parking_lot = "0.11.0"
+parking_lot = "0.11.1"
 
 [[test]]
 name = "test"

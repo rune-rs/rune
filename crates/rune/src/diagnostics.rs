@@ -27,6 +27,9 @@ pub enum DiagnosticsError {
     /// Source Error.
     #[error("formatting error")]
     Fmt(#[from] fmt::Error),
+    /// Codespan reporting error.
+    #[error("codespan reporting error")]
+    CodespanReporting(#[from] codespan_reporting::files::Error),
 }
 
 /// Helper trait for emitting diagnostics.

@@ -85,14 +85,14 @@ impl State {
 
         let (l, c) = source.position_to_utf16cu_line_char(def.source.span.start.into_usize())?;
         let start = lsp::Position {
-            line: l as u64,
-            character: c as u64,
+            line: l as u32,
+            character: c as u32,
         };
 
         let (l, c) = source.position_to_utf16cu_line_char(def.source.span.end.into_usize())?;
         let end = lsp::Position {
-            line: l as u64,
-            character: c as u64,
+            line: l as u32,
+            character: c as u32,
         };
 
         let range = lsp::Range { start, end };
@@ -355,7 +355,7 @@ impl Source {
 
         let col_char = col_char - line_char;
 
-        lsp::Position::new(line as u64, col_char as u64)
+        lsp::Position::new(line as u32, col_char as u32)
     }
 
     /// Offset in the rope to lsp position.
@@ -380,9 +380,9 @@ impl fmt::Display for Source {
 /// Conver the given span into an lsp range.
 fn span_to_lsp_range(source: &runestick::Source, span: Span) -> Option<lsp::Range> {
     let (line, character) = source.position_to_utf16cu_line_char(span.start.into_usize())?;
-    let start = lsp::Position::new(line as u64, character as u64);
+    let start = lsp::Position::new(line as u32, character as u32);
     let (line, character) = source.position_to_utf16cu_line_char(span.end.into_usize())?;
-    let end = lsp::Position::new(line as u64, character as u64);
+    let end = lsp::Position::new(line as u32, character as u32);
     Some(lsp::Range::new(start, end))
 }
 
