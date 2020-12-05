@@ -2322,13 +2322,13 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let value = match value {
-            Value::Option(option) => match &*(option.borrow_ref()?) {
+            Value::Option(option) => match &*option.borrow_ref()? {
                 Some(value) => value.clone(),
                 None => {
                     return Err(VmError::from(VmErrorKind::UnsupportedUnwrapNone));
                 }
             },
-            Value::Result(result) => match &*(result.borrow_ref()?) {
+            Value::Result(result) => match &*result.borrow_ref()? {
                 Ok(value) => value.clone(),
                 Err(err) => {
                     return Err(VmError::from(VmErrorKind::UnsupportedUnwrapErr {
