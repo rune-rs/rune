@@ -20,24 +20,24 @@ bench = []
 
 [dependencies]
 log = "0.4.11"
-twox-hash = {version = "1.5.0", default-features = false}
-thiserror = {version = "1.0.20", default-features = false}
-hashbrown = {version = "0.8.1", default-features = false, features = ["serde", "ahash"]}
-serde = {version = "1.0.114", features = ["derive", "rc"]}
+twox-hash = { version = "1.6.0", default-features = false }
+thiserror = { version = "1.0.22", default-features = false }
+hashbrown = { version = "0.9.1", default-features = false, features = ["serde", "ahash"] }
+serde = { version = "1.0.117", features = ["derive", "rc"] }
 itoa = "0.4.6"
-ryu = "1.0"
-futures-core = "0.3.5"
-futures-util = "0.3.5"
+ryu = "1.0.5"
+futures-core = "0.3.8"
+futures-util = "0.3.8"
 # used to store errors raised in user-defined functions.
-anyhow = "1.0.32"
-pin-project = "0.4.23"
+anyhow = "1.0.34"
+pin-project = "1.0.2"
 byteorder = "1.3.4"
-num-bigint = "0.3.0"
+num-bigint = "0.3.1"
 
 runestick-macros = {version = "0.7.0", path = "../runestick-macros"}
 
 [dev-dependencies]
-tokio = {version = "0.2.22", features = ["full"]}
+tokio = { version = "0.2.22", features = ["full"] }
 checkers = "0.5.6"
 static_assertions = "1.1.0"
 rune = { version = "0.7.0", path = "../rune" }
