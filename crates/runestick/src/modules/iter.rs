@@ -30,6 +30,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("sum", Iterator::sum)?;
     module.inst_fn("take", Iterator::take)?;
     module.inst_fn("count", Iterator::count)?;
+    module.inst_fn("all", Iterator::all)?;
     module.inst_fn(Protocol::NEXT, Iterator::next)?;
     module.inst_fn(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
 

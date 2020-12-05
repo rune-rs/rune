@@ -173,6 +173,30 @@ impl Iterator {
         Ok(None)
     }
 
+    /// Test if all entries in the iterator matches the given predicate.
+    pub fn all(mut self, find: Function) -> Result<bool, VmError> {
+        while let Some(value) = self.next()? {
+            let result = find.call::<_, bool>((value.clone(),))?;
+
+            if !result {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
+    /// Test if any entry in the iterator matches the given predicate.
+    pub fn any(mut self, find: Function) -> Result<bool, VmError> {
+        while let Some(value) = self.next()? {
+            if find.call::<_, bool>((value.clone(),))? {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
     /// Chain this iterator with another.
     pub fn chain(self, other: Interface) -> Result<Self, VmError> {
         let other = other.into_iter()?;
