@@ -1,6 +1,6 @@
 //! `std::collections` module.
 
-use crate::{Any, ContextError, Key, Module, Value};
+use crate::{Any, ContextError, Iterator, Key, Module, Value};
 
 #[derive(Any)]
 #[rune(module = "crate")]
@@ -13,6 +13,12 @@ impl HashMap {
         Self {
             map: crate::collections::HashMap::new(),
         }
+    }
+
+    #[inline]
+    fn iter(&self) -> Iterator {
+        let iter = self.map.clone().into_iter();
+        Iterator::from("std::collections::map::Iter", iter)
     }
 
     #[inline]
@@ -55,6 +61,12 @@ impl HashSet {
     }
 
     #[inline]
+    fn iter(&self) -> Iterator {
+        let iter = self.set.clone().into_iter();
+        Iterator::from("std::collections::set::Iter", iter)
+    }
+
+    #[inline]
     fn insert(&mut self, key: Key) -> bool {
         self.set.insert(key)
     }
@@ -85,20 +97,24 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", &["collections"]);
     module.ty::<HashMap>()?;
     module.function(&["HashMap", "new"], HashMap::new)?;
+    module.inst_fn("iter", HashMap::iter)?;
     module.inst_fn("insert", HashMap::insert)?;
     module.inst_fn("get", HashMap::get)?;
     module.inst_fn("is_empty", HashMap::is_empty)?;
     module.inst_fn("len", HashMap::len)?;
     module.inst_fn("clear", HashMap::clear)?;
+    module.inst_fn(crate::Protocol::INTO_ITER, HashMap::iter)?;
     module.inst_fn(crate::Protocol::INDEX_SET, HashMap::insert)?;
     module.inst_fn(crate::Protocol::INDEX_GET, HashMap::get)?;
 
     module.ty::<HashSet>()?;
     module.function(&["HashSet", "new"], HashSet::new)?;
+    module.inst_fn("iter", HashSet::iter)?;
     module.inst_fn("insert", HashSet::insert)?;
     module.inst_fn("contains", HashSet::contains)?;
     module.inst_fn("is_empty", HashSet::is_empty)?;
     module.inst_fn("len", HashSet::len)?;
     module.inst_fn("clear", HashSet::clear)?;
+    module.inst_fn(crate::Protocol::INTO_ITER, HashSet::iter)?;
     Ok(module)
 }

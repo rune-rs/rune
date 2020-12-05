@@ -1,6 +1,7 @@
 use crate::{ConstValue, FromValue, Mut, Ref, Value, VmError};
 use std::fmt;
 use std::ops;
+use std::slice;
 
 /// Struct representing a dynamic anonymous object.
 #[derive(Clone)]
@@ -102,6 +103,24 @@ impl ops::Deref for Tuple {
 impl ops::DerefMut for Tuple {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut *self.inner
+    }
+}
+
+impl<'a> IntoIterator for &'a Tuple {
+    type Item = &'a Value;
+    type IntoIter = slice::Iter<'a, Value>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Tuple {
+    type Item = &'a mut Value;
+    type IntoIter = slice::IterMut<'a, Value>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter_mut()
     }
 }
 
