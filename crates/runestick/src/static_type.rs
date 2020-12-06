@@ -199,7 +199,6 @@ pub static FUNCTION_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(crate::Function => FUNCTION_TYPE);
 impl_static_type!(crate::Shared<crate::Function> => FUNCTION_TYPE);
-impl_static_type!(crate::Ref<crate::Function> => FUNCTION_TYPE);
 impl_static_type!(impl<T> std::collections::HashMap<String, T> => OBJECT_TYPE);
 
 /// The specialized type information for a fmt spec types.
