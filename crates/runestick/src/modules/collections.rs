@@ -114,7 +114,7 @@ impl HashSet {
             "std::collections::set::Difference",
             Difference {
                 this: self.set.clone().into_iter(),
-                other,
+                other: Some(other),
             },
         )
     }
@@ -125,12 +125,12 @@ impl HashSet {
         let intersection = if zelf.len() <= other.len() {
             Intersection {
                 this: zelf.set.clone().into_iter(),
-                other,
+                other: Some(other),
             }
         } else {
             Intersection {
                 this: other.set.clone().into_iter(),
-                other: zelf,
+                other: Some(zelf),
             }
         };
         crate::Iterator::from("std::collections::set::Intersection", intersection)
@@ -156,7 +156,7 @@ where
     I: std::iter::Iterator<Item = Key>,
 {
     this: I,
-    other: Ref<HashSet>,
+    other: Option<Ref<HashSet>>,
 }
 
 impl<I> std::iter::Iterator for Intersection<I>
@@ -167,10 +167,22 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // guaranteed to leave here unless the iterator is unbounded
-            let elt = self.this.next()?;
-
-            if self.other.set.contains(&elt) {
-                return Some(elt);
+            match self.this.next() {
+                Some(elt) => {
+                    if self
+                        .other
+                        .as_ref()
+                        .expect("finished iterator came alive again")
+                        .set
+                        .contains(&elt)
+                    {
+                        return Some(elt);
+                    }
+                }
+                None => {
+                    self.other.take();
+                    return None;
+                }
             }
         }
     }
@@ -187,7 +199,7 @@ where
     I: std::iter::Iterator<Item = Key>,
 {
     this: I,
-    other: Ref<HashSet>,
+    other: Option<Ref<HashSet>>,
 }
 
 impl<I> std::iter::Iterator for Difference<I>
@@ -198,9 +210,22 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // guaranteed to leave here unless the iterator is unbounded
-            let elt = self.this.next()?;
-            if !self.other.set.contains(&elt) {
-                return Some(elt);
+            match self.this.next() {
+                Some(elt) => {
+                    if !self
+                        .other
+                        .as_ref()
+                        .expect("finished iterator came alive again")
+                        .set
+                        .contains(&elt)
+                    {
+                        return Some(elt);
+                    }
+                }
+                None => {
+                    self.other.take();
+                    return None;
+                }
             }
         }
     }
