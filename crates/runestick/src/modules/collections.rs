@@ -174,6 +174,12 @@ where
             }
         }
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (_, upper) = self.this.size_hint();
+        (0, upper)
+    }
 }
 
 struct Difference<I>
@@ -197,6 +203,12 @@ where
                 return Some(elt);
             }
         }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (_, upper) = self.this.size_hint();
+        (0, upper)
     }
 }
 
