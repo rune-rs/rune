@@ -209,6 +209,16 @@ impl Iterator {
         })
     }
 
+    /// Chain this iterator with another.
+    pub fn chain_raw(self, other: Self) -> Result<Self, VmError> {
+        Ok(Self {
+            iter: IterRepr::Chain(Box::new(Chain {
+                a: Some(self.iter),
+                b: Some(other.iter),
+            })),
+        })
+    }
+
     /// Map the iterator using the given function.
     pub fn rev(self) -> Result<Self, VmError> {
         if !self.iter.is_double_ended() {
@@ -1157,7 +1167,7 @@ where
                 Value::Integer(v) => Ok(Value::Integer(self.resolve_internal_simple(v)?)),
                 Value::Float(v) => Ok(Value::Float(self.resolve_internal_simple(v)?)),
                 _ => Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                    op: "*",
+                    op: "+",
                     lhs: v.type_info()?,
                     rhs: v.type_info()?,
                 })),

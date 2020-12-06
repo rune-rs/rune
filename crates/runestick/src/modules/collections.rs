@@ -1,6 +1,6 @@
 //! `std::collections` module.
 
-use crate::{Any, ContextError, Interface, Iterator, Key, Module, Value, VmError};
+use crate::{Any, ContextError, Interface, Iterator, Key, Module, Ref, Value, VmError};
 
 #[derive(Any)]
 #[rune(module = "crate")]
@@ -107,6 +107,111 @@ impl HashSet {
     fn clear(&mut self) {
         self.set.clear()
     }
+
+    #[inline]
+    fn difference(&self, other: Ref<HashSet>) -> crate::Iterator {
+        crate::Iterator::from(
+            "std::collections::set::Difference",
+            Difference {
+                this: self.set.clone().into_iter(),
+                other,
+            },
+        )
+    }
+
+    #[inline]
+    fn intersection(zelf: Ref<HashSet>, other: Ref<HashSet>) -> Iterator {
+        // use shortest iterator as driver for intersections
+        let intersection = if zelf.len() <= other.len() {
+            Intersection {
+                this: zelf.set.clone().into_iter(),
+                other,
+            }
+        } else {
+            Intersection {
+                this: other.set.clone().into_iter(),
+                other: zelf,
+            }
+        };
+        crate::Iterator::from("std::collections::set::Intersection", intersection)
+    }
+
+    #[inline]
+    fn union(zelf: Ref<HashSet>, other: Ref<HashSet>) -> Result<crate::Iterator, VmError> {
+        // use longest as lead and then append any missing that are in second
+        let iter = Union {
+            iter: if zelf.len() >= other.len() {
+                zelf.iter().chain_raw(other.difference(zelf))?
+            } else {
+                other.iter().chain_raw(zelf.difference(other))?
+            },
+        };
+
+        Ok(crate::Iterator::from("std::collections::set::Union", iter))
+    }
+}
+
+struct Intersection<I>
+where
+    I: std::iter::Iterator<Item = Key>,
+{
+    this: I,
+    other: Ref<HashSet>,
+}
+
+impl<I> std::iter::Iterator for Intersection<I>
+where
+    I: std::iter::Iterator<Item = Key>,
+{
+    type Item = Key;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // guaranteed to leave here unless the iterator is unbounded
+            let elt = self.this.next()?;
+
+            if self.other.set.contains(&elt) {
+                return Some(elt);
+            }
+        }
+    }
+}
+
+struct Difference<I>
+where
+    I: std::iter::Iterator<Item = Key>,
+{
+    this: I,
+    other: Ref<HashSet>,
+}
+
+impl<I> std::iter::Iterator for Difference<I>
+where
+    I: std::iter::Iterator<Item = Key>,
+{
+    type Item = Key;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // guaranteed to leave here unless the iterator is unbounded
+            let elt = self.this.next()?;
+            if !self.other.set.contains(&elt) {
+                return Some(elt);
+            }
+        }
+    }
+}
+
+struct Union {
+    iter: Iterator,
+}
+
+impl crate::iterator::IteratorTrait for Union {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        self.iter.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
 }
 
 /// The `std::collections` module.
@@ -137,6 +242,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("is_empty", HashSet::is_empty)?;
     module.inst_fn("len", HashSet::len)?;
     module.inst_fn("clear", HashSet::clear)?;
+    module.inst_fn("difference", HashSet::difference)?;
+    module.inst_fn("intersection", HashSet::intersection)?;
+    module.inst_fn("union", HashSet::union)?;
     module.inst_fn(crate::Protocol::INTO_ITER, HashSet::iter)?;
     Ok(module)
 }
