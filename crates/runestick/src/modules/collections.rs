@@ -165,24 +165,14 @@ where
 {
     type Item = Key;
     fn next(&mut self) -> Option<Self::Item> {
+        let other = self.other.take()?;
+
         loop {
-            // guaranteed to leave here unless the iterator is unbounded
-            match self.this.next() {
-                Some(elt) => {
-                    if self
-                        .other
-                        .as_ref()
-                        .expect("finished iterator came alive again")
-                        .set
-                        .contains(&elt)
-                    {
-                        return Some(elt);
-                    }
-                }
-                None => {
-                    self.other.take();
-                    return None;
-                }
+            let item = self.this.next()?;
+
+            if other.set.contains(&item) {
+                self.other = Some(other);
+                return Some(item);
             }
         }
     }
@@ -208,24 +198,14 @@ where
 {
     type Item = Key;
     fn next(&mut self) -> Option<Self::Item> {
+        let other = self.other.take()?;
+
         loop {
-            // guaranteed to leave here unless the iterator is unbounded
-            match self.this.next() {
-                Some(elt) => {
-                    if !self
-                        .other
-                        .as_ref()
-                        .expect("finished iterator came alive again")
-                        .set
-                        .contains(&elt)
-                    {
-                        return Some(elt);
-                    }
-                }
-                None => {
-                    self.other.take();
-                    return None;
-                }
+            let item = self.this.next()?;
+
+            if !other.set.contains(&item) {
+                self.other = Some(other);
+                return Some(item);
             }
         }
     }
