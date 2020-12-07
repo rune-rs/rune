@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_path_type_match() {
     assert_eq! {

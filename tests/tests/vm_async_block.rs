@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_async_block() {
     assert_eq! {

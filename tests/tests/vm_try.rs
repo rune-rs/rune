@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_unwrap() {
     assert_eq! {

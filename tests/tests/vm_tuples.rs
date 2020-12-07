@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_mutate_tuples() {
     assert_eq! {

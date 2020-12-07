@@ -1,5 +1,6 @@
 //! Tests for `std::any::type_name_of_val(v)` for native types
 
+use rune_tests::*;
 use runestick::{ContextError, Module};
 #[derive(runestick::Any)]
 pub struct NativeStruct(pub u32);

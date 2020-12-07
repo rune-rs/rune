@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_binding_pattern() {
     let out = rune! { i64 =>

@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_ignore_binding() {
     assert_eq! {

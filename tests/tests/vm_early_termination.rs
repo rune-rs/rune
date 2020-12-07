@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 macro_rules! test_case {
     (($($k:tt)*), $field:tt, $index:tt, $($extra:tt)*) => {
         assert_eq! {

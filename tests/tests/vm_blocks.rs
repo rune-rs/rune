@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_anonymous_type_precedence() {
     assert_eq! {

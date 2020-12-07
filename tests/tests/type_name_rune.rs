@@ -1,5 +1,7 @@
 //! Tests for `std::any::type_name_of_val(v)` for rune types
 
+use rune_tests::*;
+
 #[test]
 fn test_trivial_types() {
     assert_eq!(

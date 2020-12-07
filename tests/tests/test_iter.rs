@@ -1,5 +1,7 @@
 //! Test for iterator functions
 
+use rune_tests::*;
+
 #[test]
 fn test_sum() {
     assert_eq!(rune!(u32 => pub fn main() { [1, 2, 3].iter().sum() }), 6)

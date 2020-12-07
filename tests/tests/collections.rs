@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_hash_map_tile() {
     rune! { () =>

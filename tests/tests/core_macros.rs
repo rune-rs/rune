@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 macro_rules! test_case {
     ($($tt:tt)*) => {
         let out: String = rune!(String => pub fn main() { format!($($tt)*) });

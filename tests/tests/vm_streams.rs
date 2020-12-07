@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_simple_stream() {
     assert_eq! {

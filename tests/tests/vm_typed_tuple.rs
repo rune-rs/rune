@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_defined_tuple() {
     assert_eq! {

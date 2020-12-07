@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 macro_rules! test_case {
     (($($st:tt)*), ($($ds:tt)*) $(, $($extra:tt)*)?) => {
         assert_eq!(15, rune! { i64 =>

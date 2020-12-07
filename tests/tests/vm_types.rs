@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_variant_typing() {
     assert_eq! {

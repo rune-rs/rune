@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_not_used() {
     assert_eq! {

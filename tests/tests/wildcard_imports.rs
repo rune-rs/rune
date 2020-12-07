@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_wildcard_precedence() {
     assert!(rune! { bool =>

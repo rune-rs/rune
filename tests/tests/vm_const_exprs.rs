@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 macro_rules! test_op {
     ($ty:ty => $lhs:literal $op:tt $rhs:literal = $result:literal) => {{
         let program = format!(

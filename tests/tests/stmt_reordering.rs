@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_stmt_reordering() {
     let len = rune! { i64 =>

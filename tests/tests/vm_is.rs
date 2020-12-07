@@ -1,3 +1,5 @@
+use rune_tests::*;
+
 #[test]
 fn test_binop_override() {
     // The right hand side of the `is` expression requires a type, and therefore
