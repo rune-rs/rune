@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::vec;
 
 /// A key that can be used as an anonymous object key.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Key {
     /// A constant unit.
     Unit,
@@ -147,6 +147,23 @@ impl Key {
             Self::Vec(..) => TypeInfo::StaticType(crate::VEC_TYPE),
             Self::Tuple(..) => TypeInfo::StaticType(crate::TUPLE_TYPE),
             Self::Option(..) => TypeInfo::StaticType(crate::OPTION_TYPE),
+        }
+    }
+}
+
+impl fmt::Debug for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Key::Unit => write!(f, "()"),
+            Key::Byte(b) => write!(f, "{:?}", b),
+            Key::Char(c) => write!(f, "{:?}", c),
+            Key::Bool(b) => write!(f, "{}", b),
+            Key::Integer(n) => write!(f, "{}", n),
+            Key::String(s) => write!(f, "{:?}", s),
+            Key::Bytes(b) => write!(f, "{:?}", b),
+            Key::Vec(vec) => write!(f, "{:?}", vec),
+            Key::Tuple(tuple) => write!(f, "{:?}", tuple),
+            Key::Option(opt) => write!(f, "{:?}", opt),
         }
     }
 }

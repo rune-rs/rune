@@ -1960,47 +1960,41 @@ impl Vm {
         let index = self.stack.address(index)?;
         let target = self.stack.address_ref(target)?;
 
-        // This is a useful pattern.
-        #[allow(clippy::never_loop)]
-        loop {
-            match &index {
-                Value::String(string) => {
-                    let string_ref = string.borrow_ref()?;
+        match &index {
+            Value::String(string) => {
+                let string_ref = string.borrow_ref()?;
 
-                    if let Some(value) =
-                        Self::try_object_like_index_get(&target, string_ref.as_str())?
-                    {
-                        self.stack.push(value);
-                        return Ok(());
-                    }
+                if let Some(value) = Self::try_object_like_index_get(&target, string_ref.as_str())?
+                {
+                    self.stack.push(value);
+                    return Ok(());
                 }
-                Value::StaticString(string) => {
-                    if let Some(value) = Self::try_object_like_index_get(&target, string.as_ref())?
-                    {
-                        self.stack.push(value);
-                        return Ok(());
-                    }
+            }
+            Value::StaticString(string) => {
+                if let Some(value) = Self::try_object_like_index_get(&target, string.as_ref())? {
+                    self.stack.push(value);
+                    return Ok(());
                 }
-                Value::Integer(index) => {
-                    use std::convert::TryInto as _;
+            }
+            Value::Integer(index) => {
+                use std::convert::TryInto as _;
 
-                    let index = match (*index).try_into() {
-                        Ok(index) => index,
-                        Err(..) => {
-                            return Err(VmError::from(VmErrorKind::MissingIndex {
-                                target: target.type_info()?,
-                                index: VmIntegerRepr::from(*index),
-                            }));
-                        }
-                    };
-
-                    if let Some(value) = Self::try_tuple_like_index_get(&target, index)? {
-                        self.stack.push(value);
-                        return Ok(());
+                let index = match (*index).try_into() {
+                    Ok(index) => index,
+                    Err(..) => {
+                        return Err(VmError::from(VmErrorKind::MissingIndex {
+                            target: target.type_info()?,
+                            index: VmIntegerRepr::from(*index),
+                        }));
                     }
+                };
+
+                if let Some(value) = Self::try_tuple_like_index_get(&target, index)? {
+                    self.stack.push(value);
+                    return Ok(());
                 }
-                _ => break,
-            };
+            }
+            _ => (),
         }
 
         let target = target.into_owned();

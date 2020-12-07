@@ -1,6 +1,8 @@
 //! `std::collections` module.
 
-use crate::{Any, ContextError, Interface, Iterator, Key, Module, Ref, Value, VmError};
+use crate::{
+    Any, ContextError, Interface, Iterator, Key, Module, Ref, Value, VmError, VmErrorKind,
+};
 
 #[derive(Any)]
 #[rune(module = "crate")]
@@ -46,6 +48,20 @@ impl HashMap {
     #[inline]
     fn get(&self, key: Key) -> Option<Value> {
         self.map.get(&key).cloned()
+    }
+
+    #[inline]
+    fn fallible_get(&self, key: Key) -> Result<Value, VmError> {
+        use crate::TypeOf as _;
+
+        let value = self.map.get(&key).ok_or_else(|| {
+            VmError::from(VmErrorKind::MissingIndexKey {
+                target: Self::type_info(),
+                index: key,
+            })
+        })?;
+
+        Ok(value.clone())
     }
 
     #[inline]
@@ -248,7 +264,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clear", HashMap::clear)?;
     module.inst_fn(crate::Protocol::INTO_ITER, HashMap::iter)?;
     module.inst_fn(crate::Protocol::INDEX_SET, HashMap::insert)?;
-    module.inst_fn(crate::Protocol::INDEX_GET, HashMap::get)?;
+    module.inst_fn(crate::Protocol::INDEX_GET, HashMap::fallible_get)?;
 
     module.ty::<HashSet>()?;
     module.function(&["HashSet", "new"], HashSet::new)?;
