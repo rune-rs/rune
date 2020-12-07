@@ -9,7 +9,7 @@ impl Assemble for ast::ExprLet {
         let load = |c: &mut Compiler, needs: Needs| {
             // NB: assignments "move" the value being assigned.
             self.expr.assemble(c, needs)?.apply(c)?;
-            Ok(Asm::top(span))
+            Ok(())
         };
 
         let false_label = c.asm.new_label("let_panic");

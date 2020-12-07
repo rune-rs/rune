@@ -138,20 +138,6 @@ impl Scope {
         offset
     }
 
-    /// Insert a new local, and return the old one if there's a conflict.
-    fn decl_var_with_offset(&mut self, name: &str, offset: usize, span: Span) {
-        log::trace!("decl {} => {}", name, offset);
-
-        self.locals.insert(
-            name.to_owned(),
-            Var {
-                offset,
-                span,
-                moved_at: None,
-            },
-        );
-    }
-
     /// Declare an anonymous variable.
     ///
     /// This is used if cleanup is required in the middle of an expression.
@@ -327,18 +313,6 @@ impl Scopes {
     /// Declare the given variable.
     pub(crate) fn decl_var(&mut self, name: &str, span: Span) -> CompileResult<usize> {
         Ok(self.last_mut(span)?.decl_var(name, span))
-    }
-
-    /// Declare the given variable with a custom offset.
-    pub(crate) fn decl_var_with_offset(
-        &mut self,
-        name: &str,
-        offset: usize,
-        span: Span,
-    ) -> CompileResult<()> {
-        Ok(self
-            .last_mut(span)?
-            .decl_var_with_offset(name, offset, span))
     }
 
     /// Declare an anonymous variable.

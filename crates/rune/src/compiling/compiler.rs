@@ -1,8 +1,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{
-    Asm, Assemble as _, AssembleConst as _, Assembly, CompileVisitor, Loops, Scope, ScopeGuard,
-    Scopes,
+    Assemble as _, AssembleConst as _, Assembly, CompileVisitor, Loops, Scope, ScopeGuard, Scopes,
 };
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -265,7 +264,10 @@ impl<'a> Compiler<'a> {
                 let scope = self.scopes.child(span)?;
                 let expected = self.scopes.push(scope);
 
-                let load = |c: &mut Self, needs: Needs| Ok(expr_let.expr.assemble(c, needs)?);
+                let load = |c: &mut Self, needs: Needs| {
+                    expr_let.expr.assemble(c, needs)?.apply(c)?;
+                    Ok(())
+                };
 
                 if self.compile_pat(&expr_let.pat, false_label, &load)? {
                     self.asm.jump(then_label, span);
@@ -285,14 +287,14 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat_vec: &ast::PatVec,
         false_label: Label,
-        load: &dyn Fn(&mut Self, Needs) -> CompileResult<Asm>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_vec.span();
         log::trace!("PatVec => {:?}", self.source.source(span));
 
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
-        load(self, Needs::Value)?.apply(self)?;
+        load(self, Needs::Value)?;
         let offset = self.scopes.decl_anon(span)?;
 
         // Copy the temporary and check that its length matches the pattern and
@@ -321,7 +323,7 @@ impl<'a> Compiler<'a> {
                     c.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
                 }
 
-                Ok(Asm::top(span))
+                Ok(())
             };
 
             self.compile_pat(&*pat, false_label, &load)?;
@@ -335,12 +337,12 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat_tuple: &ast::PatTuple,
         false_label: Label,
-        load: &dyn Fn(&mut Self, Needs) -> CompileResult<Asm>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span));
 
-        load(self, Needs::Value)?.apply(self)?;
+        load(self, Needs::Value)?;
 
         if pat_tuple.items.is_empty() {
             self.asm.push(Inst::IsUnit, span);
@@ -431,7 +433,7 @@ impl<'a> Compiler<'a> {
                     c.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
                 }
 
-                Ok(Asm::top(span))
+                Ok(())
             };
 
             self.compile_pat(&*pat, false_label, &load)?;
@@ -445,7 +447,7 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat_object: &ast::PatObject,
         false_label: Label,
-        load: &dyn Fn(&mut Self, Needs) -> CompileResult<Asm>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_object.span();
         log::trace!("PatObject => {:?}", self.source.source(span));
@@ -453,7 +455,7 @@ impl<'a> Compiler<'a> {
         // NB: bind the loaded variable (once) to an anonymous var.
         // We reduce the number of copy operations by having specialized
         // operations perform the load from the given offset.
-        load(self, Needs::Value)?.apply(self)?;
+        load(self, Needs::Value)?;
         let offset = self.scopes.decl_anon(span)?;
 
         let mut string_slots = Vec::new();
@@ -592,7 +594,7 @@ impl<'a> Compiler<'a> {
                             c.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
                         }
 
-                        Ok(Asm::top(span))
+                        Ok(())
                     };
 
                     self.compile_pat(&*pat, false_label, &load)?;
@@ -636,7 +638,7 @@ impl<'a> Compiler<'a> {
         span: Span,
         meta: &CompileMeta,
         false_label: Label,
-        load: &dyn Fn(&mut Self, Needs) -> CompileResult<Asm>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let type_check = match &meta.kind {
             CompileMetaKind::UnitStruct { type_hash, .. } => TypeCheck::Type(*type_hash),
@@ -655,7 +657,7 @@ impl<'a> Compiler<'a> {
             None => type_check,
         };
 
-        load(self, Needs::Value)?.apply(self)?;
+        load(self, Needs::Value)?;
         self.asm.push(
             Inst::MatchSequence {
                 type_check,
@@ -677,12 +679,12 @@ impl<'a> Compiler<'a> {
     ) -> CompileResult<()> {
         let span = pat.span();
 
-        let load = |_: &mut Compiler, needs: Needs| {
+        let load = |c: &mut Compiler, needs: Needs| {
             if needs.value() {
-                return Ok(Asm::offset(span, offset));
+                c.asm.push(Inst::Copy { offset }, span);
             }
 
-            Ok(Asm::top(span))
+            Ok(())
         };
 
         let false_label = self.asm.new_label("let_panic");
@@ -717,7 +719,7 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat: &ast::Pat,
         false_label: Label,
-        load: &dyn Fn(&mut Self, Needs) -> CompileResult<Asm>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let span = pat.span();
         log::trace!("Pat => {:?}", self.source.source(span));
@@ -735,7 +737,8 @@ impl<'a> Compiler<'a> {
                 }
 
                 if let Some(ident) = named.as_local() {
-                    load(self, Needs::Value)?.decl_var(self, ident)?;
+                    load(self, Needs::Value)?;
+                    self.scopes.decl_var(ident, span)?;
                     return Ok(false);
                 }
 
@@ -747,7 +750,7 @@ impl<'a> Compiler<'a> {
             ast::Pat::PatIgnore(..) => {
                 // ignore binding, but might still have side effects, so must
                 // call the load generator.
-                load(self, Needs::None)?.apply(self)?;
+                load(self, Needs::None)?;
                 Ok(false)
             }
             ast::Pat::PatLit(pat_lit) => Ok(self.compile_pat_lit(pat_lit, false_label, load)?),
@@ -774,7 +777,7 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat_lit: &ast::PatLit,
         false_label: Label,
-        load: &dyn Fn(&mut Self, Needs) -> CompileResult<Asm>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         loop {
             match &pat_lit.expr {
@@ -789,7 +792,7 @@ impl<'a> Compiler<'a> {
                             let integer = lit_number
                                 .resolve(&self.storage, &*self.source)?
                                 .as_i64(pat_lit.span(), true)?;
-                            load(self, Needs::Value)?.apply(self)?;
+                            load(self, Needs::Value)?;
                             self.asm.push(Inst::EqInteger { integer }, span);
                             break;
                         }
@@ -798,13 +801,13 @@ impl<'a> Compiler<'a> {
                 ast::Expr::Lit(expr_lit) => match &expr_lit.lit {
                     ast::Lit::Byte(lit_byte) => {
                         let byte = lit_byte.resolve(&self.storage, &*self.source)?;
-                        load(self, Needs::Value)?.apply(self)?;
+                        load(self, Needs::Value)?;
                         self.asm.push(Inst::EqByte { byte }, lit_byte.span());
                         break;
                     }
                     ast::Lit::Char(lit_char) => {
                         let character = lit_char.resolve(&self.storage, &*self.source)?;
-                        load(self, Needs::Value)?.apply(self)?;
+                        load(self, Needs::Value)?;
                         self.asm
                             .push(Inst::EqCharacter { character }, lit_char.span());
                         break;
@@ -813,7 +816,7 @@ impl<'a> Compiler<'a> {
                         let span = pat_string.span();
                         let string = pat_string.resolve(&self.storage, &*self.source)?;
                         let slot = self.unit.new_static_string(span, &*string)?;
-                        load(self, Needs::Value)?.apply(self)?;
+                        load(self, Needs::Value)?;
                         self.asm.push(Inst::EqStaticString { slot }, span);
                         break;
                     }
@@ -822,14 +825,14 @@ impl<'a> Compiler<'a> {
                         let integer = lit_number
                             .resolve(&self.storage, &*self.source)?
                             .as_i64(pat_lit.span(), false)?;
-                        load(self, Needs::Value)?.apply(self)?;
+                        load(self, Needs::Value)?;
                         self.asm.push(Inst::EqInteger { integer }, span);
                         break;
                     }
                     ast::Lit::Bool(lit_bool) => {
                         let span = lit_bool.span();
                         let boolean = lit_bool.value;
-                        load(self, Needs::Value)?.apply(self)?;
+                        load(self, Needs::Value)?;
                         self.asm.push(Inst::EqBool { boolean }, span);
                         break;
                     }
