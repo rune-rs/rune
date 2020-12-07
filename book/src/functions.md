@@ -50,7 +50,7 @@ same time it can be harder to reason on what your program will do.
 Rune functions can be easily set up and called from Rust.
 
 ```rust,noplaypen
-{{#include ../../examples/basic_add.rs}}
+{{#include ../../examples/examples/basic_add.rs}}
 ```
 
 ```text
