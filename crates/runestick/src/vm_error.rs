@@ -1,6 +1,7 @@
 use crate::panic::BoxedPanic;
 use crate::{
-    AccessError, Hash, Item, Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Value, VmHaltInfo,
+    AccessError, Hash, Item, Key, Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Value,
+    VmHaltInfo,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -240,11 +241,13 @@ pub enum VmErrorKind {
     UnsupportedCallFn { actual_type: TypeInfo },
     #[error("missing index by static string slot `{slot}` in object")]
     ObjectIndexMissing { slot: usize },
-    #[error("missing index `{index}` on `{target}`")]
+    #[error("`{target}` missing index `{index}`")]
     MissingIndex {
         target: TypeInfo,
         index: VmIntegerRepr,
     },
+    #[error("`{target}` missing index `{index:?}`")]
+    MissingIndexKey { target: TypeInfo, index: Key },
     #[error("index out of bounds: the len is ${len} but the index is {index}")]
     OutOfRange {
         index: VmIntegerRepr,
