@@ -25,8 +25,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clone", String::clone)?;
     module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
     module.inst_fn("char_at", char_at)?;
-    module.inst_fn("split", string_split_char)?;
-    module.inst_fn("split_str", string_split_str)?;
+    module.inst_fn("split", string_split)?;
+    // TODO: deprecate this variant.
+    module.inst_fn("split_str", string_split)?;
     module.inst_fn("is_empty", str::is_empty)?;
     module.inst_fn("chars", string_chars)?;
     module.inst_fn(Protocol::ADD, add)?;
@@ -70,14 +71,24 @@ fn char_at(s: &str, index: usize) -> Result<Option<char>, NotCharBoundary> {
     Ok(s[index..].chars().next())
 }
 
-fn string_split_char(s: &str, pat: char) -> Iterator {
-    let parts = s.split(pat).map(String::from).collect::<Vec<String>>();
-    Iterator::from_double_ended("std::str::Split", parts.into_iter())
-}
+fn string_split(this: &str, value: Value) -> Result<Iterator, VmError> {
+    let lines = match value {
+        Value::String(s) => this
+            .split(s.borrow_ref()?.as_str())
+            .map(String::from)
+            .collect::<Vec<String>>(),
+        Value::StaticString(s) => this
+            .split(s.as_str())
+            .map(String::from)
+            .collect::<Vec<String>>(),
+        Value::Char(pat) => this.split(pat).map(String::from).collect::<Vec<String>>(),
+        value => return Err(VmError::bad_argument::<String>(0, &value)?),
+    };
 
-fn string_split_str(s: &str, pat: &str) -> Iterator {
-    let parts = s.split(pat).map(String::from).collect::<Vec<String>>();
-    Iterator::from_double_ended("std::str::Split", parts.into_iter())
+    Ok(Iterator::from_double_ended(
+        "std::str::Split",
+        lines.into_iter(),
+    ))
 }
 
 fn parse_int(s: &str) -> Result<i64, std::num::ParseIntError> {
