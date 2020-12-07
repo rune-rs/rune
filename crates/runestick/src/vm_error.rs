@@ -30,7 +30,7 @@ impl VmError {
     where
         T: TypeOf,
     {
-        Ok(Self::from(VmErrorKind::BadArgumentType {
+        Ok(Self::from(VmErrorKind::BadArgumentAt {
             arg,
             expected: T::type_info(),
             actual: value.type_info()?,
@@ -205,7 +205,7 @@ pub enum VmErrorKind {
     #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
     BadArgumentCount { actual: usize, expected: usize },
     #[error("bad argument #{arg}, expected `{expected}` but got `{actual}`")]
-    BadArgumentType {
+    BadArgumentAt {
         arg: usize,
         expected: TypeInfo,
         actual: TypeInfo,
