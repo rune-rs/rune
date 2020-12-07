@@ -7,6 +7,7 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", &["result"]);
     // Sorted for ease of finding
     module.result(&["Result"])?;
+    module.inst_fn("ok", ok)?;
     module.inst_fn("is_ok", is_ok)?;
     module.inst_fn("is_err", is_err)?;
     module.inst_fn("unwrap", unwrap_impl)?;
@@ -14,6 +15,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("and_then", and_then_impl)?;
     module.inst_fn("map", map_impl)?;
     Ok(module)
+}
+
+fn ok(result: &Result<Value, Value>) -> Option<Value> {
+    result.as_ref().ok().cloned()
 }
 
 fn is_ok(result: &Result<Value, Value>) -> bool {
