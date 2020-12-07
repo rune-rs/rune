@@ -127,7 +127,8 @@ name = "test"
 path = "test.rs"
 ```
 
-And this is where the magic happens. We write a `build.rs` extension to perform our own autodiscovery:
+Next is where the magic happens. We write a `build.rs` extension to perform our
+own autodiscovery:
 
 ```rust
 use std::env;
@@ -172,7 +173,18 @@ fn main() {
 }
 ```
 
-Finally we add the generated file to our test entrypoint `test.rs`:
+This writes a generated file in `OUT_DIR` called `tests.rs` which contains the
+necessary module enumeration of our test files so that Rust can build it as a
+single project.
+
+> Note the use of `#[path = ..]` above which uses an absolute path. This is
+> necessary because it would otherwise look for the modules in `OUT_DIR` instead
+> of the correct file in our `tests` directory. There are other ways to do this,
+> but this provides us with the modules as part of the test names when we run
+> them.
+
+Finally we include the generated file in `test.rs` which we defined as our
+entrypoint in `Cargo.toml`:
 
 ```rust
 include!(concat!(env!("OUT_DIR"), "/tests.rs"));
