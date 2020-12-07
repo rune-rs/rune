@@ -17,6 +17,21 @@ impl HashMap {
         }
     }
 
+    /// Extend this hashmap from an iterator.
+    #[inline]
+    fn extend(&mut self, value: Interface) -> Result<(), VmError> {
+        use crate::FromValue as _;
+
+        let mut it = value.into_iter()?;
+
+        while let Some(value) = it.next()? {
+            let (key, value) = <(Key, Value)>::from_value(value)?;
+            self.map.insert(key, value);
+        }
+
+        Ok(())
+    }
+
     #[inline]
     fn iter(&self) -> Iterator {
         let iter = self.map.clone().into_iter();
@@ -91,6 +106,19 @@ impl HashSet {
         Self {
             set: crate::collections::HashSet::new(),
         }
+    }
+
+    /// Extend this set from an iterator.
+    #[inline]
+    fn extend(&mut self, value: Interface) -> Result<(), VmError> {
+        let mut it = value.into_iter()?;
+
+        while let Some(value) = it.next()? {
+            let key = Key::from_value(&value)?;
+            self.set.insert(key);
+        }
+
+        Ok(())
     }
 
     #[inline]
@@ -253,6 +281,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<HashMap>()?;
     module.function(&["HashMap", "new"], HashMap::new)?;
     module.function(&["HashMap", "from"], hashmap_from)?;
+    module.inst_fn("extend", HashMap::extend)?;
     module.inst_fn("iter", HashMap::iter)?;
     module.inst_fn("keys", HashMap::keys)?;
     module.inst_fn("contains_key", HashMap::contains_key)?;
@@ -269,6 +298,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<HashSet>()?;
     module.function(&["HashSet", "new"], HashSet::new)?;
     module.function(&["HashSet", "from"], hashset_from)?;
+    module.inst_fn("extend", HashSet::extend)?;
     module.inst_fn("iter", HashSet::iter)?;
     module.inst_fn("insert", HashSet::insert)?;
     module.inst_fn("contains", HashSet::contains)?;
