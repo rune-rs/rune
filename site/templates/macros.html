@@ -13,18 +13,18 @@
     {% endif %}
 
     {% if extra.book %}
-    <li class="button {{bsize}} font_faint"><a title="Read The Book" href="https://{{extra.book}}" target="_blank" >book</a><i class="fa fa-book" ></i></li>
+    <li class="button {{bsize}} font_faint"><a title="Read The Book" href="https://{{extra.book}}" target="_blank" >book <i class="fa fa-book" ></i></a></li>
     {% endif %}
 
     {% if extra.github %}
-    <li class="button {{bsize}} font_faint"><a title="Visit GitHub Project" href="https://github.com/{{extra.github}}" target="_blank" >{{extra.github}}</a><i class="fab fa-github" ></i></li>
+    <li class="button {{bsize}} font_faint"><a title="Visit GitHub Project" href="https://github.com/{{extra.github}}" target="_blank" >{{extra.github}} <i class="fab fa-github" ></i></a></li>
     {% endif %}
 
     {% if extra.discord %}
-    <li class="button {{bsize}} font_faint"><a title="Join Community Discord" href="{{extra.discord}}" target="_blank" >discord</a><i class="fab fa-discord" ></i></li>
+    <li class="button {{bsize}} font_faint"><a title="Join Community Discord" href="{{extra.discord}}" target="_blank" >discord <i class="fab fa-discord" ></i></a></li>
 
     {% if rss %}
-    <li class="button {{bsize}} font_faint"><a href="{{siteurl}}/rss.xml" target ="_blank">rss</a><i class="fas fa-rss" ></i></li>
+    <li class="button {{bsize}} font_faint"><a href="{{siteurl}}/rss.xml" target ="_blank">rss <i class="fas fa-rss" ></i></a></li>
     {% endif %}
     {% endif %}
 </ul>
