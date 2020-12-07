@@ -26,6 +26,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
     module.inst_fn("char_at", char_at)?;
     module.inst_fn("split", string_split)?;
+    module.inst_fn("trim", string_trim)?;
+    module.inst_fn("trim_end", string_trim_end)?;
     // TODO: deprecate this variant.
     module.inst_fn("split_str", string_split)?;
     module.inst_fn("is_empty", str::is_empty)?;
@@ -89,6 +91,14 @@ fn string_split(this: &str, value: Value) -> Result<Iterator, VmError> {
         "std::str::Split",
         lines.into_iter(),
     ))
+}
+
+fn string_trim(this: &str) -> String {
+    this.trim().to_owned()
+}
+
+fn string_trim_end(this: &str) -> String {
+    this.trim_end().to_owned()
 }
 
 fn parse_int(s: &str) -> Result<i64, std::num::ParseIntError> {
