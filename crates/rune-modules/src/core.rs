@@ -47,5 +47,5 @@ pub(crate) fn panic_macro(
     let mut p = Parser::from_token_stream(stream);
     let args = p.parse_all::<macros::FormatArgs>()?;
     let expanded = args.expand()?;
-    Ok(quote!(std::core::panic(#expanded)).into_token_stream())
+    Ok(quote!(::std::panic(#expanded)).into_token_stream())
 }
