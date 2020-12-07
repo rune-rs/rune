@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607291524187,
+  "lastUpdate": 1607335697722,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -755,6 +755,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4635675,
             "range": "± 498129",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "4114e35bde0beb59565020e94ead62b403a6bd28",
+          "message": "Make HashMap INDEX_GET op fallible and fix Vm bug with invoking it",
+          "timestamp": "2020-12-07T11:03:20+01:00",
+          "tree_id": "35a106669db572575b58008a80c6146d72ff8735",
+          "url": "https://github.com/rune-rs/rune/commit/4114e35bde0beb59565020e94ead62b403a6bd28"
+        },
+        "date": 1607335695925,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 297730,
+            "range": "± 29485",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 922445,
+            "range": "± 90206",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 83523876,
+            "range": "± 4133253",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1424169,
+            "range": "± 192206",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 14894102,
+            "range": "± 1113724",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 13149599,
+            "range": "± 1336897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 497843,
+            "range": "± 62656",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5198442,
+            "range": "± 549146",
             "unit": "ns/iter"
           }
         ]
