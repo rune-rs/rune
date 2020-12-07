@@ -4,6 +4,8 @@ version = "0.0.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2018"
 
+autotests = false
+
 [features]
 default = ["full", "tokio", "futures-executor"]
 full = ["rune-modules/full"]
