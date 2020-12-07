@@ -859,12 +859,12 @@ impl Value {
             (Self::Option(a), Self::Option(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
                 (Some(a), Some(b)) => return Self::value_ptr_eq(a, b),
                 (None, None) => return Ok(true),
-                _ => (),
+                _ => return Ok(false),
             },
             (Self::Result(a), Self::Result(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
                 (Ok(a), Ok(b)) => return Self::value_ptr_eq(a, b),
                 (Err(a), Err(b)) => return Self::value_ptr_eq(a, b),
-                _ => (),
+                _ => return Ok(false),
             },
             // fast external comparison by slot.
             // TODO: implement ptr equals.
