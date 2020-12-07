@@ -20,5 +20,5 @@ fn test_pattern_binding_bug() {
         }
     };
 
-    assert_eq!(out, 3 * 10);
+    assert_eq!(out, 3 * 11);
 }

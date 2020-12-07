@@ -132,4 +132,4 @@ macro_rules! assert_matches {
     };
 }
 
-mod tests;
+include!(concat!(env!("OUT_DIR"), "/tests.rs"));
