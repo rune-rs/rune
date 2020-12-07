@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607335697722,
+  "lastUpdate": 1607341071466,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -827,6 +827,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5198442,
             "range": "± 549146",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2a052943158a126204be90244c82fa4cb297c339",
+          "message": "Merge pull request #202 from rune-rs/revert-binding-optimization\n\nRevert binding optimization",
+          "timestamp": "2020-12-07T12:33:21+01:00",
+          "tree_id": "be9aa3036fb781a9b36291e01b6366a089ff52cf",
+          "url": "https://github.com/rune-rs/rune/commit/2a052943158a126204be90244c82fa4cb297c339"
+        },
+        "date": 1607341065286,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 288296,
+            "range": "± 44665",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 862908,
+            "range": "± 115191",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 79648615,
+            "range": "± 6553284",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1336952,
+            "range": "± 161968",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 14448539,
+            "range": "± 1450326",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 12626095,
+            "range": "± 1781553",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 457874,
+            "range": "± 77081",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5106227,
+            "range": "± 762133",
             "unit": "ns/iter"
           }
         ]
