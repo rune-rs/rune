@@ -518,7 +518,7 @@ impl<'a> Compiler<'a> {
             keys.push(key.to_string());
         }
 
-        let keys = self.unit.new_static_object_keys(span, &keys[..])?;
+        let keys = self.unit.new_static_object_keys_iter(span, &keys[..])?;
 
         let type_check = match &pat_object.ident {
             ast::ObjectIdent::Named(path) => {

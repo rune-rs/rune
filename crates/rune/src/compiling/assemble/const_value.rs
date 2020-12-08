@@ -94,7 +94,7 @@ impl AssembleConst for ConstValue {
 
                 let slot = c
                     .unit
-                    .new_static_object_keys(span, entries.iter().map(|e| e.0))?;
+                    .new_static_object_keys_iter(span, entries.iter().map(|e| e.0))?;
 
                 c.asm.push(Inst::Object { slot }, span);
             }

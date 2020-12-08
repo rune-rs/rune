@@ -1087,33 +1087,41 @@ impl QueryInner {
                     CompileErrorKind::UnsupportedGlobal,
                 ));
             }
-            (None, ast::PathSegment::Ident(ident)) => {
-                let ident = ident.resolve(storage, source)?;
+            (None, segment) => match segment {
+                ast::PathSegment::Ident(ident) => {
+                    let ident = ident.resolve(storage, source)?;
 
-                if path.rest.is_empty() {
-                    local = Some(<Box<str>>::from(ident.as_ref()));
+                    if path.rest.is_empty() {
+                        local = Some(<Box<str>>::from(ident.as_ref()));
+                    }
+
+                    self.lookup_initial(context, &qp.module, &qp.item, &*ident)?
                 }
+                ast::PathSegment::Super(super_value) => {
+                    let mut item = qp.module.item.clone();
 
-                self.lookup_initial(context, &qp.module, &qp.item, &*ident)?
-            }
-            (None, ast::PathSegment::Super(super_value)) => {
-                let mut item = qp.module.item.clone();
+                    item.pop()
+                        .ok_or_else(CompileError::unsupported_super(super_value))?;
 
-                item.pop()
-                    .ok_or_else(CompileError::unsupported_super(super_value))?;
+                    item
+                }
+                ast::PathSegment::SelfType(self_type) => {
+                    let impl_item = qp.impl_item.as_deref().ok_or_else(|| {
+                        CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
+                    })?;
 
-                item
-            }
-            (None, ast::PathSegment::SelfType(self_type)) => {
-                let impl_item = qp.impl_item.as_deref().ok_or_else(|| {
-                    CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
-                })?;
-
-                in_self_type = true;
-                impl_item.clone()
-            }
-            (None, ast::PathSegment::SelfValue(..)) => qp.module.item.clone(),
-            (None, ast::PathSegment::Crate(..)) => Item::new(),
+                    in_self_type = true;
+                    impl_item.clone()
+                }
+                ast::PathSegment::SelfValue(..) => qp.module.item.clone(),
+                ast::PathSegment::Crate(..) => Item::new(),
+                ast::PathSegment::Generics(arguments) => {
+                    return Err(CompileError::new(
+                        arguments,
+                        CompileErrorKind::UnsupportedGenerics,
+                    ));
+                }
+            },
         };
 
         for (_, segment) in &path.rest {
@@ -1134,6 +1142,12 @@ impl QueryInner {
 
                     item.pop()
                         .ok_or_else(CompileError::unsupported_super(super_token))?;
+                }
+                ast::PathSegment::Generics(arguments) => {
+                    return Err(CompileError::new(
+                        arguments,
+                        CompileErrorKind::UnsupportedGenerics,
+                    ));
                 }
                 other => {
                     return Err(CompileError::new(

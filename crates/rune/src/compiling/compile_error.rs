@@ -280,6 +280,8 @@ pub enum CompileErrorKind {
     NoSuchBuiltInMacro { name: Box<str> },
     #[error("variable moved")]
     VariableMoved { moved_at: Span },
+    #[error("unsupported generic arguments")]
+    UnsupportedGenerics,
 }
 
 /// A single stap as an import entry.

@@ -49,7 +49,7 @@ impl IrCompiler<'_> {
                 let target = self.ir_target(&expr_field_access.expr)?;
 
                 match &expr_field_access.expr_field {
-                    ast::ExprField::Ident(field) => {
+                    ast::ExprField::Path(field) => {
                         let field = self.resolve(field)?;
 
                         return Ok(ir::IrTarget {
