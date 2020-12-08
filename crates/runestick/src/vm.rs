@@ -351,7 +351,12 @@ impl Vm {
 
     /// Helper function to call an instance function.
     #[inline(always)]
-    fn call_instance_fn<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
+    pub(crate) fn call_instance_fn<H, A>(
+        &mut self,
+        target: &Value,
+        hash: H,
+        args: A,
+    ) -> Result<bool, VmError>
     where
         H: IntoTypeHash,
         A: Args,
@@ -1737,13 +1742,13 @@ impl Vm {
             InstOp::Eq => {
                 let rhs = self.stack.address(rhs)?;
                 let lhs = self.stack.address(lhs)?;
-                let test = Value::value_ptr_eq(&lhs, &rhs)?;
+                let test = Value::value_ptr_eq(self, &lhs, &rhs)?;
                 self.stack.push(test);
             }
             InstOp::Neq => {
                 let rhs = self.stack.address(rhs)?;
                 let lhs = self.stack.address(lhs)?;
-                let test = Value::value_ptr_eq(&lhs, &rhs)?;
+                let test = Value::value_ptr_eq(self, &lhs, &rhs)?;
                 self.stack.push(!test);
             }
             InstOp::And => {
@@ -2254,6 +2259,7 @@ impl Vm {
         for value in values {
             match value {
                 Value::Format(format) => {
+                    let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
                     format.spec.format(&format.value, &mut out, &mut buf)?;
                 }
                 Value::Char(c) => {
@@ -2306,7 +2312,6 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_format(&mut self, spec: FormatSpec) -> Result<(), VmError> {
         let value = self.stack.pop()?;
-
         self.stack.push(Format { value, spec });
         Ok(())
     }

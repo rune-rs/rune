@@ -61,6 +61,12 @@ impl hash::Hash for Protocol {
 }
 
 impl Protocol {
+    /// Check two types for equality.
+    pub const EQ: Protocol = Protocol {
+        name: "eq",
+        hash: Hash::new(0x418f5becbf885806),
+    };
+
     /// The function to access a field.
     pub const GET: Protocol = Protocol {
         name: "get",
@@ -209,6 +215,12 @@ impl Protocol {
     pub const STRING_DISPLAY: Protocol = Protocol {
         name: "string_display",
         hash: Hash::new(0x811b62957ea9d9f9),
+    };
+
+    /// Protocol function used by custom debug impls.
+    pub const STRING_DEBUG: Protocol = Protocol {
+        name: "string_debug",
+        hash: Hash::new(0x4064e3867aaa0717),
     };
 
     /// Function used to convert an argument into an iterator.

@@ -3,6 +3,7 @@
 use crate::{
     Any, ContextError, Interface, Iterator, Key, Module, Ref, Value, VmError, VmErrorKind,
 };
+use std::fmt;
 
 #[derive(Any)]
 #[rune(module = "crate")]
@@ -92,6 +93,12 @@ impl HashMap {
     #[inline]
     fn clear(&mut self) {
         self.map.clear()
+    }
+
+    #[inline]
+    fn string_debug(&self, s: &mut String) -> fmt::Result {
+        use std::fmt::Write as _;
+        write!(s, "{:?}", self.map)
     }
 }
 
@@ -193,6 +200,17 @@ impl HashSet {
 
         Ok(crate::Iterator::from("std::collections::set::Union", iter))
     }
+
+    #[inline]
+    fn string_debug(&self, s: &mut String) -> fmt::Result {
+        use std::fmt::Write as _;
+        write!(s, "{:?}", self.set)
+    }
+
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.set == other.set
+    }
 }
 
 struct Intersection<I>
@@ -241,6 +259,7 @@ where
     I: std::iter::Iterator<Item = Key>,
 {
     type Item = Key;
+
     fn next(&mut self) -> Option<Self::Item> {
         let other = self.other.take()?;
 
@@ -294,6 +313,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(crate::Protocol::INTO_ITER, HashMap::iter)?;
     module.inst_fn(crate::Protocol::INDEX_SET, HashMap::insert)?;
     module.inst_fn(crate::Protocol::INDEX_GET, HashMap::fallible_get)?;
+    module.inst_fn(crate::Protocol::STRING_DEBUG, HashMap::string_debug)?;
 
     module.ty::<HashSet>()?;
     module.function(&["HashSet", "new"], HashSet::new)?;
@@ -309,6 +329,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("intersection", HashSet::intersection)?;
     module.inst_fn("union", HashSet::union)?;
     module.inst_fn(crate::Protocol::INTO_ITER, HashSet::iter)?;
+    module.inst_fn(crate::Protocol::STRING_DEBUG, HashSet::string_debug)?;
+    module.inst_fn(crate::Protocol::EQ, HashSet::eq)?;
     Ok(module)
 }
 

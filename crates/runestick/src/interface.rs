@@ -1,8 +1,9 @@
 use crate::{
-    Args, ConstValue, FromValue, Hash, IntoTypeHash, Iterator, Protocol, RuntimeContext, Stack,
-    Unit, UnitFn, Value, Vm, VmError, VmErrorKind,
+    ConstValue, FromValue, GuardedArgs, Hash, IntoTypeHash, Iterator, Protocol, RuntimeContext,
+    Stack, Unit, UnitFn, Value, Vm, VmError, VmErrorKind,
 };
 use std::cell::Cell;
+use std::fmt;
 use std::marker;
 use std::ptr;
 use std::sync::Arc;
@@ -21,6 +22,37 @@ pub struct Interface {
 }
 
 impl Interface {
+    /// Try to build an interface around a value.
+    ///
+    /// This only works if called within an environment, which is only set
+    /// inside of VMs.
+    pub fn try_get(value: Value) -> Option<Self> {
+        let env = ENV.with(|env| env.get());
+        let Env { context, unit } = env;
+
+        if context.is_null() || unit.is_null() {
+            return None;
+        }
+
+        // Safety: context and unit can only be registered publicly through
+        // [EnvGuard], which makes sure that they are live for the duration of
+        // the registration.
+        Some(Interface {
+            target: value,
+            context: unsafe { (*context).clone() },
+            unit: unsafe { (*unit).clone() },
+        })
+    }
+
+    /// Debug format the current value.
+    pub fn string_debug(mut self, s: &mut String) -> Result<fmt::Result, VmError> {
+        let target = std::mem::take(&mut self.target);
+        let string = Value::from(std::mem::take(s));
+        let value = self.call_instance_fn(Protocol::STRING_DEBUG, target, (string.clone(),))?;
+        *s = string.into_string()?.take()?;
+        fmt::Result::from_value(value)
+    }
+
     /// Call the `into_iter` protocol on the value.
     pub fn into_iter(mut self) -> Result<Iterator, VmError> {
         let target = match std::mem::take(&mut self.target) {
@@ -65,9 +97,9 @@ impl Interface {
     ) -> Result<Value, VmError>
     where
         H: IntoTypeHash,
-        A: Args,
+        A: GuardedArgs,
     {
-        let count = args.count() + 1;
+        let count = A::count() + 1;
         let hash = Hash::instance_function(target.type_hash()?, hash.into_type_hash());
 
         if let Some(UnitFn::Offset {
@@ -80,7 +112,9 @@ impl Interface {
 
             let mut stack = Stack::with_capacity(count);
             stack.push(target);
-            args.into_stack(&mut stack)?;
+
+            // Safety: We hold onto the guard until the vm has completed.
+            let _guard = unsafe { args.unsafe_into_stack(&mut stack)? };
 
             let mut vm = Vm::new_with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.set_ip(offset);
@@ -94,7 +128,9 @@ impl Interface {
 
         let mut stack = Stack::with_capacity(count);
         stack.push(target);
-        args.into_stack(&mut stack)?;
+
+        // Safety: We hold onto the guard until the vm has completed.
+        let _guard = unsafe { args.unsafe_into_stack(&mut stack)? };
 
         handler(&mut stack, count)?;
         Ok(stack.pop()?)
@@ -115,21 +151,10 @@ impl Interface {
 
 impl FromValue for Interface {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        let env = ENV.with(|env| env.get());
-        let Env { context, unit } = env;
+        let interface = Interface::try_get(value)
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingInterfaceEnvironment))?;
 
-        if context.is_null() || unit.is_null() {
-            return Err(VmError::from(VmErrorKind::MissingInterfaceEnvironment));
-        }
-
-        // Safety: context and unit can only be registered publicly through
-        // [EnvGuard], which makes sure that they are live for the duration of
-        // the registration.
-        Ok(Interface {
-            target: value,
-            context: unsafe { (*context).clone() },
-            unit: unsafe { (*unit).clone() },
-        })
+        Ok(interface)
     }
 }
 
