@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
 use crate::{
     FromValue, InstallWith, Item, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
-    UnsafeFromValue, Value, VmError,
+    UnsafeFromValue, Value, Vm, VmError,
 };
 use std::borrow;
 use std::cmp;
@@ -217,23 +217,8 @@ impl Object {
     }
 
     /// Value pointer equals implementation for an Object.
-    pub(crate) fn value_ptr_eq(a: &Self, b: &Self) -> Result<bool, VmError> {
-        if a.len() != b.len() {
-            return Ok(false);
-        }
-
-        for (key, a) in a.iter() {
-            let b = match b.get(key) {
-                Some(b) => b,
-                None => return Ok(false),
-            };
-
-            if !Value::value_ptr_eq(a, b)? {
-                return Ok(false);
-            }
-        }
-
-        Ok(true)
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
+        map_ptr_eq(vm, &a.inner, &b.inner)
     }
 
     /// Debug implementation for a struct. This assumes that all fields
@@ -363,4 +348,32 @@ impl fmt::Display for DebugStruct<'_> {
 
         d.finish()
     }
+}
+
+/// Helper function two compare two hashmaps of values.
+pub(crate) fn map_ptr_eq<K>(
+    vm: &mut Vm,
+    a: &HashMap<K, Value>,
+    b: &HashMap<K, Value>,
+) -> Result<bool, VmError>
+where
+    K: cmp::Eq,
+    K: hash::Hash,
+{
+    if a.len() != b.len() {
+        return Ok(false);
+    }
+
+    for (key, a) in a.iter() {
+        let b = match b.get(key) {
+            Some(b) => b,
+            None => return Ok(false),
+        };
+
+        if !Value::value_ptr_eq(vm, a, b)? {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
 }

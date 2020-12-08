@@ -1,6 +1,6 @@
 use crate::{
     FromValue, InstallWith, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
-    UnsafeFromValue, Value, VmError,
+    UnsafeFromValue, Value, Vm, VmError,
 };
 use std::cmp;
 use std::fmt;
@@ -155,13 +155,13 @@ impl Vec {
     }
 
     /// Compare two vectors for equality.
-    pub(crate) fn value_ptr_eq(a: &Self, b: &Self) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
         if a.len() != b.len() {
             return Ok(false);
         }
 
         for (a, b) in a.iter().zip(b.iter()) {
-            if !Value::value_ptr_eq(a, b)? {
+            if !Value::value_ptr_eq(vm, a, b)? {
                 return Ok(false);
             }
         }

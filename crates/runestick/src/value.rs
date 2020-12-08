@@ -1,8 +1,8 @@
 use crate::access::AccessKind;
 use crate::{
-    Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Item, Iterator,
-    Mut, Object, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, TypeInfo, Vec,
-    VmError, VmErrorKind,
+    Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Interface, Item,
+    Iterator, Mut, Object, Protocol, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream,
+    Tuple, TypeInfo, Vec, Vm, VmError, VmErrorKind,
 };
 use serde::{de, ser, Deserialize, Serialize};
 use std::fmt;
@@ -761,7 +761,7 @@ impl Value {
     /// each other.
     ///
     /// This is the basis for the eq operation (`==`).
-    pub(crate) fn value_ptr_eq(a: &Value, b: &Value) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Value, b: &Value) -> Result<bool, VmError> {
         match (a, b) {
             (Self::Unit, Self::Unit) => return Ok(true),
             (Self::Bool(a), Self::Bool(b)) => return Ok(a == b),
@@ -772,22 +772,22 @@ impl Value {
             (Self::Vec(a), Self::Vec(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                return Vec::value_ptr_eq(&*a, &*b);
+                return Vec::value_ptr_eq(vm, &*a, &*b);
             }
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                return Tuple::value_ptr_eq(&*a, &*b);
+                return Tuple::value_ptr_eq(vm, &*a, &*b);
             }
             (Self::Object(a), Self::Object(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                return Object::value_ptr_eq(&*a, &*b);
+                return Object::value_ptr_eq(vm, &*a, &*b);
             }
             (Self::Range(a), Self::Range(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                return Range::value_ptr_eq(&*a, &*b);
+                return Range::value_ptr_eq(vm, &*a, &*b);
             }
             (Self::UnitStruct(a), Self::UnitStruct(b)) => {
                 if a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash {
@@ -804,7 +804,7 @@ impl Value {
                 let b = b.borrow_ref()?;
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Tuple::value_ptr_eq(&a.data, &b.data);
+                    return Tuple::value_ptr_eq(vm, &a.data, &b.data);
                 }
             }
             (Self::Struct(a), Self::Struct(b)) => {
@@ -812,7 +812,7 @@ impl Value {
                 let b = b.borrow_ref()?;
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Object::value_ptr_eq(&a.data, &b.data);
+                    return Object::value_ptr_eq(vm, &a.data, &b.data);
                 }
             }
             (Self::UnitVariant(a), Self::UnitVariant(b)) => {
@@ -830,7 +830,7 @@ impl Value {
                 let b = b.borrow_ref()?;
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Tuple::value_ptr_eq(&a.data, &b.data);
+                    return Tuple::value_ptr_eq(vm, &a.data, &b.data);
                 }
             }
             (Self::StructVariant(a), Self::StructVariant(b)) => {
@@ -838,7 +838,7 @@ impl Value {
                 let b = b.borrow_ref()?;
 
                 if a.rtti.hash == b.rtti.hash {
-                    return Object::value_ptr_eq(&a.data, &b.data);
+                    return Object::value_ptr_eq(vm, &a.data, &b.data);
                 }
             }
             (Self::String(a), Self::String(b)) => {
@@ -857,19 +857,21 @@ impl Value {
                 return Ok(***a == ***b);
             }
             (Self::Option(a), Self::Option(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
-                (Some(a), Some(b)) => return Self::value_ptr_eq(a, b),
+                (Some(a), Some(b)) => return Self::value_ptr_eq(vm, a, b),
                 (None, None) => return Ok(true),
                 _ => return Ok(false),
             },
             (Self::Result(a), Self::Result(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
-                (Ok(a), Ok(b)) => return Self::value_ptr_eq(a, b),
-                (Err(a), Err(b)) => return Self::value_ptr_eq(a, b),
+                (Ok(a), Ok(b)) => return Self::value_ptr_eq(vm, a, b),
+                (Err(a), Err(b)) => return Self::value_ptr_eq(vm, a, b),
                 _ => return Ok(false),
             },
-            // fast external comparison by slot.
-            // TODO: implement ptr equals.
-            // (Self::Any(a), Self::Any(b)) => a == b,
-            _ => (),
+            (a, b) => {
+                if vm.call_instance_fn(a, Protocol::EQ, (b.clone(),))? {
+                    use crate::FromValue as _;
+                    return Ok(bool::from_value(vm.stack.pop()?)?);
+                }
+            }
         }
 
         Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
@@ -971,7 +973,14 @@ impl fmt::Debug for Value {
                 write!(f, "{:?}", value)?;
             }
             Value::Any(value) => {
-                write!(f, "{:?}", value)?;
+                if let Some(interface) = Interface::try_get(Value::from(value.clone())) {
+                    let mut s = String::new();
+                    let result = interface.string_debug(&mut s).map_err(|_| fmt::Error)?;
+                    result?;
+                    write!(f, "{}", s)?;
+                } else {
+                    write!(f, "{:?}", value)?;
+                }
             }
         }
 

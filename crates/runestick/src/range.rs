@@ -1,6 +1,6 @@
 use crate::{
     FromValue, InstallWith, Iterator, Mut, Named, Panic, RawMut, RawRef, RawStr, Ref, ToValue,
-    UnsafeFromValue, Value, VmError, VmErrorKind,
+    UnsafeFromValue, Value, Vm, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::ops;
@@ -55,20 +55,20 @@ impl Range {
     }
 
     /// Value pointer equals implementation for a range.
-    pub(crate) fn value_ptr_eq(a: &Self, b: &Self) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
         if a.limits != b.limits {
             return Ok(false);
         }
 
         match (&a.start, &b.start) {
             (None, None) => (),
-            (Some(a), Some(b)) if Value::value_ptr_eq(a, b)? => (),
+            (Some(a), Some(b)) if Value::value_ptr_eq(vm, a, b)? => (),
             _ => return Ok(false),
         }
 
         match (&a.end, &b.end) {
             (None, None) => (),
-            (Some(a), Some(b)) if Value::value_ptr_eq(a, b)? => (),
+            (Some(a), Some(b)) if Value::value_ptr_eq(vm, a, b)? => (),
             _ => return Ok(false),
         }
 
