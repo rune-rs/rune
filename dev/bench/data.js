@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607375093442,
+  "lastUpdate": 1607417940051,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -1403,6 +1403,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5007381,
             "range": "± 978414",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "bd0f13e5501a4daa465878812609870500b233ae",
+          "message": "Add parsing for path segment generics",
+          "timestamp": "2020-12-08T09:54:45+01:00",
+          "tree_id": "9a802dfbbf5621eb14c0f5fd13986faaa7a61780",
+          "url": "https://github.com/rune-rs/rune/commit/bd0f13e5501a4daa465878812609870500b233ae"
+        },
+        "date": 1607417939421,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 264462,
+            "range": "± 50894",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 787629,
+            "range": "± 180480",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 74264244,
+            "range": "± 8203906",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1271406,
+            "range": "± 235297",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 13371405,
+            "range": "± 2702342",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 11524125,
+            "range": "± 2196227",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 441422,
+            "range": "± 95074",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5115091,
+            "range": "± 877202",
             "unit": "ns/iter"
           }
         ]
