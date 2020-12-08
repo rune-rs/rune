@@ -567,7 +567,7 @@ impl rune::CompileVisitor for Visitor<'_> {
         }
     }
 
-    fn visit_variable_use(&mut self, source_id: SourceId, var: &rune::Var, span: Span) {
+    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: Span) {
         if source_id != 0 {
             return;
         }
@@ -575,7 +575,7 @@ impl rune::CompileVisitor for Visitor<'_> {
         let definition = Definition {
             kind: DefinitionKind::Local,
             source: CompileSource {
-                span: var.span(),
+                span: var_span,
                 path: None,
                 source_id,
             },
