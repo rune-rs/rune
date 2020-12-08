@@ -60,6 +60,7 @@ use std::sync::Arc;
 use structopt::StructOpt;
 
 use runestick::{Unit, Value, VmExecution};
+mod tests;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
 
@@ -116,9 +117,12 @@ struct Args {
     /// Recursively load all files in the given directory.
     #[structopt(long)]
     recursive: bool,
-    /// Only test that the specified files compile, but don't execute them.
+    /// Run tests instead of the main entrypoint
     #[structopt(long)]
     test: bool,
+    /// Only test that the specified files compile, but don't execute them.
+    #[structopt(long)]
+    no_execute: bool,
     /// Rune scripts to run.
     #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
@@ -174,6 +178,10 @@ async fn try_main() -> Result<ExitCode> {
         options.parse_option(opt)?;
     }
 
+    if args.test {
+        options.test(true);
+    }
+
     if args.paths.is_empty() {
         println!("Invalid usage: Missing Input Paths (at least one file required)");
         return Ok(ExitCode::Failure);
@@ -188,7 +196,7 @@ async fn try_main() -> Result<ExitCode> {
         match run_path(&args, &options, &path).await? {
             ExitCode::Success => (),
             other => {
-                if args.test {
+                if args.no_execute {
                     status = ExitCode::Failure;
                     continue;
                 }
@@ -255,8 +263,8 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
     let mut out = StandardStream::stdout(choice);
 
-    if args.test {
-        writeln!(out, "testing: {}", path.display())?;
+    if args.no_execute {
+        writeln!(out, "building: {}", path.display())?;
     }
 
     let bytecode_path = path.with_extension("rnc");
@@ -275,7 +283,8 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     sources.insert(source);
 
     let use_cache = options.bytecode && should_cache_be_used(&path, &bytecode_path)?;
-    let maybe_unit = if use_cache {
+    // TODO: how do we deal with tests discovery for bytecode loading
+    let maybe_unit = if use_cache && !args.test {
         let f = fs::File::open(&bytecode_path)?;
         match bincode::deserialize_from::<_, Unit>(f) {
             Ok(unit) => {
@@ -291,20 +300,25 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         None
     };
 
-    let unit = match maybe_unit {
-        Some(unit) => unit,
+    let (unit, tests) = match maybe_unit {
+        Some(unit) => (unit, Default::default()),
         None => {
             log::trace!("building file: {}", path.display());
 
             let mut errors = rune::Errors::new();
             let mut warnings = rune::Warnings::new();
 
-            let unit = match rune::load_sources(
+            let mut test_finder = tests::TestVisitor::default();
+            let mut source_loader = rune::FileSourceLoader::new();
+
+            let unit = match rune::load_sources_with_visitor(
                 &context,
                 &options,
                 &mut sources,
                 &mut errors,
                 &mut warnings,
+                &mut test_finder,
+                &mut source_loader,
             ) {
                 Ok(unit) => unit,
                 Err(rune::LoadSourcesError) => {
@@ -323,11 +337,9 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 warnings.emit_diagnostics(&mut out, &sources)?;
             }
 
-            Arc::new(unit)
+            (Arc::new(unit), test_finder.test_functions)
         }
     };
-
-    let vm = runestick::Vm::new(runtime, unit.clone());
 
     if args.dump_native_functions {
         writeln!(out, "# functions")?;
@@ -346,8 +358,6 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     }
 
     if args.dump_unit {
-        let unit = vm.unit();
-
         if args.dump_instructions {
             writeln!(out, "# instructions")?;
             let mut out = out.lock();
@@ -387,14 +397,28 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         }
     }
 
-    if args.test {
+    if args.no_execute {
         return Ok(ExitCode::Success);
     }
 
+    if args.test {
+        tests::do_tests(args, out, runtime, unit, sources, tests).await
+    } else {
+        do_run(args, out, runtime, unit, sources).await
+    }
+}
+
+async fn do_run(
+    args: &Args,
+    mut out: StandardStream,
+    runtime: Arc<runestick::RuntimeContext>,
+    unit: Arc<Unit>,
+    sources: rune::Sources,
+) -> Result<ExitCode> {
     let last = std::time::Instant::now();
 
+    let vm = runestick::Vm::new(runtime, unit.clone());
     let mut execution: runestick::VmExecution = vm.execute(&["main"], ())?;
-
     let result = if args.trace {
         match do_trace(
             &mut out,
