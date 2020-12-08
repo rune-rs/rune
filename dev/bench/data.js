@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607440125230,
+  "lastUpdate": 1607454679113,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -1547,6 +1547,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5368421,
             "range": "± 218737",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "d5a914d3cca2bf20ab3515479e74834716f5b5c1",
+          "message": "Expose APIs to conditionally construct Interface instances\n\nUse this interface to:\n* Implement a `string_debug` protocol for `HashSet` and `HashMap`.\n* Implement the `eq` protocol for `HashSet` (`HashMap` can't be\n  implemented yet, because `Value` comparisons for it are not available).",
+          "timestamp": "2020-12-08T20:06:50+01:00",
+          "tree_id": "193f1200017ca6e8ef2418925827532888300ec2",
+          "url": "https://github.com/rune-rs/rune/commit/d5a914d3cca2bf20ab3515479e74834716f5b5c1"
+        },
+        "date": 1607454678158,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 249216,
+            "range": "± 2163",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 770773,
+            "range": "± 4595",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 75609165,
+            "range": "± 760561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1294560,
+            "range": "± 11164",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 13705677,
+            "range": "± 159063",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 11888639,
+            "range": "± 84388",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 411541,
+            "range": "± 1298",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4513898,
+            "range": "± 6781",
             "unit": "ns/iter"
           }
         ]
