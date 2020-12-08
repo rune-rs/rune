@@ -1,4 +1,4 @@
-use crate::panic::BoxedPanic;
+use crate::{panic::BoxedPanic, CallFrame};
 use crate::{
     AccessError, Hash, Item, Key, Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Value,
     VmHaltInfo,
@@ -64,7 +64,7 @@ impl VmError {
     }
 
     /// Convert into an unwinded vm error.
-    pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize) -> Self {
+    pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize, frames: Vec<crate::CallFrame>) -> Self {
         if let VmErrorKind::Unwound { .. } = &*self.kind {
             return self;
         }
@@ -73,23 +73,39 @@ impl VmError {
             kind: self.kind,
             unit: unit.clone(),
             ip,
+            frames,
         })
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn as_unwound<'a>(&'a self) -> (&'a VmErrorKind, Option<(&'a Arc<Unit>, usize)>) {
+    pub fn as_unwound<'a>(
+        &'a self,
+    ) -> (
+        &'a VmErrorKind,
+        Option<(&'a Arc<Unit>, usize, Vec<CallFrame>)>,
+    ) {
         match &*self.kind {
-            VmErrorKind::Unwound { kind, unit, ip } => (&*kind, Some((unit, *ip))),
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => (&*kind, Some((unit, *ip, frames.clone()))),
             kind => (kind, None),
         }
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn into_unwound(self) -> (Self, Option<(Arc<Unit>, usize)>) {
+    pub fn into_unwound(self) -> (Self, Option<(Arc<Unit>, usize, Vec<CallFrame>)>) {
         match *self.kind {
-            VmErrorKind::Unwound { kind, unit, ip } => {
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => {
                 let error = Self { kind };
-                (error, Some((unit, ip)))
+                (error, Some((unit, ip, frames)))
             }
             kind => (Self::from(kind), None),
         }
@@ -144,6 +160,8 @@ pub enum VmErrorKind {
         unit: Arc<Unit>,
         /// The instruction pointer of where the original error happened.
         ip: usize,
+        /// All lower call frames before the unwind trigger point
+        frames: Vec<CallFrame>,
     },
     #[error("{error}")]
     AccessError {
@@ -313,10 +331,80 @@ pub enum VmErrorKind {
 }
 
 impl VmErrorKind {
-    /// Unpack an unwound error, if it is present.
-    pub fn as_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize)>) {
+    /// Get a short description of the error
+    pub fn short_description(&self) -> &'static str {
         match self {
-            VmErrorKind::Unwound { kind, unit, ip } => (&*kind, Some((unit.clone(), *ip))),
+            VmErrorKind::Unwound { .. } => "unwinding",
+            VmErrorKind::AccessError { .. } => "invalid access",
+            VmErrorKind::Panic { .. } => "panic",
+            VmErrorKind::NoRunningVm => "no running virtual machine",
+            VmErrorKind::Halted { .. } => "unexpected halt",
+            VmErrorKind::FormatError => "format error",
+            VmErrorKind::StackError { .. } => "stack error",
+            VmErrorKind::Overflow => "numeric overflow",
+            VmErrorKind::Underflow => "numeric underflow",
+            VmErrorKind::DivideByZero => "division by zero",
+            VmErrorKind::MissingConst { .. } => "missing constant",
+            VmErrorKind::MissingEntry { .. } => "missing entry",
+            VmErrorKind::MissingFunction { .. } => "missing function",
+            VmErrorKind::MissingInstanceFunction { .. } => "missing instance function",
+            VmErrorKind::IpOutOfBounds => "invalid instruction pointer",
+            VmErrorKind::UnsupportedAwait { .. } => "not awaitable",
+            VmErrorKind::UnsupportedBinaryOperation { .. } => "unspported binary operation",
+            VmErrorKind::UnsupportedUnaryOperation { .. } => "unsupported unary operation",
+            VmErrorKind::MissingProtocol { .. } => "unimplemented operation",
+            VmErrorKind::MissingStaticString { .. } => "unknown static string",
+            VmErrorKind::MissingStaticObjectKeys { .. } => "unknown static object key",
+            VmErrorKind::MissingVariantRtti { .. } => "missing variant runtime information",
+            VmErrorKind::MissingRtti { .. } => "missing runtime information",
+            VmErrorKind::BadArgumentCount { .. } => "wrong number ofa rguments",
+            VmErrorKind::BadArgumentAt { .. } => "bad argument",
+            VmErrorKind::BadArgument { .. } => "bad argument",
+            VmErrorKind::UnsupportedIndexSet { .. }
+            | VmErrorKind::UnsupportedIndexGet { .. }
+            | VmErrorKind::UnsupportedTupleIndexGet { .. }
+            | VmErrorKind::UnsupportedTupleIndexSet { .. }
+            | VmErrorKind::UnsupportedObjectSlotIndexGet { .. }
+            | VmErrorKind::UnsupportedObjectSlotIndexSet { .. }
+            | VmErrorKind::UnsupportedIs { .. } => "invalid operation",
+            VmErrorKind::UnsupportedCallFn { .. } => "not a function",
+            VmErrorKind::ObjectIndexMissing { .. } => "unknown member",
+            VmErrorKind::MissingIndex { .. } => "unknown index",
+            VmErrorKind::MissingIndexKey { .. } => "unknown key",
+            VmErrorKind::OutOfRange { .. } => "out of bounds",
+            VmErrorKind::MissingField { .. } => "field not found",
+            VmErrorKind::MissingStructField { .. } => "field not found",
+            VmErrorKind::MissingTupleIndex { .. } => "missing tuple index",
+            VmErrorKind::UnsupportedUnwrap { .. } => "Expected Ok(...) or Some(...)",
+            VmErrorKind::UnsupportedUnwrapNone => "expected Some(...)",
+            VmErrorKind::UnsupportedUnwrapErr { .. } => "expected Ok(...)",
+            VmErrorKind::UnsupportedIsValueOperand { .. } => "unexpected type",
+            VmErrorKind::GeneratorComplete => "generator has already completed",
+            VmErrorKind::Expected { .. } => "unexpected value",
+            VmErrorKind::ExpectedAny { .. } => "unexpected concrete value",
+            VmErrorKind::ValueToIntegerCoercionError { .. } => "bad cast",
+            VmErrorKind::IntegerToValueCoercionError { .. } => "bad cast",
+            VmErrorKind::ExpectedTupleLength { .. } => "unexpected tuple size",
+            VmErrorKind::IterationError => "unexpected end of iteration",
+            VmErrorKind::MissingVariantName => "enum variant not recognized",
+            VmErrorKind::MissingVariant { .. } => "unknown enum variant",
+            VmErrorKind::ExpectedVariant { .. } => "expected enum variant",
+            VmErrorKind::ConstNotSupported { .. } => "is not a constant value",
+            VmErrorKind::KeyNotSupported { .. } => "cannot be used as a key",
+            VmErrorKind::MissingInterfaceEnvironment => "invalid operation",
+            VmErrorKind::IndexOutOfBounds => "out of bounds",
+            VmErrorKind::UnsupportedRange => "not a valid range",
+        }
+    }
+    /// Unpack an unwound error, if it is present.
+    pub fn as_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize, Vec<CallFrame>)>) {
+        match self {
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => (&*kind, Some((unit.clone(), *ip, frames.clone()))),
             kind => (kind, None),
         }
     }

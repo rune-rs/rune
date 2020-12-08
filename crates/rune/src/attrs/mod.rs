@@ -50,3 +50,14 @@ impl Attribute for BuiltIn {
     /// Must match the specified name.
     const PATH: &'static str = "builtin";
 }
+
+#[derive(Parse)]
+pub(crate) struct Test {
+    /// Arguments to the test.
+    pub args: Option<ast::Parenthesized<ast::Ident, T![,]>>,
+}
+
+impl Attribute for Test {
+    /// Must match the specified name.
+    const PATH: &'static str = "test";
+}

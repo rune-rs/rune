@@ -175,8 +175,8 @@ impl EmitDiagnostics for VmError {
 
         let (error, unwound) = self.as_unwound();
 
-        let (unit, ip) = match unwound {
-            Some((unit, ip)) => (unit, ip),
+        let (unit, ip, frames) = match unwound {
+            Some((unit, ip, frames)) => (unit, ip, frames),
             None => {
                 writeln!(
                     out,
@@ -195,7 +195,6 @@ impl EmitDiagnostics for VmError {
                 return Ok(());
             }
         };
-
         let debug_inst = match debug_info.instruction_at(ip) {
             Some(debug_inst) => debug_inst,
             None => {
@@ -216,13 +215,34 @@ impl EmitDiagnostics for VmError {
         let source_id = debug_inst.source_id;
         let span = debug_inst.span;
 
-        labels.push(Label::primary(source_id, span.range()).with_message(error.to_string()));
+        labels.push(Label::primary(source_id, span.range()).with_message(error.short_description()));
 
+        for ip in frames.iter().map(|v| v.ip()) {
+            let debug_inst = match debug_info.instruction_at(ip) {
+                Some(debug_inst) => debug_inst,
+                None => {
+                    writeln!(
+                        out,
+                        "virtual machine error: {} (no debug instruction)",
+                        error
+                    )?;
+
+                    return Ok(());
+                }
+            };
+
+        let source_id = debug_inst.source_id;
+        let span = debug_inst.span;
+            labels.push(Label::secondary(source_id, span.range()).with_message("called from here".to_string()));
+
+        }
         let diagnostic = Diagnostic::error()
             .with_message("virtual machine error")
-            .with_labels(labels);
+            .with_labels(labels)
+            .with_notes(vec![error.to_string()]);
 
         term::emit(out, &config, &files, &diagnostic)?;
+
         Ok(())
     }
 }
