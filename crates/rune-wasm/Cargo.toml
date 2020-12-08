@@ -15,11 +15,11 @@ A WASM module for Rune, an embeddable dynamic programming language for Rust.
 """
 
 [dependencies]
-serde = { version = "1.0.117", features = ["derive"] }
-wasm-bindgen = { version = "0.2.69", features = ["serde-serialize"] }
-wasm-bindgen-futures = "0.4.19"
-js-sys = "0.3.46"
-anyhow = "1.0.34"
+serde = { version = "1.0.124", features = ["derive"] }
+wasm-bindgen = { version = "0.2.71", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4.21"
+js-sys = "0.3.48"
+anyhow = "1.0.38"
 lazy_static = "1.4.0"
 parking_lot = { version = "0.11.1", features = ["wasm-bindgen"] }
 
@@ -29,7 +29,7 @@ rune-modules = {version = "0.8.0", path = "../rune-modules", features = ["core",
 runestick = {version = "0.8.0", path = "../runestick"}
 
 [dependencies.web-sys]
-version = "0.3.46"
+version = "0.3.48"
 features = ["Request", "Response", "Window", "RequestInit", "RequestMode"]
 
 [lib]

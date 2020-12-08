@@ -5,7 +5,7 @@ authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2018"
 
 [dependencies]
-tokio = { version = "0.2.22", features = ["macros"] }
+tokio = { version = "1.2.0", features = ["macros"] }
 
 runestick = { path = "../crates/runestick", features = ["bench"] }
 rune-tests = { path = "../tests", default-features = false }

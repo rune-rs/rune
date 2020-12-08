@@ -15,8 +15,8 @@ Helper macros for Rune.
 """
 
 [dependencies]
-syn = { version = "1.0.53", features = ["full"] }
-quote = "1.0.7"
+syn = { version = "1.0.62", features = ["full"] }
+quote = "1.0.9"
 proc-macro2 = { version = "1.0.24", features = ["span-locations"] }
 
 [dev-dependencies]

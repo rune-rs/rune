@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::compiling::InsertMetaError;
+use crate::shared::WithSpan;
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, ResolveError,
     ResolveErrorKind, Spanned,
@@ -29,6 +30,12 @@ error! {
 impl From<CompileError> for SpannedError {
     fn from(error: CompileError) -> Self {
         SpannedError::new(error.span, *error.kind)
+    }
+}
+
+impl From<WithSpan<rune_ssa::Error>> for CompileError {
+    fn from(w: WithSpan<rune_ssa::Error>) -> Self {
+        CompileError::new(w.span, w.error)
     }
 }
 
@@ -102,6 +109,12 @@ pub enum CompileErrorKind {
         path: PathBuf,
         #[source]
         error: io::Error,
+    },
+    #[error("failed to assemble ssa: {error}")]
+    SsaError {
+        #[source]
+        #[from]
+        error: rune_ssa::Error,
     },
     #[error("error during constant evaluation: {msg}")]
     ConstError { msg: &'static str },

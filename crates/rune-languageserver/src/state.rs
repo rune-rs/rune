@@ -495,10 +495,12 @@ where
         range,
         severity: Some(severity),
         code: None,
+        code_description: None,
         source: None,
         message: error.to_string(),
         related_information: None,
         tags: None,
+        data: None,
     }
 }
 

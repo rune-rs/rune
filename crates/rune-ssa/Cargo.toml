@@ -1,0 +1,20 @@
+[package]
+name = "rune-ssa"
+version = "0.8.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+readme = "README.md"
+repository = "https://github.com/rune-rs/rune"
+homepage = "https://github.com/rune-rs/rune"
+documentation = "https://docs.rs/rune"
+keywords = ["language", "scripting"]
+categories = []
+description = """
+Intermediate mode representation for Rune.
+"""
+
+[dependencies]
+hashbrown = "0.9.1"
+thiserror = "1.0.24"
+ordered-float = "2.1.1"

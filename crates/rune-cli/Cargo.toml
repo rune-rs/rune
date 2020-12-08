@@ -15,13 +15,13 @@ An interpreter for Rune, an embeddable dynamic programming language for Rust.
 """
 
 [dependencies]
+bincode = "1.3.2"
 atty = "0.2.14"
-log = "0.4.11"
-env_logger = "0.8.2"
-tokio = { version = "0.2.22", features = ["rt-core", "net", "fs", "macros"] }
-codespan-reporting = "0.11.0"
-anyhow = "1.0.34"
-bincode = "1.3.1"
+log = "0.4.14"
+env_logger = "0.8.3"
+tokio = { version = "1.2.0", features = ["rt-multi-thread", "net", "fs", "macros"] }
+codespan-reporting = "0.11.1"
+anyhow = "1.0.38"
 structopt = { version = "0.3.21", default-features = false, features = ["wrap_help", "suggestions", "color"] }
 
 rune = {version = "0.8.0", path = "../rune"}
@@ -29,7 +29,7 @@ rune-modules = {version = "0.8.0", path = "../rune-modules", features = ["full",
 runestick = {version = "0.8.0", path = "../runestick"}
 
 [build-dependencies]
-anyhow = "1.0.34"
+anyhow = "1.0.38"
 
 [[bin]]
 name = "rune"

@@ -9,8 +9,8 @@ full = ["rune-modules/full"]
 default = ["full"]
 
 [dependencies]
-futures-executor = "0.3.8"
-tokio = { version = "0.2.22", features = ["macros"] }
+futures-executor = "0.3.13"
+tokio = { version = "1.2.0", features = ["macros"] }
 
 rune = {path = "../crates/rune"}
 rune-modules = {path = "../crates/rune-modules"}

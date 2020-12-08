@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::ast::expr::EagerBrace;
 use crate::{ParseError, Parser, Spanned, ToTokens};
+use runestick::Span;
 use std::fmt;
 
 /// A unary expression.
@@ -32,6 +33,11 @@ pub struct ExprUnary {
 }
 
 impl ExprUnary {
+    /// Get the span of the op.
+    pub fn op_span(&self) -> Span {
+        self.op_token.span()
+    }
+
     /// Parse the uniary expression with the given meta and configuration.
     pub(crate) fn parse_with_meta(
         parser: &mut Parser,

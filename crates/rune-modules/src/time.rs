@@ -26,7 +26,7 @@
 //! use time;
 //!
 //! fn main() {
-//!     time::delay_for(time::Duration::from_secs(10)).await;
+//!     time::sleep(time::Duration::from_secs(10)).await;
 //!     println("Message after 10 seconds!");
 //! }
 //! ```
@@ -37,7 +37,7 @@ use runestick::{Any, ContextError, Module};
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("time");
     module.function(&["Duration", "from_secs"], Duration::from_secs)?;
-    module.async_function(&["delay_for"], delay_for)?;
+    module.async_function(&["sleep"], sleep)?;
     Ok(module)
 }
 
@@ -56,6 +56,6 @@ impl Duration {
 }
 
 /// Convert any value to a json string.
-async fn delay_for(duration: &Duration) {
-    tokio::time::delay_for(duration.inner).await;
+async fn sleep(duration: &Duration) {
+    tokio::time::sleep(duration.inner).await;
 }

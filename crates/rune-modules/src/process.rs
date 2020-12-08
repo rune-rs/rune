@@ -48,7 +48,6 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.inst_fn("spawn", Command::spawn)?;
     module.inst_fn("arg", Command::arg)?;
     module.inst_fn("args", Command::args)?;
-    module.async_inst_fn(Protocol::INTO_FUTURE, Child::into_future)?;
     module.async_inst_fn("wait_with_output", Child::wait_with_output)?;
     module.inst_fn(Protocol::STRING_DISPLAY, ExitStatus::display)?;
     module.inst_fn("code", ExitStatus::code)?;
@@ -112,22 +111,6 @@ struct Child {
 }
 
 impl Child {
-    /// Convert the child into a future, use for `.await`.
-    async fn into_future(mut self) -> Result<io::Result<ExitStatus>, VmError> {
-        let result = match &mut self.inner {
-            Some(inner) => match inner.await {
-                Ok(status) => Ok(ExitStatus { status }),
-                Err(e) => Err(e),
-            },
-            None => {
-                return Err(VmError::panic("already completed"));
-            }
-        };
-
-        self.inner = None;
-        Ok(result)
-    }
-
     // Returns a future that will resolve to an Output, containing the exit
     // status, stdout, and stderr of the child process.
     async fn wait_with_output(self) -> Result<io::Result<Output>, VmError> {
