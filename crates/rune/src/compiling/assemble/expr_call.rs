@@ -23,23 +23,27 @@ impl Assemble for ast::ExprCall {
                 ast::Expr::FieldAccess(expr_field_access) => {
                     if let ast::ExprFieldAccess {
                         expr,
-                        expr_field: ast::ExprField::Ident(ident),
+                        expr_field: ast::ExprField::Path(path),
                         ..
                     } = &**expr_field_access
                     {
-                        log::trace!("ExprCall(ExprFieldAccess) => {:?}", c.source.source(span));
+                        if let Some(ident) = path.try_as_ident() {
+                            log::trace!("ExprCall(ExprFieldAccess) => {:?}", c.source.source(span));
 
-                        expr.assemble(c, Needs::Value)?.apply(c)?;
-
-                        for (expr, _) in &self.args {
                             expr.assemble(c, Needs::Value)?.apply(c)?;
-                            c.scopes.decl_anon(span)?;
-                        }
 
-                        let ident = ident.resolve(&c.storage, &*c.source)?;
-                        let hash = Hash::instance_fn_name(ident.as_ref());
-                        c.asm.push(Inst::CallInstance { hash, args }, span);
-                        false
+                            for (expr, _) in &self.args {
+                                expr.assemble(c, Needs::Value)?.apply(c)?;
+                                c.scopes.decl_anon(span)?;
+                            }
+
+                            let ident = ident.resolve(&c.storage, &*c.source)?;
+                            let hash = Hash::instance_fn_name(ident.as_ref());
+                            c.asm.push(Inst::CallInstance { hash, args }, span);
+                            false
+                        } else {
+                            true
+                        }
                     } else {
                         true
                     }

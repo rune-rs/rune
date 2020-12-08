@@ -145,6 +145,7 @@ fn compile_assign_binop(
                 .first
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
+
             let ident = segment.resolve(c.storage, &*c.source)?;
             let var = c.scopes.get_var(&*ident, c.source_id, c.visitor, span)?;
 
@@ -157,11 +158,15 @@ fn compile_assign_binop(
 
             // field assignment
             match &field_access.expr_field {
-                ast::ExprField::Ident(index) => {
-                    let n = index.resolve(c.storage, &*c.source)?;
-                    let n = c.unit.new_static_string(index, n.as_ref())?;
+                ast::ExprField::Path(path) => {
+                    if let Some(ident) = path.try_as_ident() {
+                        let n = ident.resolve(c.storage, &*c.source)?;
+                        let n = c.unit.new_static_string(path.span(), n.as_ref())?;
 
-                    Some(InstTarget::Field(n))
+                        Some(InstTarget::Field(n))
+                    } else {
+                        None
+                    }
                 }
                 ast::ExprField::LitNumber(field) => {
                     let span = field.span();

@@ -40,7 +40,7 @@ impl Assemble for ast::ExprObject {
             }
         }
 
-        let slot = c.unit.new_static_object_keys(span, &keys)?;
+        let slot = c.unit.new_static_object_keys_iter(span, &keys)?;
 
         match &self.ident {
             ast::ObjectIdent::Named(path) => {

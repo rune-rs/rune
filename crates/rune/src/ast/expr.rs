@@ -43,6 +43,12 @@ impl ops::Deref for Callable {
     }
 }
 
+impl Default for Callable {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 /// A rune expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Expr {
@@ -579,7 +585,7 @@ impl Expr {
                                 attributes: expr.take_attributes(),
                                 expr,
                                 dot: p.parse()?,
-                                expr_field: ast::ExprField::Ident(p.parse()?),
+                                expr_field: ast::ExprField::Path(p.parse()?),
                             }));
                         }
                         // tuple access: <expr>.<number>
@@ -812,6 +818,38 @@ impl Peek for Expr {
             K![..] => true,
             _ => false,
         }
+    }
+}
+
+/// Used to parse an expression without supporting an immediate binary expression.
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+pub struct ExprWithoutBinary {
+    expr: ast::Expr,
+}
+
+impl ExprWithoutBinary {
+    /// Access the inner expression.
+    pub fn into_expr(self) -> Expr {
+        self.expr
+    }
+}
+
+impl Parse for ExprWithoutBinary {
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let expr = Expr::parse_with(
+            p,
+            Default::default(),
+            EagerBinary(false),
+            Default::default(),
+        )?;
+
+        Ok(Self { expr })
+    }
+}
+
+impl Peek for ExprWithoutBinary {
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        Expr::peek(p)
     }
 }
 

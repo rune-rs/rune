@@ -5,7 +5,7 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
-use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
+use crate::{CompileError, CompileErrorKind, Error, Errors};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, ConstValue, Context, DebugInfo, DebugInst, Hash, Inst,
@@ -121,14 +121,11 @@ impl UnitBuilder {
     /// looked up through [lookup_string][Self::lookup_string].
     ///
     /// Only uses up space if the static string is unique.
-    pub(crate) fn new_static_string<S>(
+    pub(crate) fn new_static_string(
         &self,
-        spanned: S,
+        span: Span,
         current: &str,
-    ) -> Result<usize, CompileError>
-    where
-        S: Copy + Spanned,
-    {
+    ) -> Result<usize, CompileError> {
         let mut inner = self.inner.borrow_mut();
 
         let current = StaticString::new(current);
@@ -137,7 +134,7 @@ impl UnitBuilder {
         if let Some(existing_slot) = inner.static_string_rev.get(&hash).copied() {
             let existing = inner.static_strings.get(existing_slot).ok_or_else(|| {
                 CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticStringMissing {
                         hash,
                         slot: existing_slot,
@@ -147,7 +144,7 @@ impl UnitBuilder {
 
             if ***existing != *current {
                 return Err(CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticStringHashConflict {
                         hash,
                         current: (*current).clone(),
@@ -169,14 +166,11 @@ impl UnitBuilder {
     /// later be looked up through [lookup_bytes][Self::lookup_bytes].
     ///
     /// Only uses up space if the static byte string is unique.
-    pub(crate) fn new_static_bytes<S>(
+    pub(crate) fn new_static_bytes(
         &self,
-        spanned: S,
+        span: Span,
         current: &[u8],
-    ) -> Result<usize, CompileError>
-    where
-        S: Copy + Spanned,
-    {
+    ) -> Result<usize, CompileError> {
         let mut inner = self.inner.borrow_mut();
 
         let hash = Hash::static_bytes(&current);
@@ -184,7 +178,7 @@ impl UnitBuilder {
         if let Some(existing_slot) = inner.static_bytes_rev.get(&hash).copied() {
             let existing = inner.static_bytes.get(existing_slot).ok_or_else(|| {
                 CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticBytesMissing {
                         hash,
                         slot: existing_slot,
@@ -194,7 +188,7 @@ impl UnitBuilder {
 
             if &**existing != current {
                 return Err(CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticBytesHashConflict {
                         hash,
                         current: current.to_owned(),
@@ -214,29 +208,38 @@ impl UnitBuilder {
 
     /// Insert a new collection of static object keys, or return one already
     /// existing.
-    pub(crate) fn new_static_object_keys<S, I>(
+    pub(crate) fn new_static_object_keys_iter<I>(
         &self,
-        spanned: S,
+        span: Span,
         current: I,
     ) -> Result<usize, CompileError>
     where
-        S: Copy + Spanned,
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let mut inner = self.inner.borrow_mut();
-
         let current = current
             .into_iter()
             .map(|s| s.as_ref().to_owned())
             .collect::<Box<_>>();
+
+        self.new_static_object_keys(span, current)
+    }
+
+    /// Insert a new collection of static object keys, or return one already
+    /// existing.
+    pub(crate) fn new_static_object_keys(
+        &self,
+        span: Span,
+        current: Box<[String]>,
+    ) -> Result<usize, CompileError> {
+        let mut inner = self.inner.borrow_mut();
 
         let hash = Hash::object_keys(&current[..]);
 
         if let Some(existing_slot) = inner.static_object_keys_rev.get(&hash).copied() {
             let existing = inner.static_object_keys.get(existing_slot).ok_or_else(|| {
                 CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticObjectKeysMissing {
                         hash,
                         slot: existing_slot,
@@ -246,7 +249,7 @@ impl UnitBuilder {
 
             if *existing != current {
                 return Err(CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticObjectKeysHashConflict {
                         hash,
                         current,

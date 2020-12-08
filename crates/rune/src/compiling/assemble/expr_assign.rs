@@ -26,19 +26,23 @@ impl Assemble for ast::ExprAssign {
 
                 // field assignment
                 match &field_access.expr_field {
-                    ast::ExprField::Ident(index) => {
-                        let slot = index.resolve(c.storage, &*c.source)?;
-                        let slot = c.unit.new_static_string(index, slot.as_ref())?;
+                    ast::ExprField::Path(path) => {
+                        if let Some(ident) = path.try_as_ident() {
+                            let slot = ident.resolve(c.storage, &*c.source)?;
+                            let slot = c.unit.new_static_string(ident.span(), slot.as_ref())?;
 
-                        self.rhs.assemble(c, Needs::Value)?.apply(c)?;
-                        c.scopes.decl_anon(self.rhs.span())?;
+                            self.rhs.assemble(c, Needs::Value)?.apply(c)?;
+                            c.scopes.decl_anon(self.rhs.span())?;
 
-                        field_access.expr.assemble(c, Needs::Value)?.apply(c)?;
-                        c.scopes.decl_anon(span)?;
+                            field_access.expr.assemble(c, Needs::Value)?.apply(c)?;
+                            c.scopes.decl_anon(span)?;
 
-                        c.asm.push(Inst::ObjectIndexSet { slot }, span);
-                        c.scopes.undecl_anon(span, 2)?;
-                        true
+                            c.asm.push(Inst::ObjectIndexSet { slot }, span);
+                            c.scopes.undecl_anon(span, 2)?;
+                            true
+                        } else {
+                            false
+                        }
                     }
                     ast::ExprField::LitNumber(field) => {
                         let number = field.resolve(c.storage, &*c.source)?;

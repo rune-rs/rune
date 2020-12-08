@@ -7,6 +7,20 @@ use crate::{
 };
 
 /// A path, where each element is separated by a `::`.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::Path>("foo::bar");
+/// testing::roundtrip::<ast::Path>("Self::bar");
+/// testing::roundtrip::<ast::Path>("self::bar");
+/// testing::roundtrip::<ast::Path>("crate::bar");
+/// testing::roundtrip::<ast::Path>("super::bar");
+/// testing::roundtrip::<ast::Path>("HashMap::<Foo, Bar>");
+/// testing::roundtrip::<ast::Path>("super::HashMap::<Foo, Bar>");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct Path {
     /// Opaque id associated with path.
@@ -42,7 +56,7 @@ impl Path {
     /// Borrow as an identifier used for field access calls.
     ///
     /// This is only allowed if there are no other path components
-    /// and the PathSegment is not `Crate` or `Super`.
+    /// and the path segment is not `Crate` or `Super`.
     pub fn try_as_ident(&self) -> Option<&ast::Ident> {
         if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
             self.first.try_as_ident()
@@ -54,7 +68,7 @@ impl Path {
     /// Borrow as an identifier used for field access calls.
     ///
     /// This is only allowed if there are no other path components
-    /// and the PathSegment is not `Crate` or `Super`.
+    /// and the path segment is not `Crate` or `Super`.
     pub fn try_as_ident_mut(&mut self) -> Option<&mut ast::Ident> {
         if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
             self.first.try_as_ident_mut()
@@ -127,6 +141,9 @@ impl<'a> Resolve<'a> for Path {
             PathSegment::Super(_) => {
                 buf.push_str("super");
             }
+            PathSegment::Generics(_) => {
+                buf.push_str("<*>");
+            }
         }
 
         for (_, segment) in &self.rest {
@@ -147,6 +164,9 @@ impl<'a> Resolve<'a> for Path {
                 }
                 PathSegment::Super(_) => {
                     buf.push_str("super");
+                }
+                PathSegment::Generics(_) => {
+                    buf.push_str("<*>");
                 }
             }
         }
@@ -193,18 +213,8 @@ pub enum PathSegment {
     Crate(T![crate]),
     /// The `super` keyword use as a path segment.
     Super(T![super]),
-}
-
-impl From<PathSegment> for ast::Kind {
-    fn from(segment: PathSegment) -> Self {
-        match segment {
-            PathSegment::SelfType(self_type) => self_type.token.kind,
-            PathSegment::SelfValue(self_value) => self_value.token.kind,
-            PathSegment::Ident(ident) => ident.token.kind,
-            PathSegment::Crate(crate_token) => crate_token.token.kind,
-            PathSegment::Super(super_token) => super_token.token.kind,
-        }
-    }
+    /// A path segment that is a generic argument.
+    Generics(ast::AngleBracketed<ast::ExprWithoutBinary, T![,]>),
 }
 
 impl PathSegment {
@@ -233,6 +243,12 @@ impl PathSegment {
     }
 }
 
+impl Description for &PathSegment {
+    fn description(self) -> &'static str {
+        "path segment"
+    }
+}
+
 impl Parse for PathSegment {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
         let segment = match p.nth(0)? {
@@ -241,6 +257,7 @@ impl Parse for PathSegment {
             K![ident] => Self::Ident(p.parse()?),
             K![crate] => Self::Crate(p.parse()?),
             K![super] => Self::Super(p.parse()?),
+            K![<] => Self::Generics(p.parse()?),
             _ => {
                 return Err(ParseError::expected(&p.tok_at(0)?, "path segment"));
             }
@@ -254,13 +271,7 @@ impl Peek for PathSegment {
     fn peek(p: &mut Peeker<'_>) -> bool {
         matches!(
             p.nth(0),
-            K![Self] | K![self] | K![crate] | K![super] | K![ident]
+            K![<] | K![Self] | K![self] | K![crate] | K![super] | K![ident]
         )
-    }
-}
-
-impl Description for &PathSegment {
-    fn description(self) -> &'static str {
-        "path segment"
     }
 }
