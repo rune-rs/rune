@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607454679113,
+  "lastUpdate": 1607527107372,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -1619,6 +1619,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4513898,
             "range": "± 6781",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "94f56a7a7ad0c26d12fee2b03bb9cfecc76f5bf5",
+          "message": "Rework how protocol functions are called\n\nThis allows them to be called more flexibly, and for the `string_debug`\ncase avoids the need to allocate a local string buffer internally when\ndebug formatting.\n\nUnfortunately this means the `fmt::Debug` impl suffers a bit in that it\nduplicates `string_debug`. There's just no way to punt a\n`fmt::Formatter` into a `String`, and since it has a lifetime it can't\nbe called through rune interfaces.",
+          "timestamp": "2020-12-09T16:14:28+01:00",
+          "tree_id": "912f289cf6fd70143cbd6a8cea6fc8ccaad199f2",
+          "url": "https://github.com/rune-rs/rune/commit/94f56a7a7ad0c26d12fee2b03bb9cfecc76f5bf5"
+        },
+        "date": 1607527105587,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 269116,
+            "range": "± 69553",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 776034,
+            "range": "± 197130",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 71289204,
+            "range": "± 9317906",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1157333,
+            "range": "± 333003",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 12674828,
+            "range": "± 2825775",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 10456604,
+            "range": "± 2262995",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 423682,
+            "range": "± 111019",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4749144,
+            "range": "± 1061717",
             "unit": "ns/iter"
           }
         ]
