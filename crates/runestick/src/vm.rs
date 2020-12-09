@@ -260,7 +260,7 @@ impl Vm {
         N: IntoTypeHash,
         A: GuardedArgs,
     {
-        self.set_entrypoint(name, A::count())?;
+        self.set_entrypoint(name, args.count())?;
 
         // Safety: We hold onto the guard until the vm has completed.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
@@ -299,7 +299,7 @@ impl Vm {
         N: IntoTypeHash,
         A: GuardedArgs,
     {
-        self.set_entrypoint(name, A::count())?;
+        self.set_entrypoint(name, args.count())?;
 
         // Safety: We hold onto the guard until the vm has completed.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
@@ -353,30 +353,32 @@ impl Vm {
     #[inline(always)]
     pub(crate) fn call_instance_fn<H, A>(
         &mut self,
-        target: &Value,
+        target: Value,
         hash: H,
         args: A,
     ) -> Result<bool, VmError>
     where
         H: IntoTypeHash,
-        A: Args,
+        A: GuardedArgs,
     {
         let count = args.count();
+        let type_hash = target.type_hash()?;
         self.stack.push(target.clone());
-        args.into_stack(&mut self.stack)?;
-        self.inner_call_instance_fn(target, hash.into_type_hash(), count)
+        // Safety: We hold onto the guard for the duration of this call.
+        let _guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
+        self.inner_call_instance_fn(type_hash, hash.into_type_hash(), count)
     }
 
     #[inline(never)]
     fn inner_call_instance_fn(
         &mut self,
-        target: &Value,
+        type_hash: Hash,
         hash: Hash,
         count: usize,
     ) -> Result<bool, VmError> {
         // NB: +1 to include the instance as well.
         let count = count + 1;
-        let hash = Hash::instance_function(target.type_hash()?, hash.into_type_hash());
+        let hash = Hash::instance_function(type_hash, hash.into_type_hash());
 
         if let Some(UnitFn::Offset {
             offset,
@@ -398,7 +400,6 @@ impl Vm {
             }
         };
 
-        let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
         handler(&mut self.stack, count)?;
         Ok(true)
     }
@@ -443,7 +444,6 @@ impl Vm {
             }
         };
 
-        let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
         handler(&mut self.stack, count)?;
         Ok(true)
     }
@@ -514,7 +514,7 @@ impl Vm {
         match value {
             Value::Future(future) => Ok(Ok(future)),
             value => {
-                if !self.call_instance_fn(&value, Protocol::INTO_FUTURE, ())? {
+                if !self.call_instance_fn(value.clone(), Protocol::INTO_FUTURE, ())? {
                     return Ok(Err(value));
                 }
 
@@ -1150,7 +1150,7 @@ impl Vm {
     ) -> Result<(), VmError> {
         match fallback {
             TargetFallback::Value(lhs, rhs) => {
-                if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
+                if !self.call_instance_fn(lhs.clone(), protocol, (&rhs,))? {
                     return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                         op: protocol.name,
                         lhs: lhs.type_info()?,
@@ -1206,7 +1206,7 @@ impl Vm {
             (lhs, rhs) => (lhs, rhs),
         };
 
-        if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
+        if !self.call_instance_fn(lhs.clone(), protocol, (&rhs,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: lhs.type_info()?,
@@ -1236,7 +1236,7 @@ impl Vm {
             (lhs, rhs) => (lhs, rhs),
         };
 
-        if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
+        if !self.call_instance_fn(lhs.clone(), protocol, (&rhs,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: lhs.type_info()?,
@@ -1271,7 +1271,7 @@ impl Vm {
             (lhs, rhs) => (lhs, rhs),
         };
 
-        if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
+        if !self.call_instance_fn(lhs.clone(), protocol, (&rhs,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: lhs.type_info()?,
@@ -1324,7 +1324,7 @@ impl Vm {
             (lhs, rhs) => (lhs, rhs),
         };
 
-        if !self.call_instance_fn(&lhs, protocol, (&rhs,))? {
+        if !self.call_instance_fn(lhs.clone(), protocol, (&rhs,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: lhs.type_info()?,
@@ -1921,7 +1921,7 @@ impl Vm {
             }
         }
 
-        if !self.call_instance_fn(&target, Protocol::INDEX_SET, (&index, &value))? {
+        if !self.call_instance_fn(target.clone(), Protocol::INDEX_SET, (&index, &value))? {
             return Err(VmError::from(VmErrorKind::UnsupportedIndexSet {
                 target: target.type_info()?,
                 index: index.type_info()?,
@@ -2004,7 +2004,7 @@ impl Vm {
 
         let target = target.into_owned();
 
-        if !self.call_instance_fn(&target, Protocol::INDEX_GET, (&index,))? {
+        if !self.call_instance_fn(target.clone(), Protocol::INDEX_GET, (&index,))? {
             return Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
                 target: target.type_info()?,
                 index: index.type_info()?,
@@ -2259,8 +2259,9 @@ impl Vm {
         for value in values {
             match value {
                 Value::Format(format) => {
-                    let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
-                    format.spec.format(&format.value, &mut out, &mut buf)?;
+                    format
+                        .spec
+                        .format(&format.value, &mut out, &mut buf, &mut *self)?;
                 }
                 Value::Char(c) => {
                     out.push(c);
@@ -2283,7 +2284,7 @@ impl Vm {
                     let b = Shared::new(std::mem::take(&mut out));
 
                     if !self.call_instance_fn(
-                        &actual,
+                        actual.clone(),
                         Protocol::STRING_DISPLAY,
                         (Value::String(b.clone()),),
                     )? {
@@ -2661,7 +2662,6 @@ impl Vm {
                     .lookup(hash)
                     .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
 
-                let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
                 handler(&mut self.stack, args)?;
             }
         }
@@ -2714,7 +2714,6 @@ impl Vm {
                     }
                 };
 
-                let _guard = crate::interface::EnvGuard::new(&self.context, &self.unit);
                 handler(&mut self.stack, args)?;
             }
         }
@@ -2773,6 +2772,10 @@ impl Vm {
 
     /// Evaluate a single instruction.
     pub(crate) fn run(&mut self) -> Result<VmHalt, VmError> {
+        // NB: set up environment so that native function can access context and
+        // unit.
+        let _guard = crate::env::Guard::new(&self.context, &self.unit);
+
         loop {
             if !budget::take() {
                 return Ok(VmHalt::Limited);

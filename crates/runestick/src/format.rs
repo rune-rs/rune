@@ -1,5 +1,6 @@
 //! Types for dealing with formatting specifications.
 
+use crate::protocol_caller::ProtocolCaller;
 use crate::{FromValue, InstallWith, Named, RawStr, Value, VmError, VmErrorKind};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -178,7 +179,7 @@ impl FormatSpec {
         value: &Value,
         out: &mut String,
         buf: &mut String,
-    ) -> Result<(), VmErrorKind> {
+    ) -> Result<(), VmError> {
         match value {
             Value::Char(c) => {
                 buf.push(*c);
@@ -203,7 +204,7 @@ impl FormatSpec {
                 self.format_fill(out, buf, align, fill, sign);
             }
             _ => {
-                return Err(VmErrorKind::FormatError);
+                return Err(VmError::from(VmErrorKind::FormatError));
             }
         }
 
@@ -215,7 +216,8 @@ impl FormatSpec {
         value: &Value,
         out: &mut String,
         buf: &mut String,
-    ) -> Result<(), VmErrorKind> {
+        caller: impl ProtocolCaller,
+    ) -> Result<(), VmError> {
         match value {
             Value::String(s) => {
                 write!(out, "{:?}", &*s.borrow_ref()?).map_err(|_| VmErrorKind::FormatError)?;
@@ -234,7 +236,8 @@ impl FormatSpec {
                 self.format_fill(out, buf, align, fill, sign);
             }
             value => {
-                write!(out, "{:?}", value).map_err(|_| VmErrorKind::FormatError)?;
+                let result = value.string_debug_with(out, caller)?;
+                result.map_err(|_| VmErrorKind::FormatError)?;
             }
         }
 
@@ -328,13 +331,14 @@ impl FormatSpec {
         value: &Value,
         out: &mut String,
         buf: &mut String,
-    ) -> Result<(), VmErrorKind> {
+        caller: impl ProtocolCaller,
+    ) -> Result<(), VmError> {
         match self.format_type {
             Type::Display => {
                 self.format_display(value, out, buf)?;
             }
             Type::Debug => {
-                self.format_debug(value, out, buf)?;
+                self.format_debug(value, out, buf, caller)?;
             }
             Type::UpperHex => {
                 self.format_upper_hex(value, out, buf)?;

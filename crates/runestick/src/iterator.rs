@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, Function, InstallWith, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
+    FromValue, Function, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
     UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use std::fmt;
@@ -198,7 +198,7 @@ impl Iterator {
     }
 
     /// Chain this iterator with another.
-    pub fn chain(self, other: Interface) -> Result<Self, VmError> {
+    pub fn chain(self, other: Value) -> Result<Self, VmError> {
         let other = other.into_iter()?;
 
         Ok(Self {
@@ -576,7 +576,7 @@ where
                     })
                 }
                 Some(value) => {
-                    let iterator = <Interface as FromValue>::from_value(value)?.into_iter()?;
+                    let iterator = value.into_iter()?;
                     self.frontiter = Some(iterator.iter)
                 }
             }
@@ -600,7 +600,7 @@ where
                     })
                 }
                 Some(value) => {
-                    let iterator = <Interface as FromValue>::from_value(value)?.into_iter()?;
+                    let iterator = value.into_iter()?;
                     self.backiter = Some(iterator.iter);
                 }
             }

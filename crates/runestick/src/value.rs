@@ -1,8 +1,9 @@
 use crate::access::AccessKind;
+use crate::protocol_caller::{EnvProtocolCaller, ProtocolCaller};
 use crate::{
-    Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Interface, Item,
-    Iterator, Mut, Object, Protocol, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream,
-    Tuple, TypeInfo, Vec, Vm, VmError, VmErrorKind,
+    Any, AnyObj, Bytes, ConstValue, Format, Function, Future, Generator, GeneratorState, Hash,
+    Item, Iterator, Mut, Object, Protocol, Range, RawMut, RawRef, Ref, Shared, StaticString,
+    Stream, Tuple, TypeInfo, Vec, Vm, VmError, VmErrorKind,
 };
 use serde::{de, ser, Deserialize, Serialize};
 use std::fmt;
@@ -356,6 +357,172 @@ pub enum Value {
 }
 
 impl Value {
+    /// Debug format the value using the [Protocol::STRING_DEBUG] protocol.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    pub fn string_debug(&self, s: &mut String) -> Result<fmt::Result, VmError> {
+        self.string_debug_with(s, EnvProtocolCaller)
+    }
+
+    /// Internal impl of string_debug with a customizable caller.
+    pub(crate) fn string_debug_with(
+        &self,
+        s: &mut String,
+        caller: impl ProtocolCaller,
+    ) -> Result<fmt::Result, VmError> {
+        use crate::FromValue as _;
+        use std::fmt::Write as _;
+
+        let result = match self {
+            Value::Unit => {
+                write!(s, "()")
+            }
+            Value::Bool(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Byte(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Char(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Integer(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Float(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Type(value) => {
+                write!(s, "Type({})", value)
+            }
+            Value::StaticString(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::String(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Bytes(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Vec(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Tuple(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Object(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Range(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Future(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Stream(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Generator(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::GeneratorState(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Option(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Result(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::UnitStruct(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::TupleStruct(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Struct(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::UnitVariant(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::TupleVariant(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::StructVariant(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Function(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Format(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Iterator(value) => {
+                write!(s, "{:?}", value)
+            }
+            value => {
+                let string = Value::from(std::mem::take(s));
+                let value = caller.call_protocol_fn(
+                    Protocol::STRING_DEBUG,
+                    value.clone(),
+                    (string.clone(),),
+                )?;
+                *s = string.into_string()?.take()?;
+                fmt::Result::from_value(value)?
+            }
+        };
+
+        Ok(result)
+    }
+
+    /// Convert value into an iterator using the [Protocol::INTO_ITER] protocol.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    pub fn into_iter(self) -> Result<Iterator, VmError> {
+        use crate::FromValue as _;
+
+        let target = match self {
+            Value::Iterator(iterator) => return Ok(iterator.take()?),
+            Value::Vec(vec) => return Ok(vec.borrow_ref()?.into_iterator()),
+            Value::Object(object) => return Ok(object.borrow_ref()?.into_iterator()),
+            target => target,
+        };
+
+        let value = EnvProtocolCaller.call_protocol_fn(Protocol::INTO_ITER, target, ())?;
+        Iterator::from_value(value)
+    }
+
+    /// Retrieves a human readable type name for the current value.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    pub fn into_type_name(self) -> Result<String, VmError> {
+        let hash = Hash::instance_function(self.type_hash()?, Protocol::INTO_TYPE_NAME);
+
+        crate::env::with(|context, unit| {
+            if let Some(name) = context.constant(hash) {
+                match name {
+                    ConstValue::String(s) => return Ok(s.clone()),
+                    ConstValue::StaticString(s) => return Ok((*s).to_string()),
+                    _ => Err(VmError::expected::<String>(name.type_info()))?,
+                }
+            }
+
+            if let Some(name) = unit.constant(hash) {
+                match name {
+                    ConstValue::String(s) => return Ok(s.clone()),
+                    ConstValue::StaticString(s) => return Ok((*s).to_string()),
+                    _ => Err(VmError::expected::<String>(name.type_info()))?,
+                }
+            }
+
+            self.type_info().map(|v| format!("{}", v))
+        })
+    }
+
     /// Construct a vector.
     pub fn vec(vec: vec::Vec<Value>) -> Self {
         Self::Vec(Shared::new(Vec::from(vec)))
@@ -867,7 +1034,7 @@ impl Value {
                 _ => return Ok(false),
             },
             (a, b) => {
-                if vm.call_instance_fn(a, Protocol::EQ, (b.clone(),))? {
+                if vm.call_instance_fn(a.clone(), Protocol::EQ, (b.clone(),))? {
                     use crate::FromValue as _;
                     return Ok(bool::from_value(vm.stack.pop()?)?);
                 }
@@ -972,15 +1139,11 @@ impl fmt::Debug for Value {
             Value::Iterator(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::Any(value) => {
-                if let Some(interface) = Interface::try_get(Value::from(value.clone())) {
-                    let mut s = String::new();
-                    let result = interface.string_debug(&mut s).map_err(|_| fmt::Error)?;
-                    result?;
-                    write!(f, "{}", s)?;
-                } else {
-                    write!(f, "{:?}", value)?;
-                }
+            value => {
+                let mut s = String::new();
+                let result = value.string_debug(&mut s).map_err(|_| fmt::Error)?;
+                result?;
+                write!(f, "{}", s)?;
             }
         }
 

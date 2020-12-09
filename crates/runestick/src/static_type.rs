@@ -217,14 +217,6 @@ pub static ITERATOR_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(crate::Iterator => ITERATOR_TYPE);
 
-/// The specialized type information for the interface type.
-pub static INTERFACE_TYPE: &StaticType = &StaticType {
-    name: RawStr::from_str("Interface"),
-    hash: Hash::new(0xf2b8e210ba53f362),
-};
-
-impl_static_type!(crate::Interface => INTERFACE_TYPE);
-
 /// The specialized type information for type objects.
 pub static TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Type"),

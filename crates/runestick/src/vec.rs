@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, InstallWith, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
+    FromValue, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
     UnsafeFromValue, Value, Vm, VmError,
 };
 use std::cmp;
@@ -139,8 +139,8 @@ impl Vec {
 
     /// Extend this vector with something that implements the into_iter
     /// protocol.
-    pub fn extend(&mut self, interface: Interface) -> Result<(), VmError> {
-        let mut it = interface.into_iter()?;
+    pub fn extend(&mut self, value: Value) -> Result<(), VmError> {
+        let mut it = value.into_iter()?;
 
         while let Some(value) = it.next()? {
             self.push(value);
