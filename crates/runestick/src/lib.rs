@@ -147,7 +147,7 @@ pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 /// Exported boxed error type for convenience.
 pub type Error = anyhow::Error;
 
-pub use self::any_obj::{AnyObj, AnyObjVtable};
+pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
 pub use self::args::Args;
 pub use self::compile_meta::{
     CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,

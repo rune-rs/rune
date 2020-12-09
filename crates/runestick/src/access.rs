@@ -1,4 +1,4 @@
-use crate::RawStr;
+use crate::{AnyObjError, RawStr};
 use std::cell::Cell;
 use std::fmt;
 use std::future::Future;
@@ -17,39 +17,34 @@ const TAKEN: isize = (isize::max_value() ^ FLAG) >> 1;
 const MAX_USES: isize = 0b11isize.rotate_right(2);
 
 /// An error raised while downcasting.
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum AccessError {
-    /// Error raised when we expect a specific external type but got another.
     #[error("expected data of type `{expected}`, but found `{actual}`")]
-    UnexpectedType {
-        /// The type that was expected.
-        expected: RawStr,
-        /// The type that was found.
-        actual: RawStr,
-    },
-    /// Trying to access an inaccessible reference.
+    UnexpectedType { expected: RawStr, actual: RawStr },
     #[error("{error}")]
     NotAccessibleRef {
-        /// Source error.
         #[source]
         #[from]
         error: NotAccessibleRef,
     },
-    /// Trying to access an inaccessible mutable reference.
     #[error("{error}")]
     NotAccessibleMut {
-        /// Source error.
         #[source]
         #[from]
         error: NotAccessibleMut,
     },
-    /// Trying to access an inaccessible taking.
     #[error("{error}")]
     NotAccessibleTake {
-        /// Source error.
         #[source]
         #[from]
         error: NotAccessibleTake,
+    },
+    #[error("{error}")]
+    AnyObjError {
+        #[source]
+        #[from]
+        error: AnyObjError,
     },
 }
 
