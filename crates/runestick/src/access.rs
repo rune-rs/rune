@@ -330,12 +330,51 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
         }
     }
 
-    /// Try to map the interior reference the reference.
-    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<BorrowRef<'a, U>, E>
+    /// Map the reference.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{BorrowRef, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.borrow_ref()?;
+    /// let value: BorrowRef<[u32]> = BorrowRef::map(vec, |vec| &vec[0..2]);
+    ///
+    /// assert_eq!(&*value, &[1u32, 2u32][..]);
+    /// # Ok(()) }
+    /// ```
+    pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowRef<'a, U>
     where
-        M: FnOnce(&T) -> Result<&U, E>,
+        M: FnOnce(&T) -> &U,
     {
-        Ok(BorrowRef {
+        BorrowRef {
+            data: m(this.data),
+            guard: this.guard,
+        }
+    }
+
+    /// Try to map the reference to a projection.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{BorrowRef, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.borrow_ref()?;
+    /// let mut value: Option<BorrowRef<[u32]>> = BorrowRef::try_map(vec, |vec| vec.get(0..2));
+    ///
+    /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
+    /// # Ok(()) }
+    /// ```
+    pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowRef<'a, U>>
+    where
+        M: FnOnce(&T) -> Option<&U>,
+    {
+        Some(BorrowRef {
             data: m(this.data)?,
             guard: this.guard,
         })
@@ -433,6 +472,20 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     }
 
     /// Map the mutable reference.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{BorrowMut, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.borrow_mut()?;
+    /// let value: BorrowMut<[u32]> = BorrowMut::map(vec, |vec| &mut vec[0..2]);
+    ///
+    /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
+    /// # Ok(()) }
+    /// ```
     pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowMut<'a, U>
     where
         M: FnOnce(&mut T) -> &mut U,
@@ -443,7 +496,21 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
         }
     }
 
-    /// Try to optionally map the mutable reference.
+    /// Try to map the mutable reference to a projection.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{BorrowMut, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.borrow_mut()?;
+    /// let mut value: Option<BorrowMut<[u32]>> = BorrowMut::try_map(vec, |vec| vec.get_mut(0..2));
+    ///
+    /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
+    /// # Ok(()) }
+    /// ```
     pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowMut<'a, U>>
     where
         M: FnOnce(&mut T) -> Option<&mut U>,

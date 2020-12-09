@@ -868,6 +868,79 @@ pub struct Ref<T: ?Sized> {
 }
 
 impl<T: ?Sized> Ref<T> {
+    /// Map the interior reference of an owned mutable value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Ref, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.into_ref()?;
+    /// let value: Ref<[u32]> = Ref::map(vec, |vec| &vec[0..2]);
+    ///
+    /// assert_eq!(&*value, &[1u32, 2u32][..]);
+    /// # Ok(()) }
+    /// ```
+    pub fn map<U: ?Sized, F>(this: Self, f: F) -> Ref<U>
+    where
+        F: FnOnce(&T) -> &U,
+    {
+        let Self {
+            data, guard, inner, ..
+        } = this;
+
+        // Safety: this follows the same safety guarantees as when the managed
+        // ref was acquired. And since we have a managed reference to `T`, we're
+        // permitted to do any sort of projection to `U`.
+        let data = f(unsafe { &*data });
+
+        Ref {
+            data,
+            guard,
+            inner,
+            _marker: marker::PhantomData,
+        }
+    }
+
+    /// Try to map the reference to a projection.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Ref, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.into_ref()?;
+    /// let value: Option<Ref<[u32]>> = Ref::try_map(vec, |vec| vec.get(0..2));
+    ///
+    /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
+    /// # Ok(()) }
+    /// ```
+    pub fn try_map<U: ?Sized, F>(this: Self, f: F) -> Option<Ref<U>>
+    where
+        F: FnOnce(&T) -> Option<&U>,
+    {
+        let Self {
+            data, guard, inner, ..
+        } = this;
+
+        // Safety: this follows the same safety guarantees as when the managed
+        // ref was acquired. And since we have a managed reference to `T`, we're
+        // permitted to do any sort of projection to `U`.
+        match f(unsafe { &*data }) {
+            Some(data) => Some(Ref {
+                data,
+                guard,
+                inner,
+                _marker: marker::PhantomData,
+            }),
+            None => None,
+        }
+    }
+
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -922,6 +995,79 @@ pub struct Mut<T: ?Sized> {
 }
 
 impl<T: ?Sized> Mut<T> {
+    /// Map the interior reference of an owned mutable value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Mut, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.into_mut()?;
+    /// let value: Mut<[u32]> = Mut::map(vec, |vec| &mut vec[0..2]);
+    ///
+    /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
+    /// # Ok(()) }
+    /// ```
+    pub fn map<U: ?Sized, F>(this: Self, f: F) -> Mut<U>
+    where
+        F: FnOnce(&mut T) -> &mut U,
+    {
+        let Self {
+            data, guard, inner, ..
+        } = this;
+
+        // Safety: this follows the same safety guarantees as when the managed
+        // ref was acquired. And since we have a managed reference to `T`, we're
+        // permitted to do any sort of projection to `U`.
+        let data = f(unsafe { &mut *data });
+
+        Mut {
+            data,
+            guard,
+            inner,
+            _marker: marker::PhantomData,
+        }
+    }
+
+    /// Try to map the mutable reference to a projection.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Mut, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.into_mut()?;
+    /// let mut value: Option<Mut<[u32]>> = Mut::try_map(vec, |vec| vec.get_mut(0..2));
+    ///
+    /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
+    /// # Ok(()) }
+    /// ```
+    pub fn try_map<U: ?Sized, F>(this: Self, f: F) -> Option<Mut<U>>
+    where
+        F: FnOnce(&mut T) -> Option<&mut U>,
+    {
+        let Self {
+            data, guard, inner, ..
+        } = this;
+
+        // Safety: this follows the same safety guarantees as when the managed
+        // ref was acquired. And since we have a managed reference to `T`, we're
+        // permitted to do any sort of projection to `U`.
+        match f(unsafe { &mut *data }) {
+            Some(data) => Some(Mut {
+                data,
+                guard,
+                inner,
+                _marker: marker::PhantomData,
+            }),
+            None => None,
+        }
+    }
+
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
