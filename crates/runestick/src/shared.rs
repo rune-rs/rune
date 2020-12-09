@@ -1,7 +1,7 @@
 use crate::access::{
     Access, AccessError, AccessKind, BorrowMut, BorrowRef, RawExclusiveGuard, RawSharedGuard,
 };
-use crate::{Any, AnyObj, Hash};
+use crate::{Any, AnyObj, AnyObjError, Hash};
 use std::any;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
@@ -478,28 +478,34 @@ impl Shared<AnyObj> {
 
             let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
-            match any.raw_take(expected) {
-                Ok(value) => Ok(*Box::from_raw(value as *mut T)),
-                Err(any) => {
+            let (e, any) = match any.raw_take(expected) {
+                Ok(value) => return Ok(*Box::from_raw(value as *mut T)),
+                Err((AnyObjError::Cast, any)) => {
                     let actual = any.type_name();
 
-                    // Type coercion failed, so reconstruct the state of the
-                    // Shared container.
-
-                    // Drop the guard to release exclusive access.
-                    drop(ManuallyDrop::into_inner(guard));
-
-                    // NB: write the potentially modified value back.
-                    // It hasn't been modified, but there has been a period of
-                    // time now that the value hasn't been valid for.
-                    ptr::write(inner.data.get(), any);
-
-                    Err(AccessError::UnexpectedType {
+                    let e = AccessError::UnexpectedType {
                         actual,
                         expected: any::type_name::<T>().into(),
-                    })
+                    };
+
+                    (e, any)
                 }
-            }
+                Err((e, any)) => (e.into(), any),
+            };
+
+            // At this point type coercion has failed for one reason or another,
+            // so we reconstruct the state of the Shared container so that it
+            // can be more cleanly dropped.
+
+            // Drop the guard to release exclusive access.
+            drop(ManuallyDrop::into_inner(guard));
+
+            // Write the potentially modified value back so that it can be used
+            // by other `Shared<T>` users pointing to the same value. This
+            // conveniently also avoids dropping `any` which will be done by
+            // `Shared` as appropriate.
+            ptr::write(inner.data.get(), any);
+            Err(e)
         }
     }
 
@@ -514,12 +520,15 @@ impl Shared<AnyObj> {
             let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
             let data = match (*inner.data.get()).raw_as_ptr(expected) {
-                Some(data) => data,
-                None => {
+                Ok(data) => data,
+                Err(AnyObjError::Cast) => {
                     return Err(AccessError::UnexpectedType {
                         expected: any::type_name::<T>().into(),
                         actual: (*inner.data.get()).type_name(),
                     });
+                }
+                Err(e) => {
+                    return Err(e.into());
                 }
             };
 
@@ -539,12 +548,15 @@ impl Shared<AnyObj> {
             let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
             let data = match (*inner.data.get()).raw_as_mut(expected) {
-                Some(data) => data,
-                None => {
+                Ok(data) => data,
+                Err(AnyObjError::Cast) => {
                     return Err(AccessError::UnexpectedType {
                         expected: any::type_name::<T>().into(),
                         actual: (*inner.data.get()).type_name(),
                     });
+                }
+                Err(e) => {
+                    return Err(e.into());
                 }
             };
 
@@ -579,12 +591,15 @@ impl Shared<AnyObj> {
                 let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
                 match (*inner.data.get()).raw_as_ptr(expected) {
-                    Some(data) => (data, guard),
-                    None => {
+                    Ok(data) => (data, guard),
+                    Err(AnyObjError::Cast) => {
                         return Err(AccessError::UnexpectedType {
                             expected: any::type_name::<T>().into(),
                             actual: (*inner.data.get()).type_name(),
                         });
+                    }
+                    Err(e) => {
+                        return Err(e.into());
                     }
                 }
             };
@@ -629,12 +644,15 @@ impl Shared<AnyObj> {
                 let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
                 match (*inner.data.get()).raw_as_mut(expected) {
-                    Some(data) => (data, guard),
-                    None => {
+                    Ok(data) => (data, guard),
+                    Err(AnyObjError::Cast) => {
                         return Err(AccessError::UnexpectedType {
                             expected: any::type_name::<T>().into(),
                             actual: (*inner.data.get()).type_name(),
                         });
+                    }
+                    Err(e) => {
+                        return Err(e.into());
                     }
                 }
             };
