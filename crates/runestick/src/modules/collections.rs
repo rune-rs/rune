@@ -1,8 +1,6 @@
 //! `std::collections` module.
 
-use crate::{
-    Any, ContextError, Interface, Iterator, Key, Module, Ref, Value, VmError, VmErrorKind,
-};
+use crate::{Any, ContextError, Iterator, Key, Module, Ref, Value, VmError, VmErrorKind};
 use std::fmt;
 
 #[derive(Any)]
@@ -20,7 +18,7 @@ impl HashMap {
 
     /// Extend this hashmap from an iterator.
     #[inline]
-    fn extend(&mut self, value: Interface) -> Result<(), VmError> {
+    fn extend(&mut self, value: Value) -> Result<(), VmError> {
         use crate::FromValue as _;
 
         let mut it = value.into_iter()?;
@@ -117,7 +115,7 @@ impl HashSet {
 
     /// Extend this set from an iterator.
     #[inline]
-    fn extend(&mut self, value: Interface) -> Result<(), VmError> {
+    fn extend(&mut self, value: Value) -> Result<(), VmError> {
         let mut it = value.into_iter()?;
 
         while let Some(value) = it.next()? {
@@ -334,11 +332,11 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn hashmap_from(interface: Interface) -> Result<HashMap, VmError> {
+fn hashmap_from(value: Value) -> Result<HashMap, VmError> {
     use crate::FromValue as _;
 
     let mut map = HashMap::new();
-    let mut it = interface.into_iter()?;
+    let mut it = value.into_iter()?;
 
     while let Some(value) = it.next()? {
         let (key, value) = <(Key, Value)>::from_value(value)?;
@@ -348,9 +346,9 @@ fn hashmap_from(interface: Interface) -> Result<HashMap, VmError> {
     Ok(map)
 }
 
-fn hashset_from(interface: Interface) -> Result<HashSet, VmError> {
+fn hashset_from(value: Value) -> Result<HashSet, VmError> {
     let mut set = HashSet::new();
-    let mut it = interface.into_iter()?;
+    let mut it = value.into_iter()?;
 
     while let Some(value) = it.next()? {
         set.insert(Key::from_value(&value)?);

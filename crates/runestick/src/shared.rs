@@ -753,7 +753,7 @@ impl<T: ?Sized> SharedBox<T> {
     ///
     /// # Safety
     ///
-    /// Caller needs to ensure that `this` is a valid pointer.
+    /// ProtocolCaller needs to ensure that `this` is a valid pointer.
     unsafe fn dec(this: *mut Self) -> bool {
         let count = (*this).count.get();
 

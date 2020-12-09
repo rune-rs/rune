@@ -109,7 +109,6 @@ where
     pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
-                let _guard = crate::interface::EnvGuard::new(&vm.context, &vm.unit);
                 (handler.handler)(&mut vm.stack, args)?;
                 None
             }
