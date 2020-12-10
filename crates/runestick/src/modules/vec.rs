@@ -1,6 +1,6 @@
 //! The `std::vec` module.
 
-use crate::{ContextError, Module, Protocol, Vec};
+use crate::{ContextError, Module, Protocol, Value, Vec};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -15,6 +15,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("push", Vec::push)?;
     module.inst_fn("clear", Vec::clear)?;
     module.inst_fn("pop", Vec::pop)?;
+    module.inst_fn("get", vec_get)?;
 
     module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
     module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
@@ -26,11 +27,13 @@ pub fn module() -> Result<Module, ContextError> {
 
 /// Sort a vector of integers.
 fn sort_int(vec: &mut Vec) {
-    use crate::Value;
-
     vec.sort_by(|a, b| match (a, b) {
         (Value::Integer(a), Value::Integer(b)) => a.cmp(&b),
         // NB: fall back to sorting by address.
         _ => (a as *const _ as usize).cmp(&(b as *const _ as usize)),
     });
+}
+
+fn vec_get(vec: &Vec, index: usize) -> Option<Value> {
+    vec.get(index).cloned()
 }

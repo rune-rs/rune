@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 /// The variant of a type.
 pub struct Variant {
-    rtti: Arc<VariantRtti>,
-    data: VariantData,
+    pub(crate) rtti: Arc<VariantRtti>,
+    pub(crate) data: VariantData,
 }
 
 impl Variant {
@@ -87,6 +87,18 @@ pub enum VariantData {
 
 impl fmt::Debug for Variant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.rtti.item)
+        write!(f, "{}", self.rtti.item)?;
+
+        match &self.data {
+            VariantData::Unit => {}
+            VariantData::Struct(st) => {
+                write!(f, "{:?}", st)?;
+            }
+            VariantData::Tuple(tuple) => {
+                write!(f, "{:?}", tuple)?;
+            }
+        }
+
+        Ok(())
     }
 }
