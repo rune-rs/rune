@@ -1,6 +1,6 @@
 use crate::{
-    Bytes, FromValue, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Vec, VmError,
-    VmErrorKind,
+    Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Variant,
+    VariantData, VariantRtti, Vec, VmError, VmErrorKind,
 };
 use serde::{de, ser};
 use std::cmp;
@@ -32,12 +32,14 @@ pub enum Key {
     Tuple(Box<[Key]>),
     /// An option.
     Option(Option<Box<Key>>),
+    /// A variant.
+    Variant(VariantKey),
 }
 
 impl Key {
     /// Convert a value reference into a key.
     pub fn from_value(value: &Value) -> Result<Self, VmError> {
-        Ok(match value {
+        return Ok(match value {
             Value::Unit => Self::Unit,
             Value::Byte(b) => Self::Byte(*b),
             Value::Char(c) => Self::Char(*c),
@@ -68,20 +70,50 @@ impl Key {
             }
             Value::Tuple(tuple) => {
                 let tuple = tuple.borrow_ref()?;
-                let mut key_tuple = vec::Vec::with_capacity(tuple.len());
+                Self::Tuple(tuple_from_value(&*tuple)?)
+            }
+            Value::Variant(variant) => {
+                let variant = variant.borrow_ref()?;
 
-                for value in &*tuple {
-                    key_tuple.push(Self::from_value(value)?);
-                }
+                let data = match &variant.data {
+                    VariantData::Unit => VariantKeyData::Unit,
+                    VariantData::Tuple(tuple) => VariantKeyData::Tuple(tuple_from_value(tuple)?),
+                    VariantData::Struct(object) => {
+                        VariantKeyData::Struct(struct_from_value(object)?)
+                    }
+                };
 
-                Self::Tuple(key_tuple.into_boxed_slice())
+                Key::Variant(VariantKey {
+                    rtti: variant.rtti.clone(),
+                    data,
+                })
             }
             value => {
                 return Err(VmError::from(VmErrorKind::KeyNotSupported {
                     actual: value.type_info()?,
                 }))
             }
-        })
+        });
+
+        fn tuple_from_value(tuple: &Tuple) -> Result<Box<[Key]>, VmError> {
+            let mut output = vec::Vec::with_capacity(tuple.len());
+
+            for value in tuple {
+                output.push(Key::from_value(value)?);
+            }
+
+            Ok(output.into_boxed_slice())
+        }
+
+        fn struct_from_value(object: &Object) -> Result<Box<[(Box<str>, Key)]>, VmError> {
+            let mut output = vec::Vec::with_capacity(object.len());
+
+            for (key, value) in object {
+                output.push((key.as_str().into(), Key::from_value(value)?));
+            }
+
+            Ok(output.into_boxed_slice())
+        }
     }
 
     /// Convert into virtual machine value.
@@ -90,7 +122,7 @@ impl Key {
     /// converted into a value infallibly, which is not captured by the trait
     /// otherwise.
     pub fn into_value(self) -> Value {
-        match self {
+        return match self {
             Self::Unit => Value::Unit,
             Self::Byte(b) => Value::Byte(b),
             Self::Char(c) => Value::Char(c),
@@ -114,15 +146,39 @@ impl Key {
 
                 Value::Vec(Shared::new(v))
             }
-            Self::Tuple(tuple) => {
-                let mut t = vec::Vec::with_capacity(tuple.len());
+            Self::Tuple(tuple) => Value::Tuple(Shared::new(tuple_into_value(tuple))),
+            Self::Variant(variant) => {
+                let data = match variant.data {
+                    VariantKeyData::Unit => VariantData::Unit,
+                    VariantKeyData::Tuple(tuple) => VariantData::Tuple(tuple_into_value(tuple)),
+                    VariantKeyData::Struct(st) => VariantData::Struct(struct_into_value(st)),
+                };
 
-                for value in vec::Vec::from(tuple) {
-                    t.push(value.into_value());
-                }
-
-                Value::Tuple(Shared::new(Tuple::from(t)))
+                Value::Variant(Shared::new(Variant {
+                    rtti: variant.rtti,
+                    data,
+                }))
             }
+        };
+
+        fn tuple_into_value(data: Box<[Key]>) -> Tuple {
+            let mut t = vec::Vec::with_capacity(data.len());
+
+            for value in vec::Vec::from(data) {
+                t.push(value.into_value());
+            }
+
+            Tuple::from(t)
+        }
+
+        fn struct_into_value(data: Box<[(Box<str>, Key)]>) -> Object {
+            let mut object = Object::with_capacity(data.len());
+
+            for (key, value) in vec::Vec::from(data) {
+                object.insert(key.into(), value.into_value());
+            }
+
+            object
         }
     }
 
@@ -147,6 +203,7 @@ impl Key {
             Self::Vec(..) => TypeInfo::StaticType(crate::VEC_TYPE),
             Self::Tuple(..) => TypeInfo::StaticType(crate::TUPLE_TYPE),
             Self::Option(..) => TypeInfo::StaticType(crate::OPTION_TYPE),
+            Self::Variant(variant) => TypeInfo::Variant(variant.rtti.clone()),
         }
     }
 }
@@ -164,6 +221,7 @@ impl fmt::Debug for Key {
             Key::Vec(vec) => write!(f, "{:?}", vec),
             Key::Tuple(tuple) => write!(f, "{:?}", tuple),
             Key::Option(opt) => write!(f, "{:?}", opt),
+            Key::Variant(variant) => write!(f, "{:?}", variant),
         }
     }
 }
@@ -225,6 +283,7 @@ impl ser::Serialize for Key {
                 serializer.end()
             }
             Self::Option(option) => <Option<Box<Key>>>::serialize(option, serializer),
+            Self::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
         }
     }
 }
@@ -447,4 +506,54 @@ impl cmp::Ord for StringKey {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.as_str().cmp(other.as_str())
     }
+}
+
+/// A variant that has been serialized to a key.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct VariantKey {
+    rtti: Arc<VariantRtti>,
+    data: VariantKeyData,
+}
+
+impl fmt::Debug for VariantKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.rtti.item)?;
+
+        match &self.data {
+            VariantKeyData::Unit => (),
+            VariantKeyData::Tuple(tuple) => {
+                let mut it = tuple.iter();
+                let last = it.next_back();
+
+                write!(f, "(")?;
+
+                for v in it {
+                    write!(f, "{:?}, ", v)?;
+                }
+
+                if let Some(v) = last {
+                    write!(f, "{:?}", v)?;
+                }
+
+                write!(f, ")")?;
+            }
+            VariantKeyData::Struct(st) => f
+                .debug_map()
+                .entries(st.iter().map(|(k, v)| (k, v)))
+                .finish()?,
+        }
+
+        Ok(())
+    }
+}
+
+/// Variant data that has been serialized to a key.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum VariantKeyData {
+    /// A unit variant with a specific type hash.
+    Unit,
+    /// A tuple variant with a specific type hash.
+    Tuple(Box<[Key]>),
+    /// An struct variant with a specific type hash.
+    Struct(Box<[(Box<str>, Key)]>),
 }

@@ -6,7 +6,9 @@ use crate::{
     Stream, Tuple, TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind,
 };
 use serde::{de, ser, Deserialize, Serialize};
+use std::cmp;
 use std::fmt;
+use std::hash;
 use std::sync::Arc;
 use std::vec;
 
@@ -151,6 +153,32 @@ pub struct VariantRtti {
     pub item: Item,
 }
 
+impl cmp::PartialEq for VariantRtti {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl cmp::Eq for VariantRtti {}
+
+impl hash::Hash for VariantRtti {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state)
+    }
+}
+
+impl cmp::PartialOrd for VariantRtti {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        self.hash.partial_cmp(&other.hash)
+    }
+}
+
+impl cmp::Ord for VariantRtti {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.hash.cmp(&other.hash)
+    }
+}
+
 /// Runtime information on variant.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Rtti {
@@ -158,6 +186,32 @@ pub struct Rtti {
     pub hash: Hash,
     /// The item of the type.
     pub item: Item,
+}
+
+impl cmp::PartialEq for Rtti {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl cmp::Eq for Rtti {}
+
+impl hash::Hash for Rtti {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state)
+    }
+}
+
+impl cmp::PartialOrd for Rtti {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        self.hash.partial_cmp(&other.hash)
+    }
+}
+
+impl cmp::Ord for Rtti {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.hash.cmp(&other.hash)
+    }
 }
 
 /// An entry on the stack.
