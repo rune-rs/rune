@@ -34,9 +34,7 @@ fn is_readable(value: Value) -> bool {
         Value::UnitStruct(empty) => empty.is_readable(),
         Value::TupleStruct(tuple) => tuple.is_readable(),
         Value::Struct(object) => object.is_readable(),
-        Value::UnitVariant(empty) => empty.is_readable(),
-        Value::TupleVariant(tuple) => tuple.is_readable(),
-        Value::StructVariant(object) => object.is_readable(),
+        Value::Variant(variant) => variant.is_readable(),
         _ => true,
     }
 }
@@ -52,9 +50,7 @@ fn is_writable(value: Value) -> bool {
         Value::UnitStruct(empty) => empty.is_writable(),
         Value::TupleStruct(tuple) => tuple.is_writable(),
         Value::Struct(object) => object.is_writable(),
-        Value::UnitVariant(empty) => empty.is_writable(),
-        Value::TupleVariant(tuple) => tuple.is_writable(),
-        Value::StructVariant(object) => object.is_writable(),
+        Value::Variant(variant) => variant.is_writable(),
         _ => true,
     }
 }

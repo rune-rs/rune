@@ -5,9 +5,9 @@ use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
     Generator, GuardedArgs, Hash, Inst, InstAddress, InstAssignOp, InstFnNameHash, InstOp,
     InstRangeLimits, InstTarget, InstValue, InstVariant, IntoTypeHash, Object, Panic, Protocol,
-    Range, RangeLimits, RuntimeContext, Select, Shared, Stack, Stream, Struct, StructVariant,
-    Tuple, TypeCheck, Unit, UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution,
-    VmHalt, VmIntegerRepr, VmSendExecution,
+    Range, RangeLimits, RuntimeContext, Select, Shared, Stack, Stream, Struct, Tuple, TypeCheck,
+    Unit, UnitStruct, Value, Variant, VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt,
+    VmIntegerRepr, VmSendExecution,
 };
 use std::fmt;
 use std::mem;
@@ -532,7 +532,10 @@ impl Vm {
         let value = match &target {
             Value::Object(target) => target.borrow_ref()?.get(field).cloned(),
             Value::Struct(target) => target.borrow_ref()?.get(field).cloned(),
-            Value::StructVariant(target) => target.borrow_ref()?.get(field).cloned(),
+            Value::Variant(variant) => match variant.borrow_ref()?.data() {
+                VariantData::Struct(target) => target.get(field).cloned(),
+                _ => return Ok(None),
+            },
             _ => return Ok(None),
         };
 
@@ -586,9 +589,13 @@ impl Vm {
                 let tuple_struct = tuple_struct.borrow_ref()?;
                 tuple_struct.data().get(index).cloned()
             }
-            Value::TupleVariant(variant_tuple) => {
-                let variant_tuple = variant_tuple.borrow_ref()?;
-                variant_tuple.data().get(index).cloned()
+            Value::Variant(variant) => {
+                let variant = variant.borrow_ref()?;
+
+                match variant.data() {
+                    VariantData::Tuple(tuple) => tuple.get(index).cloned(),
+                    _ => return Ok(None),
+                }
             }
             _ => return Ok(None),
         };
@@ -655,10 +662,13 @@ impl Vm {
 
                 BorrowMut::try_map(tuple_struct, |tuple_struct| tuple_struct.get_mut(index))
             }
-            Value::TupleVariant(variant_tuple) => {
-                let variant_tuple = variant_tuple.borrow_mut()?;
+            Value::Variant(variant) => {
+                let variant = variant.borrow_mut()?;
 
-                BorrowMut::try_map(variant_tuple, |variant_tuple| variant_tuple.get_mut(index))
+                BorrowMut::try_map(variant, |variant| match variant.data_mut() {
+                    VariantData::Tuple(tuple) => tuple.get_mut(index),
+                    _ => None,
+                })
             }
             _ => return Ok(None),
         };
@@ -690,9 +700,11 @@ impl Vm {
                 let target = target.borrow_mut()?;
                 BorrowMut::try_map(target, |target| target.get_mut(field))
             }
-            Value::StructVariant(target) => {
-                let target = target.borrow_mut()?;
-                BorrowMut::try_map(target, |target| target.get_mut(field))
+            Value::Variant(target) => {
+                BorrowMut::try_map(target.borrow_mut()?, |target| match target.data_mut() {
+                    VariantData::Struct(st) => st.get_mut(field),
+                    _ => None,
+                })
             }
             _ => return Ok(None),
         };
@@ -771,12 +783,14 @@ impl Vm {
 
                 Ok(false)
             }
-            Value::TupleVariant(variant_tuple) => {
-                let mut variant_tuple = variant_tuple.borrow_mut()?;
+            Value::Variant(variant) => {
+                let mut variant = variant.borrow_mut()?;
 
-                if let Some(target) = variant_tuple.get_mut(index) {
-                    *target = value;
-                    return Ok(true);
+                if let VariantData::Tuple(data) = variant.data_mut() {
+                    if let Some(target) = data.get_mut(index) {
+                        *target = value;
+                        return Ok(true);
+                    }
                 }
 
                 Ok(false)
@@ -818,16 +832,19 @@ impl Vm {
                     }
                 }
             }
-            Value::StructVariant(variant_object) => {
-                let variant_object = variant_object.borrow_ref()?;
+            Value::Variant(variant) => {
+                let variant = variant.borrow_ref()?;
 
-                match variant_object.data.get(&***index).cloned() {
-                    Some(value) => Some(value),
-                    None => {
-                        return Err(VmError::from(VmErrorKind::ObjectIndexMissing {
-                            slot: string_slot,
-                        }));
-                    }
+                match variant.data() {
+                    VariantData::Struct(data) => match data.get(&***index).cloned() {
+                        Some(value) => Some(value),
+                        None => {
+                            return Err(VmError::from(VmErrorKind::ObjectIndexMissing {
+                                slot: string_slot,
+                            }));
+                        }
+                    },
+                    _ => None,
                 }
             }
             target => {
@@ -869,17 +886,19 @@ impl Vm {
                     target: typed_object.type_info(),
                 }));
             }
-            Value::StructVariant(variant_object) => {
-                let mut variant_object = variant_object.borrow_mut()?;
+            Value::Variant(variant) => {
+                let mut variant = variant.borrow_mut()?;
 
-                if let Some(v) = variant_object.get_mut(field.as_str()) {
-                    *v = value;
-                    return Ok(Some(()));
+                if let VariantData::Struct(data) = variant.data_mut() {
+                    if let Some(v) = data.get_mut(field.as_str()) {
+                        *v = value;
+                        return Ok(Some(()));
+                    }
                 }
 
                 return Err(VmError::from(VmErrorKind::MissingField {
                     field: field.as_str().to_owned(),
-                    target: variant_object.type_info(),
+                    target: variant.type_info(),
                 }));
             }
             target => {
@@ -951,25 +970,19 @@ impl Vm {
                 }
                 _ => None,
             },
-            (TypeCheck::Variant(hash), value) => match value {
-                Value::TupleVariant(variant_tuple) => {
-                    let variant_tuple = variant_tuple.borrow_ref()?;
+            (TypeCheck::Variant(hash), Value::Variant(variant)) => {
+                let variant = variant.borrow_ref()?;
 
-                    if variant_tuple.rtti.hash != hash {
-                        return Ok(None);
-                    }
-
-                    Some(f(&variant_tuple.data()))
+                if variant.rtti().hash != hash {
+                    return Ok(None);
                 }
-                Value::UnitVariant(empty) => {
-                    if empty.borrow_ref()?.rtti.hash != hash {
-                        return Ok(None);
-                    }
 
-                    Some(f(&[]))
+                match variant.data() {
+                    VariantData::Unit => Some(f(&[])),
+                    VariantData::Tuple(tuple) => Some(f(&*tuple)),
+                    _ => None,
                 }
-                _ => None,
-            },
+            }
             (TypeCheck::Unit, Value::Unit) => Some(f(&[])),
             _ => None,
         })
@@ -1046,11 +1059,13 @@ impl Vm {
                     return Ok(Some(f(typed_object.data(), keys)));
                 }
             }
-            (TypeCheck::Variant(hash), Value::StructVariant(variant_object)) => {
-                let variant_object = variant_object.borrow_ref()?;
+            (TypeCheck::Variant(hash), Value::Variant(variant)) => {
+                let variant = variant.borrow_ref()?;
 
-                if variant_object.rtti.hash == hash {
-                    return Ok(Some(f(variant_object.data(), keys)));
+                if variant.rtti().hash == hash {
+                    if let VariantData::Struct(st) = variant.data() {
+                        return Ok(Some(f(st, keys)));
+                    }
                 }
             }
             _ => (),
@@ -1902,17 +1917,19 @@ impl Vm {
                         target: typed_object.type_info(),
                     }));
                 }
-                Value::StructVariant(variant_object) => {
-                    let mut variant_object = variant_object.borrow_mut()?;
+                Value::Variant(variant) => {
+                    let mut variant = variant.borrow_mut()?;
 
-                    if let Some(v) = variant_object.get_mut(field) {
-                        *v = value;
-                        return Ok(());
+                    if let VariantData::Struct(st) = variant.data_mut() {
+                        if let Some(v) = st.get_mut(field) {
+                            *v = value;
+                            return Ok(());
+                        }
                     }
 
                     return Err(VmError::from(VmErrorKind::MissingField {
                         field: field.to_owned(),
-                        target: variant_object.type_info(),
+                        target: variant.type_info(),
                     }));
                 }
                 _ => {
@@ -2196,13 +2213,13 @@ impl Vm {
 
     /// Operation to allocate an object.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_empty_variant(&mut self, hash: Hash) -> Result<(), VmError> {
+    fn op_unit_variant(&mut self, hash: Hash) -> Result<(), VmError> {
         let rtti = self
             .unit
             .lookup_variant_rtti(hash)
             .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
-        self.stack.push(UnitVariant { rtti: rtti.clone() });
+        self.stack.push(Variant::unit(rtti.clone()));
         Ok(())
     }
 
@@ -2226,11 +2243,7 @@ impl Vm {
             data.insert(key.clone(), value);
         }
 
-        self.stack.push(StructVariant {
-            rtti: rtti.clone(),
-            data,
-        });
-
+        self.stack.push(Variant::struct_(rtti.clone(), data));
         Ok(())
     }
 
@@ -2540,7 +2553,7 @@ impl Vm {
                         .lookup_variant_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
-                    Function::from_empty_variant(rtti.clone())
+                    Function::from_unit_variant(rtti.clone())
                 }
                 UnitFn::TupleVariant { hash, args } => {
                     let rtti = self
@@ -2653,7 +2666,7 @@ impl Vm {
                         .lookup_variant_rtti(hash)
                         .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
-                    self.stack.push(Value::empty_variant(rtti.clone()));
+                    self.stack.push(Value::unit_variant(rtti.clone()));
                 }
             },
             None => {
@@ -2941,7 +2954,7 @@ impl Vm {
                     self.op_struct(hash, slot)?;
                 }
                 Inst::UnitVariant { hash } => {
-                    self.op_empty_variant(hash)?;
+                    self.op_unit_variant(hash)?;
                 }
                 Inst::StructVariant { hash, slot } => {
                     self.op_object_variant(hash, slot)?;

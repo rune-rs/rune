@@ -106,6 +106,7 @@ mod tuple;
 mod type_info;
 mod type_of;
 mod unit;
+mod variant;
 mod vec;
 mod vec_tuple;
 mod visibility;
@@ -183,6 +184,7 @@ pub use self::stream::Stream;
 pub use self::to_value::{ToValue, UnsafeToValue};
 pub use self::tuple::Tuple;
 pub use self::type_info::TypeInfo;
+pub use self::variant::{Variant, VariantData};
 pub use self::vec::Vec;
 pub use crate::access::{
     AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawExclusiveGuard,
@@ -211,10 +213,7 @@ pub use crate::shared::{Mut, RawMut, RawRef, Ref, Shared, SharedPointerGuard};
 pub use crate::stack::{Stack, StackError};
 pub use crate::type_of::TypeOf;
 pub use crate::unit::{Unit, UnitFn};
-pub use crate::value::{
-    Rtti, Struct, StructVariant, TupleStruct, TupleVariant, UnitStruct, UnitVariant, Value,
-    VariantRtti,
-};
+pub use crate::value::{Rtti, Struct, TupleStruct, UnitStruct, Value, VariantRtti};
 pub use crate::vec_tuple::VecTuple;
 pub use crate::visibility::Visibility;
 pub use crate::vm::{CallFrame, Vm};
