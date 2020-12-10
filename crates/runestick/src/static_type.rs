@@ -35,7 +35,6 @@ pub static UNIT_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(() => UNIT_TYPE);
-impl_static_type!(crate::UnitVariant => UNIT_TYPE);
 impl_static_type!(crate::UnitStruct => UNIT_TYPE);
 
 /// The specialized type information for a byte type.
@@ -123,7 +122,6 @@ pub static TUPLE_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(crate::Tuple => TUPLE_TYPE);
-impl_static_type!(crate::TupleVariant => TUPLE_TYPE);
 
 /// The specialized type information for an anonymous object type.
 pub static OBJECT_TYPE: &StaticType = &StaticType {
@@ -133,7 +131,6 @@ pub static OBJECT_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(crate::Object => OBJECT_TYPE);
 impl_static_type!(crate::Struct => OBJECT_TYPE);
-impl_static_type!(crate::StructVariant => OBJECT_TYPE);
 
 /// The specialized type information for the range type.
 pub static RANGE_TYPE: &StaticType = &StaticType {

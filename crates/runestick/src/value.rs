@@ -3,7 +3,7 @@ use crate::protocol_caller::{EnvProtocolCaller, ProtocolCaller};
 use crate::{
     Any, AnyObj, Bytes, ConstValue, Format, Function, Future, Generator, GeneratorState, Hash,
     Item, Iterator, Mut, Object, Protocol, Range, RawMut, RawRef, Ref, Shared, StaticString,
-    Stream, Tuple, TypeInfo, Vec, Vm, VmError, VmErrorKind,
+    Stream, Tuple, TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind,
 };
 use serde::{de, ser, Deserialize, Serialize};
 use std::fmt;
@@ -80,52 +80,6 @@ impl fmt::Debug for TupleStruct {
     }
 }
 
-/// A tuple with a well-defined type as a variant of an enum.
-pub struct TupleVariant {
-    /// Type information for object variant.
-    pub(crate) rtti: Arc<VariantRtti>,
-    /// Content of the tuple.
-    pub(crate) data: Tuple,
-}
-
-impl TupleVariant {
-    /// Access runtime type information.
-    pub fn rtti(&self) -> &Arc<VariantRtti> {
-        &self.rtti
-    }
-
-    /// Access underlying data.
-    pub fn data(&self) -> &Tuple {
-        &self.data
-    }
-
-    /// Access underlying data mutably.
-    pub fn data_mut(&mut self) -> &mut Tuple {
-        &mut self.data
-    }
-
-    /// Get type info for the typed tuple.
-    pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Variant(self.rtti.clone())
-    }
-
-    /// Get the value at the given index in the tuple.
-    pub fn get(&self, index: usize) -> Option<&Value> {
-        self.data.get(index)
-    }
-
-    /// Get the mutable value at the given index in the tuple.
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
-        self.data.get_mut(index)
-    }
-}
-
-impl fmt::Debug for TupleVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.data)
-    }
-}
-
 /// An object with a well-defined type.
 pub struct Struct {
     /// The type hash of the object.
@@ -183,84 +137,6 @@ impl Struct {
 impl fmt::Debug for Struct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.data.debug_struct(&self.rtti.item))
-    }
-}
-
-/// An object with a well-defined variant of an enum.
-pub struct StructVariant {
-    /// Type information for object variant.
-    pub(crate) rtti: Arc<VariantRtti>,
-    /// Content of the object.
-    pub(crate) data: Object,
-}
-
-impl StructVariant {
-    /// Access runtime type information.
-    pub fn rtti(&self) -> &Arc<VariantRtti> {
-        &self.rtti
-    }
-
-    /// Access underlying data.
-    pub fn data(&self) -> &Object {
-        &self.data
-    }
-
-    /// Access underlying data mutably.
-    pub fn data_mut(&mut self) -> &mut Object {
-        &mut self.data
-    }
-
-    /// Get type info for the typed object.
-    pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Variant(self.rtti.clone())
-    }
-
-    /// Get the given key in the object.
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
-    where
-        String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq,
-    {
-        self.data.get(k)
-    }
-
-    /// Get the given mutable value by key in the object.
-    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
-    where
-        String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq,
-    {
-        self.data.get_mut(k)
-    }
-}
-
-impl fmt::Debug for StructVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.data.debug_struct(&self.rtti.item))
-    }
-}
-
-/// An object with a well-defined variant of an enum.
-pub struct UnitVariant {
-    /// Type information for object variant.
-    pub(crate) rtti: Arc<VariantRtti>,
-}
-
-impl UnitVariant {
-    /// Access runtime type information.
-    pub fn rtti(&self) -> &Arc<VariantRtti> {
-        &self.rtti
-    }
-
-    /// Get type info for the typed object.
-    pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Variant(self.rtti.clone())
-    }
-}
-
-impl fmt::Debug for UnitVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.rtti.item)
     }
 }
 
@@ -340,12 +216,8 @@ pub enum Value {
     TupleStruct(Shared<TupleStruct>),
     /// An struct with a well-defined type.
     Struct(Shared<Struct>),
-    /// An struct variant with a well-defined type.
-    UnitVariant(Shared<UnitVariant>),
-    /// A tuple variant with a well-defined type.
-    TupleVariant(Shared<TupleVariant>),
-    /// An struct variant with a well-defined type.
-    StructVariant(Shared<StructVariant>),
+    /// The variant of an enum.
+    Variant(Shared<Variant>),
     /// A stored function pointer.
     Function(Shared<Function>),
     /// A value being formatted.
@@ -444,13 +316,7 @@ impl Value {
             Value::Struct(value) => {
                 write!(s, "{:?}", value)
             }
-            Value::UnitVariant(value) => {
-                write!(s, "{:?}", value)
-            }
-            Value::TupleVariant(value) => {
-                write!(s, "{:?}", value)
-            }
-            Value::StructVariant(value) => {
+            Value::Variant(value) => {
                 write!(s, "{:?}", value)
             }
             Value::Function(value) => {
@@ -547,16 +413,13 @@ impl Value {
     }
 
     /// Construct an empty variant.
-    pub fn empty_variant(rtti: Arc<VariantRtti>) -> Self {
-        Self::UnitVariant(Shared::new(UnitVariant { rtti }))
+    pub fn unit_variant(rtti: Arc<VariantRtti>) -> Self {
+        Self::Variant(Shared::new(Variant::unit(rtti)))
     }
 
     /// Construct a tuple variant.
     pub fn tuple_variant(rtti: Arc<VariantRtti>, vec: vec::Vec<Value>) -> Self {
-        Self::TupleVariant(Shared::new(TupleVariant {
-            rtti,
-            data: Tuple::from(vec),
-        }))
+        Self::Variant(Shared::new(Variant::tuple(rtti, Tuple::from(vec))))
     }
 
     /// Take the interior value.
@@ -585,9 +448,7 @@ impl Value {
             Self::UnitStruct(value) => Self::UnitStruct(Shared::new(value.take()?)),
             Self::TupleStruct(value) => Self::TupleStruct(Shared::new(value.take()?)),
             Self::Struct(value) => Self::Struct(Shared::new(value.take()?)),
-            Self::UnitVariant(value) => Self::UnitVariant(Shared::new(value.take()?)),
-            Self::TupleVariant(value) => Self::TupleVariant(Shared::new(value.take()?)),
-            Self::StructVariant(value) => Self::StructVariant(Shared::new(value.take()?)),
+            Self::Variant(value) => Self::Variant(Shared::new(value.take()?)),
             Self::Function(value) => Self::Function(Shared::new(value.take()?)),
             Self::Format(value) => Self::Format(value),
             Self::Iterator(value) => Self::Iterator(value),
@@ -881,9 +742,7 @@ impl Value {
             Self::UnitStruct(empty) => empty.borrow_ref()?.rtti.hash,
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
             Self::Struct(object) => object.borrow_ref()?.rtti.hash,
-            Self::UnitVariant(empty) => empty.borrow_ref()?.rtti.enum_hash,
-            Self::TupleVariant(tuple) => tuple.borrow_ref()?.rtti.enum_hash,
-            Self::StructVariant(object) => object.borrow_ref()?.rtti.enum_hash,
+            Self::Variant(variant) => variant.borrow_ref()?.rtti().enum_hash,
             Self::Any(any) => any.borrow_ref()?.type_hash(),
         })
     }
@@ -917,9 +776,7 @@ impl Value {
             Self::UnitStruct(empty) => empty.borrow_ref()?.type_info(),
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.type_info(),
             Self::Struct(object) => object.borrow_ref()?.type_info(),
-            Self::UnitVariant(empty) => empty.borrow_ref()?.type_info(),
-            Self::TupleVariant(tuple) => tuple.borrow_ref()?.type_info(),
-            Self::StructVariant(object) => object.borrow_ref()?.type_info(),
+            Self::Variant(empty) => empty.borrow_ref()?.type_info(),
             Self::Any(any) => TypeInfo::Any(any.borrow_ref()?.type_name()),
         })
     }
@@ -982,30 +839,12 @@ impl Value {
                     return Object::value_ptr_eq(vm, &a.data, &b.data);
                 }
             }
-            (Self::UnitVariant(a), Self::UnitVariant(b)) => {
-                if a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash {
-                    // NB: don't get any future ideas, this must fall through to
-                    // the VmError below since it's otherwise a comparison
-                    // between two incompatible types.
-                    //
-                    // Other than that, all units are equal.
-                    return Ok(true);
-                }
-            }
-            (Self::TupleVariant(a), Self::TupleVariant(b)) => {
+            (Self::Variant(a), Self::Variant(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
 
-                if a.rtti.hash == b.rtti.hash {
-                    return Tuple::value_ptr_eq(vm, &a.data, &b.data);
-                }
-            }
-            (Self::StructVariant(a), Self::StructVariant(b)) => {
-                let a = a.borrow_ref()?;
-                let b = b.borrow_ref()?;
-
-                if a.rtti.hash == b.rtti.hash {
-                    return Object::value_ptr_eq(vm, &a.data, &b.data);
+                if a.rtti().enum_hash == b.rtti().enum_hash {
+                    return Variant::value_ptr_eq(vm, &*a, &*b);
                 }
             }
             (Self::String(a), Self::String(b)) => {
@@ -1121,13 +960,7 @@ impl fmt::Debug for Value {
             Value::Struct(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::UnitVariant(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::TupleVariant(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::StructVariant(value) => {
+            Value::Variant(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::Function(value) => {
@@ -1249,9 +1082,7 @@ impl_from_wrapper! {
     UnitStruct => Shared<UnitStruct>,
     TupleStruct => Shared<TupleStruct>,
     Struct => Shared<Struct>,
-    UnitVariant => Shared<UnitVariant>,
-    TupleVariant => Shared<TupleVariant>,
-    StructVariant => Shared<StructVariant>,
+    Variant => Shared<Variant>,
     Function => Shared<Function>,
     Any => Shared<AnyObj>,
 }
@@ -1328,9 +1159,7 @@ impl ser::Serialize for Value {
             Value::UnitStruct(..) => serializer.serialize_unit(),
             Value::TupleStruct(..) => Err(ser::Error::custom("cannot serialize tuple structs")),
             Value::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
-            Value::UnitVariant(..) => Err(ser::Error::custom("cannot serialize unit variants")),
-            Value::TupleVariant(..) => Err(ser::Error::custom("cannot serialize tuple variants")),
-            Value::StructVariant(..) => Err(ser::Error::custom("cannot serialize object variants")),
+            Value::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
