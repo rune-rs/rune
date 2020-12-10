@@ -31,6 +31,7 @@ impl Assemble for ast::ExprCall {
                             log::trace!("ExprCall(ExprFieldAccess) => {:?}", c.source.source(span));
 
                             expr.assemble(c, Needs::Value)?.apply(c)?;
+                            c.scopes.decl_anon(span)?;
 
                             for (expr, _) in &self.args {
                                 expr.assemble(c, Needs::Value)?.apply(c)?;
