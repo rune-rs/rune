@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607633441187,
+  "lastUpdate": 1607641261405,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -1979,6 +1979,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4559062,
             "range": "± 750954",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "a83d0e533488525cec7a4975c5b4247a41a8f162",
+          "message": "Day 8 changes\n\n* Make it possible to treat variants as `Key`.\n* Add `Vec::get`.",
+          "timestamp": "2020-12-10T23:56:25+01:00",
+          "tree_id": "ca6cdd9db7a4859ea00aa52fb0b52e31918c4e91",
+          "url": "https://github.com/rune-rs/rune/commit/a83d0e533488525cec7a4975c5b4247a41a8f162"
+        },
+        "date": 1607641260569,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 294055,
+            "range": "± 40739",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 988847,
+            "range": "± 86402",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 85435703,
+            "range": "± 4066456",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1485266,
+            "range": "± 300403",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 15532619,
+            "range": "± 2016925",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 13336352,
+            "range": "± 1989042",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 521966,
+            "range": "± 104712",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5853958,
+            "range": "± 365931",
             "unit": "ns/iter"
           }
         ]
