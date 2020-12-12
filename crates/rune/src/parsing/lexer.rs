@@ -132,22 +132,32 @@ impl<'a> Lexer<'a> {
 
         while let Some(c) = self.iter.peek() {
             match c {
-                'e' if base == ast::NumberBase::Decimal && !has_exponent => {
+                'e' if !has_exponent => {
                     self.iter.next();
-                    is_fractional = true;
                     has_exponent = true;
+                    is_fractional = true;
                 }
-                c if char::is_alphanumeric(c) => {
-                    self.iter.next();
-                }
-                '.' if !is_fractional && self.iter.peek2() != Some('.') => {
+                '.' if !is_fractional => {
+                    if let Some(p2) = self.iter.peek2() {
+                        // NB: only skip if the next peek matches:
+                        // * the beginning of an ident.
+                        // * `..`, which is a range expression.
+                        //
+                        // Our goal is otherwise to consume as much alphanumeric
+                        // content as possible to provide better diagnostics.
+                        // But we must treat these cases differently since field
+                        // accesses might be instance fn calls, and range
+                        // expressions should work.
+                        if matches!(p2, 'a'..='z' | 'A'..='Z' | '_' | '.') {
+                            break;
+                        }
+                    }
+
                     self.iter.next();
                     is_fractional = true;
-
-                    // char immediately following a dot should be numerical.
-                    if !self.iter.peek().map(char::is_numeric).unwrap_or_default() {
-                        break;
-                    }
+                }
+                c if c.is_alphanumeric() => {
+                    self.iter.next();
                 }
                 _ => break,
             }

@@ -65,12 +65,12 @@ fn into_bytes(s: String) -> Bytes {
     Bytes::from_vec(s.into_bytes())
 }
 
-fn char_at(s: &str, index: usize) -> Result<Option<char>, NotCharBoundary> {
+fn char_at(s: &str, index: usize) -> Option<char> {
     if !s.is_char_boundary(index) {
-        return Err(NotCharBoundary(()));
+        return None;
     }
 
-    Ok(s[index..].chars().next())
+    s[index..].chars().next()
 }
 
 fn string_split(this: &str, value: Value) -> Result<Iterator, VmError> {

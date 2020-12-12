@@ -8,6 +8,9 @@ use crate::{Spanned, ToTokens};
 ///
 /// testing::roundtrip::<ast::ExprFieldAccess>("foo.bar");
 /// testing::roundtrip::<ast::ExprFieldAccess>("foo.bar::<A, B>");
+/// testing::roundtrip::<ast::ExprFieldAccess>("foo.0.bar");
+/// // Note: tuple accesses must be disambiguated.
+/// testing::roundtrip::<ast::ExprFieldAccess>("(foo.0).1");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprFieldAccess {
