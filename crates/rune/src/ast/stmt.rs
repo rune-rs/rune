@@ -103,16 +103,17 @@ pub enum ItemOrExpr {
 
 impl Peek for ItemOrExpr {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        match [p.nth(0), p.nth(1)] {
-            [K![use], ..] => true,
-            [K![enum], ..] => true,
-            [K![struct], ..] => true,
-            [K![impl], ..] => true,
-            [K![async], K![fn]] => true,
-            [K![fn], ..] => true,
-            [K![mod], ..] => true,
-            [K![const], ..] => true,
-            [K![ident(..)], ..] => true,
+        match p.nth(0) {
+            K![use] => true,
+            K![enum] => true,
+            K![struct] => true,
+            K![impl] => true,
+            K![async] => matches!(p.nth(1), K![fn]),
+            K![fn] => true,
+            K![mod] => true,
+            K![const] => true,
+            K![ident(..)] => true,
+            K![::] => true,
             _ => ast::Expr::peek(p),
         }
     }

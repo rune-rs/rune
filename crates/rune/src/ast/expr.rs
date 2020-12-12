@@ -806,6 +806,7 @@ impl Peek for Expr {
             K![true] => true,
             K![false] => true,
             K![ident] => true,
+            K![::] => true,
             K!['('] => true,
             K!['['] => true,
             K!['{'] => true,
