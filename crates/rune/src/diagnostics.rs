@@ -4,7 +4,7 @@ use crate::{
     CompileErrorKind, Error, ErrorKind, Errors, IrErrorKind, LinkerError, QueryErrorKind,
     ResolveErrorKind, Sources, Spanned as _, WarningKind, Warnings,
 };
-use runestick::{Location, Source, SourceId, Span, Unit, VmError};
+use runestick::{Location, Source, SourceId, Span, Unit, VmError, VmErrorKind};
 use std::error::Error as _;
 use std::fmt;
 use std::fmt::Write as _;
@@ -17,6 +17,11 @@ use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 
 pub use codespan_reporting::term::termcolor;
+
+struct StackFrame {
+    source_id: SourceId,
+    span: Span,
+}
 
 /// Errors that can be raised when formatting diagnostics.
 #[derive(Debug, Error)]
@@ -215,7 +220,48 @@ impl EmitDiagnostics for VmError {
         let source_id = debug_inst.source_id;
         let span = debug_inst.span;
 
-        labels.push(Label::primary(source_id, span.range()).with_message(error.short_description()));
+        let mut backtrace = vec![StackFrame { source_id, span }];
+        let (reason, notes) = match error {
+            VmErrorKind::Panic { reason } => {
+                labels.push(Label::primary(source_id, span.range()).with_message("panicked"));
+                ("panic in Runetime".to_owned(), vec![reason.to_string()])
+            }
+            VmErrorKind::UnsupportedBinaryOperation { lhs, rhs, op } => {
+                labels.push(
+                    Label::primary(source_id, span.range())
+                        .with_message("in this expression".to_string()),
+                );
+
+                (
+                    format!("type mismatch for operation `{}`", op),
+                    vec![
+                        format!("left hand side has type `{}`", lhs),
+                        format!("rhs hand side has type `{}`", rhs),
+                    ],
+                )
+            }
+            VmErrorKind::BadArgumentCount { actual, expected } => {
+                labels.push(
+                    Label::primary(source_id, span.range())
+                        .with_message("in this function call".to_string()),
+                );
+
+                (
+                    format!("wrong number of arguments"),
+                    vec![
+                        format!("expected `{}`", expected),
+                        format!("got `{}`", actual),
+                    ],
+                )
+            }
+            e => {
+                labels.push(
+                    Label::primary(source_id, span.range())
+                        .with_message("in this expression".to_string()),
+                );
+                ("internal vm error".to_owned(), vec![e.to_string()])
+            }
+        };
 
         for ip in frames.iter().map(|v| v.ip()) {
             let debug_inst = match debug_info.instruction_at(ip) {
@@ -231,18 +277,33 @@ impl EmitDiagnostics for VmError {
                 }
             };
 
-        let source_id = debug_inst.source_id;
-        let span = debug_inst.span;
-            labels.push(Label::secondary(source_id, span.range()).with_message("called from here".to_string()));
+            let source_id = debug_inst.source_id;
+            let span = debug_inst.span;
 
+            backtrace.push(StackFrame { source_id, span });
         }
         let diagnostic = Diagnostic::error()
-            .with_message("virtual machine error")
+            .with_message(reason)
             .with_labels(labels)
-            .with_notes(vec![error.to_string()]);
+            .with_notes(notes);
 
         term::emit(out, &config, &files, &diagnostic)?;
 
+        writeln!(out, "Callstack:")?;
+        for frame in &backtrace {
+            use codespan_reporting::files::Files;
+
+            let line = files
+                .line_index(frame.source_id, frame.span.start.into_usize())
+                .unwrap();
+            let line = files.line_number(frame.source_id, line).unwrap() - 1;
+            let line_range = files.line_range(frame.source_id, line).expect("a range");
+            let source = files.get(frame.source_id)?;
+            let name = source.name();
+            let slice = &source.source()[line_range];
+
+            write!(out, "\t{}:{}\n\t\t{}", name, line, slice)?;
+        }
         Ok(())
     }
 }

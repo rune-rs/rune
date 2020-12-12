@@ -4,8 +4,8 @@ use rune::{
     EmitDiagnostics, Sources,
 };
 use runestick::{
-    CompileMeta, CompileMetaKind, Hash, RuntimeContext, SourceId, Span, Unit, UnitFn, Vm, VmError,
-    VmErrorKind,
+    CompileMeta, CompileMetaKind, Hash, RuntimeContext, SourceId, Span, Unit, UnitFn, Value, Vm,
+    VmError, VmErrorKind,
 };
 use std::{collections::HashMap, io::Write, sync::Arc, time::Instant};
 
@@ -23,6 +23,12 @@ impl rune::CompileVisitor for TestVisitor {
 
         self.test_functions.push((*type_hash, meta.clone()));
     }
+}
+
+enum FailureReason {
+    Crash(VmError),
+    ReturnedNone,
+    ReturnedErr(Result<Value, Value>),
 }
 
 pub(crate) async fn do_tests(
@@ -61,36 +67,63 @@ pub(crate) async fn do_tests(
         match vm.async_complete().await {
             Err(e) => {
                 // TODO: store output here
-                failures.insert(test.1.item.item.clone(), e);
-                writeln!(out, "failed")?;
+                failures.insert(test.1.item.item.clone(), FailureReason::Crash(e));
+                writeln!(out, "crashed")?;
             }
-            Ok(_) => {
-                writeln!(out, "ok.")?;
+            Ok(v) => {
+                if let Ok(v) = v.clone().into_result() {
+                    let res = v.take().unwrap();
+                    if res.is_err() {
+                        failures.insert(test.1.item.item.clone(), FailureReason::ReturnedErr(res));
+                        writeln!(out, "returned error")?;
+                    }
+
+                    continue;
+                }
+                if let Ok(v) = v.into_option() {
+                    if v.borrow_ref().unwrap().is_none() {
+                        failures.insert(test.1.item.item.clone(), FailureReason::ReturnedNone);
+                        writeln!(out, "returned none")?;
+                    }
+
+                    continue;
+                }
+
+                writeln!(out, "passed")?;
             }
         }
     }
 
     let elapsed = start.elapsed();
 
-    for (item, error) in &failures {
-        println!("----------------------------------------");
-        println!("Test: {}\n", item);
-
+    let failure_count = failures.len();
+    for (item, error) in failures {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        error
-            .emit_diagnostics(&mut writer, &sources)
-            .expect("failed writing info");
+        match error {
+            FailureReason::Crash(err) => {
+                println!("----------------------------------------");
+                println!("Test: {}\n", item);
+                err.emit_diagnostics(&mut writer, &sources)
+                    .expect("failed writing info");
+            }
+            FailureReason::ReturnedNone => continue,
+            FailureReason::ReturnedErr(e) => {
+                println!("----------------------------------------");
+                println!("Test: {}\n", item);
+                println!("Return value: {:?}\n", e);
+            }
+        }
     }
 
     println!("====");
     println!(
         "Ran {} tests with {} failures in {:.3} seconds",
         tests.len(),
-        failures.len(),
+        failure_count,
         elapsed.as_secs_f64()
     );
 
-    if failures.is_empty() {
+    if failure_count == 0 {
         Ok(ExitCode::Success)
     } else {
         Ok(ExitCode::Failure)
