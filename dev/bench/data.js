@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607641261405,
+  "lastUpdate": 1607796966493,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -2051,6 +2051,78 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5853958,
             "range": "± 365931",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "c80073c60e018701528448035f145f0b38f48015",
+          "message": "Introduce std::int::add associated fn",
+          "timestamp": "2020-12-12T19:12:40+01:00",
+          "tree_id": "198bda6a620facdd71aedea874210dbb23aafef6",
+          "url": "https://github.com/rune-rs/rune/commit/c80073c60e018701528448035f145f0b38f48015"
+        },
+        "date": 1607796965912,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 245412,
+            "range": "± 1728",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 822941,
+            "range": "± 15700",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 68441292,
+            "range": "± 780342",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1188695,
+            "range": "± 43187",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 12320808,
+            "range": "± 179826",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 10712331,
+            "range": "± 118143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 410756,
+            "range": "± 951",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4549103,
+            "range": "± 32842",
             "unit": "ns/iter"
           }
         ]
