@@ -80,7 +80,7 @@ impl Parse for Stmt {
             Self::Local(local)
         } else {
             let expr =
-                ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(false))?;
+                ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(true))?;
 
             Self::Expr(expr, p.parse()?)
         };
@@ -134,8 +134,7 @@ impl Parse for ItemOrExpr {
             return Err(ParseError::unsupported(span, "visibility modifier"));
         }
 
-        let expr =
-            ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(false))?;
+        let expr = ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(true))?;
 
         if let Some(span) = attributes.option_span() {
             return Err(ParseError::unsupported(span, "attributes"));
