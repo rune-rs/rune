@@ -310,7 +310,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             let mut warnings = rune::Warnings::new();
 
             let test_finder = Rc::new(tests::TestVisitor::default());
-            let mut source_loader = rune::FileSourceLoader::new();
+            let source_loader = Rc::new(rune::FileSourceLoader::new());
 
             let unit = match rune::load_sources_with_visitor(
                 &context,
@@ -319,7 +319,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 &mut errors,
                 &mut warnings,
                 test_finder.clone(),
-                &mut source_loader,
+                source_loader.clone(),
             ) {
                 Ok(unit) => unit,
                 Err(rune::LoadSourcesError) => {
