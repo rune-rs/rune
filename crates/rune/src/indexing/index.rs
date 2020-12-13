@@ -55,6 +55,21 @@ pub(crate) struct Indexer<'a> {
     pub(crate) impl_item: Option<Arc<Item>>,
     pub(crate) visitor: Rc<dyn CompileVisitor>,
     pub(crate) source_loader: Rc<dyn SourceLoader>,
+    /// Indicates if indexer is nested privately inside of another item, and if
+    /// so, the descriptive span of its declaration.
+    ///
+    /// Private items are nested declarations inside of for example fn
+    /// declarations:
+    ///
+    /// ```text
+    /// pub fn public() {
+    ///     fn private() {
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Then, `nested_item` would point to the span of `pub fn public`.
+    pub(crate) nested_item: Option<Span>,
 }
 
 impl<'a> Indexer<'a> {
@@ -64,7 +79,7 @@ impl<'a> Indexer<'a> {
         attributes: &mut attrs::Attributes,
         ast: &mut ast::MacroCall,
     ) -> Result<bool, CompileError> {
-        let builtin = match attributes.try_parse::<attrs::BuiltIn>()? {
+        let (_, builtin) = match attributes.try_parse::<attrs::BuiltIn>()? {
             Some(builtin) => builtin,
             None => return Ok(false),
         };
@@ -639,7 +654,10 @@ impl Index for ast::ItemFn {
             }
         }
 
+        // Take and restore item nesting.
+        let last = idx.nested_item.replace(self.descriptive_span());
         self.body.index(idx)?;
+        idx.nested_item = last;
 
         let f = guard.into_function(span)?;
         self.id = Some(item.id);
@@ -667,7 +685,9 @@ impl Index for ast::ItemFn {
             call,
         };
 
-        let is_public = item.is_public();
+        // NB: it's only a public item in the sense of exporting it if it's not
+        // inside of a nested item.
+        let is_public = item.is_public() && idx.nested_item.is_none();
 
         let mut attributes = attrs::Attributes::new(
             self.attributes.clone(),
@@ -675,7 +695,21 @@ impl Index for ast::ItemFn {
             idx.source.clone(),
         );
 
-        let is_test = attributes.try_parse::<attrs::Test>()?.is_some();
+        let is_test = match attributes.try_parse::<attrs::Test>()? {
+            Some((span, _)) => {
+                if let Some(nested_span) = idx.nested_item {
+                    let span = span.join(self.descriptive_span());
+
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::NestedTest { nested_span },
+                    ));
+                }
+
+                true
+            }
+            _ => false,
+        };
 
         if let Some(attrs) = attributes.remaining() {
             return Err(CompileError::msg(attrs, "unrecognized function attribute"));
@@ -730,7 +764,7 @@ impl Index for ast::ItemFn {
         } else if is_public || is_test {
             // NB: immediately compile all toplevel functions.
             idx.query.push_build_entry(BuildEntry {
-                location: Location::new(idx.source_id, fun.ast.item_span()),
+                location: Location::new(idx.source_id, fun.ast.descriptive_span()),
                 item: item.clone(),
                 build: Build::Function(fun),
                 source: idx.source.clone(),
@@ -1459,7 +1493,9 @@ impl Index for Box<ast::ItemConst> {
 
         self.id = Some(item.id);
 
+        let last = idx.nested_item.replace(self.descriptive_span());
         self.expr.index(idx)?;
+        idx.nested_item = last;
 
         idx.query.index_const(&item, &idx.source, &self.expr)?;
         Ok(())

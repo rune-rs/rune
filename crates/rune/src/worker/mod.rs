@@ -135,6 +135,7 @@ impl<'a> Worker<'a> {
                         impl_item: Default::default(),
                         visitor: self.visitor.clone(),
                         source_loader: self.source_loader.clone(),
+                        nested_item: None,
                     };
 
                     if let Err(error) = file.index(&mut indexer) {

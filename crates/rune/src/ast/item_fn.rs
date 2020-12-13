@@ -67,8 +67,9 @@ pub struct ItemFn {
 }
 
 impl ItemFn {
-    /// Get the identifying span for this function.
-    pub fn item_span(&self) -> Span {
+    /// Get the descriptive span of this item, e.g. `pub fn foo()` instead of
+    /// the span for the whole function declaration, body included.
+    pub fn descriptive_span(&self) -> Span {
         if let Some(async_token) = &self.async_token {
             async_token.span().join(self.args.span())
         } else {
