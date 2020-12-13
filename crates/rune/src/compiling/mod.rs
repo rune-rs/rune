@@ -30,7 +30,7 @@ pub fn compile(
     warnings: &mut Warnings,
 ) -> Result<(), ()> {
     let visitor = Rc::new(NoopCompileVisitor::new());
-    let mut source_loader = FileSourceLoader::new();
+    let source_loader = Rc::new(FileSourceLoader::new());
 
     compile_with_options(
         context,
@@ -40,7 +40,7 @@ pub fn compile(
         warnings,
         &Default::default(),
         visitor,
-        &mut source_loader,
+        source_loader,
     )?;
 
     Ok(())
@@ -55,7 +55,7 @@ pub fn compile_with_options(
     warnings: &mut Warnings,
     options: &Options,
     visitor: Rc<dyn CompileVisitor>,
-    source_loader: &mut dyn SourceLoader,
+    source_loader: Rc<dyn SourceLoader>,
 ) -> Result<(), ()> {
     // Global storage.
     let storage = Storage::new();

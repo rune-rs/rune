@@ -117,6 +117,9 @@ impl State {
 
         let mut builds = Vec::new();
 
+        let sources = std::mem::take(&mut inner.sources);
+        let source_loader = Rc::new(SourceLoader::new(sources));
+
         for (url, source) in &inner.sources {
             log::trace!("build: {}", url);
 
@@ -132,7 +135,6 @@ impl State {
             let mut errors = rune::Errors::new();
             let mut warnings = rune::Warnings::new();
             let visitor = Rc::new(Visitor::new(Index::default()));
-            let mut source_loader = SourceLoader::new(&inner.sources);
 
             let result = rune::load_sources_with_visitor(
                 &self.inner.context,
@@ -141,7 +143,7 @@ impl State {
                 &mut errors,
                 &mut warnings,
                 visitor.clone(),
-                &mut source_loader,
+                source_loader.clone(),
             );
 
             if let Err(rune::LoadSourcesError) = result {
@@ -227,6 +229,13 @@ impl State {
 
             builds.push((url.clone(), sources, visitor.into_index()));
         }
+
+        let source_loader = match Rc::try_unwrap(source_loader) {
+            Ok(source_loader) => source_loader,
+            Err(..) => panic!("source loader should be uniquely held"),
+        };
+
+        inner.sources = source_loader.into_sources();
 
         for (url, build_sources, index) in builds {
             if let Some(source) = inner.sources.get_mut(&url) {
@@ -619,18 +628,23 @@ impl rune::CompileVisitor for Visitor {
     }
 }
 
-struct SourceLoader<'a> {
-    sources: &'a HashMap<Url, Source>,
+struct SourceLoader {
+    sources: RefCell<HashMap<Url, Source>>,
     base: rune::FileSourceLoader,
 }
 
-impl<'a> SourceLoader<'a> {
+impl SourceLoader {
     /// Construct a new source loader.
-    pub fn new(sources: &'a HashMap<Url, Source>) -> Self {
+    pub fn new(sources: HashMap<Url, Source>) -> Self {
         Self {
-            sources,
+            sources: RefCell::new(sources),
             base: rune::FileSourceLoader::new(),
         }
+    }
+
+    /// Convert into sources.
+    fn into_sources(self) -> HashMap<Url, Source> {
+        self.sources.into_inner()
     }
 
     /// Generate a collection of URl candidates.
@@ -673,9 +687,9 @@ impl<'a> SourceLoader<'a> {
     }
 }
 
-impl rune::SourceLoader for SourceLoader<'_> {
+impl rune::SourceLoader for SourceLoader {
     fn load(
-        &mut self,
+        &self,
         root: &Path,
         item: &Item,
         span: Span,
@@ -684,7 +698,7 @@ impl rune::SourceLoader for SourceLoader<'_> {
 
         if let Some(candidates) = Self::candidates(root, item) {
             for url in candidates.iter() {
-                if let Some(s) = self.sources.get(url) {
+                if let Some(s) = self.sources.borrow().get(url) {
                     return Ok(runestick::Source::new(url.to_string(), s.to_string()));
                 }
             }

@@ -85,7 +85,7 @@ pub fn load_sources(
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadSourcesError> {
     let visitor = Rc::new(compiling::NoopCompileVisitor::new());
-    let mut source_loader = FileSourceLoader::new();
+    let source_loader = Rc::new(FileSourceLoader::new());
 
     load_sources_with_visitor(
         context,
@@ -94,7 +94,7 @@ pub fn load_sources(
         errors,
         warnings,
         visitor,
-        &mut source_loader,
+        source_loader,
     )
 }
 
@@ -106,7 +106,7 @@ pub fn load_sources_with_visitor(
     errors: &mut Errors,
     warnings: &mut Warnings,
     visitor: Rc<dyn compiling::CompileVisitor>,
-    source_loader: &mut dyn SourceLoader,
+    source_loader: Rc<dyn SourceLoader>,
 ) -> Result<Unit, LoadSourcesError> {
     let unit = if context.has_default_modules() {
         compiling::UnitBuilder::with_default_prelude()

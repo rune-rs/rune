@@ -54,7 +54,7 @@ pub(crate) struct Indexer<'a> {
     /// Set if we are inside of an impl self.
     pub(crate) impl_item: Option<Arc<Item>>,
     pub(crate) visitor: Rc<dyn CompileVisitor>,
-    pub(crate) source_loader: &'a mut dyn SourceLoader,
+    pub(crate) source_loader: Rc<dyn SourceLoader>,
 }
 
 impl<'a> Indexer<'a> {

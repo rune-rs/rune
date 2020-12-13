@@ -27,7 +27,7 @@ pub(crate) struct Worker<'a> {
     pub(crate) errors: &'a mut Errors,
     pub(crate) warnings: &'a mut Warnings,
     pub(crate) visitor: Rc<dyn CompileVisitor>,
-    pub(crate) source_loader: &'a mut dyn SourceLoader,
+    pub(crate) source_loader: Rc<dyn SourceLoader>,
     /// Constants storage.
     pub(crate) consts: Consts,
     /// Worker queue.
@@ -53,7 +53,7 @@ impl<'a> Worker<'a> {
         errors: &'a mut Errors,
         warnings: &'a mut Warnings,
         visitor: Rc<dyn CompileVisitor>,
-        source_loader: &'a mut dyn SourceLoader,
+        source_loader: Rc<dyn SourceLoader>,
         storage: Storage,
         gen: Gen,
     ) -> Self {
@@ -134,7 +134,7 @@ impl<'a> Worker<'a> {
                         mod_item,
                         impl_item: Default::default(),
                         visitor: self.visitor.clone(),
-                        source_loader: self.source_loader,
+                        source_loader: self.source_loader.clone(),
                     };
 
                     if let Err(error) = file.index(&mut indexer) {
