@@ -453,6 +453,12 @@ impl EmitDiagnostics for Error {
                 CompileErrorKind::CallMacroError { item, .. } => {
                     notes.push(format!("Error originated in the `{}` macro", item).into());
                 }
+                CompileErrorKind::NestedTest { nested_span } => {
+                    labels.push(
+                        Label::secondary(this.source_id(), nested_span.range())
+                            .with_message("nested in here"),
+                    );
+                }
                 _ => (),
             }
 
