@@ -23,6 +23,7 @@ use runestick::{
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 pub(crate) struct Indexer<'a> {
@@ -52,7 +53,7 @@ pub(crate) struct Indexer<'a> {
     pub(crate) mod_item: Arc<CompileMod>,
     /// Set if we are inside of an impl self.
     pub(crate) impl_item: Option<Arc<Item>>,
-    pub(crate) visitor: &'a mut dyn CompileVisitor,
+    pub(crate) visitor: Rc<dyn CompileVisitor>,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
 }
 

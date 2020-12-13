@@ -8,7 +8,7 @@ pub(crate) trait IrQuery {
     /// Query for the given meta.
     fn query_meta(
         &mut self,
-        spanned: Span,
+        span: Span,
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError>;
@@ -16,10 +16,10 @@ pub(crate) trait IrQuery {
     /// Get resolved internal macro with the given id.
     fn builtin_macro_for(
         &self,
-        spanned: Span,
+        span: Span,
         id: Option<Id>,
     ) -> Result<Arc<BuiltInMacro>, QueryError>;
 
     /// Query for the constant function related to the given id.
-    fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Arc<QueryConstFn>, QueryError>;
+    fn const_fn_for(&self, span: Span, id: Option<Id>) -> Result<Arc<QueryConstFn>, QueryError>;
 }

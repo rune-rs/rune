@@ -1,6 +1,7 @@
 use crate::compiling;
 use crate::Options;
 use runestick::{Context, Unit};
+use std::rc::Rc;
 use thiserror::Error;
 
 mod error;
@@ -83,7 +84,7 @@ pub fn load_sources(
     errors: &mut Errors,
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadSourcesError> {
-    let mut visitor = compiling::NoopCompileVisitor::new();
+    let visitor = Rc::new(compiling::NoopCompileVisitor::new());
     let mut source_loader = FileSourceLoader::new();
 
     load_sources_with_visitor(
@@ -92,7 +93,7 @@ pub fn load_sources(
         sources,
         errors,
         warnings,
-        &mut visitor,
+        visitor,
         &mut source_loader,
     )
 }
@@ -104,7 +105,7 @@ pub fn load_sources_with_visitor(
     sources: &mut Sources,
     errors: &mut Errors,
     warnings: &mut Warnings,
-    visitor: &mut dyn compiling::CompileVisitor,
+    visitor: Rc<dyn compiling::CompileVisitor>,
     source_loader: &mut dyn SourceLoader,
 ) -> Result<Unit, LoadSourcesError> {
     let unit = if context.has_default_modules() {

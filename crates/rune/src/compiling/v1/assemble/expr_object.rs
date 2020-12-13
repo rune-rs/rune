@@ -35,7 +35,7 @@ impl Assemble for ast::ExprObject {
                 expr.assemble(c, Needs::Value)?.apply(c)?;
             } else {
                 let key = assign.key.resolve(&c.storage, &*c.source)?;
-                let var = c.scopes.get_var(&*key, c.source_id, c.visitor, span)?;
+                let var = c.scopes.get_var(&*key, c.source_id, span)?;
                 var.copy(&mut c.asm, span, format!("name `{}`", key));
             }
         }

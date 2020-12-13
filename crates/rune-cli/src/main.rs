@@ -56,6 +56,7 @@ use std::fs;
 use std::io;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -308,7 +309,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             let mut errors = rune::Errors::new();
             let mut warnings = rune::Warnings::new();
 
-            let mut test_finder = tests::TestVisitor::default();
+            let test_finder = Rc::new(tests::TestVisitor::default());
             let mut source_loader = rune::FileSourceLoader::new();
 
             let unit = match rune::load_sources_with_visitor(
@@ -317,7 +318,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 &mut sources,
                 &mut errors,
                 &mut warnings,
-                &mut test_finder,
+                test_finder.clone(),
                 &mut source_loader,
             ) {
                 Ok(unit) => unit,
@@ -337,7 +338,12 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 warnings.emit_diagnostics(&mut out, &sources)?;
             }
 
-            (Arc::new(unit), test_finder.test_functions)
+            let test_finder = match Rc::try_unwrap(test_finder) {
+                Ok(test_finder) => test_finder,
+                Err(..) => panic!("test finder should be uniquely held"),
+            };
+
+            (Arc::new(unit), test_finder.into_test_functions())
         }
     };
 

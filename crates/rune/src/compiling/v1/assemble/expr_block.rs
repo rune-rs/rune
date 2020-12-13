@@ -22,16 +22,10 @@ impl Assemble for ast::ExprBlock {
 
                 for ident in captures {
                     if do_move {
-                        let var = c
-                            .scopes
-                            .take_var(&ident.ident, c.source_id, c.visitor, span)?;
-
+                        let var = c.scopes.take_var(&ident.ident, c.source_id, span)?;
                         var.do_move(&mut c.asm, span, format!("captures `{}`", ident.ident));
                     } else {
-                        let var = c
-                            .scopes
-                            .get_var(&ident.ident, c.source_id, c.visitor, span)?;
-
+                        let var = c.scopes.get_var(&ident.ident, c.source_id, span)?;
                         var.copy(&mut c.asm, span, format!("captures `{}`", ident.ident));
                     }
                 }

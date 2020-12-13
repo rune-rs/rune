@@ -4,24 +4,37 @@ use rune::{
     EmitDiagnostics, Sources,
 };
 use runestick::{
-    CompileMeta, CompileMetaKind, Hash, RuntimeContext, SourceId, Span, Unit, UnitFn, Value, Vm,
-    VmError, VmErrorKind,
+    CompileMeta, CompileMetaKind, Hash, RuntimeContext, Unit, UnitFn, Value, Vm, VmError,
+    VmErrorKind,
 };
-use std::{collections::HashMap, io::Write, sync::Arc, time::Instant};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::io::Write;
+use std::sync::Arc;
+use std::time::Instant;
 
 #[derive(Default)]
 pub struct TestVisitor {
-    pub test_functions: Vec<(Hash, CompileMeta)>,
+    test_functions: RefCell<Vec<(Hash, CompileMeta)>>,
+}
+
+impl TestVisitor {
+    /// Convert visitor into test functions.
+    pub(crate) fn into_test_functions(self) -> Vec<(Hash, CompileMeta)> {
+        self.test_functions.into_inner()
+    }
 }
 
 impl rune::CompileVisitor for TestVisitor {
-    fn visit_meta(&mut self, _source_id: SourceId, meta: &CompileMeta, _span: Span) {
+    fn register_meta(&self, meta: &CompileMeta) {
         let type_hash = match &meta.kind {
             CompileMetaKind::Function { is_test, type_hash } if *is_test => type_hash,
             _ => return,
         };
 
-        self.test_functions.push((*type_hash, meta.clone()));
+        self.test_functions
+            .borrow_mut()
+            .push((*type_hash, meta.clone()));
     }
 }
 

@@ -12,6 +12,7 @@ use runestick::{
     CompileItem, CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label,
     Source, Span, TypeCheck,
 };
+use std::rc::Rc;
 use std::sync::Arc;
 
 mod assemble;
@@ -40,6 +41,8 @@ impl Needs {
 }
 
 pub(crate) struct Compiler<'a> {
+    /// Compiler visitor.
+    pub(crate) visitor: Rc<dyn CompileVisitor>,
     /// The source id of the source.
     pub(crate) source_id: usize,
     /// The source we are compiling for.
@@ -66,8 +69,6 @@ pub(crate) struct Compiler<'a> {
     pub(crate) options: &'a Options,
     /// Compilation warnings.
     pub(crate) warnings: &'a mut Warnings,
-    /// Compiler visitor.
-    pub(crate) visitor: &'a mut dyn CompileVisitor,
 }
 
 impl<'a> Compiler<'a> {

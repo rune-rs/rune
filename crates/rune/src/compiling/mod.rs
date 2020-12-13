@@ -5,6 +5,7 @@ use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
 use runestick::{Context, Location, Source, Span};
+use std::rc::Rc;
 use std::sync::Arc;
 
 mod assembly;
@@ -28,7 +29,7 @@ pub fn compile(
     errors: &mut Errors,
     warnings: &mut Warnings,
 ) -> Result<(), ()> {
-    let mut visitor = NoopCompileVisitor::new();
+    let visitor = Rc::new(NoopCompileVisitor::new());
     let mut source_loader = FileSourceLoader::new();
 
     compile_with_options(
@@ -38,7 +39,7 @@ pub fn compile(
         errors,
         warnings,
         &Default::default(),
-        &mut visitor,
+        visitor,
         &mut source_loader,
     )?;
 
@@ -53,7 +54,7 @@ pub fn compile_with_options(
     errors: &mut Errors,
     warnings: &mut Warnings,
     options: &Options,
-    visitor: &mut dyn CompileVisitor,
+    visitor: Rc<dyn CompileVisitor>,
     source_loader: &mut dyn SourceLoader,
 ) -> Result<(), ()> {
     // Global storage.
@@ -72,7 +73,7 @@ pub fn compile_with_options(
         consts,
         errors,
         warnings,
-        visitor,
+        visitor.clone(),
         source_loader,
         storage.clone(),
         gen,
@@ -106,6 +107,7 @@ pub fn compile_with_options(
             let source_id = entry.location.source_id;
 
             let task = CompileBuildEntry {
+                visitor: &visitor,
                 context,
                 options,
                 storage: &storage,
@@ -113,7 +115,6 @@ pub fn compile_with_options(
                 warnings: worker.warnings,
                 consts: &worker.consts,
                 query: &mut worker.query,
-                visitor: worker.visitor,
             };
 
             if let Err(error) = task.compile(entry) {
@@ -121,7 +122,7 @@ pub fn compile_with_options(
             }
         }
 
-        match worker.query.queue_unused_entries(worker.visitor) {
+        match worker.query.queue_unused_entries() {
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
@@ -140,6 +141,7 @@ pub fn compile_with_options(
 }
 
 struct CompileBuildEntry<'a> {
+    visitor: &'a Rc<dyn CompileVisitor>,
     context: &'a Context,
     options: &'a Options,
     storage: &'a Storage,
@@ -147,7 +149,6 @@ struct CompileBuildEntry<'a> {
     warnings: &'a mut Warnings,
     consts: &'a Consts,
     query: &'a mut Query,
-    visitor: &'a mut dyn CompileVisitor,
 }
 
 impl CompileBuildEntry<'_> {
@@ -159,6 +160,7 @@ impl CompileBuildEntry<'_> {
         asm: &'a mut Assembly,
     ) -> self::v1::Compiler<'a> {
         self::v1::Compiler {
+            visitor: self.visitor.clone(),
             storage: self.storage,
             source_id: location.source_id,
             source: source.clone(),
@@ -167,12 +169,11 @@ impl CompileBuildEntry<'_> {
             query: self.query,
             asm,
             unit: self.unit.clone(),
-            scopes: self::v1::Scopes::new(),
+            scopes: self::v1::Scopes::new(self.visitor.clone()),
             contexts: vec![span],
             loops: self::v1::Loops::new(),
             options: self.options,
             warnings: self.warnings,
-            visitor: self.visitor,
         }
     }
 

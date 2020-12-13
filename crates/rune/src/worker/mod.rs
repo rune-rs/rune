@@ -10,6 +10,7 @@ use crate::{
 };
 use runestick::{Context, Item, SourceId, Span};
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 mod import;
 mod task;
@@ -25,7 +26,7 @@ pub(crate) struct Worker<'a> {
     options: &'a Options,
     pub(crate) errors: &'a mut Errors,
     pub(crate) warnings: &'a mut Warnings,
-    pub(crate) visitor: &'a mut dyn CompileVisitor,
+    pub(crate) visitor: Rc<dyn CompileVisitor>,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Constants storage.
     pub(crate) consts: Consts,
@@ -51,7 +52,7 @@ impl<'a> Worker<'a> {
         consts: Consts,
         errors: &'a mut Errors,
         warnings: &'a mut Warnings,
-        visitor: &'a mut dyn CompileVisitor,
+        visitor: Rc<dyn CompileVisitor>,
         source_loader: &'a mut dyn SourceLoader,
         storage: Storage,
         gen: Gen,
@@ -62,11 +63,11 @@ impl<'a> Worker<'a> {
             options,
             errors,
             warnings,
-            visitor,
+            visitor: visitor.clone(),
             source_loader,
             consts: consts.clone(),
             queue: VecDeque::new(),
-            query: Query::new(storage.clone(), unit, consts, gen.clone()),
+            query: Query::new(visitor, storage.clone(), unit, consts, gen.clone()),
             storage,
             gen,
             loaded: HashMap::new(),
@@ -132,7 +133,7 @@ impl<'a> Worker<'a> {
                         scopes: IndexScopes::new(),
                         mod_item,
                         impl_item: Default::default(),
-                        visitor: self.visitor,
+                        visitor: self.visitor.clone(),
                         source_loader: self.source_loader,
                     };
 
