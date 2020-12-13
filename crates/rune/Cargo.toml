@@ -22,6 +22,7 @@ diagnostics = ["codespan-reporting"]
 thiserror = "1.0.22"
 log = "0.4.11"
 codespan-reporting = { version = "0.11.0", optional = true }
+
 hashbrown = "0.9.1"
 num = "0.3.1"
 itoa = "0.4.6"

@@ -166,6 +166,9 @@ pub enum CompileMetaKind {
     Function {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
+
+        /// Whether this function has a test annotation
+        is_test: bool,
     },
     /// A closure.
     Closure {
@@ -194,6 +197,9 @@ pub enum CompileMetaKind {
     ConstFn {
         /// Opaque identifier for the constant function.
         id: Id,
+
+        /// Whether this function has a test annotation
+        is_test: bool,
     },
     /// Purely an import.
     Import {

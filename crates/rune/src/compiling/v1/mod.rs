@@ -198,7 +198,7 @@ impl<'a> Compiler<'a> {
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::Function { type_hash } => {
+                CompileMetaKind::Function { type_hash, .. } => {
                     self.asm.push_with_comment(
                         Inst::LoadFn { hash: *type_hash },
                         span,

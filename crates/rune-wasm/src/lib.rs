@@ -359,9 +359,9 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
             if let Ok(vm) = execution.vm() {
                 let (kind, unwound) = error.as_unwound();
 
-                let (unit, ip) = match unwound {
-                    Some((unit, ip)) => (unit, ip),
-                    None => (vm.unit(), vm.ip()),
+                let (unit, ip, _frames) = match unwound {
+                    Some((unit, ip, frames)) => (unit, ip, frames),
+                    None => (vm.unit(), vm.ip(), vm.call_frames().to_owned()),
                 };
 
                 // NB: emit diagnostics if debug info is available.

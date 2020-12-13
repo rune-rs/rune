@@ -593,14 +593,34 @@ impl Index for ast::ItemFn {
         let span = self.span();
         log::trace!("ItemFn => {:?}", idx.source.source(span));
 
-        if let Some(first) = self.attributes.first() {
-            return Err(CompileError::msg(
-                first,
-                "function attributes are not supported",
-            ));
-        }
+        let mut attributes = attrs::Attributes::new(
+            self.attributes.clone(),
+            idx.storage.clone(),
+            idx.source.clone(),
+        );
 
         let is_toplevel = idx.items.is_empty();
+
+        let is_test = match attributes.try_parse::<attrs::Test>()? {
+            Some(_test) => {
+                // if !is_toplevel {
+                //     return Err(CompileError::msg(
+                //         span,
+                //         "#[test] is not supported on nested",
+                //     ));
+                // }
+
+                true
+            }
+            None => {
+                if let Some(attrs) = attributes.remaining() {
+                    return Err(CompileError::msg(attrs, "unrecognized function attribute"));
+                } else {
+                    false
+                }
+            }
+        };
+
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
         let _guard = idx.items.push_name(name.as_ref());
 
@@ -675,6 +695,13 @@ impl Index for ast::ItemFn {
         };
 
         if self.is_instance() {
+            if is_test {
+                return Err(CompileError::msg(
+                    span,
+                    "#[test] is not supported on member functions",
+                ));
+            }
+
             let impl_item = idx.impl_item.as_ref().ok_or_else(|| {
                 CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
             })?;
@@ -699,6 +726,7 @@ impl Index for ast::ItemFn {
 
             let kind = CompileMetaKind::Function {
                 type_hash: Hash::type_hash(&item.item),
+                is_test: false,
             };
 
             let meta = CompileMeta {
@@ -712,7 +740,7 @@ impl Index for ast::ItemFn {
             };
 
             idx.query.insert_meta(span, meta)?;
-        } else if is_toplevel && item.visibility.is_public() {
+        } else if is_toplevel && item.visibility.is_public() || is_test {
             // NB: immediately compile all toplevel functions.
             idx.query.push_build_entry(BuildEntry {
                 location: Location::new(idx.source_id, fun.ast.item_span()),
@@ -724,6 +752,7 @@ impl Index for ast::ItemFn {
 
             let kind = CompileMetaKind::Function {
                 type_hash: Hash::type_hash(&item.item),
+                is_test,
             };
 
             let meta = CompileMeta {
@@ -1470,6 +1499,7 @@ impl Index for ast::Item {
             }
             ast::Item::Fn(item_fn) => {
                 item_fn.index(idx)?;
+                attributes.drain();
             }
             ast::Item::Impl(item_impl) => {
                 item_impl.index(idx)?;

@@ -1,4 +1,4 @@
-use crate::panic::BoxedPanic;
+use crate::{panic::BoxedPanic, CallFrame};
 use crate::{
     AccessError, Hash, Item, Key, Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Value,
     VmHaltInfo,
@@ -64,7 +64,7 @@ impl VmError {
     }
 
     /// Convert into an unwinded vm error.
-    pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize) -> Self {
+    pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize, frames: Vec<crate::CallFrame>) -> Self {
         if let VmErrorKind::Unwound { .. } = &*self.kind {
             return self;
         }
@@ -73,23 +73,39 @@ impl VmError {
             kind: self.kind,
             unit: unit.clone(),
             ip,
+            frames,
         })
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn as_unwound<'a>(&'a self) -> (&'a VmErrorKind, Option<(&'a Arc<Unit>, usize)>) {
+    pub fn as_unwound<'a>(
+        &'a self,
+    ) -> (
+        &'a VmErrorKind,
+        Option<(&'a Arc<Unit>, usize, Vec<CallFrame>)>,
+    ) {
         match &*self.kind {
-            VmErrorKind::Unwound { kind, unit, ip } => (&*kind, Some((unit, *ip))),
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => (&*kind, Some((unit, *ip, frames.clone()))),
             kind => (kind, None),
         }
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn into_unwound(self) -> (Self, Option<(Arc<Unit>, usize)>) {
+    pub fn into_unwound(self) -> (Self, Option<(Arc<Unit>, usize, Vec<CallFrame>)>) {
         match *self.kind {
-            VmErrorKind::Unwound { kind, unit, ip } => {
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => {
                 let error = Self { kind };
-                (error, Some((unit, ip)))
+                (error, Some((unit, ip, frames)))
             }
             kind => (Self::from(kind), None),
         }
@@ -144,6 +160,8 @@ pub enum VmErrorKind {
         unit: Arc<Unit>,
         /// The instruction pointer of where the original error happened.
         ip: usize,
+        /// All lower call frames before the unwind trigger point
+        frames: Vec<CallFrame>,
     },
     #[error("{error}")]
     AccessError {
@@ -314,9 +332,14 @@ pub enum VmErrorKind {
 
 impl VmErrorKind {
     /// Unpack an unwound error, if it is present.
-    pub fn as_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize)>) {
+    pub fn as_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize, Vec<CallFrame>)>) {
         match self {
-            VmErrorKind::Unwound { kind, unit, ip } => (&*kind, Some((unit.clone(), *ip))),
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => (&*kind, Some((unit.clone(), *ip, frames.clone()))),
             kind => (kind, None),
         }
     }

@@ -517,7 +517,10 @@ impl Context {
             item.clone(),
             CompileMeta {
                 item: Arc::new(item.into()),
-                kind: CompileMetaKind::Function { type_hash: hash },
+                kind: CompileMetaKind::Function {
+                    type_hash: hash,
+                    is_test: false,
+                },
                 source: None,
             },
         );
@@ -588,7 +591,10 @@ impl Context {
             item.clone(),
             CompileMeta {
                 item: Arc::new(item.into()),
-                kind: CompileMetaKind::Function { type_hash: hash },
+                kind: CompileMetaKind::Function {
+                    type_hash: hash,
+                    is_test: false,
+                },
                 source: None,
             },
         );

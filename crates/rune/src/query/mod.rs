@@ -1214,6 +1214,7 @@ impl QueryInner {
 
                 CompileMetaKind::Function {
                     type_hash: Hash::type_hash(&query_item.item),
+                    is_test: false,
                 }
             }
             Indexed::Closure(c) => {
@@ -1297,7 +1298,7 @@ impl QueryInner {
                     });
                 }
 
-                CompileMetaKind::ConstFn { id }
+                CompileMetaKind::ConstFn { id, is_test: false }
             }
             Indexed::Import(import) => {
                 let module = import.entry.module.clone();

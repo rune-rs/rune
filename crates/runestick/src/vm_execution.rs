@@ -213,7 +213,7 @@ impl VmExecution {
     fn run(vm: &mut Vm) -> Result<VmHalt, VmError> {
         match vm.run() {
             Ok(reason) => Ok(reason),
-            Err(error) => Err(error.into_unwinded(vm.unit(), vm.ip())),
+            Err(error) => Err(error.into_unwinded(vm.unit(), vm.ip(), vm.call_frames().to_vec())),
         }
     }
 }
