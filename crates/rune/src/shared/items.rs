@@ -40,11 +40,6 @@ impl Items {
         Ref::map(self.inner.borrow(), |inner| &inner.item)
     }
 
-    /// Check if the current path is empty.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.inner.borrow().item.is_empty()
-    }
-
     /// Push a component and return a guard to it.
     pub(crate) fn push_id(&self) -> Guard {
         let mut inner = self.inner.borrow_mut();
