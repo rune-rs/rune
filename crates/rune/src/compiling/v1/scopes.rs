@@ -2,6 +2,7 @@ use crate::collections::HashMap;
 use crate::compiling::Assembly;
 use crate::{CompileError, CompileErrorKind, CompileResult, CompileVisitor};
 use runestick::{Inst, SourceId, Span};
+use std::rc::Rc;
 
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.
@@ -207,13 +208,15 @@ impl Scope {
 pub(crate) struct ScopeGuard(usize);
 
 pub(crate) struct Scopes {
+    visitor: Rc<dyn CompileVisitor>,
     scopes: Vec<Scope>,
 }
 
 impl Scopes {
     /// Construct a new collection of scopes.
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(visitor: Rc<dyn CompileVisitor>) -> Self {
         Self {
+            visitor,
             scopes: vec![Scope::new()],
         }
     }
@@ -224,7 +227,6 @@ impl Scopes {
         &self,
         name: &str,
         source_id: SourceId,
-        visitor: &mut dyn CompileVisitor,
         span: Span,
     ) -> CompileResult<Option<&Var>> {
         log::trace!("get var: {}", name);
@@ -232,7 +234,7 @@ impl Scopes {
         for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name, span)? {
                 log::trace!("found var: {} => {:?}", name, var);
-                visitor.visit_variable_use(source_id, var.span, span);
+                self.visitor.visit_variable_use(source_id, var.span, span);
                 return Ok(Some(var));
             }
         }
@@ -246,7 +248,6 @@ impl Scopes {
         &mut self,
         name: &str,
         source_id: SourceId,
-        visitor: &mut dyn CompileVisitor,
         span: Span,
     ) -> CompileResult<Option<&Var>> {
         log::trace!("get var: {}", name);
@@ -254,7 +255,7 @@ impl Scopes {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(var) = scope.take(name, span)? {
                 log::trace!("found var: {} => {:?}", name, var);
-                visitor.visit_variable_use(source_id, var.span, span);
+                self.visitor.visit_variable_use(source_id, var.span, span);
                 return Ok(Some(var));
             }
         }
@@ -267,10 +268,9 @@ impl Scopes {
         &self,
         name: &str,
         source_id: SourceId,
-        visitor: &mut dyn CompileVisitor,
         span: Span,
     ) -> CompileResult<&Var> {
-        match self.try_get_var(name, source_id, visitor, span)? {
+        match self.try_get_var(name, source_id, span)? {
             Some(var) => Ok(var),
             None => Err(CompileError::new(
                 span,
@@ -286,10 +286,9 @@ impl Scopes {
         &mut self,
         name: &str,
         source_id: SourceId,
-        visitor: &mut dyn CompileVisitor,
         span: Span,
     ) -> CompileResult<&Var> {
-        match self.try_take_var(name, source_id, visitor, span)? {
+        match self.try_take_var(name, source_id, span)? {
             Some(var) => Ok(var),
             None => Err(CompileError::new(
                 span,

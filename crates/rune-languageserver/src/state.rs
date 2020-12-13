@@ -5,9 +5,11 @@ use lsp::Url;
 use ropey::Rope;
 use rune::Spanned as _;
 use runestick::{CompileMeta, CompileMetaKind, CompileSource, ComponentRef, Item, SourceId, Span};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLockWriteGuard;
@@ -119,7 +121,6 @@ impl State {
             log::trace!("build: {}", url);
 
             by_url.insert(url.clone(), Default::default());
-            let mut index = Index::default();
 
             let mut sources = rune::Sources::new();
 
@@ -130,7 +131,7 @@ impl State {
 
             let mut errors = rune::Errors::new();
             let mut warnings = rune::Warnings::new();
-            let mut visitor = Visitor::new(&mut index);
+            let visitor = Rc::new(Visitor::new(Index::default()));
             let mut source_loader = SourceLoader::new(&inner.sources);
 
             let result = rune::load_sources_with_visitor(
@@ -139,7 +140,7 @@ impl State {
                 &mut sources,
                 &mut errors,
                 &mut warnings,
-                &mut visitor,
+                visitor.clone(),
                 &mut source_loader,
             );
 
@@ -219,7 +220,12 @@ impl State {
                 );
             }
 
-            builds.push((url.clone(), sources, index));
+            let visitor = match Rc::try_unwrap(visitor) {
+                Ok(visitor) => visitor,
+                Err(..) => panic!("visitor should be uniquely held"),
+            };
+
+            builds.push((url.clone(), sources, visitor.into_index()));
         }
 
         for (url, build_sources, index) in builds {
@@ -523,19 +529,26 @@ pub enum DefinitionKind {
     Module,
 }
 
-struct Visitor<'a> {
-    index: &'a mut Index,
+struct Visitor {
+    index: RefCell<Index>,
 }
 
-impl<'a> Visitor<'a> {
+impl Visitor {
     /// Construct a new visitor.
-    pub fn new(index: &'a mut Index) -> Self {
-        Self { index }
+    pub fn new(index: Index) -> Self {
+        Self {
+            index: RefCell::new(index),
+        }
+    }
+
+    /// Convert visitor back into an index.
+    pub fn into_index(self) -> Index {
+        self.index.into_inner()
     }
 }
 
-impl rune::CompileVisitor for Visitor<'_> {
-    fn visit_meta(&mut self, source_id: SourceId, meta: &CompileMeta, span: Span) {
+impl rune::CompileVisitor for Visitor {
+    fn visit_meta(&self, source_id: SourceId, meta: &CompileMeta, span: Span) {
         if source_id != 0 {
             return;
         }
@@ -562,12 +575,12 @@ impl rune::CompileVisitor for Visitor<'_> {
             source: source.clone(),
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
-    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: Span) {
+    fn visit_variable_use(&self, source_id: SourceId, var_span: Span, span: Span) {
         if source_id != 0 {
             return;
         }
@@ -581,12 +594,12 @@ impl rune::CompileVisitor for Visitor<'_> {
             },
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
-    fn visit_mod(&mut self, source_id: SourceId, span: Span) {
+    fn visit_mod(&self, source_id: SourceId, span: Span) {
         if source_id != 0 {
             return;
         }
@@ -600,7 +613,7 @@ impl rune::CompileVisitor for Visitor<'_> {
             },
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }

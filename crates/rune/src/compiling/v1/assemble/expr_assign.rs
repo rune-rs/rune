@@ -16,7 +16,7 @@ impl Assemble for ast::ExprAssign {
                     .try_as_ident()
                     .ok_or_else(|| CompileError::msg(path, "unsupported path"))?;
                 let ident = segment.resolve(c.storage, &*c.source)?;
-                let var = c.scopes.get_var(&*ident, c.source_id, c.visitor, span)?;
+                let var = c.scopes.get_var(&*ident, c.source_id, span)?;
                 c.asm.push(Inst::Replace { offset: var.offset }, span);
                 true
             }
