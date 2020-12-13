@@ -346,21 +346,21 @@ impl Item {
 /// assert_eq!("hello::$0", Item::with_item(&[Str("hello"), Id(0)]).to_string());
 /// ```
 impl fmt::Display for Item {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use std::fmt::Write;
         let mut it = self.iter();
-        let mut f = "".to_owned();
 
         if let Some(last) = it.next_back() {
+            let mut buf = String::new();
+
             for p in it {
-                write!(f, "{}::", p)?;
+                write!(buf, "{}::", p)?;
             }
 
-            write!(f, "{}", last)?;
-
-            formatter.pad(&f)
+            write!(buf, "{}", last)?;
+            f.pad(&buf)
         } else {
-            formatter.pad("{root}")
+            f.pad("{root}")
         }
     }
 }

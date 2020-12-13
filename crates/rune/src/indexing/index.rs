@@ -603,12 +603,12 @@ impl Index for ast::ItemFn {
 
         let is_test = match attributes.try_parse::<attrs::Test>()? {
             Some(_test) => {
-                // if !is_toplevel {
-                //     return Err(CompileError::msg(
-                //         span,
-                //         "#[test] is not supported on nested",
-                //     ));
-                // }
+                if !is_toplevel {
+                    return Err(CompileError::msg(
+                        span,
+                        "#[test] is not supported on nested",
+                    ));
+                }
 
                 true
             }

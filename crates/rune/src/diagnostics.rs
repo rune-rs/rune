@@ -224,7 +224,7 @@ impl EmitDiagnostics for VmError {
         let (reason, notes) = match error {
             VmErrorKind::Panic { reason } => {
                 labels.push(Label::primary(source_id, span.range()).with_message("panicked"));
-                ("panic in Runetime".to_owned(), vec![reason.to_string()])
+                ("panic in runtime".to_owned(), vec![reason.to_string()])
             }
             VmErrorKind::UnsupportedBinaryOperation { lhs, rhs, op } => {
                 labels.push(
@@ -236,7 +236,7 @@ impl EmitDiagnostics for VmError {
                     format!("type mismatch for operation `{}`", op),
                     vec![
                         format!("left hand side has type `{}`", lhs),
-                        format!("rhs hand side has type `{}`", rhs),
+                        format!("right hand side has type `{}`", rhs),
                     ],
                 )
             }
