@@ -51,11 +51,9 @@ impl Attribute for BuiltIn {
     const PATH: &'static str = "builtin";
 }
 
+/// NB: at this point we don't support attributes beyond the empty `#[test]`.
 #[derive(Parse)]
-pub(crate) struct Test {
-    /// Arguments to the test.
-    pub args: Option<ast::Parenthesized<ast::Ident, T![,]>>,
-}
+pub(crate) struct Test {}
 
 impl Attribute for Test {
     /// Must match the specified name.

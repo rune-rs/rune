@@ -560,7 +560,7 @@ impl Query {
         let item = inner.insert_new_item_with(id, &item, source_id, spanned, module, visibility)?;
 
         // toplevel public uses are re-exported.
-        if module.item.is_empty() && item.visibility.is_public() {
+        if item.is_public() {
             inner.queue.push_back(BuildEntry {
                 location,
                 item: item.clone(),

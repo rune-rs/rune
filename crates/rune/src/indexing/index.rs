@@ -593,34 +593,6 @@ impl Index for ast::ItemFn {
         let span = self.span();
         log::trace!("ItemFn => {:?}", idx.source.source(span));
 
-        let mut attributes = attrs::Attributes::new(
-            self.attributes.clone(),
-            idx.storage.clone(),
-            idx.source.clone(),
-        );
-
-        let is_toplevel = idx.items.is_empty();
-
-        let is_test = match attributes.try_parse::<attrs::Test>()? {
-            Some(_test) => {
-                if !is_toplevel {
-                    return Err(CompileError::msg(
-                        span,
-                        "#[test] is not supported on nested",
-                    ));
-                }
-
-                true
-            }
-            None => {
-                if let Some(attrs) = attributes.remaining() {
-                    return Err(CompileError::msg(attrs, "unrecognized function attribute"));
-                } else {
-                    false
-                }
-            }
-        };
-
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
         let _guard = idx.items.push_name(name.as_ref());
 
@@ -694,6 +666,20 @@ impl Index for ast::ItemFn {
             call,
         };
 
+        let is_public = item.is_public();
+
+        let mut attributes = attrs::Attributes::new(
+            self.attributes.clone(),
+            idx.storage.clone(),
+            idx.source.clone(),
+        );
+
+        let is_test = attributes.try_parse::<attrs::Test>()?.is_some();
+
+        if let Some(attrs) = attributes.remaining() {
+            return Err(CompileError::msg(attrs, "unrecognized function attribute"));
+        }
+
         if self.is_instance() {
             if is_test {
                 return Err(CompileError::msg(
@@ -740,7 +726,7 @@ impl Index for ast::ItemFn {
             };
 
             idx.query.insert_meta(span, meta)?;
-        } else if is_toplevel && item.visibility.is_public() || is_test {
+        } else if is_public || is_test {
             // NB: immediately compile all toplevel functions.
             idx.query.push_build_entry(BuildEntry {
                 location: Location::new(idx.source_id, fun.ast.item_span()),
