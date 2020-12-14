@@ -1028,8 +1028,20 @@ impl fmt::Debug for Value {
             }
             value => {
                 let mut s = String::new();
-                let result = value.string_debug(&mut s).map_err(|_| fmt::Error)?;
+                let result = match value.string_debug(&mut s) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        // this isn't very nice, but if protocol string fails
+                        // this used to crash out immediately... in this way,
+                        // one can at least get soms semblance of info for all
+                        // types. And if the type doesn't have type info
+                        // something else has gone terribly wrong.
+                        s = format!("{:?}", value.type_info().unwrap());
+                        Ok(())
+                    }
+                };
                 result?;
+
                 write!(f, "{}", s)?;
             }
         }

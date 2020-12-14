@@ -124,20 +124,20 @@ impl Command {
 
 #[derive(StructOpt, Debug, Clone)]
 struct CheckFlags {
-    #[structopt(parse(from_os_str))]
-    paths: Vec<PathBuf>,
+    /// Exit with a non-zero exit-code even for warnings
+    #[structopt(long)]
+    warnings_are_errors: bool,
 }
 
 #[derive(StructOpt, Debug, Clone)]
-struct TestFlags {
+pub(crate) struct TestFlags {
+    /// Display one character per test instead of one line
     #[structopt(short = "q", long)]
     quiet: bool,
 
+    /// Run all tests regardless of failure
     #[structopt(long)]
     no_fail_fast: bool,
-
-    #[structopt(parse(from_os_str))]
-    paths: Vec<PathBuf>,
 }
 
 #[derive(StructOpt, Debug, Clone)]
@@ -229,6 +229,8 @@ struct Args {
     #[structopt(name = "option", short = "O", number_of_values = 1)]
     compiler_options: Vec<String>,
 
+    /// All paths to include in the command. By default, the tool searches the
+    /// current directory and some known files for candidates.
     #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
 }
@@ -323,6 +325,8 @@ fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::
         }
     })
 }
+
+/// Load context and code for a given path
 async fn load_path(
     out: &mut StandardStream,
     args: &Args,
@@ -434,16 +438,59 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     let mut out = StandardStream::stdout(choice);
 
     match &args.cmd {
-        Command::Check(_checkargs) => {
+        Command::Check(checkargs) => {
             writeln!(out, "Checking: {}", path.display())?;
-            match load_path(&mut out, args, &options, path).await {
-                Ok(_) => Ok(ExitCode::Success),
-                Err(_) => Ok(ExitCode::Failure),
+
+            let mut context = rune_modules::default_context()?;
+
+            if args.experimental {
+                context.install(&rune_modules::experiments::module(true)?)?;
+            }
+
+            let source = runestick::Source::from_path(path)
+                .with_context(|| format!("reading file: {}", path.display()))?;
+
+            let mut sources = rune::Sources::new();
+
+            sources.insert(source);
+
+            log::trace!("building file: {}", path.display());
+
+            let mut errors = rune::Errors::new();
+            let mut warnings = rune::Warnings::new();
+
+            let test_finder = Rc::new(tests::TestVisitor::default());
+            let source_loader = Rc::new(rune::FileSourceLoader::new());
+
+            let _ = rune::load_sources_with_visitor(
+                &context,
+                &options,
+                &mut sources,
+                &mut errors,
+                &mut warnings,
+                test_finder.clone(),
+                source_loader.clone(),
+            );
+
+            if !errors.is_empty() {
+                errors.emit_diagnostics(&mut out, &sources).unwrap();
+            }
+
+            if !warnings.is_empty() {
+                warnings.emit_diagnostics(&mut out, &sources).unwrap();
+            }
+
+            if !errors.is_empty() {
+                Ok(ExitCode::Failure)
+            } else if checkargs.warnings_are_errors && !warnings.is_empty() {
+                Ok(ExitCode::Failure)
+            } else {
+                Ok(ExitCode::Success)
             }
         }
-        Command::Test(_) => match load_path(&mut out, args, &options, path).await {
+        Command::Test(testflags) => match load_path(&mut out, args, &options, path).await {
             Ok((unit, _context, runtime, sources, tests)) => {
-                tests::do_tests(args, out, runtime, unit, sources, tests).await
+                tests::do_tests(testflags, out, runtime, unit, sources, tests).await
             }
             Err(_) => Ok(ExitCode::Failure),
         },
