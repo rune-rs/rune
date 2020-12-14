@@ -65,19 +65,83 @@ mod tests;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
 
-#[derive(Default, Debug, Clone, StructOpt)]
-#[structopt(name = "rune", about = "The Rune Language Interpreter", version = VERSION)]
-struct Args {
-    /// Control if output is colored or not.
-    ///
-    /// Valid options are:
-    /// * `auto` - try to detect automatically.
-    /// * `ansi` - unconditionally emit ansi control codes.
-    /// * `always` - always enabled.
-    ///
-    /// Anything else will disable coloring.
-    #[structopt(short = "C", long, default_value = "auto")]
-    color: String,
+#[derive(StructOpt, Debug, Clone)]
+enum Command {
+    /// Run checks but do not execute
+    Check(CheckFlags),
+
+    /// Run all tests but do not execute
+    Test(TestFlags),
+
+    /// Run the designated script
+    Run(RunFlags),
+}
+
+impl Command {
+    fn add_option_overrides(&self, mut options: rune::Options) -> rune::Options {
+        match self {
+            Command::Test(_) | Command::Check(_) => {
+                options.test(true);
+                options.bytecode(false);
+                options
+            }
+
+            Command::Run(_) => options,
+        }
+    }
+
+    fn propagate_related_flags(&mut self) {
+        match self {
+            Command::Check(_) => {}
+            Command::Test(_) => {}
+            Command::Run(args) => {
+                if args.dump {
+                    args.dump_unit = true;
+                    args.dump_stack = true;
+                    args.dump_functions = true;
+                    args.dump_types = true;
+                    args.dump_native_functions = true;
+                    args.dump_native_types = true;
+                }
+
+                if args.dump_unit {
+                    args.dump_unit = true;
+                    args.dump_instructions = true;
+                }
+
+                if args.dump_functions
+                    || args.dump_native_functions
+                    || args.dump_stack
+                    || args.dump_types
+                    || args.dump_instructions
+                {
+                    args.dump_unit = true;
+                }
+            }
+        }
+    }
+}
+
+#[derive(StructOpt, Debug, Clone)]
+struct CheckFlags {
+    #[structopt(parse(from_os_str))]
+    paths: Vec<PathBuf>,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+struct TestFlags {
+    #[structopt(short = "q", long)]
+    quiet: bool,
+
+    #[structopt(long)]
+    no_fail_fast: bool,
+
+    #[structopt(parse(from_os_str))]
+    paths: Vec<PathBuf>,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+struct RunFlags {
     /// Provide detailed tracing for each instruction executed.
     #[structopt(short, long)]
     trace: bool,
@@ -95,38 +159,59 @@ struct Args {
     /// If compiled with `--trace` will dump it after each instruction.
     #[structopt(long)]
     dump_stack: bool,
+
     /// Dump dynamic functions.
     #[structopt(long)]
     dump_functions: bool,
+
     /// Dump dynamic types.
     #[structopt(long)]
     dump_types: bool,
+
     /// Dump native functions.
     #[structopt(long)]
     dump_native_functions: bool,
+
     /// Dump native types.
     #[structopt(long)]
     dump_native_types: bool,
+
     /// Include source code references where appropriate (only available if -O debug-info=true).
     #[structopt(long)]
     with_source: bool,
+
+    #[structopt(parse(from_os_str))]
+    paths: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, StructOpt)]
+#[structopt(name = "rune", about = "The Rune Language Interpreter", version = VERSION)]
+struct Args {
+    /// Control if output is colored or not.
+    ///
+    /// Valid options are:
+    /// * `auto` - try to detect automatically.
+    /// * `ansi` - unconditionally emit ansi control codes.
+    /// * `always` - always enabled.
+    ///
+    /// Anything else will disable coloring.
+    #[structopt(short = "C", long, default_value = "auto")]
+    color: String,
+
     /// Enable experimental features.
     ///
     /// This makes the `std::experimental` module available to scripts.
     #[structopt(long)]
     experimental: bool,
+
     /// Recursively load all files in the given directory.
     #[structopt(long)]
     recursive: bool,
-    /// Run tests instead of the main entrypoint
-    #[structopt(long)]
-    test: bool,
-    /// Only test that the specified files compile, but don't execute them.
-    #[structopt(long)]
-    no_execute: bool,
-    /// Rune scripts to run.
-    #[structopt(parse(from_os_str))]
-    paths: Vec<PathBuf>,
+
+    /// The command to execute
+    #[structopt(subcommand)] // Note that we mark a field as a subcommand
+    cmd: Command,
+
     /// Display warnings.
     #[structopt(long)]
     warnings: bool,
@@ -143,35 +228,41 @@ struct Args {
     /// bytecode[=<true/false>] - Enable or disable bytecode caching (experimental).
     #[structopt(name = "option", short = "O", number_of_values = 1)]
     compiler_options: Vec<String>,
+
+    #[structopt(parse(from_os_str))]
+    paths: Vec<PathBuf>,
 }
+
+const SPECIAL_FILES: &[&str] = &[
+    "main.rn",
+    "lib.rn",
+    "src/main.rn",
+    "src/lib.rn",
+    "script/main.rn",
+    "script/lib.rn",
+];
 
 async fn try_main() -> Result<ExitCode> {
     env_logger::init();
 
     let mut args = Args::from_args();
 
-    if args.dump {
-        args.dump_unit = true;
-        args.dump_stack = true;
-        args.dump_functions = true;
-        args.dump_types = true;
-        args.dump_native_functions = true;
-        args.dump_native_types = true;
+    if args.paths.is_empty() {
+        for file in SPECIAL_FILES {
+            let path = PathBuf::from(file);
+            if path.exists() && path.is_file() {
+                args.paths.push(path);
+                break;
+            }
+        }
+
+        if args.paths.is_empty() {
+            println!("Invalid usage: No input path given and no main or lib file found");
+            return Ok(ExitCode::Failure);
+        }
     }
 
-    if args.dump_unit {
-        args.dump_unit = true;
-        args.dump_instructions = true;
-    }
-
-    if args.dump_functions
-        || args.dump_native_functions
-        || args.dump_stack
-        || args.dump_types
-        || args.dump_instructions
-    {
-        args.dump_unit = true;
-    }
+    args.cmd.propagate_related_flags();
 
     let mut options = rune::Options::default();
 
@@ -179,35 +270,21 @@ async fn try_main() -> Result<ExitCode> {
         options.parse_option(opt)?;
     }
 
-    if args.test {
-        options.test(true);
-    }
-
-    if args.paths.is_empty() {
-        println!("Invalid usage: Missing Input Paths (at least one file required)");
-        return Ok(ExitCode::Failure);
-    }
+    options = args.cmd.add_option_overrides(options);
 
     let paths = walk_paths(args.recursive, std::mem::take(&mut args.paths));
-    let mut status = ExitCode::Success;
-
     for path in paths {
         let path = path?;
 
         match run_path(&args, &options, &path).await? {
             ExitCode::Success => (),
             other => {
-                if args.no_execute {
-                    status = ExitCode::Failure;
-                    continue;
-                }
-
                 return Ok(other);
             }
         }
     }
 
-    Ok(status)
+    Ok(ExitCode::Success)
 }
 
 fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::Result<PathBuf>> {
@@ -246,28 +323,18 @@ fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::
         }
     })
 }
-
-/// Run a single path.
-async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<ExitCode> {
-    let choice = match args.color.as_str() {
-        "always" => ColorChoice::Always,
-        "ansi" => ColorChoice::AlwaysAnsi,
-        "auto" => {
-            if atty::is(atty::Stream::Stdout) {
-                ColorChoice::Auto
-            } else {
-                ColorChoice::Never
-            }
-        }
-        _ => ColorChoice::Never,
-    };
-
-    let mut out = StandardStream::stdout(choice);
-
-    if args.no_execute {
-        writeln!(out, "building: {}", path.display())?;
-    }
-
+async fn load_path(
+    out: &mut StandardStream,
+    args: &Args,
+    options: &rune::Options,
+    path: &Path,
+) -> Result<(
+    Arc<Unit>,
+    runestick::Context,
+    Arc<runestick::RuntimeContext>,
+    rune::Sources,
+    Vec<(runestick::Hash, runestick::CompileMeta)>,
+)> {
     let bytecode_path = path.with_extension("rnc");
     let mut context = rune_modules::default_context()?;
 
@@ -285,7 +352,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
     let use_cache = options.bytecode && should_cache_be_used(&path, &bytecode_path)?;
     // TODO: how do we deal with tests discovery for bytecode loading
-    let maybe_unit = if use_cache && !args.test {
+    let maybe_unit = if use_cache {
         let f = fs::File::open(&bytecode_path)?;
         match bincode::deserialize_from::<_, Unit>(f) {
             Ok(unit) => {
@@ -322,9 +389,9 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 source_loader.clone(),
             ) {
                 Ok(unit) => unit,
-                Err(rune::LoadSourcesError) => {
-                    errors.emit_diagnostics(&mut out, &sources)?;
-                    return Ok(ExitCode::Failure);
+                Err(err @ rune::LoadSourcesError) => {
+                    errors.emit_diagnostics(out, &sources)?;
+                    return Err(err.into());
                 }
             };
 
@@ -335,7 +402,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             }
 
             if args.warnings && !warnings.is_empty() {
-                warnings.emit_diagnostics(&mut out, &sources)?;
+                warnings.emit_diagnostics(out, &sources)?;
             }
 
             let test_finder = match Rc::try_unwrap(test_finder) {
@@ -346,76 +413,111 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             (Arc::new(unit), test_finder.into_test_functions())
         }
     };
+    Ok((unit, context, runtime, sources, tests))
+}
 
-    if args.dump_native_functions {
-        writeln!(out, "# functions")?;
-
-        for (i, (hash, f)) in context.iter_functions().enumerate() {
-            writeln!(out, "{:04} = {} ({})", i, f, hash)?;
+/// Run a single path.
+async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<ExitCode> {
+    let choice = match args.color.as_str() {
+        "always" => ColorChoice::Always,
+        "ansi" => ColorChoice::AlwaysAnsi,
+        "auto" => {
+            if atty::is(atty::Stream::Stdout) {
+                ColorChoice::Auto
+            } else {
+                ColorChoice::Never
+            }
         }
-    }
+        _ => ColorChoice::Never,
+    };
 
-    if args.dump_native_types {
-        writeln!(out, "# types")?;
+    let mut out = StandardStream::stdout(choice);
 
-        for (i, (hash, ty)) in context.iter_types().enumerate() {
-            writeln!(out, "{:04} = {} ({})", i, ty, hash)?;
+    match &args.cmd {
+        Command::Check(_checkargs) => {
+            writeln!(out, "Checking: {}", path.display())?;
+            match load_path(&mut out, args, &options, path).await {
+                Ok(_) => Ok(ExitCode::Success),
+                Err(_) => Ok(ExitCode::Failure),
+            }
         }
-    }
+        Command::Test(_) => match load_path(&mut out, args, &options, path).await {
+            Ok((unit, _context, runtime, sources, tests)) => {
+                tests::do_tests(args, out, runtime, unit, sources, tests).await
+            }
+            Err(_) => Ok(ExitCode::Failure),
+        },
+        Command::Run(runargs) => {
+            let (unit, context, runtime, sources, _tests) =
+                match load_path(&mut out, args, &options, path).await {
+                    Ok(v) => v,
+                    Err(_) => return Ok(ExitCode::Failure),
+                };
 
-    if args.dump_unit {
-        if args.dump_instructions {
-            writeln!(out, "# instructions")?;
-            let mut out = out.lock();
-            unit.dump_instructions(&mut out, &sources, args.with_source)?;
-        }
+            if runargs.dump_native_functions {
+                writeln!(out, "# functions")?;
 
-        let mut functions = unit.iter_functions().peekable();
-        let mut strings = unit.iter_static_strings().peekable();
-        let mut keys = unit.iter_static_object_keys().peekable();
-
-        if args.dump_functions && functions.peek().is_some() {
-            writeln!(out, "# dynamic functions")?;
-
-            for (hash, kind) in functions {
-                if let Some(signature) = unit.debug_info().and_then(|d| d.functions.get(&hash)) {
-                    writeln!(out, "{} = {}", hash, signature)?;
-                } else {
-                    writeln!(out, "{} = {}", hash, kind)?;
+                for (i, (hash, f)) in context.iter_functions().enumerate() {
+                    writeln!(out, "{:04} = {} ({})", i, f, hash)?;
                 }
             }
-        }
 
-        if strings.peek().is_some() {
-            writeln!(out, "# strings")?;
+            if runargs.dump_native_types {
+                writeln!(out, "# types")?;
 
-            for string in strings {
-                writeln!(out, "{} = {:?}", string.hash(), string)?;
+                for (i, (hash, ty)) in context.iter_types().enumerate() {
+                    writeln!(out, "{:04} = {} ({})", i, ty, hash)?;
+                }
             }
-        }
 
-        if keys.peek().is_some() {
-            writeln!(out, "# object keys")?;
+            if runargs.dump_unit {
+                if runargs.dump_instructions {
+                    writeln!(out, "# instructions")?;
+                    let mut out = out.lock();
+                    unit.dump_instructions(&mut out, &sources, runargs.with_source)?;
+                }
 
-            for (hash, keys) in keys {
-                writeln!(out, "{} = {:?}", hash, keys)?;
+                let mut functions = unit.iter_functions().peekable();
+                let mut strings = unit.iter_static_strings().peekable();
+                let mut keys = unit.iter_static_object_keys().peekable();
+
+                if runargs.dump_functions && functions.peek().is_some() {
+                    writeln!(out, "# dynamic functions")?;
+
+                    for (hash, kind) in functions {
+                        if let Some(signature) =
+                            unit.debug_info().and_then(|d| d.functions.get(&hash))
+                        {
+                            writeln!(out, "{} = {}", hash, signature)?;
+                        } else {
+                            writeln!(out, "{} = {}", hash, kind)?;
+                        }
+                    }
+                }
+
+                if strings.peek().is_some() {
+                    writeln!(out, "# strings")?;
+
+                    for string in strings {
+                        writeln!(out, "{} = {:?}", string.hash(), string)?;
+                    }
+                }
+
+                if keys.peek().is_some() {
+                    writeln!(out, "# object keys")?;
+
+                    for (hash, keys) in keys {
+                        writeln!(out, "{} = {:?}", hash, keys)?;
+                    }
+                }
             }
+            do_run(&runargs, out, runtime, unit, sources).await
         }
-    }
-
-    if args.no_execute {
-        return Ok(ExitCode::Success);
-    }
-
-    if args.test {
-        tests::do_tests(args, out, runtime, unit, sources, tests).await
-    } else {
-        do_run(args, out, runtime, unit, sources).await
     }
 }
 
 async fn do_run(
-    args: &Args,
+    args: &RunFlags,
     mut out: StandardStream,
     runtime: Arc<runestick::RuntimeContext>,
     unit: Arc<Unit>,
