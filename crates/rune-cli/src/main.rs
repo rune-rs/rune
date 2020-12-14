@@ -432,7 +432,8 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 ColorChoice::Never
             }
         }
-        _ => ColorChoice::Never,
+        "never" => ColorChoice::Never,
+        _ => ColorChoice::Auto,
     };
 
     let mut out = StandardStream::stdout(choice);
