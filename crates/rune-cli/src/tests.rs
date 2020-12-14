@@ -1,17 +1,10 @@
 use crate::ExitCode;
-use rune::{
-    termcolor::{ColorChoice, StandardStream},
-    EmitDiagnostics, Sources,
-};
+use rune::{termcolor::StandardStream, EmitDiagnostics, Sources};
 use runestick::{
     CompileMeta, CompileMetaKind, Hash, RuntimeContext, Unit, UnitFn, Value, Vm, VmError,
     VmErrorKind,
 };
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::io::Write;
-use std::sync::Arc;
-use std::time::Instant;
+use std::{cell::RefCell, io::Write, sync::Arc, time::Instant};
 
 #[derive(Default)]
 pub struct TestVisitor {
@@ -38,32 +31,42 @@ impl rune::CompileVisitor for TestVisitor {
     }
 }
 
+#[derive(Debug)]
 enum FailureReason {
     Crash(VmError),
     ReturnedNone,
     ReturnedErr(Result<Value, Value>),
 }
 
-pub(crate) async fn do_tests(
-    _args: &crate::Args, // TODO: capture-output flag
-    mut out: StandardStream,
-    runtime: Arc<RuntimeContext>,
-    unit: Arc<Unit>,
-    sources: Sources,
-    tests: Vec<(Hash, CompileMeta)>,
-) -> anyhow::Result<ExitCode> {
-    // TODO: use rune-tests capture_output to stop prints from tests from showing
-    let start = Instant::now();
-    let mut failures = HashMap::new();
+#[derive(Debug)]
+struct TestCase {
+    hash: Hash,
+    meta: CompileMeta,
+    outcome: Option<FailureReason>,
+}
 
-    for test in &tests {
-        write!(out, "testing {:40} ", test.1.item.item)?;
-        let mut vm = Vm::new(runtime.clone(), unit.clone());
+impl TestCase {
+    fn from_parts(hash: Hash, meta: CompileMeta) -> Self {
+        Self {
+            hash,
+            meta,
+            outcome: None,
+        }
+    }
 
-        let info = unit.lookup(test.0).ok_or_else(|| {
+    fn start(&self, out: &mut StandardStream, quiet: bool) -> Result<(), std::io::Error> {
+        if quiet {
+            return Ok(());
+        }
+
+        write!(out, "Test {:30} ", self.meta.item.item)
+    }
+
+    async fn execute(&mut self, unit: &Unit, mut vm: Vm) -> Result<bool, VmError> {
+        let info = unit.lookup(self.hash).ok_or_else(|| {
             VmError::from(VmErrorKind::MissingEntry {
-                hash: test.0,
-                item: test.1.item.item.clone(),
+                hash: self.hash,
+                item: self.meta.item.item.clone(),
             })
         })?;
 
@@ -72,69 +75,143 @@ pub(crate) async fn do_tests(
             // everything is just async when called externally.
             UnitFn::Offset { offset, .. } => offset,
             _ => {
-                return Err(VmError::from(VmErrorKind::MissingFunction { hash: test.0 }).into());
+                return Err(VmError::from(VmErrorKind::MissingFunction { hash: self.hash }).into());
             }
         };
 
         vm.set_ip(offset);
-        match vm.async_complete().await {
-            Err(e) => {
-                // TODO: store output here
-                failures.insert(test.1.item.item.clone(), FailureReason::Crash(e));
-                writeln!(out, "crashed")?;
-            }
+        self.outcome = match vm.async_complete().await {
+            Err(e) => Some(FailureReason::Crash(e)),
             Ok(v) => {
                 if let Ok(v) = v.clone().into_result() {
                     let res = v.take().unwrap();
                     if res.is_err() {
-                        failures.insert(test.1.item.item.clone(), FailureReason::ReturnedErr(res));
-                        writeln!(out, "returned error")?;
+                        Some(FailureReason::ReturnedErr(res))
+                    } else {
+                        None
                     }
-
-                    continue;
-                }
-                if let Ok(v) = v.into_option() {
+                } else if let Ok(v) = v.into_option() {
                     if v.borrow_ref().unwrap().is_none() {
-                        failures.insert(test.1.item.item.clone(), FailureReason::ReturnedNone);
-                        writeln!(out, "returned none")?;
+                        Some(FailureReason::ReturnedNone)
+                    } else {
+                        None
                     }
-
-                    continue;
+                } else {
+                    None
                 }
+            }
+        };
 
-                writeln!(out, "passed")?;
+        Ok(self.outcome.is_none())
+    }
+
+    fn end(&self, out: &mut StandardStream, quiet: bool) -> Result<(), std::io::Error> {
+        if quiet {
+            match &self.outcome {
+                Some(FailureReason::Crash(_)) => {
+                    write!(out, "F")
+                }
+                Some(FailureReason::ReturnedErr(_)) => {
+                    write!(out, "f")
+                }
+                Some(FailureReason::ReturnedNone) => {
+                    write!(out, "n")
+                }
+                None => write!(out, "."),
+            }
+        } else {
+            match &self.outcome {
+                Some(FailureReason::Crash(_)) => {
+                    writeln!(out, "failed")
+                }
+                Some(FailureReason::ReturnedErr(_)) => {
+                    writeln!(out, "returned error")
+                }
+                Some(FailureReason::ReturnedNone) => {
+                    writeln!(out, "returned none")
+                }
+                None => writeln!(out, "passed"),
             }
         }
     }
 
+    fn emit_diagnostics(
+        &self,
+        out: &mut StandardStream,
+        sources: &Sources,
+    ) -> Result<(), std::io::Error> {
+        if self.outcome.is_none() {
+            return Ok(());
+        }
+        match self.outcome.as_ref().unwrap() {
+            FailureReason::Crash(err) => {
+                writeln!(out, "----------------------------------------")?;
+                writeln!(out, "Test: {}\n", self.meta.item.item)?;
+                err.emit_diagnostics(out, &sources)
+                    .expect("failed writing diagnostics");
+            }
+            FailureReason::ReturnedNone => {}
+            FailureReason::ReturnedErr(e) => {
+                writeln!(out, "----------------------------------------")?;
+                writeln!(out, "Test: {}\n", self.meta.item.item)?;
+                writeln!(out, "Return value: {:?}\n", e)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+pub(crate) async fn do_tests(
+    test_args: &crate::TestFlags,
+    mut out: StandardStream,
+    runtime: Arc<RuntimeContext>,
+    unit: Arc<Unit>,
+    sources: Sources,
+    tests: Vec<(Hash, CompileMeta)>,
+) -> anyhow::Result<ExitCode> {
+    let mut cases = tests
+        .into_iter()
+        .map(|v| TestCase::from_parts(v.0, v.1))
+        .collect::<Vec<_>>();
+
+    writeln!(out, "Found {} tests...", cases.len())?;
+
+    let start = Instant::now();
+    let mut failure_count = 0;
+    let mut executed_count = 0;
+    for test in &mut cases {
+        executed_count += 1;
+        let vm = Vm::new(runtime.clone(), unit.clone());
+
+        test.start(&mut out, test_args.quiet)?;
+        let success = test.execute(unit.as_ref(), vm).await?;
+        test.end(&mut out, test_args.quiet)?;
+        if !success {
+            failure_count += 1;
+            if !test_args.no_fail_fast {
+                break;
+            }
+        }
+    }
+
+    if test_args.quiet {
+        writeln!(out, "")?;
+    }
     let elapsed = start.elapsed();
 
-    let failure_count = failures.len();
-    for (item, error) in failures {
-        let mut writer = StandardStream::stderr(ColorChoice::Always);
-        match error {
-            FailureReason::Crash(err) => {
-                println!("----------------------------------------");
-                println!("Test: {}\n", item);
-                err.emit_diagnostics(&mut writer, &sources)
-                    .expect("failed writing info");
-            }
-            FailureReason::ReturnedNone => continue,
-            FailureReason::ReturnedErr(e) => {
-                println!("----------------------------------------");
-                println!("Test: {}\n", item);
-                println!("Return value: {:?}\n", e);
-            }
-        }
+    for case in &cases {
+        case.emit_diagnostics(&mut out, &sources)?;
     }
 
-    println!("====");
-    println!(
-        "Ran {} tests with {} failures in {:.3} seconds",
-        tests.len(),
+    writeln!(out, "====")?;
+    writeln!(
+        out,
+        "Executed {} tests with {} failures ({} skipped) in {:.3} seconds",
+        executed_count,
         failure_count,
+        cases.len() - executed_count,
         elapsed.as_secs_f64()
-    );
+    )?;
 
     if failure_count == 0 {
         Ok(ExitCode::Success)
