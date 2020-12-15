@@ -78,18 +78,6 @@ enum Command {
 }
 
 impl Command {
-    fn add_option_overrides(&self, mut options: rune::Options) -> rune::Options {
-        match self {
-            Command::Test(_) | Command::Check(_) => {
-                options.test(true);
-                options.bytecode(false);
-                options
-            }
-
-            Command::Run(_) => options,
-        }
-    }
-
     fn propagate_related_flags(&mut self) {
         match self {
             Command::Check(_) => {}
@@ -123,10 +111,62 @@ impl Command {
 }
 
 #[derive(StructOpt, Debug, Clone)]
+struct SharedArgs {
+    /// Enable experimental features.
+    ///
+    /// This makes the `std::experimental` module available to scripts.
+    #[structopt(long)]
+    experimental: bool,
+
+    /// Recursively load all files in the given directory.
+    #[structopt(long)]
+    recursive: bool,
+
+    /// Display warnings.
+    #[structopt(long)]
+    warnings: bool,
+
+    /// Set the given compiler option (see `--help` for available options).
+    ///
+    /// memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
+    ///
+    /// link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.
+    ///
+    /// debug-info[=<true/false>] - Enable or disable debug info.
+    ///
+    /// macros[=<true/false>] - Enable or disable macros (experimental).
+    ///
+    /// bytecode[=<true/false>] - Enable or disable bytecode caching (experimental).
+    #[structopt(name = "option", short = "O", number_of_values = 1)]
+    compiler_options: Vec<String>,
+
+    /// All paths to include in the command. By default, the tool searches the
+    /// current directory and some known files for candidates.
+    #[structopt(parse(from_os_str))]
+    paths: Vec<PathBuf>,
+}
+
+impl SharedArgs {
+    /// Construct a runestick context according to the specified argument.
+    fn context(&self) -> Result<runestick::Context, runestick::ContextError> {
+        let mut context = rune_modules::default_context()?;
+
+        if self.experimental {
+            context.install(&rune_modules::experiments::module(true)?)?;
+        }
+
+        Ok(context)
+    }
+}
+
+#[derive(StructOpt, Debug, Clone)]
 struct CheckFlags {
     /// Exit with a non-zero exit-code even for warnings
     #[structopt(long)]
     warnings_are_errors: bool,
+
+    #[structopt(flatten)]
+    shared: SharedArgs,
 }
 
 #[derive(StructOpt, Debug, Clone)]
@@ -138,6 +178,9 @@ pub(crate) struct TestFlags {
     /// Run all tests regardless of failure
     #[structopt(long)]
     no_fail_fast: bool,
+
+    #[structopt(flatten)]
+    shared: SharedArgs,
 }
 
 #[derive(StructOpt, Debug, Clone)]
@@ -180,8 +223,8 @@ struct RunFlags {
     #[structopt(long)]
     with_source: bool,
 
-    #[structopt(parse(from_os_str))]
-    paths: Vec<PathBuf>,
+    #[structopt(flatten)]
+    shared: SharedArgs,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -198,41 +241,49 @@ struct Args {
     #[structopt(short = "C", long, default_value = "auto")]
     color: String,
 
-    /// Enable experimental features.
-    ///
-    /// This makes the `std::experimental` module available to scripts.
-    #[structopt(long)]
-    experimental: bool,
-
-    /// Recursively load all files in the given directory.
-    #[structopt(long)]
-    recursive: bool,
-
     /// The command to execute
     #[structopt(subcommand)] // Note that we mark a field as a subcommand
     cmd: Command,
+}
 
-    /// Display warnings.
-    #[structopt(long)]
-    warnings: bool,
-    /// Set the given compiler option (see `--help` for available options).
-    ///
-    /// memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
-    ///
-    /// link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.
-    ///
-    /// debug-info[=<true/false>] - Enable or disable debug info.
-    ///
-    /// macros[=<true/false>] - Enable or disable macros (experimental).
-    ///
-    /// bytecode[=<true/false>] - Enable or disable bytecode caching (experimental).
-    #[structopt(name = "option", short = "O", number_of_values = 1)]
-    compiler_options: Vec<String>,
+impl Args {
+    /// Construct compiler options from cli arguments.
+    fn options(&self) -> Result<rune::Options, rune::ConfigurationError> {
+        let mut options = rune::Options::default();
 
-    /// All paths to include in the command. By default, the tool searches the
-    /// current directory and some known files for candidates.
-    #[structopt(parse(from_os_str))]
-    paths: Vec<PathBuf>,
+        // Command-specific override defaults.
+        match &self.cmd {
+            Command::Test(_) | Command::Check(_) => {
+                options.test(true);
+                options.bytecode(false);
+            }
+            Command::Run(_) => (),
+        }
+
+        for option in &self.shared().compiler_options {
+            options.parse_option(option)?;
+        }
+
+        Ok(options)
+    }
+
+    /// Access shared arguments.
+    fn shared(&self) -> &SharedArgs {
+        match &self.cmd {
+            Command::Check(args) => &args.shared,
+            Command::Test(args) => &args.shared,
+            Command::Run(args) => &args.shared,
+        }
+    }
+
+    /// Access shared arguments mutably.
+    fn shared_mut(&mut self) -> &mut SharedArgs {
+        match &mut self.cmd {
+            Command::Check(args) => &mut args.shared,
+            Command::Test(args) => &mut args.shared,
+            Command::Run(args) => &mut args.shared,
+        }
+    }
 }
 
 const SPECIAL_FILES: &[&str] = &[
@@ -248,33 +299,29 @@ async fn try_main() -> Result<ExitCode> {
     env_logger::init();
 
     let mut args = Args::from_args();
+    args.cmd.propagate_related_flags();
 
-    if args.paths.is_empty() {
+    let options = args.options()?;
+
+    let shared = args.shared_mut();
+
+    if shared.paths.is_empty() {
         for file in SPECIAL_FILES {
             let path = PathBuf::from(file);
             if path.exists() && path.is_file() {
-                args.paths.push(path);
+                shared.paths.push(path);
                 break;
             }
         }
 
-        if args.paths.is_empty() {
+        if shared.paths.is_empty() {
             println!("Invalid usage: No input path given and no main or lib file found");
             return Ok(ExitCode::Failure);
         }
     }
 
-    args.cmd.propagate_related_flags();
+    let paths = walk_paths(shared.recursive, std::mem::take(&mut shared.paths));
 
-    let mut options = rune::Options::default();
-
-    for opt in &args.compiler_options {
-        options.parse_option(opt)?;
-    }
-
-    options = args.cmd.add_option_overrides(options);
-
-    let paths = walk_paths(args.recursive, std::mem::take(&mut args.paths));
     for path in paths {
         let path = path?;
 
@@ -327,7 +374,7 @@ fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::
 }
 
 /// Load context and code for a given path
-async fn load_path(
+fn load_path(
     out: &mut StandardStream,
     args: &Args,
     options: &rune::Options,
@@ -339,12 +386,10 @@ async fn load_path(
     rune::Sources,
     Vec<(runestick::Hash, runestick::CompileMeta)>,
 )> {
-    let bytecode_path = path.with_extension("rnc");
-    let mut context = rune_modules::default_context()?;
+    let shared = args.shared();
+    let context = shared.context()?;
 
-    if args.experimental {
-        context.install(&rune_modules::experiments::module(true)?)?;
-    }
+    let bytecode_path = path.with_extension("rnc");
 
     let source = runestick::Source::from_path(path)
         .with_context(|| format!("reading file: {}", path.display()))?;
@@ -355,9 +400,11 @@ async fn load_path(
     sources.insert(source);
 
     let use_cache = options.bytecode && should_cache_be_used(&path, &bytecode_path)?;
+
     // TODO: how do we deal with tests discovery for bytecode loading
     let maybe_unit = if use_cache {
         let f = fs::File::open(&bytecode_path)?;
+
         match bincode::deserialize_from::<_, Unit>(f) {
             Ok(unit) => {
                 log::trace!("using cache: {}", bytecode_path.display());
@@ -405,7 +452,7 @@ async fn load_path(
                 bincode::serialize_into(f, &unit)?;
             }
 
-            if args.warnings && !warnings.is_empty() {
+            if shared.warnings && !warnings.is_empty() {
                 warnings.emit_diagnostics(out, &sources)?;
             }
 
@@ -417,6 +464,7 @@ async fn load_path(
             (Arc::new(unit), test_finder.into_test_functions())
         }
     };
+
     Ok((unit, context, runtime, sources, tests))
 }
 
@@ -442,11 +490,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         Command::Check(checkargs) => {
             writeln!(out, "Checking: {}", path.display())?;
 
-            let mut context = rune_modules::default_context()?;
-
-            if args.experimental {
-                context.install(&rune_modules::experiments::module(true)?)?;
-            }
+            let context = checkargs.shared.context()?;
 
             let source = runestick::Source::from_path(path)
                 .with_context(|| format!("reading file: {}", path.display()))?;
@@ -454,8 +498,6 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             let mut sources = rune::Sources::new();
 
             sources.insert(source);
-
-            log::trace!("building file: {}", path.display());
 
             let mut errors = rune::Errors::new();
             let mut warnings = rune::Warnings::new();
@@ -477,7 +519,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 errors.emit_diagnostics(&mut out, &sources).unwrap();
             }
 
-            if !warnings.is_empty() {
+            if checkargs.shared.warnings && !warnings.is_empty() {
                 warnings.emit_diagnostics(&mut out, &sources).unwrap();
             }
 
@@ -489,7 +531,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 Ok(ExitCode::Success)
             }
         }
-        Command::Test(testflags) => match load_path(&mut out, args, &options, path).await {
+        Command::Test(testflags) => match load_path(&mut out, args, &options, path) {
             Ok((unit, _context, runtime, sources, tests)) => {
                 tests::do_tests(testflags, out, runtime, unit, sources, tests).await
             }
@@ -497,7 +539,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         },
         Command::Run(runargs) => {
             let (unit, context, runtime, sources, _tests) =
-                match load_path(&mut out, args, &options, path).await {
+                match load_path(&mut out, args, &options, path) {
                     Ok(v) => v,
                     Err(_) => return Ok(ExitCode::Failure),
                 };

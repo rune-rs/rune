@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+/// Error when parsing configuration.
 #[derive(Debug, Clone, Error)]
 pub enum ConfigurationError {
     /// Tried to configure the compiler with an unsupported optimzation option.
