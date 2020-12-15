@@ -31,7 +31,7 @@ jobs:
       - name: Run tests
         run: cargo test --all
       - name: Run example scripts
-        run: cargo run --bin rune -- --recursive --test --experimental -O macros=true scripts
+        run: cargo run --bin rune -- --recursive --experimental -O macros=true scripts check
   wasm:
     name: Wasm Build
     runs-on: ubuntu-latest
