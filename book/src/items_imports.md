@@ -22,7 +22,7 @@ statement:
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/items_imports/example_import.rn
+$> cargo run --bin rune -- run scripts/book/items_imports/example_import.rn
 == Iterator (60µs)
 ```
 
@@ -33,7 +33,7 @@ Trying to use an item which doesn't exist results in a compile error:
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/items_imports/missing_item.rn.fail
+$> cargo run --bin rune -- run scripts/book/items_imports/missing_item.rn.fail
 error: compile error
   ┌─ scripts/book/items_imports/missing_item.rn.fail:2:15
   │
@@ -58,7 +58,7 @@ The following is an example of an *inline* module:
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/items_imports/inline_modules.rn
+$> cargo run --bin rune -- run scripts/book/items_imports/inline_modules.rn
 == 3 (33.2µs)
 ```
 
@@ -80,7 +80,7 @@ separate files:
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/items_imports/modules.rn
+$> cargo run --bin rune -- run scripts/book/items_imports/modules.rn
 == 3 (37.5µs)
 ```
 

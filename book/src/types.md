@@ -12,7 +12,7 @@ not` operations, like this:
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/types/types.rn
+$> cargo run --bin rune -- run scripts/book/types/types.rn
 == () (120µs)
 ```
 
@@ -24,7 +24,7 @@ of that type.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/types/bad_type_check.rn
+$> cargo run --bin rune -- run scripts/book/types/bad_type_check.rn
 == ! (panicked `assertion failed: vectors should be strings` (at 12)) (133.3µs)
 error: virtual machine error
   ┌─ scripts/book/types/bad_type_check.rn:2:5
@@ -41,7 +41,7 @@ make decisions depending on what type a value has.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/types/type_check.rn
+$> cargo run --bin rune -- run scripts/book/types/type_check.rn
 n is a String
 n is a vector
 n is unknown
@@ -57,7 +57,7 @@ are different types or variants in an enum.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/types/type_check_patterns.rn
+$> cargo run --bin rune -- run scripts/book/types/type_check_patterns.rn
 n is a String
 n is a vector
 n is unknown

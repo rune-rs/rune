@@ -13,7 +13,7 @@ Below are some examples of its common uses to match on branch conditions:
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/pattern_matching/big_match.rn
+$> cargo run --bin rune -- run scripts/book/pattern_matching/big_match.rn
 The number one.
 Another number: 2.
 A vector starting with one and two, followed by 42.
@@ -67,7 +67,7 @@ This is called a *rest pattern*.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/pattern_matching/rest_pattern.rn
+$> cargo run --bin rune -- run scripts/book/pattern_matching/rest_pattern.rn
 == () (89.8µs)
 ```
 
@@ -83,7 +83,7 @@ what it is.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/pattern_matching/ignore.rn
+$> cargo run --bin rune -- run scripts/book/pattern_matching/ignore.rn
 Second item in vector is 2.
 == () (281.3µs)
 ```
@@ -97,7 +97,7 @@ give us access to it in the match arm.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/pattern_matching/bind.rn
+$> cargo run --bin rune -- run scripts/book/pattern_matching/bind.rn
 Second item in vector is 2.
 == () (6.25ms)
 ```
@@ -113,7 +113,7 @@ Here are some more examples:
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/pattern_matching/fast_cars.rn
+$> cargo run --bin rune -- run scripts/book/pattern_matching/fast_cars.rn
 Pretty fast!
 Can't tell 😞
 What, where did you get that?
