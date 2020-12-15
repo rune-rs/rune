@@ -15,7 +15,7 @@ impl Assemble for ast::Local {
         let false_label = c.asm.new_label("let_panic");
 
         if c.compile_pat(&self.pat, false_label, &load)? {
-            c.warnings
+            c.diagnostics
                 .let_pattern_might_panic(c.source_id, span, c.context());
 
             let ok_label = c.asm.new_label("let_ok");

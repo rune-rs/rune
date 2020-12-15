@@ -1,29 +1,38 @@
-use crate::load::{Warning, WarningKind};
+use crate::load::{Error, Warning, WarningKind};
 use crate::Spanned;
 use runestick::Span;
 
 /// Compilation warnings.
-#[derive(Debug, Clone, Default)]
-pub struct Warnings {
+#[derive(Debug)]
+pub struct Diagnostics {
+    errors: Vec<Error>,
     warnings: Option<Vec<Warning>>,
 }
 
-impl Warnings {
+impl Diagnostics {
     /// Construct a new, empty collection of compilation warnings that is
     /// disabled, i.e. any warnings added to it will be ignored.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Warnings;
+    /// use rune::Diagnostics;
     /// use runestick::Span;
     ///
-    /// let mut warnings = Warnings::disabled();
-    /// assert!(warnings.is_empty());
-    /// warnings.not_used(0, Span::empty(), None);
+    /// let mut diagnostics = Diagnostics::without_warnings();
+    /// assert!(diagnostics.is_empty());
+    ///
+    /// diagnostics.not_used(0, Span::empty(), None);
+    ///
+    /// assert!(diagnostics.is_empty());
+    /// let warning = diagnostics.into_warnings().into_iter().next();
+    /// assert!(matches!(warning, None));
     /// ```
-    pub fn disabled() -> Self {
-        Self { warnings: None }
+    pub fn without_warnings() -> Self {
+        Self {
+            errors: Vec::new(),
+            warnings: None,
+        }
     }
 
     /// Construct a new, empty collection of compilation warnings.
@@ -31,30 +40,50 @@ impl Warnings {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Warnings, Warning, WarningKind};
+    /// use rune::{Diagnostics, Warning, WarningKind};
     /// use runestick::Span;
     ///
-    /// let mut warnings = Warnings::new();
-    /// assert!(warnings.is_empty());
-    /// warnings.not_used(0, Span::empty(), None);
-    /// assert!(!warnings.is_empty());
+    /// let mut diagnostics = Diagnostics::new();
+    /// assert!(diagnostics.is_empty());
     ///
-    /// assert!(matches!(warnings.iter().next(), Some(Warning { source_id: 0, kind: WarningKind::NotUsed { .. } })));
+    /// diagnostics.not_used(0, Span::empty(), None);
+    ///
+    /// assert!(!diagnostics.is_empty());
+    /// let warning = diagnostics.into_warnings().into_iter().next();
+    /// assert!(matches!(warning, Some(Warning { source_id: 0, kind: WarningKind::NotUsed { .. } })));
     /// ```
     pub fn new() -> Self {
-        Self {
-            warnings: Some(Vec::new()),
-        }
+        Self::default()
     }
 
-    /// Indicate if there are warnings or not.
+    /// Indicate if there is any diagnostics.
     pub fn is_empty(&self) -> bool {
-        self.warnings.as_ref().map(Vec::is_empty).unwrap_or(true)
+        self.errors.is_empty() && self.warnings.as_ref().map(Vec::is_empty).unwrap_or(true)
     }
 
-    /// Get an iterator over all the warnings.
-    pub fn iter(&self) -> impl Iterator<Item = &'_ Warning> {
-        self.into_iter()
+    /// Access underlying warnings.
+    pub fn warnings(&self) -> &[Warning] {
+        self.warnings.as_deref().unwrap_or_default()
+    }
+
+    /// Convert into underlying warnings.
+    pub fn into_warnings(self) -> Vec<Warning> {
+        self.warnings.unwrap_or_default()
+    }
+
+    /// Access underlying errors.
+    pub fn errors(&self) -> &[Error] {
+        self.errors.as_slice()
+    }
+
+    /// Convert into underlying errors.
+    pub fn into_errors(self) -> Vec<Error> {
+        self.errors
+    }
+
+    /// Push an error to the collection.
+    pub fn error(&mut self, error: Error) {
+        self.errors.push(error);
     }
 
     /// Indicate that a value is produced but never used.
@@ -137,15 +166,11 @@ impl Warnings {
     }
 }
 
-impl<'a> IntoIterator for &'a Warnings {
-    type IntoIter = std::slice::Iter<'a, Warning>;
-    type Item = &'a Warning;
-
-    fn into_iter(self) -> Self::IntoIter {
-        if let Some(w) = &self.warnings {
-            w.iter()
-        } else {
-            (&[]).iter()
+impl Default for Diagnostics {
+    fn default() -> Self {
+        Self {
+            errors: Vec::new(),
+            warnings: Some(Vec::new()),
         }
     }
 }

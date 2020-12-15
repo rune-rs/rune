@@ -6,7 +6,7 @@ impl AssembleConst for ConstValue {
         use num::ToPrimitive as _;
 
         if !needs.value() {
-            c.warnings.not_used(c.source_id, span, c.context());
+            c.diagnostics.not_used(c.source_id, span, c.context());
             return Ok(());
         }
 

@@ -34,7 +34,7 @@ impl Assemble for BuiltInTemplate {
         }
 
         if self.from_literal && expansions == 0 {
-            c.warnings
+            c.diagnostics
                 .template_without_expansions(c.source_id, span, c.context());
         }
 

@@ -12,8 +12,8 @@ use crate::query::{
 use crate::shared::{Consts, Items};
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{
-    CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _, Options,
-    ParseError, Resolve as _, Spanned as _, Storage, Warnings,
+    CompileError, CompileErrorKind, CompileResult, CompileVisitor, Diagnostics, OptionSpanned as _,
+    Options, ParseError, Resolve as _, Spanned as _, Storage,
 };
 use runestick::format;
 use runestick::{
@@ -46,7 +46,7 @@ pub(crate) struct Indexer<'a> {
     pub(crate) options: &'a Options,
     pub(crate) source_id: SourceId,
     pub(crate) source: Arc<Source>,
-    pub(crate) warnings: &'a mut Warnings,
+    pub(crate) diagnostics: &'a mut Diagnostics,
     pub(crate) items: Items,
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
@@ -592,7 +592,7 @@ impl Index for ast::File {
         for (item, semi_colon) in &mut self.items {
             if let Some(semi_colon) = semi_colon {
                 if !item.needs_semi_colon() {
-                    idx.warnings
+                    idx.diagnostics
                         .uneccessary_semi_colon(idx.source_id, semi_colon.span());
                 }
             }
@@ -919,7 +919,7 @@ impl Index for ast::Block {
                 }
                 ast::Stmt::Expr(expr, Some(semi)) => {
                     if !expr.needs_semi() {
-                        idx.warnings
+                        idx.diagnostics
                             .uneccessary_semi_colon(idx.source_id, semi.span());
                     }
 
@@ -928,7 +928,7 @@ impl Index for ast::Block {
                 ast::Stmt::Item(item, semi) => {
                     if let Some(semi) = semi {
                         if !item.needs_semi_colon() {
-                            idx.warnings
+                            idx.diagnostics
                                 .uneccessary_semi_colon(idx.source_id, semi.span());
                         }
                     }

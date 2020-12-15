@@ -28,7 +28,7 @@ impl Assemble for ast::ExprFieldAccess {
                     c.asm.push(Inst::TupleIndexGet { index }, span);
 
                     if !needs.value() {
-                        c.warnings.not_used(c.source_id, span, c.context());
+                        c.diagnostics.not_used(c.source_id, span, c.context());
                         c.asm.push(Inst::Pop, span);
                     }
 
@@ -43,7 +43,7 @@ impl Assemble for ast::ExprFieldAccess {
                     c.asm.push(Inst::ObjectIndexGet { slot }, span);
 
                     if !needs.value() {
-                        c.warnings.not_used(c.source_id, span, c.context());
+                        c.diagnostics.not_used(c.source_id, span, c.context());
                         c.asm.push(Inst::Pop, span);
                     }
 
@@ -97,7 +97,8 @@ fn try_immediate_field_access_optimization(
     );
 
     if !needs.value() {
-        this.warnings.not_used(this.source_id, span, this.context());
+        this.diagnostics
+            .not_used(this.source_id, span, this.context());
         this.asm.push(Inst::Pop, span);
     }
 

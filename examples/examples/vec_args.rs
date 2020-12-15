@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rune::{Errors, Options, Sources, Warnings};
+use rune::{Diagnostics, Options, Sources};
 use runestick::{Context, Module, Source, Value, Vm, VmError};
 
 fn main() -> runestick::Result<()> {
@@ -30,10 +30,9 @@ fn main() -> runestick::Result<()> {
         "#,
     ));
 
-    let mut errors = Errors::new();
-    let mut warnings = Warnings::disabled();
+    let mut diagnostics = Diagnostics::without_warnings();
 
-    let unit = rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings)?;
+    let unit = rune::load_sources(&context, &options, &mut sources, &mut diagnostics)?;
 
     let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let _ = vm.execute(&["main"], ())?.complete()?;

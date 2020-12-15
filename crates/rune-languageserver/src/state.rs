@@ -132,22 +132,20 @@ impl State {
 
             sources.insert(input);
 
-            let mut errors = rune::Errors::new();
-            let mut warnings = rune::Warnings::new();
+            let mut diagnostics = rune::Diagnostics::new();
             let visitor = Rc::new(Visitor::new(Index::default()));
 
             let result = rune::load_sources_with_visitor(
                 &self.inner.context,
                 &self.inner.options,
                 &mut sources,
-                &mut errors,
-                &mut warnings,
+                &mut diagnostics,
                 visitor.clone(),
                 source_loader.clone(),
             );
 
             if let Err(rune::LoadSourcesError) = result {
-                for error in errors {
+                for error in diagnostics.errors() {
                     let source_id = error.source_id();
 
                     match error.kind() {
@@ -211,7 +209,7 @@ impl State {
                 }
             }
 
-            for warning in &warnings {
+            for warning in diagnostics.warnings() {
                 report(
                     &sources,
                     &mut by_url,

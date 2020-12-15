@@ -424,36 +424,31 @@ fn load_path(
         None => {
             log::trace!("building file: {}", path.display());
 
-            let mut errors = rune::Errors::new();
-            let mut warnings = rune::Warnings::new();
+            let mut diagnostics = if shared.warnings {
+                rune::Diagnostics::new()
+            } else {
+                rune::Diagnostics::without_warnings()
+            };
 
             let test_finder = Rc::new(tests::TestVisitor::default());
             let source_loader = Rc::new(rune::FileSourceLoader::new());
 
-            let unit = match rune::load_sources_with_visitor(
+            let result = rune::load_sources_with_visitor(
                 &context,
                 &options,
                 &mut sources,
-                &mut errors,
-                &mut warnings,
+                &mut diagnostics,
                 test_finder.clone(),
                 source_loader.clone(),
-            ) {
-                Ok(unit) => unit,
-                Err(err @ rune::LoadSourcesError) => {
-                    errors.emit_diagnostics(out, &sources)?;
-                    return Err(err.into());
-                }
-            };
+            );
+
+            diagnostics.emit_diagnostics(out, &sources)?;
+            let unit = result?;
 
             if options.bytecode {
                 log::trace!("serializing cache: {}", bytecode_path.display());
                 let f = fs::File::create(&bytecode_path)?;
                 bincode::serialize_into(f, &unit)?;
-            }
-
-            if shared.warnings && !warnings.is_empty() {
-                warnings.emit_diagnostics(out, &sources)?;
             }
 
             let test_finder = match Rc::try_unwrap(test_finder) {
@@ -499,8 +494,11 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
             sources.insert(source);
 
-            let mut errors = rune::Errors::new();
-            let mut warnings = rune::Warnings::new();
+            let mut diagnostics = if checkargs.shared.warnings || checkargs.warnings_are_errors {
+                rune::Diagnostics::new()
+            } else {
+                rune::Diagnostics::without_warnings()
+            };
 
             let test_finder = Rc::new(tests::TestVisitor::default());
             let source_loader = Rc::new(rune::FileSourceLoader::new());
@@ -509,23 +507,16 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 &context,
                 &options,
                 &mut sources,
-                &mut errors,
-                &mut warnings,
+                &mut diagnostics,
                 test_finder.clone(),
                 source_loader.clone(),
             );
 
-            if !errors.is_empty() {
-                errors.emit_diagnostics(&mut out, &sources).unwrap();
-            }
+            diagnostics.emit_diagnostics(&mut out, &sources).unwrap();
 
-            if checkargs.shared.warnings && !warnings.is_empty() {
-                warnings.emit_diagnostics(&mut out, &sources).unwrap();
-            }
-
-            if !errors.is_empty() {
+            if !diagnostics.errors().is_empty() {
                 Ok(ExitCode::Failure)
-            } else if checkargs.warnings_are_errors && !warnings.is_empty() {
+            } else if checkargs.warnings_are_errors && !diagnostics.warnings().is_empty() {
                 Ok(ExitCode::Failure)
             } else {
                 Ok(ExitCode::Success)

@@ -6,7 +6,7 @@ use crate::indexing::{Index as _, IndexScopes, Indexer};
 use crate::query::Query;
 use crate::shared::{Consts, Gen, Items};
 use crate::{
-    CompileVisitor, Error, Errors, Options, SourceLoader, Sources, Storage, UnitBuilder, Warnings,
+    CompileVisitor, Diagnostics, Error, Options, SourceLoader, Sources, Storage, UnitBuilder,
 };
 use runestick::{Context, Item, SourceId, Span};
 use std::collections::VecDeque;
@@ -24,8 +24,7 @@ pub(crate) struct Worker<'a> {
     context: &'a Context,
     pub(crate) sources: &'a mut Sources,
     options: &'a Options,
-    pub(crate) errors: &'a mut Errors,
-    pub(crate) warnings: &'a mut Warnings,
+    pub(crate) diagnostics: &'a mut Diagnostics,
     pub(crate) visitor: Rc<dyn CompileVisitor>,
     pub(crate) source_loader: Rc<dyn SourceLoader>,
     /// Constants storage.
@@ -50,8 +49,7 @@ impl<'a> Worker<'a> {
         options: &'a Options,
         unit: UnitBuilder,
         consts: Consts,
-        errors: &'a mut Errors,
-        warnings: &'a mut Warnings,
+        diagnostics: &'a mut Diagnostics,
         visitor: Rc<dyn CompileVisitor>,
         source_loader: Rc<dyn SourceLoader>,
         storage: Storage,
@@ -61,8 +59,7 @@ impl<'a> Worker<'a> {
             context,
             sources,
             options,
-            errors,
-            warnings,
+            diagnostics,
             visitor: visitor.clone(),
             source_loader,
             consts: consts.clone(),
@@ -92,8 +89,8 @@ impl<'a> Worker<'a> {
                     let source = match self.sources.get(source_id).cloned() {
                         Some(source) => source,
                         None => {
-                            self.errors
-                                .push(Error::internal(source_id, "missing queued source by id"));
+                            self.diagnostics
+                                .error(Error::internal(source_id, "missing queued source by id"));
 
                             continue;
                         }
@@ -102,7 +99,7 @@ impl<'a> Worker<'a> {
                     let mut file = match crate::parse_all::<ast::File>(source.as_str()) {
                         Ok(file) => file,
                         Err(error) => {
-                            self.errors.push(Error::new(source_id, error));
+                            self.diagnostics.error(Error::new(source_id, error));
 
                             continue;
                         }
@@ -128,7 +125,7 @@ impl<'a> Worker<'a> {
                         options: self.options,
                         source_id,
                         source,
-                        warnings: self.warnings,
+                        diagnostics: self.diagnostics,
                         items,
                         scopes: IndexScopes::new(),
                         mod_item,
@@ -139,7 +136,7 @@ impl<'a> Worker<'a> {
                     };
 
                     if let Err(error) = file.index(&mut indexer) {
-                        self.errors.push(Error::new(source_id, error));
+                        self.diagnostics.error(Error::new(source_id, error));
                     }
                 }
                 Task::ExpandImport(import) => {
@@ -152,7 +149,7 @@ impl<'a> Worker<'a> {
                         });
 
                     if let Err(error) = result {
-                        self.errors.push(Error::new(source_id, error));
+                        self.diagnostics.error(Error::new(source_id, error));
                     }
                 }
                 Task::ExpandWildcardImport(wildcard_import) => {
@@ -165,7 +162,7 @@ impl<'a> Worker<'a> {
             let source_id = wildcard_import.source_id;
 
             if let Err(error) = wildcard_import.process_local(&self.query) {
-                self.errors.push(Error::new(source_id, error));
+                self.diagnostics.error(Error::new(source_id, error));
             }
         }
     }

@@ -128,7 +128,7 @@ impl Assemble for ast::ExprCall {
 
                 if tuple.args == 0 {
                     let tuple = path.span();
-                    c.warnings
+                    c.diagnostics
                         .remove_tuple_call_parens(c.source_id, span, tuple, c.context());
                 }
             }

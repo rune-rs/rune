@@ -1,4 +1,4 @@
-use rune::{Errors, Options, Sources, Warnings};
+use rune::{Diagnostics, Options, Sources};
 use runestick::{Any, AnyObj, Context, Module, Shared, Source, Vm, VmError};
 use std::sync::Arc;
 
@@ -27,14 +27,13 @@ fn test_reference_error() {
         r#"fn main(number) { take_it(number) }"#,
     ));
 
-    let mut errors = Errors::new();
+    let mut diagnostics = Diagnostics::without_warnings();
 
     let unit = rune::load_sources(
         &context,
         &Options::default(),
         &mut sources,
-        &mut errors,
-        &mut Warnings::disabled(),
+        &mut diagnostics,
     )
     .unwrap();
 

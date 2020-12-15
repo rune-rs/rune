@@ -3,7 +3,7 @@ use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
+use crate::{Diagnostics, Error, Options, Spanned as _, Storage};
 use runestick::{Context, Location, Source, Span};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -26,8 +26,7 @@ pub fn compile(
     context: &Context,
     sources: &mut Sources,
     unit: &UnitBuilder,
-    errors: &mut Errors,
-    warnings: &mut Warnings,
+    diagnostics: &mut Diagnostics,
 ) -> Result<(), ()> {
     let visitor = Rc::new(NoopCompileVisitor::new());
     let source_loader = Rc::new(FileSourceLoader::new());
@@ -36,8 +35,7 @@ pub fn compile(
         context,
         sources,
         unit,
-        errors,
-        warnings,
+        diagnostics,
         &Default::default(),
         visitor,
         source_loader,
@@ -51,8 +49,7 @@ pub fn compile_with_options(
     context: &Context,
     sources: &mut Sources,
     unit: &UnitBuilder,
-    errors: &mut Errors,
-    warnings: &mut Warnings,
+    diagnostics: &mut Diagnostics,
     options: &Options,
     visitor: Rc<dyn CompileVisitor>,
     source_loader: Rc<dyn SourceLoader>,
@@ -71,8 +68,7 @@ pub fn compile_with_options(
         options,
         unit.clone(),
         consts,
-        errors,
-        warnings,
+        diagnostics,
         visitor.clone(),
         source_loader,
         storage.clone(),
@@ -84,7 +80,7 @@ pub fn compile_with_options(
         let mod_item = match worker.query.insert_root_mod(source_id, Span::empty()) {
             Ok(result) => result,
             Err(error) => {
-                errors.push(Error::new(source_id, error));
+                diagnostics.error(Error::new(source_id, error));
                 return Err(());
             }
         };
@@ -98,7 +94,7 @@ pub fn compile_with_options(
 
     worker.run();
 
-    if !worker.errors.is_empty() {
+    if !worker.diagnostics.errors().is_empty() {
         return Err(());
     }
 
@@ -112,13 +108,13 @@ pub fn compile_with_options(
                 options,
                 storage: &storage,
                 unit,
-                warnings: worker.warnings,
+                diagnostics: worker.diagnostics,
                 consts: &worker.consts,
                 query: &mut worker.query,
             };
 
             if let Err(error) = task.compile(entry) {
-                worker.errors.push(Error::new(source_id, error));
+                worker.diagnostics.error(Error::new(source_id, error));
             }
         }
 
@@ -127,13 +123,13 @@ pub fn compile_with_options(
             Ok(false) => break,
             Err((source_id, error)) => {
                 worker
-                    .errors
-                    .push(Error::new(source_id, CompileError::from(error)));
+                    .diagnostics
+                    .error(Error::new(source_id, CompileError::from(error)));
             }
         }
     }
 
-    if !worker.errors.is_empty() {
+    if !worker.diagnostics.errors().is_empty() {
         return Err(());
     }
 
@@ -146,7 +142,7 @@ struct CompileBuildEntry<'a> {
     options: &'a Options,
     storage: &'a Storage,
     unit: &'a UnitBuilder,
-    warnings: &'a mut Warnings,
+    diagnostics: &'a mut Diagnostics,
     consts: &'a Consts,
     query: &'a mut Query,
 }
@@ -173,7 +169,7 @@ impl CompileBuildEntry<'_> {
             contexts: vec![span],
             loops: self::v1::Loops::new(),
             options: self.options,
-            warnings: self.warnings,
+            diagnostics: self.diagnostics,
         }
     }
 
@@ -201,7 +197,7 @@ impl CompileBuildEntry<'_> {
                 f.ast.assemble_fn(&mut c, false)?;
 
                 if used.is_unused() {
-                    self.warnings.not_used(location.source_id, span, None);
+                    self.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     self.unit.new_function(
                         location,
@@ -232,7 +228,7 @@ impl CompileBuildEntry<'_> {
                 f.ast.assemble_fn(&mut c, true)?;
 
                 if used.is_unused() {
-                    c.warnings.not_used(location.source_id, span, None);
+                    c.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     self.unit.new_instance_function(
                         location,
@@ -257,7 +253,8 @@ impl CompileBuildEntry<'_> {
                 closure.ast.assemble_closure(&mut c, &closure.captures)?;
 
                 if used.is_unused() {
-                    c.warnings.not_used(location.source_id, location.span, None);
+                    c.diagnostics
+                        .not_used(location.source_id, location.span, None);
                 } else {
                     self.unit.new_function(
                         location,
@@ -279,7 +276,7 @@ impl CompileBuildEntry<'_> {
                 b.ast.assemble_closure(&mut c, &b.captures)?;
 
                 if used.is_unused() {
-                    self.warnings
+                    self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
                     self.unit.new_function(
@@ -293,7 +290,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Unused => {
-                self.warnings
+                self.diagnostics
                     .not_used(location.source_id, location.span, None);
             }
             Build::Import(import) => {
@@ -303,7 +300,7 @@ impl CompileBuildEntry<'_> {
                     .import(location.span, &item.module, &item.item, used)?;
 
                 if used.is_unused() {
-                    self.warnings
+                    self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 }
 

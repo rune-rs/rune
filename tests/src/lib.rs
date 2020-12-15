@@ -2,7 +2,7 @@
 
 pub use rune::WarningKind::*;
 pub use rune::{CompileErrorKind, CompileErrorKind::*};
-use rune::{Error, Errors, Sources, UnitBuilder, Warnings};
+use rune::{Diagnostics, Error, Sources, UnitBuilder};
 pub use rune::{ParseErrorKind, ParseErrorKind::*};
 pub use rune::{QueryErrorKind, QueryErrorKind::*};
 pub use rune::{ResolveErrorKind, ResolveErrorKind::*};
@@ -28,7 +28,7 @@ pub mod macros {
 pub enum RunError {
     /// A load error was raised during testing.
     #[error("load errors")]
-    Errors(Errors),
+    Diagnostics(Diagnostics),
     /// A virtual machine error was raised during testing.
     #[error("vm error")]
     VmError(#[source] VmError),
@@ -47,32 +47,31 @@ impl RunError {
 fn internal_compile_source(
     context: &runestick::Context,
     sources: &mut Sources,
-) -> Result<(Unit, Warnings), Errors> {
-    let mut errors = Errors::new();
-    let mut warnings = Warnings::new();
+) -> Result<(Unit, Diagnostics), Diagnostics> {
+    let mut diagnostics = Diagnostics::new();
 
     let unit = UnitBuilder::with_default_prelude();
 
-    if let Err(()) = rune::compile(context, sources, &unit, &mut errors, &mut warnings) {
-        return Err(errors);
+    if let Err(()) = rune::compile(context, sources, &unit, &mut diagnostics) {
+        return Err(diagnostics);
     }
 
     let unit = match unit.build() {
         Ok(unit) => unit,
         Err(error) => {
-            errors.push(Error::new(0, error));
-            return Err(errors);
+            diagnostics.error(Error::new(0, error));
+            return Err(diagnostics);
         }
     };
 
-    Ok((unit, warnings))
+    Ok((unit, diagnostics))
 }
 
 /// Compile the given source into a unit and collection of warnings.
 pub fn compile_source(
     context: &runestick::Context,
     source: &str,
-) -> Result<(Unit, Warnings), Errors> {
+) -> Result<(Unit, Diagnostics), Diagnostics> {
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
 
@@ -81,7 +80,7 @@ pub fn compile_source(
 
 /// Construct a virtual machine for the given sources.
 pub fn vm(context: &runestick::Context, sources: &mut Sources) -> Result<runestick::Vm, RunError> {
-    let (unit, _) = internal_compile_source(context, sources).map_err(RunError::Errors)?;
+    let (unit, _) = internal_compile_source(context, sources).map_err(RunError::Diagnostics)?;
     let context = Arc::new(context.runtime());
 
     Ok(runestick::Vm::new(context, Arc::new(unit)))
@@ -191,8 +190,9 @@ where
     let mut writer = rune::termcolor::StandardStream::stdout(rune::termcolor::ColorChoice::Never);
 
     match &e {
-        RunError::Errors(e) => {
-            e.emit_diagnostics(&mut writer, &sources)
+        RunError::Diagnostics(diagnostics) => {
+            diagnostics
+                .emit_diagnostics(&mut writer, &sources)
                 .expect("emit diagnostics");
         }
         RunError::VmError(e) => {
@@ -235,32 +235,17 @@ pub fn build(
     let mut sources = rune::Sources::new();
     sources.insert(runestick::Source::new("source", source));
 
-    let mut warnings = rune::Warnings::new();
-    let mut errors = rune::Errors::new();
+    let mut diagnostics = rune::Diagnostics::new();
 
-    let unit = match rune::load_sources(
-        &*context,
-        &options,
-        &mut sources,
-        &mut errors,
-        &mut warnings,
-    ) {
-        Ok(unit) => unit,
-        Err(error) => {
-            let mut writer =
-                rune::termcolor::StandardStream::stderr(rune::termcolor::ColorChoice::Always);
-            rune::EmitDiagnostics::emit_diagnostics(&errors, &mut writer, &sources)?;
-            return Err(error.into());
-        }
-    };
+    let result = rune::load_sources(&*context, &options, &mut sources, &mut diagnostics);
 
-    if !warnings.is_empty() {
+    if !diagnostics.is_empty() {
         let mut writer =
             rune::termcolor::StandardStream::stderr(rune::termcolor::ColorChoice::Always);
-        rune::EmitDiagnostics::emit_diagnostics(&warnings, &mut writer, &sources)?;
+        rune::EmitDiagnostics::emit_diagnostics(&diagnostics, &mut writer, &sources)?;
     }
 
-    Ok(std::sync::Arc::new(unit))
+    Ok(std::sync::Arc::new(result?))
 }
 
 /// Construct a rune virtual machine from the given program.
@@ -397,10 +382,14 @@ macro_rules! rune_n {
 macro_rules! assert_parse_error {
     ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
         let context = std::sync::Arc::new(rune_modules::default_context().unwrap());
-        let errors = $crate::compile_source(&context, &$source).unwrap_err();
-        let err = errors.into_iter().next().expect("expected one error");
+        let e = $crate::compile_source(&context, &$source).unwrap_err();
+        let e = e
+            .into_errors()
+            .into_iter()
+            .next()
+            .expect("expected one error");
 
-        let e = match err.into_kind() {
+        let e = match e.into_kind() {
             rune::ErrorKind::ParseError(e) => (e),
             kind => {
                 panic!(
@@ -466,7 +455,11 @@ macro_rules! assert_compile_error {
     ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
         let context = $crate::macros::rune_modules::default_context().unwrap();
         let e = $crate::compile_source(&context, $source).unwrap_err();
-        let e = e.into_iter().next().expect("expected one error");
+        let e = e
+            .into_errors()
+            .into_iter()
+            .next()
+            .expect("expected one error");
 
         let e = match e.into_kind() {
             rune::ErrorKind::CompileError(e) => (e),
@@ -496,10 +489,10 @@ macro_rules! assert_compile_error {
 macro_rules! assert_warnings {
     ($source:expr $(, $pat:pat => $cond:expr)*) => {{
         let context = $crate::macros::rune_modules::default_context().unwrap();
-        let (_, warnings) = $crate::compile_source(&context, $source).expect("source should compile");
-        assert!(!warnings.is_empty(), "no warnings produced");
+        let (_, diagnostics) = $crate::compile_source(&context, $source).expect("source should compile");
+        assert!(!diagnostics.warnings().is_empty(), "no warnings produced");
 
-        let mut it = warnings.into_iter();
+        let mut it = diagnostics.into_warnings().into_iter();
 
         $(
             let warning = it.next().expect("expected a warning");

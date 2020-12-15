@@ -8,7 +8,7 @@ impl Assemble for ast::LitBool {
 
         // If the value is not needed, no need to encode it.
         if !needs.value() {
-            c.warnings.not_used(c.source_id, span, c.context());
+            c.diagnostics.not_used(c.source_id, span, c.context());
         } else {
             c.asm.push(Inst::bool(self.value), span);
         }

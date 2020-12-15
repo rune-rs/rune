@@ -19,7 +19,7 @@ impl Assemble for ast::ExprVec {
         // Evaluate the expressions one by one, then pop them to cause any
         // side effects (without creating an object).
         if !needs.value() {
-            c.warnings.not_used(c.source_id, span, c.context());
+            c.diagnostics.not_used(c.source_id, span, c.context());
             c.asm.push(Inst::Pop, span);
         }
 
