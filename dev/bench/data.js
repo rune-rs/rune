@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607888523694,
+  "lastUpdate": 1608022449875,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -2585,6 +2585,84 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4091491,
             "range": "± 524498",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "f2ad2eaa523f0e37bac472f932470b9f6f12e212",
+          "message": "Update use of run subcommand everywhere",
+          "timestamp": "2020-12-15T09:48:57+01:00",
+          "tree_id": "c84ec79e6cf885895b6c24cb3894dc9b884d787e",
+          "url": "https://github.com/rune-rs/rune/commit/f2ad2eaa523f0e37bac472f932470b9f6f12e212"
+        },
+        "date": 1608022449264,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 362495238,
+            "range": "± 4349530",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 254835,
+            "range": "± 4231",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 750096,
+            "range": "± 2913",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 68363223,
+            "range": "± 882486",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1176190,
+            "range": "± 13642",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 12474644,
+            "range": "± 137430",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 10744979,
+            "range": "± 154354",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 407288,
+            "range": "± 2638",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4557767,
+            "range": "± 12388",
             "unit": "ns/iter"
           }
         ]
