@@ -20,7 +20,7 @@ represents the operation you want another function to use.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/closures/function_pointers.rn
+$> cargo run --bin rune -- run scripts/book/closures/function_pointers.rn
 Result: 3
 Result: -1
 == () (5.4354ms)
@@ -37,7 +37,7 @@ them to be used when the function is being called.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/closures/basic_closure.rn
+$> cargo run --bin rune -- run scripts/book/closures/basic_closure.rn
 Result: 4
 Result: 3
 == () (5.4354ms)
@@ -81,7 +81,7 @@ cause a compile error.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/closures/closure_move.rn.fail
+$> cargo run --bin rune -- run scripts/book/closures/closure_move.rn.fail
 error: compile error
   ┌─ scripts/book/closures/closure_move.rn.fail:7:33
   │

@@ -46,7 +46,7 @@ Consider the following unit:
 Let's dump all dynamic functions in it:
 
 ```text
-$> cargo run --bin rune -- scripts/book/compiler_guide/dead_code.rn --dump-functions
+$> cargo run --bin rune -- run scripts/book/compiler_guide/dead_code.rn --dump-functions
 # dynamic functions
 0xe7fc1d6083100dcd = main()
 0x20c6d8dd92b51018 = main::$0::foo()
@@ -106,7 +106,7 @@ script:
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/compiler_guide/closures.rn --dump-instructions --dump-functions
+$> cargo run --bin rune -- run scripts/book/compiler_guide/closures.rn --dump-instructions --dump-functions
 # instructions
 fn main() (0xa76ee18c7fed2b52):
   0000 = load-fn 0xca35663d3c51a903 // closure `main::$0::$0`
