@@ -8,7 +8,7 @@ impl Assemble for ast::LitByte {
 
         // NB: Elide the entire literal if it's not needed.
         if !needs.value() {
-            c.warnings.not_used(c.source_id, span, c.context());
+            c.diagnostics.not_used(c.source_id, span, c.context());
             return Ok(Asm::top(span));
         }
 

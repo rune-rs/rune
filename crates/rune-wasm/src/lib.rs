@@ -196,14 +196,12 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
         options.parse_option(option)?;
     }
 
-    let mut errors = rune::Errors::new();
-    let mut warnings = rune::Warnings::new();
-
+    let mut d = rune::Diagnostics::new();
     let mut diagnostics = Vec::new();
 
-    let result = rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings);
+    let result = rune::load_sources(&context, &options, &mut sources, &mut d);
 
-    for warning in &warnings {
+    for warning in d.warnings() {
         let span = warning.span();
 
         if let Some(source) = sources.get(warning.source_id) {
@@ -223,15 +221,14 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
     let mut writer = rune::termcolor::Buffer::no_color();
 
     if !config.suppress_text_warnings {
-        warnings
-            .emit_diagnostics(&mut writer, &sources)
+        d.emit_diagnostics(&mut writer, &sources)
             .context("emitting to buffer should never fail")?;
     }
 
     let unit = match result {
         Ok(unit) => Arc::new(unit),
         Err(error) => {
-            for error in &errors {
+            for error in d.errors() {
                 if let Some(source) = sources.get(error.source_id()) {
                     match error.kind() {
                         rune::ErrorKind::ParseError(error) => {
@@ -311,8 +308,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                 }
             }
 
-            errors
-                .emit_diagnostics(&mut writer, &sources)
+            d.emit_diagnostics(&mut writer, &sources)
                 .expect("emitting to buffer should never fail");
 
             return Ok(CompileResult::from_error(

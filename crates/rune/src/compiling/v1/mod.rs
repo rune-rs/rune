@@ -6,7 +6,8 @@ use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::shared::Consts;
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, Options, Resolve as _, Spanned, Storage, UnitBuilder, Warnings,
+    CompileError, CompileErrorKind, Diagnostics, Options, Resolve as _, Spanned, Storage,
+    UnitBuilder,
 };
 use runestick::{
     CompileItem, CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label,
@@ -68,7 +69,7 @@ pub(crate) struct Compiler<'a> {
     /// Enabled optimizations.
     pub(crate) options: &'a Options,
     /// Compilation warnings.
-    pub(crate) warnings: &'a mut Warnings,
+    pub(crate) diagnostics: &'a mut Diagnostics,
 }
 
 impl<'a> Compiler<'a> {
@@ -697,7 +698,7 @@ impl<'a> Compiler<'a> {
         let false_label = self.asm.new_label("let_panic");
 
         if self.compile_pat(pat, false_label, &load)? {
-            self.warnings
+            self.diagnostics
                 .let_pattern_might_panic(self.source_id, span, self.context());
 
             let ok_label = self.asm.new_label("let_ok");

@@ -81,7 +81,7 @@ impl Assemble for ast::ExprObject {
 
         // No need to encode an object since the value is not needed.
         if !needs.value() {
-            c.warnings.not_used(c.source_id, span, c.context());
+            c.diagnostics.not_used(c.source_id, span, c.context());
             c.asm.push(Inst::Pop, span);
         }
 

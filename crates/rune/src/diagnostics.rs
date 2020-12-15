@@ -1,8 +1,8 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
 use crate::{
-    CompileErrorKind, Error, ErrorKind, Errors, IrErrorKind, LinkerError, QueryErrorKind,
-    ResolveErrorKind, Sources, Spanned as _, WarningKind, Warnings,
+    CompileErrorKind, Diagnostics, Error, ErrorKind, IrErrorKind, LinkerError, QueryErrorKind,
+    ResolveErrorKind, Sources, Spanned as _, WarningKind,
 };
 use runestick::{Location, Source, SourceId, Span, Unit, VmError, VmErrorKind};
 use std::error::Error as _;
@@ -47,32 +47,20 @@ pub trait EmitDiagnostics {
         O: WriteColor;
 }
 
-/// Emit error diagnostics.
+/// Emit collected diagnostics.
 ///
 /// See [load_sources](crate::load_sources) for how to use.
-impl EmitDiagnostics for Errors {
-    fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
-    where
-        O: WriteColor,
-    {
-        for error in self {
-            error.emit_diagnostics(out, sources)?;
-        }
-
-        Ok(())
-    }
-}
-
-/// Emit warning diagnostics.
-///
-/// See [load_sources](crate::load_sources) for how to use.
-impl EmitDiagnostics for Warnings {
+impl EmitDiagnostics for Diagnostics {
     fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
     {
         if self.is_empty() {
             return Ok(());
+        }
+
+        for error in self.errors() {
+            error.emit_diagnostics(out, sources)?;
         }
 
         let config = codespan_reporting::term::Config::default();
@@ -85,7 +73,7 @@ impl EmitDiagnostics for Warnings {
         let mut labels = Vec::new();
         let mut notes = Vec::new();
 
-        for w in self {
+        for w in self.warnings() {
             let context = match &w.kind {
                 WarningKind::NotUsed { span, context } => {
                     labels.push(Label::primary(w.source_id, span.range()).with_message("not used"));

@@ -1,4 +1,4 @@
-use rune::{Errors, Options, Sources, Warnings};
+use rune::{Diagnostics, Options, Sources};
 use runestick::{Any, Context, Module, Protocol, Source, Value, Vm};
 use std::sync::Arc;
 
@@ -58,16 +58,16 @@ fn test_external_ops() {
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
             ));
 
-            let mut errors = Errors::new();
+            let mut diagnostics = Diagnostics::without_warnings();
 
             let unit = rune::load_sources(
                 &context,
                 &Options::default(),
                 &mut sources,
-                &mut errors,
-                &mut Warnings::disabled(),
+                &mut diagnostics,
             )
             .unwrap();
+
             let unit = Arc::new(unit);
 
             let vm = Vm::new(Arc::new(context.runtime()), unit);

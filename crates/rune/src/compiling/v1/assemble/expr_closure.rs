@@ -60,7 +60,7 @@ impl Assemble for ast::ExprClosure {
         log::trace!("ExprClosure => {:?}", c.source.source(span));
 
         if !needs.value() {
-            c.warnings.not_used(c.source_id, span, c.context());
+            c.diagnostics.not_used(c.source_id, span, c.context());
             return Ok(Asm::top(span));
         }
 

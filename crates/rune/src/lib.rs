@@ -120,23 +120,16 @@
 //!         "#,
 //!     ));
 //!
-//!     let mut errors = rune::Errors::new();
-//!     let mut warnings = rune::Warnings::new();
+//!     let mut diagnostics = rune::Diagnostics::new();
 //!
-//!     let unit = match rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings) {
-//!         Ok(unit) => unit,
-//!         Err(rune::LoadSourcesError) => {
-//!             let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!             errors.emit_diagnostics(&mut writer, &sources)?;
-//!             return Ok(());
-//!         }
-//!     };
+//!     let result = rune::load_sources(&context, &options, &mut sources, &mut diagnostics);
 //!
-//!     if !warnings.is_empty() {
+//!     if !diagnostics.is_empty() {
 //!         let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!         warnings.emit_diagnostics(&mut writer, &sources)?;
+//!         diagnostics.emit_diagnostics(&mut writer, &sources)?;
 //!     }
 //!
+//!     let unit = result?;
 //!     let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 //!
 //!     let mut execution = vm.execute(&["calculate"], (10i64, 20i64))?;
@@ -209,8 +202,8 @@ pub use self::compiling::{
 };
 pub use self::ir::{IrError, IrErrorKind, IrValue};
 pub use self::load::{
-    load_sources, load_sources_with_visitor, Error, ErrorKind, Errors, LoadSourcesError, Warning,
-    WarningKind, Warnings,
+    load_sources, load_sources_with_visitor, Diagnostics, Error, ErrorKind, LoadSourcesError,
+    Warning, WarningKind,
 };
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{

@@ -5,7 +5,7 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
-use crate::{CompileError, CompileErrorKind, Error, Errors};
+use crate::{CompileError, CompileErrorKind, Diagnostics, Error};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, ConstValue, Context, DebugInfo, DebugInst, Hash, Inst,
@@ -583,12 +583,12 @@ impl UnitBuilder {
     /// functions are provided.
     ///
     /// This can prevent a number of runtime errors, like missing functions.
-    pub(crate) fn link(&self, context: &Context, errors: &mut Errors) {
+    pub(crate) fn link(&self, context: &Context, diagnostics: &mut Diagnostics) {
         let inner = self.inner.borrow();
 
         for (hash, spans) in &inner.required_functions {
             if inner.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
-                errors.push(Error::new(
+                diagnostics.error(Error::new(
                     0,
                     LinkerError::MissingFunction {
                         hash: *hash,
