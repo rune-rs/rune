@@ -216,7 +216,7 @@ pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{
     with_context, MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter,
 };
-pub use self::options::Options;
+pub use self::options::{ConfigurationError, Options};
 pub use self::parsing::{
     Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,
     ResolveErrorKind, ResolveOwned,
