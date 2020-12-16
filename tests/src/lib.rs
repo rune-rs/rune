@@ -177,7 +177,7 @@ where
     A: runestick::Args,
     T: runestick::FromValue,
 {
-    use rune::diagnostics::EmitDiagnostics as _;
+    use rune::EmitDiagnostics as _;
 
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));

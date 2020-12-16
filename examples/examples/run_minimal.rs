@@ -12,7 +12,7 @@ fn main() -> runestick::Result<()> {
     let mut sources = Sources::new();
     sources.insert(Source::new("test", r#"pub fn main(a) { add(a) }"#));
 
-    let mut diagnostics = Diagnostics::without_warnings();
+    let mut diagnostics = Diagnostics::new();
 
     let unit = rune::load_sources(
         &context,

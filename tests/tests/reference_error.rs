@@ -27,7 +27,7 @@ fn test_reference_error() {
         r#"fn main(number) { take_it(number) }"#,
     ));
 
-    let mut diagnostics = Diagnostics::without_warnings();
+    let mut diagnostics = Diagnostics::new();
 
     let unit = rune::load_sources(
         &context,

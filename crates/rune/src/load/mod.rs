@@ -1,14 +1,12 @@
 use crate::compiling;
-use crate::Options;
+use crate::{Diagnostics, Options};
 use runestick::{Context, Unit};
 use std::rc::Rc;
 use thiserror::Error;
 
-mod diagnostics;
 mod source_loader;
 mod sources;
 
-pub use self::diagnostics::{Diagnostic, Diagnostics, Error, ErrorKind, Warning, WarningKind};
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
 pub use self::sources::Sources;
 

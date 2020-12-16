@@ -15,7 +15,7 @@ fn main() -> runestick::Result<()> {
         "#,
     ));
 
-    let mut diagnostics = Diagnostics::without_warnings();
+    let mut diagnostics = Diagnostics::new();
 
     let unit = rune::load_sources(
         &context,

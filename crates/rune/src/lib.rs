@@ -174,8 +174,9 @@ mod internal_macros;
 pub mod ast;
 mod attrs;
 mod compiling;
+mod diagnostics;
 #[cfg(feature = "diagnostics")]
-pub mod diagnostics;
+mod emit_diagnostics;
 mod indexing;
 mod ir;
 mod load;
@@ -200,11 +201,13 @@ pub use self::compiling::{
     BuildError, CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntryStep,
     LinkerError, NoopCompileVisitor, UnitBuilder,
 };
-pub use self::ir::{IrError, IrErrorKind, IrValue};
-pub use self::load::{
-    load_sources, load_sources_with_visitor, Diagnostic, Diagnostics, Error, ErrorKind,
-    LoadSourcesError, Warning, WarningKind,
+pub use self::diagnostics::{Diagnostic, Diagnostics, Error, ErrorKind, Warning, WarningKind};
+#[cfg(feature = "diagnostics")]
+pub use self::emit_diagnostics::{
+    termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource,
 };
+pub use self::ir::{IrError, IrErrorKind, IrValue};
+pub use self::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{
     with_context, MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter,
@@ -218,12 +221,9 @@ pub use self::query::{QueryError, QueryErrorKind, Used};
 pub use self::shared::{ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use compiling::compile;
-
 pub use rune_macros::quote;
-pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
-#[cfg(feature = "diagnostics")]
-pub use diagnostics::{termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource};
+pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
 /// Parse the given input as the given type that implements
 /// [Parse][crate::parsing::Parse].
