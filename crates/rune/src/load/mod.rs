@@ -5,16 +5,12 @@ use std::rc::Rc;
 use thiserror::Error;
 
 mod diagnostics;
-mod error;
 mod source_loader;
 mod sources;
-mod warning;
 
-pub use self::diagnostics::Diagnostics;
-pub use self::error::{Error, ErrorKind};
+pub use self::diagnostics::{Diagnostic, Diagnostics, Error, ErrorKind, Warning, WarningKind};
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
 pub use self::sources::Sources;
-pub use self::warning::{Warning, WarningKind};
 
 /// Error raised when we failed to load sources.
 ///
@@ -118,7 +114,7 @@ pub fn load_sources_with_visitor(
     if options.link_checks {
         unit.link(&*context, diagnostics);
 
-        if !diagnostics.errors().is_empty() {
+        if diagnostics.has_error() {
             return Err(LoadSourcesError);
         }
     }
@@ -126,7 +122,7 @@ pub fn load_sources_with_visitor(
     match unit.build() {
         Ok(unit) => Ok(unit),
         Err(error) => {
-            diagnostics.error(Error::new(0, error));
+            diagnostics.error(0, error);
             Err(LoadSourcesError)
         }
     }

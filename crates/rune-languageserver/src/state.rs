@@ -145,79 +145,83 @@ impl State {
             );
 
             if let Err(rune::LoadSourcesError) = result {
-                for error in diagnostics.errors() {
-                    let source_id = error.source_id();
+                for diagnostic in diagnostics.diagnostics() {
+                    match diagnostic {
+                        rune::Diagnostic::Error(error) => {
+                            let source_id = error.source_id();
 
-                    match error.kind() {
-                        rune::ErrorKind::ParseError(error) => {
-                            report(
-                                &sources,
-                                &mut by_url,
-                                error.span(),
-                                source_id,
-                                error,
-                                display_to_error,
-                            );
-                        }
-                        rune::ErrorKind::CompileError(error) => {
-                            report(
-                                &sources,
-                                &mut by_url,
-                                error.span(),
-                                source_id,
-                                error,
-                                display_to_error,
-                            );
-                        }
-                        rune::ErrorKind::QueryError(error) => {
-                            report(
-                                &sources,
-                                &mut by_url,
-                                error.span(),
-                                source_id,
-                                error,
-                                display_to_error,
-                            );
-                        }
-                        rune::ErrorKind::LinkError(error) => match error {
-                            rune::LinkerError::MissingFunction { hash, spans } => {
-                                for (span, _) in spans {
+                            match error.kind() {
+                                rune::ErrorKind::ParseError(error) => {
+                                    report(
+                                        &sources,
+                                        &mut by_url,
+                                        error.span(),
+                                        source_id,
+                                        error,
+                                        display_to_error,
+                                    );
+                                }
+                                rune::ErrorKind::CompileError(error) => {
+                                    report(
+                                        &sources,
+                                        &mut by_url,
+                                        error.span(),
+                                        source_id,
+                                        error,
+                                        display_to_error,
+                                    );
+                                }
+                                rune::ErrorKind::QueryError(error) => {
+                                    report(
+                                        &sources,
+                                        &mut by_url,
+                                        error.span(),
+                                        source_id,
+                                        error,
+                                        display_to_error,
+                                    );
+                                }
+                                rune::ErrorKind::LinkError(error) => match error {
+                                    rune::LinkerError::MissingFunction { hash, spans } => {
+                                        for (span, _) in spans {
+                                            let diagnostics =
+                                                by_url.entry(url.clone()).or_default();
+
+                                            let range = source.span_to_lsp_range(*span);
+
+                                            diagnostics.push(display_to_error(
+                                                range,
+                                                format!("missing function with hash `{}`", hash),
+                                            ));
+                                        }
+                                    }
+                                },
+                                rune::ErrorKind::Internal(message) => {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
 
-                                    let range = source.span_to_lsp_range(*span);
+                                    let range = lsp::Range::default();
+                                    diagnostics.push(display_to_error(range, message));
+                                }
+                                rune::ErrorKind::BuildError(error) => {
+                                    let diagnostics = by_url.entry(url.clone()).or_default();
 
-                                    diagnostics.push(display_to_error(
-                                        range,
-                                        format!("missing function with hash `{}`", hash),
-                                    ));
+                                    let range = lsp::Range::default();
+                                    diagnostics.push(display_to_error(range, error));
                                 }
                             }
-                        },
-                        rune::ErrorKind::Internal(message) => {
-                            let diagnostics = by_url.entry(url.clone()).or_default();
-
-                            let range = lsp::Range::default();
-                            diagnostics.push(display_to_error(range, message));
                         }
-                        rune::ErrorKind::BuildError(error) => {
-                            let diagnostics = by_url.entry(url.clone()).or_default();
-
-                            let range = lsp::Range::default();
-                            diagnostics.push(display_to_error(range, error));
+                        rune::Diagnostic::Warning(warning) => {
+                            report(
+                                &sources,
+                                &mut by_url,
+                                warning.span(),
+                                warning.source_id(),
+                                warning.kind(),
+                                display_to_warning,
+                            );
                         }
                     }
                 }
-            }
-
-            for warning in diagnostics.warnings() {
-                report(
-                    &sources,
-                    &mut by_url,
-                    warning.span(),
-                    warning.source_id,
-                    &warning.kind,
-                    display_to_warning,
-                );
             }
 
             let visitor = match Rc::try_unwrap(visitor) {

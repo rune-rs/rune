@@ -5,9 +5,7 @@ use crate::collections::HashMap;
 use crate::indexing::{Index as _, IndexScopes, Indexer};
 use crate::query::Query;
 use crate::shared::{Consts, Gen, Items};
-use crate::{
-    CompileVisitor, Diagnostics, Error, Options, SourceLoader, Sources, Storage, UnitBuilder,
-};
+use crate::{CompileVisitor, Diagnostics, Options, SourceLoader, Sources, Storage, UnitBuilder};
 use runestick::{Context, Item, SourceId, Span};
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -90,8 +88,7 @@ impl<'a> Worker<'a> {
                         Some(source) => source,
                         None => {
                             self.diagnostics
-                                .error(Error::internal(source_id, "missing queued source by id"));
-
+                                .internal(source_id, "missing queued source by id");
                             continue;
                         }
                     };
@@ -99,8 +96,7 @@ impl<'a> Worker<'a> {
                     let mut file = match crate::parse_all::<ast::File>(source.as_str()) {
                         Ok(file) => file,
                         Err(error) => {
-                            self.diagnostics.error(Error::new(source_id, error));
-
+                            self.diagnostics.error(source_id, error);
                             continue;
                         }
                     };
@@ -136,7 +132,7 @@ impl<'a> Worker<'a> {
                     };
 
                     if let Err(error) = file.index(&mut indexer) {
-                        self.diagnostics.error(Error::new(source_id, error));
+                        self.diagnostics.error(source_id, error);
                     }
                 }
                 Task::ExpandImport(import) => {
@@ -149,7 +145,7 @@ impl<'a> Worker<'a> {
                         });
 
                     if let Err(error) = result {
-                        self.diagnostics.error(Error::new(source_id, error));
+                        self.diagnostics.error(source_id, error);
                     }
                 }
                 Task::ExpandWildcardImport(wildcard_import) => {
@@ -162,7 +158,7 @@ impl<'a> Worker<'a> {
             let source_id = wildcard_import.source_id;
 
             if let Err(error) = wildcard_import.process_local(&self.query) {
-                self.diagnostics.error(Error::new(source_id, error));
+                self.diagnostics.error(source_id, error);
             }
         }
     }

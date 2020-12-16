@@ -3,7 +3,7 @@ use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Diagnostics, Error, Options, Spanned as _, Storage};
+use crate::{Diagnostics, Options, Spanned as _, Storage};
 use runestick::{Context, Location, Source, Span};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -80,7 +80,7 @@ pub fn compile_with_options(
         let mod_item = match worker.query.insert_root_mod(source_id, Span::empty()) {
             Ok(result) => result,
             Err(error) => {
-                diagnostics.error(Error::new(source_id, error));
+                diagnostics.error(source_id, error);
                 return Err(());
             }
         };
@@ -94,7 +94,7 @@ pub fn compile_with_options(
 
     worker.run();
 
-    if !worker.diagnostics.errors().is_empty() {
+    if worker.diagnostics.has_error() {
         return Err(());
     }
 
@@ -114,7 +114,7 @@ pub fn compile_with_options(
             };
 
             if let Err(error) = task.compile(entry) {
-                worker.diagnostics.error(Error::new(source_id, error));
+                worker.diagnostics.error(source_id, error);
             }
         }
 
@@ -122,14 +122,12 @@ pub fn compile_with_options(
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
-                worker
-                    .diagnostics
-                    .error(Error::new(source_id, CompileError::from(error)));
+                worker.diagnostics.error(source_id, error);
             }
         }
     }
 
-    if !worker.diagnostics.errors().is_empty() {
+    if worker.diagnostics.has_error() {
         return Err(());
     }
 

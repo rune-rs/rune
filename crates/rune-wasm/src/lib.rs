@@ -201,34 +201,9 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
 
     let result = rune::load_sources(&context, &options, &mut sources, &mut d);
 
-    for warning in d.warnings() {
-        let span = warning.span();
-
-        if let Some(source) = sources.get(warning.source_id) {
-            let start =
-                Position::from(source.position_to_unicode_line_char(span.start.into_usize()));
-            let end = Position::from(source.position_to_unicode_line_char(span.end.into_usize()));
-
-            diagnostics.push(Diagnostic {
-                kind: DiagnosticKind::Warning,
-                start,
-                end,
-                message: warning.to_string(),
-            });
-        }
-    }
-
-    let mut writer = rune::termcolor::Buffer::no_color();
-
-    if !config.suppress_text_warnings {
-        d.emit_diagnostics(&mut writer, &sources)
-            .context("emitting to buffer should never fail")?;
-    }
-
-    let unit = match result {
-        Ok(unit) => Arc::new(unit),
-        Err(error) => {
-            for error in d.errors() {
+    for diagnostic in d.diagnostics() {
+        match diagnostic {
+            rune::Diagnostic::Error(error) => {
                 if let Some(source) = sources.get(error.source_id()) {
                     match error.kind() {
                         rune::ErrorKind::ParseError(error) => {
@@ -307,10 +282,37 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                     }
                 }
             }
+            rune::Diagnostic::Warning(warning) => {
+                let span = warning.span();
 
-            d.emit_diagnostics(&mut writer, &sources)
-                .expect("emitting to buffer should never fail");
+                if let Some(source) = sources.get(warning.source_id()) {
+                    let start = Position::from(
+                        source.position_to_unicode_line_char(span.start.into_usize()),
+                    );
+                    let end =
+                        Position::from(source.position_to_unicode_line_char(span.end.into_usize()));
 
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Warning,
+                        start,
+                        end,
+                        message: warning.to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    let mut writer = rune::termcolor::Buffer::no_color();
+
+    if !config.suppress_text_warnings {
+        d.emit_diagnostics(&mut writer, &sources)
+            .context("emitting to buffer should never fail")?;
+    }
+
+    let unit = match result {
+        Ok(unit) => Arc::new(unit),
+        Err(error) => {
             return Ok(CompileResult::from_error(
                 error,
                 diagnostics_output(writer),

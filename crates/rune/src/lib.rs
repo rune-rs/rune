@@ -202,8 +202,8 @@ pub use self::compiling::{
 };
 pub use self::ir::{IrError, IrErrorKind, IrValue};
 pub use self::load::{
-    load_sources, load_sources_with_visitor, Diagnostics, Error, ErrorKind, LoadSourcesError,
-    Warning, WarningKind,
+    load_sources, load_sources_with_visitor, Diagnostic, Diagnostics, Error, ErrorKind,
+    LoadSourcesError, Warning, WarningKind,
 };
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{
