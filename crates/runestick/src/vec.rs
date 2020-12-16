@@ -129,6 +129,11 @@ impl Vec {
         self.inner.pop()
     }
 
+    /// Removes the element at the specified index from a dynamic vector.
+    pub fn remove(&mut self, index: usize) {
+        self.inner.remove(index);
+    }
+
     /// Clears the vector, removing all values.
     ///
     /// Note that this method has no effect on the allocated capacity of the

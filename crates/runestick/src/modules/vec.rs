@@ -9,14 +9,15 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<Vec>()?;
 
     module.function(&["Vec", "new"], Vec::new)?;
+    module.inst_fn("clear", Vec::clear)?;
     module.inst_fn("clone", Vec::clone)?;
     module.inst_fn("extend", Vec::extend)?;
+    module.inst_fn("get", vec_get)?;
     module.inst_fn("iter", Vec::into_iterator)?;
     module.inst_fn("len", Vec::len)?;
-    module.inst_fn("push", Vec::push)?;
-    module.inst_fn("clear", Vec::clear)?;
     module.inst_fn("pop", Vec::pop)?;
-    module.inst_fn("get", vec_get)?;
+    module.inst_fn("push", Vec::push)?;
+    module.inst_fn("remove", Vec::remove)?;
 
     module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
     module.inst_fn(Protocol::INDEX_SET, Vec::set)?;

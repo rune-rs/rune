@@ -3,7 +3,7 @@
 use crate::{Any, ContextError, Iterator, Key, Module, Ref, Value, VmError, VmErrorKind};
 use std::fmt;
 
-#[derive(Any)]
+#[derive(Any, Clone)]
 #[rune(module = "crate")]
 struct HashMap {
     map: crate::collections::HashMap<Key, Value>,
@@ -94,13 +94,18 @@ impl HashMap {
     }
 
     #[inline]
+    fn remove(&mut self, key: Key) {
+        self.map.remove(&key);
+    }
+
+    #[inline]
     fn string_debug(&self, s: &mut String) -> fmt::Result {
         use std::fmt::Write as _;
         write!(s, "{:?}", self.map)
     }
 }
 
-#[derive(Any)]
+#[derive(Any, Clone)]
 #[rune(module = "crate")]
 struct HashSet {
     set: crate::collections::HashSet<Key>,
@@ -155,6 +160,11 @@ impl HashSet {
     #[inline]
     fn clear(&mut self) {
         self.set.clear()
+    }
+
+    #[inline]
+    fn remove(&mut self, key: Key) {
+        self.set.remove(&key);
     }
 
     #[inline]
@@ -298,16 +308,18 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<HashMap>()?;
     module.function(&["HashMap", "new"], HashMap::new)?;
     module.function(&["HashMap", "from"], hashmap_from)?;
+    module.inst_fn("clear", HashMap::clear)?;
+    module.inst_fn("clone", HashMap::clone)?;
+    module.inst_fn("contains_key", HashMap::contains_key)?;
     module.inst_fn("extend", HashMap::extend)?;
+    module.inst_fn("get", HashMap::get)?;
+    module.inst_fn("insert", HashMap::insert)?;
+    module.inst_fn("is_empty", HashMap::is_empty)?;
     module.inst_fn("iter", HashMap::iter)?;
     module.inst_fn("keys", HashMap::keys)?;
-    module.inst_fn("contains_key", HashMap::contains_key)?;
-    module.inst_fn("values", HashMap::values)?;
-    module.inst_fn("insert", HashMap::insert)?;
-    module.inst_fn("get", HashMap::get)?;
-    module.inst_fn("is_empty", HashMap::is_empty)?;
     module.inst_fn("len", HashMap::len)?;
-    module.inst_fn("clear", HashMap::clear)?;
+    module.inst_fn("remove", HashMap::remove)?;
+    module.inst_fn("values", HashMap::values)?;
     module.inst_fn(crate::Protocol::INTO_ITER, HashMap::iter)?;
     module.inst_fn(crate::Protocol::INDEX_SET, HashMap::insert)?;
     module.inst_fn(crate::Protocol::INDEX_GET, HashMap::fallible_get)?;
@@ -316,15 +328,17 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<HashSet>()?;
     module.function(&["HashSet", "new"], HashSet::new)?;
     module.function(&["HashSet", "from"], hashset_from)?;
-    module.inst_fn("extend", HashSet::extend)?;
-    module.inst_fn("iter", HashSet::iter)?;
-    module.inst_fn("insert", HashSet::insert)?;
-    module.inst_fn("contains", HashSet::contains)?;
-    module.inst_fn("is_empty", HashSet::is_empty)?;
-    module.inst_fn("len", HashSet::len)?;
     module.inst_fn("clear", HashSet::clear)?;
+    module.inst_fn("clone", HashSet::clone)?;
+    module.inst_fn("contains", HashSet::contains)?;
     module.inst_fn("difference", HashSet::difference)?;
+    module.inst_fn("extend", HashSet::extend)?;
+    module.inst_fn("insert", HashSet::insert)?;
     module.inst_fn("intersection", HashSet::intersection)?;
+    module.inst_fn("is_empty", HashSet::is_empty)?;
+    module.inst_fn("iter", HashSet::iter)?;
+    module.inst_fn("len", HashSet::len)?;
+    module.inst_fn("remove", HashSet::remove)?;
     module.inst_fn("union", HashSet::union)?;
     module.inst_fn(crate::Protocol::INTO_ITER, HashSet::iter)?;
     module.inst_fn(crate::Protocol::STRING_DEBUG, HashSet::string_debug)?;
