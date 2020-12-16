@@ -75,9 +75,9 @@ fn test_unsupported_leading_path() {
 
 #[test]
 fn test_import_conflict() {
-    assert_compile_error! {
+    assert_errors! {
         r#"use std::{option, option};"#,
-        span, QueryError { error: AmbiguousItem { .. }, .. } => {
+        span, QueryError(AmbiguousItem { .. }) => {
             assert_eq!(span, Span::new(10, 16));
         }
     };

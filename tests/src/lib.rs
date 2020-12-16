@@ -2,7 +2,7 @@
 
 pub use rune::WarningKind::*;
 pub use rune::{CompileErrorKind, CompileErrorKind::*};
-use rune::{Diagnostics, Error, Sources, UnitBuilder};
+use rune::{Diagnostics, Options, Sources, UnitBuilder};
 pub use rune::{ParseErrorKind, ParseErrorKind::*};
 pub use rune::{QueryErrorKind, QueryErrorKind::*};
 pub use rune::{ResolveErrorKind, ResolveErrorKind::*};
@@ -59,7 +59,7 @@ fn internal_compile_source(
     let unit = match unit.build() {
         Ok(unit) => unit,
         Err(error) => {
-            diagnostics.error(Error::new(0, error));
+            diagnostics.error(0, error);
             return Err(diagnostics);
         }
     };
@@ -231,9 +231,9 @@ pub fn build(
     context: &runestick::Context,
     source: &str,
 ) -> runestick::Result<Arc<runestick::Unit>> {
-    let options = rune::Options::default();
-    let mut sources = rune::Sources::new();
-    sources.insert(runestick::Source::new("source", source));
+    let options = Options::default();
+    let mut sources = Sources::new();
+    sources.insert(Source::new("source", source));
 
     let mut diagnostics = rune::Diagnostics::new();
 
@@ -381,33 +381,7 @@ macro_rules! rune_n {
 #[macro_export]
 macro_rules! assert_parse_error {
     ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
-        let context = std::sync::Arc::new(rune_modules::default_context().unwrap());
-        let e = $crate::compile_source(&context, &$source).unwrap_err();
-        let e = e
-            .into_errors()
-            .into_iter()
-            .next()
-            .expect("expected one error");
-
-        let e = match e.into_kind() {
-            rune::ErrorKind::ParseError(e) => (e),
-            kind => {
-                panic!(
-                    "expected parse error `{}` but was `{:?}`",
-                    stringify!($pat),
-                    kind
-                );
-            }
-        };
-
-        let $span = rune::Spanned::span(&e);
-
-        match e.into_kind() {
-            $pat => $cond,
-            kind => {
-                panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
-            }
-        }
+        $crate::assert_errors!($source, $span, ParseError($pat) => $cond)
     }};
 }
 
@@ -453,33 +427,48 @@ macro_rules! assert_parse {
 #[macro_export]
 macro_rules! assert_compile_error {
     ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
+        $crate::assert_errors!($source, $span, CompileError($pat) => $cond)
+    }};
+}
+
+/// Assert that the given rune program raises a query error.
+#[macro_export]
+macro_rules! assert_errors {
+    ($source:expr, $span:ident, $($variant:ident($pat:pat) => $cond:expr),+ $(,)?) => {{
         let context = $crate::macros::rune_modules::default_context().unwrap();
         let e = $crate::compile_source(&context, $source).unwrap_err();
-        let e = e
-            .into_errors()
-            .into_iter()
-            .next()
-            .expect("expected one error");
+        assert!(e.has_error(), "expected at least one error");
 
-        let e = match e.into_kind() {
-            rune::ErrorKind::CompileError(e) => (e),
-            kind => {
-                panic!(
-                    "expected parse error `{}` but was `{:?}`",
-                    stringify!($pat),
-                    kind
-                );
+        let mut it = e.into_diagnostics().into_iter();
+
+        $(
+            let e = match it.next().expect("expected error") {
+                rune::Diagnostic::Error(e) => e,
+                kind => {
+                    panic!(
+                        "expected diagnostic error `{}` but was `{:?}`",
+                        stringify!($pat),
+                        kind
+                    );
+                }
+            };
+
+            let e = match e.into_kind() {
+                rune::ErrorKind::$variant(e) => (e),
+                kind => {
+                    panic!("expected error of variant `{}` but was `{:?}`", stringify!($variant), kind);
+                }
+            };
+
+            let $span = rune::Spanned::span(&e);
+
+            match e.into_kind() {
+                $pat => $cond,
+                kind => {
+                    panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
+                }
             }
-        };
-
-        let $span = rune::Spanned::span(&e);
-
-        match e.into_kind() {
-            $pat => $cond,
-            kind => {
-                panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
-            }
-        }
+        )+
     }};
 }
 
@@ -490,14 +479,25 @@ macro_rules! assert_warnings {
     ($source:expr $(, $pat:pat => $cond:expr)*) => {{
         let context = $crate::macros::rune_modules::default_context().unwrap();
         let (_, diagnostics) = $crate::compile_source(&context, $source).expect("source should compile");
-        assert!(!diagnostics.warnings().is_empty(), "no warnings produced");
+        assert!(diagnostics.has_warning(), "no warnings produced");
 
-        let mut it = diagnostics.into_warnings().into_iter();
+        let mut it = diagnostics.into_diagnostics().into_iter();
 
         $(
             let warning = it.next().expect("expected a warning");
 
-            match warning.kind {
+            let warning = match warning {
+                rune::Diagnostic::Warning(warning) => warning,
+                kind => {
+                    panic!(
+                        "expected diagnostic warning `{}` but was `{:?}`",
+                        stringify!($pat),
+                        kind
+                    );
+                }
+            };
+
+            match warning.into_kind() {
                 $pat => ($cond),
                 warning => {
                     panic!("expected warning `{}` but was `{:?}`", stringify!($pat), warning);

@@ -514,9 +514,9 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
             diagnostics.emit_diagnostics(&mut out, &sources).unwrap();
 
-            if !diagnostics.errors().is_empty() {
+            if diagnostics.has_error() {
                 Ok(ExitCode::Failure)
-            } else if checkargs.warnings_are_errors && !diagnostics.warnings().is_empty() {
+            } else if checkargs.warnings_are_errors && diagnostics.has_warning() {
                 Ok(ExitCode::Failure)
             } else {
                 Ok(ExitCode::Success)

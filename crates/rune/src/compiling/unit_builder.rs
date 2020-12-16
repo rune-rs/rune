@@ -5,7 +5,7 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
-use crate::{CompileError, CompileErrorKind, Diagnostics, Error};
+use crate::{CompileError, CompileErrorKind, Diagnostics};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, ConstValue, Context, DebugInfo, DebugInst, Hash, Inst,
@@ -588,13 +588,13 @@ impl UnitBuilder {
 
         for (hash, spans) in &inner.required_functions {
             if inner.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
-                diagnostics.error(Error::new(
+                diagnostics.error(
                     0,
                     LinkerError::MissingFunction {
                         hash: *hash,
                         spans: spans.clone(),
                     },
-                ));
+                );
             }
         }
     }
