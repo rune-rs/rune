@@ -1,6 +1,4 @@
-use crate::access::{
-    Access, AccessError, AccessKind, BorrowMut, BorrowRef, RawExclusiveGuard, RawSharedGuard,
-};
+use crate::access::{Access, AccessError, AccessKind, BorrowMut, BorrowRef, RawAccessGuard};
 use crate::{Any, AnyObj, AnyObjError, Hash};
 use std::any;
 use std::cell::{Cell, UnsafeCell};
@@ -880,7 +878,7 @@ pub struct Ref<T: ?Sized> {
     // Safety: it is important that the guard is dropped before `RawDrop`, since
     // `RawDrop` might deallocate the `Access` instance the guard is referring
     // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
-    guard: RawSharedGuard,
+    guard: RawAccessGuard,
     inner: RawDrop,
     _marker: marker::PhantomData<T>,
 }
@@ -997,7 +995,7 @@ where
 
 /// A raw guard to a [Ref].
 pub struct RawRef {
-    _guard: RawSharedGuard,
+    _guard: RawAccessGuard,
     _inner: RawDrop,
 }
 
@@ -1007,7 +1005,7 @@ pub struct Mut<T: ?Sized> {
     // Safety: it is important that the guard is dropped before `RawDrop`, since
     // `RawDrop` might deallocate the `Access` instance the guard is referring
     // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
-    guard: RawExclusiveGuard,
+    guard: RawAccessGuard,
     inner: RawDrop,
     _marker: marker::PhantomData<T>,
 }
@@ -1145,7 +1143,7 @@ where
 
 /// A raw guard to a [Ref].
 pub struct RawMut {
-    _guard: RawExclusiveGuard,
+    _guard: RawAccessGuard,
     _inner: RawDrop,
 }
 

@@ -187,8 +187,7 @@ pub use self::type_info::TypeInfo;
 pub use self::variant::{Variant, VariantData};
 pub use self::vec::Vec;
 pub use crate::access::{
-    AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawExclusiveGuard,
-    RawSharedGuard,
+    AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawAccessGuard,
 };
 pub use crate::any::Any;
 pub use crate::awaited::Awaited;

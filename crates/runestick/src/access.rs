@@ -81,7 +81,7 @@ pub struct NotAccessibleTake(Snapshot);
 /// the time of an error.
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct Snapshot(isize);
+struct Snapshot(isize);
 
 impl fmt::Display for Snapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -170,7 +170,7 @@ impl Access {
     pub(crate) unsafe fn shared(
         &self,
         kind: AccessKind,
-    ) -> Result<SharedGuard<'_>, NotAccessibleRef> {
+    ) -> Result<AccessGuard<'_>, NotAccessibleRef> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleRef(Snapshot(self.0.get())));
@@ -190,7 +190,7 @@ impl Access {
         }
 
         self.set(n);
-        Ok(SharedGuard(self))
+        Ok(AccessGuard(self))
     }
 
     /// Mark that we want exclusive access to the given access token.
@@ -202,7 +202,7 @@ impl Access {
     pub(crate) unsafe fn exclusive(
         &self,
         kind: AccessKind,
-    ) -> Result<ExclusiveGuard<'_>, NotAccessibleMut> {
+    ) -> Result<AccessGuard<'_>, NotAccessibleMut> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleMut(Snapshot(self.0.get())));
@@ -217,7 +217,7 @@ impl Access {
         }
 
         self.set(n);
-        Ok(ExclusiveGuard(self))
+        Ok(AccessGuard(self))
     }
 
     /// Mark that we want to mark the given access as "taken".
@@ -245,19 +245,19 @@ impl Access {
         Ok(RawTakeGuard { access: self })
     }
 
-    /// Unshare the current access.
+    /// Release the current access level.
     #[inline]
-    fn release_shared(&self) {
-        let b = self.get().wrapping_add(1);
-        debug_assert!(b <= 0);
-        self.set(b);
-    }
+    fn release(&self) {
+        let b = self.get();
 
-    /// Unshare the current access.
-    #[inline]
-    fn release_exclusive(&self) {
-        let b = self.get().wrapping_sub(1);
-        debug_assert_eq!(b, 0, "borrow value should be exclusive (0)");
+        let b = if b < 0 {
+            debug_assert!(b < 0);
+            b.wrapping_add(1)
+        } else {
+            debug_assert_eq!(b, 1, "borrow value should be exclusive (0)");
+            b.wrapping_sub(1)
+        };
+
         self.set(b);
     }
 
@@ -288,25 +288,13 @@ impl fmt::Debug for Access {
     }
 }
 
-/// A shared access guard.
-///
-/// This must not outlive the access controlled instance it was constructed
-/// from.
-pub struct RawSharedGuard(*const Access);
-
-impl Drop for RawSharedGuard {
-    fn drop(&mut self) {
-        unsafe { (*self.0).release_shared() };
-    }
-}
-
 /// Guard for a data borrowed from a slot in the virtual machine.
 ///
 /// These guards are necessary, since we need to guarantee certain forms of
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowRef<'a, T: ?Sized + 'a> {
     data: &'a T,
-    guard: SharedGuard<'a>,
+    guard: AccessGuard<'a>,
 }
 
 impl<'a, T: ?Sized> BorrowRef<'a, T> {
@@ -321,7 +309,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     pub(crate) fn new(data: &'a T, access: &'a Access) -> Self {
         Self {
             data,
-            guard: SharedGuard(access),
+            guard: AccessGuard(access),
         }
     }
 
@@ -393,10 +381,11 @@ where
     }
 }
 
-/// A guard around access.
-pub struct SharedGuard<'a>(&'a Access);
+/// A guard around some specific access access.
+#[repr(transparent)]
+pub struct AccessGuard<'a>(&'a Access);
 
-impl SharedGuard<'_> {
+impl AccessGuard<'_> {
     /// Convert into a raw guard which does not have a lifetime associated with
     /// it. Droping the raw guard will release the resource.
     ///
@@ -404,26 +393,24 @@ impl SharedGuard<'_> {
     ///
     /// Since we're losing track of the lifetime, caller must ensure that the
     /// access outlives the guard.
-    pub unsafe fn into_raw(self) -> RawSharedGuard {
-        RawSharedGuard(ManuallyDrop::new(self).0)
+    pub unsafe fn into_raw(self) -> RawAccessGuard {
+        RawAccessGuard(ManuallyDrop::new(self).0)
     }
 }
 
-impl Drop for SharedGuard<'_> {
+impl Drop for AccessGuard<'_> {
     fn drop(&mut self) {
-        self.0.release_shared();
+        self.0.release();
     }
 }
 
-/// An exclusive access guard.
-///
-/// This must not outlive the access controlled instance it was constructed
-/// from.
-pub struct RawExclusiveGuard(*const Access);
+/// A raw guard around some level of access.
+#[repr(transparent)]
+pub struct RawAccessGuard(*const Access);
 
-impl Drop for RawExclusiveGuard {
+impl Drop for RawAccessGuard {
     fn drop(&mut self) {
-        unsafe { (*self.0).release_exclusive() }
+        unsafe { (*self.0).release() }
     }
 }
 
@@ -447,7 +434,7 @@ impl Drop for RawTakeGuard {
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowMut<'a, T: ?Sized> {
     data: &'a mut T,
-    guard: ExclusiveGuard<'a>,
+    guard: AccessGuard<'a>,
 }
 
 impl<'a, T: ?Sized> BorrowMut<'a, T> {
@@ -462,7 +449,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     pub(crate) unsafe fn new(data: &'a mut T, access: &'a Access) -> Self {
         Self {
             data,
-            guard: ExclusiveGuard(access),
+            guard: AccessGuard(access),
         }
     }
 
@@ -550,27 +537,6 @@ where
         // NB: inner Future is Unpin.
         let this = self.get_mut();
         Pin::new(&mut **this).poll(cx)
-    }
-}
-
-pub struct ExclusiveGuard<'a>(&'a Access);
-
-impl ExclusiveGuard<'_> {
-    /// Convert into a raw guard which does not have a lifetime associated with
-    /// it. Droping the raw guard will release the resource.
-    ///
-    /// # Safety
-    ///
-    /// Since we're losing track of the lifetime, caller must ensure that the
-    /// access outlives the guard.
-    pub unsafe fn into_raw(self) -> RawExclusiveGuard {
-        RawExclusiveGuard(ManuallyDrop::new(self).0)
-    }
-}
-
-impl Drop for ExclusiveGuard<'_> {
-    fn drop(&mut self) {
-        self.0.release_exclusive();
     }
 }
 
