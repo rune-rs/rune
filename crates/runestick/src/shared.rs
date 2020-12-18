@@ -755,8 +755,7 @@ impl<T: ?Sized> SharedBox<T> {
             process::abort();
         }
 
-        let count = count + 1;
-        (*this).count.set(count);
+        (*this).count.set(count + 1);
     }
 
     /// Decrement the reference count in inner, and free the underlying data if
@@ -779,21 +778,24 @@ impl<T: ?Sized> SharedBox<T> {
             return false;
         }
 
-        if (*this).access.is_taken() {
+        let this = Box::from_raw(this);
+
+        if this.access.is_taken() {
             // NB: This prevents the inner `T` from being dropped in case it
             // has already been taken (as indicated by `is_taken`).
             //
             // If it has been taken, the shared box contains invalid memory.
-            let _ = std::mem::transmute::<_, Box<SharedBox<ManuallyDrop<T>>>>(Box::from_raw(this));
+            drop(std::mem::transmute::<_, Box<SharedBox<ManuallyDrop<T>>>>(
+                this,
+            ));
         } else {
             // NB: At the point of the final drop, no on else should be using
             // this.
             debug_assert!(
-                (*this).access.is_exclusive(),
+                this.access.is_exclusive(),
                 "expected exclusive, but was: {:?}",
-                (*this).access
+                this.access
             );
-            let _ = Box::from_raw(this);
         }
 
         true

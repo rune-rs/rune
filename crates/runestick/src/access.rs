@@ -8,10 +8,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
 
-/// Flag to used to mark access as taken.
-const FLAG: isize = 1isize;
+/// Bitflag which if set indicates that the accessed value is an external
+/// reference (exclusive or not).
+const IS_REF_MASK: isize = 1isize;
 /// Sentinel value to indicate that access is taken.
-const TAKEN: isize = (isize::max_value() ^ FLAG) >> 1;
+const TAKEN: isize = (isize::max_value() ^ IS_REF_MASK) >> 1;
 /// Panic if we reach this number of shared accesses and we try to add one more,
 /// since it's the largest we can support.
 const MAX_USES: isize = 0b11isize.rotate_right(2);
@@ -93,7 +94,7 @@ impl fmt::Display for Snapshot {
             n => write!(f, "invalidly marked ({})", n)?,
         }
 
-        if self.0 & FLAG == 1 {
+        if self.0 & IS_REF_MASK == 1 {
             write!(f, " (ref)")?;
         }
 
@@ -121,13 +122,12 @@ impl fmt::Display for Snapshot {
 /// * If the value is `0`, it is not being accessed.
 /// * If the value is `1`, it is being exclusively accessed.
 /// * If the value is negative `n`, it is being shared accessed by `-n` uses.
-/// * If the value is
 ///
 /// This means that the maximum number of accesses for a 64-bit `isize` is
 /// `(1 << 62) - 1` uses.
 ///
 /// ```
-#[derive(Clone)]
+#[repr(transparent)]
 pub(crate) struct Access(Cell<isize>);
 
 impl Access {
@@ -140,16 +140,17 @@ impl Access {
     /// Test if access is guarding a reference.
     #[inline]
     pub(crate) fn is_ref(&self) -> bool {
-        self.0.get() & FLAG != 0
+        self.0.get() & IS_REF_MASK != 0
     }
 
-    /// Test if we have shared access without modifying the internal count.
+    /// Test if we can have shared access without modifying the internal count.
     #[inline]
     pub(crate) fn is_shared(&self) -> bool {
-        self.get().wrapping_sub(1) < 0
+        self.get() <= 0
     }
 
-    /// Test if we have exclusive access without modifying the internal count.
+    /// Test if we can have exclusive access without modifying the internal
+    /// count.
     #[inline]
     pub(crate) fn is_exclusive(&self) -> bool {
         self.get() == 0
@@ -209,14 +210,13 @@ impl Access {
             }
         }
 
-        let state = self.get();
-        let n = state.wrapping_add(1);
+        let n = self.get();
 
-        if n != 1 {
+        if n != 0 {
             return Err(NotAccessibleMut(Snapshot(self.0.get())));
         }
 
-        self.set(n);
+        self.set(n.wrapping_add(1));
         Ok(AccessGuard(self))
     }
 
@@ -278,7 +278,7 @@ impl Access {
     /// Set the current value of the flag.
     #[inline]
     fn set(&self, value: isize) {
-        self.0.set(self.0.get() & FLAG | value << 1);
+        self.0.set(self.0.get() & IS_REF_MASK | value << 1);
     }
 }
 
