@@ -4,7 +4,6 @@ use std::any;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
 use std::future::Future;
-use std::marker;
 use std::mem;
 use std::mem::ManuallyDrop;
 use std::ops;
@@ -203,10 +202,9 @@ impl<T> Shared<T> {
             let this = ManuallyDrop::new(self);
 
             Ok(Ref {
-                data: this.inner.as_ref().data.get(),
+                data: ptr::NonNull::new_unchecked(this.inner.as_ref().data.get()),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
-                _marker: marker::PhantomData,
             })
         }
     }
@@ -261,10 +259,9 @@ impl<T> Shared<T> {
             let this = ManuallyDrop::new(self);
 
             Ok(Mut {
-                data: this.inner.as_ref().data.get(),
+                data: ptr::NonNull::new_unchecked(this.inner.as_ref().data.get()),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
-                _marker: marker::PhantomData,
             })
         }
     }
@@ -608,10 +605,9 @@ impl Shared<AnyObj> {
             let this = ManuallyDrop::new(self);
 
             Ok(Ref {
-                data: data as *const T,
+                data: ptr::NonNull::new_unchecked(data as *const T as *mut T),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
-                _marker: marker::PhantomData,
             })
         }
     }
@@ -661,10 +657,9 @@ impl Shared<AnyObj> {
             let this = ManuallyDrop::new(self);
 
             Ok(Mut {
-                data: data as *mut T,
+                data: ptr::NonNull::new_unchecked(data as *mut T),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
-                _marker: marker::PhantomData,
             })
         }
     }
@@ -874,13 +869,12 @@ impl Drop for RawDrop {
 
 /// A strong reference to the given type.
 pub struct Ref<T: ?Sized> {
-    data: *const T,
+    data: ptr::NonNull<T>,
     // Safety: it is important that the guard is dropped before `RawDrop`, since
     // `RawDrop` might deallocate the `Access` instance the guard is referring
     // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
     guard: RawAccessGuard,
     inner: RawDrop,
-    _marker: marker::PhantomData<T>,
 }
 
 impl<T: ?Sized> Ref<T> {
@@ -910,13 +904,12 @@ impl<T: ?Sized> Ref<T> {
         // Safety: this follows the same safety guarantees as when the managed
         // ref was acquired. And since we have a managed reference to `T`, we're
         // permitted to do any sort of projection to `U`.
-        let data = f(unsafe { &*data });
+        let data = f(unsafe { data.as_ref() });
 
         Ref {
-            data,
+            data: data.into(),
             guard,
             inner,
-            _marker: marker::PhantomData,
         }
     }
 
@@ -946,12 +939,11 @@ impl<T: ?Sized> Ref<T> {
         // Safety: this follows the same safety guarantees as when the managed
         // ref was acquired. And since we have a managed reference to `T`, we're
         // permitted to do any sort of projection to `U`.
-        match f(unsafe { &*data }) {
+        match f(unsafe { data.as_ref() }) {
             Some(data) => Some(Ref {
-                data,
+                data: data.into(),
                 guard,
                 inner,
-                _marker: marker::PhantomData,
             }),
             None => None,
         }
@@ -970,7 +962,7 @@ impl<T: ?Sized> Ref<T> {
             _inner: this.inner,
         };
 
-        (this.data, guard)
+        (this.data.as_ptr(), guard)
     }
 }
 
@@ -980,7 +972,7 @@ impl<T: ?Sized> ops::Deref for Ref<T> {
     fn deref(&self) -> &Self::Target {
         // Safety: An owned ref holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned ref.
-        unsafe { &*self.data }
+        unsafe { self.data.as_ref() }
     }
 }
 
@@ -1001,13 +993,12 @@ pub struct RawRef {
 
 /// A strong mutable reference to the given type.
 pub struct Mut<T: ?Sized> {
-    data: *mut T,
+    data: ptr::NonNull<T>,
     // Safety: it is important that the guard is dropped before `RawDrop`, since
     // `RawDrop` might deallocate the `Access` instance the guard is referring
     // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
     guard: RawAccessGuard,
     inner: RawDrop,
-    _marker: marker::PhantomData<T>,
 }
 
 impl<T: ?Sized> Mut<T> {
@@ -1031,19 +1022,21 @@ impl<T: ?Sized> Mut<T> {
         F: FnOnce(&mut T) -> &mut U,
     {
         let Self {
-            data, guard, inner, ..
+            mut data,
+            guard,
+            inner,
+            ..
         } = this;
 
         // Safety: this follows the same safety guarantees as when the managed
         // ref was acquired. And since we have a managed reference to `T`, we're
         // permitted to do any sort of projection to `U`.
-        let data = f(unsafe { &mut *data });
+        let data = f(unsafe { data.as_mut() });
 
         Mut {
-            data,
+            data: data.into(),
             guard,
             inner,
-            _marker: marker::PhantomData,
         }
     }
 
@@ -1067,18 +1060,20 @@ impl<T: ?Sized> Mut<T> {
         F: FnOnce(&mut T) -> Option<&mut U>,
     {
         let Self {
-            data, guard, inner, ..
+            mut data,
+            guard,
+            inner,
+            ..
         } = this;
 
         // Safety: this follows the same safety guarantees as when the managed
         // ref was acquired. And since we have a managed reference to `T`, we're
         // permitted to do any sort of projection to `U`.
-        match f(unsafe { &mut *data }) {
+        match f(unsafe { data.as_mut() }) {
             Some(data) => Some(Mut {
-                data,
+                data: data.into(),
                 guard,
                 inner,
-                _marker: marker::PhantomData,
             }),
             None => None,
         }
@@ -1097,7 +1092,7 @@ impl<T: ?Sized> Mut<T> {
             _inner: this.inner,
         };
 
-        (this.data, guard)
+        (this.data.as_ptr(), guard)
     }
 }
 
@@ -1107,7 +1102,7 @@ impl<T: ?Sized> ops::Deref for Mut<T> {
     fn deref(&self) -> &Self::Target {
         // Safety: An owned mut holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned mut.
-        unsafe { &*self.data }
+        unsafe { self.data.as_ref() }
     }
 }
 
@@ -1115,7 +1110,7 @@ impl<T: ?Sized> ops::DerefMut for Mut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // Safety: An owned mut holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned mut.
-        unsafe { &mut *self.data }
+        unsafe { self.data.as_mut() }
     }
 }
 
