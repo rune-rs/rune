@@ -42,8 +42,7 @@ impl Assemble for ast::ExprIf {
         }
 
         let mut it = branches.into_iter().peekable();
-
-        if let Some((branch, label, scope)) = it.next() {
+        while let Some((branch, label, scope)) = it.next() {
             let span = branch.span();
 
             c.asm.label(label)?;
