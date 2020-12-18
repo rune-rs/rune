@@ -24,7 +24,6 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("into_bytes", into_bytes)?;
     module.inst_fn("clone", String::clone)?;
     module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
-
     module.inst_fn("char_at", char_at)?;
     module.inst_fn("split", string_split)?;
     module.inst_fn("trim", string_trim)?;
@@ -32,9 +31,7 @@ pub fn module() -> Result<Module, ContextError> {
     // TODO: deprecate this variant.
     module.inst_fn("split_str", string_split)?;
     module.inst_fn("is_empty", str::is_empty)?;
-    module.inst_fn("replace", str::replace::<&str>)?;
     module.inst_fn("chars", string_chars)?;
-
     module.inst_fn(Protocol::ADD, add)?;
     module.inst_fn(Protocol::ADD_ASSIGN, String::push_str)?;
     module.inst_fn(Protocol::INDEX_GET, string_index_get)?;
