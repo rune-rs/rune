@@ -36,7 +36,17 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
 
     module.function(&["range"], new_range)?;
+    module.function(&["empty"], new_empty)?;
+    module.function(&["once"], new_once)?;
     Ok(module)
+}
+
+fn new_empty() -> Iterator {
+    Iterator::empty()
+}
+
+fn new_once(v: Value) -> Iterator {
+    Iterator::once(v)
 }
 
 fn new_range(start: i64, end: i64) -> Iterator {
