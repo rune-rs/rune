@@ -1,13 +1,12 @@
+use crate::collections::{btree_map, BTreeMap};
 use crate::{
     FromValue, InstallWith, Item, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
     UnsafeFromValue, Value, Vm, VmError,
 };
 use std::borrow;
 use std::cmp;
-use std::collections::BTreeMap as HashMap;
 use std::fmt;
 use std::hash;
-
 /// An owning iterator over the entries of a `Object`.
 ///
 /// This `struct` is created by the [`into_iter`] method on [`Object`]
@@ -15,7 +14,7 @@ use std::hash;
 ///
 /// [`into_iter`]: struct.Object.html#method.into_iter
 /// [`Object`]: struct.Object.html
-pub type IntoIter = std::collections::btree_map::IntoIter<String, Value>;
+pub type IntoIter = btree_map::IntoIter<String, Value>;
 
 /// A mutable iterator over the entries of a `Object`.
 ///
@@ -24,7 +23,7 @@ pub type IntoIter = std::collections::btree_map::IntoIter<String, Value>;
 ///
 /// [`iter_mut`]: struct.Object.html#method.iter_mut
 /// [`Object`]: struct.Object.html
-pub type IterMut<'a> = std::collections::btree_map::IterMut<'a, String, Value>;
+pub type IterMut<'a> = btree_map::IterMut<'a, String, Value>;
 
 /// An iterator over the entries of a `Object`.
 ///
@@ -33,7 +32,7 @@ pub type IterMut<'a> = std::collections::btree_map::IterMut<'a, String, Value>;
 ///
 /// [`iter`]: struct.Object.html#method.iter
 /// [`Object`]: struct.Object.html
-pub type Iter<'a> = std::collections::btree_map::Iter<'a, String, Value>;
+pub type Iter<'a> = btree_map::Iter<'a, String, Value>;
 
 /// An iterator over the keys of a `HashMap`.
 ///
@@ -42,7 +41,7 @@ pub type Iter<'a> = std::collections::btree_map::Iter<'a, String, Value>;
 ///
 /// [`keys`]: struct.Object.html#method.keys
 /// [`Object`]: struct.Object.html
-pub type Keys<'a> = std::collections::btree_map::Keys<'a, String, Value>;
+pub type Keys<'a> = btree_map::Keys<'a, String, Value>;
 
 /// An iterator over the values of a `HashMap`.
 ///
@@ -51,7 +50,7 @@ pub type Keys<'a> = std::collections::btree_map::Keys<'a, String, Value>;
 ///
 /// [`values`]: struct.Object.html#method.values
 /// [`Object`]: struct.Object.html
-pub type Values<'a> = std::collections::btree_map::Values<'a, String, Value>;
+pub type Values<'a> = btree_map::Values<'a, String, Value>;
 
 /// Struct representing a dynamic anonymous object.
 ///
@@ -74,7 +73,7 @@ pub type Values<'a> = std::collections::btree_map::Values<'a, String, Value>;
 #[derive(Default, Clone)]
 #[repr(transparent)]
 pub struct Object {
-    inner: HashMap<String, Value>,
+    inner: BTreeMap<String, Value>,
 }
 
 impl Object {
@@ -82,7 +81,7 @@ impl Object {
     #[inline]
     pub fn new() -> Self {
         Self {
-            inner: HashMap::new(),
+            inner: BTreeMap::new(),
         }
     }
 
@@ -91,7 +90,7 @@ impl Object {
     pub fn with_capacity(_cap: usize) -> Self {
         /* BTreeMap doesn't support setting capacity on creation but we keep this here in case we want to switch store later */
         Self {
-            inner: HashMap::new(),
+            inner: BTreeMap::new(),
         }
     }
 
@@ -188,7 +187,7 @@ impl Object {
     }
 
     /// Convert into inner.
-    pub fn into_inner(self) -> HashMap<String, Value> {
+    pub fn into_inner(self) -> BTreeMap<String, Value> {
         self.inner
     }
 
@@ -270,9 +269,11 @@ impl fmt::Debug for Object {
     }
 }
 
-impl From<HashMap<String, Value>> for Object {
-    fn from(object: HashMap<String, Value>) -> Self {
-        Self { inner: object }
+impl std::iter::FromIterator<(String, Value)> for Object {
+    fn from_iter<T: IntoIterator<Item = (String, Value)>>(src: T) -> Self {
+        Self {
+            inner: src.into_iter().collect(),
+        }
     }
 }
 
@@ -354,8 +355,8 @@ impl fmt::Display for DebugStruct<'_> {
 /// Helper function two compare two hashmaps of values.
 pub(crate) fn map_ptr_eq<K>(
     vm: &mut Vm,
-    a: &HashMap<K, Value>,
-    b: &HashMap<K, Value>,
+    a: &BTreeMap<K, Value>,
+    b: &BTreeMap<K, Value>,
 ) -> Result<bool, VmError>
 where
     K: cmp::Eq + cmp::Ord,
