@@ -246,12 +246,6 @@ window.BENCHMARK_DATA = {
             "value": 338581,
             "range": "± 43197",
             "unit": "ns/iter"
-          },
-          {
-            "name": "aoc_2020_1b",
-            "value": 1404452017,
-            "range": "± 171489574",
-            "unit": "ns/iter"
           }
         ]
       },
