@@ -226,4 +226,5 @@ pub use runestick_macros::{Any, FromValue};
 mod collections {
     pub use hashbrown::{hash_map, HashMap};
     pub use hashbrown::{hash_set, HashSet};
+    pub use std::collections::{btree_map, BTreeMap};
 }

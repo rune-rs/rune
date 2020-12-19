@@ -121,7 +121,7 @@ impl Struct {
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
     where
         String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq,
+        Q: std::hash::Hash + std::cmp::Eq + std::cmp::Ord,
     {
         self.data.get(k)
     }
@@ -130,7 +130,7 @@ impl Struct {
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
     where
         String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq,
+        Q: std::hash::Hash + std::cmp::Eq + std::cmp::Ord,
     {
         self.data.get_mut(k)
     }
