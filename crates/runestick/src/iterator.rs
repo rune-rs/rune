@@ -102,6 +102,20 @@ impl Iterator {
         }
     }
 
+    /// Creates an iterator that yields nothing.
+    pub fn empty() -> Self {
+        Self {
+            iter: IterRepr::Empty,
+        }
+    }
+
+    /// Creates an iterator that yields an element exactly once.
+    pub fn once(value: Value) -> Self {
+        Self {
+            iter: IterRepr::Once(Some(value)),
+        }
+    }
+
     /// Get the size hint for the iterator.
     pub fn size_hint(&self) -> (usize, Option<usize>) {
         self.iter.size_hint()
@@ -382,6 +396,8 @@ enum IterRepr {
     Skip(Box<Skip<Self>>),
     Take(Box<Take<Self>>),
     Peekable(Box<Peekable<Self>>),
+    Empty,
+    Once(Option<Value>),
 }
 
 impl RuneIterator for IterRepr {
@@ -399,6 +415,8 @@ impl RuneIterator for IterRepr {
             Self::Skip(iter) => iter.is_double_ended(),
             Self::Take(iter) => iter.is_double_ended(),
             Self::Peekable(iter) => iter.is_double_ended(),
+            Self::Empty => true,
+            Self::Once(..) => true,
         }
     }
 
@@ -416,6 +434,8 @@ impl RuneIterator for IterRepr {
             Self::Skip(iter) => iter.size_hint(),
             Self::Take(iter) => iter.size_hint(),
             Self::Peekable(iter) => iter.size_hint(),
+            Self::Empty => (0, Some(0)),
+            Self::Once(..) => (1, Some(1)),
         }
     }
 
@@ -432,6 +452,8 @@ impl RuneIterator for IterRepr {
             Self::Skip(iter) => iter.next(),
             Self::Take(iter) => iter.next(),
             Self::Peekable(iter) => iter.next(),
+            Self::Empty => Ok(None),
+            Self::Once(v) => Ok(v.take()),
         }
     }
 
@@ -453,6 +475,8 @@ impl RuneIterator for IterRepr {
             Self::Skip(iter) => iter.next_back(),
             Self::Take(iter) => iter.next_back(),
             Self::Peekable(iter) => iter.next_back(),
+            Self::Empty => Ok(None),
+            Self::Once(v) => Ok(v.take()),
         }
     }
 }
@@ -471,6 +495,8 @@ impl fmt::Debug for IterRepr {
             Self::Skip(iter) => write!(f, "{:?}", iter),
             Self::Take(iter) => write!(f, "{:?}", iter),
             Self::Peekable(iter) => write!(f, "{:?}", iter),
+            Self::Empty => write!(f, "std::iter::Empty"),
+            Self::Once(..) => write!(f, "std::iter::Once"),
         }
     }
 }

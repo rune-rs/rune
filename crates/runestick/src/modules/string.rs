@@ -28,6 +28,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("split", string_split)?;
     module.inst_fn("trim", string_trim)?;
     module.inst_fn("trim_end", string_trim_end)?;
+    module.inst_fn("replace", str::replace::<&str>)?;
     // TODO: deprecate this variant.
     module.inst_fn("split_str", string_split)?;
     module.inst_fn("is_empty", str::is_empty)?;
