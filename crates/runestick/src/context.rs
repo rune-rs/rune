@@ -245,6 +245,7 @@ impl Context {
         this.install(&crate::modules::any::module()?)?;
         this.install(&crate::modules::bytes::module()?)?;
         this.install(&crate::modules::char::module()?)?;
+        this.install(&crate::modules::cmp::module()?)?;
         this.install(&crate::modules::collections::module()?)?;
         this.install(&crate::modules::core::module()?)?;
         this.install(&crate::modules::float::module()?)?;
