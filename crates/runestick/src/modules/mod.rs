@@ -4,6 +4,7 @@
 pub mod any;
 pub mod bytes;
 pub mod char;
+pub mod cmp;
 pub mod collections;
 pub mod core;
 pub mod float;

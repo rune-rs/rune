@@ -18,12 +18,14 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("pop", Vec::pop)?;
     module.inst_fn("push", Vec::push)?;
     module.inst_fn("remove", Vec::remove)?;
+    module.inst_fn("sort_by", sort_by)?;
 
     module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
     module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
 
     // TODO: parameterize with generics.
     module.inst_fn("sort_int", sort_int)?;
+
     Ok(module)
 }
 
@@ -38,4 +40,12 @@ fn sort_int(vec: &mut Vec) {
 
 fn vec_get(vec: &Vec, index: usize) -> Option<Value> {
     vec.get(index).cloned()
+}
+
+fn sort_by(vec: &mut Vec, comparator: &crate::Function) {
+    vec.sort_by(|a, b| {
+        comparator
+            .call::<_, std::cmp::Ordering>((a, b))
+            .expect("an ordering")
+    })
 }
