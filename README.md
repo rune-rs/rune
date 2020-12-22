@@ -144,7 +144,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
-[in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/crates/rune/examples
+[in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/examples
 [future-optimizations]: https://github.com/rune-rs/rune/blob/main/FUTURE_OPTIMIZATIONS.md
 [Open Issues]: https://github.com/rune-rs/rune/issues
 [support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
