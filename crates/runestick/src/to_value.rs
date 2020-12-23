@@ -138,11 +138,13 @@ macro_rules! number_value_trait {
     };
 }
 
+number_value_trait!(u16);
 number_value_trait!(u32);
 number_value_trait!(u64);
 number_value_trait!(u128);
 number_value_trait!(usize);
 number_value_trait!(i8);
+number_value_trait!(i16);
 number_value_trait!(i32);
 number_value_trait!(i128);
 number_value_trait!(isize);

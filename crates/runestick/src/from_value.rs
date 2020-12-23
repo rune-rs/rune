@@ -378,11 +378,13 @@ macro_rules! impl_number {
     };
 }
 
+impl_number!(u16);
 impl_number!(u32);
 impl_number!(u64);
 impl_number!(u128);
 impl_number!(usize);
 impl_number!(i8);
+impl_number!(i16);
 impl_number!(i32);
 impl_number!(i128);
 impl_number!(isize);
