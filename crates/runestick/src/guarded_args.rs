@@ -20,7 +20,7 @@ pub trait GuardedArgs {
     ) -> Result<Self::Guard, crate::VmError>;
 
     /// The number of arguments.
-    fn count() -> usize;
+    fn count(&self) -> usize;
 }
 
 macro_rules! impl_into_args {
@@ -48,7 +48,7 @@ macro_rules! impl_into_args {
                 Ok(($($value.1,)*))
             }
 
-            fn count() -> usize {
+            fn count(&self) -> usize {
                 $count
             }
         }

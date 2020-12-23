@@ -10,9 +10,13 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<ParseIntError>()?;
 
     module.function(&["parse"], parse)?;
+    module.function(&["max"], i64::max)?;
+    module.function(&["min"], i64::min)?;
+    module.function(&["abs"], i64::abs)?;
 
     module.inst_fn("to_float", to_float)?;
 
+    module.inst_fn("abs", i64::abs)?;
     module.inst_fn("checked_add", i64::checked_add)?;
     module.inst_fn("checked_sub", i64::checked_sub)?;
     module.inst_fn("checked_div", i64::checked_div)?;

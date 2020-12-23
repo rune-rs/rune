@@ -56,9 +56,9 @@ where
                 Self::check_args(args.count(), tuple.args)?;
                 Value::tuple_struct(tuple.rtti.clone(), args.into_vec()?)
             }
-            Inner::FnUnitVariant(empty) => {
+            Inner::FnUnitVariant(unit) => {
                 Self::check_args(args.count(), 0)?;
-                Value::empty_variant(empty.rtti.clone())
+                Value::unit_variant(unit.rtti.clone())
             }
             Inner::FnTupleVariant(tuple) => {
                 Self::check_args(args.count(), tuple.args)?;
@@ -109,7 +109,6 @@ where
     pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
-                let _guard = crate::interface::EnvGuard::new(&vm.context, &vm.unit);
                 (handler.handler)(&mut vm.stack, args)?;
                 None
             }
@@ -147,7 +146,7 @@ where
             Inner::FnUnitVariant(tuple) => {
                 Self::check_args(args, 0)?;
 
-                let value = Value::empty_variant(tuple.rtti.clone());
+                let value = Value::unit_variant(tuple.rtti.clone());
                 vm.stack_mut().push(value);
                 None
             }
@@ -232,7 +231,7 @@ where
     }
 
     /// Create a function pointer that constructs a empty variant.
-    pub(crate) fn from_empty_variant(rtti: Arc<VariantRtti>) -> Self {
+    pub(crate) fn from_unit_variant(rtti: Arc<VariantRtti>) -> Self {
         Self {
             inner: Inner::FnUnitVariant(FnUnitVariant { rtti }),
         }

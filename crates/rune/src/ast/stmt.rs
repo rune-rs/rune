@@ -80,7 +80,7 @@ impl Parse for Stmt {
             Self::Local(local)
         } else {
             let expr =
-                ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(false))?;
+                ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(true))?;
 
             Self::Expr(expr, p.parse()?)
         };
@@ -103,16 +103,17 @@ pub enum ItemOrExpr {
 
 impl Peek for ItemOrExpr {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        match [p.nth(0), p.nth(1)] {
-            [K![use], ..] => true,
-            [K![enum], ..] => true,
-            [K![struct], ..] => true,
-            [K![impl], ..] => true,
-            [K![async], K![fn]] => true,
-            [K![fn], ..] => true,
-            [K![mod], ..] => true,
-            [K![const], ..] => true,
-            [K![ident(..)], ..] => true,
+        match p.nth(0) {
+            K![use] => true,
+            K![enum] => true,
+            K![struct] => true,
+            K![impl] => true,
+            K![async] => matches!(p.nth(1), K![fn]),
+            K![fn] => true,
+            K![mod] => true,
+            K![const] => true,
+            K![ident(..)] => true,
+            K![::] => true,
             _ => ast::Expr::peek(p),
         }
     }
@@ -133,8 +134,7 @@ impl Parse for ItemOrExpr {
             return Err(ParseError::unsupported(span, "visibility modifier"));
         }
 
-        let expr =
-            ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(false))?;
+        let expr = ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(true))?;
 
         if let Some(span) = attributes.option_span() {
             return Err(ParseError::unsupported(span, "attributes"));

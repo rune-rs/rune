@@ -35,7 +35,6 @@ pub static UNIT_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(() => UNIT_TYPE);
-impl_static_type!(crate::UnitVariant => UNIT_TYPE);
 impl_static_type!(crate::UnitStruct => UNIT_TYPE);
 
 /// The specialized type information for a byte type.
@@ -123,7 +122,6 @@ pub static TUPLE_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(crate::Tuple => TUPLE_TYPE);
-impl_static_type!(crate::TupleVariant => TUPLE_TYPE);
 
 /// The specialized type information for an anonymous object type.
 pub static OBJECT_TYPE: &StaticType = &StaticType {
@@ -133,7 +131,6 @@ pub static OBJECT_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(crate::Object => OBJECT_TYPE);
 impl_static_type!(crate::Struct => OBJECT_TYPE);
-impl_static_type!(crate::StructVariant => OBJECT_TYPE);
 
 /// The specialized type information for the range type.
 pub static RANGE_TYPE: &StaticType = &StaticType {
@@ -199,7 +196,6 @@ pub static FUNCTION_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(crate::Function => FUNCTION_TYPE);
 impl_static_type!(crate::Shared<crate::Function> => FUNCTION_TYPE);
-impl_static_type!(crate::Ref<crate::Function> => FUNCTION_TYPE);
 impl_static_type!(impl<T> std::collections::HashMap<String, T> => OBJECT_TYPE);
 
 /// The specialized type information for a fmt spec types.
@@ -217,14 +213,6 @@ pub static ITERATOR_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(crate::Iterator => ITERATOR_TYPE);
-
-/// The specialized type information for the interface type.
-pub static INTERFACE_TYPE: &StaticType = &StaticType {
-    name: RawStr::from_str("Interface"),
-    hash: Hash::new(0xf2b8e210ba53f362),
-};
-
-impl_static_type!(crate::Interface => INTERFACE_TYPE);
 
 /// The specialized type information for type objects.
 pub static TYPE: &StaticType = &StaticType {

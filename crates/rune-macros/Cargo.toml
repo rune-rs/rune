@@ -15,9 +15,9 @@ Helper macros for Rune.
 """
 
 [dependencies]
-syn = { version = "1.0.31", features = ["full"] }
-quote = "1.0.3"
-proc-macro2 = { version = "1.0.10", features = ["span-locations"] }
+syn = { version = "1.0.53", features = ["full"] }
+quote = "1.0.7"
+proc-macro2 = { version = "1.0.24", features = ["span-locations"] }
 
 [dev-dependencies]
 rune = {version = "0.7.0", path = "../rune"}

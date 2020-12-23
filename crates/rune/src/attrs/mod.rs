@@ -50,3 +50,12 @@ impl Attribute for BuiltIn {
     /// Must match the specified name.
     const PATH: &'static str = "builtin";
 }
+
+/// NB: at this point we don't support attributes beyond the empty `#[test]`.
+#[derive(Parse)]
+pub(crate) struct Test {}
+
+impl Attribute for Test {
+    /// Must match the specified name.
+    const PATH: &'static str = "test";
+}

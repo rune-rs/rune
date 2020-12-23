@@ -36,3 +36,31 @@ where
         T::type_info()
     }
 }
+
+/// Blanket implementation for owned references.
+impl<T: ?Sized> TypeOf for crate::Ref<T>
+where
+    T: TypeOf,
+{
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+
+    fn type_info() -> TypeInfo {
+        T::type_info()
+    }
+}
+
+/// Blanket implementation for owned mutable references.
+impl<T: ?Sized> TypeOf for crate::Mut<T>
+where
+    T: TypeOf,
+{
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+
+    fn type_info() -> TypeInfo {
+        T::type_info()
+    }
+}

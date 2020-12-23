@@ -1,4 +1,4 @@
-use crate::RawStr;
+use crate::{AnyObjError, RawStr};
 use std::cell::Cell;
 use std::fmt;
 use std::future::Future;
@@ -8,48 +8,44 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
 
-/// Flag to used to mark access as taken.
-const FLAG: isize = 1isize;
+/// Bitflag which if set indicates that the accessed value is an external
+/// reference (exclusive or not).
+const IS_REF_MASK: isize = 1isize;
 /// Sentinel value to indicate that access is taken.
-const TAKEN: isize = (isize::max_value() ^ FLAG) >> 1;
+const TAKEN: isize = (isize::max_value() ^ IS_REF_MASK) >> 1;
 /// Panic if we reach this number of shared accesses and we try to add one more,
 /// since it's the largest we can support.
 const MAX_USES: isize = 0b11isize.rotate_right(2);
 
 /// An error raised while downcasting.
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum AccessError {
-    /// Error raised when we expect a specific external type but got another.
     #[error("expected data of type `{expected}`, but found `{actual}`")]
-    UnexpectedType {
-        /// The type that was expected.
-        expected: RawStr,
-        /// The type that was found.
-        actual: RawStr,
-    },
-    /// Trying to access an inaccessible reference.
+    UnexpectedType { expected: RawStr, actual: RawStr },
     #[error("{error}")]
     NotAccessibleRef {
-        /// Source error.
         #[source]
         #[from]
         error: NotAccessibleRef,
     },
-    /// Trying to access an inaccessible mutable reference.
     #[error("{error}")]
     NotAccessibleMut {
-        /// Source error.
         #[source]
         #[from]
         error: NotAccessibleMut,
     },
-    /// Trying to access an inaccessible taking.
     #[error("{error}")]
     NotAccessibleTake {
-        /// Source error.
         #[source]
         #[from]
         error: NotAccessibleTake,
+    },
+    #[error("{error}")]
+    AnyObjError {
+        #[source]
+        #[from]
+        error: AnyObjError,
     },
 }
 
@@ -86,7 +82,7 @@ pub struct NotAccessibleTake(Snapshot);
 /// the time of an error.
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct Snapshot(isize);
+struct Snapshot(isize);
 
 impl fmt::Display for Snapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -98,7 +94,7 @@ impl fmt::Display for Snapshot {
             n => write!(f, "invalidly marked ({})", n)?,
         }
 
-        if self.0 & FLAG == 1 {
+        if self.0 & IS_REF_MASK == 1 {
             write!(f, " (ref)")?;
         }
 
@@ -126,13 +122,12 @@ impl fmt::Display for Snapshot {
 /// * If the value is `0`, it is not being accessed.
 /// * If the value is `1`, it is being exclusively accessed.
 /// * If the value is negative `n`, it is being shared accessed by `-n` uses.
-/// * If the value is
 ///
 /// This means that the maximum number of accesses for a 64-bit `isize` is
 /// `(1 << 62) - 1` uses.
 ///
 /// ```
-#[derive(Clone)]
+#[repr(transparent)]
 pub(crate) struct Access(Cell<isize>);
 
 impl Access {
@@ -145,16 +140,17 @@ impl Access {
     /// Test if access is guarding a reference.
     #[inline]
     pub(crate) fn is_ref(&self) -> bool {
-        self.0.get() & FLAG != 0
+        self.0.get() & IS_REF_MASK != 0
     }
 
-    /// Test if we have shared access without modifying the internal count.
+    /// Test if we can have shared access without modifying the internal count.
     #[inline]
     pub(crate) fn is_shared(&self) -> bool {
-        self.get().wrapping_sub(1) < 0
+        self.get() <= 0
     }
 
-    /// Test if we have exclusive access without modifying the internal count.
+    /// Test if we can have exclusive access without modifying the internal
+    /// count.
     #[inline]
     pub(crate) fn is_exclusive(&self) -> bool {
         self.get() == 0
@@ -175,7 +171,7 @@ impl Access {
     pub(crate) unsafe fn shared(
         &self,
         kind: AccessKind,
-    ) -> Result<SharedGuard<'_>, NotAccessibleRef> {
+    ) -> Result<AccessGuard<'_>, NotAccessibleRef> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleRef(Snapshot(self.0.get())));
@@ -195,7 +191,7 @@ impl Access {
         }
 
         self.set(n);
-        Ok(SharedGuard(self))
+        Ok(AccessGuard(self))
     }
 
     /// Mark that we want exclusive access to the given access token.
@@ -207,22 +203,21 @@ impl Access {
     pub(crate) unsafe fn exclusive(
         &self,
         kind: AccessKind,
-    ) -> Result<ExclusiveGuard<'_>, NotAccessibleMut> {
+    ) -> Result<AccessGuard<'_>, NotAccessibleMut> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleMut(Snapshot(self.0.get())));
             }
         }
 
-        let state = self.get();
-        let n = state.wrapping_add(1);
+        let n = self.get();
 
-        if n != 1 {
+        if n != 0 {
             return Err(NotAccessibleMut(Snapshot(self.0.get())));
         }
 
-        self.set(n);
-        Ok(ExclusiveGuard(self))
+        self.set(n.wrapping_add(1));
+        Ok(AccessGuard(self))
     }
 
     /// Mark that we want to mark the given access as "taken".
@@ -250,19 +245,19 @@ impl Access {
         Ok(RawTakeGuard { access: self })
     }
 
-    /// Unshare the current access.
+    /// Release the current access level.
     #[inline]
-    fn release_shared(&self) {
-        let b = self.get().wrapping_add(1);
-        debug_assert!(b <= 0);
-        self.set(b);
-    }
+    fn release(&self) {
+        let b = self.get();
 
-    /// Unshare the current access.
-    #[inline]
-    fn release_exclusive(&self) {
-        let b = self.get().wrapping_sub(1);
-        debug_assert_eq!(b, 0, "borrow value should be exclusive (0)");
+        let b = if b < 0 {
+            debug_assert!(b < 0);
+            b.wrapping_add(1)
+        } else {
+            debug_assert_eq!(b, 1, "borrow value should be exclusive (0)");
+            b.wrapping_sub(1)
+        };
+
         self.set(b);
     }
 
@@ -283,7 +278,7 @@ impl Access {
     /// Set the current value of the flag.
     #[inline]
     fn set(&self, value: isize) {
-        self.0.set(self.0.get() & FLAG | value << 1);
+        self.0.set(self.0.get() & IS_REF_MASK | value << 1);
     }
 }
 
@@ -293,25 +288,13 @@ impl fmt::Debug for Access {
     }
 }
 
-/// A shared access guard.
-///
-/// This must not outlive the access controlled instance it was constructed
-/// from.
-pub struct RawSharedGuard(*const Access);
-
-impl Drop for RawSharedGuard {
-    fn drop(&mut self) {
-        unsafe { (*self.0).release_shared() };
-    }
-}
-
 /// Guard for a data borrowed from a slot in the virtual machine.
 ///
 /// These guards are necessary, since we need to guarantee certain forms of
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowRef<'a, T: ?Sized + 'a> {
     data: &'a T,
-    guard: SharedGuard<'a>,
+    guard: AccessGuard<'a>,
 }
 
 impl<'a, T: ?Sized> BorrowRef<'a, T> {
@@ -326,16 +309,55 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     pub(crate) fn new(data: &'a T, access: &'a Access) -> Self {
         Self {
             data,
-            guard: SharedGuard(access),
+            guard: AccessGuard(access),
         }
     }
 
-    /// Try to map the interior reference the reference.
-    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<BorrowRef<'a, U>, E>
+    /// Map the reference.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{BorrowRef, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.borrow_ref()?;
+    /// let value: BorrowRef<[u32]> = BorrowRef::map(vec, |vec| &vec[0..2]);
+    ///
+    /// assert_eq!(&*value, &[1u32, 2u32][..]);
+    /// # Ok(()) }
+    /// ```
+    pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowRef<'a, U>
     where
-        M: FnOnce(&T) -> Result<&U, E>,
+        M: FnOnce(&T) -> &U,
     {
-        Ok(BorrowRef {
+        BorrowRef {
+            data: m(this.data),
+            guard: this.guard,
+        }
+    }
+
+    /// Try to map the reference to a projection.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{BorrowRef, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.borrow_ref()?;
+    /// let mut value: Option<BorrowRef<[u32]>> = BorrowRef::try_map(vec, |vec| vec.get(0..2));
+    ///
+    /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
+    /// # Ok(()) }
+    /// ```
+    pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowRef<'a, U>>
+    where
+        M: FnOnce(&T) -> Option<&U>,
+    {
+        Some(BorrowRef {
             data: m(this.data)?,
             guard: this.guard,
         })
@@ -359,10 +381,11 @@ where
     }
 }
 
-/// A guard around access.
-pub struct SharedGuard<'a>(&'a Access);
+/// A guard around some specific access access.
+#[repr(transparent)]
+pub struct AccessGuard<'a>(&'a Access);
 
-impl SharedGuard<'_> {
+impl AccessGuard<'_> {
     /// Convert into a raw guard which does not have a lifetime associated with
     /// it. Droping the raw guard will release the resource.
     ///
@@ -370,26 +393,24 @@ impl SharedGuard<'_> {
     ///
     /// Since we're losing track of the lifetime, caller must ensure that the
     /// access outlives the guard.
-    pub unsafe fn into_raw(self) -> RawSharedGuard {
-        RawSharedGuard(ManuallyDrop::new(self).0)
+    pub unsafe fn into_raw(self) -> RawAccessGuard {
+        RawAccessGuard(ManuallyDrop::new(self).0)
     }
 }
 
-impl Drop for SharedGuard<'_> {
+impl Drop for AccessGuard<'_> {
     fn drop(&mut self) {
-        self.0.release_shared();
+        self.0.release();
     }
 }
 
-/// An exclusive access guard.
-///
-/// This must not outlive the access controlled instance it was constructed
-/// from.
-pub struct RawExclusiveGuard(*const Access);
+/// A raw guard around some level of access.
+#[repr(transparent)]
+pub struct RawAccessGuard(*const Access);
 
-impl Drop for RawExclusiveGuard {
+impl Drop for RawAccessGuard {
     fn drop(&mut self) {
-        unsafe { (*self.0).release_exclusive() }
+        unsafe { (*self.0).release() }
     }
 }
 
@@ -413,7 +434,7 @@ impl Drop for RawTakeGuard {
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowMut<'a, T: ?Sized> {
     data: &'a mut T,
-    guard: ExclusiveGuard<'a>,
+    guard: AccessGuard<'a>,
 }
 
 impl<'a, T: ?Sized> BorrowMut<'a, T> {
@@ -428,11 +449,25 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     pub(crate) unsafe fn new(data: &'a mut T, access: &'a Access) -> Self {
         Self {
             data,
-            guard: ExclusiveGuard(access),
+            guard: AccessGuard(access),
         }
     }
 
     /// Map the mutable reference.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{BorrowMut, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.borrow_mut()?;
+    /// let value: BorrowMut<[u32]> = BorrowMut::map(vec, |vec| &mut vec[0..2]);
+    ///
+    /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
+    /// # Ok(()) }
+    /// ```
     pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowMut<'a, U>
     where
         M: FnOnce(&mut T) -> &mut U,
@@ -443,7 +478,21 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
         }
     }
 
-    /// Try to optionally map the mutable reference.
+    /// Try to map the mutable reference to a projection.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{BorrowMut, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.borrow_mut()?;
+    /// let mut value: Option<BorrowMut<[u32]>> = BorrowMut::try_map(vec, |vec| vec.get_mut(0..2));
+    ///
+    /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
+    /// # Ok(()) }
+    /// ```
     pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowMut<'a, U>>
     where
         M: FnOnce(&mut T) -> Option<&mut U>,
@@ -488,27 +537,6 @@ where
         // NB: inner Future is Unpin.
         let this = self.get_mut();
         Pin::new(&mut **this).poll(cx)
-    }
-}
-
-pub struct ExclusiveGuard<'a>(&'a Access);
-
-impl ExclusiveGuard<'_> {
-    /// Convert into a raw guard which does not have a lifetime associated with
-    /// it. Droping the raw guard will release the resource.
-    ///
-    /// # Safety
-    ///
-    /// Since we're losing track of the lifetime, caller must ensure that the
-    /// access outlives the guard.
-    pub unsafe fn into_raw(self) -> RawExclusiveGuard {
-        RawExclusiveGuard(ManuallyDrop::new(self).0)
-    }
-}
-
-impl Drop for ExclusiveGuard<'_> {
-    fn drop(&mut self) {
-        self.0.release_exclusive();
     }
 }
 

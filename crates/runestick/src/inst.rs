@@ -176,7 +176,12 @@ pub enum Inst {
     /// <index>
     /// => <value>
     /// ```
-    IndexGet,
+    IndexGet {
+        /// How the target is addressed.
+        target: InstAddress,
+        /// How the index is addressed.
+        index: InstAddress,
+    },
     /// Get the given index out of a tuple on the top of the stack.
     /// Errors if the item doesn't exist or the item is not a tuple.
     ///
@@ -454,19 +459,6 @@ pub enum Inst {
         offset: isize,
     },
     /// Jump to `offset` relative to the current instruction pointer if the
-    /// condition is `false`.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <boolean>
-    /// => *nothing*
-    /// ```
-    JumpIfNot {
-        /// Offset to jump to.
-        offset: isize,
-    },
-    /// Jump to `offset` relative to the current instruction pointer if the
     /// condition is `true`. Will only pop the stack is a jump is not performed.
     ///
     /// # Operation
@@ -519,6 +511,50 @@ pub enum Inst {
     Vec {
         /// The size of the vector.
         count: usize,
+    },
+    /// Construct a push a one-tuple value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <tuple>
+    /// ```
+    Tuple1 {
+        /// First element of the tuple.
+        args: [InstAddress; 1],
+    },
+    /// Construct a push a two-tuple value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <tuple>
+    /// ```
+    Tuple2 {
+        /// Tuple arguments.
+        args: [InstAddress; 2],
+    },
+    /// Construct a push a three-tuple value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <tuple>
+    /// ```
+    Tuple3 {
+        /// Tuple arguments.
+        args: [InstAddress; 3],
+    },
+    /// Construct a push a four-tuple value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <tuple>
+    /// ```
+    Tuple4 {
+        /// Tuple arguments.
+        args: [InstAddress; 4],
     },
     /// Construct a push a tuple value onto the stack. The number of elements
     /// in the tuple are determined by `count` and are popped from the stack.
@@ -852,13 +888,15 @@ pub enum Inst {
     /// # Operation
     ///
     /// ```text
-    /// <value>
-    /// <value>
     /// => <value>
     /// ```
     Op {
         /// The actual operation.
         op: InstOp,
+        /// The address of the first argument.
+        a: InstAddress,
+        /// The address of the second argument.
+        b: InstAddress,
     },
     /// A built-in operation that assigns to the left-hand side operand. Like
     /// `a += b`.
@@ -876,6 +914,13 @@ pub enum Inst {
         target: InstTarget,
         /// The actual operation.
         op: InstAssignOp,
+    },
+    /// Advance an iterator at the given position.
+    IterNext {
+        /// The offset of the value being advanced.
+        offset: usize,
+        /// A relative jump to perform if the iterator could not be advanced.
+        jump: isize,
     },
     /// Cause the VM to panic and error out without a reason.
     ///
@@ -958,8 +1003,8 @@ impl fmt::Display for Inst {
             Self::LoadInstanceFn { hash } => {
                 write!(fmt, "load-instance-fn {}", hash)?;
             }
-            Self::IndexGet => {
-                write!(fmt, "index-get")?;
+            Self::IndexGet { target, index } => {
+                write!(fmt, "index-get {}, {}", target, index)?;
             }
             Self::TupleIndexGet { index } => {
                 write!(fmt, "tuple-index-get {}", index)?;
@@ -1030,9 +1075,6 @@ impl fmt::Display for Inst {
             Self::JumpIf { offset } => {
                 write!(fmt, "jump-if {}", offset)?;
             }
-            Self::JumpIfNot { offset } => {
-                write!(fmt, "jump-if-not {}", offset)?;
-            }
             Self::JumpIfOrPop { offset } => {
                 write!(fmt, "jump-if-or-pop {}", offset)?;
             }
@@ -1044,6 +1086,18 @@ impl fmt::Display for Inst {
             }
             Self::Vec { count } => {
                 write!(fmt, "vec {}", count)?;
+            }
+            Self::Tuple1 { args: [a] } => {
+                write!(fmt, "tuple-1 {}", a)?;
+            }
+            Self::Tuple2 { args: [a, b] } => {
+                write!(fmt, "tuple-2 {}, {}", a, b)?;
+            }
+            Self::Tuple3 { args: [a, b, c] } => {
+                write!(fmt, "tuple-3 {}, {}, {}", a, b, c)?;
+            }
+            Self::Tuple4 { args: [a, b, c, d] } => {
+                write!(fmt, "tuple-4 {}, {}, {}, {}", a, b, c, d)?;
             }
             Self::Tuple { count } => {
                 write!(fmt, "tuple {}", count)?;
@@ -1137,11 +1191,14 @@ impl fmt::Display for Inst {
             Self::Variant { variant } => {
                 write!(fmt, "variant {}", variant)?;
             }
-            Self::Op { op } => {
-                write!(fmt, "op {}", op)?;
+            Self::Op { op, a, b } => {
+                write!(fmt, "op {}, {}, {}", op, a, b)?;
             }
             Self::Assign { target, op } => {
                 write!(fmt, "assign {}, {}", target, op)?;
+            }
+            Self::IterNext { offset, jump } => {
+                write!(fmt, "iter-next {}, {}", offset, jump)?;
             }
             Self::Panic { reason } => {
                 write!(fmt, "panic {}", reason.ident())?;
@@ -1166,6 +1223,24 @@ impl fmt::Display for Inst {
                     None => write!(f, "?"),
                 }
             }
+        }
+    }
+}
+
+/// How an instruction addresses a value.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InstAddress {
+    /// Addressed from the top of the stack.
+    Top,
+    /// Value addressed at the given offset.
+    Offset(usize),
+}
+
+impl fmt::Display for InstAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Top => write!(f, "top"),
+            Self::Offset(offset) => write!(f, "offset({})", offset),
         }
     }
 }

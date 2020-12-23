@@ -124,7 +124,7 @@ async fn initialize(
         lsp::TextDocumentSyncKind::Incremental,
     ));
 
-    capabilities.definition_provider = Some(true);
+    capabilities.definition_provider = Some(lsp::OneOf::Left(true));
 
     let server_info = lsp::ServerInfo {
         name: String::from("Rune Language Server"),

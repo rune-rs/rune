@@ -49,7 +49,7 @@ impl IrCompiler<'_> {
                 let target = self.ir_target(&expr_field_access.expr)?;
 
                 match &expr_field_access.expr_field {
-                    ast::ExprField::Ident(field) => {
+                    ast::ExprField::Path(field) => {
                         let field = self.resolve(field)?;
 
                         return Ok(ir::IrTarget {
@@ -160,11 +160,16 @@ impl IrCompile for ast::ItemFn {
 
         for (arg, _) in &self.args {
             match arg {
-                ast::FnArg::Ident(ident) => {
-                    args.push(c.resolve(ident)?.into());
+                ast::FnArg::Pat(ast::Pat::PatPath(path)) => {
+                    if let Some(ident) = path.path.try_as_ident() {
+                        args.push(c.resolve(ident)?.into());
+                        continue;
+                    }
                 }
-                _ => return Err(IrError::msg(arg, "unsupported argument in const fn")),
+                _ => (),
             }
+
+            return Err(IrError::msg(arg, "unsupported argument in const fn"));
         }
 
         let ir_scope = self.body.compile(c)?;

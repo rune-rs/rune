@@ -1,6 +1,7 @@
-use crate::panic::BoxedPanic;
+use crate::{panic::BoxedPanic, CallFrame};
 use crate::{
-    AccessError, Hash, Item, Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Value, VmHaltInfo,
+    AccessError, Hash, Item, Key, Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Value,
+    VmHaltInfo,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -29,7 +30,7 @@ impl VmError {
     where
         T: TypeOf,
     {
-        Ok(Self::from(VmErrorKind::BadArgumentType {
+        Ok(Self::from(VmErrorKind::BadArgumentAt {
             arg,
             expected: T::type_info(),
             actual: value.type_info()?,
@@ -63,7 +64,7 @@ impl VmError {
     }
 
     /// Convert into an unwinded vm error.
-    pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize) -> Self {
+    pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize, frames: Vec<crate::CallFrame>) -> Self {
         if let VmErrorKind::Unwound { .. } = &*self.kind {
             return self;
         }
@@ -72,23 +73,39 @@ impl VmError {
             kind: self.kind,
             unit: unit.clone(),
             ip,
+            frames,
         })
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn as_unwound<'a>(&'a self) -> (&'a VmErrorKind, Option<(&'a Arc<Unit>, usize)>) {
+    pub fn as_unwound<'a>(
+        &'a self,
+    ) -> (
+        &'a VmErrorKind,
+        Option<(&'a Arc<Unit>, usize, Vec<CallFrame>)>,
+    ) {
         match &*self.kind {
-            VmErrorKind::Unwound { kind, unit, ip } => (&*kind, Some((unit, *ip))),
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => (&*kind, Some((unit, *ip, frames.clone()))),
             kind => (kind, None),
         }
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn into_unwound(self) -> (Self, Option<(Arc<Unit>, usize)>) {
+    pub fn into_unwound(self) -> (Self, Option<(Arc<Unit>, usize, Vec<CallFrame>)>) {
         match *self.kind {
-            VmErrorKind::Unwound { kind, unit, ip } => {
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => {
                 let error = Self { kind };
-                (error, Some((unit, ip)))
+                (error, Some((unit, ip, frames)))
             }
             kind => (Self::from(kind), None),
         }
@@ -143,6 +160,8 @@ pub enum VmErrorKind {
         unit: Arc<Unit>,
         /// The instruction pointer of where the original error happened.
         ip: usize,
+        /// All lower call frames before the unwind trigger point
+        frames: Vec<CallFrame>,
     },
     #[error("{error}")]
     AccessError {
@@ -204,7 +223,7 @@ pub enum VmErrorKind {
     #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
     BadArgumentCount { actual: usize, expected: usize },
     #[error("bad argument #{arg}, expected `{expected}` but got `{actual}`")]
-    BadArgumentType {
+    BadArgumentAt {
         arg: usize,
         expected: TypeInfo,
         actual: TypeInfo,
@@ -240,10 +259,17 @@ pub enum VmErrorKind {
     UnsupportedCallFn { actual_type: TypeInfo },
     #[error("missing index by static string slot `{slot}` in object")]
     ObjectIndexMissing { slot: usize },
-    #[error("missing index `{index}` on `{target}`")]
+    #[error("`{target}` missing index `{index}`")]
     MissingIndex {
         target: TypeInfo,
         index: VmIntegerRepr,
+    },
+    #[error("`{target}` missing index `{index:?}`")]
+    MissingIndexKey { target: TypeInfo, index: Key },
+    #[error("index out of bounds: the len is ${len} but the index is {index}")]
+    OutOfRange {
+        index: VmIntegerRepr,
+        len: VmIntegerRepr,
     },
     #[error("missing field `{field}` on `{target}`")]
     MissingField { target: TypeInfo, field: String },
@@ -298,13 +324,22 @@ pub enum VmErrorKind {
     KeyNotSupported { actual: TypeInfo },
     #[error("missing interface environment")]
     MissingInterfaceEnvironment,
+    #[error("index out of bounds")]
+    IndexOutOfBounds,
+    #[error("unsupported range")]
+    UnsupportedRange,
 }
 
 impl VmErrorKind {
     /// Unpack an unwound error, if it is present.
-    pub fn as_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize)>) {
+    pub fn as_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize, Vec<CallFrame>)>) {
         match self {
-            VmErrorKind::Unwound { kind, unit, ip } => (&*kind, Some((unit.clone(), *ip))),
+            VmErrorKind::Unwound {
+                kind,
+                unit,
+                ip,
+                frames,
+            } => (&*kind, Some((unit.clone(), *ip, frames.clone()))),
             kind => (kind, None),
         }
     }

@@ -28,3 +28,4 @@ pub trait Any: Named + std::any::Any {
 crate::__internal_impl_any!(std::fmt::Error);
 crate::__internal_impl_any!(std::io::Error);
 crate::__internal_impl_any!(anyhow::Error);
+crate::__internal_impl_any!(std::cmp::Ordering);

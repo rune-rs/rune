@@ -109,7 +109,6 @@ impl Expander {
 
                     unnamed_matches.push(quote_spanned! { variant.span() =>
                         #lit_str => {
-                            let tuple = value.data();
                             Ok( Self::#ident ( #expanded ) )
                         }
                     });
@@ -119,7 +118,6 @@ impl Expander {
 
                     named_matches.push(quote_spanned! { variant.span() =>
                         #lit_str => {
-                            let object = value.data();
                             Ok( Self::#ident { #expanded } )
                         }
                     });
@@ -128,68 +126,50 @@ impl Expander {
         }
 
         let from_value = &self.tokens.from_value;
+        let variant_data = &self.tokens.variant_data;
         let ident = &input.ident;
         let value = &self.tokens.value;
         let vm_error = &self.tokens.vm_error;
         let vm_error_kind = &self.tokens.vm_error_kind;
 
-        let name = &quote_spanned! {
-            input.span() =>
-            let value = value.borrow_ref()?;
-            let mut it = value.rtti().item.iter();
+        let variant = quote_spanned! { input.span() =>
+            #value::Variant(variant) => {
+                let variant = variant.borrow_ref()?;
+                let mut it = variant.rtti().item.iter();
 
-            let name = match it.next_back_str() {
-                Some(name) => name,
-                None => return Err(#vm_error::from(#vm_error_kind::MissingVariantName)),
-            };
+                let name = match it.next_back_str() {
+                    Some(name) => name,
+                    None => return Err(#vm_error::from(#vm_error_kind::MissingVariantName)),
+                };
+
+                match variant.data() {
+                    #variant_data::Unit => match name {
+                        #(#unit_matches,)*
+                        name => {
+                            return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
+                        }
+                    },
+                    #variant_data::Tuple(tuple) => match name {
+                        #(#unnamed_matches)*
+                        name => {
+                            return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
+                        }
+                    },
+                    #variant_data::Struct(object) => match name {
+                        #(#named_matches)*
+                        name => {
+                            return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
+                        }
+                    },
+                }
+            }
         };
-
-        let mut matches = Vec::new();
-
-        matches.push(quote_spanned! { input.span() =>
-            #value::UnitVariant(value) => {
-                #name
-
-                match name {
-                    #(#unit_matches,)*
-                    name => {
-                        return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
-                    }
-                }
-            }
-        });
-
-        matches.push(quote_spanned! { input.span() =>
-            #value::TupleVariant(value) => {
-                #name
-
-                match name {
-                    #(#unnamed_matches)*
-                    name => {
-                        return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
-                    }
-                }
-            }
-        });
-
-        matches.push(quote_spanned! { input.span() =>
-            #value::StructVariant(value) => {
-                #name
-
-                match name {
-                    #(#named_matches)*
-                    name => {
-                        return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
-                    }
-                }
-            }
-        });
 
         Some(quote_spanned! { input.span() =>
             impl #from_value for #ident {
                 fn from_value(value: #value) -> Result<Self, #vm_error> {
                     match value {
-                        #(#matches,)*
+                        #variant,
                         actual => {
                             Err(#vm_error::from(#vm_error_kind::ExpectedVariant {
                                 actual: actual.type_info()?,

@@ -8,6 +8,9 @@ members = [
     "crates/rune-wasm",
     "crates/runestick",
     "crates/runestick-macros",
+    "tests",
+    "examples",
+    "benches",
 ]
 
 exclude = [
@@ -15,3 +18,7 @@ exclude = [
     "tools/site",
     "tools/generate",
 ]
+
+[profile.bench]
+lto = false
+debug = true

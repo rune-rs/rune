@@ -137,6 +137,12 @@ impl Import {
                                 CompileError::new(super_token, CompileErrorKind::UnsupportedSuper)
                             })?;
                         }
+                        ast::PathSegment::Generics(arguments) => {
+                            return Err(CompileError::new(
+                                arguments,
+                                CompileErrorKind::UnsupportedGenerics,
+                            ));
+                        }
                     },
                     ast::ItemUseSegment::Wildcard(star_token) => {
                         let mut wildcard_import = WildcardImport {

@@ -245,6 +245,7 @@ impl Context {
         this.install(&crate::modules::any::module()?)?;
         this.install(&crate::modules::bytes::module()?)?;
         this.install(&crate::modules::char::module()?)?;
+        this.install(&crate::modules::cmp::module()?)?;
         this.install(&crate::modules::collections::module()?)?;
         this.install(&crate::modules::core::module()?)?;
         this.install(&crate::modules::float::module()?)?;
@@ -254,6 +255,7 @@ impl Context {
         this.install(&crate::modules::int::module()?)?;
         this.install(&crate::modules::io::module(stdio)?)?;
         this.install(&crate::modules::iter::module()?)?;
+        this.install(&crate::modules::mem::module()?)?;
         this.install(&crate::modules::object::module()?)?;
         this.install(&crate::modules::ops::module()?)?;
         this.install(&crate::modules::option::module()?)?;
@@ -516,7 +518,10 @@ impl Context {
             item.clone(),
             CompileMeta {
                 item: Arc::new(item.into()),
-                kind: CompileMetaKind::Function { type_hash: hash },
+                kind: CompileMetaKind::Function {
+                    type_hash: hash,
+                    is_test: false,
+                },
                 source: None,
             },
         );
@@ -587,7 +592,10 @@ impl Context {
             item.clone(),
             CompileMeta {
                 item: Arc::new(item.into()),
-                kind: CompileMetaKind::Function { type_hash: hash },
+                kind: CompileMetaKind::Function {
+                    type_hash: hash,
+                    is_test: false,
+                },
                 source: None,
             },
         );

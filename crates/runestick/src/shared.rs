@@ -1,12 +1,9 @@
-use crate::access::{
-    Access, AccessError, AccessKind, BorrowMut, BorrowRef, RawExclusiveGuard, RawSharedGuard,
-};
-use crate::{Any, AnyObj, Hash};
+use crate::access::{Access, AccessError, AccessKind, BorrowMut, BorrowRef, RawAccessGuard};
+use crate::{Any, AnyObj, AnyObjError, Hash};
 use std::any;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
 use std::future::Future;
-use std::marker;
 use std::mem;
 use std::mem::ManuallyDrop;
 use std::ops;
@@ -205,10 +202,9 @@ impl<T> Shared<T> {
             let this = ManuallyDrop::new(self);
 
             Ok(Ref {
-                data: this.inner.as_ref().data.get(),
+                data: ptr::NonNull::new_unchecked(this.inner.as_ref().data.get()),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
-                _marker: marker::PhantomData,
             })
         }
     }
@@ -263,10 +259,9 @@ impl<T> Shared<T> {
             let this = ManuallyDrop::new(self);
 
             Ok(Mut {
-                data: this.inner.as_ref().data.get(),
+                data: ptr::NonNull::new_unchecked(this.inner.as_ref().data.get()),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
-                _marker: marker::PhantomData,
             })
         }
     }
@@ -478,28 +473,34 @@ impl Shared<AnyObj> {
 
             let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
-            match any.raw_take(expected) {
-                Ok(value) => Ok(*Box::from_raw(value as *mut T)),
-                Err(any) => {
+            let (e, any) = match any.raw_take(expected) {
+                Ok(value) => return Ok(*Box::from_raw(value as *mut T)),
+                Err((AnyObjError::Cast, any)) => {
                     let actual = any.type_name();
 
-                    // Type coercion failed, so reconstruct the state of the
-                    // Shared container.
-
-                    // Drop the guard to release exclusive access.
-                    drop(ManuallyDrop::into_inner(guard));
-
-                    // NB: write the potentially modified value back.
-                    // It hasn't been modified, but there has been a period of
-                    // time now that the value hasn't been valid for.
-                    ptr::write(inner.data.get(), any);
-
-                    Err(AccessError::UnexpectedType {
+                    let e = AccessError::UnexpectedType {
                         actual,
                         expected: any::type_name::<T>().into(),
-                    })
+                    };
+
+                    (e, any)
                 }
-            }
+                Err((e, any)) => (e.into(), any),
+            };
+
+            // At this point type coercion has failed for one reason or another,
+            // so we reconstruct the state of the Shared container so that it
+            // can be more cleanly dropped.
+
+            // Drop the guard to release exclusive access.
+            drop(ManuallyDrop::into_inner(guard));
+
+            // Write the potentially modified value back so that it can be used
+            // by other `Shared<T>` users pointing to the same value. This
+            // conveniently also avoids dropping `any` which will be done by
+            // `Shared` as appropriate.
+            ptr::write(inner.data.get(), any);
+            Err(e)
         }
     }
 
@@ -514,12 +515,15 @@ impl Shared<AnyObj> {
             let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
             let data = match (*inner.data.get()).raw_as_ptr(expected) {
-                Some(data) => data,
-                None => {
+                Ok(data) => data,
+                Err(AnyObjError::Cast) => {
                     return Err(AccessError::UnexpectedType {
                         expected: any::type_name::<T>().into(),
                         actual: (*inner.data.get()).type_name(),
                     });
+                }
+                Err(e) => {
+                    return Err(e.into());
                 }
             };
 
@@ -539,12 +543,15 @@ impl Shared<AnyObj> {
             let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
             let data = match (*inner.data.get()).raw_as_mut(expected) {
-                Some(data) => data,
-                None => {
+                Ok(data) => data,
+                Err(AnyObjError::Cast) => {
                     return Err(AccessError::UnexpectedType {
                         expected: any::type_name::<T>().into(),
                         actual: (*inner.data.get()).type_name(),
                     });
+                }
+                Err(e) => {
+                    return Err(e.into());
                 }
             };
 
@@ -579,12 +586,15 @@ impl Shared<AnyObj> {
                 let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
                 match (*inner.data.get()).raw_as_ptr(expected) {
-                    Some(data) => (data, guard),
-                    None => {
+                    Ok(data) => (data, guard),
+                    Err(AnyObjError::Cast) => {
                         return Err(AccessError::UnexpectedType {
                             expected: any::type_name::<T>().into(),
                             actual: (*inner.data.get()).type_name(),
                         });
+                    }
+                    Err(e) => {
+                        return Err(e.into());
                     }
                 }
             };
@@ -595,10 +605,9 @@ impl Shared<AnyObj> {
             let this = ManuallyDrop::new(self);
 
             Ok(Ref {
-                data: data as *const T,
+                data: ptr::NonNull::new_unchecked(data as *const T as *mut T),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
-                _marker: marker::PhantomData,
             })
         }
     }
@@ -629,12 +638,15 @@ impl Shared<AnyObj> {
                 let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
                 match (*inner.data.get()).raw_as_mut(expected) {
-                    Some(data) => (data, guard),
-                    None => {
+                    Ok(data) => (data, guard),
+                    Err(AnyObjError::Cast) => {
                         return Err(AccessError::UnexpectedType {
                             expected: any::type_name::<T>().into(),
                             actual: (*inner.data.get()).type_name(),
                         });
+                    }
+                    Err(e) => {
+                        return Err(e.into());
                     }
                 }
             };
@@ -645,10 +657,9 @@ impl Shared<AnyObj> {
             let this = ManuallyDrop::new(self);
 
             Ok(Mut {
-                data: data as *mut T,
+                data: ptr::NonNull::new_unchecked(data as *mut T),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
-                _marker: marker::PhantomData,
             })
         }
     }
@@ -744,8 +755,7 @@ impl<T: ?Sized> SharedBox<T> {
             process::abort();
         }
 
-        let count = count + 1;
-        (*this).count.set(count);
+        (*this).count.set(count + 1);
     }
 
     /// Decrement the reference count in inner, and free the underlying data if
@@ -753,7 +763,7 @@ impl<T: ?Sized> SharedBox<T> {
     ///
     /// # Safety
     ///
-    /// Caller needs to ensure that `this` is a valid pointer.
+    /// ProtocolCaller needs to ensure that `this` is a valid pointer.
     unsafe fn dec(this: *mut Self) -> bool {
         let count = (*this).count.get();
 
@@ -768,21 +778,24 @@ impl<T: ?Sized> SharedBox<T> {
             return false;
         }
 
-        if (*this).access.is_taken() {
+        let this = Box::from_raw(this);
+
+        if this.access.is_taken() {
             // NB: This prevents the inner `T` from being dropped in case it
             // has already been taken (as indicated by `is_taken`).
             //
             // If it has been taken, the shared box contains invalid memory.
-            let _ = std::mem::transmute::<_, Box<SharedBox<ManuallyDrop<T>>>>(Box::from_raw(this));
+            drop(std::mem::transmute::<_, Box<SharedBox<ManuallyDrop<T>>>>(
+                this,
+            ));
         } else {
             // NB: At the point of the final drop, no on else should be using
             // this.
             debug_assert!(
-                (*this).access.is_exclusive(),
+                this.access.is_exclusive(),
                 "expected exclusive, but was: {:?}",
-                (*this).access
+                this.access
             );
-            let _ = Box::from_raw(this);
         }
 
         true
@@ -858,16 +871,86 @@ impl Drop for RawDrop {
 
 /// A strong reference to the given type.
 pub struct Ref<T: ?Sized> {
-    data: *const T,
+    data: ptr::NonNull<T>,
     // Safety: it is important that the guard is dropped before `RawDrop`, since
     // `RawDrop` might deallocate the `Access` instance the guard is referring
     // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
-    guard: RawSharedGuard,
+    guard: RawAccessGuard,
     inner: RawDrop,
-    _marker: marker::PhantomData<T>,
 }
 
 impl<T: ?Sized> Ref<T> {
+    /// Map the interior reference of an owned mutable value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Ref, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.into_ref()?;
+    /// let value: Ref<[u32]> = Ref::map(vec, |vec| &vec[0..2]);
+    ///
+    /// assert_eq!(&*value, &[1u32, 2u32][..]);
+    /// # Ok(()) }
+    /// ```
+    pub fn map<U: ?Sized, F>(this: Self, f: F) -> Ref<U>
+    where
+        F: FnOnce(&T) -> &U,
+    {
+        let Self {
+            data, guard, inner, ..
+        } = this;
+
+        // Safety: this follows the same safety guarantees as when the managed
+        // ref was acquired. And since we have a managed reference to `T`, we're
+        // permitted to do any sort of projection to `U`.
+        let data = f(unsafe { data.as_ref() });
+
+        Ref {
+            data: data.into(),
+            guard,
+            inner,
+        }
+    }
+
+    /// Try to map the reference to a projection.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Ref, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.into_ref()?;
+    /// let value: Option<Ref<[u32]>> = Ref::try_map(vec, |vec| vec.get(0..2));
+    ///
+    /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
+    /// # Ok(()) }
+    /// ```
+    pub fn try_map<U: ?Sized, F>(this: Self, f: F) -> Option<Ref<U>>
+    where
+        F: FnOnce(&T) -> Option<&U>,
+    {
+        let Self {
+            data, guard, inner, ..
+        } = this;
+
+        // Safety: this follows the same safety guarantees as when the managed
+        // ref was acquired. And since we have a managed reference to `T`, we're
+        // permitted to do any sort of projection to `U`.
+        match f(unsafe { data.as_ref() }) {
+            Some(data) => Some(Ref {
+                data: data.into(),
+                guard,
+                inner,
+            }),
+            None => None,
+        }
+    }
+
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -881,7 +964,7 @@ impl<T: ?Sized> Ref<T> {
             _inner: this.inner,
         };
 
-        (this.data, guard)
+        (this.data.as_ptr(), guard)
     }
 }
 
@@ -891,7 +974,7 @@ impl<T: ?Sized> ops::Deref for Ref<T> {
     fn deref(&self) -> &Self::Target {
         // Safety: An owned ref holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned ref.
-        unsafe { &*self.data }
+        unsafe { self.data.as_ref() }
     }
 }
 
@@ -906,22 +989,98 @@ where
 
 /// A raw guard to a [Ref].
 pub struct RawRef {
-    _guard: RawSharedGuard,
+    _guard: RawAccessGuard,
     _inner: RawDrop,
 }
 
 /// A strong mutable reference to the given type.
 pub struct Mut<T: ?Sized> {
-    data: *mut T,
+    data: ptr::NonNull<T>,
     // Safety: it is important that the guard is dropped before `RawDrop`, since
     // `RawDrop` might deallocate the `Access` instance the guard is referring
     // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
-    guard: RawExclusiveGuard,
+    guard: RawAccessGuard,
     inner: RawDrop,
-    _marker: marker::PhantomData<T>,
 }
 
 impl<T: ?Sized> Mut<T> {
+    /// Map the interior reference of an owned mutable value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Mut, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.into_mut()?;
+    /// let value: Mut<[u32]> = Mut::map(vec, |vec| &mut vec[0..2]);
+    ///
+    /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
+    /// # Ok(()) }
+    /// ```
+    pub fn map<U: ?Sized, F>(this: Self, f: F) -> Mut<U>
+    where
+        F: FnOnce(&mut T) -> &mut U,
+    {
+        let Self {
+            mut data,
+            guard,
+            inner,
+            ..
+        } = this;
+
+        // Safety: this follows the same safety guarantees as when the managed
+        // ref was acquired. And since we have a managed reference to `T`, we're
+        // permitted to do any sort of projection to `U`.
+        let data = f(unsafe { data.as_mut() });
+
+        Mut {
+            data: data.into(),
+            guard,
+            inner,
+        }
+    }
+
+    /// Try to map the mutable reference to a projection.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Mut, Shared};
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
+    /// let vec = vec.into_mut()?;
+    /// let mut value: Option<Mut<[u32]>> = Mut::try_map(vec, |vec| vec.get_mut(0..2));
+    ///
+    /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
+    /// # Ok(()) }
+    /// ```
+    pub fn try_map<U: ?Sized, F>(this: Self, f: F) -> Option<Mut<U>>
+    where
+        F: FnOnce(&mut T) -> Option<&mut U>,
+    {
+        let Self {
+            mut data,
+            guard,
+            inner,
+            ..
+        } = this;
+
+        // Safety: this follows the same safety guarantees as when the managed
+        // ref was acquired. And since we have a managed reference to `T`, we're
+        // permitted to do any sort of projection to `U`.
+        match f(unsafe { data.as_mut() }) {
+            Some(data) => Some(Mut {
+                data: data.into(),
+                guard,
+                inner,
+            }),
+            None => None,
+        }
+    }
+
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -935,7 +1094,7 @@ impl<T: ?Sized> Mut<T> {
             _inner: this.inner,
         };
 
-        (this.data, guard)
+        (this.data.as_ptr(), guard)
     }
 }
 
@@ -945,7 +1104,7 @@ impl<T: ?Sized> ops::Deref for Mut<T> {
     fn deref(&self) -> &Self::Target {
         // Safety: An owned mut holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned mut.
-        unsafe { &*self.data }
+        unsafe { self.data.as_ref() }
     }
 }
 
@@ -953,7 +1112,7 @@ impl<T: ?Sized> ops::DerefMut for Mut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // Safety: An owned mut holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned mut.
-        unsafe { &mut *self.data }
+        unsafe { self.data.as_mut() }
     }
 }
 
@@ -981,7 +1140,7 @@ where
 
 /// A raw guard to a [Ref].
 pub struct RawMut {
-    _guard: RawExclusiveGuard,
+    _guard: RawAccessGuard,
     _inner: RawDrop,
 }
 

@@ -11,7 +11,7 @@ the generator.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/streams/basic_stream.rn
+$> cargo run --bin rune -- run scripts/book/streams/basic_stream.rn
 200 OK
 200 OK
 == () (754.3946ms)

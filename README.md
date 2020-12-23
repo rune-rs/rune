@@ -77,14 +77,14 @@ you are working on it.
 You can run Rune programs with the bundled CLI:
 
 ```
-cargo run --bin rune -- scripts/hello_world.rn
+cargo run --bin rune -- run scripts/hello_world.rn
 ```
 
 If you want to see detailed diagnostics of your program while it's running,
 you can use:
 
 ```
-cargo run --bin rune -- scripts/hello_world.rn --dump-unit --trace --dump-vm
+cargo run --bin rune -- run scripts/hello_world.rn --dump-unit --trace --dump-vm
 ```
 
 See `--help` for more information.
@@ -108,7 +108,7 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let context = rune_modules::default_context()?;
+    let context = runestick::Context::with_default_modules()?;
     let options = rune::Options::default();
 
     let mut sources = rune::Sources::new();
@@ -122,23 +122,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "#,
     ));
 
-    let mut errors = rune::Errors::new();
-    let mut warnings = rune::Warnings::new();
+    let mut diagnostics = rune::Diagnostics::new();
 
-    let unit = match rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings) {
-        Ok(unit) => unit,
-        Err(rune::LoadSourcesError) => {
-            let mut writer = StandardStream::stderr(ColorChoice::Always);
-            errors.emit_diagnostics(&mut writer, &sources)?;
-            return Ok(());
-        }
-    };
+    let result = rune::load_sources(&context, &options, &mut sources, &mut diagnostics);
 
-    if !warnings.is_empty() {
+    if !diagnostics.is_empty() {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        warnings.emit_diagnostics(&mut writer, &sources)?;
+        diagnostics.emit_diagnostics(&mut writer, &sources)?;
     }
 
+    let unit = result?;
     let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
     let mut execution = vm.execute(&["calculate"], (10i64, 20i64))?;

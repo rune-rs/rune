@@ -166,6 +166,9 @@ pub enum CompileMetaKind {
     Function {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
+
+        /// Whether this function has a test annotation
+        is_test: bool,
     },
     /// A closure.
     Closure {
@@ -194,6 +197,9 @@ pub enum CompileMetaKind {
     ConstFn {
         /// Opaque identifier for the constant function.
         id: Id,
+
+        /// Whether this function has a test annotation
+        is_test: bool,
     },
     /// Purely an import.
     Import {
@@ -244,6 +250,13 @@ pub struct CompileItem {
     pub module: Arc<CompileMod>,
 }
 
+impl CompileItem {
+    /// Test if the item is public (and should be exported).
+    pub fn is_public(&self) -> bool {
+        self.visibility.is_public() && self.module.is_public()
+    }
+}
+
 impl From<Item> for CompileItem {
     fn from(item: Item) -> Self {
         Self {
@@ -267,4 +280,21 @@ pub struct CompileMod {
     pub visibility: Visibility,
     /// The kind of the module.
     pub parent: Option<Arc<CompileMod>>,
+}
+
+impl CompileMod {
+    /// Test if the module recursively is public.
+    pub fn is_public(&self) -> bool {
+        let mut current = Some(self);
+
+        while let Some(m) = current.take() {
+            if !m.visibility.is_public() {
+                return false;
+            }
+
+            current = m.parent.as_deref();
+        }
+
+        true
+    }
 }

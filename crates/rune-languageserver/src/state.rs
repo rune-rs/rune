@@ -5,9 +5,11 @@ use lsp::Url;
 use ropey::Rope;
 use rune::Spanned as _;
 use runestick::{CompileMeta, CompileMetaKind, CompileSource, ComponentRef, Item, SourceId, Span};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLockWriteGuard;
@@ -85,14 +87,14 @@ impl State {
 
         let (l, c) = source.position_to_utf16cu_line_char(def.source.span.start.into_usize())?;
         let start = lsp::Position {
-            line: l as u64,
-            character: c as u64,
+            line: l as u32,
+            character: c as u32,
         };
 
         let (l, c) = source.position_to_utf16cu_line_char(def.source.span.end.into_usize())?;
         let end = lsp::Position {
-            line: l as u64,
-            character: c as u64,
+            line: l as u32,
+            character: c as u32,
         };
 
         let range = lsp::Range { start, end };
@@ -115,11 +117,13 @@ impl State {
 
         let mut builds = Vec::new();
 
+        let sources = std::mem::take(&mut inner.sources);
+        let source_loader = Rc::new(SourceLoader::new(sources));
+
         for (url, source) in &inner.sources {
             log::trace!("build: {}", url);
 
             by_url.insert(url.clone(), Default::default());
-            let mut index = Index::default();
 
             let mut sources = rune::Sources::new();
 
@@ -128,99 +132,112 @@ impl State {
 
             sources.insert(input);
 
-            let mut errors = rune::Errors::new();
-            let mut warnings = rune::Warnings::new();
-            let mut visitor = Visitor::new(&mut index);
-            let mut source_loader = SourceLoader::new(&inner.sources);
+            let mut diagnostics = rune::Diagnostics::new();
+            let visitor = Rc::new(Visitor::new(Index::default()));
 
             let result = rune::load_sources_with_visitor(
                 &self.inner.context,
                 &self.inner.options,
                 &mut sources,
-                &mut errors,
-                &mut warnings,
-                &mut visitor,
-                &mut source_loader,
+                &mut diagnostics,
+                visitor.clone(),
+                source_loader.clone(),
             );
 
             if let Err(rune::LoadSourcesError) = result {
-                for error in errors {
-                    let source_id = error.source_id();
+                for diagnostic in diagnostics.diagnostics() {
+                    match diagnostic {
+                        rune::Diagnostic::Error(error) => {
+                            let source_id = error.source_id();
 
-                    match error.kind() {
-                        rune::ErrorKind::ParseError(error) => {
-                            report(
-                                &sources,
-                                &mut by_url,
-                                error.span(),
-                                source_id,
-                                error,
-                                display_to_error,
-                            );
-                        }
-                        rune::ErrorKind::CompileError(error) => {
-                            report(
-                                &sources,
-                                &mut by_url,
-                                error.span(),
-                                source_id,
-                                error,
-                                display_to_error,
-                            );
-                        }
-                        rune::ErrorKind::QueryError(error) => {
-                            report(
-                                &sources,
-                                &mut by_url,
-                                error.span(),
-                                source_id,
-                                error,
-                                display_to_error,
-                            );
-                        }
-                        rune::ErrorKind::LinkError(error) => match error {
-                            rune::LinkerError::MissingFunction { hash, spans } => {
-                                for (span, _) in spans {
+                            match error.kind() {
+                                rune::ErrorKind::ParseError(error) => {
+                                    report(
+                                        &sources,
+                                        &mut by_url,
+                                        error.span(),
+                                        source_id,
+                                        error,
+                                        display_to_error,
+                                    );
+                                }
+                                rune::ErrorKind::CompileError(error) => {
+                                    report(
+                                        &sources,
+                                        &mut by_url,
+                                        error.span(),
+                                        source_id,
+                                        error,
+                                        display_to_error,
+                                    );
+                                }
+                                rune::ErrorKind::QueryError(error) => {
+                                    report(
+                                        &sources,
+                                        &mut by_url,
+                                        error.span(),
+                                        source_id,
+                                        error,
+                                        display_to_error,
+                                    );
+                                }
+                                rune::ErrorKind::LinkError(error) => match error {
+                                    rune::LinkerError::MissingFunction { hash, spans } => {
+                                        for (span, _) in spans {
+                                            let diagnostics =
+                                                by_url.entry(url.clone()).or_default();
+
+                                            let range = source.span_to_lsp_range(*span);
+
+                                            diagnostics.push(display_to_error(
+                                                range,
+                                                format!("missing function with hash `{}`", hash),
+                                            ));
+                                        }
+                                    }
+                                },
+                                rune::ErrorKind::Internal(message) => {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
 
-                                    let range = source.span_to_lsp_range(*span);
+                                    let range = lsp::Range::default();
+                                    diagnostics.push(display_to_error(range, message));
+                                }
+                                rune::ErrorKind::BuildError(error) => {
+                                    let diagnostics = by_url.entry(url.clone()).or_default();
 
-                                    diagnostics.push(display_to_error(
-                                        range,
-                                        format!("missing function with hash `{}`", hash),
-                                    ));
+                                    let range = lsp::Range::default();
+                                    diagnostics.push(display_to_error(range, error));
                                 }
                             }
-                        },
-                        rune::ErrorKind::Internal(message) => {
-                            let diagnostics = by_url.entry(url.clone()).or_default();
-
-                            let range = lsp::Range::default();
-                            diagnostics.push(display_to_error(range, message));
                         }
-                        rune::ErrorKind::BuildError(error) => {
-                            let diagnostics = by_url.entry(url.clone()).or_default();
-
-                            let range = lsp::Range::default();
-                            diagnostics.push(display_to_error(range, error));
+                        rune::Diagnostic::Warning(warning) => {
+                            report(
+                                &sources,
+                                &mut by_url,
+                                warning.span(),
+                                warning.source_id(),
+                                warning.kind(),
+                                display_to_warning,
+                            );
                         }
                     }
                 }
             }
 
-            for warning in &warnings {
-                report(
-                    &sources,
-                    &mut by_url,
-                    warning.span(),
-                    warning.source_id,
-                    &warning.kind,
-                    display_to_warning,
-                );
-            }
+            let visitor = match Rc::try_unwrap(visitor) {
+                Ok(visitor) => visitor,
+                Err(..) => panic!("visitor should be uniquely held"),
+            };
 
-            builds.push((url.clone(), sources, index));
+            builds.push((url.clone(), sources, visitor.into_index()));
         }
+
+        let source_loader = match Rc::try_unwrap(source_loader) {
+            Ok(source_loader) => source_loader,
+            Err(..) => panic!("source loader should be uniquely held"),
+        };
+
+        inner.sources = source_loader.into_sources();
 
         for (url, build_sources, index) in builds {
             if let Some(source) = inner.sources.get_mut(&url) {
@@ -355,7 +372,7 @@ impl Source {
 
         let col_char = col_char - line_char;
 
-        lsp::Position::new(line as u64, col_char as u64)
+        lsp::Position::new(line as u32, col_char as u32)
     }
 
     /// Offset in the rope to lsp position.
@@ -380,9 +397,9 @@ impl fmt::Display for Source {
 /// Conver the given span into an lsp range.
 fn span_to_lsp_range(source: &runestick::Source, span: Span) -> Option<lsp::Range> {
     let (line, character) = source.position_to_utf16cu_line_char(span.start.into_usize())?;
-    let start = lsp::Position::new(line as u64, character as u64);
+    let start = lsp::Position::new(line as u32, character as u32);
     let (line, character) = source.position_to_utf16cu_line_char(span.end.into_usize())?;
-    let end = lsp::Position::new(line as u64, character as u64);
+    let end = lsp::Position::new(line as u32, character as u32);
     Some(lsp::Range::new(start, end))
 }
 
@@ -523,19 +540,26 @@ pub enum DefinitionKind {
     Module,
 }
 
-struct Visitor<'a> {
-    index: &'a mut Index,
+struct Visitor {
+    index: RefCell<Index>,
 }
 
-impl<'a> Visitor<'a> {
+impl Visitor {
     /// Construct a new visitor.
-    pub fn new(index: &'a mut Index) -> Self {
-        Self { index }
+    pub fn new(index: Index) -> Self {
+        Self {
+            index: RefCell::new(index),
+        }
+    }
+
+    /// Convert visitor back into an index.
+    pub fn into_index(self) -> Index {
+        self.index.into_inner()
     }
 }
 
-impl rune::CompileVisitor for Visitor<'_> {
-    fn visit_meta(&mut self, source_id: SourceId, meta: &CompileMeta, span: Span) {
+impl rune::CompileVisitor for Visitor {
+    fn visit_meta(&self, source_id: SourceId, meta: &CompileMeta, span: Span) {
         if source_id != 0 {
             return;
         }
@@ -562,12 +586,12 @@ impl rune::CompileVisitor for Visitor<'_> {
             source: source.clone(),
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
-    fn visit_variable_use(&mut self, source_id: SourceId, var: &rune::Var, span: Span) {
+    fn visit_variable_use(&self, source_id: SourceId, var_span: Span, span: Span) {
         if source_id != 0 {
             return;
         }
@@ -575,18 +599,18 @@ impl rune::CompileVisitor for Visitor<'_> {
         let definition = Definition {
             kind: DefinitionKind::Local,
             source: CompileSource {
-                span: var.span(),
+                span: var_span,
                 path: None,
                 source_id,
             },
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
-    fn visit_mod(&mut self, source_id: SourceId, span: Span) {
+    fn visit_mod(&self, source_id: SourceId, span: Span) {
         if source_id != 0 {
             return;
         }
@@ -600,24 +624,29 @@ impl rune::CompileVisitor for Visitor<'_> {
             },
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 }
 
-struct SourceLoader<'a> {
-    sources: &'a HashMap<Url, Source>,
+struct SourceLoader {
+    sources: RefCell<HashMap<Url, Source>>,
     base: rune::FileSourceLoader,
 }
 
-impl<'a> SourceLoader<'a> {
+impl SourceLoader {
     /// Construct a new source loader.
-    pub fn new(sources: &'a HashMap<Url, Source>) -> Self {
+    pub fn new(sources: HashMap<Url, Source>) -> Self {
         Self {
-            sources,
+            sources: RefCell::new(sources),
             base: rune::FileSourceLoader::new(),
         }
+    }
+
+    /// Convert into sources.
+    fn into_sources(self) -> HashMap<Url, Source> {
+        self.sources.into_inner()
     }
 
     /// Generate a collection of URl candidates.
@@ -660,9 +689,9 @@ impl<'a> SourceLoader<'a> {
     }
 }
 
-impl rune::SourceLoader for SourceLoader<'_> {
+impl rune::SourceLoader for SourceLoader {
     fn load(
-        &mut self,
+        &self,
         root: &Path,
         item: &Item,
         span: Span,
@@ -671,7 +700,7 @@ impl rune::SourceLoader for SourceLoader<'_> {
 
         if let Some(candidates) = Self::candidates(root, item) {
             for url in candidates.iter() {
-                if let Some(s) = self.sources.get(url) {
+                if let Some(s) = self.sources.borrow().get(url) {
                     return Ok(runestick::Source::new(url.to_string(), s.to_string()));
                 }
             }

@@ -7,8 +7,8 @@ use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter, IrQuery};
 use crate::parsing::Opaque;
 use crate::shared::{Consts, Gen, Items};
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Id, ImportEntryStep, Resolve as _, Spanned,
-    Storage, UnitBuilder,
+    CompileError, CompileErrorKind, CompileVisitor, Id, ImportEntryStep, NoopCompileVisitor,
+    Resolve as _, Spanned, Storage, UnitBuilder,
 };
 use runestick::format;
 use runestick::{
@@ -83,23 +83,23 @@ pub struct BuiltInLine {
 impl IrQuery for QueryInner {
     fn query_meta(
         &mut self,
-        spanned: Span,
+        span: Span,
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        QueryInner::query_meta(self, spanned, item, used)
+        QueryInner::query_meta(self, span, item, used)
     }
 
     fn builtin_macro_for(
         &self,
-        spanned: Span,
+        span: Span,
         id: Option<Id>,
     ) -> Result<Arc<BuiltInMacro>, QueryError> {
-        QueryInner::builtin_macro_for(self, spanned, id)
+        QueryInner::builtin_macro_for(self, span, id)
     }
 
-    fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Arc<QueryConstFn>, QueryError> {
-        QueryInner::const_fn_for(self, spanned, id)
+    fn const_fn_for(&self, span: Span, id: Option<Id>) -> Result<Arc<QueryConstFn>, QueryError> {
+        QueryInner::const_fn_for(self, span, id)
     }
 }
 
@@ -110,9 +110,16 @@ pub(crate) struct Query {
 
 impl Query {
     /// Construct a new compilation context.
-    pub fn new(storage: Storage, unit: UnitBuilder, consts: Consts, gen: Gen) -> Self {
+    pub fn new(
+        visitor: Rc<dyn CompileVisitor>,
+        storage: Storage,
+        unit: UnitBuilder,
+        consts: Consts,
+        gen: Gen,
+    ) -> Self {
         Self {
             inner: Rc::new(RefCell::new(QueryInner {
+                visitor,
                 meta: HashMap::new(),
                 storage,
                 prelude: unit.prelude(),
@@ -466,10 +473,7 @@ impl Query {
     /// Remove and queue up unused entries for building.
     ///
     /// Returns boolean indicating if any unused entries were queued up.
-    pub(crate) fn queue_unused_entries(
-        &self,
-        visitor: &mut dyn CompileVisitor,
-    ) -> Result<bool, (SourceId, QueryError)> {
+    pub(crate) fn queue_unused_entries(&self) -> Result<bool, (SourceId, QueryError)> {
         let mut inner = self.inner.borrow_mut();
 
         let unused = inner
@@ -490,7 +494,7 @@ impl Query {
                 .query_meta(query_item.location.span, &query_item.item, Used::Unused)
                 .map_err(|e| (query_item.location.source_id, e))?
             {
-                visitor.visit_meta(
+                inner.visitor.visit_meta(
                     query_item.location.source_id,
                     &meta,
                     query_item.location.span,
@@ -505,11 +509,11 @@ impl Query {
     /// items reverse map to identify.
     pub(crate) fn query_meta(
         &self,
-        spanned: Span,
+        span: Span,
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        self.inner.borrow_mut().query_meta(spanned, item, used)
+        self.inner.borrow_mut().query_meta(span, item, used)
     }
 
     /// Convert the given path.
@@ -529,7 +533,7 @@ impl Query {
     pub(crate) fn insert_import(
         &self,
         source_id: SourceId,
-        spanned: Span,
+        span: Span,
         source: &Arc<Source>,
         module: &Arc<CompileMod>,
         visibility: Visibility,
@@ -544,10 +548,10 @@ impl Query {
             .as_ref()
             .map(IntoComponent::as_component_ref)
             .or_else(|| target.last())
-            .ok_or_else(|| QueryError::new(spanned, QueryErrorKind::LastUseComponent))?;
+            .ok_or_else(|| QueryError::new(span, QueryErrorKind::LastUseComponent))?;
 
         let item = at.extended(last);
-        let location = Location::new(source_id, spanned.span());
+        let location = Location::new(source_id, span);
 
         let entry = ImportEntry {
             location,
@@ -557,10 +561,10 @@ impl Query {
         };
 
         let id = inner.gen.next();
-        let item = inner.insert_new_item_with(id, &item, source_id, spanned, module, visibility)?;
+        let item = inner.insert_new_item_with(id, &item, source_id, span, module, visibility)?;
 
         // toplevel public uses are re-exported.
-        if module.item.is_empty() && item.visibility.is_public() {
+        if item.is_public() {
             inner.queue.push_back(BuildEntry {
                 location,
                 item: item.clone(),
@@ -572,8 +576,8 @@ impl Query {
 
         inner.index(IndexedEntry {
             item,
-            indexed: Indexed::Import(Import { wildcard, entry }),
             source: source.clone(),
+            indexed: Indexed::Import(Import { wildcard, entry }),
         });
 
         return Ok(());
@@ -601,18 +605,20 @@ impl Query {
 
     pub(crate) fn import(
         &self,
-        spanned: Span,
+        span: Span,
         module: &Arc<CompileMod>,
         item: &Item,
         used: Used,
     ) -> Result<Option<Item>, QueryError> {
         let mut inner = self.inner.borrow_mut();
-        inner.import(spanned, module, item, used)
+        inner.import(span, module, item, used)
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 struct QueryInner {
+    /// Visitor for the compiler meta.
+    visitor: Rc<dyn CompileVisitor>,
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<Item, CompileMeta>,
     /// Macro storage.
@@ -646,6 +652,28 @@ struct QueryInner {
     names: Names,
     /// Modules and associated metadata.
     modules: HashMap<Item, Arc<CompileMod>>,
+}
+
+impl Default for QueryInner {
+    fn default() -> Self {
+        Self {
+            visitor: Rc::new(NoopCompileVisitor::new()),
+            meta: Default::default(),
+            storage: Default::default(),
+            prelude: Default::default(),
+            unit: Default::default(),
+            consts: Default::default(),
+            gen: Default::default(),
+            queue: Default::default(),
+            indexed: Default::default(),
+            const_fns: Default::default(),
+            query_paths: Default::default(),
+            internal_macros: Default::default(),
+            items: Default::default(),
+            names: Default::default(),
+            modules: Default::default(),
+        }
+    }
 }
 
 impl QueryInner {
@@ -783,7 +811,7 @@ impl QueryInner {
             .insert_meta(&meta)
             .map_err(|error| QueryError::new(span, error))?;
 
-        self.insert_meta(span, meta.clone())?;
+        self.insert_meta(span, meta)?;
         Ok(())
     }
 
@@ -1004,16 +1032,14 @@ impl QueryInner {
 
     /// Insert meta without registering peripherals under the assumption that it
     /// already has been registered.
-    pub(crate) fn insert_meta(
-        &mut self,
-        spanned: Span,
-        meta: CompileMeta,
-    ) -> Result<(), QueryError> {
+    fn insert_meta(&mut self, span: Span, meta: CompileMeta) -> Result<(), QueryError> {
         let item = meta.item.item.clone();
+
+        self.visitor.register_meta(&meta);
 
         if let Some(existing) = self.meta.insert(item, meta.clone()) {
             return Err(QueryError::new(
-                spanned,
+                span,
                 QueryErrorKind::MetaConflict {
                     current: meta,
                     existing,
@@ -1087,33 +1113,41 @@ impl QueryInner {
                     CompileErrorKind::UnsupportedGlobal,
                 ));
             }
-            (None, ast::PathSegment::Ident(ident)) => {
-                let ident = ident.resolve(storage, source)?;
+            (None, segment) => match segment {
+                ast::PathSegment::Ident(ident) => {
+                    let ident = ident.resolve(storage, source)?;
 
-                if path.rest.is_empty() {
-                    local = Some(<Box<str>>::from(ident.as_ref()));
+                    if path.rest.is_empty() {
+                        local = Some(<Box<str>>::from(ident.as_ref()));
+                    }
+
+                    self.lookup_initial(context, &qp.module, &qp.item, &*ident)?
                 }
+                ast::PathSegment::Super(super_value) => {
+                    let mut item = qp.module.item.clone();
 
-                self.lookup_initial(context, &qp.module, &qp.item, &*ident)?
-            }
-            (None, ast::PathSegment::Super(super_value)) => {
-                let mut item = qp.module.item.clone();
+                    item.pop()
+                        .ok_or_else(CompileError::unsupported_super(super_value))?;
 
-                item.pop()
-                    .ok_or_else(CompileError::unsupported_super(super_value))?;
+                    item
+                }
+                ast::PathSegment::SelfType(self_type) => {
+                    let impl_item = qp.impl_item.as_deref().ok_or_else(|| {
+                        CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
+                    })?;
 
-                item
-            }
-            (None, ast::PathSegment::SelfType(self_type)) => {
-                let impl_item = qp.impl_item.as_deref().ok_or_else(|| {
-                    CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
-                })?;
-
-                in_self_type = true;
-                impl_item.clone()
-            }
-            (None, ast::PathSegment::SelfValue(..)) => qp.module.item.clone(),
-            (None, ast::PathSegment::Crate(..)) => Item::new(),
+                    in_self_type = true;
+                    impl_item.clone()
+                }
+                ast::PathSegment::SelfValue(..) => qp.module.item.clone(),
+                ast::PathSegment::Crate(..) => Item::new(),
+                ast::PathSegment::Generics(arguments) => {
+                    return Err(CompileError::new(
+                        arguments,
+                        CompileErrorKind::UnsupportedGenerics,
+                    ));
+                }
+            },
         };
 
         for (_, segment) in &path.rest {
@@ -1134,6 +1168,12 @@ impl QueryInner {
 
                     item.pop()
                         .ok_or_else(CompileError::unsupported_super(super_token))?;
+                }
+                ast::PathSegment::Generics(arguments) => {
+                    return Err(CompileError::new(
+                        arguments,
+                        CompileErrorKind::UnsupportedGenerics,
+                    ));
                 }
                 other => {
                     return Err(CompileError::new(
@@ -1156,14 +1196,14 @@ impl QueryInner {
     /// Build a single, indexed entry and return its metadata.
     fn build_indexed_entry(
         &mut self,
-        spanned: Span,
+        span: Span,
         entry: IndexedEntry,
         used: Used,
     ) -> Result<CompileMeta, QueryError> {
         let IndexedEntry {
+            item: query_item,
             indexed,
             source,
-            item: query_item,
         } = entry;
 
         let path = source.path().map(ToOwned::to_owned);
@@ -1176,7 +1216,7 @@ impl QueryInner {
                 let enum_item = self.item_for(query_item.location.span, Some(variant.enum_id))?;
 
                 // Assert that everything is built for the enum.
-                self.query_meta(spanned, &enum_item.item, Default::default())?;
+                self.query_meta(span, &enum_item.item, Default::default())?;
 
                 variant_into_item_decl(
                     &query_item.item,
@@ -1200,6 +1240,7 @@ impl QueryInner {
 
                 CompileMetaKind::Function {
                     type_hash: Hash::type_hash(&query_item.item),
+                    is_test: false,
                 }
             }
             Indexed::Closure(c) => {
@@ -1283,7 +1324,7 @@ impl QueryInner {
                     });
                 }
 
-                CompileMetaKind::ConstFn { id }
+                CompileMetaKind::ConstFn { id, is_test: false }
             }
             Indexed::Import(import) => {
                 let module = import.entry.module.clone();
@@ -1339,7 +1380,7 @@ impl QueryInner {
     /// Check that the given item is accessible from the given module.
     fn check_access_to(
         &self,
-        spanned: Span,
+        span: Span,
         from: &CompileMod,
         item: &Item,
         module: &CompileMod,
@@ -1356,7 +1397,7 @@ impl QueryInner {
 
             let m = self.modules.get(&current_module).ok_or_else(|| {
                 QueryError::new(
-                    spanned,
+                    span,
                     QueryErrorKind::MissingMod {
                         item: current_module.clone(),
                     },
@@ -1365,7 +1406,7 @@ impl QueryInner {
 
             if !m.visibility.is_visible(&common, &current_module) {
                 return Err(QueryError::new(
-                    spanned,
+                    span,
                     QueryErrorKind::NotVisibleMod {
                         chain: into_chain(std::mem::take(chain)),
                         location: m.location,
@@ -1379,7 +1420,7 @@ impl QueryInner {
 
         if !visibility.is_visible_inside(&common, &module.item) {
             return Err(QueryError::new(
-                spanned,
+                span,
                 QueryErrorKind::NotVisible {
                     chain: into_chain(std::mem::take(chain)),
                     location,

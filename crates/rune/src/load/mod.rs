@@ -1,21 +1,14 @@
 use crate::compiling;
-use crate::Options;
+use crate::{Diagnostics, Options};
 use runestick::{Context, Unit};
+use std::rc::Rc;
 use thiserror::Error;
 
-mod error;
-mod errors;
 mod source_loader;
 mod sources;
-mod warning;
-mod warnings;
 
-pub use self::error::{Error, ErrorKind};
-pub use self::errors::Errors;
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
 pub use self::sources::Sources;
-pub use self::warning::{Warning, WarningKind};
-pub use self::warnings::Warnings;
 
 /// Error raised when we failed to load sources.
 ///
@@ -37,41 +30,34 @@ pub struct LoadSourcesError;
 /// ```rust
 /// use rune::termcolor::{ColorChoice, StandardStream};
 /// use rune::EmitDiagnostics as _;
-/// use runestick::Source;
 ///
 /// use std::path::Path;
 /// use std::sync::Arc;
 /// use std::error::Error;
 ///
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let context = rune_modules::default_context()?;
+/// let context = runestick::Context::with_default_modules()?;
 /// let mut options = rune::Options::default();
+///
 /// let mut sources = rune::Sources::new();
-/// sources.insert(Source::new("entry", r#"
+/// sources.insert(runestick::Source::new("entry", r#"
 /// pub fn main() {
 ///     println("Hello World");
 /// }
 /// "#));
 ///
-/// let mut errors = rune::Errors::new();
-/// let mut warnings = rune::Warnings::new();
+/// let mut diagnostics = rune::Diagnostics::new();
 ///
-/// let unit = match rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings) {
-///     Ok(unit) => unit,
-///     Err(rune::LoadSourcesError) => {
-///         let mut writer = StandardStream::stderr(ColorChoice::Always);
-///         errors.emit_diagnostics(&mut writer, &sources)?;
-///         return Ok(());
-///     }
-/// };
+/// let result = rune::load_sources(&context, &options, &mut sources, &mut diagnostics);
 ///
+/// if !diagnostics.is_empty() {
+///     let mut writer = StandardStream::stderr(ColorChoice::Always);
+///     diagnostics.emit_diagnostics(&mut writer, &sources)?;
+/// }
+///
+/// let unit = result?;
 /// let unit = Arc::new(unit);
 /// let vm = runestick::Vm::new(Arc::new(context.runtime()), unit.clone());
-///
-/// if !warnings.is_empty() {
-///     let mut writer = StandardStream::stderr(ColorChoice::Always);
-///     warnings.emit_diagnostics(&mut writer, &sources)?;
-/// }
 /// # Ok(())
 /// # }
 /// ```
@@ -79,20 +65,18 @@ pub fn load_sources(
     context: &Context,
     options: &Options,
     sources: &mut Sources,
-    errors: &mut Errors,
-    warnings: &mut Warnings,
+    diagnostics: &mut Diagnostics,
 ) -> Result<Unit, LoadSourcesError> {
-    let mut visitor = compiling::NoopCompileVisitor::new();
-    let mut source_loader = FileSourceLoader::new();
+    let visitor = Rc::new(compiling::NoopCompileVisitor::new());
+    let source_loader = Rc::new(FileSourceLoader::new());
 
     load_sources_with_visitor(
         context,
         options,
         sources,
-        errors,
-        warnings,
-        &mut visitor,
-        &mut source_loader,
+        diagnostics,
+        visitor,
+        source_loader,
     )
 }
 
@@ -101,10 +85,9 @@ pub fn load_sources_with_visitor(
     context: &Context,
     options: &Options,
     sources: &mut Sources,
-    errors: &mut Errors,
-    warnings: &mut Warnings,
-    visitor: &mut dyn compiling::CompileVisitor,
-    source_loader: &mut dyn SourceLoader,
+    diagnostics: &mut Diagnostics,
+    visitor: Rc<dyn compiling::CompileVisitor>,
+    source_loader: Rc<dyn SourceLoader>,
 ) -> Result<Unit, LoadSourcesError> {
     let unit = if context.has_default_modules() {
         compiling::UnitBuilder::with_default_prelude()
@@ -116,8 +99,7 @@ pub fn load_sources_with_visitor(
         &*context,
         sources,
         &unit,
-        errors,
-        warnings,
+        diagnostics,
         &options,
         visitor,
         source_loader,
@@ -128,9 +110,9 @@ pub fn load_sources_with_visitor(
     }
 
     if options.link_checks {
-        unit.link(&*context, errors);
+        unit.link(&*context, diagnostics);
 
-        if !errors.is_empty() {
+        if diagnostics.has_error() {
             return Err(LoadSourcesError);
         }
     }
@@ -138,7 +120,7 @@ pub fn load_sources_with_visitor(
     match unit.build() {
         Ok(unit) => Ok(unit),
         Err(error) => {
-            errors.push(Error::new(0, error));
+            diagnostics.error(0, error);
             Err(LoadSourcesError)
         }
     }

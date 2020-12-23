@@ -4,6 +4,21 @@ use crate::{Any, Hash, RawStr};
 use std::any;
 use std::fmt;
 use std::mem::ManuallyDrop;
+use thiserror::Error;
+
+/// Errors raised during casting operations.
+#[allow(missing_docs)]
+#[derive(Debug, Error)]
+pub enum AnyObjError {
+    #[error("cannot borrow a shared reference `&{name}` mutably as `&mut {name}`")]
+    RefAsMut { name: RawStr },
+    #[error("cannot take ownership of a shared reference `&{name}`")]
+    RefAsOwned { name: RawStr },
+    #[error("cannot take ownership of a mutable reference `&mut {name}`")]
+    MutAsOwned { name: RawStr },
+    #[error("cast failed")]
+    Cast,
+}
 
 /// Our own private dynamic Any implementation.
 ///
@@ -172,25 +187,32 @@ impl AnyObj {
     }
 
     /// Attempt to perform a conversion to a raw pointer.
-    pub fn raw_as_ptr(&self, expected: Hash) -> Option<*const ()> {
+    pub(crate) fn raw_as_ptr(&self, expected: Hash) -> Result<*const (), AnyObjError> {
         // Safety: invariants are checked at construction time.
-        unsafe { (self.vtable.as_ptr)(self.data, expected) }
+        match unsafe { (self.vtable.as_ptr)(self.data, expected) } {
+            Some(ptr) => Ok(ptr),
+            None => Err(AnyObjError::Cast),
+        }
     }
 
     /// Attempt to perform a conversion to a raw mutable pointer.
-    pub fn raw_as_mut(&mut self, expected: Hash) -> Option<*mut ()> {
+    pub(crate) fn raw_as_mut(&mut self, expected: Hash) -> Result<*mut (), AnyObjError> {
         match self.vtable.kind {
             // Only owned and mutable pointers can be treated as mutable.
             AnyObjKind::Owned | AnyObjKind::MutPtr => (),
-            _ => return None,
+            _ => {
+                return Err(AnyObjError::RefAsMut {
+                    name: self.type_name(),
+                })
+            }
         }
 
         // Safety: invariants are checked at construction time.
         // We have mutable access to the inner value because we have mutable
         // access to the `Any`.
-        unsafe {
-            let ptr = (self.vtable.as_ptr)(self.data, expected)?;
-            Some(ptr as *mut ())
+        match unsafe { (self.vtable.as_ptr)(self.data, expected) } {
+            Some(ptr) => Ok(ptr as *mut ()),
+            None => Err(AnyObjError::Cast),
         }
     }
 
@@ -199,11 +221,26 @@ impl AnyObj {
     ///
     /// If the conversion is not possible, we return a reconstructed `Any` as
     /// the error variant.
-    pub fn raw_take(self, expected: Hash) -> Result<*mut (), Self> {
+    pub(crate) fn raw_take(self, expected: Hash) -> Result<*mut (), (AnyObjError, Self)> {
         match self.vtable.kind {
             // Only owned things can be taken.
             AnyObjKind::Owned => (),
-            _ => return Err(self),
+            AnyObjKind::RefPtr => {
+                return Err((
+                    AnyObjError::RefAsOwned {
+                        name: self.type_name(),
+                    },
+                    self,
+                ))
+            }
+            AnyObjKind::MutPtr => {
+                return Err((
+                    AnyObjError::MutAsOwned {
+                        name: self.type_name(),
+                    },
+                    self,
+                ))
+            }
         };
 
         let this = ManuallyDrop::new(self);
@@ -214,7 +251,10 @@ impl AnyObj {
         unsafe {
             match (this.vtable.as_ptr)(this.data, expected) {
                 Some(data) => Ok(data as *mut ()),
-                None => Err(ManuallyDrop::into_inner(this)),
+                None => {
+                    let this = ManuallyDrop::into_inner(this);
+                    Err((AnyObjError::Cast, this))
+                }
             }
         }
     }

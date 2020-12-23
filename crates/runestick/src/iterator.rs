@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, Function, InstallWith, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
+    FromValue, Function, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
     UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use std::fmt;
@@ -102,6 +102,20 @@ impl Iterator {
         }
     }
 
+    /// Creates an iterator that yields nothing.
+    pub fn empty() -> Self {
+        Self {
+            iter: IterRepr::Empty,
+        }
+    }
+
+    /// Creates an iterator that yields an element exactly once.
+    pub fn once(value: Value) -> Self {
+        Self {
+            iter: IterRepr::Once(Some(value)),
+        }
+    }
+
     /// Get the size hint for the iterator.
     pub fn size_hint(&self) -> (usize, Option<usize>) {
         self.iter.size_hint()
@@ -161,10 +175,56 @@ impl Iterator {
         }
     }
 
+    /// Find the first matching value in the iterator using the given function.
+    pub fn find(mut self, find: Function) -> Result<Option<Value>, VmError> {
+        while let Some(value) = self.next()? {
+            let result = find.call::<_, bool>((value.clone(),))?;
+            if result {
+                return Ok(Some(value.clone()));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Test if all entries in the iterator matches the given predicate.
+    pub fn all(mut self, find: Function) -> Result<bool, VmError> {
+        while let Some(value) = self.next()? {
+            let result = find.call::<_, bool>((value.clone(),))?;
+
+            if !result {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
+    /// Test if any entry in the iterator matches the given predicate.
+    pub fn any(mut self, find: Function) -> Result<bool, VmError> {
+        while let Some(value) = self.next()? {
+            if find.call::<_, bool>((value.clone(),))? {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
     /// Chain this iterator with another.
-    pub fn chain(self, other: Interface) -> Result<Self, VmError> {
+    pub fn chain(self, other: Value) -> Result<Self, VmError> {
         let other = other.into_iter()?;
 
+        Ok(Self {
+            iter: IterRepr::Chain(Box::new(Chain {
+                a: Some(self.iter),
+                b: Some(other.iter),
+            })),
+        })
+    }
+
+    /// Chain this iterator with another.
+    pub fn chain_raw(self, other: Self) -> Result<Self, VmError> {
         Ok(Self {
             iter: IterRepr::Chain(Box::new(Chain {
                 a: Some(self.iter),
@@ -190,6 +250,13 @@ impl Iterator {
                 iter => IterRepr::Rev(Box::new(Rev { iter })),
             },
         })
+    }
+
+    /// Skip over the given number of elements from the iterator.
+    pub fn skip(self, n: usize) -> Self {
+        Self {
+            iter: IterRepr::Skip(Box::new(Skip { iter: self.iter, n })),
+        }
     }
 
     /// Take the given number of elements from the iterator.
@@ -257,13 +324,13 @@ impl Iterator {
     }
 
     /// Compute the product under the assumption of a homogeonous iterator of type T.
-    pub fn product(self) -> Result<Option<Value>, VmError> {
+    pub fn product(self) -> Result<Value, VmError> {
         let product = Product { iter: self.iter };
         product.resolve()
     }
 
     /// Compute the sum under the assumption of a homogeonous iterator of type T.
-    pub fn sum(self) -> Result<Option<Value>, VmError> {
+    pub fn sum(self) -> Result<Value, VmError> {
         let sum = Sum { iter: self.iter };
         sum.resolve()
     }
@@ -326,8 +393,11 @@ enum IterRepr {
     Rev(Box<Rev<Self>>),
     Chain(Box<Chain<Self, Self>>),
     Enumerate(Box<Enumerate<Self>>),
+    Skip(Box<Skip<Self>>),
     Take(Box<Take<Self>>),
     Peekable(Box<Peekable<Self>>),
+    Empty,
+    Once(Option<Value>),
 }
 
 impl RuneIterator for IterRepr {
@@ -342,8 +412,11 @@ impl RuneIterator for IterRepr {
             Self::Rev(..) => true,
             Self::Chain(iter) => iter.is_double_ended(),
             Self::Enumerate(iter) => iter.is_double_ended(),
+            Self::Skip(iter) => iter.is_double_ended(),
             Self::Take(iter) => iter.is_double_ended(),
             Self::Peekable(iter) => iter.is_double_ended(),
+            Self::Empty => true,
+            Self::Once(..) => true,
         }
     }
 
@@ -358,8 +431,11 @@ impl RuneIterator for IterRepr {
             Self::Rev(iter) => iter.size_hint(),
             Self::Chain(iter) => iter.size_hint(),
             Self::Enumerate(iter) => iter.size_hint(),
+            Self::Skip(iter) => iter.size_hint(),
             Self::Take(iter) => iter.size_hint(),
             Self::Peekable(iter) => iter.size_hint(),
+            Self::Empty => (0, Some(0)),
+            Self::Once(..) => (1, Some(1)),
         }
     }
 
@@ -373,8 +449,11 @@ impl RuneIterator for IterRepr {
             Self::Rev(iter) => iter.next(),
             Self::Chain(iter) => iter.next(),
             Self::Enumerate(iter) => iter.next(),
+            Self::Skip(iter) => iter.next(),
             Self::Take(iter) => iter.next(),
             Self::Peekable(iter) => iter.next(),
+            Self::Empty => Ok(None),
+            Self::Once(v) => Ok(v.take()),
         }
     }
 
@@ -393,8 +472,11 @@ impl RuneIterator for IterRepr {
             Self::Rev(iter) => iter.next_back(),
             Self::Chain(iter) => iter.next_back(),
             Self::Enumerate(iter) => iter.next_back(),
+            Self::Skip(iter) => iter.next_back(),
             Self::Take(iter) => iter.next_back(),
             Self::Peekable(iter) => iter.next_back(),
+            Self::Empty => Ok(None),
+            Self::Once(v) => Ok(v.take()),
         }
     }
 }
@@ -410,8 +492,11 @@ impl fmt::Debug for IterRepr {
             Self::Rev(iter) => write!(f, "{:?}", iter),
             Self::Chain(iter) => write!(f, "{:?}", iter),
             Self::Enumerate(iter) => write!(f, "{:?}", iter),
+            Self::Skip(iter) => write!(f, "{:?}", iter),
             Self::Take(iter) => write!(f, "{:?}", iter),
             Self::Peekable(iter) => write!(f, "{:?}", iter),
+            Self::Empty => write!(f, "std::iter::Empty"),
+            Self::Once(..) => write!(f, "std::iter::Once"),
         }
     }
 }
@@ -517,7 +602,7 @@ where
                     })
                 }
                 Some(value) => {
-                    let iterator = <Interface as FromValue>::from_value(value)?.into_iter()?;
+                    let iterator = value.into_iter()?;
                     self.frontiter = Some(iterator.iter)
                 }
             }
@@ -541,7 +626,7 @@ where
                     })
                 }
                 Some(value) => {
-                    let iterator = <Interface as FromValue>::from_value(value)?.into_iter()?;
+                    let iterator = value.into_iter()?;
                     self.backiter = Some(iterator.iter);
                 }
             }
@@ -794,6 +879,63 @@ where
 }
 
 #[derive(Debug)]
+struct Skip<I> {
+    iter: I,
+    n: usize,
+}
+
+impl<I> RuneIterator for Skip<I>
+where
+    I: RuneIterator,
+{
+    #[inline]
+    fn is_double_ended(&self) -> bool {
+        self.iter.is_double_ended()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (lower, upper) = self.iter.size_hint();
+
+        let lower = lower.saturating_sub(self.n);
+        let upper = match upper {
+            Some(x) => Some(x.saturating_sub(self.n)),
+            None => None,
+        };
+
+        (lower, upper)
+    }
+
+    #[inline]
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        if self.n == 0 {
+            self.iter.next()
+        } else {
+            let old_n = self.n;
+            self.n = 0;
+
+            for _ in 0..old_n {
+                match self.iter.next()? {
+                    Some(..) => (),
+                    None => return Ok(None),
+                }
+            }
+
+            self.iter.next()
+        }
+    }
+
+    #[inline]
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        Ok(if self.len()? > 0 {
+            self.iter.next_back()?
+        } else {
+            None
+        })
+    }
+}
+
+#[derive(Debug)]
 struct Take<I> {
     iter: I,
     n: usize,
@@ -998,19 +1140,21 @@ where
         Ok(product)
     }
 
-    fn resolve(mut self) -> Result<Option<Value>, VmError> {
+    fn resolve(mut self) -> Result<Value, VmError> {
         match self.iter.next()? {
             Some(v) => match v {
-                Value::Byte(v) => Ok(Some(Value::Byte(self.resolve_internal_simple(v)?))),
-                Value::Integer(v) => Ok(Some(Value::Integer(self.resolve_internal_simple(v)?))),
-                Value::Float(v) => Ok(Some(Value::Float(self.resolve_internal_simple(v)?))),
+                Value::Byte(v) => Ok(Value::Byte(self.resolve_internal_simple(v)?)),
+                Value::Integer(v) => Ok(Value::Integer(self.resolve_internal_simple(v)?)),
+                Value::Float(v) => Ok(Value::Float(self.resolve_internal_simple(v)?)),
                 _ => Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                     op: "*",
                     lhs: v.type_info()?,
                     rhs: v.type_info()?,
                 })),
             },
-            None => Ok(None),
+            None => Err(VmError::panic(
+                "cannot take the product of an empty iterator",
+            )),
         }
     }
 }
@@ -1042,19 +1186,19 @@ where
         Ok(sum)
     }
 
-    fn resolve(mut self) -> Result<Option<Value>, VmError> {
+    fn resolve(mut self) -> Result<Value, VmError> {
         match self.iter.next()? {
             Some(v) => match v {
-                Value::Byte(v) => Ok(Some(Value::Byte(self.resolve_internal_simple(v)?))),
-                Value::Integer(v) => Ok(Some(Value::Integer(self.resolve_internal_simple(v)?))),
-                Value::Float(v) => Ok(Some(Value::Float(self.resolve_internal_simple(v)?))),
+                Value::Byte(v) => Ok(Value::Byte(self.resolve_internal_simple(v)?)),
+                Value::Integer(v) => Ok(Value::Integer(self.resolve_internal_simple(v)?)),
+                Value::Float(v) => Ok(Value::Float(self.resolve_internal_simple(v)?)),
                 _ => Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                    op: "*",
+                    op: "+",
                     lhs: v.type_info()?,
                     rhs: v.type_info()?,
                 })),
             },
-            None => Ok(None),
+            None => Err(VmError::panic("cannot take the sum of an empty iterator")),
         }
     }
 }

@@ -711,6 +711,7 @@ impl<'a> InstFnNameHash for &'a str {
 }
 
 impl<'a> InstFnNameHash for Hash {
+    #[inline]
     fn inst_fn_name_hash(self) -> Hash {
         self
     }

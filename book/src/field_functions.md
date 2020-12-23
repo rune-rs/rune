@@ -86,7 +86,7 @@ The following uses an implementation of `add_assign` which performs checked
 addition:
 
 ```rust,noplaypen
-{{#include ../../crates/rune/examples/checked_add_assign.rs}}
+{{#include ../../examples/examples/checked_add_assign.rs}}
 ```
 
 ```text

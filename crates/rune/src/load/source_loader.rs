@@ -5,7 +5,7 @@ use std::path::Path;
 /// A source loader.
 pub trait SourceLoader {
     /// Load the given URL.
-    fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<Source, CompileError>;
+    fn load(&self, root: &Path, item: &Item, span: Span) -> Result<Source, CompileError>;
 }
 
 /// A filesystem-based source loader.
@@ -20,7 +20,7 @@ impl FileSourceLoader {
 }
 
 impl SourceLoader for FileSourceLoader {
-    fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<Source, CompileError> {
+    fn load(&self, root: &Path, item: &Item, span: Span) -> Result<Source, CompileError> {
         let mut base = root.to_owned();
 
         if !base.pop() {

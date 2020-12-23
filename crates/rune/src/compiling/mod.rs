@@ -3,50 +3,42 @@ use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
-use runestick::{Context, Source, Span};
+use crate::{Diagnostics, Options, Spanned as _, Storage};
+use runestick::{Context, Location, Source, Span};
+use std::rc::Rc;
+use std::sync::Arc;
 
-mod assemble;
 mod assembly;
 mod compile_error;
 mod compile_visitor;
-mod compiler;
-mod loops;
-mod scopes;
 mod unit_builder;
+mod v1;
 
 pub use self::compile_error::{CompileError, CompileErrorKind, CompileResult, ImportEntryStep};
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
-pub use self::scopes::Var;
 pub use self::unit_builder::{BuildError, InsertMetaError, LinkerError, UnitBuilder};
 use crate::parsing::Resolve as _;
 
-pub(crate) use self::assemble::{Assemble, AssembleClosure, AssembleConst, AssembleFn};
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
-pub(crate) use self::compiler::{Compiler, Needs};
-pub(crate) use self::loops::{Loop, Loops};
-pub(crate) use self::scopes::{Scope, ScopeGuard, Scopes};
 
 /// Compile the given source with default options.
 pub fn compile(
     context: &Context,
     sources: &mut Sources,
     unit: &UnitBuilder,
-    errors: &mut Errors,
-    warnings: &mut Warnings,
+    diagnostics: &mut Diagnostics,
 ) -> Result<(), ()> {
-    let mut visitor = NoopCompileVisitor::new();
-    let mut source_loader = FileSourceLoader::new();
+    let visitor = Rc::new(NoopCompileVisitor::new());
+    let source_loader = Rc::new(FileSourceLoader::new());
 
     compile_with_options(
         context,
         sources,
         unit,
-        errors,
-        warnings,
+        diagnostics,
         &Default::default(),
-        &mut visitor,
-        &mut source_loader,
+        visitor,
+        source_loader,
     )?;
 
     Ok(())
@@ -57,11 +49,10 @@ pub fn compile_with_options(
     context: &Context,
     sources: &mut Sources,
     unit: &UnitBuilder,
-    errors: &mut Errors,
-    warnings: &mut Warnings,
+    diagnostics: &mut Diagnostics,
     options: &Options,
-    visitor: &mut dyn CompileVisitor,
-    source_loader: &mut dyn SourceLoader,
+    visitor: Rc<dyn CompileVisitor>,
+    source_loader: Rc<dyn SourceLoader>,
 ) -> Result<(), ()> {
     // Global storage.
     let storage = Storage::new();
@@ -77,9 +68,8 @@ pub fn compile_with_options(
         options,
         unit.clone(),
         consts,
-        errors,
-        warnings,
-        visitor,
+        diagnostics,
+        visitor.clone(),
         source_loader,
         storage.clone(),
         gen,
@@ -90,7 +80,7 @@ pub fn compile_with_options(
         let mod_item = match worker.query.insert_root_mod(source_id, Span::empty()) {
             Ok(result) => result,
             Err(error) => {
-                errors.push(Error::new(source_id, error));
+                diagnostics.error(source_id, error);
                 return Err(());
             }
         };
@@ -104,7 +94,7 @@ pub fn compile_with_options(
 
     worker.run();
 
-    if !worker.errors.is_empty() {
+    if worker.diagnostics.has_error() {
         return Err(());
     }
 
@@ -113,34 +103,31 @@ pub fn compile_with_options(
             let source_id = entry.location.source_id;
 
             let task = CompileBuildEntry {
+                visitor: &visitor,
                 context,
                 options,
                 storage: &storage,
                 unit,
-                warnings: worker.warnings,
+                diagnostics: worker.diagnostics,
                 consts: &worker.consts,
                 query: &mut worker.query,
-                entry,
-                visitor: worker.visitor,
             };
 
-            if let Err(error) = task.compile() {
-                worker.errors.push(Error::new(source_id, error));
+            if let Err(error) = task.compile(entry) {
+                worker.diagnostics.error(source_id, error);
             }
         }
 
-        match worker.query.queue_unused_entries(worker.visitor) {
+        match worker.query.queue_unused_entries() {
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
-                worker
-                    .errors
-                    .push(Error::new(source_id, CompileError::from(error)));
+                worker.diagnostics.error(source_id, error);
             }
         }
     }
 
-    if !worker.errors.is_empty() {
+    if worker.diagnostics.has_error() {
         return Err(());
     }
 
@@ -148,58 +135,67 @@ pub fn compile_with_options(
 }
 
 struct CompileBuildEntry<'a> {
+    visitor: &'a Rc<dyn CompileVisitor>,
     context: &'a Context,
     options: &'a Options,
     storage: &'a Storage,
     unit: &'a UnitBuilder,
-    warnings: &'a mut Warnings,
+    diagnostics: &'a mut Diagnostics,
     consts: &'a Consts,
     query: &'a mut Query,
-    entry: BuildEntry,
-    visitor: &'a mut dyn CompileVisitor,
 }
 
 impl CompileBuildEntry<'_> {
-    fn compile(self) -> Result<(), CompileError> {
-        let BuildEntry {
-            item,
-            location,
-            build,
-            source,
-            used,
-        } = self.entry;
-
-        let mut asm = self.unit.new_assembly(location);
-
-        let mut compiler = Compiler {
+    fn compiler1<'a>(
+        &'a mut self,
+        location: Location,
+        source: &Arc<Source>,
+        span: Span,
+        asm: &'a mut Assembly,
+    ) -> self::v1::Compiler<'a> {
+        self::v1::Compiler {
+            visitor: self.visitor.clone(),
             storage: self.storage,
             source_id: location.source_id,
             source: source.clone(),
             context: self.context,
             consts: self.consts,
             query: self.query,
-            asm: &mut asm,
+            asm,
             unit: self.unit.clone(),
-            scopes: Scopes::new(),
-            contexts: vec![],
-            loops: Loops::new(),
+            scopes: self::v1::Scopes::new(self.visitor.clone()),
+            contexts: vec![span],
+            loops: self::v1::Loops::new(),
             options: self.options,
-            warnings: self.warnings,
-            visitor: self.visitor,
-        };
+            diagnostics: self.diagnostics,
+        }
+    }
+
+    fn compile(mut self, entry: BuildEntry) -> Result<(), CompileError> {
+        let BuildEntry {
+            item,
+            location,
+            build,
+            source,
+            used,
+        } = entry;
+
+        let mut asm = self.unit.new_assembly(location);
 
         match build {
             Build::Function(f) => {
-                let args =
-                    format_fn_args(self.storage, &*source, f.ast.args.iter().map(|(a, _)| a))?;
+                use self::v1::AssembleFn as _;
+
+                let args = format_fn_args(&*source, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
-                compiler.contexts.push(span);
-                f.ast.assemble_fn(&mut compiler, false)?;
+
+                let mut c = self.compiler1(location, &source, span, &mut asm);
+                f.ast.assemble_fn(&mut c, false)?;
 
                 if used.is_unused() {
-                    compiler.warnings.not_used(location.source_id, span, None);
+                    self.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     self.unit.new_function(
                         location,
@@ -212,26 +208,25 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::InstanceFunction(f) => {
-                let args =
-                    format_fn_args(self.storage, &*source, f.ast.args.iter().map(|(a, _)| a))?;
+                use self::v1::AssembleFn as _;
+
+                let args = format_fn_args(&*source, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
-                compiler.contexts.push(span);
-
-                let source = compiler.source.clone();
                 let name = f.ast.name.resolve(self.storage, &*source)?;
 
-                let meta = compiler.lookup_meta(f.instance_span, &f.impl_item)?;
+                let mut c = self.compiler1(location, &source, span, &mut asm);
+                let meta = c.lookup_meta(f.instance_span, &f.impl_item)?;
 
                 let type_hash = meta
                     .type_hash_of()
                     .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
 
-                f.ast.assemble_fn(&mut compiler, true)?;
+                f.ast.assemble_fn(&mut c, true)?;
 
                 if used.is_unused() {
-                    compiler.warnings.not_used(location.source_id, span, None);
+                    c.diagnostics.not_used(location.source_id, span, None);
                 } else {
                     self.unit.new_instance_function(
                         location,
@@ -245,42 +240,41 @@ impl CompileBuildEntry<'_> {
                     )?;
                 }
             }
-            Build::Closure(c) => {
-                let args = format_fn_args(
-                    self.storage,
-                    &*source,
-                    c.ast.args.as_slice().iter().map(|(a, _)| a),
-                )?;
+            Build::Closure(closure) => {
+                use self::v1::AssembleClosure as _;
 
-                let count = c.ast.args.len();
-                let span = c.ast.span();
-                compiler.contexts.push(span);
-                c.ast.assemble_closure(&mut compiler, &c.captures)?;
+                let span = closure.ast.span();
+                let args =
+                    format_fn_args(&*source, closure.ast.args.as_slice().iter().map(|(a, _)| a))?;
+
+                let mut c = self.compiler1(location, &source, span, &mut asm);
+                closure.ast.assemble_closure(&mut c, &closure.captures)?;
 
                 if used.is_unused() {
-                    compiler
-                        .warnings
+                    c.diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
                     self.unit.new_function(
                         location,
                         item.item.clone(),
-                        count,
+                        closure.ast.args.len(),
                         asm,
-                        c.call,
+                        closure.call,
                         args,
                     )?;
                 }
             }
             Build::AsyncBlock(b) => {
+                use self::v1::AssembleClosure as _;
+
                 let args = b.captures.len();
                 let span = b.ast.span();
-                compiler.contexts.push(span);
-                b.ast.assemble_closure(&mut compiler, &b.captures)?;
+
+                let mut c = self.compiler1(location, &source, span, &mut asm);
+                b.ast.assemble_closure(&mut c, &b.captures)?;
 
                 if used.is_unused() {
-                    compiler
-                        .warnings
+                    self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
                     self.unit.new_function(
@@ -294,7 +288,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Unused => {
-                self.warnings
+                self.diagnostics
                     .not_used(location.source_id, location.span, None);
             }
             Build::Import(import) => {
@@ -304,7 +298,7 @@ impl CompileBuildEntry<'_> {
                     .import(location.span, &item.module, &item.item, used)?;
 
                 if used.is_unused() {
-                    self.warnings
+                    self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 }
 
@@ -352,11 +346,7 @@ impl CompileBuildEntry<'_> {
     }
 }
 
-fn format_fn_args<'a, I>(
-    storage: &Storage,
-    source: &Source,
-    arguments: I,
-) -> Result<Vec<String>, CompileError>
+fn format_fn_args<'a, I>(source: &Source, arguments: I) -> Result<Vec<String>, CompileError>
 where
     I: IntoIterator<Item = &'a ast::FnArg>,
 {
@@ -367,11 +357,14 @@ where
             ast::FnArg::SelfValue(..) => {
                 args.push(String::from("self"));
             }
-            ast::FnArg::Ignore(..) => {
-                args.push(String::from("_"));
-            }
-            ast::FnArg::Ident(ident) => {
-                args.push(ident.resolve(storage, source)?.to_string());
+            ast::FnArg::Pat(pat) => {
+                let span = pat.span();
+
+                if let Some(s) = source.source(span) {
+                    args.push(s.to_owned());
+                } else {
+                    args.push(String::from("*"));
+                }
             }
         }
     }

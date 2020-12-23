@@ -141,6 +141,19 @@ impl UnsafeFromValue for &mut Option<Value> {
     }
 }
 
+impl UnsafeFromValue for &mut Result<Value, Value> {
+    type Output = *mut Result<Value, Value>;
+    type Guard = RawMut;
+
+    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+        Ok(Mut::into_raw(value.into_result()?.into_mut()?))
+    }
+
+    unsafe fn unsafe_coerce(output: Self::Output) -> Self {
+        &mut *output
+    }
+}
+
 // String impls
 
 impl FromValue for String {

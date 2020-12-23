@@ -1,11 +1,14 @@
 use crate::access::AccessKind;
+use crate::protocol_caller::{EnvProtocolCaller, ProtocolCaller};
 use crate::{
-    Any, AnyObj, Bytes, Format, Function, Future, Generator, GeneratorState, Hash, Item, Iterator,
-    Mut, Object, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, TypeInfo, Vec,
-    VmError,
+    Any, AnyObj, Bytes, ConstValue, Format, Function, Future, Generator, GeneratorState, Hash,
+    Item, Iterator, Mut, Object, Protocol, Range, RawMut, RawRef, Ref, Shared, StaticString,
+    Stream, Tuple, TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind,
 };
 use serde::{de, ser, Deserialize, Serialize};
+use std::cmp;
 use std::fmt;
+use std::hash;
 use std::sync::Arc;
 use std::vec;
 
@@ -79,52 +82,6 @@ impl fmt::Debug for TupleStruct {
     }
 }
 
-/// A tuple with a well-defined type as a variant of an enum.
-pub struct TupleVariant {
-    /// Type information for object variant.
-    pub(crate) rtti: Arc<VariantRtti>,
-    /// Content of the tuple.
-    pub(crate) data: Tuple,
-}
-
-impl TupleVariant {
-    /// Access runtime type information.
-    pub fn rtti(&self) -> &Arc<VariantRtti> {
-        &self.rtti
-    }
-
-    /// Access underlying data.
-    pub fn data(&self) -> &Tuple {
-        &self.data
-    }
-
-    /// Access underlying data mutably.
-    pub fn data_mut(&mut self) -> &mut Tuple {
-        &mut self.data
-    }
-
-    /// Get type info for the typed tuple.
-    pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Variant(self.rtti.clone())
-    }
-
-    /// Get the value at the given index in the tuple.
-    pub fn get(&self, index: usize) -> Option<&Value> {
-        self.data.get(index)
-    }
-
-    /// Get the mutable value at the given index in the tuple.
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
-        self.data.get_mut(index)
-    }
-}
-
-impl fmt::Debug for TupleVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.data)
-    }
-}
-
 /// An object with a well-defined type.
 pub struct Struct {
     /// The type hash of the object.
@@ -164,7 +121,7 @@ impl Struct {
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
     where
         String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq,
+        Q: std::hash::Hash + std::cmp::Eq + std::cmp::Ord,
     {
         self.data.get(k)
     }
@@ -173,7 +130,7 @@ impl Struct {
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
     where
         String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq,
+        Q: std::hash::Hash + std::cmp::Eq + std::cmp::Ord,
     {
         self.data.get_mut(k)
     }
@@ -182,84 +139,6 @@ impl Struct {
 impl fmt::Debug for Struct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.data.debug_struct(&self.rtti.item))
-    }
-}
-
-/// An object with a well-defined variant of an enum.
-pub struct StructVariant {
-    /// Type information for object variant.
-    pub(crate) rtti: Arc<VariantRtti>,
-    /// Content of the object.
-    pub(crate) data: Object,
-}
-
-impl StructVariant {
-    /// Access runtime type information.
-    pub fn rtti(&self) -> &Arc<VariantRtti> {
-        &self.rtti
-    }
-
-    /// Access underlying data.
-    pub fn data(&self) -> &Object {
-        &self.data
-    }
-
-    /// Access underlying data mutably.
-    pub fn data_mut(&mut self) -> &mut Object {
-        &mut self.data
-    }
-
-    /// Get type info for the typed object.
-    pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Variant(self.rtti.clone())
-    }
-
-    /// Get the given key in the object.
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
-    where
-        String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq,
-    {
-        self.data.get(k)
-    }
-
-    /// Get the given mutable value by key in the object.
-    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
-    where
-        String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq,
-    {
-        self.data.get_mut(k)
-    }
-}
-
-impl fmt::Debug for StructVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.data.debug_struct(&self.rtti.item))
-    }
-}
-
-/// An object with a well-defined variant of an enum.
-pub struct UnitVariant {
-    /// Type information for object variant.
-    pub(crate) rtti: Arc<VariantRtti>,
-}
-
-impl UnitVariant {
-    /// Access runtime type information.
-    pub fn rtti(&self) -> &Arc<VariantRtti> {
-        &self.rtti
-    }
-
-    /// Get type info for the typed object.
-    pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Variant(self.rtti.clone())
-    }
-}
-
-impl fmt::Debug for UnitVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.rtti.item)
     }
 }
 
@@ -274,6 +153,32 @@ pub struct VariantRtti {
     pub item: Item,
 }
 
+impl cmp::PartialEq for VariantRtti {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl cmp::Eq for VariantRtti {}
+
+impl hash::Hash for VariantRtti {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state)
+    }
+}
+
+impl cmp::PartialOrd for VariantRtti {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        self.hash.partial_cmp(&other.hash)
+    }
+}
+
+impl cmp::Ord for VariantRtti {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.hash.cmp(&other.hash)
+    }
+}
+
 /// Runtime information on variant.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Rtti {
@@ -281,6 +186,32 @@ pub struct Rtti {
     pub hash: Hash,
     /// The item of the type.
     pub item: Item,
+}
+
+impl cmp::PartialEq for Rtti {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl cmp::Eq for Rtti {}
+
+impl hash::Hash for Rtti {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state)
+    }
+}
+
+impl cmp::PartialOrd for Rtti {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        self.hash.partial_cmp(&other.hash)
+    }
+}
+
+impl cmp::Ord for Rtti {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.hash.cmp(&other.hash)
+    }
 }
 
 /// An entry on the stack.
@@ -339,12 +270,8 @@ pub enum Value {
     TupleStruct(Shared<TupleStruct>),
     /// An struct with a well-defined type.
     Struct(Shared<Struct>),
-    /// An struct variant with a well-defined type.
-    UnitVariant(Shared<UnitVariant>),
-    /// A tuple variant with a well-defined type.
-    TupleVariant(Shared<TupleVariant>),
-    /// An struct variant with a well-defined type.
-    StructVariant(Shared<StructVariant>),
+    /// The variant of an enum.
+    Variant(Shared<Variant>),
     /// A stored function pointer.
     Function(Shared<Function>),
     /// A value being formatted.
@@ -356,6 +283,166 @@ pub enum Value {
 }
 
 impl Value {
+    /// Debug format the value using the [Protocol::STRING_DEBUG] protocol.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    pub fn string_debug(&self, s: &mut String) -> Result<fmt::Result, VmError> {
+        self.string_debug_with(s, EnvProtocolCaller)
+    }
+
+    /// Internal impl of string_debug with a customizable caller.
+    pub(crate) fn string_debug_with(
+        &self,
+        s: &mut String,
+        caller: impl ProtocolCaller,
+    ) -> Result<fmt::Result, VmError> {
+        use crate::FromValue as _;
+        use std::fmt::Write as _;
+
+        let result = match self {
+            Value::Unit => {
+                write!(s, "()")
+            }
+            Value::Bool(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Byte(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Char(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Integer(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Float(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Type(value) => {
+                write!(s, "Type({})", value)
+            }
+            Value::StaticString(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::String(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Bytes(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Vec(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Tuple(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Object(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Range(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Future(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Stream(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Generator(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::GeneratorState(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Option(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Result(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::UnitStruct(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::TupleStruct(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Struct(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Variant(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Function(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Format(value) => {
+                write!(s, "{:?}", value)
+            }
+            Value::Iterator(value) => {
+                write!(s, "{:?}", value)
+            }
+            value => {
+                let string = Value::from(std::mem::take(s));
+                let value = caller.call_protocol_fn(
+                    Protocol::STRING_DEBUG,
+                    value.clone(),
+                    (string.clone(),),
+                )?;
+                *s = string.into_string()?.take()?;
+                fmt::Result::from_value(value)?
+            }
+        };
+
+        Ok(result)
+    }
+
+    /// Convert value into an iterator using the [Protocol::INTO_ITER] protocol.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    pub fn into_iter(self) -> Result<Iterator, VmError> {
+        use crate::FromValue as _;
+
+        let target = match self {
+            Value::Iterator(iterator) => return Ok(iterator.take()?),
+            Value::Vec(vec) => return Ok(vec.borrow_ref()?.into_iterator()),
+            Value::Object(object) => return Ok(object.borrow_ref()?.into_iterator()),
+            target => target,
+        };
+
+        let value = EnvProtocolCaller.call_protocol_fn(Protocol::INTO_ITER, target, ())?;
+        Iterator::from_value(value)
+    }
+
+    /// Retrieves a human readable type name for the current value.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    pub fn into_type_name(self) -> Result<String, VmError> {
+        let hash = Hash::instance_function(self.type_hash()?, Protocol::INTO_TYPE_NAME);
+
+        crate::env::with(|context, unit| {
+            if let Some(name) = context.constant(hash) {
+                match name {
+                    ConstValue::String(s) => return Ok(s.clone()),
+                    ConstValue::StaticString(s) => return Ok((*s).to_string()),
+                    _ => Err(VmError::expected::<String>(name.type_info()))?,
+                }
+            }
+
+            if let Some(name) = unit.constant(hash) {
+                match name {
+                    ConstValue::String(s) => return Ok(s.clone()),
+                    ConstValue::StaticString(s) => return Ok((*s).to_string()),
+                    _ => Err(VmError::expected::<String>(name.type_info()))?,
+                }
+            }
+
+            self.type_info().map(|v| format!("{}", v))
+        })
+    }
+
     /// Construct a vector.
     pub fn vec(vec: vec::Vec<Value>) -> Self {
         Self::Vec(Shared::new(Vec::from(vec)))
@@ -380,16 +467,13 @@ impl Value {
     }
 
     /// Construct an empty variant.
-    pub fn empty_variant(rtti: Arc<VariantRtti>) -> Self {
-        Self::UnitVariant(Shared::new(UnitVariant { rtti }))
+    pub fn unit_variant(rtti: Arc<VariantRtti>) -> Self {
+        Self::Variant(Shared::new(Variant::unit(rtti)))
     }
 
     /// Construct a tuple variant.
     pub fn tuple_variant(rtti: Arc<VariantRtti>, vec: vec::Vec<Value>) -> Self {
-        Self::TupleVariant(Shared::new(TupleVariant {
-            rtti,
-            data: Tuple::from(vec),
-        }))
+        Self::Variant(Shared::new(Variant::tuple(rtti, Tuple::from(vec))))
     }
 
     /// Take the interior value.
@@ -418,9 +502,7 @@ impl Value {
             Self::UnitStruct(value) => Self::UnitStruct(Shared::new(value.take()?)),
             Self::TupleStruct(value) => Self::TupleStruct(Shared::new(value.take()?)),
             Self::Struct(value) => Self::Struct(Shared::new(value.take()?)),
-            Self::UnitVariant(value) => Self::UnitVariant(Shared::new(value.take()?)),
-            Self::TupleVariant(value) => Self::TupleVariant(Shared::new(value.take()?)),
-            Self::StructVariant(value) => Self::StructVariant(Shared::new(value.take()?)),
+            Self::Variant(value) => Self::Variant(Shared::new(value.take()?)),
             Self::Function(value) => Self::Function(Shared::new(value.take()?)),
             Self::Format(value) => Self::Format(value),
             Self::Iterator(value) => Self::Iterator(value),
@@ -714,9 +796,7 @@ impl Value {
             Self::UnitStruct(empty) => empty.borrow_ref()?.rtti.hash,
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
             Self::Struct(object) => object.borrow_ref()?.rtti.hash,
-            Self::UnitVariant(empty) => empty.borrow_ref()?.rtti.enum_hash,
-            Self::TupleVariant(tuple) => tuple.borrow_ref()?.rtti.enum_hash,
-            Self::StructVariant(object) => object.borrow_ref()?.rtti.enum_hash,
+            Self::Variant(variant) => variant.borrow_ref()?.rtti().enum_hash,
             Self::Any(any) => any.borrow_ref()?.type_hash(),
         })
     }
@@ -750,9 +830,7 @@ impl Value {
             Self::UnitStruct(empty) => empty.borrow_ref()?.type_info(),
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.type_info(),
             Self::Struct(object) => object.borrow_ref()?.type_info(),
-            Self::UnitVariant(empty) => empty.borrow_ref()?.type_info(),
-            Self::TupleVariant(tuple) => tuple.borrow_ref()?.type_info(),
-            Self::StructVariant(object) => object.borrow_ref()?.type_info(),
+            Self::Variant(empty) => empty.borrow_ref()?.type_info(),
             Self::Any(any) => TypeInfo::Any(any.borrow_ref()?.type_name()),
         })
     }
@@ -761,101 +839,106 @@ impl Value {
     /// each other.
     ///
     /// This is the basis for the eq operation (`==`).
-    pub(crate) fn value_ptr_eq(a: &Value, b: &Value) -> Result<bool, VmError> {
-        Ok(match (a, b) {
-            (Self::Unit, Self::Unit) => true,
-            (Self::Bool(a), Self::Bool(b)) => a == b,
-            (Self::Byte(a), Self::Byte(b)) => a == b,
-            (Self::Char(a), Self::Char(b)) => a == b,
-            (Self::Integer(a), Self::Integer(b)) => a == b,
-            (Self::Float(a), Self::Float(b)) => a == b,
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Value, b: &Value) -> Result<bool, VmError> {
+        match (a, b) {
+            (Self::Unit, Self::Unit) => return Ok(true),
+            (Self::Bool(a), Self::Bool(b)) => return Ok(a == b),
+            (Self::Byte(a), Self::Byte(b)) => return Ok(a == b),
+            (Self::Char(a), Self::Char(b)) => return Ok(a == b),
+            (Self::Integer(a), Self::Integer(b)) => return Ok(a == b),
+            (Self::Float(a), Self::Float(b)) => return Ok(a == b),
             (Self::Vec(a), Self::Vec(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-
-                if a.len() != b.len() {
-                    return Ok(false);
-                }
-
-                for (a, b) in a.iter().zip(b.iter()) {
-                    if !Self::value_ptr_eq(a, b)? {
-                        return Ok(false);
-                    }
-                }
-
-                true
+                return Vec::value_ptr_eq(vm, &*a, &*b);
             }
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                Tuple::value_ptr_eq(&*a, &*b)?
+                return Tuple::value_ptr_eq(vm, &*a, &*b);
             }
             (Self::Object(a), Self::Object(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                Object::value_ptr_eq(&*a, &*b)?
+                return Object::value_ptr_eq(vm, &*a, &*b);
             }
             (Self::Range(a), Self::Range(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                Range::value_ptr_eq(&*a, &*b)?
+                return Range::value_ptr_eq(vm, &*a, &*b);
             }
             (Self::UnitStruct(a), Self::UnitStruct(b)) => {
-                a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash
+                if a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash {
+                    // NB: don't get any future ideas, this must fall through to
+                    // the VmError below since it's otherwise a comparison
+                    // between two incompatible types.
+                    //
+                    // Other than that, all units are equal.
+                    return Ok(true);
+                }
             }
             (Self::TupleStruct(a), Self::TupleStruct(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
 
-                a.rtti.hash == b.rtti.hash && Tuple::value_ptr_eq(&a.data, &b.data)?
+                if a.rtti.hash == b.rtti.hash {
+                    return Tuple::value_ptr_eq(vm, &a.data, &b.data);
+                }
             }
             (Self::Struct(a), Self::Struct(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
 
-                a.rtti.hash == b.rtti.hash && Object::value_ptr_eq(&a.data, &b.data)?
+                if a.rtti.hash == b.rtti.hash {
+                    return Object::value_ptr_eq(vm, &a.data, &b.data);
+                }
             }
-            (Self::UnitVariant(a), Self::UnitVariant(b)) => {
-                a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash
-            }
-            (Self::TupleVariant(a), Self::TupleVariant(b)) => {
+            (Self::Variant(a), Self::Variant(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
 
-                a.rtti.hash == b.rtti.hash && Tuple::value_ptr_eq(&a.data, &b.data)?
+                if a.rtti().enum_hash == b.rtti().enum_hash {
+                    return Variant::value_ptr_eq(vm, &*a, &*b);
+                }
             }
-            (Self::StructVariant(a), Self::StructVariant(b)) => {
-                let a = a.borrow_ref()?;
-                let b = b.borrow_ref()?;
-
-                a.rtti.hash == b.rtti.hash && Object::value_ptr_eq(&a.data, &b.data)?
+            (Self::String(a), Self::String(b)) => {
+                return Ok(*a.borrow_ref()? == *b.borrow_ref()?);
             }
-            (Self::String(a), Self::String(b)) => *a.borrow_ref()? == *b.borrow_ref()?,
             (Self::StaticString(a), Self::String(b)) => {
                 let b = b.borrow_ref()?;
-                ***a == *b
+                return Ok(***a == *b);
             }
             (Self::String(a), Self::StaticString(b)) => {
                 let a = a.borrow_ref()?;
-                *a == ***b
+                return Ok(*a == ***b);
             }
             // fast string comparison: exact string slot.
-            (Self::StaticString(a), Self::StaticString(b)) => ***a == ***b,
+            (Self::StaticString(a), Self::StaticString(b)) => {
+                return Ok(***a == ***b);
+            }
             (Self::Option(a), Self::Option(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
-                (Some(a), Some(b)) => Self::value_ptr_eq(a, b)?,
-                (None, None) => true,
-                _ => false,
+                (Some(a), Some(b)) => return Self::value_ptr_eq(vm, a, b),
+                (None, None) => return Ok(true),
+                _ => return Ok(false),
             },
             (Self::Result(a), Self::Result(b)) => match (&*a.borrow_ref()?, &*b.borrow_ref()?) {
-                (Ok(a), Ok(b)) => Self::value_ptr_eq(a, b)?,
-                (Err(a), Err(b)) => Self::value_ptr_eq(a, b)?,
-                _ => false,
+                (Ok(a), Ok(b)) => return Self::value_ptr_eq(vm, a, b),
+                (Err(a), Err(b)) => return Self::value_ptr_eq(vm, a, b),
+                _ => return Ok(false),
             },
-            // fast external comparison by slot.
-            // TODO: implement ptr equals.
-            // (Self::Any(a), Self::Any(b)) => a == b,
-            _ => false,
-        })
+            (a, b) => {
+                if vm.call_instance_fn(a.clone(), Protocol::EQ, (b.clone(),))? {
+                    use crate::FromValue as _;
+                    return Ok(bool::from_value(vm.stack.pop()?)?);
+                }
+            }
+        }
+
+        Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+            op: "==",
+            lhs: a.type_info()?,
+            rhs: b.type_info()?,
+        }))
     }
 }
 
@@ -931,13 +1014,7 @@ impl fmt::Debug for Value {
             Value::Struct(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::UnitVariant(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::TupleVariant(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::StructVariant(value) => {
+            Value::Variant(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::Function(value) => {
@@ -949,8 +1026,23 @@ impl fmt::Debug for Value {
             Value::Iterator(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::Any(value) => {
-                write!(f, "{:?}", value)?;
+            value => {
+                let mut s = String::new();
+                let result = match value.string_debug(&mut s) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        // this isn't very nice, but if protocol string fails
+                        // this used to crash out immediately... in this way,
+                        // one can at least get soms semblance of info for all
+                        // types. And if the type doesn't have type info
+                        // something else has gone terribly wrong.
+                        s = format!("{:?}", value.type_info().unwrap());
+                        Ok(())
+                    }
+                };
+                result?;
+
+                write!(f, "{}", s)?;
             }
         }
 
@@ -1056,9 +1148,7 @@ impl_from_wrapper! {
     UnitStruct => Shared<UnitStruct>,
     TupleStruct => Shared<TupleStruct>,
     Struct => Shared<Struct>,
-    UnitVariant => Shared<UnitVariant>,
-    TupleVariant => Shared<TupleVariant>,
-    StructVariant => Shared<StructVariant>,
+    Variant => Shared<Variant>,
     Function => Shared<Function>,
     Any => Shared<AnyObj>,
 }
@@ -1135,9 +1225,7 @@ impl ser::Serialize for Value {
             Value::UnitStruct(..) => serializer.serialize_unit(),
             Value::TupleStruct(..) => Err(ser::Error::custom("cannot serialize tuple structs")),
             Value::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
-            Value::UnitVariant(..) => Err(ser::Error::custom("cannot serialize unit variants")),
-            Value::TupleVariant(..) => Err(ser::Error::custom("cannot serialize tuple variants")),
-            Value::StructVariant(..) => Err(ser::Error::custom("cannot serialize object variants")),
+            Value::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),

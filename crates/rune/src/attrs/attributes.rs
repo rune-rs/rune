@@ -40,7 +40,10 @@ impl Attributes {
     }
 
     /// Try to parse the attribute with the given type.
-    pub(crate) fn try_parse<T>(&mut self) -> Result<Option<T>, ParseError>
+    ///
+    /// Returns the parsed element and the span it was parsed from if
+    /// successful.
+    pub(crate) fn try_parse<T>(&mut self) -> Result<Option<(Span, T)>, ParseError>
     where
         T: Attribute + Parse,
     {
@@ -63,21 +66,23 @@ impl Attributes {
                 continue;
             }
 
+            let span = a.span();
+
             if matched.is_some() {
                 return Err(ParseError::new(
-                    a.span(),
+                    span,
                     ParseErrorKind::MultipleMatchingAttributes { name: T::PATH },
                 ));
             }
 
             let mut parser = Parser::from_token_stream(&a.input);
-            matched = Some((index, parser.parse::<T>()?));
+            matched = Some((index, span, parser.parse::<T>()?));
             parser.eof()?;
         }
 
-        if let Some((index, matched)) = matched {
+        if let Some((index, span, matched)) = matched {
             self.unused.remove(&index);
-            Ok(Some(matched))
+            Ok(Some((span, matched)))
         } else {
             Ok(None)
         }

@@ -4,6 +4,7 @@
 pub mod any;
 pub mod bytes;
 pub mod char;
+pub mod cmp;
 pub mod collections;
 pub mod core;
 pub mod float;
@@ -13,6 +14,7 @@ pub mod generator;
 pub mod int;
 pub mod io;
 pub mod iter;
+pub mod mem;
 pub mod object;
 pub mod ops;
 pub mod option;

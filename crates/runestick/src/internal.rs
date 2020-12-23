@@ -11,7 +11,7 @@ impl<T> AssertSend<T> {
     ///
     /// # Safety
     ///
-    /// Caller must assert that nothing is done with inner that violates it
+    /// ProtocolCaller must assert that nothing is done with inner that violates it
     /// being `Send` at runtime.
     pub(crate) unsafe fn new(inner: T) -> Self {
         Self(inner)

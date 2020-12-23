@@ -13,7 +13,7 @@ instance functions must be looked up at runtime.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/instance_functions/missing_instance_fn.rn
+$> cargo run --bin rune -- run scripts/book/instance_functions/missing_instance_fn.rn
 error: virtual machine error
    ┌─ scripts/book/instance_functions/missing_instance_fn.rn:11:5
    │
@@ -31,7 +31,7 @@ based on its item. So the hash for the item `Foo::new` will always be the same.
 In Rust, we can calculate this hash using the `Hash::type_hash` method:
 
 ```rune
-{{#include ../../crates/rune/examples/function_hash.rs}}
+{{#include ../../examples/examples/function_hash.rs}}
 ```
 
 ```text
@@ -51,7 +51,7 @@ identified as the first argument of the instance function, and must be a type
 registered in the module using [`Module::ty`].
 
 ```rust,noplaypen
-{{#include ../../crates/rune/examples/custom_instance_fn.rs}}
+{{#include ../../examples/examples/custom_instance_fn.rs}}
 ```
 
 ```text

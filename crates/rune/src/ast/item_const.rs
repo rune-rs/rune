@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::{Id, Parse, Spanned, ToTokens};
+use runestick::Span;
 
 /// A const declaration.
 ///
@@ -31,6 +32,14 @@ pub struct ItemConst {
     pub eq: T![=],
     /// The optional body of the module declaration.
     pub expr: ast::Expr,
+}
+
+impl ItemConst {
+    /// Get the descriptive span of this item, e.g. `const ITEM` instead of the
+    /// span for the whole expression.
+    pub fn descriptive_span(&self) -> Span {
+        self.const_token.span().join(self.name.span())
+    }
 }
 
 item_parse!(Const, ItemConst, "constant item");

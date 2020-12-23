@@ -21,7 +21,7 @@ simply what the Rune cli looks for when deciding what to execute.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/functions/main_function.rn
+$> cargo run --bin rune -- run scripts/book/functions/main_function.rn
 Hello World
 == () (277.8µs)
 ```
@@ -35,7 +35,7 @@ anything, even completely distinct types.
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/functions/return_value.rn
+$> cargo run --bin rune -- run scripts/book/functions/return_value.rn
 Hello
 1
 == () (8.437ms)
@@ -50,7 +50,7 @@ same time it can be harder to reason on what your program will do.
 Rune functions can be easily set up and called from Rust.
 
 ```rust,noplaypen
-{{#include ../../crates/rune/examples/basic_add.rs}}
+{{#include ../../examples/examples/basic_add.rs}}
 ```
 
 ```text

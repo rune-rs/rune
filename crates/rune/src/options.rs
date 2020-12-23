@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+/// Error when parsing configuration.
 #[derive(Debug, Clone, Error)]
 pub enum ConfigurationError {
     /// Tried to configure the compiler with an unsupported optimzation option.
@@ -23,6 +24,9 @@ pub struct Options {
     pub(crate) macros: bool,
     /// Support (experimental) bytecode caching.
     pub bytecode: bool,
+
+    /// Compile for and enable test features
+    pub cfg_test: bool,
 }
 
 impl Options {
@@ -51,6 +55,9 @@ impl Options {
             Some("bytecode") => {
                 self.bytecode = it.next() != Some("false");
             }
+            Some("test") => {
+                self.cfg_test = it.next() != Some("false");
+            }
             _ => {
                 return Err(ConfigurationError::UnsupportedOptimizationOption {
                     option: option.to_owned(),
@@ -59,6 +66,11 @@ impl Options {
         }
 
         Ok(())
+    }
+
+    /// Enable the test configuration flag
+    pub fn test(&mut self, enabled: bool) {
+        self.cfg_test = enabled;
     }
 
     /// Set if debug info is enabled or not. Defaults to `true`.
@@ -97,6 +109,7 @@ impl Default for Options {
             debug_info: true,
             macros: true,
             bytecode: false,
+            cfg_test: false,
         }
     }
 }

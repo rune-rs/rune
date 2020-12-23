@@ -1,6 +1,6 @@
 use crate::{
     FromValue, InstallWith, Iterator, Mut, Named, Panic, RawMut, RawRef, RawStr, Ref, ToValue,
-    UnsafeFromValue, Value, VmError,
+    UnsafeFromValue, Value, Vm, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::ops;
@@ -55,24 +55,53 @@ impl Range {
     }
 
     /// Value pointer equals implementation for a range.
-    pub(crate) fn value_ptr_eq(a: &Self, b: &Self) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
         if a.limits != b.limits {
             return Ok(false);
         }
 
         match (&a.start, &b.start) {
             (None, None) => (),
-            (Some(a), Some(b)) if Value::value_ptr_eq(a, b)? => (),
+            (Some(a), Some(b)) if Value::value_ptr_eq(vm, a, b)? => (),
             _ => return Ok(false),
         }
 
         match (&a.end, &b.end) {
             (None, None) => (),
-            (Some(a), Some(b)) if Value::value_ptr_eq(a, b)? => (),
+            (Some(a), Some(b)) if Value::value_ptr_eq(vm, a, b)? => (),
             _ => return Ok(false),
         }
 
         Ok(true)
+    }
+
+    /// Test if the current range contains the given integer.
+    pub(crate) fn contains_int(&self, n: i64) -> Result<bool, VmError> {
+        let start: Option<i64> = match self.start.clone() {
+            Some(value) => Some(FromValue::from_value(value)?),
+            None => None,
+        };
+
+        let end: Option<i64> = match self.end.clone() {
+            Some(value) => Some(FromValue::from_value(value)?),
+            None => None,
+        };
+
+        let out = match self.limits {
+            RangeLimits::HalfOpen => match (start, end) {
+                (Some(start), Some(end)) => (start..end).contains(&n),
+                (Some(start), None) => (start..).contains(&n),
+                (None, Some(end)) => (..end).contains(&n),
+                (None, None) => true,
+            },
+            RangeLimits::Closed => match (start, end) {
+                (Some(start), Some(end)) => (start..=end).contains(&n),
+                (None, Some(end)) => (..=end).contains(&n),
+                _ => return Err(VmError::from(VmErrorKind::UnsupportedRange)),
+            },
+        };
+
+        Ok(out)
     }
 }
 

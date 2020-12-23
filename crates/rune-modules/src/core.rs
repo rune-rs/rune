@@ -26,7 +26,7 @@ use rune::{quote, Parser, TokenStream};
 
 /// Construct the `std::core` module.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_crate_item("std", &["core"]);
+    let mut module = runestick::Module::with_crate("std");
     module.macro_(&["stringify"], stringify_macro)?;
     module.macro_(&["panic"], panic_macro)?;
     Ok(module)
@@ -47,5 +47,5 @@ pub(crate) fn panic_macro(
     let mut p = Parser::from_token_stream(stream);
     let args = p.parse_all::<macros::FormatArgs>()?;
     let expanded = args.expand()?;
-    Ok(quote!(std::core::panic(#expanded)).into_token_stream())
+    Ok(quote!(::std::panic(#expanded)).into_token_stream())
 }

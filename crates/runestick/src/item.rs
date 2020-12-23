@@ -347,16 +347,20 @@ impl Item {
 /// ```
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use std::fmt::Write;
         let mut it = self.iter();
 
         if let Some(last) = it.next_back() {
+            let mut buf = String::new();
+
             for p in it {
-                write!(f, "{}::", p)?;
+                write!(buf, "{}::", p)?;
             }
 
-            write!(f, "{}", last)
+            write!(buf, "{}", last)?;
+            f.pad(&buf)
         } else {
-            write!(f, "{{root}}")
+            f.pad("{root}")
         }
     }
 }

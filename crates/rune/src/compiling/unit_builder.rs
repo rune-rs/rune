@@ -5,7 +5,7 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
-use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
+use crate::{CompileError, CompileErrorKind, Diagnostics};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, ConstValue, Context, DebugInfo, DebugInst, Hash, Inst,
@@ -41,31 +41,31 @@ impl UnitBuilder {
 
         this.prelude("assert_eq", &["test", "assert_eq"]);
         this.prelude("assert", &["test", "assert"]);
-        this.prelude("bool", &["core", "bool"]);
-        this.prelude("byte", &["core", "byte"]);
-        this.prelude("char", &["core", "char"]);
+        this.prelude("bool", &["bool"]);
+        this.prelude("byte", &["byte"]);
+        this.prelude("char", &["char"]);
         this.prelude("dbg", &["io", "dbg"]);
-        this.prelude("drop", &["core", "drop"]);
+        this.prelude("drop", &["mem", "drop"]);
         this.prelude("Err", &["result", "Result", "Err"]);
         this.prelude("file", &["macros", "builtin", "file"]);
-        this.prelude("float", &["core", "float"]);
+        this.prelude("float", &["float"]);
         this.prelude("format", &["fmt", "format"]);
-        this.prelude("int", &["core", "int"]);
-        this.prelude("is_readable", &["core", "is_readable"]);
-        this.prelude("is_writable", &["core", "is_writable"]);
+        this.prelude("int", &["int"]);
+        this.prelude("is_readable", &["is_readable"]);
+        this.prelude("is_writable", &["is_writable"]);
         this.prelude("line", &["macros", "builtin", "line"]);
         this.prelude("None", &["option", "Option", "None"]);
         this.prelude("Object", &["object", "Object"]);
         this.prelude("Ok", &["result", "Result", "Ok"]);
         this.prelude("Option", &["option", "Option"]);
-        this.prelude("panic", &["core", "panic"]);
+        this.prelude("panic", &["panic"]);
         this.prelude("print", &["io", "print"]);
         this.prelude("println", &["io", "println"]);
         this.prelude("Result", &["result", "Result"]);
         this.prelude("Some", &["option", "Option", "Some"]);
         this.prelude("String", &["string", "String"]);
-        this.prelude("stringify", &["core", "stringify"]);
-        this.prelude("unit", &["core", "unit"]);
+        this.prelude("stringify", &["stringify"]);
+        this.prelude("unit", &["unit"]);
         this.prelude("Vec", &["vec", "Vec"]);
 
         Self {
@@ -121,14 +121,11 @@ impl UnitBuilder {
     /// looked up through [lookup_string][Self::lookup_string].
     ///
     /// Only uses up space if the static string is unique.
-    pub(crate) fn new_static_string<S>(
+    pub(crate) fn new_static_string(
         &self,
-        spanned: S,
+        span: Span,
         current: &str,
-    ) -> Result<usize, CompileError>
-    where
-        S: Copy + Spanned,
-    {
+    ) -> Result<usize, CompileError> {
         let mut inner = self.inner.borrow_mut();
 
         let current = StaticString::new(current);
@@ -137,7 +134,7 @@ impl UnitBuilder {
         if let Some(existing_slot) = inner.static_string_rev.get(&hash).copied() {
             let existing = inner.static_strings.get(existing_slot).ok_or_else(|| {
                 CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticStringMissing {
                         hash,
                         slot: existing_slot,
@@ -147,7 +144,7 @@ impl UnitBuilder {
 
             if ***existing != *current {
                 return Err(CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticStringHashConflict {
                         hash,
                         current: (*current).clone(),
@@ -169,14 +166,11 @@ impl UnitBuilder {
     /// later be looked up through [lookup_bytes][Self::lookup_bytes].
     ///
     /// Only uses up space if the static byte string is unique.
-    pub(crate) fn new_static_bytes<S>(
+    pub(crate) fn new_static_bytes(
         &self,
-        spanned: S,
+        span: Span,
         current: &[u8],
-    ) -> Result<usize, CompileError>
-    where
-        S: Copy + Spanned,
-    {
+    ) -> Result<usize, CompileError> {
         let mut inner = self.inner.borrow_mut();
 
         let hash = Hash::static_bytes(&current);
@@ -184,7 +178,7 @@ impl UnitBuilder {
         if let Some(existing_slot) = inner.static_bytes_rev.get(&hash).copied() {
             let existing = inner.static_bytes.get(existing_slot).ok_or_else(|| {
                 CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticBytesMissing {
                         hash,
                         slot: existing_slot,
@@ -194,7 +188,7 @@ impl UnitBuilder {
 
             if &**existing != current {
                 return Err(CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticBytesHashConflict {
                         hash,
                         current: current.to_owned(),
@@ -214,29 +208,38 @@ impl UnitBuilder {
 
     /// Insert a new collection of static object keys, or return one already
     /// existing.
-    pub(crate) fn new_static_object_keys<S, I>(
+    pub(crate) fn new_static_object_keys_iter<I>(
         &self,
-        spanned: S,
+        span: Span,
         current: I,
     ) -> Result<usize, CompileError>
     where
-        S: Copy + Spanned,
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let mut inner = self.inner.borrow_mut();
-
         let current = current
             .into_iter()
             .map(|s| s.as_ref().to_owned())
             .collect::<Box<_>>();
+
+        self.new_static_object_keys(span, current)
+    }
+
+    /// Insert a new collection of static object keys, or return one already
+    /// existing.
+    pub(crate) fn new_static_object_keys(
+        &self,
+        span: Span,
+        current: Box<[String]>,
+    ) -> Result<usize, CompileError> {
+        let mut inner = self.inner.borrow_mut();
 
         let hash = Hash::object_keys(&current[..]);
 
         if let Some(existing_slot) = inner.static_object_keys_rev.get(&hash).copied() {
             let existing = inner.static_object_keys.get(existing_slot).ok_or_else(|| {
                 CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticObjectKeysMissing {
                         hash,
                         slot: existing_slot,
@@ -246,7 +249,7 @@ impl UnitBuilder {
 
             if *existing != current {
                 return Err(CompileError::new(
-                    spanned,
+                    span,
                     CompileErrorKind::StaticObjectKeysHashConflict {
                         hash,
                         current,
@@ -580,18 +583,18 @@ impl UnitBuilder {
     /// functions are provided.
     ///
     /// This can prevent a number of runtime errors, like missing functions.
-    pub(crate) fn link(&self, context: &Context, errors: &mut Errors) {
+    pub(crate) fn link(&self, context: &Context, diagnostics: &mut Diagnostics) {
         let inner = self.inner.borrow();
 
         for (hash, spans) in &inner.required_functions {
             if inner.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
-                errors.push(Error::new(
+                diagnostics.error(
                     0,
                     LinkerError::MissingFunction {
                         hash: *hash,
                         spans: spans.clone(),
                     },
-                ));
+                );
             }
         }
     }
@@ -691,11 +694,6 @@ impl Inner {
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIf { offset });
                 }
-                AssemblyInst::JumpIfNot { label } => {
-                    comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
-                    self.instructions.push(Inst::JumpIfNot { offset });
-                }
                 AssemblyInst::JumpIfOrPop { label } => {
                     comment = Some(format!("label:{}", label));
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
@@ -717,6 +715,11 @@ impl Inner {
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions
                         .push(Inst::PopAndJumpIfNot { count, offset });
+                }
+                AssemblyInst::IterNext { offset, label } => {
+                    comment = Some(format!("label:{}", label));
+                    let jump = translate_offset(span, pos, label, &assembly.labels)?;
+                    self.instructions.push(Inst::IterNext { offset, jump });
                 }
                 AssemblyInst::Raw { raw } => {
                     self.instructions.push(raw);

@@ -24,6 +24,7 @@ pub fn with<T>(budget: usize, value: T) -> Budget<T> {
 
 /// Take a ticket from the budget, indicating with `true` if the budget is
 /// maintained
+#[inline(never)]
 pub fn take() -> bool {
     BUDGET.with(|tls| {
         let v = tls.get();

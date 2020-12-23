@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::attrs;
 use crate::collections::HashMap;
-use crate::indexing::{IndexFnKind, IndexScopes};
+use crate::indexing::{IndexFnKind, IndexLocal as _, IndexScopes};
 use crate::load::{SourceLoader, Sources};
 use crate::macros::MacroCompiler;
 use crate::parsing::{Parse, Parser};
@@ -12,8 +12,8 @@ use crate::query::{
 use crate::shared::{Consts, Items};
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{
-    CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _, Options,
-    ParseError, Resolve as _, Spanned as _, Storage, Warnings,
+    CompileError, CompileErrorKind, CompileResult, CompileVisitor, Diagnostics, OptionSpanned as _,
+    Options, ParseError, Resolve as _, Spanned as _, Storage,
 };
 use runestick::format;
 use runestick::{
@@ -23,6 +23,7 @@ use runestick::{
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 pub(crate) struct Indexer<'a> {
@@ -45,15 +46,30 @@ pub(crate) struct Indexer<'a> {
     pub(crate) options: &'a Options,
     pub(crate) source_id: SourceId,
     pub(crate) source: Arc<Source>,
-    pub(crate) warnings: &'a mut Warnings,
+    pub(crate) diagnostics: &'a mut Diagnostics,
     pub(crate) items: Items,
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
     pub(crate) mod_item: Arc<CompileMod>,
     /// Set if we are inside of an impl self.
     pub(crate) impl_item: Option<Arc<Item>>,
-    pub(crate) visitor: &'a mut dyn CompileVisitor,
-    pub(crate) source_loader: &'a mut dyn SourceLoader,
+    pub(crate) visitor: Rc<dyn CompileVisitor>,
+    pub(crate) source_loader: Rc<dyn SourceLoader>,
+    /// Indicates if indexer is nested privately inside of another item, and if
+    /// so, the descriptive span of its declaration.
+    ///
+    /// Private items are nested declarations inside of for example fn
+    /// declarations:
+    ///
+    /// ```text
+    /// pub fn public() {
+    ///     fn private() {
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Then, `nested_item` would point to the span of `pub fn public`.
+    pub(crate) nested_item: Option<Span>,
 }
 
 impl<'a> Indexer<'a> {
@@ -63,7 +79,7 @@ impl<'a> Indexer<'a> {
         attributes: &mut attrs::Attributes,
         ast: &mut ast::MacroCall,
     ) -> Result<bool, CompileError> {
-        let builtin = match attributes.try_parse::<attrs::BuiltIn>()? {
+        let (_, builtin) = match attributes.try_parse::<attrs::BuiltIn>()? {
             Some(builtin) => builtin,
             None => return Ok(false),
         };
@@ -576,7 +592,7 @@ impl Index for ast::File {
         for (item, semi_colon) in &mut self.items {
             if let Some(semi_colon) = semi_colon {
                 if !item.needs_semi_colon() {
-                    idx.warnings
+                    idx.diagnostics
                         .uneccessary_semi_colon(idx.source_id, semi_colon.span());
                 }
             }
@@ -593,14 +609,6 @@ impl Index for ast::ItemFn {
         let span = self.span();
         log::trace!("ItemFn => {:?}", idx.source.source(span));
 
-        if let Some(first) = self.attributes.first() {
-            return Err(CompileError::msg(
-                first,
-                "function attributes are not supported",
-            ));
-        }
-
-        let is_toplevel = idx.items.is_empty();
         let name = self.name.resolve(&idx.storage, &*idx.source)?;
         let _guard = idx.items.push_name(name.as_ref());
 
@@ -634,22 +642,22 @@ impl Index for ast::ItemFn {
 
         let guard = idx.scopes.push_function(kind);
 
-        for (arg, _) in &self.args {
+        for (arg, _) in &mut self.args {
             match arg {
                 ast::FnArg::SelfValue(s) => {
                     let span = s.span();
                     idx.scopes.declare("self", span)?;
                 }
-                ast::FnArg::Ident(ident) => {
-                    let span = ident.span();
-                    let ident = ident.resolve(&idx.storage, &*idx.source)?;
-                    idx.scopes.declare(ident.as_ref(), span)?;
+                ast::FnArg::Pat(pat) => {
+                    pat.index_local(idx)?;
                 }
-                _ => (),
             }
         }
 
+        // Take and restore item nesting.
+        let last = idx.nested_item.replace(self.descriptive_span());
         self.body.index(idx)?;
+        idx.nested_item = last;
 
         let f = guard.into_function(span)?;
         self.id = Some(item.id);
@@ -677,7 +685,44 @@ impl Index for ast::ItemFn {
             call,
         };
 
+        // NB: it's only a public item in the sense of exporting it if it's not
+        // inside of a nested item.
+        let is_public = item.is_public() && idx.nested_item.is_none();
+
+        let mut attributes = attrs::Attributes::new(
+            self.attributes.clone(),
+            idx.storage.clone(),
+            idx.source.clone(),
+        );
+
+        let is_test = match attributes.try_parse::<attrs::Test>()? {
+            Some((span, _)) => {
+                if let Some(nested_span) = idx.nested_item {
+                    let span = span.join(self.descriptive_span());
+
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::NestedTest { nested_span },
+                    ));
+                }
+
+                true
+            }
+            _ => false,
+        };
+
+        if let Some(attrs) = attributes.remaining() {
+            return Err(CompileError::msg(attrs, "unrecognized function attribute"));
+        }
+
         if self.is_instance() {
+            if is_test {
+                return Err(CompileError::msg(
+                    span,
+                    "#[test] is not supported on member functions",
+                ));
+            }
+
             let impl_item = idx.impl_item.as_ref().ok_or_else(|| {
                 CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
             })?;
@@ -702,6 +747,7 @@ impl Index for ast::ItemFn {
 
             let kind = CompileMetaKind::Function {
                 type_hash: Hash::type_hash(&item.item),
+                is_test: false,
             };
 
             let meta = CompileMeta {
@@ -715,10 +761,10 @@ impl Index for ast::ItemFn {
             };
 
             idx.query.insert_meta(span, meta)?;
-        } else if is_toplevel && item.visibility.is_public() {
+        } else if is_public || is_test {
             // NB: immediately compile all toplevel functions.
             idx.query.push_build_entry(BuildEntry {
-                location: Location::new(idx.source_id, fun.ast.item_span()),
+                location: Location::new(idx.source_id, fun.ast.descriptive_span()),
                 item: item.clone(),
                 build: Build::Function(fun),
                 source: idx.source.clone(),
@@ -727,6 +773,7 @@ impl Index for ast::ItemFn {
 
             let kind = CompileMetaKind::Function {
                 type_hash: Hash::type_hash(&item.item),
+                is_test,
             };
 
             let meta = CompileMeta {
@@ -872,7 +919,7 @@ impl Index for ast::Block {
                 }
                 ast::Stmt::Expr(expr, Some(semi)) => {
                     if !expr.needs_semi() {
-                        idx.warnings
+                        idx.diagnostics
                             .uneccessary_semi_colon(idx.source_id, semi.span());
                     }
 
@@ -881,7 +928,7 @@ impl Index for ast::Block {
                 ast::Stmt::Item(item, semi) => {
                     if let Some(semi) = semi {
                         if !item.needs_semi_colon() {
-                            idx.warnings
+                            idx.diagnostics
                                 .uneccessary_semi_colon(idx.source_id, semi.span());
                         }
                     }
@@ -1446,7 +1493,9 @@ impl Index for Box<ast::ItemConst> {
 
         self.id = Some(item.id);
 
+        let last = idx.nested_item.replace(self.descriptive_span());
         self.expr.index(idx)?;
+        idx.nested_item = last;
 
         idx.query.index_const(&item, &idx.source, &self.expr)?;
         Ok(())
@@ -1473,6 +1522,7 @@ impl Index for ast::Item {
             }
             ast::Item::Fn(item_fn) => {
                 item_fn.index(idx)?;
+                attributes.drain();
             }
             ast::Item::Impl(item_impl) => {
                 item_impl.index(idx)?;
@@ -1565,7 +1615,7 @@ impl Index for ast::ExprFor {
         self.iter.index(idx)?;
 
         let _guard = idx.scopes.push_scope();
-        self.var.index(idx)?;
+        self.binding.index(idx)?;
         self.body.index(idx)?;
         Ok(())
     }
@@ -1596,16 +1646,14 @@ impl Index for Box<ast::ExprClosure> {
 
         self.id = Some(idx.items.id());
 
-        for (arg, _) in self.args.as_slice() {
+        for (arg, _) in self.args.as_slice_mut() {
             match arg {
                 ast::FnArg::SelfValue(s) => {
                     return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
                 }
-                ast::FnArg::Ident(ident) => {
-                    let ident = ident.resolve(&idx.storage, &*idx.source)?;
-                    idx.scopes.declare(ident.as_ref(), span)?;
+                ast::FnArg::Pat(pat) => {
+                    pat.index_local(idx)?;
                 }
-                ast::FnArg::Ignore(..) => (),
             }
         }
 

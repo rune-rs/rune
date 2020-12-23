@@ -1,6 +1,6 @@
 //! The `std::object` module.
 
-use crate::{ContextError, Module, Object, Protocol, Value};
+use crate::{ContextError, Iterator, Module, Object, Protocol, Value};
 
 /// Construct the `std::object` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -16,6 +16,8 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.inst_fn("iter", Object::into_iterator)?;
     module.inst_fn(Protocol::INTO_ITER, Object::into_iterator)?;
+    module.inst_fn("keys", keys)?;
+    module.inst_fn("values", values)?;
     Ok(module)
 }
 
@@ -25,4 +27,14 @@ fn contains_key(object: &Object, key: &str) -> bool {
 
 fn get(object: &Object, key: &str) -> Option<Value> {
     object.get(key).cloned()
+}
+
+fn keys(object: &Object) -> Iterator {
+    let iter = object.keys().cloned().collect::<Vec<_>>().into_iter();
+    Iterator::from_double_ended("std::object::Keys", iter)
+}
+
+fn values(object: &Object) -> Iterator {
+    let iter = object.values().cloned().collect::<Vec<_>>().into_iter();
+    Iterator::from_double_ended("std::object::Values", iter)
 }

@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, InstallWith, Interface, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
-    UnsafeFromValue, Value, VmError,
+    FromValue, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
+    UnsafeFromValue, Value, Vm, VmError,
 };
 use std::cmp;
 use std::fmt;
@@ -72,6 +72,19 @@ impl Vec {
         self.inner.len()
     }
 
+    /// Set by index
+    pub fn set(&mut self, index: usize, value: Value) -> Result<(), VmError> {
+        if index >= self.len() {
+            Err(VmError::from(crate::VmErrorKind::OutOfRange {
+                index: index.into(),
+                len: self.len().into(),
+            }))
+        } else {
+            self.inner[index] = value;
+            Ok(())
+        }
+    }
+
     /// Appends an element to the back of a dynamic vector.
     pub fn push(&mut self, value: Value) {
         self.inner.push(value);
@@ -116,6 +129,11 @@ impl Vec {
         self.inner.pop()
     }
 
+    /// Removes the element at the specified index from a dynamic vector.
+    pub fn remove(&mut self, index: usize) {
+        self.inner.remove(index);
+    }
+
     /// Clears the vector, removing all values.
     ///
     /// Note that this method has no effect on the allocated capacity of the
@@ -126,8 +144,8 @@ impl Vec {
 
     /// Extend this vector with something that implements the into_iter
     /// protocol.
-    pub fn extend(&mut self, interface: Interface) -> Result<(), VmError> {
-        let mut it = interface.into_iter()?;
+    pub fn extend(&mut self, value: Value) -> Result<(), VmError> {
+        let mut it = value.into_iter()?;
 
         while let Some(value) = it.next()? {
             self.push(value);
@@ -139,6 +157,21 @@ impl Vec {
     /// Convert into a runestick iterator.
     pub fn into_iterator(&self) -> crate::Iterator {
         crate::Iterator::from_double_ended("std::vec::Iter", self.clone().into_iter())
+    }
+
+    /// Compare two vectors for equality.
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+
+        for (a, b) in a.iter().zip(b.iter()) {
+            if !Value::value_ptr_eq(vm, a, b)? {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 }
 

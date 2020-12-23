@@ -75,14 +75,14 @@
 //! You can run Rune programs with the bundled CLI:
 //!
 //! ```text
-//! cargo run --bin rune -- scripts/hello_world.rn
+//! cargo run --bin rune -- run scripts/hello_world.rn
 //! ```
 //!
 //! If you want to see detailed diagnostics of your program while it's running,
 //! you can use:
 //!
 //! ```text
-//! cargo run --bin rune -- scripts/hello_world.rn --dump-unit --trace --dump-vm
+//! cargo run --bin rune -- run scripts/hello_world.rn --dump-unit --trace --dump-vm
 //! ```
 //!
 //! See `--help` for more information.
@@ -106,7 +106,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
-//!     let context = rune_modules::default_context()?;
+//!     let context = runestick::Context::with_default_modules()?;
 //!     let options = rune::Options::default();
 //!
 //!     let mut sources = rune::Sources::new();
@@ -120,23 +120,16 @@
 //!         "#,
 //!     ));
 //!
-//!     let mut errors = rune::Errors::new();
-//!     let mut warnings = rune::Warnings::new();
+//!     let mut diagnostics = rune::Diagnostics::new();
 //!
-//!     let unit = match rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings) {
-//!         Ok(unit) => unit,
-//!         Err(rune::LoadSourcesError) => {
-//!             let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!             errors.emit_diagnostics(&mut writer, &sources)?;
-//!             return Ok(());
-//!         }
-//!     };
+//!     let result = rune::load_sources(&context, &options, &mut sources, &mut diagnostics);
 //!
-//!     if !warnings.is_empty() {
+//!     if !diagnostics.is_empty() {
 //!         let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!         warnings.emit_diagnostics(&mut writer, &sources)?;
+//!         diagnostics.emit_diagnostics(&mut writer, &sources)?;
 //!     }
 //!
+//!     let unit = result?;
 //!     let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 //!
 //!     let mut execution = vm.execute(&["calculate"], (10i64, 20i64))?;
@@ -181,8 +174,9 @@ mod internal_macros;
 pub mod ast;
 mod attrs;
 mod compiling;
+mod diagnostics;
 #[cfg(feature = "diagnostics")]
-pub mod diagnostics;
+mod emit_diagnostics;
 mod indexing;
 mod ir;
 mod load;
@@ -194,10 +188,7 @@ mod shared;
 mod spanned;
 mod worker;
 
-// NB: this has to be defined before the `tests` module, because it's used in
-// there.
-#[cfg(any(test, feature = "testing"))]
-#[macro_use]
+#[doc(hidden)]
 pub mod testing;
 
 /// Internal collection re-export.
@@ -208,18 +199,20 @@ mod collections {
 
 pub use self::compiling::{
     BuildError, CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntryStep,
-    LinkerError, NoopCompileVisitor, UnitBuilder, Var,
+    LinkerError, NoopCompileVisitor, UnitBuilder,
+};
+pub use self::diagnostics::{Diagnostic, Diagnostics, Error, ErrorKind, Warning, WarningKind};
+#[cfg(feature = "diagnostics")]
+pub use self::emit_diagnostics::{
+    termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource,
 };
 pub use self::ir::{IrError, IrErrorKind, IrValue};
-pub use self::load::{
-    load_sources, load_sources_with_visitor, Error, ErrorKind, Errors, LoadSourcesError, Warning,
-    WarningKind, Warnings,
-};
+pub use self::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{
     with_context, MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter,
 };
-pub use self::options::Options;
+pub use self::options::{ConfigurationError, Options};
 pub use self::parsing::{
     Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,
     ResolveErrorKind, ResolveOwned,
@@ -228,12 +221,9 @@ pub use self::query::{QueryError, QueryErrorKind, Used};
 pub use self::shared::{ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use compiling::compile;
-
 pub use rune_macros::quote;
-pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
-#[cfg(feature = "diagnostics")]
-pub use diagnostics::{termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource};
+pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
 /// Parse the given input as the given type that implements
 /// [Parse][crate::parsing::Parse].

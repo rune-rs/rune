@@ -16,6 +16,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("collect_tuple", collect_tuple)?;
     module.inst_fn("enumerate", Iterator::enumerate)?;
     module.inst_fn("filter", Iterator::filter)?;
+    module.inst_fn("find", Iterator::find)?;
     module.inst_fn("flat_map", Iterator::flat_map)?;
     module.inst_fn("map", Iterator::map)?;
     module.inst_fn("next", Iterator::next)?;
@@ -27,13 +28,25 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("rev", Iterator::rev)?;
     module.inst_fn("size_hint", Iterator::size_hint)?;
     module.inst_fn("sum", Iterator::sum)?;
+    module.inst_fn("skip", Iterator::skip)?;
     module.inst_fn("take", Iterator::take)?;
     module.inst_fn("count", Iterator::count)?;
+    module.inst_fn("all", Iterator::all)?;
     module.inst_fn(Protocol::NEXT, Iterator::next)?;
     module.inst_fn(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
 
     module.function(&["range"], new_range)?;
+    module.function(&["empty"], new_empty)?;
+    module.function(&["once"], new_once)?;
     Ok(module)
+}
+
+fn new_empty() -> Iterator {
+    Iterator::empty()
+}
+
+fn new_once(v: Value) -> Iterator {
+    Iterator::once(v)
 }
 
 fn new_range(start: i64, end: i64) -> Iterator {
