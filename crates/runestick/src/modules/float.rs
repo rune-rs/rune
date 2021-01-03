@@ -21,8 +21,11 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty::<ParseFloatError>()?;
     module.function(&["parse"], parse)?;
-    module.function(&["max"], f64::max)?;
-    module.function(&["min"], f64::min)?;
+    module.inst_fn("max", f64::max)?;
+    module.inst_fn("min", f64::min)?;
+    module.inst_fn("abs", f64::abs)?;
+    module.inst_fn("powf", f64::powf)?;
+    module.inst_fn("powi", f64::powi)?;
 
     module.inst_fn("to_integer", to_integer)?;
 
