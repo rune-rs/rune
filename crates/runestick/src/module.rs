@@ -3,11 +3,11 @@
 //! A native module is one that provides runestick functions and types
 //! through native code.
 
-use crate::collections::HashMap;
 use crate::context::{ContextError, Handler, Macro};
+use crate::{collections::HashMap, ConstValue};
 use crate::{
-    Future, GeneratorState, Hash, IntoComponent, Item, Named, Protocol, Stack, StaticType, ToValue,
-    TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
+    FromValue, Future, GeneratorState, Hash, IntoComponent, Item, Named, Protocol, Stack,
+    StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use std::any;
 use std::future;
@@ -144,6 +144,8 @@ pub struct Module {
     pub(crate) functions: HashMap<Item, ModuleFn>,
     /// Macro handlers.
     pub(crate) macros: HashMap<Item, ModuleMacro>,
+    /// Constant values.
+    pub(crate) constants: HashMap<Item, ConstValue>,
     /// Instance functions.
     pub(crate) associated_functions: HashMap<ModuleAssocKey, ModuleAssociatedFn>,
     /// Registered types.
@@ -192,6 +194,7 @@ impl Module {
             types: Default::default(),
             unit_type: None,
             internal_enums: Vec::new(),
+            constants: Default::default(),
         }
     }
 
@@ -434,6 +437,47 @@ impl Module {
                 args: Some(Func::args()),
             },
         );
+
+        Ok(())
+    }
+
+    /// Register a constant value, at a crate, module or associated level.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::default();
+    ///
+    /// module.constant(&["TEN"], 10)?; // a global TEN value
+    /// module.constant(&["MyType", "TEN"], 10)?; // looks like an associated value
+    ///
+    /// # Ok(()) }
+    /// ```
+    pub fn constant<N, V>(&mut self, name: N, value: V) -> Result<(), ContextError>
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+        V: ToValue,
+    {
+        let name = Item::with_item(name);
+
+        if self.constants.contains_key(&name) {
+            return Err(ContextError::ConflictingConstantName { name });
+        }
+
+        let value = match value.to_value() {
+            Ok(v) => v,
+            Err(e) => return Err(ContextError::ValueError { error: e }),
+        };
+
+        let constant_value = match <ConstValue as FromValue>::from_value(value) {
+            Ok(v) => v,
+            Err(e) => return Err(ContextError::ValueError { error: e }),
+        };
+
+        self.constants.insert(name, constant_value);
 
         Ok(())
     }

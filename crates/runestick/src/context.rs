@@ -45,6 +45,12 @@ pub enum ContextError {
         /// The name of the conflicting function.
         name: Item,
     },
+    /// Error raised when attempting to register a conflicting constant.
+    #[error("constant with name `{name}` already exists")]
+    ConflictingConstantName {
+        /// The name of the conflicting constant.
+        name: Item,
+    },
     /// Error raised when attempting to register a conflicting instance function.
     #[error("instance function `{name}` for type `{type_info}` already exists")]
     ConflictingInstanceFunction {
@@ -89,6 +95,12 @@ pub enum ContextError {
     MissingInstance {
         /// The instance type.
         instance_type: TypeInfo,
+    },
+    /// Error raised when attempting to create a constant value.
+    #[error("error when converting to constant value: {error}")]
+    ValueError {
+        /// The inner error.
+        error: VmError,
     },
 }
 
@@ -394,6 +406,10 @@ impl Context {
             self.install_macro(&module, name, m)?;
         }
 
+        for (name, m) in &module.constants {
+            self.install_constant(&module, name, m)?;
+        }
+
         if let Some(unit_type) = &module.unit_type {
             self.install_unit_type(&module, unit_type)?;
         }
@@ -543,6 +559,34 @@ impl Context {
         let hash = Hash::type_hash(&item);
 
         self.macros.insert(hash, m.handler.clone());
+        Ok(())
+    }
+
+    /// Install a constant and check for duplicates.
+    fn install_constant(
+        &mut self,
+        module: &Module,
+        item: &Item,
+        v: &ConstValue,
+    ) -> Result<(), ContextError> {
+        let item = module.item.join(item);
+
+        self.names.insert(&item);
+
+        let hash = Hash::type_hash(&item);
+
+        self.constants.insert(hash, v.clone());
+
+        self.meta.insert(
+            item.clone(),
+            CompileMeta {
+                item: Arc::new(item.into()),
+                kind: CompileMetaKind::Const {
+                    const_value: v.clone(),
+                },
+                source: None,
+            },
+        );
         Ok(())
     }
 
