@@ -142,6 +142,12 @@ impl Vec {
         self.inner.clear();
     }
 
+    /// Inserts an element at position index within the vector, shifting all
+    /// elements after it to the right.
+    pub fn insert(&mut self, index: usize, value: Value) {
+        self.inner.insert(index, value);
+    }
+
     /// Extend this vector with something that implements the into_iter
     /// protocol.
     pub fn extend(&mut self, value: Value) -> Result<(), VmError> {

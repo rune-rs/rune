@@ -19,7 +19,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("push", Vec::push)?;
     module.inst_fn("remove", Vec::remove)?;
     module.inst_fn("sort_by", sort_by)?;
-
+    module.inst_fn("insert", Vec::insert)?;
     module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
     module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
 
