@@ -49,7 +49,7 @@ impl State {
         self.inner.initialized.load(Ordering::Acquire)
     }
 
-    /// Acess sources in the current state.
+    /// Access sources in the current state.
     pub async fn sources_mut(&self) -> RwLockWriteGuard<'_, Sources> {
         self.inner.sources.write().await
     }
@@ -394,7 +394,7 @@ impl fmt::Display for Source {
     }
 }
 
-/// Conver the given span into an lsp range.
+/// Convert the given span into an lsp range.
 fn span_to_lsp_range(source: &runestick::Source, span: Span) -> Option<lsp::Range> {
     let (line, character) = source.position_to_utf16cu_line_char(span.start.into_usize())?;
     let start = lsp::Position::new(line as u32, character as u32);
