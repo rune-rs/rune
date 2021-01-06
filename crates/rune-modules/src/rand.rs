@@ -131,3 +131,36 @@ fn int_range(lower: i64, upper: i64) -> runestick::Result<Value> {
         nanorand::WyRand::new().generate_range::<u64>(0, (upper - lower) as u64) as i64 + lower,
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{int, int_range};
+
+    #[test]
+    fn test_range_is_exclusive() {
+        for _ in 0..100 {
+            assert_eq!(int_range(0, 1).unwrap().into_integer().unwrap(), 0);
+        }
+    }
+
+    #[test]
+    fn test_range_can_be_negative() {
+        for _ in 0..100 {
+            assert_eq!(int_range(-2, -1).unwrap().into_integer().unwrap(), -2);
+        }
+    }
+
+    #[test]
+    fn test_int_is_properly_signed() {
+        let mut any_negative = false;
+        let mut any_positive = false;
+        for _ in 0..100 {
+            let v = int().unwrap().into_integer().unwrap();
+            any_negative = any_negative || v < 0;
+            any_positive = any_positive || v > 0;
+        }
+
+        assert!(any_positive);
+        assert!(any_negative);
+    }
+}
