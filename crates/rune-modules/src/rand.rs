@@ -80,12 +80,12 @@ impl WyRand {
 
     /// Generate a random integer
     fn int(&mut self) -> Value {
-        Value::Integer(self.inner.generate::<i64>())
+        Value::Integer(self.inner.generate::<u64>() as i64)
     }
 
     /// Generate a random integer within the specified range
     fn int_range(&mut self, lower: i64, upper: i64) -> Value {
-        Value::Integer(self.inner.generate_range::<i64>(lower, upper))
+        Value::Integer(self.inner.generate_range::<u64>(0, (upper - lower) as u64) as i64 + lower)
     }
 }
 
@@ -111,21 +111,23 @@ impl Pcg64 {
 
     /// Generate a random integer
     fn int(&mut self) -> Value {
-        Value::Integer(self.inner.generate::<i64>())
+        Value::Integer(self.inner.generate::<u64>() as i64)
     }
 
     /// Generate a random integer within the specified range
     fn int_range(&mut self, lower: i64, upper: i64) -> Value {
-        Value::Integer(self.inner.generate_range::<i64>(lower, upper))
+        Value::Integer(self.inner.generate_range::<u64>(0, (upper - lower) as u64) as i64 + lower)
     }
 }
 
 fn int() -> runestick::Result<Value> {
-    Ok(Value::Integer(nanorand::WyRand::new().generate::<i64>()))
+    Ok(Value::Integer(
+        nanorand::WyRand::new().generate::<u64>() as i64
+    ))
 }
 
 fn int_range(lower: i64, upper: i64) -> runestick::Result<Value> {
     Ok(Value::Integer(
-        nanorand::WyRand::new().generate_range::<i64>(lower, upper),
+        nanorand::WyRand::new().generate_range::<u64>(0, (upper - lower) as u64) as i64 + lower,
     ))
 }
