@@ -24,7 +24,7 @@ pub(crate) struct Worker<'a> {
     options: &'a Options,
     pub(crate) diagnostics: &'a mut Diagnostics,
     pub(crate) visitor: Rc<dyn CompileVisitor>,
-    pub(crate) source_loader: Rc<dyn SourceLoader>,
+    pub(crate) source_loader: Rc<dyn SourceLoader + 'a>,
     /// Constants storage.
     pub(crate) consts: Consts,
     /// Worker queue.
@@ -49,7 +49,7 @@ impl<'a> Worker<'a> {
         consts: Consts,
         diagnostics: &'a mut Diagnostics,
         visitor: Rc<dyn CompileVisitor>,
-        source_loader: Rc<dyn SourceLoader>,
+        source_loader: Rc<dyn SourceLoader + 'a>,
         storage: Storage,
         gen: Gen,
     ) -> Self {
@@ -132,7 +132,7 @@ impl<'a> Worker<'a> {
                     };
 
                     if let Err(error) = file.index(&mut indexer) {
-                        self.diagnostics.error(source_id, error);
+                        indexer.diagnostics.error(source_id, error);
                     }
                 }
                 Task::ExpandImport(import) => {
