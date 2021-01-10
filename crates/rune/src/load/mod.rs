@@ -81,13 +81,13 @@ pub fn load_sources(
 }
 
 /// Load the specified sources with a visitor.
-pub fn load_sources_with_visitor(
+pub fn load_sources_with_visitor<'a>(
     context: &Context,
     options: &Options,
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
     visitor: Rc<dyn compiling::CompileVisitor>,
-    source_loader: Rc<dyn SourceLoader>,
+    source_loader: Rc<dyn SourceLoader + 'a>,
 ) -> Result<Unit, LoadSourcesError> {
     let unit = if context.has_default_modules() {
         compiling::UnitBuilder::with_default_prelude()

@@ -45,14 +45,14 @@ pub fn compile(
 }
 
 /// Encode the given object into a collection of asm.
-pub fn compile_with_options(
+pub fn compile_with_options<'a>(
     context: &Context,
     sources: &mut Sources,
     unit: &UnitBuilder,
     diagnostics: &mut Diagnostics,
     options: &Options,
     visitor: Rc<dyn CompileVisitor>,
-    source_loader: Rc<dyn SourceLoader>,
+    source_loader: Rc<dyn SourceLoader + 'a>,
 ) -> Result<(), ()> {
     // Global storage.
     let storage = Storage::new();
@@ -80,7 +80,7 @@ pub fn compile_with_options(
         let mod_item = match worker.query.insert_root_mod(source_id, Span::empty()) {
             Ok(result) => result,
             Err(error) => {
-                diagnostics.error(source_id, error);
+                worker.diagnostics.error(source_id, error);
                 return Err(());
             }
         };
