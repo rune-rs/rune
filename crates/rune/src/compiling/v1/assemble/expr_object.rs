@@ -5,6 +5,8 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprObject {
     fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
+        let guard = c.scopes.push_child(span)?;
+
         log::trace!("ExprObject => {:?} {:?}", c.source.source(span), needs);
 
         let mut keys = Vec::<Box<str>>::new();
@@ -38,6 +40,7 @@ impl Assemble for ast::ExprObject {
                 let var = c.scopes.get_var(&*key, c.source_id, span)?;
                 var.copy(&mut c.asm, span, format!("name `{}`", key));
             }
+            c.scopes.decl_anon(span)?;
         }
 
         let slot = c.unit.new_static_object_keys_iter(span, &keys)?;
@@ -85,6 +88,7 @@ impl Assemble for ast::ExprObject {
             c.asm.push(Inst::Pop, span);
         }
 
+        c.scopes.pop(guard, span)?;
         Ok(Asm::top(span))
     }
 }
