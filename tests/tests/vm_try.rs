@@ -20,6 +20,20 @@ fn test_unwrap() {
     };
 
     assert_eq! {
+        rune! { Option<bool> =>
+            struct Bar {
+                x, 
+                y,
+            }
+            
+            pub fn main() {
+                (Bar{ x: Some(1), y: None? }).x
+            }            
+        },
+        None,
+    };
+
+    assert_eq! {
         rune! { Result<i64, i64> =>
             fn foo(a, b) {
                 Ok(b / a)
