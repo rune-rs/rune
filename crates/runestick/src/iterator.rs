@@ -676,7 +676,7 @@ where
 /// The trait for interacting with an iterator.
 ///
 /// This has a blanket implementation, and is primarily used to restrict the
-/// arguments that can be used in [Iterator::from_iterator].
+/// arguments that can be used in [Iterator::from].
 pub trait IteratorTrait: 'static {
     /// Size hint of the iterator.
     fn size_hint(&self) -> (usize, Option<usize>);

@@ -406,7 +406,7 @@ fn span_to_lsp_range(source: &runestick::Source, span: Span) -> Option<lsp::Rang
 /// Translate the given lsp::Position, which is in UTF-16 because Microsoft.
 ///
 /// Please go complain here:
-/// https://github.com/microsoft/language-server-protocol/issues/376
+/// <https://github.com/microsoft/language-server-protocol/issues/376>
 fn rope_utf16_position(rope: &Rope, position: lsp::Position) -> Result<usize> {
     let line = rope.line(position.line as usize);
 

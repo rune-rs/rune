@@ -42,8 +42,7 @@
 //!
 //! Macros for Rune.
 //!
-//! This is part of the [Rune language].
-//! [Rune Language]: https://rune-rs.github.io
+//! This is part of the [Rune Language](https://rune-rs.github.io).
 
 extern crate proc_macro;
 
