@@ -506,27 +506,6 @@ impl Vm {
         Ok(false)
     }
 
-    /// Try to convert the given value into a future.
-    ///
-    /// Returns the value we failed to convert as an `Err` variant if we are
-    /// unsuccessful.
-    fn try_into_future(&mut self, value: Value) -> Result<Result<Shared<Future>, Value>, VmError> {
-        match value {
-            Value::Future(future) => Ok(Ok(future)),
-            value => {
-                if !self.call_instance_fn(value.clone(), Protocol::INTO_FUTURE, ())? {
-                    return Ok(Err(value));
-                }
-
-                if let Value::Future(future) = self.stack.pop()? {
-                    return Ok(Ok(future));
-                }
-
-                Ok(Err(value))
-            }
-        }
-    }
-
     /// Implementation of getting a string index on an object-like type.
     fn try_object_like_index_get(target: &Value, field: &str) -> Result<Option<Value>, VmError> {
         let value = match &target {
@@ -1390,30 +1369,15 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_await(&mut self) -> Result<Shared<Future>, VmError> {
         let value = self.stack.pop()?;
-
-        match self.try_into_future(value)? {
-            Ok(future) => Ok(future),
-            Err(value) => Err(VmError::from(VmErrorKind::UnsupportedAwait {
-                actual: value.type_info()?,
-            })),
-        }
+        value.into_shared_future()
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_select(&mut self, len: usize) -> Result<Option<Select>, VmError> {
         let futures = futures_util::stream::FuturesUnordered::new();
 
-        let arguments = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
-
-        for (branch, value) in arguments.into_iter().enumerate() {
-            let future = match self.try_into_future(value)? {
-                Ok(future) => future.into_mut()?,
-                Err(value) => {
-                    return Err(VmError::from(VmErrorKind::UnsupportedAwait {
-                        actual: value.type_info()?,
-                    }));
-                }
-            };
+        for (branch, value) in self.stack.drain_stack_top(len)?.enumerate() {
+            let future = value.into_shared_future()?.into_mut()?;
 
             if !future.is_completed() {
                 futures.push(SelectFuture::new(branch, future));
