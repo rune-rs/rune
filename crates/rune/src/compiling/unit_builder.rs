@@ -118,7 +118,7 @@ impl UnitBuilder {
     }
 
     /// Insert a static string and return its associated slot that can later be
-    /// looked up through [lookup_string][Self::lookup_string].
+    /// looked up through [lookup_string][Unit::lookup_string].
     ///
     /// Only uses up space if the static string is unique.
     pub(crate) fn new_static_string(
@@ -163,7 +163,7 @@ impl UnitBuilder {
     }
 
     /// Insert a static byte string and return its associated slot that can
-    /// later be looked up through [lookup_bytes][Self::lookup_bytes].
+    /// later be looked up through [lookup_bytes][Unit::lookup_bytes].
     ///
     /// Only uses up space if the static byte string is unique.
     pub(crate) fn new_static_bytes(

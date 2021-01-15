@@ -1,8 +1,7 @@
 //! Intermediate representation of Rune that can be evaluated in constant
 //! contexts.
 //!
-//! This is part of the [Rune Language].
-//! [Rune Language]: https://rune-rs.github.io
+//! This is part of the [Rune Language](https://rune-rs.github.io).
 
 mod eval;
 mod ir_compiler;

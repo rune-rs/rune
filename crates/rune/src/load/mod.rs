@@ -12,7 +12,7 @@ pub use self::sources::Sources;
 
 /// Error raised when we failed to load sources.
 ///
-/// Look at the passed in [Errors] instance for details.
+/// Look at the passed in [Diagnostics] instance for details.
 #[derive(Debug, Error)]
 #[error("failed to load sources (see `errors` for details)")]
 pub struct LoadSourcesError;

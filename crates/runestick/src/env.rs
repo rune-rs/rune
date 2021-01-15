@@ -1,9 +1,9 @@
 //! Thread-local access to the current context.
 //!
 //! This provides access to functions to call specific protocol functions, like:
-//! * [into_iter]
-//! * [string_debug]
-//! * [into_type_name]
+//! * [super::Value::into_iter]
+//! * [super::Value::string_debug]
+//! * [super::Value::into_type_name]
 //!
 //! See the corresponding function for documentation.
 

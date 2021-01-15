@@ -59,7 +59,7 @@ impl Lit {
     /// a later stage as an expression is being parsed.
     ///
     /// These include:
-    /// * Object literals that start with a path (handled in [ast::Expr::parse_ident_start]).
+    /// * Object literals that start with a path (handled in [ast::Expr::parse_with_meta_path]).
     /// * Tuple literals that start with a path (handled in [ast::Expr::parse_open_paren]).
     pub(crate) fn peek_in_expr(p: &mut Peeker<'_>) -> bool {
         match p.nth(0) {

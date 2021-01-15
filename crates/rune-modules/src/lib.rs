@@ -93,6 +93,10 @@
 //! [time]: https://docs.rs/rune-modules/0/rune_modules/time/
 //! [toml]: https://docs.rs/rune-modules/0/rune_modules/toml/
 
+// Note: The above links to docs.rs are needed because cargo-readme does not
+// support intra-doc links (yet):
+// https://github.com/livioribeiro/cargo-readme/issues/55
+
 #[cfg(feature = "experiments")]
 pub mod experiments;
 

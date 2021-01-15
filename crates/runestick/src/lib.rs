@@ -42,8 +42,7 @@
 //!
 //! A stack-based virtual machine for the Rust programming language.
 //!
-//! This is the driver for the [Rune language].
-//! [Rune Language]: https://rune-rs.github.io
+//! This is the driver for the [Rune Language](https://rune-rs.github.io).
 
 #![deny(missing_docs)]
 #![allow(clippy::enum_variant_names, clippy::too_many_arguments)]

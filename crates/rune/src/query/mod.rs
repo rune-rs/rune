@@ -1630,7 +1630,7 @@ pub(crate) struct QueryConstFn {
     pub(crate) ir_fn: ir::IrFn,
 }
 
-/// The result of calling [Query::find_named].
+/// The result of calling [Query::convert_path].
 #[derive(Debug)]
 pub struct Named {
     /// If the resolved value is local.
