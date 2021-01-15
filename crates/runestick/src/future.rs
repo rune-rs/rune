@@ -104,14 +104,13 @@ where
 
 impl FromValue for Shared<Future> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_future()?)
+        value.into_shared_future()
     }
 }
 
 impl FromValue for Future {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        let future = value.into_future()?;
-        Ok(future.take()?)
+        value.into_future()
     }
 }
 
@@ -120,7 +119,7 @@ impl UnsafeFromValue for &Future {
     type Guard = RawRef;
 
     fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let future = value.into_future()?;
+        let future = value.into_shared_future()?;
         let (future, guard) = Ref::into_raw(future.into_ref()?);
         Ok((future, guard))
     }
@@ -135,7 +134,7 @@ impl UnsafeFromValue for &mut Future {
     type Guard = RawMut;
 
     fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let future = value.into_future()?;
+        let future = value.into_shared_future()?;
         Ok(Mut::into_raw(future.into_mut()?))
     }
 

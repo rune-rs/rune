@@ -415,6 +415,41 @@ impl Value {
         Iterator::from_value(value)
     }
 
+    /// Coerce into future, or convert into a future using the
+    /// [Protocol::INTO_FUTURE] protocol.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    pub fn into_future(self) -> Result<Future, VmError> {
+        use crate::FromValue as _;
+
+        let target = match self {
+            Value::Future(fut) => return Ok(fut.take()?),
+            target => target,
+        };
+
+        let value = EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, ())?;
+        Future::from_value(value)
+    }
+
+    /// Coerce into a shared future, or convert into a future using the
+    /// [Protocol::INTO_FUTURE] protocol.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    #[inline]
+    pub fn into_shared_future(self) -> Result<Shared<Future>, VmError> {
+        use crate::FromValue as _;
+
+        let target = match self {
+            Value::Future(future) => return Ok(future),
+            target => target,
+        };
+
+        let value = EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, ())?;
+        Ok(Shared::new(Future::from_value(value)?))
+    }
+
     /// Retrieves a human readable type name for the current value.
     ///
     /// Note that this function will always failed if called outside of a
@@ -581,15 +616,6 @@ impl Value {
             actual => Err(VmError::expected::<Result<Value, Value>>(
                 actual.type_info()?,
             )),
-        }
-    }
-
-    /// Try to coerce value into a future.
-    #[inline]
-    pub fn into_future(self) -> Result<Shared<Future>, VmError> {
-        match self {
-            Value::Future(future) => Ok(future),
-            actual => Err(VmError::expected::<Future>(actual.type_info()?)),
         }
     }
 

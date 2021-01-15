@@ -197,8 +197,6 @@ pub enum VmErrorKind {
     MissingInstanceFunction { hash: Hash, instance: TypeInfo },
     #[error("instruction pointer is out-of-bounds")]
     IpOutOfBounds,
-    #[error("unsupported target for .await `{actual}`")]
-    UnsupportedAwait { actual: TypeInfo },
     #[error("unsupported vm operation `{lhs} {op} {rhs}`")]
     UnsupportedBinaryOperation {
         op: &'static str,
