@@ -45,5 +45,4 @@
 Macros for Runestick, a stack-based virtual machine for the Rust programming
 language.
 
-This is part of the [Rune language].
-[Rune Language]: https://rune-rs.github.io
+This is part of the [Rune Language](https://rune-rs.github.io).

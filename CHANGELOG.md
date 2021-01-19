@@ -81,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#174]: https://github.com/rune-rs/rune/pull/174
 [#175]: https://github.com/rune-rs/rune/pull/175
 [#176]: https://github.com/rune-rs/rune/pull/176
+[#177]: https://github.com/rune-rs/rune/pull/177
+[#178]: https://github.com/rune-rs/rune/pull/178
 [#180]: https://github.com/rune-rs/rune/pull/180
 [#181]: https://github.com/rune-rs/rune/pull/181
 [#183]: https://github.com/rune-rs/rune/pull/183
@@ -100,6 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#197]: https://github.com/rune-rs/rune/pull/197
 [#198]: https://github.com/rune-rs/rune/pull/198
 [#199]: https://github.com/rune-rs/rune/pull/199
+[#201]: https://github.com/rune-rs/rune/pull/201
 [#202]: https://github.com/rune-rs/rune/pull/202
 [#203]: https://github.com/rune-rs/rune/pull/203
 [#204]: https://github.com/rune-rs/rune/pull/204
@@ -109,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#209]: https://github.com/rune-rs/rune/pull/209
 [#210]: https://github.com/rune-rs/rune/pull/210
 [#211]: https://github.com/rune-rs/rune/pull/211
+[#213]: https://github.com/rune-rs/rune/pull/213
 [#214]: https://github.com/rune-rs/rune/pull/214
 [#215]: https://github.com/rune-rs/rune/pull/215
 [#216]: https://github.com/rune-rs/rune/pull/216
