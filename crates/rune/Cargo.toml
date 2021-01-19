@@ -1,6 +1,6 @@
 [package]
 name = "rune"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -29,8 +29,8 @@ itoa = "0.4.6"
 ryu = "1.0.5"
 smallvec = "1.5.1"
 
-runestick = {version = "0.7.0", path = "../runestick"}
-rune-macros = {version = "0.7.0", path = "../rune-macros"}
+runestick = {version = "0.8.0", path = "../runestick"}
+rune-macros = {version = "0.8.0", path = "../rune-macros"}
 
 [dev-dependencies]
 tokio = { version = "0.2.22", features = ["macros"] }
