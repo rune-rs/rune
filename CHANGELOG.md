@@ -7,6 +7,148 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+[Unreleased]: https://github.com/rune-rs/rune/compare/0.8.0...main
+
+## [0.8.0]
+
+### Added
+* Support for `#[test]` annotations ([#218], [#222]) (thanks [tgolsson]!).
+* Add `file!()` and `line!()` macros ([#168]) (thanks [tgolsson]!).
+* Support for field functions and derives to implement them ([#169], [#170]).
+* Support for `crate` in modules ([#172]).
+* `std::any` APIs for runtime inspection of types ([#178]) (thanks [tgolsson]!).
+* Support for range expressions ([#180]).
+* Missing implementations for `FromValue` conversions for `i16` and `u16` ([#235]) (thanks [genusistimelord]!).
+* More APIs and iterator-heavy benchmark ([#232]) (thanks [tgolsson]!).
+* Added initial benchmarks ([#189]).
+* Added cellular automata benchmark ([#220]) (thanks [tgolsson]!).
+* Added fibonacci and brainfuck benchmarks ([#193]) (thanks [tgolsson]!).
+* Projection APIs for internal `Ref` / `RefMut` ([#211]).
+* **Many** API additions and fixes ([#219], [#229], [#233], [#241], [#196], [#199], [#185]) (thanks [tgolsson]!).
+* Annotations to improve measuring the performance of individual operations in the VM ([#190]).
+* Pattern matching for booleans ([#188]) (thanks [genusistimelord]!).
+* Added support for `continue` inside of loops ([#183]).
+* Add support for registering and accessing runtime constants ([#239]).
+* Support for panicking pattern binding in function arguments ([#195]).
+* Added parsing for yet-to-be supported path segments ([#206]).
+* Add basic support for threaded execution ([#97]).
+
+### Changed
+* Minor changes ([#247], [#208]).
+* Improved CLI with `cargo`-like subcommands ([#223]) (thanks [tgolsson]!).
+* Compile-time metadata has been simplified ([#163], [#164]).
+* Internal compiler improvements ([#173], [#174]).
+* Make types used in `Context` iteration APIs public ([#176]).
+* Slim down the size of runtime meta ([#177]).
+* Change and improve how protocol functions are called ([#210], [#209]).
+* Improve performance of runtime hashing ([#191]).
+* Improve diagnostics when using an exclusive reference which is not exclusive ([#213]).
+* Improve performance by reducing the number of copies generated ([#194]).
+* Make compile hooks refcounted for increased flexibility ([#221]).
+* Expose LSP server as a modular library for custom uses ([#186]) (thanks [tgolsson]!).
+* Improve performance of small objects by using BTreeMap for field storage ([#231]) (thanks [tgolsson]!).
+* Report errors and warnings through same diagnostics structure ([#227], [#228]).
+
+### Fixed
+* Minor fixes ([#198], [#201]).
+* Documentation fixes and improvements ([#248], [#234], [#242]) (thanks [robojumper], [maxmcd], and [hvithrafn]!).
+* Fix negative fractional literals ([#184]) (thanks [tgolsson]!).
+* Various fixes for use in [OxidizeBot] ([#161]).
+* Bug with using wrong protocol for `MUL` and `DIV` ([#167]).
+* Add missing macro modules in rune-wasm ([#171]) (thanks [tgolsson]!).
+* Fixed buggy visibility checks for paths ([#175]).
+* Various fixes and improvements due to [AoC] ([#181], [#187], [#192], [#197], [#203], [#204], [#205], [#216], [#217]).
+* Give `SourceLoader` a lifetime ([#245]) (thanks [tgolsson]!).
+* Fix miscompilation in struct literals ([#246]) (thanks [robojumper]!).
+* Fix miscompilation in pattern matching ([#214]).
+* Introduced and fixed binding bug ([#202]).
+* Fix so that different variants of the same enum have different equalities ([#215]).
+* Make float associated fns associated ([#240]) (thanks [tgolsson]!).
+* Bump nanorand to fix incorrect generation of random numbers in `rand` module ([#243]) (thanks [tgolsson]!).
+* Fixed broken assembly of more than one `if else` ([#230]).
+
+[#97]: https://github.com/rune-rs/rune/pull/97
+[#161]: https://github.com/rune-rs/rune/pull/161
+[#163]: https://github.com/rune-rs/rune/pull/163
+[#164]: https://github.com/rune-rs/rune/pull/164
+[#167]: https://github.com/rune-rs/rune/pull/167
+[#168]: https://github.com/rune-rs/rune/pull/168
+[#169]: https://github.com/rune-rs/rune/pull/169
+[#170]: https://github.com/rune-rs/rune/pull/170
+[#171]: https://github.com/rune-rs/rune/pull/171
+[#172]: https://github.com/rune-rs/rune/pull/172
+[#173]: https://github.com/rune-rs/rune/pull/173
+[#174]: https://github.com/rune-rs/rune/pull/174
+[#175]: https://github.com/rune-rs/rune/pull/175
+[#176]: https://github.com/rune-rs/rune/pull/176
+[#180]: https://github.com/rune-rs/rune/pull/180
+[#181]: https://github.com/rune-rs/rune/pull/181
+[#183]: https://github.com/rune-rs/rune/pull/183
+[#184]: https://github.com/rune-rs/rune/pull/184
+[#185]: https://github.com/rune-rs/rune/pull/185
+[#186]: https://github.com/rune-rs/rune/pull/186
+[#187]: https://github.com/rune-rs/rune/pull/187
+[#188]: https://github.com/rune-rs/rune/pull/188
+[#189]: https://github.com/rune-rs/rune/pull/189
+[#190]: https://github.com/rune-rs/rune/pull/190
+[#191]: https://github.com/rune-rs/rune/pull/191
+[#192]: https://github.com/rune-rs/rune/pull/192
+[#193]: https://github.com/rune-rs/rune/pull/193
+[#194]: https://github.com/rune-rs/rune/pull/194
+[#195]: https://github.com/rune-rs/rune/pull/195
+[#196]: https://github.com/rune-rs/rune/pull/196
+[#197]: https://github.com/rune-rs/rune/pull/197
+[#198]: https://github.com/rune-rs/rune/pull/198
+[#199]: https://github.com/rune-rs/rune/pull/199
+[#202]: https://github.com/rune-rs/rune/pull/202
+[#203]: https://github.com/rune-rs/rune/pull/203
+[#204]: https://github.com/rune-rs/rune/pull/204
+[#205]: https://github.com/rune-rs/rune/pull/205
+[#206]: https://github.com/rune-rs/rune/pull/206
+[#208]: https://github.com/rune-rs/rune/pull/208
+[#209]: https://github.com/rune-rs/rune/pull/209
+[#210]: https://github.com/rune-rs/rune/pull/210
+[#211]: https://github.com/rune-rs/rune/pull/211
+[#214]: https://github.com/rune-rs/rune/pull/214
+[#215]: https://github.com/rune-rs/rune/pull/215
+[#216]: https://github.com/rune-rs/rune/pull/216
+[#217]: https://github.com/rune-rs/rune/pull/217
+[#218]: https://github.com/rune-rs/rune/pull/218
+[#219]: https://github.com/rune-rs/rune/pull/219
+[#220]: https://github.com/rune-rs/rune/pull/220
+[#221]: https://github.com/rune-rs/rune/pull/221
+[#222]: https://github.com/rune-rs/rune/pull/222
+[#223]: https://github.com/rune-rs/rune/pull/223
+[#227]: https://github.com/rune-rs/rune/pull/227
+[#228]: https://github.com/rune-rs/rune/pull/228
+[#229]: https://github.com/rune-rs/rune/pull/229
+[#230]: https://github.com/rune-rs/rune/pull/230
+[#231]: https://github.com/rune-rs/rune/pull/231
+[#232]: https://github.com/rune-rs/rune/pull/232
+[#233]: https://github.com/rune-rs/rune/pull/233
+[#234]: https://github.com/rune-rs/rune/pull/234
+[#235]: https://github.com/rune-rs/rune/pull/235
+[#239]: https://github.com/rune-rs/rune/pull/239
+[#240]: https://github.com/rune-rs/rune/pull/240
+[#241]: https://github.com/rune-rs/rune/pull/241
+[#242]: https://github.com/rune-rs/rune/pull/242
+[#243]: https://github.com/rune-rs/rune/pull/243
+[#245]: https://github.com/rune-rs/rune/pull/245
+[#246]: https://github.com/rune-rs/rune/pull/246
+[#247]: https://github.com/rune-rs/rune/pull/247
+[#248]: https://github.com/rune-rs/rune/pull/248
+
+[robojumper]: https://github.com/robojumper
+[tgolsson]: https://github.com/tgolsson
+[genusistimelord]: https://github.com/genusistimelord
+[maxmcd]: https://github.com/maxmcd
+[hvithrafn]: https://github.com/hvithrafn
+
+[0.8.0]: https://github.com/rune-rs/rune/compare/0.7.0...0.8.0
+
+[OxidizeBot]: https://github.com/udoprog/OxidizeBot
+[AoC]: https://adventofcode.com/
+
 ## [0.7.0]
 
 ### Added
@@ -95,17 +237,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   value ([#119]).
 
 [`structopt`]: https://docs.rs/structopt
-
-[Sparkpin]: https://github.com/Sparkpin
-[seanchen1991]: https://github.com/seanchen1991
-[stoically]: https://github.com/stoically
-[MinusGix]: https://github.com/MinusGix
-[shekohex]: https://github.com/shekohex
-[macginitie]: https://github.com/macginitie
-[genusistimelord]: https://github.com/genusistimelord
-[killercup]: https://github.com/killercup
-[dillonhicks]: https://github.com/dillonhicks
-[aspenluxxxy]: https://github.com/aspenluxxxy
 
 [#10]: https://github.com/rune-rs/rune/issues/10
 [#11]: https://github.com/rune-rs/rune/pull/11
@@ -226,4 +357,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [0.7.0]: https://github.com/rune-rs/rune/compare/0.6.16...0.7.0
 
-[Unreleased]: https://github.com/rune-rs/rune/compare/0.7.0...main
+[Sparkpin]: https://github.com/Sparkpin
+[seanchen1991]: https://github.com/seanchen1991
+[stoically]: https://github.com/stoically
+[MinusGix]: https://github.com/MinusGix
+[shekohex]: https://github.com/shekohex
+[macginitie]: https://github.com/macginitie
+[genusistimelord]: https://github.com/genusistimelord
+[killercup]: https://github.com/killercup
+[dillonhicks]: https://github.com/dillonhicks
+[aspenluxxxy]: https://github.com/aspenluxxxy
