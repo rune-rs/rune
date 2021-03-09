@@ -1,4 +1,4 @@
-use crate::{Assign, ConstId, Phi, Var};
+use crate::{Assign, ConstId, Phi};
 use std::fmt;
 
 /// A single abstract machine instruction.
@@ -38,11 +38,6 @@ impl Value {
     /// Dump diagnostical information on an instruction.
     pub fn dump(&self) -> InstDump<'_> {
         InstDump(self)
-    }
-
-    /// Test if value does not refer to the given var.
-    pub fn is_var(&self, var: Var) -> bool {
-        matches!(self, Self::Assign(v) if v.var() == var)
     }
 }
 

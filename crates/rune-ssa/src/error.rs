@@ -13,4 +13,6 @@ pub enum Error {
     MissingBlock(BlockId),
     #[error("tried to construct a float constant that is NaN")]
     FloatIsNan,
+    #[error("missing local assignment {0}")]
+    MissingLocal(Var),
 }

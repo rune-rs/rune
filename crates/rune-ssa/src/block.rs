@@ -71,12 +71,6 @@ impl Block {
         }
     }
 
-    /// Read variable as a value.
-    fn read_value(&self, var: Var) -> Result<Value, Error> {
-        let assign = self.read(var)?;
-        Ok(Value::Assign(assign))
-    }
-
     /// Read the given variable, looking it up recursively in ancestor blocks
     /// and memoizing as needed.
     pub fn read(&self, var: Var) -> Result<Assign, Error> {
@@ -88,11 +82,11 @@ impl Block {
             });
         }
 
-        let assign = Assign::new(self.inner.global.static_id(), self.inner.id, var);
+        let assign = Assign::new(self.inner.global.static_id(), self.id(), var);
 
         // Place a node that breaks recursive dependencies.
         self.inner.assignments.borrow_mut().insert(
-            assign.var(),
+            var,
             Assignment {
                 assign: assign.clone(),
                 value: Value::Phi(Phi::new()),
@@ -103,9 +97,9 @@ impl Block {
             self.inner
                 .incomplete
                 .borrow_mut()
-                .push((assign.clone(), assign.var()));
+                .push((assign.clone(), var));
         } else {
-            self.add_phi(assign.var(), assign.var())?;
+            self.add_phi(var, var)?;
         }
 
         Ok(assign)
@@ -152,7 +146,7 @@ impl Block {
     /// Assign a variable.
     pub fn assign(&self, id: Var, v: Var) -> Result<(), Error> {
         if id != v {
-            let value = self.read_value(v)?;
+            let value = Value::Assign(self.read(v)?);
             self.inner.assign(id, value)?;
         }
 
@@ -256,7 +250,8 @@ impl Block {
     /// Perform an unconditional jump to the given block with the specified
     /// inputs.
     pub fn jump(&self, block: &Block) -> Result<(), Error> {
-        Self::mark_control(self, block)?;
+        self.mark_control(block)?;
+
         *self.inner.term.borrow_mut() = Term::Jump { block: block.id() };
         Ok(())
     }
@@ -271,8 +266,8 @@ impl Block {
     ) -> Result<(), Error> {
         let condition = self.read(condition)?;
 
-        Self::mark_control(self, then_block)?;
-        Self::mark_control(self, else_block)?;
+        self.mark_control(then_block)?;
+        self.mark_control(else_block)?;
 
         *self.inner.term.borrow_mut() = Term::JumpIf {
             condition,
@@ -287,23 +282,27 @@ impl Block {
     pub fn return_unit(&self) -> Result<(), Error> {
         let var = self.unit()?;
         let var = self.read(var)?;
+
         *self.inner.term.borrow_mut() = Term::Return { var };
+        self.inner.global.mark_return(self.id());
         Ok(())
     }
 
     /// Return from this the procedure this block belongs to.
     pub fn return_(&self, var: Var) -> Result<(), Error> {
         let var = self.read(var)?;
+
         *self.inner.term.borrow_mut() = Term::Return { var };
+        self.inner.global.mark_return(self.id());
         Ok(())
     }
 
-    fn mark_control(this: &Self, other: &Self) -> Result<(), Error> {
+    fn mark_control(&self, other: &Self) -> Result<(), Error> {
         if !other.inner.open.get() {
-            return Err(Error::SealedBlockJump(this.inner.id, other.inner.id));
+            return Err(Error::SealedBlockJump(self.id(), other.inner.id));
         }
 
-        other.inner.ancestors.borrow_mut().push(this.id());
+        other.inner.ancestors.borrow_mut().push(self.id());
         Ok(())
     }
 }
@@ -371,11 +370,11 @@ struct BlockInner {
 
 impl BlockInner {
     /// Reassign the given variable.
-    fn assign(&self, from: Var, value: Value) -> Result<(), Error> {
+    fn assign(&self, var: Var, value: Value) -> Result<(), Error> {
         let mut assignments = self.assignments.borrow_mut();
 
         // reassign a local var with a conflicting name.
-        let value = if let Some(assignment) = assignments.remove(&from) {
+        let value = if let Some(assignment) = assignments.remove(&var) {
             match value {
                 Value::Assign(other) => {
                     // force every other user to redirect to the re-assigned
@@ -391,22 +390,23 @@ impl BlockInner {
                 Value::Assign(assign) => {
                     // reassign a local var with a name matching the value's
                     // var.
-                    if let Some(assignment) = assignments.remove(&assign.var()) {
-                        assignment.assign.update_local(from);
-                        assignments.insert(from, assignment);
-                        return Ok(());
-                    }
+                    let assignment = match assignments.remove(&assign.var()) {
+                        Some(assignment) => assignment,
+                        None => return Err(Error::MissingLocal(assign.var())),
+                    };
 
-                    Value::Assign(assign)
+                    assignment.assign.replace_var(var);
+                    assignments.insert(var, assignment);
+                    return Ok(());
                 }
                 value => value,
             }
         };
 
         assignments.insert(
-            from,
+            var,
             Assignment {
-                assign: Assign::new(self.global.static_id(), self.id, from),
+                assign: Assign::new(self.global.static_id(), self.id, var),
                 value,
             },
         );

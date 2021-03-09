@@ -35,6 +35,14 @@ impl fmt::Display for StaticId {
     }
 }
 
+/// The interior assigned value.
+#[derive(Debug, Clone, Copy)]
+struct AssignShared {
+    id: StaticId,
+    block: BlockId,
+    var: Var,
+}
+
 /// The descriptor of a single assignment.
 ///
 /// This has a shared interior, because the exact value being assigned might be
@@ -42,7 +50,7 @@ impl fmt::Display for StaticId {
 /// replaced.
 #[derive(Debug, Clone)]
 pub struct Assign {
-    shared: Rc<Cell<(StaticId, BlockId, Var)>>,
+    shared: Rc<Cell<AssignShared>>,
 }
 
 impl Assign {
@@ -50,32 +58,32 @@ impl Assign {
     #[inline]
     pub(crate) fn new(id: StaticId, block: BlockId, var: Var) -> Self {
         Self {
-            shared: Rc::new(Cell::new((id, block, var))),
+            shared: Rc::new(Cell::new(AssignShared { id, block, var })),
         }
     }
 
     /// Set the value of thie block var to another var.
     pub(crate) fn replace(&self, other: &Self) {
-        let var = other.shared.get();
-        self.shared.set(var);
+        self.shared.set(other.shared.get());
     }
 
     /// Update the local variable this assignment is pointing towards.
-    pub(crate) fn update_local(&self, var: Var) {
-        let (id, block, _) = self.shared.get();
-        self.shared.set((id, block, var));
+    pub(crate) fn replace_var(&self, var: Var) {
+        self.shared.set(AssignShared {
+            var,
+            ..self.shared.get()
+        });
     }
 
     /// Access the var this belongs to.
     pub(crate) fn var(&self) -> Var {
-        self.shared.get().2
+        self.shared.get().var
     }
 }
 
 impl fmt::Display for Assign {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (id, _, _) = self.shared.get();
-        write!(f, "{}", id)
+        write!(f, "{}", self.shared.get().id)
     }
 }
 
@@ -96,6 +104,11 @@ pub(crate) struct Global {
 }
 
 impl Global {
+    /// Mark that the given block returns from the procedure.
+    pub(crate) fn mark_return(&self, block_id: BlockId) {
+        self.inner.returns.borrow_mut().push(block_id);
+    }
+
     /// Allocate a global variable.
     pub(crate) fn var(&self) -> Var {
         let id = self.inner.value.get();
@@ -165,6 +178,8 @@ struct GlobalInner {
     constants: RefCell<Vec<Constant>>,
     /// Constant strings that have already been allocated.
     constants_rev: RefCell<HashMap<Constant, ConstId>>,
+    /// The ID of blocks that return.
+    returns: RefCell<Vec<BlockId>>,
 }
 
 impl Default for GlobalInner {
@@ -175,6 +190,7 @@ impl Default for GlobalInner {
             blocks: Default::default(),
             constants: RefCell::new(vec![Constant::Unit]),
             constants_rev: Default::default(),
+            returns: RefCell::new(Vec::new()),
         }
     }
 }
