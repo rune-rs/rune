@@ -1,5 +1,5 @@
 use crate::global::Global;
-use crate::{Block, Var};
+use crate::{Block, Error, Var};
 use std::fmt;
 
 /// The central state machine assembler.
@@ -15,6 +15,15 @@ impl Program {
             global: Global::default(),
             blocks: Vec::new(),
         }
+    }
+
+    /// Seal the given program.
+    pub fn seal(&self) -> Result<(), Error> {
+        for block in &self.blocks {
+            block.seal()?;
+        }
+
+        Ok(())
     }
 
     /// Allocate a new value.

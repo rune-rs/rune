@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
-use crate::shared::{Consts, Gen};
+use crate::shared::{Consts, Gen, ResultExt as _};
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Diagnostics, Options, Spanned as _, Storage};
 use runestick::{Context, Location, Source, Span};
@@ -225,6 +225,7 @@ impl CompileBuildEntry<'_> {
                 if self.options.v2 {
                     let mut c2 = self.compiler2(location, &source, span, &mut program);
                     self::v2::AssembleFn::assemble_fn(f.ast.as_ref(), &mut c2, true)?;
+                    program.seal().with_span(span)?;
                     println!("{}", program.dump());
                 }
 

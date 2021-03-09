@@ -1,6 +1,6 @@
 use crate::global::Global;
 use crate::internal::commas;
-use crate::{Assign, BlockId, Constant, Error, Phi, Term, Value, Var};
+use crate::{Assign, BlockId, Constant, Error, Phi, StaticId, Term, Value, Var};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
@@ -63,7 +63,7 @@ impl Block {
                 name,
                 global,
                 open: Cell::new(true),
-                assignments: RefCell::new(BTreeMap::new()),
+                vars: RefCell::new(BTreeMap::new()),
                 incomplete: RefCell::new(Vec::new()),
                 term: RefCell::new(Term::Panic),
                 ancestors: RefCell::new(Vec::new()),
@@ -71,27 +71,28 @@ impl Block {
         }
     }
 
+    /// The name of the block.
+    pub fn name(&self) -> Option<&str> {
+        self.inner.name.as_deref()
+    }
+
     /// Read the given variable, looking it up recursively in ancestor blocks
     /// and memoizing as needed.
     pub fn read(&self, var: Var) -> Result<Assign, Error> {
         // Local assignment that is already present.
-        if let Some(assignment) = self.inner.assignments.borrow().get(&var) {
-            return Ok(match &assignment.value {
-                Value::Assign(assign) => assign.clone(),
-                _ => assignment.assign.clone(),
-            });
+        if let Some(assign) = self.inner.vars.borrow().get(&var) {
+            return Ok(assign.clone());
         }
 
-        let assign = Assign::new(self.inner.global.static_id(), self.id(), var);
+        let id = self.inner.global.static_id();
+        let assign = Assign::new(id);
 
-        // Place a node that breaks recursive dependencies.
-        self.inner.assignments.borrow_mut().insert(
-            var,
-            Assignment {
-                assign: assign.clone(),
-                value: Value::Phi(Phi::new()),
-            },
-        );
+        self.inner
+            .global
+            .values_mut()
+            .insert(id, Value::Phi(Phi::new()));
+
+        self.inner.vars.borrow_mut().insert(var, assign.clone());
 
         if self.inner.open.get() {
             self.inner
@@ -99,7 +100,7 @@ impl Block {
                 .borrow_mut()
                 .push((assign.clone(), var));
         } else {
-            self.add_phi(var, var)?;
+            self.add_phi(id, var)?;
         }
 
         Ok(assign)
@@ -117,8 +118,8 @@ impl Block {
         }
 
         while let Some(block) = queue.pop_front() {
-            if let Some(assignment) = block.inner.assignments.borrow().get(&var) {
-                deps.push(assignment.assign.clone());
+            if let Some(assign) = block.inner.vars.borrow().get(&var) {
+                deps.push(assign.clone());
                 continue;
             }
 
@@ -144,12 +145,9 @@ impl Block {
     }
 
     /// Assign a variable.
-    pub fn assign(&self, id: Var, v: Var) -> Result<(), Error> {
-        if id != v {
-            let value = Value::Assign(self.read(v)?);
-            self.inner.assign(id, value)?;
-        }
-
+    pub fn assign(&self, var: Var, to_read: Var) -> Result<(), Error> {
+        let assign = self.read(to_read)?;
+        self.inner.vars.borrow_mut().insert(var, assign);
         Ok(())
     }
 
@@ -163,14 +161,14 @@ impl Block {
     }
 
     /// Finalize the block.
-    pub fn seal(&self) -> Result<(), Error> {
+    pub(crate) fn seal(&self) -> Result<(), Error> {
         let open = self.inner.open.take();
 
         if open {
             let incomplete = std::mem::take(&mut *self.inner.incomplete.borrow_mut());
 
-            for (var, var_to_read) in incomplete {
-                self.add_phi(var.var(), var_to_read)?;
+            for (assign, var_to_read) in incomplete {
+                self.add_phi(assign.id(), var_to_read)?;
             }
         }
 
@@ -178,26 +176,33 @@ impl Block {
     }
 
     /// Populate phi operands.
-    fn add_phi(&self, var: Var, var_to_read: Var) -> Result<(), Error> {
+    fn add_phi(&self, id: StaticId, var_to_read: Var) -> Result<(), Error> {
         let deps = self.read_dependencies(var_to_read)?;
 
         if deps.len() <= 1 {
             if let Some(assign) = deps.into_iter().next() {
-                if let Some(assignment) = self.inner.assignments.borrow_mut().remove(&var) {
-                    assignment.assign.replace(&assign);
+                if let Some(Value::Phi(..)) = self.inner.global.values_mut().remove(id) {
+                    let old = self
+                        .inner
+                        .vars
+                        .borrow_mut()
+                        .insert(var_to_read, assign.clone());
+
+                    if let Some(existing) = old {
+                        existing.replace(&assign);
+                    }
+
                     return Ok(());
                 }
             }
         } else {
-            if let Some(assignment) = self.inner.assignments.borrow_mut().get_mut(&var) {
-                if let Value::Phi(phi) = &mut assignment.value {
-                    phi.extend(deps);
-                    return Ok(());
-                }
+            if let Some(Value::Phi(phi)) = self.inner.global.values_mut().get_mut(id) {
+                phi.extend(deps);
+                return Ok(());
             }
         }
 
-        Err(Error::MissingPhiNode(var))
+        Err(Error::MissingPhiNode(id))
     }
 
     /// Get the identifier of the block.
@@ -331,18 +336,17 @@ impl fmt::Display for BlockDump<'_> {
 
         writeln!(f)?;
 
-        for assign in self.0.inner.assignments.borrow().values() {
-            writeln!(f, "  {} <- {}", assign.assign, assign.value.dump())?;
+        for (var, assign) in self.0.inner.vars.borrow().iter() {
+            if let Some(value) = self.0.inner.global.values().get(assign.id()) {
+                writeln!(f, "  {}: {} <- {}", var, assign, value.dump())?;
+            } else {
+                writeln!(f, "  {}: {} <- ?", var, assign)?;
+            }
         }
 
         writeln!(f, "  {}", self.0.inner.term.borrow().dump())?;
         Ok(())
     }
-}
-
-struct Assignment {
-    assign: Assign,
-    value: Value,
 }
 
 struct BlockInner {
@@ -359,7 +363,7 @@ struct BlockInner {
     /// Global shared stack machine state.
     global: Global,
     /// Instructions being built.
-    assignments: RefCell<BTreeMap<Var, Assignment>>,
+    vars: RefCell<BTreeMap<Var, Assign>>,
     /// Collection of locally incomplete phi nodes.
     incomplete: RefCell<Vec<(Assign, Var)>>,
     /// Instructions that do not produce a value.
@@ -371,46 +375,9 @@ struct BlockInner {
 impl BlockInner {
     /// Reassign the given variable.
     fn assign(&self, var: Var, value: Value) -> Result<(), Error> {
-        let mut assignments = self.assignments.borrow_mut();
-
-        // reassign a local var with a conflicting name.
-        let value = if let Some(assignment) = assignments.remove(&var) {
-            match value {
-                Value::Assign(other) => {
-                    // force every other user to redirect to the re-assigned
-                    // assignment.
-                    assignment.assign.replace(&other);
-                    return Ok(());
-                }
-                value => value,
-            }
-        } else {
-            // assigning a new variable.
-            match value {
-                Value::Assign(assign) => {
-                    // reassign a local var with a name matching the value's
-                    // var.
-                    let assignment = match assignments.remove(&assign.var()) {
-                        Some(assignment) => assignment,
-                        None => return Err(Error::MissingLocal(assign.var())),
-                    };
-
-                    assignment.assign.replace_var(var);
-                    assignments.insert(var, assignment);
-                    return Ok(());
-                }
-                value => value,
-            }
-        };
-
-        assignments.insert(
-            var,
-            Assignment {
-                assign: Assign::new(self.global.static_id(), self.id, var),
-                value,
-            },
-        );
-
+        let id = self.global.static_id();
+        self.vars.borrow_mut().insert(var, Assign::new(id));
+        self.global.values_mut().insert(id, value);
         Ok(())
     }
 }

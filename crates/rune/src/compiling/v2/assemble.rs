@@ -29,7 +29,7 @@ impl AssembleFn for ast::ItemFn {
 
         for (arg, _) in &self.args {
             let span = arg.span();
-            let value = block.input().with_span(span)?;
+            let var = block.input().with_span(span)?;
             let first = std::mem::take(&mut first);
 
             match arg {
@@ -40,13 +40,13 @@ impl AssembleFn for ast::ItemFn {
                         return Err(CompileError::new(span, CompileErrorKind::UnsupportedSelf));
                     }
 
-                    c.scope.declare(span, "self", value)?;
+                    c.scope.declare(span, "self", var)?;
                     continue;
                 }
                 ast::FnArg::Pat(ast::Pat::PatPath(path)) => {
                     if let Some(ident) = path.path.try_as_ident() {
                         let name = c.resolve(ident)?;
-                        c.scope.declare(span, &name, value)?;
+                        c.scope.declare(span, &name, var)?;
                         continue;
                     } else {
                         return Err(CompileError::msg(span, "path not supported yet"));
@@ -60,7 +60,6 @@ impl AssembleFn for ast::ItemFn {
 
         let (value_block, value) = self.body.assemble(c, block)?;
         value_block.return_(value).with_span(span)?;
-        value_block.seal().with_span(span)?;
         Ok(())
     }
 }
@@ -84,9 +83,9 @@ impl Assemble for ast::Block {
                     continue;
                 }
                 ast::Stmt::Expr(expr, semi) => {
-                    let (next, value) = expr.assemble(c, block)?;
+                    let (next, var) = expr.assemble(c, block)?;
                     block = next;
-                    (value, semi)
+                    (var, semi)
                 }
                 ast::Stmt::Item(..) => continue,
             };
@@ -99,12 +98,12 @@ impl Assemble for ast::Block {
 
         c.scope.pop(span)?;
 
-        let value = match last {
+        let var = match last {
             Some(last) => last,
             None => block.unit().with_span(span)?,
         };
 
-        Ok((block, value))
+        Ok((block, var))
     }
 }
 

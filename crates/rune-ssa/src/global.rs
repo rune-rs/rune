@@ -1,6 +1,7 @@
-use crate::{Block, Constant, Error};
+use crate::{Block, Constant, Error, Value};
 use hashbrown::HashMap;
-use std::cell::{Cell, Ref, RefCell};
+use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::rc::Rc;
 
@@ -35,14 +36,6 @@ impl fmt::Display for StaticId {
     }
 }
 
-/// The interior assigned value.
-#[derive(Debug, Clone, Copy)]
-struct AssignShared {
-    id: StaticId,
-    block: BlockId,
-    var: Var,
-}
-
 /// The descriptor of a single assignment.
 ///
 /// This has a shared interior, because the exact value being assigned might be
@@ -50,40 +43,32 @@ struct AssignShared {
 /// replaced.
 #[derive(Debug, Clone)]
 pub struct Assign {
-    shared: Rc<Cell<AssignShared>>,
+    id: Rc<Cell<StaticId>>,
 }
 
 impl Assign {
     /// Construct a new reference to a variable in a different block.
     #[inline]
-    pub(crate) fn new(id: StaticId, block: BlockId, var: Var) -> Self {
+    pub(crate) fn new(id: StaticId) -> Self {
         Self {
-            shared: Rc::new(Cell::new(AssignShared { id, block, var })),
+            id: Rc::new(Cell::new(id)),
         }
     }
 
-    /// Set the value of thie block var to another var.
+    /// Replace this assignment with another.
     pub(crate) fn replace(&self, other: &Self) {
-        self.shared.set(other.shared.get());
+        self.id.set(other.id.get());
     }
 
-    /// Update the local variable this assignment is pointing towards.
-    pub(crate) fn replace_var(&self, var: Var) {
-        self.shared.set(AssignShared {
-            var,
-            ..self.shared.get()
-        });
-    }
-
-    /// Access the var this belongs to.
-    pub(crate) fn var(&self) -> Var {
-        self.shared.get().var
+    /// Get the assigned id.
+    pub(crate) fn id(&self) -> StaticId {
+        self.id.get()
     }
 }
 
 impl fmt::Display for Assign {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.shared.get().id)
+        write!(f, "{}", self.id.get())
     }
 }
 
@@ -104,6 +89,16 @@ pub(crate) struct Global {
 }
 
 impl Global {
+    /// Get the inner values.
+    pub(crate) fn values(&self) -> Ref<'_, Values> {
+        self.inner.values.borrow()
+    }
+
+    /// Get the inner values mutably.
+    pub(crate) fn values_mut(&self) -> RefMut<'_, Values> {
+        self.inner.values.borrow_mut()
+    }
+
     /// Mark that the given block returns from the procedure.
     pub(crate) fn mark_return(&self, block_id: BlockId) {
         self.inner.returns.borrow_mut().push(block_id);
@@ -166,6 +161,33 @@ impl Global {
     }
 }
 
+#[derive(Default)]
+pub(crate) struct Values {
+    values: BTreeMap<StaticId, Value>,
+}
+
+impl Values {
+    /// Remove the given value.
+    pub(crate) fn remove(&mut self, id: StaticId) -> Option<Value> {
+        self.values.remove(&id)
+    }
+
+    /// Insert the given value.
+    pub(crate) fn insert(&mut self, id: StaticId, value: Value) {
+        self.values.insert(id, value);
+    }
+
+    /// Get the value associated with the value.
+    pub(crate) fn get(&self, id: StaticId) -> Option<&Value> {
+        self.values.get(&id)
+    }
+
+    /// Get the value associated with the value.
+    pub(crate) fn get_mut(&mut self, id: StaticId) -> Option<&mut Value> {
+        self.values.get_mut(&id)
+    }
+}
+
 /// Inner state of the global.
 struct GlobalInner {
     /// Variable allocator.
@@ -180,6 +202,8 @@ struct GlobalInner {
     constants_rev: RefCell<HashMap<Constant, ConstId>>,
     /// The ID of blocks that return.
     returns: RefCell<Vec<BlockId>>,
+    /// Values assocaited with the block.
+    pub(crate) values: RefCell<Values>,
 }
 
 impl Default for GlobalInner {
@@ -191,6 +215,7 @@ impl Default for GlobalInner {
             constants: RefCell::new(vec![Constant::Unit]),
             constants_rev: Default::default(),
             returns: RefCell::new(Vec::new()),
+            values: RefCell::new(Values::default()),
         }
     }
 }

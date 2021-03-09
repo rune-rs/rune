@@ -8,8 +8,6 @@ pub enum Value {
     Input(usize),
     /// An instruction to load a constant as a value.
     Const(ConstId),
-    /// A value directly references a different value by its assignment.
-    Assign(Assign),
     /// A phony use node, indicating what assignments flow into this.
     Phi(Phi),
     /// Compute `!arg`.
@@ -51,9 +49,6 @@ impl fmt::Display for InstDump<'_> {
             }
             Value::Const(id) => {
                 write!(f, "{}", id)?;
-            }
-            Value::Assign(assign) => {
-                write!(f, "{}", assign)?;
             }
             Value::Phi(phi) => {
                 write!(f, "{}", phi)?;

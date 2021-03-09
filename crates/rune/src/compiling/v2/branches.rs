@@ -48,66 +48,55 @@ impl<'a> Branches<'a> {
             blocks.push(Entry {
                 code,
                 code_block,
-                cond: Some((cond, cond_block)),
+                cond,
+                cond_block,
             });
         }
 
-        if let Some(code) = self.fallback {
-            let code_block = first
-                .take()
-                .unwrap_or_else(|| c.program.named("branches_fallback_code"));
-
-            blocks.push(Entry {
-                code,
-                code_block,
-                cond: None,
-            });
-        }
+        let fallback_block = first
+            .take()
+            .unwrap_or_else(|| c.program.named("branches_fallback_code"));
 
         let output = c.program.var();
         let output_block = c.program.named("branches_output");
 
-        // queue of blocks to seal.
-        let mut to_seal = Vec::new();
+        let fallback_block = if let Some(code) = self.fallback {
+            let (fallback_block, var) = code.assemble(c, fallback_block)?;
+            fallback_block.assign(output, var).with_span(span)?;
+            fallback_block.jump(&output_block).with_span(span)?;
+            fallback_block
+        } else {
+            let unit = fallback_block.unit().with_span(span)?;
+            fallback_block.assign(output, unit).with_span(span)?;
+            fallback_block.jump(&output_block).with_span(span)?;
+            fallback_block
+        };
 
-        for window in blocks.windows(2) {
-            if let [from, to] = window {
-                if let Some((cond, cond_block)) = &from.cond {
-                    let (cond_block, cond) = cond.assemble(c, cond_block.clone())?;
+        let mut it = blocks.into_iter().peekable();
 
-                    cond_block
-                        .jump_if(cond, &from.code_block, to.cond_block())
-                        .with_span(span)?;
+        if let Some(entry) = it.next() {
+            let Entry {
+                code_block,
+                code,
+                cond_block,
+                cond,
+            } = entry;
 
-                    to_seal.push(cond_block);
-                }
+            let else_block = if let Some(to) = it.peek() {
+                &to.cond_block
+            } else {
+                &fallback_block
+            };
 
-                let (value_block, value) = from.code.assemble(c, from.code_block.clone())?;
-                value_block.assign(output, value).with_span(span)?;
-                value_block.jump(&output_block).with_span(span)?;
-                to_seal.push(value_block);
-            }
-        }
+            let (cond_block, cond) = cond.assemble(c, cond_block)?;
+            cond_block
+                .jump_if(cond, &code_block, else_block)
+                .with_span(span)?;
 
-        if let Some(last) = blocks.last() {
-            if let Some((cond, cond_block)) = &last.cond {
-                let (cond_block, cond) = cond.assemble(c, cond_block.clone())?;
-
-                cond_block
-                    .jump_if(cond, &last.code_block, &output_block)
-                    .with_span(span)?;
-
-                to_seal.push(cond_block);
-            }
-
-            let (value_block, value) = last.code.assemble(c, last.code_block.clone())?;
-            value_block.assign(output, value).with_span(span)?;
-            value_block.jump(&output_block).with_span(span)?;
-            to_seal.push(value_block);
-        }
-
-        for block in to_seal {
-            block.seal().with_span(span)?;
+            let (code_block, var) = code.assemble(c, code_block)?;
+            println!("{} = {} ({:?})", output, var, code_block.name());
+            code_block.assign(output, var).with_span(span)?;
+            code_block.jump(&output_block).with_span(span)?;
         }
 
         Ok((output_block, output))
@@ -117,14 +106,6 @@ impl<'a> Branches<'a> {
 struct Entry<'a> {
     code: &'a ast::Block,
     code_block: Block,
-    cond: Option<(&'a ast::Condition, Block)>,
-}
-
-impl<'a> Entry<'a> {
-    fn cond_block(&self) -> &Block {
-        match &self.cond {
-            Some((_, cond)) => cond,
-            None => &self.code_block,
-        }
-    }
+    cond: &'a ast::Condition,
+    cond_block: Block,
 }
