@@ -24,7 +24,7 @@ impl Expander {
 
         Some(quote! {
             impl #to_value for #ident {
-                fn to_value(self) -> Result<#value, #vm_error> {
+                fn to_value(self) -> std::result::Result<#value, #vm_error> {
                     #inner
                 }
             }
@@ -119,7 +119,7 @@ impl Expander {
     }
 }
 
-pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
+pub(super) fn expand(input: &syn::DeriveInput) -> std::result::Result<TokenStream, Vec<syn::Error>> {
     let mut ctx = Context::new();
 
     let attrs = match ctx.parse_derive_attrs(&input.attrs) {
