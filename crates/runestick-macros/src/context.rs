@@ -489,7 +489,7 @@ impl Context {
         name: &TokenStream,
         install_with: &TokenStream,
         tokens: &Tokens,
-    ) -> std::result::Result<TokenStream, Vec<syn::Error>>
+    ) -> Result<TokenStream, Vec<syn::Error>>
     where
         T: Copy + ToTokens,
     {
@@ -521,7 +521,7 @@ impl Context {
             }
 
             impl #install_into_trait for #ident {
-                fn install_with(module: &mut #module) -> std::result::Result<(), #context_error> {
+                fn install_with(module: &mut #module) -> ::std::result::Result<(), #context_error> {
                     #install_with
                 }
             }
@@ -546,7 +546,7 @@ impl Context {
 
                 fn from_value(
                     value: #value,
-                ) -> std::result::Result<(Self::Output, Self::Guard), #vm_error> {
+                ) -> ::std::result::Result<(Self::Output, Self::Guard), #vm_error> {
                     Ok(value.into_any_ptr()?)
                 }
 
@@ -561,7 +561,7 @@ impl Context {
 
                 fn from_value(
                     value: #value,
-                ) -> std::result::Result<(Self::Output, Self::Guard), #vm_error> {
+                ) -> ::std::result::Result<(Self::Output, Self::Guard), #vm_error> {
                     Ok(value.into_any_mut()?)
                 }
 
@@ -573,7 +573,7 @@ impl Context {
             impl #unsafe_to_value for &#ident {
                 type Guard = #pointer_guard;
 
-                unsafe fn unsafe_to_value(self) -> std::result::Result<(#value, Self::Guard), #vm_error> {
+                unsafe fn unsafe_to_value(self) -> ::std::result::Result<(#value, Self::Guard), #vm_error> {
                     let (shared, guard) = #shared::from_ref(self);
                     Ok((#value::from(shared), guard))
                 }
@@ -582,7 +582,7 @@ impl Context {
             impl #unsafe_to_value for &mut #ident {
                 type Guard = #pointer_guard;
 
-                unsafe fn unsafe_to_value(self) -> std::result::Result<(#value, Self::Guard), #vm_error> {
+                unsafe fn unsafe_to_value(self) -> ::std::result::Result<(#value, Self::Guard), #vm_error> {
                     let (shared, guard) = #shared::from_mut(self);
                     Ok((#value::from(shared), guard))
                 }

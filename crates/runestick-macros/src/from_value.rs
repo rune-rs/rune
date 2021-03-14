@@ -76,7 +76,7 @@ impl Expander {
 
         Some(quote! {
             impl #from_value for #ident {
-                fn from_value(value: #value) -> std::result::Result<Self, #vm_error> {
+                fn from_value(value: #value) -> ::std::result::Result<Self, #vm_error> {
                     match value {
                         #expanded
                         actual => {
@@ -167,7 +167,7 @@ impl Expander {
 
         Some(quote_spanned! { input.span() =>
             impl #from_value for #ident {
-                fn from_value(value: #value) -> std::result::Result<Self, #vm_error> {
+                fn from_value(value: #value) -> ::std::result::Result<Self, #vm_error> {
                     match value {
                         #variant,
                         actual => {
@@ -263,7 +263,7 @@ impl Expander {
     }
 }
 
-pub(super) fn expand(input: &syn::DeriveInput) -> std::result::Result<TokenStream, Vec<syn::Error>> {
+pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let mut ctx = Context::new();
 
     let attrs = match ctx.parse_derive_attrs(&input.attrs) {
