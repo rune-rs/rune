@@ -24,7 +24,7 @@ impl syn::parse::Parse for InternalCall {
 }
 
 impl InternalCall {
-    pub fn expand(self) -> std::result::Result<TokenStream, Vec<syn::Error>> {
+    pub fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
         let ctx = Context::with_module(&quote!(crate));
         let attrs = DeriveAttrs::default();
         let tokens = ctx.tokens_with_module(&attrs);
@@ -65,7 +65,7 @@ impl syn::parse::Parse for Derive {
 }
 
 impl Derive {
-    pub(super) fn expand(self) -> std::result::Result<TokenStream, Vec<syn::Error>> {
+    pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
         let mut ctx = Context::new();
 
         let attrs = match ctx.parse_derive_attrs(&self.input.attrs) {
