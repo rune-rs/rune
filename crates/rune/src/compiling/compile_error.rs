@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::compiling::InsertMetaError;
+#[cfg(compiler_v2)]
 use crate::shared::WithSpan;
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, ResolveError,
@@ -33,6 +34,7 @@ impl From<CompileError> for SpannedError {
     }
 }
 
+#[cfg(compiler_v2)]
 impl From<WithSpan<rune_ssa::Error>> for CompileError {
     fn from(w: WithSpan<rune_ssa::Error>) -> Self {
         CompileError::new(w.span, w.error)
@@ -110,6 +112,7 @@ pub enum CompileErrorKind {
         #[source]
         error: io::Error,
     },
+    #[cfg(compiler_v2)]
     #[error("failed to assemble ssa: {error}")]
     SsaError {
         #[source]
