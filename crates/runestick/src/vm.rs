@@ -304,7 +304,7 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
-        let value = VmExecution::new(self).complete()?;
+        let value = VmExecution::new(self).async_complete().await?;
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
