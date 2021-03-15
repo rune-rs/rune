@@ -4,7 +4,7 @@ struct Timeout;
 
 async fn request(timeout) {
     let request = http::get(`http://httpstat.us/200?sleep=${timeout}`);
-    let timeout = time::delay_for(time::Duration::from_secs(2));
+    let timeout = time::sleep(time::Duration::from_secs(2));
 
     let result = select {
         _ = timeout => Err(Timeout),

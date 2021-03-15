@@ -3,6 +3,6 @@ use time::Duration;
 pub async fn main() {
     loop {
         println("Hello forever!");
-        time::delay_for(Duration::from_secs(1)).await;
+        time::sleep(Duration::from_secs(1)).await;
     }
 }
