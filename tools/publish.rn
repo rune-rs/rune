@@ -17,7 +17,7 @@ pub async fn main() {
 
         let status = select {
             _ = ctrl_c => break,
-            status = cargo.spawn()? => status?,
+            output = cargo.spawn()?.wait_with_output() => output?.status,
         };
 
         println(`${project}: ${status}`);
