@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/rune-rs/rune/compare/0.8.0...main
+[Unreleased]: https://github.com/rune-rs/rune/compare/0.9.0...main
+
+## [0.9.0]
+
+### Changed
+* rune-modules now uses tokio 1.x.
+
+### Fixed
+* `Vm::async_call` didn't use async completion functions ([#253]) (thanks [Roba1993]!).
+
+[0.9.0]: https://github.com/rune-rs/rune/compare/0.8.0...0.9.0
+
+[Roba1993]: https://github.com/Roba1993
 
 ## [0.8.0]
 

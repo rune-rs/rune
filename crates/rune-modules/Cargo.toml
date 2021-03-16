@@ -1,6 +1,6 @@
 [package]
 name = "rune-modules"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -38,8 +38,8 @@ serde_json = { version = "1.0.64", optional = true }
 toml = { version = "0.5.8", optional = true }
 nanorand = { version = "0.5.2", optional = true, features = ["getrandom"] }
 
-rune = {version = "0.8.0", path = "../rune"}
-runestick = {version = "0.8.0", path = "../runestick"}
+rune = {version = "0.9.0", path = "../rune"}
+runestick = {version = "0.9.0", path = "../runestick"}
 
 [package.metadata.docs.rs]
 all-features = true
