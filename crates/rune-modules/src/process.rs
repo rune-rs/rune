@@ -51,8 +51,6 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.async_inst_fn("wait_with_output", Child::wait_with_output)?;
     module.inst_fn(Protocol::STRING_DISPLAY, ExitStatus::display)?;
     module.inst_fn("code", ExitStatus::code)?;
-
-    module.field_fn(Protocol::INDEX_GET, "status", Output::status)?;
     Ok(module)
 }
 
@@ -127,7 +125,7 @@ impl Child {
         };
 
         Ok(Ok(Output {
-            status: output.status,
+            status: ExitStatus { status: output.status },
             stdout: Shared::new(Bytes::from_vec(output.stdout)),
             stderr: Shared::new(Bytes::from_vec(output.stderr)),
         }))
@@ -136,23 +134,15 @@ impl Child {
 
 #[derive(Any)]
 struct Output {
-    status: std::process::ExitStatus,
+    #[rune(get)]
+    status: ExitStatus,
     #[rune(get)]
     stdout: Shared<Bytes>,
     #[rune(get)]
     stderr: Shared<Bytes>,
 }
 
-impl Output {
-    /// Get the exist status of the process.
-    fn status(&self) -> ExitStatus {
-        ExitStatus {
-            status: self.status,
-        }
-    }
-}
-
-#[derive(Any)]
+#[derive(Clone, Copy, Any)]
 struct ExitStatus {
     status: std::process::ExitStatus,
 }

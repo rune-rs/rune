@@ -3,7 +3,7 @@ use process::Command;
 async fn update_readme(project, output) {
     let cargo = Command::new("cargo");
     cargo.args(["readme", "-r", project, "-o", output, "-t", "../../README.tpl"]);
-    Ok(cargo.spawn()?.await?)
+    Ok(cargo.spawn()?.wait_with_output().await?.status)
 }
 
 pub async fn main() {
