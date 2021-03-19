@@ -283,6 +283,65 @@ pub enum Value {
 }
 
 impl Value {
+    /// Format the value using the [Protocol::STRING_DISPLAY] protocol.
+    ///
+    /// Also requires a work buffer `buf` which will be used in case the value
+    /// provided required formatting.
+    ///
+    /// Note that this function will always failed if called outside of a
+    /// virtual machine.
+    pub fn string_display(&self, s: &mut String, buf: &mut String) -> Result<fmt::Result, VmError> {
+        self.string_display_with(s, buf, EnvProtocolCaller)
+    }
+
+    /// Internal impl of string_display with a customizable caller.
+    pub(crate) fn string_display_with(
+        &self,
+        s: &mut String,
+        buf: &mut String,
+        caller: impl ProtocolCaller,
+    ) -> Result<fmt::Result, VmError> {
+        use crate::FromValue as _;
+
+        match self {
+            Value::Format(format) => {
+                format.spec.format(&format.value, s, buf, caller)?;
+            }
+            Value::Char(c) => {
+                s.push(*c);
+            }
+            Value::String(string) => {
+                s.push_str(&string.borrow_ref()?);
+            }
+            Value::StaticString(string) => {
+                s.push_str(string.as_ref());
+            }
+            Value::Integer(integer) => {
+                let mut buffer = itoa::Buffer::new();
+                s.push_str(buffer.format(*integer));
+            }
+            Value::Float(float) => {
+                let mut buffer = ryu::Buffer::new();
+                s.push_str(buffer.format(*float));
+            }
+            value => {
+                let b = Shared::new(std::mem::take(s));
+
+                let result = caller.call_protocol_fn(
+                    Protocol::STRING_DISPLAY,
+                    value.clone(),
+                    (Value::from(b.clone()),),
+                )?;
+
+                let result = fmt::Result::from_value(result)?;
+                drop(std::mem::replace(s, b.take()?));
+                return Ok(result);
+            }
+        }
+
+        Ok(Ok(()))
+    }
+
     /// Debug format the value using the [Protocol::STRING_DEBUG] protocol.
     ///
     /// Note that this function will always failed if called outside of a
@@ -383,14 +442,17 @@ impl Value {
                 write!(s, "{:?}", value)
             }
             value => {
-                let string = Value::from(std::mem::take(s));
-                let value = caller.call_protocol_fn(
+                let b = Shared::new(std::mem::take(s));
+
+                let result = caller.call_protocol_fn(
                     Protocol::STRING_DEBUG,
                     value.clone(),
-                    (string.clone(),),
+                    (Value::from(b.clone()),),
                 )?;
-                *s = string.into_string()?.take()?;
-                fmt::Result::from_value(value)?
+
+                let result = fmt::Result::from_value(result)?;
+                drop(std::mem::replace(s, b.take()?));
+                return Ok(result);
             }
         };
 
