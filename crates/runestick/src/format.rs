@@ -3,11 +3,18 @@
 use crate::protocol_caller::ProtocolCaller;
 use crate::{FromValue, InstallWith, Named, RawStr, Value, VmError, VmErrorKind};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::fmt;
 use std::fmt::Write as _;
 use std::iter;
 use std::num::NonZeroUsize;
 use thiserror::Error;
+
+std::thread_local! {
+    /// Shared thread-local string buffer used intermediately when formatting
+    /// values into strings.
+    pub static FORMAT_BUF: RefCell<String> = RefCell::new(String::with_capacity(64));
+}
 
 /// Error raised when trying to parse a type string and it fails.
 #[derive(Debug, Clone, Copy, Error)]
@@ -179,6 +186,7 @@ impl FormatSpec {
         value: &Value,
         out: &mut String,
         buf: &mut String,
+        caller: impl ProtocolCaller,
     ) -> Result<(), VmError> {
         match value {
             Value::Char(c) => {
@@ -204,7 +212,8 @@ impl FormatSpec {
                 self.format_fill(out, buf, align, fill, sign);
             }
             _ => {
-                return Err(VmError::from(VmErrorKind::FormatError));
+                let result = value.string_display_with(out, buf, caller)?;
+                result.map_err(|_| VmErrorKind::FormatError)?;
             }
         }
 
@@ -333,28 +342,14 @@ impl FormatSpec {
         buf: &mut String,
         caller: impl ProtocolCaller,
     ) -> Result<(), VmError> {
-        match self.format_type {
-            Type::Display => {
-                self.format_display(value, out, buf)?;
-            }
-            Type::Debug => {
-                self.format_debug(value, out, buf, caller)?;
-            }
-            Type::UpperHex => {
-                self.format_upper_hex(value, out, buf)?;
-            }
-            Type::LowerHex => {
-                self.format_lower_hex(value, out, buf)?;
-            }
-            Type::Binary => {
-                self.format_binary(value, out, buf)?;
-            }
-            Type::Pointer => {
-                self.format_pointer(value, out, buf)?;
-            }
-        }
-
-        Ok(())
+        Ok(match self.format_type {
+            Type::Display => self.format_display(value, out, buf, caller)?,
+            Type::Debug => self.format_debug(value, out, buf, caller)?,
+            Type::UpperHex => self.format_upper_hex(value, out, buf)?,
+            Type::LowerHex => self.format_lower_hex(value, out, buf)?,
+            Type::Binary => self.format_binary(value, out, buf)?,
+            Type::Pointer => self.format_pointer(value, out, buf)?,
+        })
     }
 }
 

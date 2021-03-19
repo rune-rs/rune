@@ -361,23 +361,13 @@ impl Vm {
         H: IntoTypeHash,
         A: GuardedArgs,
     {
-        let count = args.count();
+        let count = args.count() + 1;
         let type_hash = target.type_hash()?;
         self.stack.push(target.clone());
+
         // Safety: We hold onto the guard for the duration of this call.
         let _guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
-        self.inner_call_instance_fn(type_hash, hash.into_type_hash(), count)
-    }
 
-    #[inline(never)]
-    fn inner_call_instance_fn(
-        &mut self,
-        type_hash: Hash,
-        hash: Hash,
-        count: usize,
-    ) -> Result<bool, VmError> {
-        // NB: +1 to include the instance as well.
-        let count = count + 1;
         let hash = Hash::instance_function(type_hash, hash.into_type_hash());
 
         if let Some(UnitFn::Offset {
@@ -417,23 +407,11 @@ impl Vm {
         H: IntoTypeHash,
         A: Args,
     {
-        let count = args.count();
+        let count = args.count() + 1;
         self.stack.push(target.clone());
         args.into_stack(&mut self.stack)?;
-        self.inner_call_field_fn(protocol, target, hash.into_type_hash(), count)
-    }
 
-    /// non-monomorphized version of the call function.
-    #[inline(never)]
-    fn inner_call_field_fn(
-        &mut self,
-        protocol: Protocol,
-        target: &Value,
-        hash: Hash,
-        count: usize,
-    ) -> Result<bool, VmError> {
-        let count = count + 1;
-        let hash = Hash::field_fn(protocol, target.type_hash()?, hash);
+        let hash = Hash::field_fn(protocol, target.type_hash()?, hash.into_type_hash());
 
         let handler = match self.context.lookup(hash) {
             Some(handler) => handler,
@@ -2231,54 +2209,11 @@ impl Vm {
         let values = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
 
         let mut out = String::with_capacity(size_hint);
-        let mut buf = String::new();
+        let mut buf = String::with_capacity(16);
 
         for value in values {
-            match value {
-                Value::Format(format) => {
-                    format
-                        .spec
-                        .format(&format.value, &mut out, &mut buf, &mut *self)?;
-                }
-                Value::Char(c) => {
-                    out.push(c);
-                }
-                Value::String(string) => {
-                    out.push_str(&*string.borrow_ref()?);
-                }
-                Value::StaticString(string) => {
-                    out.push_str(string.as_ref());
-                }
-                Value::Integer(integer) => {
-                    let mut buffer = itoa::Buffer::new();
-                    out.push_str(buffer.format(integer));
-                }
-                Value::Float(float) => {
-                    let mut buffer = ryu::Buffer::new();
-                    out.push_str(buffer.format(float));
-                }
-                actual => {
-                    let b = Shared::new(std::mem::take(&mut out));
-
-                    if !self.call_instance_fn(
-                        actual.clone(),
-                        Protocol::STRING_DISPLAY,
-                        (Value::String(b.clone()),),
-                    )? {
-                        return Err(VmError::from(VmErrorKind::MissingProtocol {
-                            protocol: Protocol::STRING_DISPLAY,
-                            actual: actual.type_info()?,
-                        }));
-                    }
-
-                    let value = fmt::Result::from_value(self.stack.pop()?)?;
-
-                    if let Err(fmt::Error) = value {
-                        return Err(VmError::from(VmErrorKind::FormatError));
-                    }
-
-                    out = b.take()?;
-                }
+            if let Err(fmt::Error) = value.string_display_with(&mut out, &mut buf, &mut *self)? {
+                return Err(VmError::from(VmErrorKind::FormatError));
             }
         }
 
