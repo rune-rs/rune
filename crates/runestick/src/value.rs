@@ -326,10 +326,10 @@ impl Value {
                 s.push_str(buffer.format(*float));
             }
             Value::Bool(bool) => {
-                write!(s, "{}", bool)?;
+                return Ok(write!(s, "{}", bool));
             }
             Value::Byte(byte) => {
-                write!(s, "{:#04X}", byte)?;
+                return Ok(write!(s, "{:#04X}", byte));
             }
             value => {
                 let b = Shared::new(std::mem::take(s));
