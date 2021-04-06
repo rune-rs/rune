@@ -324,6 +324,12 @@ impl Value {
                 let mut buffer = ryu::Buffer::new();
                 s.push_str(buffer.format(*float));
             }
+            Value::Bool(bool) => {
+                s.push_str(&format!("{}", bool));
+            }
+            Value::Byte(byte) => {
+                s.push_str(&format!("{:#04X}", byte));
+            }
             value => {
                 let b = Shared::new(std::mem::take(s));
 
