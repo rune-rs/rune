@@ -176,6 +176,11 @@ pub enum VmErrorKind {
     Halted { halt: VmHaltInfo },
     #[error("failed to format argument")]
     FormatError,
+    #[error("standard format error: {error}")]
+    StdFormatError {
+        #[from]
+        error: std::fmt::Error,
+    },
     #[error("stack error: {error}")]
     StackError {
         #[from]
