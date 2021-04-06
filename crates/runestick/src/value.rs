@@ -8,6 +8,7 @@ use crate::{
 use serde::{de, ser, Deserialize, Serialize};
 use std::cmp;
 use std::fmt;
+use std::fmt::Write;
 use std::hash;
 use std::sync::Arc;
 use std::vec;
@@ -323,6 +324,12 @@ impl Value {
             Value::Float(float) => {
                 let mut buffer = ryu::Buffer::new();
                 s.push_str(buffer.format(*float));
+            }
+            Value::Bool(bool) => {
+                return Ok(write!(s, "{}", bool));
+            }
+            Value::Byte(byte) => {
+                return Ok(write!(s, "{:#04X}", byte));
             }
             value => {
                 let b = Shared::new(std::mem::take(s));
