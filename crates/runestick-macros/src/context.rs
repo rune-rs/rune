@@ -547,7 +547,7 @@ impl Context {
                 fn from_value(
                     value: #value,
                 ) -> ::std::result::Result<(Self::Output, Self::Guard), #vm_error> {
-                    Ok(value.into_any_ptr()?)
+                    value.into_any_ptr()
                 }
 
                 unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -562,7 +562,7 @@ impl Context {
                 fn from_value(
                     value: #value,
                 ) -> ::std::result::Result<(Self::Output, Self::Guard), #vm_error> {
-                    Ok(value.into_any_mut()?)
+                    value.into_any_mut()
                 }
 
                 unsafe fn unsafe_coerce(output: Self::Output) -> Self {
