@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1617738620523,
+  "lastUpdate": 1617753683841,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -5716,6 +5716,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5047918,
             "range": "± 653129",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "schuetterobert@gmail.com",
+            "name": "Robert Schütte",
+            "username": "Roba1993"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "331ba71f8faeb502f1c58d31c9696ffa4438abdb",
+          "message": "Implement OOTB template literal for bool and byte fixes #252 (#258)\n\nImplement OOTB template literal for bool and byte fixes #252",
+          "timestamp": "2021-04-07T01:53:41+02:00",
+          "tree_id": "00906947dc94a7cf824d480cf20f328feedb646e",
+          "url": "https://github.com/rune-rs/rune/commit/331ba71f8faeb502f1c58d31c9696ffa4438abdb"
+        },
+        "date": 1617753682829,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 419333549,
+            "range": "± 12876914",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 246195298,
+            "range": "± 11248171",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 285289,
+            "range": "± 20895",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 885092,
+            "range": "± 59173",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 74568994,
+            "range": "± 2594785",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1256049,
+            "range": "± 51989",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 13728612,
+            "range": "± 579545",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 11888014,
+            "range": "± 607729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 432572,
+            "range": "± 41527",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4827961,
+            "range": "± 257518",
             "unit": "ns/iter"
           }
         ]
