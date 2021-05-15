@@ -59,7 +59,7 @@ you are working on it.
 
 * Clean [Rust integration 💻][support-rust-integration].
 * Memory safe through [reference counting 📖][support-reference-counted].
-* [Template strings 📖][support-templates].
+* [Template literals 📖][support-templates].
 * [Try operators 📖][support-try].
 * [Pattern matching 📖][support-patterns].
 * [Structs and enums 📖][support-structs] with associated data and functions.
@@ -149,7 +149,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 [Open Issues]: https://github.com/rune-rs/rune/issues
 [support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
 [support-reference-counted]: https://rune-rs.github.io/book/variables.html
-[support-templates]: https://rune-rs.github.io/book/template_strings.html
+[support-templates]: https://rune-rs.github.io/book/template_literals.html
 [support-try]: https://rune-rs.github.io/book/try_operator.html
 [support-patterns]: https://rune-rs.github.io/book/pattern_matching.html
 [support-structs]: https://rune-rs.github.io/book/structs.html
