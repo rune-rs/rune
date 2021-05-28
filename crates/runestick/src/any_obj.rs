@@ -59,7 +59,43 @@ impl AnyObj {
     }
 
     /// Construct an Any that wraps a pointer.
-    pub fn from_ref<T>(data: &T) -> Self
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned `AnyObj` doesn't outlive the
+    /// reference it is wrapping.
+    ///
+    /// This would be an example of incorrect use:
+    ///
+    /// ```no_run
+    /// use runestick::{Any, AnyObj};
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = Foo(1u32);
+    /// let any = unsafe { AnyObj::from_ref(&v) };
+    ///
+    /// drop(v);
+    ///
+    /// // any use of `any` beyond here is undefined behavior.
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use runestick::{Any, AnyObj};
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = Foo(1u32);
+    ///
+    /// let any = unsafe { AnyObj::from_ref(&mut v) };
+    /// let b = any.downcast_borrow_ref::<Foo>().unwrap();
+    /// assert_eq!(b.0, 1u32);
+    /// ```
+    pub unsafe fn from_ref<T>(data: &T) -> Self
     where
         T: Any,
     {
@@ -77,7 +113,49 @@ impl AnyObj {
     }
 
     /// Construct an Any that wraps a mutable pointer.
-    pub fn from_mut<T>(data: &mut T) -> Self
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned `AnyObj` doesn't outlive the
+    /// reference it is wrapping.
+    ///
+    /// This would be an example of incorrect use:
+    ///
+    /// ```no_run
+    /// use runestick::{Any, AnyObj};
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = Foo(1u32);
+    /// let any = unsafe { AnyObj::from_mut(&mut v) };
+    ///
+    /// drop(v);
+    ///
+    /// // any use of `any` beyond here is undefined behavior.
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use runestick::{Any, AnyObj};
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = Foo(1u32);
+    ///
+    /// {
+    ///     let mut any = unsafe { AnyObj::from_mut(&mut v) };
+    ///
+    ///     if let Some(v) = any.downcast_borrow_mut::<Foo>() {
+    ///         v.0 += 1;
+    ///     }
+    /// }
+    ///
+    /// assert_eq!(v.0, 2);
+    /// ```
+    pub unsafe fn from_mut<T>(data: &mut T) -> Self
     where
         T: Any,
     {
@@ -97,6 +175,7 @@ impl AnyObj {
     /// Construct a new any with the specified raw components.
     ///
     /// ### Safety
+    ///
     /// The caller must ensure that the vtable matches up with the data pointer
     /// provided. This is primarily public for use in a C ffi.
     pub unsafe fn new_raw(vtable: &'static AnyObjVtable, data: *const ()) -> Self {

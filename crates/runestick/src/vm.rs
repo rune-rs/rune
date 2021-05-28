@@ -200,12 +200,40 @@ impl Vm {
     ///     let context = Context::with_default_modules()?;
     ///     let context = Arc::new(context.runtime());
     ///     let unit = Arc::new(Unit::default());
-    ///     // NB: normally the unit would be created by compiling some source,
+    ///     // Normally the unit would be created by compiling some source,
     ///     // and since this one is empty it won't do anything.
     ///
     ///     let vm = runestick::Vm::new(context, unit);
     ///
     ///     let output = vm.execute(&["main"], (33i64,))?.complete()?;
+    ///     let output = i64::from_value(output)?;
+    ///
+    ///     println!("output: {}", output);
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// You can use a `Vec<Value>` to provide a variadic collection of
+    /// arguments.
+    ///
+    /// ```rust,no_run
+    /// use runestick::{Context, Unit, FromValue, Source, ToValue};
+    /// use std::sync::Arc;
+    ///
+    /// fn main() -> runestick::Result<()> {
+    ///     let context = Context::with_default_modules()?;
+    ///     let context = Arc::new(context.runtime());
+    ///     let unit = Arc::new(Unit::default());
+    ///     // Normally the unit would be created by compiling some source,
+    ///     // and since this one is empty it won't do anything.
+    ///
+    ///     let vm = runestick::Vm::new(context, unit);
+    ///
+    ///     let mut args = Vec::new();
+    ///     args.push(1u32.to_value()?);
+    ///     args.push(String::from("Hello World").to_value()?);
+    ///
+    ///     let output = vm.execute(&["main"], args)?.complete()?;
     ///     let output = i64::from_value(output)?;
     ///
     ///     println!("output: {}", output);
