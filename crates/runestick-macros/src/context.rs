@@ -167,7 +167,6 @@ impl Context {
 
     /// Parse field attributes.
     pub(crate) fn parse_field_attrs(&mut self, attrs: &[syn::Attribute]) -> Option<FieldAttrs> {
-        // let (_, ty_generics, _) = generics.split_for_impl();
         macro_rules! generate_op {
             ($proto:ident, $op:tt) => {
                 |g| {
@@ -532,7 +531,7 @@ impl Context {
                 const NAME: #raw_str  = #raw_str::from_str(#name);
 
                 fn exact() -> String {
-                    [#name, "<", #(#generic_names::NAME,)* ">"].join("")
+                    [#name, "<", &#(#generic_names::exact(),)* ">"].join("")
                 }
             }
 
