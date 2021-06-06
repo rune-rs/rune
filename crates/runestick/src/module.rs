@@ -253,7 +253,7 @@ impl Module {
 
         if let Some(old) = self.types.insert(type_hash, ty) {
             return Err(ContextError::ConflictingType {
-                item: Item::with_item(&[T::raw()]),
+                item: Item::with_item(&[T::exact()]),
                 existing: old.type_info,
             });
         }

@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, GeneratorState, InstallWith, Mut, Named, RawMut, RawRef, Ref, Shared,
+    FromValue, GeneratorState, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared,
     UnsafeFromValue, Value, Vm, VmError, VmErrorKind, VmExecution,
 };
 use std::fmt;
@@ -88,7 +88,7 @@ impl fmt::Debug for Generator {
 }
 
 impl Named for Generator {
-    const NAME: &'static str = "Generator";
+    const NAME: RawStr = RawStr::from_str("Generator");
 }
 
 impl InstallWith for Generator {}

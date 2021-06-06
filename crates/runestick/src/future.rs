@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, InstallWith, Mut, Named, RawMut, RawRef, Ref, Shared, ToValue, UnsafeFromValue,
-    Value, VmError,
+    FromValue, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
+    UnsafeFromValue, Value, VmError,
 };
 use pin_project::pin_project;
 use std::fmt;
@@ -144,7 +144,7 @@ impl UnsafeFromValue for &mut Future {
 }
 
 impl Named for Future {
-    const NAME: &'static str = "Future";
+    const NAME: RawStr = RawStr::from_str("Future");
 }
 
 impl InstallWith for Future {}

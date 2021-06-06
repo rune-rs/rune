@@ -529,7 +529,7 @@ impl Context {
             quote! {
 
             impl #impl_generics #named for #ident #ty_generics #where_clause {
-                const NAME: &'static str = #name;
+                const NAME: #raw_str  = #raw_str::from_str(#name);
 
                 fn exact() -> String {
                     [#name, "<", #(#generic_names::NAME,)* ">"].join("")
@@ -540,7 +540,7 @@ impl Context {
         } else {
             quote! {
                 impl #impl_generics #named for #ident #ty_generics #where_clause {
-                    const NAME: &'static str = #name;
+                    const NAME: #raw_str = #raw_str::from_str(#name);
                 }
             }
         };

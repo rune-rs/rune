@@ -1,7 +1,7 @@
 use crate::collections::{btree_map, BTreeMap};
 use crate::{
-    FromValue, InstallWith, Item, Mut, Named, RawMut, RawRef, Ref, ToValue, UnsafeFromValue, Value,
-    Vm, VmError,
+    FromValue, InstallWith, Item, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
+    UnsafeFromValue, Value, Vm, VmError,
 };
 use std::borrow;
 use std::cmp;
@@ -330,7 +330,7 @@ impl UnsafeFromValue for &mut Object {
 }
 
 impl Named for Object {
-    const NAME: &'static str = "Object";
+    const NAME: RawStr = RawStr::from_str("Object");
 }
 
 impl InstallWith for Object {}
