@@ -526,15 +526,13 @@ impl Context {
 
         let impl_named = if !generic_names.is_empty() {
             quote! {
+                impl #impl_generics #named for #ident #ty_generics #where_clause {
+                    const NAME: #raw_str  = #raw_str::from_str(#name);
 
-            impl #impl_generics #named for #ident #ty_generics #where_clause {
-                const NAME: #raw_str  = #raw_str::from_str(#name);
-
-                fn exact() -> String {
-                    [#name, "<", &#(#generic_names::exact(),)* ">"].join("")
+                    fn exact() -> String {
+                        [#name, "<", &#(#generic_names::exact(),)* ">"].join("")
+                    }
                 }
-            }
-
             }
         } else {
             quote! {
