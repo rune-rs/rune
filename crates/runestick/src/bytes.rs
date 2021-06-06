@@ -3,8 +3,7 @@
 //! [Value::Bytes]: crate::Value::Bytes.
 
 use crate::{
-    FromValue, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value,
-    VmError,
+    FromValue, InstallWith, Mut, Named, RawMut, RawRef, Ref, UnsafeFromValue, Value, VmError,
 };
 
 use std::cmp;
@@ -179,7 +178,7 @@ impl<'a> UnsafeFromValue for &'a [u8] {
 }
 
 impl Named for Bytes {
-    const NAME: RawStr = RawStr::from_str("Bytes");
+    const NAME: &'static str = "Bytes";
 }
 
 impl InstallWith for Bytes {}

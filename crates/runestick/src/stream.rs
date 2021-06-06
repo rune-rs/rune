@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, GeneratorState, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared,
+    FromValue, GeneratorState, InstallWith, Mut, Named, RawMut, RawRef, Ref, Shared,
     UnsafeFromValue, Value, Vm, VmError, VmErrorKind, VmExecution,
 };
 use std::fmt;
@@ -100,7 +100,7 @@ impl UnsafeFromValue for &mut Stream {
 }
 
 impl Named for Stream {
-    const NAME: RawStr = RawStr::from_str("Stream");
+    const NAME: &'static str = "Stream";
 }
 
 impl InstallWith for Stream {}

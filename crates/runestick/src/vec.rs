@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, Shared, ToValue,
-    UnsafeFromValue, Value, Vm, VmError,
+    FromValue, InstallWith, Mut, Named, RawMut, RawRef, Ref, Shared, ToValue, UnsafeFromValue,
+    Value, Vm, VmError,
 };
 use std::cmp;
 use std::fmt;
@@ -182,7 +182,7 @@ impl Vec {
 }
 
 impl Named for Vec {
-    const NAME: RawStr = RawStr::from_str("Vec");
+    const NAME: &'static str = "Vec";
 }
 
 impl InstallWith for Vec {}

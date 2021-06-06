@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, Function, InstallWith, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue,
-    UnsafeFromValue, Value, VmError, VmErrorKind,
+    FromValue, Function, InstallWith, Mut, Named, RawMut, RawRef, Ref, ToValue, UnsafeFromValue,
+    Value, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::iter;
@@ -343,7 +343,7 @@ impl fmt::Debug for Iterator {
 }
 
 impl Named for Iterator {
-    const NAME: RawStr = RawStr::from_str("Iterator");
+    const NAME: &'static str = "Iterator";
 }
 
 impl InstallWith for Iterator {}

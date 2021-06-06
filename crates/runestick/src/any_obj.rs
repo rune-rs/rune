@@ -452,7 +452,7 @@ fn type_name_impl<T>() -> RawStr
 where
     T: Any,
 {
-    T::NAME
+    T::raw()
 }
 
 fn type_hash_impl<T>() -> Hash

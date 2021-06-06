@@ -1,5 +1,5 @@
 use crate::{
-    FromValue, InstallWith, Iterator, Mut, Named, Panic, RawMut, RawRef, RawStr, Ref, ToValue,
+    FromValue, InstallWith, Iterator, Mut, Named, Panic, RawMut, RawRef, Ref, ToValue,
     UnsafeFromValue, Value, Vm, VmError, VmErrorKind,
 };
 use std::fmt;
@@ -257,7 +257,7 @@ impl UnsafeFromValue for &mut Range {
 }
 
 impl Named for Range {
-    const NAME: RawStr = RawStr::from_str("Range");
+    const NAME: &'static str = "Range";
 }
 
 impl InstallWith for Range {

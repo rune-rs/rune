@@ -47,7 +47,8 @@ impl InternalCall {
             Ok(())
         };
 
-        ctx.expand_any(&self.path, &name, &expand_into, &tokens)
+        let generics = syn::Generics::default();
+        ctx.expand_any(&self.path, &name, &expand_into, &tokens, &generics)
     }
 }
 
@@ -75,7 +76,8 @@ impl Derive {
 
         let tokens = ctx.tokens_with_module(&attrs);
 
-        let install_with = match ctx.expand_install_with(&self.input, &tokens, &attrs) {
+        let generics = &self.input.generics;
+        let install_with = match ctx.expand_install_with(&self.input, &tokens, &attrs, generics) {
             Some(install_with) => install_with,
             None => return Err(ctx.errors),
         };
@@ -86,7 +88,8 @@ impl Derive {
         };
 
         let name = &quote!(#name);
+        let ident = &self.input.ident;
 
-        ctx.expand_any(&self.input.ident, &name, &install_with, &tokens)
+        ctx.expand_any(&ident, &name, &install_with, &tokens, generics)
     }
 }

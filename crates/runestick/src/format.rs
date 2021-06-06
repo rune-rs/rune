@@ -1,7 +1,7 @@
 //! Types for dealing with formatting specifications.
 
 use crate::protocol_caller::ProtocolCaller;
-use crate::{FromValue, InstallWith, Named, RawStr, Value, VmError, VmErrorKind};
+use crate::{FromValue, InstallWith, Named, Value, VmError, VmErrorKind};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::fmt;
@@ -36,7 +36,7 @@ pub struct Format {
 }
 
 impl Named for Format {
-    const NAME: RawStr = RawStr::from_str("Format");
+    const NAME: &'static str = "Format";
 }
 
 impl InstallWith for Format {}
