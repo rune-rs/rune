@@ -247,17 +247,16 @@ impl Module {
         let type_info = T::type_info();
 
         let ty = ModuleType {
-            name: String::from(&*T::NAME).into_boxed_str(),
+            name: T::full_name().into_boxed_str(),
             type_info,
         };
 
         if let Some(old) = self.types.insert(type_hash, ty) {
             return Err(ContextError::ConflictingType {
-                item: Item::with_item(&[T::NAME]),
+                item: Item::with_item(&[T::full_name()]),
                 existing: old.type_info,
             });
         }
-
         T::install_with(self)?;
         Ok(())
     }

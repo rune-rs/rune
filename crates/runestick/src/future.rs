@@ -144,7 +144,7 @@ impl UnsafeFromValue for &mut Future {
 }
 
 impl Named for Future {
-    const NAME: RawStr = RawStr::from_str("Future");
+    const BASE_NAME: RawStr = RawStr::from_str("Future");
 }
 
 impl InstallWith for Future {}

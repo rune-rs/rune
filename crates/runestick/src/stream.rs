@@ -100,7 +100,7 @@ impl UnsafeFromValue for &mut Stream {
 }
 
 impl Named for Stream {
-    const NAME: RawStr = RawStr::from_str("Stream");
+    const BASE_NAME: RawStr = RawStr::from_str("Stream");
 }
 
 impl InstallWith for Stream {}

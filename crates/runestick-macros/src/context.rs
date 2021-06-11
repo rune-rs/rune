@@ -17,6 +17,7 @@ struct Generate<'a> {
     field_ident: &'a syn::Ident,
     ty: &'a syn::Type,
     name: &'a syn::LitStr,
+    ty_generics: &'a syn::TypeGenerics<'a>,
 }
 
 pub(crate) struct FieldProtocol {
@@ -174,6 +175,7 @@ impl Context {
                         field_ident,
                         ty,
                         name,
+                        ty_generics,
                         ..
                     } = g;
 
@@ -185,7 +187,7 @@ impl Context {
                         }
                     } else {
                         quote_spanned! { g.field.span() =>
-                            module.field_fn(#protocol, #name, |s: &mut #ident, value: #ty| {
+                            module.field_fn(#protocol, #name, |s: &mut #ident #ty_generics, value: #ty| {
                                 s.#field_ident $op value;
                             })?;
                         }
@@ -210,6 +212,7 @@ impl Context {
                                     ident,
                                     field_ident,
                                     name,
+                                    ty_generics,
                                     ..
                                 } = g;
 
@@ -222,7 +225,7 @@ impl Context {
                                 let protocol = g.tokens.protocol(PROTOCOL_GET);
 
                                 quote_spanned! { g.field.span() =>
-                                    module.field_fn(#protocol, #name, |s: &#ident| #access)?;
+                                    module.field_fn(#protocol, #name, |s: &#ident #ty_generics| #access)?;
                                 }
                             },
                         });
@@ -236,13 +239,13 @@ impl Context {
                                     field_ident,
                                     ty,
                                     name,
+                                    ty_generics,
                                     ..
                                 } = g;
 
                                 let protocol = g.tokens.protocol(PROTOCOL_SET);
-
                                 quote_spanned! { g.field.span() =>
-                                    module.field_fn(#protocol, #name, |s: &mut #ident, value: #ty| {
+                                    module.field_fn(#protocol, #name, |s: &mut #ident #ty_generics, value: #ty| {
                                         s.#field_ident = value;
                                     })?;
                                 }
@@ -412,6 +415,7 @@ impl Context {
         input: &syn::DeriveInput,
         tokens: &Tokens,
         attrs: &DeriveAttrs,
+        generics: &syn::Generics,
     ) -> Option<TokenStream> {
         let mut installers = Vec::new();
 
@@ -422,7 +426,7 @@ impl Context {
         }
 
         let ident = &input.ident;
-
+        let (_, ty_generics, _) = generics.split_for_impl();
         match &input.data {
             syn::Data::Struct(st) => {
                 for field in &st.fields {
@@ -456,6 +460,7 @@ impl Context {
                             field_ident,
                             ty,
                             name,
+                            ty_generics: &ty_generics,
                         }));
                     }
                 }
@@ -487,61 +492,84 @@ impl Context {
         &self,
         ident: T,
         name: &TokenStream,
-        install_with: &TokenStream,
+        installers: &TokenStream,
         tokens: &Tokens,
+        generics: &syn::Generics,
     ) -> Result<TokenStream, Vec<syn::Error>>
     where
         T: Copy + ToTokens,
     {
-        let any = &tokens.any;
-        let context_error = &tokens.context_error;
-        let hash = &tokens.hash;
-        let module = &tokens.module;
-        let named = &tokens.named;
-        let pointer_guard = &tokens.pointer_guard;
-        let raw_into_mut = &tokens.raw_into_mut;
-        let raw_into_ref = &tokens.raw_into_ref;
-        let raw_str = &tokens.raw_str;
-        let shared = &tokens.shared;
-        let type_info = &tokens.type_info;
-        let type_of = &tokens.type_of;
-        let unsafe_from_value = &tokens.unsafe_from_value;
-        let unsafe_to_value = &tokens.unsafe_to_value;
-        let value = &tokens.value;
-        let vm_error = &tokens.vm_error;
-        let install_into_trait = &tokens.install_with;
+        let Tokens {
+            any,
+            context_error,
+            hash,
+            module,
+            named,
+            pointer_guard,
+            raw_into_mut,
+            raw_into_ref,
+            raw_str,
+            shared,
+            type_info,
+            type_of,
+            unsafe_from_value,
+            unsafe_to_value,
+            value,
+            vm_error,
+            install_with,
+            ..
+        } = &tokens;
 
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+        let generic_names = generics.type_params().map(|v| &v.ident).collect::<Vec<_>>();
+
+        let impl_named = if !generic_names.is_empty() {
+            quote! {
+                impl #impl_generics #named for #ident #ty_generics #where_clause {
+                    const BASE_NAME: #raw_str  = #raw_str::from_str(#name);
+
+                    fn full_name() -> String {
+                        [#name, "<", &#(#generic_names::full_name(),)* ">"].join("")
+                    }
+                }
+            }
+        } else {
+            quote! {
+                impl #impl_generics #named for #ident #ty_generics #where_clause {
+                    const BASE_NAME: #raw_str = #raw_str::from_str(#name);
+                }
+            }
+        };
         Ok(quote! {
-            impl #any for #ident {
+            impl #impl_generics #any for #ident #ty_generics #where_clause {
                 fn type_hash() -> #hash {
                     // Safety: `Hash` asserts that it is layout compatible with `TypeId`.
                     // TODO: remove this once we can have transmute-like functionality in a const fn.
-                    #hash::from_type_id(std::any::TypeId::of::<#ident>())
+                    #hash::from_type_id(std::any::TypeId::of::<Self>())
                 }
             }
 
-            impl #install_into_trait for #ident {
+            impl #impl_generics #install_with for #ident #ty_generics #where_clause {
                 fn install_with(module: &mut #module) -> ::std::result::Result<(), #context_error> {
-                    #install_with
+                    #installers
                 }
             }
 
-            impl #named for #ident {
-                const NAME: #raw_str = #raw_str::from_str(#name);
-            }
+            #impl_named
 
-            impl #type_of for #ident {
+            impl #impl_generics #type_of for #ident #ty_generics #where_clause {
                 fn type_hash() -> #hash {
                     <Self as #any>::type_hash()
                 }
 
                 fn type_info() -> #type_info {
-                    #type_info::Any(<Self as #named>::NAME)
+                    #type_info::Any(#raw_str::from_str(std::any::type_name::<Self>()))
                 }
             }
 
-            impl #unsafe_from_value for &#ident {
-                type Output = *const #ident;
+            impl #impl_generics #unsafe_from_value for &#ident #ty_generics #where_clause {
+                type Output = *const #ident #ty_generics;
                 type Guard = #raw_into_ref;
 
                 fn from_value(
@@ -555,8 +583,8 @@ impl Context {
                 }
             }
 
-            impl #unsafe_from_value for &mut #ident {
-                type Output = *mut #ident;
+            impl #impl_generics #unsafe_from_value for &mut #ident #ty_generics #where_clause {
+                type Output = *mut #ident  #ty_generics;
                 type Guard = #raw_into_mut;
 
                 fn from_value(
@@ -570,7 +598,7 @@ impl Context {
                 }
             }
 
-            impl #unsafe_to_value for &#ident {
+            impl #impl_generics #unsafe_to_value for &#ident #ty_generics #where_clause {
                 type Guard = #pointer_guard;
 
                 unsafe fn unsafe_to_value(self) -> ::std::result::Result<(#value, Self::Guard), #vm_error> {
@@ -579,7 +607,7 @@ impl Context {
                 }
             }
 
-            impl #unsafe_to_value for &mut #ident {
+            impl #impl_generics #unsafe_to_value for &mut #ident #ty_generics #where_clause {
                 type Guard = #pointer_guard;
 
                 unsafe fn unsafe_to_value(self) -> ::std::result::Result<(#value, Self::Guard), #vm_error> {

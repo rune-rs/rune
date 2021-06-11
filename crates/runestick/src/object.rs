@@ -330,7 +330,7 @@ impl UnsafeFromValue for &mut Object {
 }
 
 impl Named for Object {
-    const NAME: RawStr = RawStr::from_str("Object");
+    const BASE_NAME: RawStr = RawStr::from_str("Object");
 }
 
 impl InstallWith for Object {}
