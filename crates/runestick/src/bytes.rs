@@ -179,7 +179,7 @@ impl<'a> UnsafeFromValue for &'a [u8] {
 }
 
 impl Named for Bytes {
-    const NAME: RawStr = RawStr::from_str("Bytes");
+    const BASE_NAME: RawStr = RawStr::from_str("Bytes");
 }
 
 impl InstallWith for Bytes {}

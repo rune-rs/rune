@@ -343,7 +343,7 @@ impl fmt::Debug for Iterator {
 }
 
 impl Named for Iterator {
-    const NAME: RawStr = RawStr::from_str("Iterator");
+    const BASE_NAME: RawStr = RawStr::from_str("Iterator");
 }
 
 impl InstallWith for Iterator {}

@@ -36,7 +36,7 @@ pub struct Format {
 }
 
 impl Named for Format {
-    const NAME: RawStr = RawStr::from_str("Format");
+    const BASE_NAME: RawStr = RawStr::from_str("Format");
 }
 
 impl InstallWith for Format {}

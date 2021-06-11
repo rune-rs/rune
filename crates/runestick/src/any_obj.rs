@@ -431,28 +431,28 @@ fn debug_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
     T: Any,
 {
-    write!(f, "{}", T::NAME)
+    write!(f, "{}", T::BASE_NAME)
 }
 
 fn debug_ref_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
     T: Any,
 {
-    write!(f, "&{}", T::NAME)
+    write!(f, "&{}", T::BASE_NAME)
 }
 
 fn debug_mut_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
     T: Any,
 {
-    write!(f, "&mut {}", T::NAME)
+    write!(f, "&mut {}", T::BASE_NAME)
 }
 
 fn type_name_impl<T>() -> RawStr
 where
     T: Any,
 {
-    T::NAME
+    T::BASE_NAME
 }
 
 fn type_hash_impl<T>() -> Hash

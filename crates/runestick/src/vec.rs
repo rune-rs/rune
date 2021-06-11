@@ -182,7 +182,7 @@ impl Vec {
 }
 
 impl Named for Vec {
-    const NAME: RawStr = RawStr::from_str("Vec");
+    const BASE_NAME: RawStr = RawStr::from_str("Vec");
 }
 
 impl InstallWith for Vec {}

@@ -247,13 +247,13 @@ impl Module {
         let type_info = T::type_info();
 
         let ty = ModuleType {
-            name: T::exact().into_boxed_str(),
+            name: T::full_name().into_boxed_str(),
             type_info,
         };
 
         if let Some(old) = self.types.insert(type_hash, ty) {
             return Err(ContextError::ConflictingType {
-                item: Item::with_item(&[T::exact()]),
+                item: Item::with_item(&[T::full_name()]),
                 existing: old.type_info,
             });
         }

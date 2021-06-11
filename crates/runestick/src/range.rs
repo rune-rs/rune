@@ -257,7 +257,7 @@ impl UnsafeFromValue for &mut Range {
 }
 
 impl Named for Range {
-    const NAME: RawStr = RawStr::from_str("Range");
+    const BASE_NAME: RawStr = RawStr::from_str("Range");
 }
 
 impl InstallWith for Range {

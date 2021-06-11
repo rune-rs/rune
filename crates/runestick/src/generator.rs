@@ -88,7 +88,7 @@ impl fmt::Debug for Generator {
 }
 
 impl Named for Generator {
-    const NAME: RawStr = RawStr::from_str("Generator");
+    const BASE_NAME: RawStr = RawStr::from_str("Generator");
 }
 
 impl InstallWith for Generator {}
