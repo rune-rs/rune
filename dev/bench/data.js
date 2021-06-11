@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1622180393456,
+  "lastUpdate": 1623400358556,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -5968,6 +5968,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5013238,
             "range": "± 11516",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mail@tomolsson.se",
+            "name": "Tom Solberg",
+            "username": "tgolsson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "283425ff481426c0184b67179fe9b0977f3872c5",
+          "message": "add support for deriving Any on generic types (#268)\n\nadd support for deriving Any on generic types",
+          "timestamp": "2021-06-11T10:25:30+02:00",
+          "tree_id": "8473344c72de5580496a246942dc18b087e23d1c",
+          "url": "https://github.com/rune-rs/rune/commit/283425ff481426c0184b67179fe9b0977f3872c5"
+        },
+        "date": 1623400357614,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 398326879,
+            "range": "± 7097245",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 239110027,
+            "range": "± 3666672",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 279132,
+            "range": "± 11958",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 842945,
+            "range": "± 29098",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 71106939,
+            "range": "± 1524917",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1224639,
+            "range": "± 75077",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 13061718,
+            "range": "± 313276",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 11230644,
+            "range": "± 266421",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 417965,
+            "range": "± 10083",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4645622,
+            "range": "± 24643",
             "unit": "ns/iter"
           }
         ]
