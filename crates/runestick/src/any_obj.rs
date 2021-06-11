@@ -4,6 +4,7 @@ use crate::{Any, Hash, RawStr};
 use std::any;
 use std::fmt;
 use std::mem::ManuallyDrop;
+use std::ops::{Deref, DerefMut};
 use thiserror::Error;
 
 /// Errors raised during casting operations.
@@ -112,6 +113,49 @@ impl AnyObj {
         }
     }
 
+    /// Construct an Any that wraps a Deref type, behaving as the Target of
+    /// the Deref implementation
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned `AnyObj` doesn't outlive the
+    /// dereference target.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use runestick::{Any, AnyObj};
+    /// use std::cell::RefCell;
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = RefCell::new(Foo(1u32));
+    /// let mut guard = v.borrow();
+    ///
+    /// let any = unsafe { AnyObj::from_deref(guard) };
+    ///
+    /// let b = any.downcast_borrow_ref::<Foo>().unwrap();
+    /// assert_eq!(b.0, 1u32);
+    /// ```
+    pub unsafe fn from_deref<T, U: Deref<Target = T>>(data: U) -> Self
+    where
+        T: Any,
+    {
+        let boxed_guard = Box::into_raw(Box::new(data));
+        Self {
+            vtable: &AnyObjVtable {
+                kind: AnyObjKind::RefPtr,
+                drop: drop_impl::<U>,
+                as_ptr: as_ptr_deref_impl::<T, U>,
+                debug: debug_ref_impl::<T>,
+                type_name: type_name_impl::<T>,
+                type_hash: type_hash_impl::<T>,
+            },
+            data: boxed_guard as *const _ as *const (),
+        }
+    }
+
     /// Construct an Any that wraps a mutable pointer.
     ///
     /// # Safety
@@ -168,7 +212,51 @@ impl AnyObj {
                 type_name: type_name_impl::<T>,
                 type_hash: type_hash_impl::<T>,
             },
-            data: data as *mut _ as *mut () as *const (),
+            data: data as *const _ as *const (),
+        }
+    }
+
+    /// Construct an Any that wraps a DerefMut type, behaving as the Target of
+    /// the DerefMut implementation
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the returned `AnyObj` doesn't outlive the
+    /// dereference target.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use runestick::{Any, AnyObj};
+    /// use std::cell::RefCell;
+    ///
+    /// #[derive(Any)]
+    /// struct Foo(u32);
+    ///
+    /// let mut v = RefCell::new(Foo(1u32));
+    /// let mut guard = v.borrow_mut();
+    ///
+    /// let any = unsafe { AnyObj::from_deref_mut(guard) };
+    ///
+    /// let b = any.downcast_borrow_ref::<Foo>().unwrap();
+    /// assert_eq!(b.0, 1u32);
+    /// ```
+    pub unsafe fn from_deref_mut<T, U: DerefMut<Target = T>>(data: U) -> Self
+    where
+        T: Any,
+    {
+        let boxed_guard = Box::into_raw(Box::new(data));
+
+        Self {
+            vtable: &AnyObjVtable {
+                kind: AnyObjKind::MutPtr,
+                drop: drop_impl::<U>,
+                as_ptr: as_ptr_deref_mut_impl::<T, U>,
+                debug: debug_mut_impl::<T>,
+                type_name: type_name_impl::<T>,
+                type_hash: type_hash_impl::<T>,
+            },
+            data: boxed_guard as *const _ as *const (),
         }
     }
 
@@ -231,11 +319,7 @@ impl AnyObj {
     where
         T: Any,
     {
-        if self.is::<T>() {
-            unsafe { Some(&*(self.data as *const T)) }
-        } else {
-            None
-        }
+        unsafe { (self.vtable.as_ptr)(self.data, Hash::from_any::<T>()).map(|v| &*(v as *const _)) }
     }
 
     /// Returns some mutable reference to the boxed value if it is of type `T`, or
@@ -258,10 +342,8 @@ impl AnyObj {
     where
         T: Any,
     {
-        if self.is::<T>() {
-            unsafe { Some(&mut *(self.data as *mut () as *mut T)) }
-        } else {
-            None
+        unsafe {
+            (self.vtable.as_ptr)(self.data, Hash::from_any::<T>()).map(|v| &mut *(v as *mut _))
         }
     }
 
@@ -368,7 +450,7 @@ impl Drop for AnyObj {
 pub type DropFn = unsafe fn(*const ());
 
 /// The signature of a pointer coercion function.
-pub type AsPtrFn = unsafe fn(*const (), expected: Hash) -> Option<*const ()>;
+pub type AsPtrFn = unsafe fn(this: *const (), expected: Hash) -> Option<*const ()>;
 
 /// The signature of a descriptive type name function.
 pub type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
@@ -420,6 +502,36 @@ where
 {
     if expected == Hash::from_type_id(any::TypeId::of::<T>()) {
         Some(this)
+    } else {
+        None
+    }
+}
+
+fn as_ptr_deref_impl<T, U: std::ops::Deref<Target = T>>(
+    this: *const (),
+    expected: Hash,
+) -> Option<*const ()>
+where
+    T: Any,
+{
+    if expected == Hash::from_type_id(any::TypeId::of::<T>()) {
+        let guard = this as *const U;
+        unsafe { Some((*guard).deref() as *const _ as *const ()) }
+    } else {
+        None
+    }
+}
+
+fn as_ptr_deref_mut_impl<T, U: std::ops::DerefMut<Target = T>>(
+    this: *const (),
+    expected: Hash,
+) -> Option<*const ()>
+where
+    T: Any,
+{
+    if expected == Hash::from_type_id(any::TypeId::of::<T>()) {
+        let guard = this as *mut U;
+        unsafe { Some((*guard).deref_mut() as *const _ as *const ()) }
     } else {
         None
     }
