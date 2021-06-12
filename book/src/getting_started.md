@@ -7,6 +7,7 @@ be provided to it, and it will do its best to describe it.
 ```rune
 {{#include ../../scripts/book/getting_started/dbg.rn}}
 ```
+> **Note**: by convention Rune uses files ending in .rn.
 
 ```text
 $> cargo run --bin rune -- run scripts/book/getting_started/dbg.rn
