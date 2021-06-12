@@ -4,9 +4,12 @@ The first thing you need to learn about in Rune is the `dbg` function. This is
 used to "debug" values provided to it in order to understand them. Anything can
 be provided to it, and it will do its best to describe it.
 
+We'll create a new file called dbg.rn:
+
 ```rune
 {{#include ../../scripts/book/getting_started/dbg.rn}}
 ```
+> **Note**: by convention Rune uses files ending in .rn.
 
 ```text
 $> cargo run --bin rune -- run scripts/book/getting_started/dbg.rn

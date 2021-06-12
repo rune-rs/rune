@@ -6,8 +6,6 @@ familiarize yourself with Rune.
 Rune is an open source embeddable dynamic programming language that compiles and
 runs on a virtual machine called Runestick (thanks Brendan).
 
-Rune's file extension is '.rn'.
-
 The goal of Rune is to reimagine Rust as a dynamic programming language. Trying
 to mimic as many concepts as possible, and remixing the ones which do not
 translate directly. We do this by using the same syntax as Rust. But a few
