@@ -138,19 +138,21 @@ impl AnyObj {
     /// let b = any.downcast_borrow_ref::<Foo>().unwrap();
     /// assert_eq!(b.0, 1u32);
     /// ```
-    pub unsafe fn from_deref<T, U: Deref<Target = T>>(data: U) -> Self
+    pub unsafe fn from_deref<T>(data: T) -> Self
     where
-        T: Any,
+        T: Deref,
+        T::Target: Any,
     {
         let boxed_guard = Box::into_raw(Box::new(data));
+
         Self {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::RefPtr,
-                drop: drop_impl::<U>,
-                as_ptr: as_ptr_deref_impl::<T, U>,
-                debug: debug_ref_impl::<T>,
-                type_name: type_name_impl::<T>,
-                type_hash: type_hash_impl::<T>,
+                drop: drop_impl::<T>,
+                as_ptr: as_ptr_deref_impl::<T>,
+                debug: debug_ref_impl::<T::Target>,
+                type_name: type_name_impl::<T::Target>,
+                type_hash: type_hash_impl::<T::Target>,
             },
             data: boxed_guard as *const _ as *const (),
         }
@@ -241,20 +243,21 @@ impl AnyObj {
     /// let b = any.downcast_borrow_ref::<Foo>().unwrap();
     /// assert_eq!(b.0, 1u32);
     /// ```
-    pub unsafe fn from_deref_mut<T, U: DerefMut<Target = T>>(data: U) -> Self
+    pub unsafe fn from_deref_mut<T>(data: T) -> Self
     where
-        T: Any,
+        T: DerefMut,
+        T::Target: Any,
     {
         let boxed_guard = Box::into_raw(Box::new(data));
 
         Self {
             vtable: &AnyObjVtable {
                 kind: AnyObjKind::MutPtr,
-                drop: drop_impl::<U>,
-                as_ptr: as_ptr_deref_mut_impl::<T, U>,
-                debug: debug_mut_impl::<T>,
-                type_name: type_name_impl::<T>,
-                type_hash: type_hash_impl::<T>,
+                drop: drop_impl::<T>,
+                as_ptr: as_ptr_deref_mut_impl::<T>,
+                debug: debug_mut_impl::<T::Target>,
+                type_name: type_name_impl::<T::Target>,
+                type_hash: type_hash_impl::<T::Target>,
             },
             data: boxed_guard as *const _ as *const (),
         }
@@ -507,30 +510,24 @@ where
     }
 }
 
-fn as_ptr_deref_impl<T, U: std::ops::Deref<Target = T>>(
-    this: *const (),
-    expected: Hash,
-) -> Option<*const ()>
+fn as_ptr_deref_impl<T: Deref>(this: *const (), expected: Hash) -> Option<*const ()>
 where
-    T: Any,
+    T::Target: Any,
 {
-    if expected == Hash::from_type_id(any::TypeId::of::<T>()) {
-        let guard = this as *const U;
+    if expected == Hash::from_type_id(any::TypeId::of::<T::Target>()) {
+        let guard = this as *const T;
         unsafe { Some((*guard).deref() as *const _ as *const ()) }
     } else {
         None
     }
 }
 
-fn as_ptr_deref_mut_impl<T, U: std::ops::DerefMut<Target = T>>(
-    this: *const (),
-    expected: Hash,
-) -> Option<*const ()>
+fn as_ptr_deref_mut_impl<T: DerefMut>(this: *const (), expected: Hash) -> Option<*const ()>
 where
-    T: Any,
+    T::Target: Any,
 {
-    if expected == Hash::from_type_id(any::TypeId::of::<T>()) {
-        let guard = this as *mut U;
+    if expected == Hash::from_type_id(any::TypeId::of::<T::Target>()) {
+        let guard = this as *mut T;
         unsafe { Some((*guard).deref_mut() as *const _ as *const ()) }
     } else {
         None
@@ -548,28 +545,28 @@ where
 
 fn debug_ref_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
-    T: Any,
+    T: ?Sized + Any,
 {
     write!(f, "&{}", T::BASE_NAME)
 }
 
 fn debug_mut_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
-    T: Any,
+    T: ?Sized + Any,
 {
     write!(f, "&mut {}", T::BASE_NAME)
 }
 
 fn type_name_impl<T>() -> RawStr
 where
-    T: Any,
+    T: ?Sized + Any,
 {
     T::BASE_NAME
 }
 
 fn type_hash_impl<T>() -> Hash
 where
-    T: Any,
+    T: ?Sized + Any,
 {
     T::type_hash()
 }
