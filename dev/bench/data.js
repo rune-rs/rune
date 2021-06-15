@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1623522475710,
+  "lastUpdate": 1623741293518,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -6136,6 +6136,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4259834,
             "range": "± 487277",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mail@tomolsson.se",
+            "name": "Tom Solberg",
+            "username": "tgolsson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1a3b1b1e7edf614d000bb85d601700078b88c6b0",
+          "message": "Enable passing Deref/DerefMut into Rune as Values (#269)\n\n* enable passing external guards into Rune\r\n\r\n* remove unneeded type parameter\r\n\r\nCo-authored-by: John-John Tedro <udoprog@tedro.se>",
+          "timestamp": "2021-06-15T09:07:17+02:00",
+          "tree_id": "fe52e15a04d558d76b6b969b93c9112f8d11ad20",
+          "url": "https://github.com/rune-rs/rune/commit/1a3b1b1e7edf614d000bb85d601700078b88c6b0"
+        },
+        "date": 1623741292620,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 420433474,
+            "range": "± 3291447",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 259502116,
+            "range": "± 6922020",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 297089,
+            "range": "± 6967",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 897162,
+            "range": "± 9132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 75905530,
+            "range": "± 1112592",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1303297,
+            "range": "± 39563",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 14014841,
+            "range": "± 159782",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 12085015,
+            "range": "± 153166",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 444286,
+            "range": "± 1525",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4848676,
+            "range": "± 5641",
             "unit": "ns/iter"
           }
         ]
