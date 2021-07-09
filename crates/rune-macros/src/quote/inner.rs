@@ -1,7 +1,7 @@
 use proc_macro2 as p;
 
 pub(crate) const S: Punct = Punct::new("::");
-pub(crate) const RUNE: &'static str = "rune";
+pub(crate) const RUNE: &str = "rune";
 pub(crate) const MACROS: RuneModule = RuneModule("macros");
 pub(crate) const AST: RuneModule = RuneModule("ast");
 

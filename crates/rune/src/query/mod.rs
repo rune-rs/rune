@@ -30,7 +30,7 @@ mod query_error;
 /// An internally resolved macro.
 pub(crate) enum BuiltInMacro {
     Template(BuiltInTemplate),
-    Format(BuiltInFormat),
+    Format(Box<BuiltInFormat>),
     File(BuiltInFile),
     Line(BuiltInLine),
 }
@@ -580,7 +580,7 @@ impl Query {
             indexed: Indexed::Import(Import { wildcard, entry }),
         });
 
-        return Ok(());
+        Ok(())
     }
 
     /// Check if unit contains the given name by prefix.
@@ -987,8 +987,7 @@ impl QueryInner {
             return Ok(Some(cur));
         }
 
-        let mut locations = Vec::new();
-        locations.push((cur.item.location, cur.item().clone()));
+        let mut locations = vec![(cur.item.location, cur.item().clone())];
 
         while let Some(oth) = it.next() {
             locations.push((oth.item.location, oth.item().clone()));
@@ -1706,7 +1705,7 @@ fn struct_body_meta(
     let mut fields = HashSet::new();
 
     for (ast::Field { name, .. }, _) in st {
-        let name = name.resolve(&storage, &*source)?;
+        let name = name.resolve(storage, &*source)?;
         fields.insert(name.into());
     }
 

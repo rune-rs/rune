@@ -26,7 +26,7 @@ async fn get(url: &str) -> Result<Response, Error> {
     opts.method("GET");
     opts.mode(web_sys::RequestMode::Cors);
 
-    let window = web_sys::window().ok_or_else(|| Error)?;
+    let window = web_sys::window().ok_or(Error)?;
     let request = web_sys::Request::new_with_str(url).map_err(|_| Error)?;
     let inner = JsFuture::from(window.fetch_with_request(&request))
         .await
@@ -41,6 +41,6 @@ impl Response {
     async fn text(&self) -> Result<String, Error> {
         let text = self.inner.text().map_err(|_| Error)?;
         let text = JsFuture::from(text).await.map_err(|_| Error)?;
-        text.as_string().ok_or_else(|| Error)
+        text.as_string().ok_or(Error)
     }
 }

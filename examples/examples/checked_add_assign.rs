@@ -9,10 +9,7 @@ struct External {
 
 impl External {
     fn value_add_assign(&mut self, other: i64) -> Result<(), VmError> {
-        self.value = self
-            .value
-            .checked_add(other)
-            .ok_or_else(|| VmErrorKind::Overflow)?;
+        self.value = self.value.checked_add(other).ok_or(VmErrorKind::Overflow)?;
 
         Ok(())
     }

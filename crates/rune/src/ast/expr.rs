@@ -231,21 +231,14 @@ impl Expr {
         match self {
             Self::Lit(..) => return true,
             Self::Unary(expr_unary) => {
-                if let ast::ExprUnary {
-                    op: ast::UnOp::Neg,
-                    expr,
-                    ..
-                } = &**expr_unary
-                {
-                    if let Self::Lit(expr) = expr {
-                        return matches!(
-                            &**expr,
-                            ast::ExprLit {
-                                lit: ast::Lit::Number(..),
-                                ..
-                            }
-                        );
-                    }
+                if let Self::Lit(expr) = &expr_unary.expr {
+                    return matches!(
+                        expr.as_ref(),
+                        ast::ExprLit {
+                            lit: ast::Lit::Number(..),
+                            ..
+                        }
+                    );
                 }
             }
             _ => (),
@@ -356,7 +349,7 @@ impl Expr {
         };
 
         let lhs = Self::parse_chain(p, lhs, callable)?;
-        Ok(Self::parse_binary(p, lhs, 0, EagerBrace(true))?)
+        Self::parse_binary(p, lhs, 0, EagerBrace(true))
     }
 
     /// Parse a basic expression.
@@ -366,12 +359,7 @@ impl Expr {
         eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
         if let Some(path) = p.parse::<Option<ast::Path>>()? {
-            return Ok(Self::parse_with_meta_path(
-                p,
-                attributes,
-                path,
-                eager_brace,
-            )?);
+            return Self::parse_with_meta_path(p, attributes, path, eager_brace);
         }
 
         if ast::Lit::peek_in_expr(p.peeker()) {

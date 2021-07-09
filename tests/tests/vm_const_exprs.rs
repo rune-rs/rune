@@ -18,10 +18,7 @@ macro_rules! test_op {
 
 #[test]
 fn test_const_values() {
-    assert_eq!(
-        true,
-        rune!(bool => const VALUE = true; pub fn main() { VALUE })
-    );
+    assert!(rune!(bool => const VALUE = true; pub fn main() { VALUE }));
 
     assert_eq!(
         "Hello World",
@@ -178,7 +175,7 @@ fn test_const_fn() {
     const fn foo(n) {
         `foo ${n}`
     }
-    
+
     pub fn main() {
         foo(`bar ${VALUE}`)
     }
@@ -192,14 +189,14 @@ fn test_const_fn() {
         const fn foo(a, b) {
             `foo ${a} ${b} ${bar("biz")}`
         }
-        
+
         const fn bar(c) {
             c
         }
-        
+
         pub fn main() {
             VALUE
-        }    
+        }
     "#};
 
     assert_eq!(result, "foo bar baz biz");

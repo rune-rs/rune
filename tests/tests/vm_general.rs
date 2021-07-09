@@ -24,44 +24,36 @@ fn test_small_programs() {
 
 #[test]
 fn test_boolean_ops() {
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { true && true }),
-        true,
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { true && false }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { true && false }),
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { false && true }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { false && true }),
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { false && false }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { false && false }),
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { true || true }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { true || false }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { false || true }),
-        true,
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { false || false }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { false || false }),
     };
 }
 
@@ -260,7 +252,7 @@ fn test_for() {
         10,
     };
 
-    assert_eq! {
+    assert! {
         rune! { bool =>
             use std::iter::range;
 
@@ -279,7 +271,6 @@ fn test_for() {
                 a is unit
             }
         },
-        true,
     };
 }
 
@@ -305,13 +296,12 @@ fn test_return() {
 
 #[test]
 fn test_is() {
-    assert_eq! {
-        rune! { bool =>
+    assert! {
+        !rune! { bool =>
             pub fn main() {
                 {} is Object
             }
         },
-        false,
     };
 
     assert!(rune!(bool => pub fn main() { #{} is Object }));
@@ -346,7 +336,7 @@ fn test_destructuring() {
 
 #[test]
 fn test_if_pattern() {
-    assert_eq! {
+    assert! {
         rune! { bool =>
             pub fn main() {
                 if let [value] = [()] {
@@ -356,11 +346,10 @@ fn test_if_pattern() {
                 }
             }
         },
-        true,
     };
 
-    assert_eq! {
-        rune! { bool =>
+    assert! {
+        !rune! { bool =>
             pub fn main() {
                 if let [value] = [(), ()] {
                     true
@@ -369,7 +358,6 @@ fn test_if_pattern() {
                 }
             }
         },
-        false,
     };
 
     assert_eq! {

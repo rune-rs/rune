@@ -42,10 +42,10 @@ fn main() -> runestick::Result<()> {
 
     let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
-    let mut foo = Foo::default();
+    let mut test = Foo::default();
 
-    let output = vm.call(&["main"], (&mut foo,))?;
+    let output = vm.call(&["main"], (&mut test,))?;
     println!("output: {:?}", output);
-    println!("output: {:?}", foo);
+    println!("output: {:?}", test);
     Ok(())
 }

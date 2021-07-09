@@ -54,7 +54,7 @@ impl IrCompiler<'_> {
 
                         return Ok(ir::IrTarget {
                             span: expr.span(),
-                            kind: ir::IrTargetKind::Field(Box::new(target), field.into()),
+                            kind: ir::IrTargetKind::Field(Box::new(target), field),
                         });
                     }
                     ast::ExprField::LitNumber(number) => {
@@ -159,14 +159,13 @@ impl IrCompile for ast::ItemFn {
         let mut args = Vec::new();
 
         for (arg, _) in &self.args {
-            match arg {
-                ast::FnArg::Pat(ast::Pat::PatPath(path)) => {
+            if let ast::FnArg::Pat(pat) = arg {
+                if let ast::Pat::PatPath(path) = pat.as_ref() {
                     if let Some(ident) = path.path.try_as_ident() {
                         args.push(c.resolve(ident)?.into());
                         continue;
                     }
                 }
-                _ => (),
             }
 
             return Err(IrError::msg(arg, "unsupported argument in const fn"));

@@ -140,7 +140,7 @@ impl<'a> Worker<'a> {
                     let queue = &mut self.queue;
 
                     let result =
-                        import.process(&self.context, &self.storage, &self.query, &mut |task| {
+                        import.process(self.context, &self.storage, &self.query, &mut |task| {
                             queue.push_back(task);
                         });
 

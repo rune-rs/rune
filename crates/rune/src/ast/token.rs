@@ -23,7 +23,7 @@ impl Token {
             }
             Kind::Ident(s) => match s {
                 StringSource::Text => {
-                    let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
+                    let s = ctx.source().source(self.span).ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 StringSource::Synthetic(id) => {
@@ -38,7 +38,7 @@ impl Token {
             },
             Kind::Label(s) => match s {
                 StringSource::Text => {
-                    let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
+                    let s = ctx.source().source(self.span).ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 StringSource::Synthetic(id) => {
@@ -53,7 +53,7 @@ impl Token {
             },
             Kind::Byte(s) => match s {
                 CopySource::Text => {
-                    let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
+                    let s = ctx.source().source(self.span).ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 CopySource::Inline(b) => {
@@ -68,7 +68,7 @@ impl Token {
                         self.span
                     };
 
-                    let s = ctx.source().source(span).ok_or_else(|| fmt::Error)?;
+                    let s = ctx.source().source(span).ok_or(fmt::Error)?;
                     write!(f, "b\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
@@ -83,7 +83,7 @@ impl Token {
             },
             Kind::Char(s) => match s {
                 CopySource::Text => {
-                    let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
+                    let s = ctx.source().source(self.span).ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 CopySource::Inline(c) => {
@@ -92,7 +92,7 @@ impl Token {
             },
             Kind::Number(s) => match s {
                 NumberSource::Text(_) => {
-                    let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
+                    let s = ctx.source().source(self.span).ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 NumberSource::Synthetic(id) => {
@@ -110,7 +110,7 @@ impl Token {
                         self.span
                     };
 
-                    let s = ctx.source().source(span).ok_or_else(|| fmt::Error)?;
+                    let s = ctx.source().source(span).ok_or(fmt::Error)?;
                     write!(f, "\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
@@ -177,8 +177,9 @@ pub enum Number {
 
 impl Number {
     /// Negate the inner number.
+    #[allow(clippy::should_implement_trait)]
     pub fn neg(self) -> Self {
-        use std::ops::Neg as _;
+        use std::ops::Neg;
 
         match self {
             Self::Float(n) => Self::Float(-n),

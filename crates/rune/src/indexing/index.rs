@@ -293,7 +293,7 @@ impl<'a> Indexer<'a> {
         }
 
         p.eof()?;
-        Ok(BuiltInMacro::Format(BuiltInFormat {
+        Ok(BuiltInMacro::Format(Box::new(BuiltInFormat {
             span: ast.span(),
             fill,
             align,
@@ -302,7 +302,7 @@ impl<'a> Indexer<'a> {
             flags,
             format_type,
             value,
-        }))
+        })))
     }
 
     /// Expand a macro returning the current file
@@ -400,7 +400,7 @@ impl<'a> Indexer<'a> {
 
                     let queue = &mut self.queue;
 
-                    import.process(&self.context, &self.storage, &self.query, &mut |task| {
+                    import.process(self.context, &self.storage, &self.query, &mut |task| {
                         queue.push_back(task);
                     })?;
                 }
@@ -457,7 +457,7 @@ impl<'a> Indexer<'a> {
 
                     let queue = &mut self.queue;
 
-                    import.process(&self.context, &self.storage, &self.query, &mut |task| {
+                    import.process(self.context, &self.storage, &self.query, &mut |task| {
                         queue.push_back(task);
                     })?;
                 }

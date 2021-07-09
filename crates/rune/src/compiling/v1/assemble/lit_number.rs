@@ -14,7 +14,7 @@ impl Assemble for ast::LitNumber {
             return Ok(Asm::top(span));
         }
 
-        let number = self.resolve(&c.storage, &*c.source)?;
+        let number = self.resolve(c.storage, &*c.source)?;
 
         match number {
             ast::Number::Float(number) => {

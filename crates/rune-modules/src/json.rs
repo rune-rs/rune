@@ -44,7 +44,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 }
 
 fn from_bytes(bytes: &[u8]) -> runestick::Result<Value> {
-    Ok(serde_json::from_slice(&bytes)?)
+    Ok(serde_json::from_slice(bytes)?)
 }
 
 /// Get value from json string.

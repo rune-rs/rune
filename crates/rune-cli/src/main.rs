@@ -65,6 +65,14 @@ mod tests;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
 
+type PathResult = Result<(
+    Arc<Unit>,
+    runestick::Context,
+    Arc<runestick::RuntimeContext>,
+    rune::Sources,
+    Vec<(runestick::Hash, runestick::CompileMeta)>,
+)>;
+
 #[derive(StructOpt, Debug, Clone)]
 enum Command {
     /// Run checks but do not execute
@@ -379,13 +387,7 @@ fn load_path(
     args: &Args,
     options: &rune::Options,
     path: &Path,
-) -> Result<(
-    Arc<Unit>,
-    runestick::Context,
-    Arc<runestick::RuntimeContext>,
-    rune::Sources,
-    Vec<(runestick::Hash, runestick::CompileMeta)>,
-)> {
+) -> PathResult {
     let shared = args.shared();
     let context = shared.context()?;
 
@@ -399,7 +401,7 @@ fn load_path(
 
     sources.insert(source);
 
-    let use_cache = options.bytecode && should_cache_be_used(&path, &bytecode_path)?;
+    let use_cache = options.bytecode && should_cache_be_used(path, &bytecode_path)?;
 
     // TODO: how do we deal with tests discovery for bytecode loading
     let maybe_unit = if use_cache {
@@ -431,15 +433,14 @@ fn load_path(
             };
 
             let test_finder = Rc::new(tests::TestVisitor::default());
-            let source_loader = Rc::new(rune::FileSourceLoader::new());
 
             let result = rune::load_sources_with_visitor(
                 &context,
-                &options,
+                options,
                 &mut sources,
                 &mut diagnostics,
                 test_finder.clone(),
-                source_loader.clone(),
+                Rc::new(rune::FileSourceLoader::new()),
             );
 
             diagnostics.emit_diagnostics(out, &sources)?;
@@ -500,29 +501,26 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 rune::Diagnostics::without_warnings()
             };
 
-            let test_finder = Rc::new(tests::TestVisitor::default());
-            let source_loader = Rc::new(rune::FileSourceLoader::new());
-
             let _ = rune::load_sources_with_visitor(
                 &context,
-                &options,
+                options,
                 &mut sources,
                 &mut diagnostics,
-                test_finder.clone(),
-                source_loader.clone(),
+                Rc::new(tests::TestVisitor::default()),
+                Rc::new(rune::FileSourceLoader::new()),
             );
 
             diagnostics.emit_diagnostics(&mut out, &sources).unwrap();
 
-            if diagnostics.has_error() {
-                Ok(ExitCode::Failure)
-            } else if checkargs.warnings_are_errors && diagnostics.has_warning() {
+            if diagnostics.has_error()
+                || (checkargs.warnings_are_errors && diagnostics.has_warning())
+            {
                 Ok(ExitCode::Failure)
             } else {
                 Ok(ExitCode::Success)
             }
         }
-        Command::Test(testflags) => match load_path(&mut out, args, &options, path) {
+        Command::Test(testflags) => match load_path(&mut out, args, options, path) {
             Ok((unit, _context, runtime, sources, tests)) => {
                 tests::do_tests(testflags, out, runtime, unit, sources, tests).await
             }
@@ -530,7 +528,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         },
         Command::Run(runargs) => {
             let (unit, context, runtime, sources, _tests) =
-                match load_path(&mut out, args, &options, path) {
+                match load_path(&mut out, args, options, path) {
                     Ok(v) => v,
                     Err(_) => return Ok(ExitCode::Failure),
                 };
@@ -592,7 +590,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                     }
                 }
             }
-            do_run(&runargs, out, runtime, unit, sources).await
+            do_run(runargs, out, runtime, unit, sources).await
         }
     }
 }

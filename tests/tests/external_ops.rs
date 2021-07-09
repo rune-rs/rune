@@ -73,18 +73,18 @@ fn test_external_ops() {
             let vm = Vm::new(Arc::new(context.runtime()), unit);
 
             {
-                let mut foo = External::default();
-                foo.value = $initial;
-                foo.field = $initial;
-                foo.derived = $initial;
-                foo.custom = $initial;
+                let mut test = External::default();
+                test.value = $initial;
+                test.field = $initial;
+                test.derived = $initial;
+                test.custom = $initial;
 
-                let output = vm.clone().call(&["type"], (&mut foo,)).unwrap();
+                let output = vm.clone().call(&["type"], (&mut test,)).unwrap();
 
-                assert_eq!(foo.value, $expected, "{} != {} (value)", foo.value, $expected);
-                assert_eq!(foo.field, $expected, "{} != {} (field)", foo.value, $expected);
-                assert_eq!(foo.derived, $expected, "{} != {} (derived)", foo.value, $expected);
-                assert_eq!(foo.custom, $expected, "{} != {} (custom)", foo.value, $expected);
+                assert_eq!(test.value, $expected, "{} != {} (value)", test.value, $expected);
+                assert_eq!(test.field, $expected, "{} != {} (field)", test.value, $expected);
+                assert_eq!(test.derived, $expected, "{} != {} (derived)", test.value, $expected);
+                assert_eq!(test.custom, $expected, "{} != {} (custom)", test.value, $expected);
                 assert!(matches!(output, Value::Unit));
             }
         }};

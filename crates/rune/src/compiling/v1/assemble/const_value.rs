@@ -40,7 +40,7 @@ impl AssembleConst for ConstValue {
                 c.asm.push(Inst::bool(*b), span);
             }
             ConstValue::String(s) => {
-                let slot = c.unit.new_static_string(span, &s)?;
+                let slot = c.unit.new_static_string(span, s)?;
                 c.asm.push(Inst::String { slot }, span);
             }
             ConstValue::StaticString(s) => {

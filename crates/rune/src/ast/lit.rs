@@ -62,15 +62,10 @@ impl Lit {
     /// * Object literals that start with a path (handled in [ast::Expr::parse_with_meta_path]).
     /// * Tuple literals that start with a path (handled in [ast::Expr::parse_open_paren]).
     pub(crate) fn peek_in_expr(p: &mut Peeker<'_>) -> bool {
-        match p.nth(0) {
-            K![true] | K![false] => true,
-            K![byte] => true,
-            K![number] => true,
-            K![char] => true,
-            K![str] => true,
-            K![bytestr] => true,
-            _ => false,
-        }
+        matches!(
+            p.nth(0),
+            K![true] | K![false] | K![byte] | K![number] | K![char] | K![str] | K![bytestr]
+        )
     }
 }
 

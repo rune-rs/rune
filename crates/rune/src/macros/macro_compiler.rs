@@ -93,7 +93,7 @@ impl MacroCompiler<'_> {
                         return Err(CompileError::new(
                             error.span(),
                             CompileErrorKind::CallMacroError {
-                                item: named.item.clone(),
+                                item: named.item,
                                 error: error.into_inner(),
                             },
                         ));
@@ -104,7 +104,7 @@ impl MacroCompiler<'_> {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::CallMacroError {
-                        item: named.item.clone(),
+                        item: named.item,
                         error,
                     },
                 ));
@@ -117,7 +117,7 @@ impl MacroCompiler<'_> {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::CallMacroError {
-                        item: named.item.clone(),
+                        item: named.item,
                         error: runestick::Error::msg(format!(
                             "failed to downcast macro result, expected `{}`",
                             std::any::type_name::<TokenStream>()

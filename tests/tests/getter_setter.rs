@@ -41,15 +41,15 @@ fn test_getter_setter() {
 
     let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
-    let mut foo = Foo {
+    let mut test = Foo {
         number: 42,
         string: String::from("Hello"),
     };
 
-    let output = vm.call(&["main"], (&mut foo,)).unwrap();
+    let output = vm.call(&["main"], (&mut test,)).unwrap();
 
-    assert_eq!(foo.number, 43);
-    assert_eq!(foo.string, "Hello World");
+    assert_eq!(test.number, 43);
+    assert_eq!(test.string, "Hello World");
 
     assert!(matches!(output, Value::Unit));
 }

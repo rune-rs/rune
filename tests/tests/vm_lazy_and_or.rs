@@ -2,23 +2,19 @@ use rune_tests::*;
 
 #[test]
 fn test_lazy_and_or() {
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { true || return false }),
-        true,
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { false && return true }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { false && return true }),
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { false || false || {return true; false} || false }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { false && false && {return false; false} || true }),
-        true,
-    };
+    }
 }

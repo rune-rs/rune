@@ -111,8 +111,10 @@ impl<T> Scopes<T> {
     /// Push an isolate scope and return the guard associated with the scope.
     pub(crate) fn isolate(&mut self) -> ScopeGuard {
         let length = self.scopes.len();
-        let mut scope = Scope::default();
-        scope.kind = ScopeKind::Isolate;
+        let scope = Scope::<T> {
+            kind: ScopeKind::Isolate,
+            ..Default::default()
+        };
         self.scopes.push(scope);
         ScopeGuard { length }
     }

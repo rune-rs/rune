@@ -28,7 +28,7 @@ impl Future {
         Self {
             future: Some(Box::pin(async move {
                 let value = future.await?;
-                Ok(value.to_value()?)
+                value.to_value()
             })),
         }
     }

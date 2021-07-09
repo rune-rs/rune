@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
+#[allow(dead_code)]
 pub struct IrInterpreter<'a> {
     /// A budget associated with the compiler, for how many expressions it's
     /// allowed to evaluate.

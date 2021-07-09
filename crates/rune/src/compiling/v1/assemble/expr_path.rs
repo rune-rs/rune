@@ -44,11 +44,11 @@ impl Assemble for ast::Path {
             }
         };
 
-        return Err(CompileError::new(
+        Err(CompileError::new(
             span,
             CompileErrorKind::MissingItem {
                 item: named.item.clone(),
             },
-        ));
+        ))
     }
 }

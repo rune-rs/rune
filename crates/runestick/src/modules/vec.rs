@@ -32,7 +32,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// Sort a vector of integers.
 fn sort_int(vec: &mut Vec) {
     vec.sort_by(|a, b| match (a, b) {
-        (Value::Integer(a), Value::Integer(b)) => a.cmp(&b),
+        (Value::Integer(a), Value::Integer(b)) => a.cmp(b),
         // NB: fall back to sorting by address.
         _ => (a as *const _ as usize).cmp(&(b as *const _ as usize)),
     });

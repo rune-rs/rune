@@ -138,7 +138,7 @@ impl Expander {
         let mut fields = Vec::new();
 
         for field in &named.named {
-            let ident = self.ctx.field_ident(&field)?;
+            let ident = self.ctx.field_ident(field)?;
             let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
 
             if attrs.skip() {
@@ -181,7 +181,7 @@ impl Expander {
         let mut idents = Vec::new();
 
         for field in &named.named {
-            let ident = self.ctx.field_ident(&field)?;
+            let ident = self.ctx.field_ident(field)?;
             let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
             idents.push(ident);
 

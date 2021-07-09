@@ -34,7 +34,7 @@ impl Generator {
         let execution = self
             .execution
             .as_mut()
-            .ok_or_else(|| VmErrorKind::GeneratorComplete)?;
+            .ok_or(VmErrorKind::GeneratorComplete)?;
 
         if !mem::take(&mut self.first) {
             execution.vm_mut()?.stack_mut().push(value);
@@ -95,7 +95,7 @@ impl InstallWith for Generator {}
 
 impl FromValue for Shared<Generator> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_generator()?)
+        value.into_generator()
     }
 }
 

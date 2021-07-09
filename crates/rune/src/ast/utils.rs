@@ -32,9 +32,7 @@ pub(super) fn parse_byte_escape(
     it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
     with_line_cont: WithLineCont,
 ) -> Result<Option<u8>, ResolveErrorKind> {
-    let (_, c) = it
-        .next()
-        .ok_or_else(|| ResolveErrorKind::BadEscapeSequence)?;
+    let (_, c) = it.next().ok_or(ResolveErrorKind::BadEscapeSequence)?;
 
     Ok(Some(match c {
         '\n' | '\r' if *with_line_cont => {
@@ -79,9 +77,7 @@ pub(super) fn parse_char_escape(
     with_template: WithTemplate,
     with_line_cont: WithLineCont,
 ) -> Result<Option<char>, ResolveErrorKind> {
-    let (_, c) = it
-        .next()
-        .ok_or_else(|| ResolveErrorKind::BadEscapeSequence)?;
+    let (_, c) = it.next().ok_or(ResolveErrorKind::BadEscapeSequence)?;
 
     Ok(Some(match c {
         '\n' | '\r' if *with_line_cont => {
@@ -131,11 +127,11 @@ fn parse_hex_escape(
     let mut result = 0u32;
 
     for _ in 0..2 {
-        let (_, c) = it.next().ok_or_else(|| ResolveErrorKind::BadByteEscape)?;
+        let (_, c) = it.next().ok_or(ResolveErrorKind::BadByteEscape)?;
 
         result = result
             .checked_shl(4)
-            .ok_or_else(|| ResolveErrorKind::BadByteEscape)?;
+            .ok_or(ResolveErrorKind::BadByteEscape)?;
 
         result += match c {
             '0'..='9' => c as u32 - '0' as u32,
@@ -161,9 +157,7 @@ pub(super) fn parse_unicode_escape(
     let mut result = 0u32;
 
     loop {
-        let (_, c) = it
-            .next()
-            .ok_or_else(|| ResolveErrorKind::BadUnicodeEscape)?;
+        let (_, c) = it.next().ok_or(ResolveErrorKind::BadUnicodeEscape)?;
 
         match c {
             '}' => {

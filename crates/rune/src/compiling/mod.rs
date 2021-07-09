@@ -26,6 +26,7 @@ use crate::parsing::Resolve as _;
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
 
 /// Compile the given source with default options.
+#[allow(clippy::result_unit_err)]
 pub fn compile(
     context: &Context,
     sources: &mut Sources,

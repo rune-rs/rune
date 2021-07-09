@@ -456,7 +456,7 @@ impl<'a> Iterator for Iter<'a> {
         self.content = content;
         return Some(c);
 
-        fn read_string<'a>(content: &'a [u8], n: usize) -> (&'a str, &'a [u8], &'a [u8]) {
+        fn read_string(content: &[u8], n: usize) -> (&str, &[u8], &[u8]) {
             let (buf, content) = content.split_at(n);
 
             // consume the head tag.
@@ -476,7 +476,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
             return None;
         }
 
-        let content = &self.content[..];
+        let content = self.content;
         let (content, tail) = content.split_at(
             content
                 .len()
@@ -503,7 +503,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
         self.content = content;
         return Some(c);
 
-        fn read_string_back<'a>(content: &'a [u8], n: usize) -> (&'a str, &'a [u8]) {
+        fn read_string_back(content: &[u8], n: usize) -> (&str, &[u8]) {
             let (content, buf) =
                 content.split_at(content.len().checked_sub(n).expect("length underflow"));
 
@@ -924,9 +924,7 @@ mod tests {
     #[test]
     fn store_max_string() {
         let mut item = Item::new();
-        let s = std::iter::repeat('x')
-            .take(super::MAX_DATA - 1)
-            .collect::<String>();
+        let s = "x".repeat(super::MAX_DATA - 1);
         item.push(ComponentRef::Str(&s));
         assert_eq!(item.last(), Some(ComponentRef::Str(&s)));
     }
@@ -943,9 +941,7 @@ mod tests {
     #[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
     fn store_max_string_overflow() {
         let mut item = Item::new();
-        let s = std::iter::repeat('x')
-            .take(super::MAX_DATA)
-            .collect::<String>();
+        let s = "x".repeat(super::MAX_DATA);
         item.push(ComponentRef::Str(&s));
     }
 

@@ -395,7 +395,7 @@ impl IrAssignOp {
     {
         if let IrValue::Integer(target) = target {
             if let IrValue::Integer(operand) = operand {
-                return Ok(self.assign_int(spanned, target, operand)?);
+                return self.assign_int(spanned, target, operand);
             }
         }
 

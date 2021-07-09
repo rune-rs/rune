@@ -24,7 +24,7 @@ impl Assemble for ast::ExprFieldAccess {
 
         match &self.expr_field {
             ast::ExprField::LitNumber(n) => {
-                if let Some(index) = n.resolve(&c.storage, &*c.source)?.as_tuple_index() {
+                if let Some(index) = n.resolve(c.storage, &*c.source)?.as_tuple_index() {
                     c.asm.push(Inst::TupleIndexGet { index }, span);
 
                     if !needs.value() {
@@ -37,7 +37,7 @@ impl Assemble for ast::ExprFieldAccess {
             }
             ast::ExprField::Path(path) => {
                 if let Some(ident) = path.try_as_ident() {
-                    let field = ident.resolve(&c.storage, &*c.source)?;
+                    let field = ident.resolve(c.storage, &*c.source)?;
                     let slot = c.unit.new_static_string(span, field.as_ref())?;
 
                     c.asm.push(Inst::ObjectIndexGet { slot }, span);

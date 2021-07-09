@@ -470,6 +470,7 @@ impl Value {
     ///
     /// Note that this function will always failed if called outside of a
     /// virtual machine.
+    #[allow(clippy::should_implement_trait)]
     pub fn into_iter(self) -> Result<Iterator, VmError> {
         use crate::FromValue as _;
 
@@ -531,7 +532,7 @@ impl Value {
                 match name {
                     ConstValue::String(s) => return Ok(s.clone()),
                     ConstValue::StaticString(s) => return Ok((*s).to_string()),
-                    _ => Err(VmError::expected::<String>(name.type_info()))?,
+                    _ => return Err(VmError::expected::<String>(name.type_info())),
                 }
             }
 
@@ -539,7 +540,7 @@ impl Value {
                 match name {
                     ConstValue::String(s) => return Ok(s.clone()),
                     ConstValue::StaticString(s) => return Ok((*s).to_string()),
-                    _ => Err(VmError::expected::<String>(name.type_info()))?,
+                    _ => return Err(VmError::expected::<String>(name.type_info())),
                 }
             }
 
@@ -1024,7 +1025,7 @@ impl Value {
             (a, b) => {
                 if vm.call_instance_fn(a.clone(), Protocol::EQ, (b.clone(),))? {
                     use crate::FromValue as _;
-                    return Ok(bool::from_value(vm.stack.pop()?)?);
+                    return bool::from_value(vm.stack.pop()?);
                 }
             }
         }

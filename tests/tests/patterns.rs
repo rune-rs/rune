@@ -45,19 +45,16 @@ fn test_patterns() {
 
 #[test]
 fn test_vec_patterns() {
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [] { [..] => true } }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [] { [..] => true, _ => false } }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [1, 2] { [a, b] => a + 1 == b } }),
-        true,
     };
 
     assert_eq! {
@@ -65,92 +62,75 @@ fn test_vec_patterns() {
         (),
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [1, 2] { [a, b] => a + 1 == b, _ => false } }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [1, 2] { [a, b, ..] => a + 1 == b, _ => false } }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [1, 2] { [1, ..] => true, _ => false } }),
-        true,
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [] => true, _ => false } }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { match [1, 2] { [] => true, _ => false } }),
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [1, 2] { [1, 2] => true, _ => false } }),
-        true,
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [1] => true, _ => false } }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { match [1, 2] { [1] => true, _ => false } }),
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [1, [2, 3]] { [1, [2, ..]] => true, _ => false } }),
-        true,
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, []] { [1, [2, ..]] => true, _ => false } }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { match [1, []] { [1, [2, ..]] => true, _ => false } }),
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match [1, [2, 3]] { [1, [2, 3]] => true, _ => false } }),
-        true,
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, [2, 4]] { [1, [2, 3]] => true, _ => false } }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { match [1, [2, 4]] { [1, [2, 3]] => true, _ => false } }),
     };
 }
 
 #[test]
 fn test_object_patterns() {
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match #{} { #{..} => true } }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match #{foo: true} { #{foo} => foo, _ => false } }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match #{} { #{..} => true, _ => false } }),
-        true,
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v, ..} => v == 10, _ => false } }),
-        true,
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v} => v == 10, _ => false } }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v} => v == 10, _ => false } }),
     };
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v} => v == 10, _ => false } }),
-        false,
+    assert! {
+        !rune!(bool => pub fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v} => v == 10, _ => false } }),
     };
 
-    assert_eq! {
+    assert! {
         rune!(bool => pub fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v, ..} => v == 10, _ => false } }),
-        true,
     };
 }
 

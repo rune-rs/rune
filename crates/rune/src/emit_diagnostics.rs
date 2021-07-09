@@ -161,7 +161,7 @@ impl EmitDiagnostics for VmError {
                 );
 
                 (
-                    format!("wrong number of arguments"),
+                    "wrong number of arguments".to_string(),
                     vec![
                         format!("expected `{}`", expected),
                         format!("got `{}`", actual),
@@ -312,7 +312,7 @@ where
         .with_labels(labels)
         .with_notes(notes);
 
-    term::emit(out, &config, files, &diagnostic)?;
+    term::emit(out, config, files, &diagnostic)?;
     Ok(())
 }
 
@@ -455,7 +455,7 @@ where
                 );
             }
             CompileErrorKind::CallMacroError { item, .. } => {
-                notes.push(format!("Error originated in the `{}` macro", item).into());
+                notes.push(format!("Error originated in the `{}` macro", item));
             }
             CompileErrorKind::NestedTest { nested_span } => {
                 labels.push(

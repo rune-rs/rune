@@ -170,7 +170,7 @@ fn bf_loopity(b: &mut Bencher) -> runestick::Result<()> {
         execution.complete().expect("successful execution");
     });
     assert!(rune_tests::capture_output::drain_output()
-        .map(|v| v.len() == 0)
+        .map(|v| v.is_empty())
         .unwrap_or(false));
     Ok(())
 }

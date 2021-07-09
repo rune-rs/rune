@@ -75,7 +75,9 @@ impl TestCase {
             // everything is just async when called externally.
             UnitFn::Offset { offset, .. } => offset,
             _ => {
-                return Err(VmError::from(VmErrorKind::MissingFunction { hash: self.hash }).into());
+                return Err(VmError::from(VmErrorKind::MissingFunction {
+                    hash: self.hash,
+                }));
             }
         };
 
@@ -147,7 +149,7 @@ impl TestCase {
             FailureReason::Crash(err) => {
                 writeln!(out, "----------------------------------------")?;
                 writeln!(out, "Test: {}\n", self.meta.item.item)?;
-                err.emit_diagnostics(out, &sources)
+                err.emit_diagnostics(out, sources)
                     .expect("failed writing diagnostics");
             }
             FailureReason::ReturnedNone => {}
@@ -195,7 +197,7 @@ pub(crate) async fn do_tests(
     }
 
     if test_args.quiet {
-        writeln!(out, "")?;
+        writeln!(out)?;
     }
     let elapsed = start.elapsed();
 

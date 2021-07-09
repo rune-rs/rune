@@ -105,7 +105,9 @@ impl Key {
             Ok(output.into_boxed_slice())
         }
 
-        fn struct_from_value(object: &Object) -> Result<Box<[(Box<str>, Key)]>, VmError> {
+        type StructFromValueRet = Result<Box<[(Box<str>, Key)]>, VmError>;
+
+        fn struct_from_value(object: &Object) -> StructFromValueRet {
             let mut output = vec::Vec::with_capacity(object.len());
 
             for (key, value) in object {
@@ -133,10 +135,9 @@ impl Key {
                 StringKey::StaticString(s) => Value::StaticString(s),
             },
             Self::Bytes(b) => Value::Bytes(Shared::new(b)),
-            Self::Option(option) => Value::Option(Shared::new(match option {
-                Some(some) => Some(some.into_value()),
-                None => None,
-            })),
+            Self::Option(option) => {
+                Value::Option(Shared::new(option.map(|some| some.into_value())))
+            }
             Self::Vec(vec) => {
                 let mut v = Vec::with_capacity(vec.len());
 

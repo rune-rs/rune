@@ -3,6 +3,7 @@ use crate::{Block, Error, Var};
 use std::fmt;
 
 /// The central state machine assembler.
+#[derive(Default)]
 pub struct Program {
     global: Global,
     blocks: Vec<Block>,
@@ -11,10 +12,7 @@ pub struct Program {
 impl Program {
     /// Construct a new empty state machine.
     pub fn new() -> Self {
-        Self {
-            global: Global::default(),
-            blocks: Vec::new(),
-        }
+        Self::default()
     }
 
     /// Seal the given program.

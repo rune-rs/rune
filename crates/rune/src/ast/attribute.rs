@@ -77,11 +77,7 @@ impl Parse for Attribute {
 
 impl Peek for Attribute {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        match (p.nth(0), p.nth(1)) {
-            (K![#], K![!]) => true,
-            (K![#], K!['[']) => true,
-            _ => false,
-        }
+        matches!((p.nth(0), p.nth(1)), (K![#], K![!]) | (K![#], K!['[']))
     }
 }
 
@@ -136,16 +132,13 @@ pub struct OuterAttribute;
 
 impl Peek for OuterAttribute {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        match (p.nth(0), p.nth(1)) {
-            (K![#], K![!]) => true,
-            _ => false,
-        }
+        matches!((p.nth(0), p.nth(1)), (K![#], K![!]))
     }
 }
 
 #[test]
 fn test_parse_attribute() {
-    const TEST_STRINGS: &[&'static str] = &[
+    const TEST_STRINGS: &[&str] = &[
         "#[foo]",
         "#[a::b::c]",
         "#[foo = \"hello world\"]",

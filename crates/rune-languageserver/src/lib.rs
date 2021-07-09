@@ -118,13 +118,13 @@ async fn initialize(
         .log(lsp::MessageType::Info, "Starting language server")
         .await?;
 
-    let mut capabilities = lsp::ServerCapabilities::default();
-
-    capabilities.text_document_sync = Some(lsp::TextDocumentSyncCapability::Kind(
-        lsp::TextDocumentSyncKind::Incremental,
-    ));
-
-    capabilities.definition_provider = Some(lsp::OneOf::Left(true));
+    let capabilities = lsp::ServerCapabilities {
+        text_document_sync: Some(lsp::TextDocumentSyncCapability::Kind(
+            lsp::TextDocumentSyncKind::Incremental,
+        )),
+        definition_provider: Some(lsp::OneOf::Left(true)),
+        ..Default::default()
+    };
 
     let server_info = lsp::ServerInfo {
         name: String::from("Rune Language Server"),

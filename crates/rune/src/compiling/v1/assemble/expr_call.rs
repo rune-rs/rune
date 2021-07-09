@@ -38,7 +38,7 @@ impl Assemble for ast::ExprCall {
                                 c.scopes.decl_anon(span)?;
                             }
 
-                            let ident = ident.resolve(&c.storage, &*c.source)?;
+                            let ident = ident.resolve(c.storage, &*c.source)?;
                             let hash = Hash::instance_fn_name(ident.as_ref());
                             c.asm.push(Inst::CallInstance { hash, args }, span);
                             false
@@ -102,7 +102,7 @@ impl Assemble for ast::ExprCall {
 
         match &meta.kind {
             CompileMetaKind::UnitStruct { .. } | CompileMetaKind::UnitVariant { .. } => {
-                if 0 != self.args.len() {
+                if !self.args.is_empty() {
                     return Err(CompileError::new(
                         span,
                         CompileErrorKind::UnsupportedArgumentCount {

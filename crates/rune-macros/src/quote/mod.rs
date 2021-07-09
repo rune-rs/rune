@@ -39,8 +39,7 @@ impl Quote {
     fn process(&self, input: TokenStream) -> Result<Builder, Error> {
         let mut output = Builder::new();
 
-        let mut stack = Vec::new();
-        stack.push((p::Delimiter::None, input.into_iter().peekable()));
+        let mut stack = vec![(p::Delimiter::None, input.into_iter().peekable())];
 
         while let Some((_, it)) = stack.last_mut() {
             let tt = match it.next() {
@@ -217,17 +216,15 @@ fn consume_punct<'o>(
     }
 
     for o in out {
-        let p = match it.peek() {
-            Some(TokenTree::Punct(p)) => p,
+        let (spacing, ch) = match it.peek() {
+            Some(TokenTree::Punct(p)) => (p.spacing(), p.as_char()),
             _ => break,
         };
 
-        *o = p.as_char();
+        *o = ch;
 
-        if matches!(p.spacing(), p::Spacing::Joint) {
-            it.next();
-        } else {
-            it.next();
+        it.next();
+        if !matches!(spacing, p::Spacing::Joint) {
             break;
         }
     }

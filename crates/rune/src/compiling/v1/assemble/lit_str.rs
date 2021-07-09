@@ -12,7 +12,7 @@ impl Assemble for ast::LitStr {
             return Ok(Asm::top(span));
         }
 
-        let string = self.resolve(&c.storage, &*c.source)?;
+        let string = self.resolve(c.storage, &*c.source)?;
         let slot = c.unit.new_static_string(span, &*string)?;
         c.asm.push(Inst::String { slot }, span);
         Ok(Asm::top(span))

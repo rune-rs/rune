@@ -87,11 +87,9 @@ item_parse!(Fn, ItemFn, "function item");
 
 impl Peek for ItemFn {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        match (p.nth(0), p.nth(1)) {
-            (K![fn], _) => true,
-            (K![async], K![fn]) => true,
-            (K![const], K![fn]) => true,
-            _ => false,
-        }
+        matches!(
+            (p.nth(0), p.nth(1)),
+            (K![fn], _) | (K![async], K![fn]) | (K![const], K![fn])
+        )
     }
 }

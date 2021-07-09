@@ -31,11 +31,10 @@ pub struct ExprObject {
 
 impl Peek for ExprObject {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        match (p.nth(0), p.nth(1)) {
-            (K![ident], K!['{']) => true,
-            (K![#], K!['{']) => true,
-            _ => false,
-        }
+        matches!(
+            (p.nth(0), p.nth(1)),
+            (K![ident], K!['{']) | (K![#], K!['{'])
+        )
     }
 }
 

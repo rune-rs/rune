@@ -99,7 +99,7 @@ impl Vm {
     /// If any async instructions are encountered, this will error.
     pub fn complete(self) -> Result<Value, VmError> {
         let mut execution = VmExecution::new(self);
-        Ok(execution.complete()?)
+        execution.complete()
     }
 
     /// Run the given vm to completion with support for async functions.
@@ -951,7 +951,7 @@ impl Vm {
                         return Ok(None);
                     }
 
-                    Some(f(&tuple_struct.data()))
+                    Some(f(tuple_struct.data()))
                 }
                 _ => None,
             },
@@ -1030,7 +1030,7 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
+            .ok_or(VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         match (type_check, value) {
             (TypeCheck::Object, Value::Object(object)) => {
@@ -2112,7 +2112,7 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
+            .ok_or(VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         let mut object = Object::with_capacity(keys.len());
         let values = self.stack.drain_stack_top(keys.len())?;
@@ -2147,7 +2147,7 @@ impl Vm {
         let rtti = self
             .unit
             .lookup_rtti(hash)
-            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+            .ok_or(VmErrorKind::MissingRtti { hash })?;
 
         self.stack.push(UnitStruct { rtti: rtti.clone() });
         Ok(())
@@ -2159,12 +2159,12 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
+            .ok_or(VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         let rtti = self
             .unit
             .lookup_rtti(hash)
-            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+            .ok_or(VmErrorKind::MissingRtti { hash })?;
 
         let values = self.stack.drain_stack_top(keys.len())?;
         let mut data = Object::with_capacity(keys.len());
@@ -2187,7 +2187,7 @@ impl Vm {
         let rtti = self
             .unit
             .lookup_variant_rtti(hash)
-            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+            .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
 
         self.stack.push(Variant::unit(rtti.clone()));
         Ok(())
@@ -2199,12 +2199,12 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
+            .ok_or(VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         let rtti = self
             .unit
             .lookup_variant_rtti(hash)
-            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+            .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
 
         let mut data = Object::with_capacity(keys.len());
         let values = self.stack.drain_stack_top(keys.len())?;
@@ -2462,7 +2462,7 @@ impl Vm {
                     let rtti = self
                         .unit
                         .lookup_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+                        .ok_or(VmErrorKind::MissingRtti { hash })?;
 
                     Function::from_unit_struct(rtti.clone())
                 }
@@ -2470,7 +2470,7 @@ impl Vm {
                     let rtti = self
                         .unit
                         .lookup_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+                        .ok_or(VmErrorKind::MissingRtti { hash })?;
 
                     Function::from_tuple_struct(rtti.clone(), args)
                 }
@@ -2478,7 +2478,7 @@ impl Vm {
                     let rtti = self
                         .unit
                         .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+                        .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
 
                     Function::from_unit_variant(rtti.clone())
                 }
@@ -2486,7 +2486,7 @@ impl Vm {
                     let rtti = self
                         .unit
                         .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+                        .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
 
                     Function::from_tuple_variant(rtti.clone(), args)
                 }
@@ -2495,7 +2495,7 @@ impl Vm {
                 let handler = self
                     .context
                     .lookup(hash)
-                    .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
+                    .ok_or(VmErrorKind::MissingFunction { hash })?;
 
                 Function::from_handler(handler.clone(), hash)
             }
@@ -2511,7 +2511,7 @@ impl Vm {
         let info = self
             .unit
             .lookup(hash)
-            .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
+            .ok_or(VmErrorKind::MissingFunction { hash })?;
 
         let (offset, call, args) = match info {
             UnitFn::Offset { offset, call, args } => (offset, call, args),
@@ -2553,7 +2553,7 @@ impl Vm {
                     let rtti = self
                         .unit
                         .lookup_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+                        .ok_or(VmErrorKind::MissingRtti { hash })?;
 
                     self.stack.push(Value::unit_struct(rtti.clone()));
                 }
@@ -2567,7 +2567,7 @@ impl Vm {
                     let rtti = self
                         .unit
                         .lookup_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+                        .ok_or(VmErrorKind::MissingRtti { hash })?;
 
                     self.stack.push(Value::tuple_struct(rtti.clone(), tuple));
                 }
@@ -2580,7 +2580,7 @@ impl Vm {
                     let rtti = self
                         .unit
                         .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+                        .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
 
                     let tuple = self.stack.pop_sequence(args)?;
                     self.stack.push(Value::tuple_variant(rtti.clone(), tuple));
@@ -2591,7 +2591,7 @@ impl Vm {
                     let rtti = self
                         .unit
                         .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+                        .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
 
                     self.stack.push(Value::unit_variant(rtti.clone()));
                 }
@@ -2600,7 +2600,7 @@ impl Vm {
                 let handler = self
                     .context
                     .lookup(hash)
-                    .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
+                    .ok_or(VmErrorKind::MissingFunction { hash })?;
 
                 handler(&mut self.stack, args)?;
             }
@@ -2724,7 +2724,7 @@ impl Vm {
             let inst = *self
                 .unit
                 .instruction_at(self.ip)
-                .ok_or_else(|| VmErrorKind::IpOutOfBounds)?;
+                .ok_or(VmErrorKind::IpOutOfBounds)?;
 
             log::trace!("{}: {}", self.ip, inst);
 

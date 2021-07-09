@@ -137,7 +137,7 @@ impl FormatSpec {
     fn format_fill(
         &self,
         out: &mut String,
-        buf: &String,
+        buf: &str,
         align: Alignment,
         fill: char,
         sign: Option<char>,
@@ -149,7 +149,7 @@ impl FormatSpec {
         let mut w = self.width.map(|n| n.get()).unwrap_or_default();
 
         if w == 0 {
-            out.push_str(&buf);
+            out.push_str(buf);
             return;
         }
 
@@ -158,7 +158,7 @@ impl FormatSpec {
             .saturating_sub(sign.map(|_| 1).unwrap_or_default());
 
         if w == 0 {
-            out.push_str(&buf);
+            out.push_str(buf);
             return;
         }
 
@@ -166,17 +166,17 @@ impl FormatSpec {
 
         match align {
             Alignment::Left => {
-                out.push_str(&buf);
+                out.push_str(buf);
                 out.extend(filler);
             }
             Alignment::Center => {
                 out.extend((&mut filler).take(w / 2));
-                out.push_str(&buf);
+                out.push_str(buf);
                 out.extend(filler);
             }
             Alignment::Right => {
                 out.extend(filler);
-                out.push_str(&buf);
+                out.push_str(buf);
             }
         }
     }
@@ -342,14 +342,16 @@ impl FormatSpec {
         buf: &mut String,
         caller: impl ProtocolCaller,
     ) -> Result<(), VmError> {
-        Ok(match self.format_type {
+        match self.format_type {
             Type::Display => self.format_display(value, out, buf, caller)?,
             Type::Debug => self.format_debug(value, out, buf, caller)?,
             Type::UpperHex => self.format_upper_hex(value, out, buf)?,
             Type::LowerHex => self.format_lower_hex(value, out, buf)?,
             Type::Binary => self.format_binary(value, out, buf)?,
             Type::Pointer => self.format_pointer(value, out, buf)?,
-        })
+        };
+
+        Ok(())
     }
 }
 

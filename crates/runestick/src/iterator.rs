@@ -122,6 +122,7 @@ impl Iterator {
     }
 
     /// Get the next value out of the iterator.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Result<Option<Value>, VmError> {
         self.iter.next()
     }
@@ -898,19 +899,14 @@ where
         let (lower, upper) = self.iter.size_hint();
 
         let lower = lower.saturating_sub(self.n);
-        let upper = match upper {
-            Some(x) => Some(x.saturating_sub(self.n)),
-            None => None,
-        };
+        let upper = upper.map(|x| x.saturating_sub(self.n));
 
         (lower, upper)
     }
 
     #[inline]
     fn next(&mut self) -> Result<Option<Value>, VmError> {
-        if self.n == 0 {
-            self.iter.next()
-        } else {
+        if self.n > 0 {
             let old_n = self.n;
             self.n = 0;
 
@@ -920,9 +916,9 @@ where
                     None => return Ok(None),
                 }
             }
-
-            self.iter.next()
         }
+
+        self.iter.next()
     }
 
     #[inline]

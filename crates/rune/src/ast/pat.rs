@@ -98,12 +98,14 @@ impl Parse for Pat {
                 }))
             }
             K!['('] => {
-                return Ok(match p.nth(1)? {
-                    _ => Self::PatTuple(PatTuple {
+                return Ok({
+                    let _nth = p.nth(1)?;
+
+                    Self::PatTuple(PatTuple {
                         attributes,
                         path: None,
                         items: p.parse()?,
-                    }),
+                    })
                 });
             }
             K!['['] => {

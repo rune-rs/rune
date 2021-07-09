@@ -107,28 +107,24 @@ pub enum BinOp {
 impl BinOp {
     /// Test if operator is an assign operator.
     pub fn is_assign(self) -> bool {
-        match self {
-            Self::AddAssign => true,
-            Self::SubAssign => true,
-            Self::MulAssign => true,
-            Self::DivAssign => true,
-            Self::RemAssign => true,
-            Self::BitAndAssign => true,
-            Self::BitXorAssign => true,
-            Self::BitOrAssign => true,
-            Self::ShlAssign => true,
-            Self::ShrAssign => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::AddAssign
+                | Self::SubAssign
+                | Self::MulAssign
+                | Self::DivAssign
+                | Self::RemAssign
+                | Self::BitAndAssign
+                | Self::BitXorAssign
+                | Self::BitOrAssign
+                | Self::ShlAssign
+                | Self::ShrAssign
+        )
     }
 
     /// Test if operator is a condiational operator.
     pub fn is_conditional(self) -> bool {
-        match self {
-            Self::And => true,
-            Self::Or => true,
-            _ => false,
-        }
+        matches!(self, Self::And | Self::Or)
     }
 
     /// Get the precedence for the current operator.
@@ -153,21 +149,21 @@ impl BinOp {
 
     /// Test if operator is left associative.
     pub(super) fn is_assoc(self) -> bool {
-        match self {
-            Self::Mul => true,
-            Self::Div => true,
-            Self::Add => true,
-            Self::Sub => true,
-            Self::Or => true,
-            Self::And => true,
-            Self::Rem => true,
-            Self::Shl => true,
-            Self::Shr => true,
-            Self::BitAnd => true,
-            Self::BitOr => true,
-            Self::BitXor => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::Mul
+                | Self::Div
+                | Self::Add
+                | Self::Sub
+                | Self::Or
+                | Self::And
+                | Self::Rem
+                | Self::Shl
+                | Self::Shr
+                | Self::BitAnd
+                | Self::BitOr
+                | Self::BitXor
+        )
     }
 
     /// Convert from a token.

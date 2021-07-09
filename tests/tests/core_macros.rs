@@ -76,8 +76,8 @@ fn test_strings() {
 
 #[test]
 fn test_float_formatting() {
-    test_case!("{:.10}", 3.1415);
-    test_case!("{:.*}", 10, 3.1415);
+    test_case!("{:.10}", 3.141592);
+    test_case!("{:.*}", 10, 3.141592);
 }
 
 #[test]
