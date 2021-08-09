@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/rune-rs/rune/compare/0.9.0...main
+[Unreleased]: https://github.com/rune-rs/rune/compare/0.9.1...main
+
+## [0.9.1]
+
+### Fixed
+* Fixed memory leak when defining functions ([#273]) (thanks [MicahSchiewe]).
+
+### Added
+* Enable passing Deref/DerefMut into Rune as Values ([#269]) (thanks [tgolsson]).
+* Support for deriving `Any` on generic types ([#268]) (thanks [tgolsson]).
+* Add display implementations for byte and bool ([#258]) (thanks [Roba1993]).
+
+## Changed
+* Correctly mark AnyObj::{from_ref, from_mut} as both super unsafe ([#265])
+* Various internal refactorings (thanks [Roba1993]).
+
+[0.9.1]: https://github.com/rune-rs/rune/compare/0.9.0...0.9.1
+
+[#273]: https://github.com/rune-rs/rune/issues/273
+[#269]: https://github.com/rune-rs/rune/issues/269
+[#268]: https://github.com/rune-rs/rune/issues/268
+[#265]: https://github.com/rune-rs/rune/issues/265
+
+[tgolsson]: https://github.com/tgolsson
+[MicahSchiewe]: https://github.com/MicahSchiewe
+[Roba1993]: https://github.com/Roba1993
 
 ## [0.9.0]
 
