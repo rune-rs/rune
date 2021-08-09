@@ -3,8 +3,8 @@
 use crate::collections::{HashMap, HashSet};
 use crate::{CompileError, CompileErrorKind};
 use runestick::{CompileMetaCapture, Span};
+use std::cell::RefCell;
 use std::rc::Rc;
-use std::{cell::RefCell, mem::ManuallyDrop};
 
 /// The kind of an indexed function.
 #[derive(Debug, Clone, Copy)]
@@ -15,6 +15,7 @@ pub(crate) enum IndexFnKind {
 }
 
 #[derive(Debug)]
+#[must_use]
 pub struct IndexScopeGuard {
     levels: Rc<RefCell<Vec<IndexScopeLevel>>>,
 }
@@ -22,9 +23,7 @@ pub struct IndexScopeGuard {
 impl IndexScopeGuard {
     /// Pop the last closure scope and return captured variables.
     pub(crate) fn into_closure(self, span: Span) -> Result<Closure, CompileError> {
-        let this = ManuallyDrop::new(self);
-
-        let level = this
+        let level = self
             .levels
             .borrow_mut()
             .pop()
@@ -44,12 +43,10 @@ impl IndexScopeGuard {
 
     /// Pop the last function scope and return function information.
     pub(crate) fn into_function(self, span: Span) -> Result<Function, CompileError> {
-        let this = ManuallyDrop::new(self);
+        let levels = self.levels.borrow();
 
-        let level = this
-            .levels
-            .borrow_mut()
-            .pop()
+        let level = levels
+            .last()
             .ok_or_else(|| CompileError::msg(&span, "missing scope"))?;
 
         match level {
@@ -65,8 +62,8 @@ impl IndexScopeGuard {
 
 impl Drop for IndexScopeGuard {
     fn drop(&mut self) {
-        let exists = self.levels.borrow_mut().pop().is_some();
-        debug_assert!(exists);
+        let removed = self.levels.borrow_mut().pop();
+        debug_assert!(removed.is_some());
     }
 }
 
@@ -310,9 +307,8 @@ impl IndexScopes {
 
     /// Push a function.
     pub(crate) fn push_function(&mut self, kind: IndexFnKind) -> IndexScopeGuard {
-        self.levels
-            .borrow_mut()
-            .push(IndexScopeLevel::IndexFunction(IndexFunction::new(kind)));
+        let mut levels = self.levels.borrow_mut();
+        levels.push(IndexScopeLevel::IndexFunction(IndexFunction::new(kind)));
 
         IndexScopeGuard {
             levels: self.levels.clone(),
@@ -321,11 +317,10 @@ impl IndexScopes {
 
     /// Push a closure boundary.
     pub(crate) fn push_closure(&mut self, kind: IndexFnKind, do_move: bool) -> IndexScopeGuard {
-        self.levels
-            .borrow_mut()
-            .push(IndexScopeLevel::IndexClosure(IndexClosure::new(
-                kind, do_move,
-            )));
+        let mut levels = self.levels.borrow_mut();
+        levels.push(IndexScopeLevel::IndexClosure(IndexClosure::new(
+            kind, do_move,
+        )));
 
         IndexScopeGuard {
             levels: self.levels.clone(),
@@ -334,12 +329,20 @@ impl IndexScopes {
 
     /// Push a new scope.
     pub(crate) fn push_scope(&mut self) -> IndexScopeGuard {
-        self.levels
-            .borrow_mut()
-            .push(IndexScopeLevel::IndexScope(IndexScope::new()));
+        let mut levels = self.levels.borrow_mut();
+        levels.push(IndexScopeLevel::IndexScope(IndexScope::new()));
 
         IndexScopeGuard {
             levels: self.levels.clone(),
         }
+    }
+}
+
+impl Drop for IndexScopes {
+    fn drop(&mut self) {
+        let mut levels = self.levels.borrow_mut();
+        let last = levels.pop();
+        debug_assert!(last.is_some());
+        debug_assert!(levels.is_empty());
     }
 }
