@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1623741293518,
+  "lastUpdate": 1628530100226,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -6220,6 +6220,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4848676,
             "range": "± 5641",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "15593bb133d2a21d5655b610f96df5a6579334a1",
+          "message": "Get rid of memory leak in IndexScopes (#274)\n\nGet rid of memory leak in IndexScopes",
+          "timestamp": "2021-08-09T19:20:57+02:00",
+          "tree_id": "4d438f7d136f39871680544e9d2e9b53a811636a",
+          "url": "https://github.com/rune-rs/rune/commit/15593bb133d2a21d5655b610f96df5a6579334a1"
+        },
+        "date": 1628530099200,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 382127033,
+            "range": "± 13818682",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 229407317,
+            "range": "± 10413549",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 249362,
+            "range": "± 22307",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 799823,
+            "range": "± 120702",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 68014824,
+            "range": "± 4777659",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1171206,
+            "range": "± 159903",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 12658423,
+            "range": "± 1663758",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 10909563,
+            "range": "± 1416406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 397761,
+            "range": "± 64406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4490247,
+            "range": "± 476109",
             "unit": "ns/iter"
           }
         ]
