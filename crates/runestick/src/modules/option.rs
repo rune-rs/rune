@@ -27,7 +27,7 @@ fn unwrap_or_else_impl(this: &Option<Value>, default: Function) -> Result<Value,
         return Ok(this.clone());
     }
 
-    Ok(default.call(())?)
+    default.call(())
 }
 
 /// Transpose functions, translates an Option<Result<T, E>> into a `Result<Option<T>, E>`.

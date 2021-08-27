@@ -5,7 +5,7 @@ use std::num::ParseFloatError;
 
 /// Parse an integer.
 fn parse(s: &str) -> Result<f64, ParseFloatError> {
-    Ok(str::parse::<f64>(s)?)
+    str::parse::<f64>(s)
 }
 
 /// Convert a float to a whole number.

@@ -48,7 +48,6 @@
 #![allow(
     clippy::enum_variant_names,
     clippy::too_many_arguments,
-    clippy::needless_question_mark,
     clippy::manual_map,
     clippy::unnecessary_lazy_evaluations,
     clippy::should_implement_trait,

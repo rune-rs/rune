@@ -75,7 +75,7 @@ where
 
 impl FromValue for Shared<AnyObj> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_any()?)
+        value.into_any()
     }
 }
 
@@ -329,31 +329,31 @@ impl UnsafeFromValue for &Result<Value, Value> {
 
 impl FromValue for () {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_unit()?)
+        value.into_unit()
     }
 }
 
 impl FromValue for u8 {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_byte()?)
+        value.into_byte()
     }
 }
 
 impl FromValue for bool {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_bool()?)
+        value.into_bool()
     }
 }
 
 impl FromValue for char {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_char()?)
+        value.into_char()
     }
 }
 
 impl FromValue for i64 {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_integer()?)
+        value.into_integer()
     }
 }
 
@@ -391,7 +391,7 @@ impl_number!(isize);
 
 impl FromValue for f64 {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_float()?)
+        value.into_float()
     }
 }
 

@@ -59,7 +59,7 @@ impl fmt::Debug for Stream {
 
 impl FromValue for Shared<Stream> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_stream()?)
+        value.into_stream()
     }
 }
 

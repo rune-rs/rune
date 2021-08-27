@@ -41,7 +41,7 @@ pub fn module() -> Result<Module, ContextError> {
 
 /// Parse an integer.
 fn parse(s: &str) -> Result<i64, ParseIntError> {
-    Ok(str::parse::<i64>(s)?)
+    str::parse::<i64>(s)
 }
 
 /// Convert a whole number to float.

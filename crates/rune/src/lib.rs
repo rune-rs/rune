@@ -166,7 +166,6 @@
     clippy::needless_doctest_main,
     clippy::never_loop,
     clippy::too_many_arguments,
-    clippy::needless_question_mark,
     clippy::match_single_binding,
     clippy::unnecessary_lazy_evaluations,
     clippy::should_implement_trait,
@@ -181,7 +180,11 @@
     clippy::manual_map,
     clippy::collapsible_else_if,
     clippy::large_enum_variant,
-    clippy::field_reassign_with_default
+    clippy::field_reassign_with_default,
+    clippy::match_like_matches_macro,
+    clippy::vec_init_then_push,
+    clippy::collapsible_match,
+    clippy::redundant_static_lifetimes
 )]
 
 #[macro_use]

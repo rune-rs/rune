@@ -7,7 +7,7 @@ impl Assemble for ast::ExprBlock {
         log::trace!("ExprBlock => {:?}", c.source.source(span));
 
         if self.async_token.is_none() && self.const_token.is_none() {
-            return Ok(self.block.assemble(c, needs)?);
+            return self.block.assemble(c, needs);
         }
 
         let item = c.query.item_for(&self.block)?;

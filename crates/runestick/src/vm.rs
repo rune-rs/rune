@@ -99,7 +99,7 @@ impl Vm {
     /// If any async instructions are encountered, this will error.
     pub fn complete(self) -> Result<Value, VmError> {
         let mut execution = VmExecution::new(self);
-        Ok(execution.complete()?)
+        execution.complete()
     }
 
     /// Run the given vm to completion with support for async functions.
