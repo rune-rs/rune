@@ -182,8 +182,7 @@
     clippy::field_reassign_with_default,
     clippy::match_like_matches_macro,
     clippy::vec_init_then_push,
-    clippy::collapsible_match,
-    clippy::redundant_static_lifetimes
+    clippy::collapsible_match
 )]
 
 #[macro_use]

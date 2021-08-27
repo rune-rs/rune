@@ -145,7 +145,7 @@ impl Peek for OuterAttribute {
 
 #[test]
 fn test_parse_attribute() {
-    const TEST_STRINGS: &[&'static str] = &[
+    const TEST_STRINGS: &[&str] = &[
         "#[foo]",
         "#[a::b::c]",
         "#[foo = \"hello world\"]",
