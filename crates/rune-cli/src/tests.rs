@@ -195,7 +195,7 @@ pub(crate) async fn do_tests(
     }
 
     if test_args.quiet {
-        writeln!(out, "")?;
+        writeln!(out)?;
     }
     let elapsed = start.elapsed();
 

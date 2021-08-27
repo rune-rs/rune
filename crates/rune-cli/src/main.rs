@@ -52,8 +52,7 @@
     clippy::if_same_then_else,
     clippy::type_complexity,
     clippy::needless_borrow,
-    clippy::useless_conversion,
-    clippy::writeln_empty_string
+    clippy::useless_conversion
 )]
 
 use anyhow::{Context as _, Result};
