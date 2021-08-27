@@ -48,6 +48,13 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 //! [runestick]: https://github.com/rune-rs/rune
+#![allow(
+    clippy::if_same_then_else,
+    clippy::type_complexity,
+    clippy::needless_borrow,
+    clippy::useless_conversion,
+    clippy::writeln_empty_string
+)]
 
 use anyhow::{Context as _, Result};
 use rune::termcolor::{ColorChoice, StandardStream};

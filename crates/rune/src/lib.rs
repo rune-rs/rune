@@ -165,7 +165,23 @@
     clippy::enum_variant_names,
     clippy::needless_doctest_main,
     clippy::never_loop,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::needless_question_mark,
+    clippy::match_single_binding,
+    clippy::unnecessary_lazy_evaluations,
+    clippy::should_implement_trait,
+    clippy::needless_borrow,
+    clippy::len_zero,
+    clippy::branches_sharing_code,
+    clippy::needless_return,
+    clippy::result_unit_err,
+    clippy::useless_format,
+    clippy::useless_conversion,
+    clippy::single_match,
+    clippy::manual_map,
+    clippy::collapsible_else_if,
+    clippy::large_enum_variant,
+    clippy::field_reassign_with_default
 )]
 
 #[macro_use]

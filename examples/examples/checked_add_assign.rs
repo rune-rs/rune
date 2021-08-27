@@ -7,6 +7,7 @@ struct External {
     value: i64,
 }
 
+#[allow(clippy::unnecessary_lazy_evaluations)]
 impl External {
     fn value_add_assign(&mut self, other: i64) -> Result<(), VmError> {
         self.value = self

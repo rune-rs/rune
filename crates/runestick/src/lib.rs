@@ -45,7 +45,26 @@
 //! This is the driver for the [Rune Language](https://rune-rs.github.io).
 
 #![deny(missing_docs)]
-#![allow(clippy::enum_variant_names, clippy::too_many_arguments)]
+#![allow(
+    clippy::enum_variant_names,
+    clippy::too_many_arguments,
+    clippy::needless_question_mark,
+    clippy::manual_map,
+    clippy::unnecessary_lazy_evaluations,
+    clippy::should_implement_trait,
+    clippy::try_err,
+    clippy::needless_lifetimes,
+    clippy::type_complexity,
+    clippy::match_like_matches_macro,
+    clippy::needless_borrow,
+    clippy::unit_arg,
+    clippy::manual_str_repeat,
+    clippy::branches_sharing_code,
+    clippy::needless_return,
+    clippy::redundant_slicing,
+    clippy::ptr_arg,
+    clippy::useless_conversion
+)]
 
 mod any;
 mod context;

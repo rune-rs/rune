@@ -44,6 +44,8 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
+#![allow(clippy::field_reassign_with_default, clippy::needless_question_mark)]
+
 mod connection;
 pub mod envelope;
 mod server;

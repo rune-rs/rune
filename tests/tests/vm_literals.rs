@@ -50,7 +50,7 @@ fn test_string_literals() {
     assert_eq!(
         rune!(String => pub fn main() { "\
     a \
-    
+
     b" }),
         "a b"
     );
@@ -73,7 +73,7 @@ fn test_byte_string_literals() {
     assert_eq!(
         rune!(Bytes => pub fn main() { b"\
     a \
-    
+
     b" }),
         b"a b"[..]
     );

@@ -1,4 +1,9 @@
-#![allow(unused)]
+#![allow(
+    unused,
+    clippy::enum_variant_names,
+    clippy::vec_init_then_push,
+    clippy::needless_return
+)]
 
 use runestick::{Mut, Object, Ref, Shared, Tuple, Value};
 use runestick_macros::{Any, FromValue, ToValue};
