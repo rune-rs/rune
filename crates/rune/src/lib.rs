@@ -174,7 +174,6 @@
     clippy::branches_sharing_code,
     clippy::needless_return,
     clippy::result_unit_err,
-    clippy::useless_format,
     clippy::useless_conversion,
     clippy::single_match,
     clippy::manual_map,

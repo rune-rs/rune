@@ -161,7 +161,7 @@ impl EmitDiagnostics for VmError {
                 );
 
                 (
-                    format!("wrong number of arguments"),
+                    "wrong number of arguments".to_string(),
                     vec![
                         format!("expected `{}`", expected),
                         format!("got `{}`", actual),
