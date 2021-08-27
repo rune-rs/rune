@@ -13,6 +13,7 @@ impl Foo {
     }
 }
 
+#[allow(clippy::blacklisted_name)]
 fn main() -> runestick::Result<()> {
     let mut module = Module::new();
     module.ty::<Foo>()?;
