@@ -293,7 +293,7 @@ impl<'a> Indexer<'a> {
         }
 
         p.eof()?;
-        Ok(BuiltInMacro::Format(BuiltInFormat {
+        Ok(BuiltInMacro::Format(Box::new(BuiltInFormat {
             span: ast.span(),
             fill,
             align,
@@ -302,7 +302,7 @@ impl<'a> Indexer<'a> {
             flags,
             format_type,
             value,
-        }))
+        })))
     }
 
     /// Expand a macro returning the current file

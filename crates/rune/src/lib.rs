@@ -178,7 +178,6 @@
     clippy::single_match,
     clippy::manual_map,
     clippy::collapsible_else_if,
-    clippy::large_enum_variant,
     clippy::field_reassign_with_default,
     clippy::match_like_matches_macro,
     clippy::vec_init_then_push,

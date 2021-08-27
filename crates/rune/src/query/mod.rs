@@ -30,7 +30,7 @@ mod query_error;
 /// An internally resolved macro.
 pub(crate) enum BuiltInMacro {
     Template(BuiltInTemplate),
-    Format(BuiltInFormat),
+    Format(Box<BuiltInFormat>),
     File(BuiltInFile),
     Line(BuiltInLine),
 }

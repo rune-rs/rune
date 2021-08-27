@@ -17,7 +17,7 @@ pub enum FnArg {
     /// The `self` parameter.
     SelfValue(T![self]),
     /// Function argument is a pattern binding.
-    Pat(ast::Pat),
+    Pat(Box<ast::Pat>),
 }
 
 impl Parse for FnArg {
