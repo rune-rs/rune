@@ -136,6 +136,6 @@ impl ResolveOwned for LitChar {
         storage: &Storage,
         source: &Source,
     ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, source)?)
+        self.resolve(storage, source)
     }
 }

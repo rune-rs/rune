@@ -66,7 +66,7 @@ where
             }
         };
 
-        Ok(T::from_value(value)?)
+        T::from_value(value)
     }
 
     /// Perform an asynchronous call over the function which also implements
@@ -90,7 +90,7 @@ where
                 other => other,
             };
 
-            Ok(T::from_value(value)?)
+            T::from_value(value)
         };
 
         // Safety: Future is send because there is no way to call this
@@ -481,7 +481,7 @@ struct FnTupleVariant {
 
 impl FromValue for SyncFunction {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_function()?.take()?.into_sync()?)
+        value.into_function()?.take()?.into_sync()
     }
 }
 
@@ -493,7 +493,7 @@ impl FromValue for Function {
 
 impl FromValue for Shared<Function> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_function()?)
+        value.into_function()
     }
 }
 

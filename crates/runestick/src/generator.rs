@@ -95,7 +95,7 @@ impl InstallWith for Generator {}
 
 impl FromValue for Shared<Generator> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_generator()?)
+        value.into_generator()
     }
 }
 

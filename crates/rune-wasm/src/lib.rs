@@ -44,6 +44,7 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
+#![allow(clippy::unnecessary_lazy_evaluations)]
 use wasm_bindgen::prelude::*;
 
 use anyhow::Context as _;

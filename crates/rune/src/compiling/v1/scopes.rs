@@ -377,17 +377,15 @@ impl Scopes {
 
     /// Get the local with the given name.
     fn last(&self, span: Span) -> CompileResult<&Scope> {
-        Ok(self
-            .scopes
+        self.scopes
             .last()
-            .ok_or_else(|| CompileError::msg(&span, "missing head of locals"))?)
+            .ok_or_else(|| CompileError::msg(&span, "missing head of locals"))
     }
 
     /// Get the last locals scope.
     fn last_mut(&mut self, span: Span) -> CompileResult<&mut Scope> {
-        Ok(self
-            .scopes
+        self.scopes
             .last_mut()
-            .ok_or_else(|| CompileError::msg(&span, "missing head of locals"))?)
+            .ok_or_else(|| CompileError::msg(&span, "missing head of locals"))
     }
 }

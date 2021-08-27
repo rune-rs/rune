@@ -23,7 +23,7 @@ impl GeneratorState {
 
 impl FromValue for Shared<GeneratorState> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_generator_state()?)
+        value.into_generator_state()
     }
 }
 

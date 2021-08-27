@@ -356,7 +356,7 @@ impl Expr {
         };
 
         let lhs = Self::parse_chain(p, lhs, callable)?;
-        Ok(Self::parse_binary(p, lhs, 0, EagerBrace(true))?)
+        Self::parse_binary(p, lhs, 0, EagerBrace(true))
     }
 
     /// Parse a basic expression.
@@ -366,12 +366,7 @@ impl Expr {
         eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
         if let Some(path) = p.parse::<Option<ast::Path>>()? {
-            return Ok(Self::parse_with_meta_path(
-                p,
-                attributes,
-                path,
-                eager_brace,
-            )?);
+            return Self::parse_with_meta_path(p, attributes, path, eager_brace);
         }
 
         if ast::Lit::peek_in_expr(p.peeker()) {
