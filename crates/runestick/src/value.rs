@@ -531,7 +531,7 @@ impl Value {
                 match name {
                     ConstValue::String(s) => return Ok(s.clone()),
                     ConstValue::StaticString(s) => return Ok((*s).to_string()),
-                    _ => Err(VmError::expected::<String>(name.type_info()))?,
+                    _ => return Err(VmError::expected::<String>(name.type_info())),
                 }
             }
 
@@ -539,7 +539,7 @@ impl Value {
                 match name {
                     ConstValue::String(s) => return Ok(s.clone()),
                     ConstValue::StaticString(s) => return Ok((*s).to_string()),
-                    _ => Err(VmError::expected::<String>(name.type_info()))?,
+                    _ => return Err(VmError::expected::<String>(name.type_info())),
                 }
             }
 
