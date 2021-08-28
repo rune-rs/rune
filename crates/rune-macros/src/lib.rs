@@ -46,8 +46,7 @@
 #![allow(
     clippy::needless_borrow,
     clippy::redundant_static_lifetimes,
-    clippy::vec_init_then_push,
-    clippy::branches_sharing_code
+    clippy::vec_init_then_push
 )]
 
 extern crate proc_macro;
