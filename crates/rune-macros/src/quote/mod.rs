@@ -217,17 +217,15 @@ fn consume_punct<'o>(
     }
 
     for o in out {
-        let p = match it.peek() {
-            Some(TokenTree::Punct(p)) => p,
+        let (spacing, ch) = match it.peek() {
+            Some(TokenTree::Punct(p)) => (p.spacing(), p.as_char()),
             _ => break,
         };
 
-        *o = p.as_char();
+        *o = ch;
 
-        if matches!(p.spacing(), p::Spacing::Joint) {
-            it.next();
-        } else {
-            it.next();
+        it.next();
+        if !matches!(spacing, p::Spacing::Joint) {
             break;
         }
     }
