@@ -195,11 +195,9 @@ impl Block {
                     return Ok(());
                 }
             }
-        } else {
-            if let Some(Value::Phi(phi)) = self.inner.global.values_mut().get_mut(id) {
-                phi.extend(deps);
-                return Ok(());
-            }
+        } else if let Some(Value::Phi(phi)) = self.inner.global.values_mut().get_mut(id) {
+            phi.extend(deps);
+            return Ok(());
         }
 
         Err(Error::MissingPhiNode(id))
