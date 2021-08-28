@@ -137,7 +137,7 @@ impl FormatSpec {
     fn format_fill(
         &self,
         out: &mut String,
-        buf: &String,
+        buf: &str,
         align: Alignment,
         fill: char,
         sign: Option<char>,
