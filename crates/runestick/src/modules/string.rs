@@ -156,10 +156,10 @@ fn string_get(s: &str, key: Value) -> Result<Option<String>, VmError> {
                 },
             };
 
-            return Ok(match out {
+            Ok(match out {
                 Some(out) => Some(out.to_owned()),
                 None => None,
-            });
+            })
         }
         index => Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
             target: String::type_info(),
