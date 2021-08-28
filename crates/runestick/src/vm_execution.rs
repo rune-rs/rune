@@ -197,7 +197,7 @@ impl VmExecution {
     /// Pop a virtual machine state from the execution and transfer the top of
     /// the stack from the popped machine.
     fn pop_vm(&mut self) -> Result<(), VmError> {
-        let mut from = self.vms.pop().ok_or_else(|| VmErrorKind::NoRunningVm)?;
+        let mut from = self.vms.pop().ok_or(VmErrorKind::NoRunningVm)?;
 
         let stack = from.stack_mut();
         let value = stack.pop()?;

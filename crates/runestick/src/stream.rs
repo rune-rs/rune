@@ -33,7 +33,7 @@ impl Stream {
         let execution = self
             .execution
             .as_mut()
-            .ok_or_else(|| VmErrorKind::GeneratorComplete)?;
+            .ok_or(VmErrorKind::GeneratorComplete)?;
 
         if !mem::take(&mut self.first) {
             execution.vm_mut()?.stack_mut().push(value);

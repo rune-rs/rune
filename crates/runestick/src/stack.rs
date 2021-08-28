@@ -74,7 +74,7 @@ impl Stack {
     /// Get the last position on the stack.
     #[inline]
     pub fn last(&self) -> Result<&Value, StackError> {
-        self.stack.last().ok_or_else(|| StackError(()))
+        self.stack.last().ok_or(StackError(()))
     }
 
     /// Access the value at the given frame offset.
@@ -82,7 +82,7 @@ impl Stack {
         self.stack_bottom
             .checked_add(offset)
             .and_then(|n| self.stack.get(n))
-            .ok_or_else(|| StackError(()))
+            .ok_or(StackError(()))
     }
 
     /// Peek the value at the given offset from the top.
@@ -126,7 +126,7 @@ impl Stack {
             return Err(StackError(()));
         }
 
-        self.stack.pop().ok_or_else(|| StackError(()))
+        self.stack.pop().ok_or(StackError(()))
     }
 
     /// Address a value on the stack.
