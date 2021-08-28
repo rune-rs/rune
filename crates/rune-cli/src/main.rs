@@ -48,11 +48,7 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 //! [runestick]: https://github.com/rune-rs/rune
-#![allow(
-    clippy::if_same_then_else,
-    clippy::type_complexity,
-    clippy::needless_borrow
-)]
+#![allow(clippy::if_same_then_else, clippy::type_complexity)]
 
 use anyhow::{Context as _, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
@@ -404,7 +400,7 @@ fn load_path(
 
     sources.insert(source);
 
-    let use_cache = options.bytecode && should_cache_be_used(&path, &bytecode_path)?;
+    let use_cache = options.bytecode && should_cache_be_used(path, &bytecode_path)?;
 
     // TODO: how do we deal with tests discovery for bytecode loading
     let maybe_unit = if use_cache {
@@ -440,7 +436,7 @@ fn load_path(
 
             let result = rune::load_sources_with_visitor(
                 &context,
-                &options,
+                options,
                 &mut sources,
                 &mut diagnostics,
                 test_finder.clone(),
@@ -510,7 +506,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
             let _ = rune::load_sources_with_visitor(
                 &context,
-                &options,
+                options,
                 &mut sources,
                 &mut diagnostics,
                 test_finder.clone(),
@@ -527,7 +523,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 Ok(ExitCode::Success)
             }
         }
-        Command::Test(testflags) => match load_path(&mut out, args, &options, path) {
+        Command::Test(testflags) => match load_path(&mut out, args, options, path) {
             Ok((unit, _context, runtime, sources, tests)) => {
                 tests::do_tests(testflags, out, runtime, unit, sources, tests).await
             }
@@ -535,7 +531,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         },
         Command::Run(runargs) => {
             let (unit, context, runtime, sources, _tests) =
-                match load_path(&mut out, args, &options, path) {
+                match load_path(&mut out, args, options, path) {
                     Ok(v) => v,
                     Err(_) => return Ok(ExitCode::Failure),
                 };
@@ -597,7 +593,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                     }
                 }
             }
-            do_run(&runargs, out, runtime, unit, sources).await
+            do_run(runargs, out, runtime, unit, sources).await
         }
     }
 }
