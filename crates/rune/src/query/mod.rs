@@ -580,7 +580,7 @@ impl Query {
             indexed: Indexed::Import(Import { wildcard, entry }),
         });
 
-        return Ok(());
+        Ok(())
     }
 
     /// Check if unit contains the given name by prefix.
