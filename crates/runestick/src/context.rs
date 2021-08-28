@@ -395,23 +395,23 @@ impl Context {
         }
 
         for (type_hash, ty) in &module.types {
-            self.install_type(&module, *type_hash, ty)?;
+            self.install_type(module, *type_hash, ty)?;
         }
 
         for (name, f) in &module.functions {
-            self.install_function(&module, name, f)?;
+            self.install_function(module, name, f)?;
         }
 
         for (name, m) in &module.macros {
-            self.install_macro(&module, name, m)?;
+            self.install_macro(module, name, m)?;
         }
 
         for (name, m) in &module.constants {
-            self.install_constant(&module, name, m)?;
+            self.install_constant(module, name, m)?;
         }
 
         if let Some(unit_type) = &module.unit_type {
-            self.install_unit_type(&module, unit_type)?;
+            self.install_unit_type(module, unit_type)?;
         }
 
         for internal_enum in &module.internal_enums {
@@ -600,7 +600,7 @@ impl Context {
         let info = match self
             .types_rev
             .get(&type_hash)
-            .and_then(|hash| self.types.get(&hash))
+            .and_then(|hash| self.types.get(hash))
         {
             Some(info) => info,
             None => {
