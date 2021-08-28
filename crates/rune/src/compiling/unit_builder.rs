@@ -173,7 +173,7 @@ impl UnitBuilder {
     ) -> Result<usize, CompileError> {
         let mut inner = self.inner.borrow_mut();
 
-        let hash = Hash::static_bytes(&current);
+        let hash = Hash::static_bytes(current);
 
         if let Some(existing_slot) = inner.static_bytes_rev.get(&hash).copied() {
             let existing = inner.static_bytes.get(existing_slot).ok_or_else(|| {

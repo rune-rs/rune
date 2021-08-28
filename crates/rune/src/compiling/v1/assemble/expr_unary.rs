@@ -13,7 +13,7 @@ impl Assemble for ast::ExprUnary {
 
         if let (ast::UnOp::Neg, ast::Expr::Lit(expr_lit)) = (self.op, &self.expr) {
             if let ast::Lit::Number(n) = &expr_lit.lit {
-                match n.resolve(&c.storage, &*c.source)? {
+                match n.resolve(c.storage, &*c.source)? {
                     ast::Number::Float(n) => {
                         c.asm.push(Inst::float(-n), span);
                     }

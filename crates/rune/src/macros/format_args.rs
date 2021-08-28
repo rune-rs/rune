@@ -529,7 +529,7 @@ fn expand_format_spec<'a>(
                 }
             };
 
-            unused_pos.remove(&count);
+            unused_pos.remove(count);
 
             let value = ctx.eval(*expr)?;
 
@@ -556,13 +556,13 @@ fn expand_format_spec<'a>(
             *count += 1;
             Some(precision)
         } else if !precision.is_empty() {
-            str::parse::<usize>(&precision).ok()
+            str::parse::<usize>(precision).ok()
         } else {
             None
         };
 
         let expr = if !name.is_empty() {
-            if let Ok(n) = str::parse::<usize>(&name) {
+            if let Ok(n) = str::parse::<usize>(name) {
                 let expr = match pos.get(n) {
                     Some(expr) => *expr,
                     None => {
@@ -600,13 +600,13 @@ fn expand_format_spec<'a>(
                 }
             };
 
-            unused_pos.remove(&count);
+            unused_pos.remove(count);
             *count += 1;
             expr
         };
 
         let width = if !width.is_empty() {
-            str::parse::<usize>(&width).ok()
+            str::parse::<usize>(width).ok()
         } else {
             None
         };

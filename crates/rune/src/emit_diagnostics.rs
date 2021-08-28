@@ -312,7 +312,7 @@ where
         .with_labels(labels)
         .with_notes(notes);
 
-    term::emit(out, &config, files, &diagnostic)?;
+    term::emit(out, config, files, &diagnostic)?;
     Ok(())
 }
 

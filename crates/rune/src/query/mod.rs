@@ -1705,7 +1705,7 @@ fn struct_body_meta(
     let mut fields = HashSet::new();
 
     for (ast::Field { name, .. }, _) in st {
-        let name = name.resolve(&storage, &*source)?;
+        let name = name.resolve(storage, &*source)?;
         fields.insert(name.into());
     }
 

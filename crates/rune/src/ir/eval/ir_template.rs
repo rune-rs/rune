@@ -16,7 +16,7 @@ impl IrEval for &ir::IrTemplate {
         for component in &self.components {
             match component {
                 ir::IrTemplateComponent::String(string) => {
-                    buf.push_str(&string);
+                    buf.push_str(string);
                 }
                 ir::IrTemplateComponent::Ir(ir) => {
                     let const_value = ir.eval(interp, used)?;
