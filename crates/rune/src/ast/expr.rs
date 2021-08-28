@@ -231,21 +231,14 @@ impl Expr {
         match self {
             Self::Lit(..) => return true,
             Self::Unary(expr_unary) => {
-                if let ast::ExprUnary {
-                    op: ast::UnOp::Neg,
-                    expr,
-                    ..
-                } = &**expr_unary
-                {
-                    if let Self::Lit(expr) = expr {
-                        return matches!(
-                            &**expr,
-                            ast::ExprLit {
-                                lit: ast::Lit::Number(..),
-                                ..
-                            }
-                        );
-                    }
+                if let Self::Lit(expr) = &expr_unary.expr {
+                    return matches!(
+                        expr.as_ref(),
+                        ast::ExprLit {
+                            lit: ast::Lit::Number(..),
+                            ..
+                        }
+                    );
                 }
             }
             _ => (),
