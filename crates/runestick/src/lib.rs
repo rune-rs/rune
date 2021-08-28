@@ -60,8 +60,7 @@
     clippy::manual_str_repeat,
     clippy::branches_sharing_code,
     clippy::needless_return,
-    clippy::redundant_slicing,
-    clippy::ptr_arg
+    clippy::redundant_slicing
 )]
 
 mod any;

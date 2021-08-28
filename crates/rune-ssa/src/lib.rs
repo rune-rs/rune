@@ -1,4 +1,5 @@
 //! The state machine assembler of Rune.
+#![allow(clippy::new_without_default)]
 
 mod block;
 mod constant;
