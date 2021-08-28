@@ -107,7 +107,7 @@ impl Unit {
         Ok(self
             .static_strings
             .get(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticString { slot })?)
+            .ok_or(VmErrorKind::MissingStaticString { slot })?)
     }
 
     /// Lookup the static byte string by slot, if it exists.
@@ -115,7 +115,7 @@ impl Unit {
         Ok(self
             .static_bytes
             .get(slot)
-            .ok_or_else(|| VmErrorKind::MissingStaticString { slot })?
+            .ok_or(VmErrorKind::MissingStaticString { slot })?
             .as_ref())
     }
 
