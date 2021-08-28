@@ -1,4 +1,5 @@
 //! Test cases for rune.
+#![allow(dead_code)]
 
 pub use rune::WarningKind::*;
 pub use rune::{CompileErrorKind, CompileErrorKind::*};
