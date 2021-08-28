@@ -172,7 +172,6 @@
     clippy::needless_borrow,
     clippy::len_zero,
     clippy::branches_sharing_code,
-    clippy::needless_return,
     clippy::result_unit_err,
     clippy::match_like_matches_macro
 )]
