@@ -118,7 +118,7 @@ impl Server {
 
             Box::pin(async move {
                 let params = <T::Params>::deserialize(incoming.params)?;
-                Ok(handler(state, output, params).await?)
+                handler(state, output, params).await
             })
         });
 
