@@ -39,8 +39,7 @@ impl Quote {
     fn process(&self, input: TokenStream) -> Result<Builder, Error> {
         let mut output = Builder::new();
 
-        let mut stack = Vec::new();
-        stack.push((p::Delimiter::None, input.into_iter().peekable()));
+        let mut stack = vec![(p::Delimiter::None, input.into_iter().peekable())];
 
         while let Some((_, it)) = stack.last_mut() {
             let tt = match it.next() {
