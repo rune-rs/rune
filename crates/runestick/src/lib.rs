@@ -48,7 +48,6 @@
 #![allow(
     clippy::enum_variant_names,
     clippy::too_many_arguments,
-    clippy::manual_map,
     clippy::should_implement_trait,
     clippy::type_complexity,
     clippy::match_like_matches_macro

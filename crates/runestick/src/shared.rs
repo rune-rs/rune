@@ -941,14 +941,11 @@ impl<T: ?Sized> Ref<T> {
         // Safety: this follows the same safety guarantees as when the managed
         // ref was acquired. And since we have a managed reference to `T`, we're
         // permitted to do any sort of projection to `U`.
-        match f(unsafe { data.as_ref() }) {
-            Some(data) => Some(Ref {
-                data: data.into(),
-                guard,
-                inner,
-            }),
-            None => None,
-        }
+        f(unsafe { data.as_ref() }).map(|data| Ref {
+            data: data.into(),
+            guard,
+            inner,
+        })
     }
 
     /// Convert into a raw pointer and associated raw access guard.
