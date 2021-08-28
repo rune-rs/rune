@@ -166,7 +166,6 @@
     clippy::needless_doctest_main,
     clippy::never_loop,
     clippy::too_many_arguments,
-    clippy::match_single_binding,
     clippy::should_implement_trait,
     clippy::branches_sharing_code,
     clippy::result_unit_err,
