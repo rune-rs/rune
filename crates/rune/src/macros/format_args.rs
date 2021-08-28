@@ -555,12 +555,10 @@ fn expand_format_spec<'a>(
 
             *count += 1;
             Some(precision)
+        } else if !precision.is_empty() {
+            str::parse::<usize>(&precision).ok()
         } else {
-            if !precision.is_empty() {
-                str::parse::<usize>(&precision).ok()
-            } else {
-                None
-            }
+            None
         };
 
         let expr = if !name.is_empty() {
