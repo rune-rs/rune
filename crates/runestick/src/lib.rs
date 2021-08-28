@@ -61,8 +61,7 @@
     clippy::branches_sharing_code,
     clippy::needless_return,
     clippy::redundant_slicing,
-    clippy::ptr_arg,
-    clippy::useless_conversion
+    clippy::ptr_arg
 )]
 
 mod any;

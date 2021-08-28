@@ -138,7 +138,7 @@ impl FromValue for ConstValue {
             }),
             Value::Bytes(b) => {
                 let b = b.take()?;
-                Self::Bytes(Bytes::from(b))
+                Self::Bytes(b)
             }
             Value::Vec(vec) => {
                 let vec = vec.take()?;
