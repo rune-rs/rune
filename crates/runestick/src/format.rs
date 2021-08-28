@@ -149,7 +149,7 @@ impl FormatSpec {
         let mut w = self.width.map(|n| n.get()).unwrap_or_default();
 
         if w == 0 {
-            out.push_str(&buf);
+            out.push_str(buf);
             return;
         }
 
@@ -158,7 +158,7 @@ impl FormatSpec {
             .saturating_sub(sign.map(|_| 1).unwrap_or_default());
 
         if w == 0 {
-            out.push_str(&buf);
+            out.push_str(buf);
             return;
         }
 
@@ -166,17 +166,17 @@ impl FormatSpec {
 
         match align {
             Alignment::Left => {
-                out.push_str(&buf);
+                out.push_str(buf);
                 out.extend(filler);
             }
             Alignment::Center => {
                 out.extend((&mut filler).take(w / 2));
-                out.push_str(&buf);
+                out.push_str(buf);
                 out.extend(filler);
             }
             Alignment::Right => {
                 out.extend(filler);
-                out.push_str(&buf);
+                out.push_str(buf);
             }
         }
     }

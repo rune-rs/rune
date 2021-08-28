@@ -951,7 +951,7 @@ impl Vm {
                         return Ok(None);
                     }
 
-                    Some(f(&tuple_struct.data()))
+                    Some(f(tuple_struct.data()))
                 }
                 _ => None,
             },

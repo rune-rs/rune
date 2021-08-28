@@ -54,8 +54,7 @@
     clippy::try_err,
     clippy::needless_lifetimes,
     clippy::type_complexity,
-    clippy::match_like_matches_macro,
-    clippy::needless_borrow
+    clippy::match_like_matches_macro
 )]
 
 mod any;
