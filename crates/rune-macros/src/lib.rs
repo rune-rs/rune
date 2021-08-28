@@ -43,11 +43,7 @@
 //! Macros for Rune.
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
-#![allow(
-    clippy::needless_borrow,
-    clippy::redundant_static_lifetimes,
-    clippy::vec_init_then_push
-)]
+#![allow(clippy::needless_borrow, clippy::redundant_static_lifetimes)]
 
 extern crate proc_macro;
 
