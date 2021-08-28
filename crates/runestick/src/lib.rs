@@ -57,8 +57,7 @@
     clippy::match_like_matches_macro,
     clippy::needless_borrow,
     clippy::unit_arg,
-    clippy::manual_str_repeat,
-    clippy::branches_sharing_code
+    clippy::manual_str_repeat
 )]
 
 mod any;

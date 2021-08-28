@@ -908,9 +908,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Result<Option<Value>, VmError> {
-        if self.n == 0 {
-            self.iter.next()
-        } else {
+        if self.n > 0 {
             let old_n = self.n;
             self.n = 0;
 
@@ -920,9 +918,9 @@ where
                     None => return Ok(None),
                 }
             }
-
-            self.iter.next()
         }
+
+        self.iter.next()
     }
 
     #[inline]
