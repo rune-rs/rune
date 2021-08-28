@@ -96,7 +96,7 @@
 // Note: The above links to docs.rs are needed because cargo-readme does not
 // support intra-doc links (yet):
 // https://github.com/livioribeiro/cargo-readme/issues/55
-#![allow(clippy::needless_borrow)]
+
 #[cfg(feature = "experiments")]
 pub mod experiments;
 
