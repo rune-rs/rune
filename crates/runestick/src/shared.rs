@@ -1068,14 +1068,11 @@ impl<T: ?Sized> Mut<T> {
         // Safety: this follows the same safety guarantees as when the managed
         // ref was acquired. And since we have a managed reference to `T`, we're
         // permitted to do any sort of projection to `U`.
-        match f(unsafe { data.as_mut() }) {
-            Some(data) => Some(Mut {
-                data: data.into(),
-                guard,
-                inner,
-            }),
-            None => None,
-        }
+        f(unsafe { data.as_mut() }).map(|data| Mut {
+            data: data.into(),
+            guard,
+            inner,
+        })
     }
 
     /// Convert into a raw pointer and associated raw access guard.
