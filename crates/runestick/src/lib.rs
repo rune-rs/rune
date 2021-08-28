@@ -52,7 +52,6 @@
     clippy::unnecessary_lazy_evaluations,
     clippy::should_implement_trait,
     clippy::try_err,
-    clippy::needless_lifetimes,
     clippy::type_complexity,
     clippy::match_like_matches_macro
 )]

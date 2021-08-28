@@ -78,12 +78,7 @@ impl VmError {
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn as_unwound<'a>(
-        &'a self,
-    ) -> (
-        &'a VmErrorKind,
-        Option<(&'a Arc<Unit>, usize, Vec<CallFrame>)>,
-    ) {
+    pub fn as_unwound(&self) -> (&VmErrorKind, Option<(&Arc<Unit>, usize, Vec<CallFrame>)>) {
         match &*self.kind {
             VmErrorKind::Unwound {
                 kind,

@@ -456,7 +456,7 @@ impl<'a> Iterator for Iter<'a> {
         self.content = content;
         return Some(c);
 
-        fn read_string<'a>(content: &'a [u8], n: usize) -> (&'a str, &'a [u8], &'a [u8]) {
+        fn read_string(content: &[u8], n: usize) -> (&str, &[u8], &[u8]) {
             let (buf, content) = content.split_at(n);
 
             // consume the head tag.
@@ -503,7 +503,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
         self.content = content;
         return Some(c);
 
-        fn read_string_back<'a>(content: &'a [u8], n: usize) -> (&'a str, &'a [u8]) {
+        fn read_string_back(content: &[u8], n: usize) -> (&str, &[u8]) {
             let (content, buf) =
                 content.split_at(content.len().checked_sub(n).expect("length underflow"));
 
