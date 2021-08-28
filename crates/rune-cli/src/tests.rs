@@ -149,7 +149,7 @@ impl TestCase {
             FailureReason::Crash(err) => {
                 writeln!(out, "----------------------------------------")?;
                 writeln!(out, "Test: {}\n", self.meta.item.item)?;
-                err.emit_diagnostics(out, &sources)
+                err.emit_diagnostics(out, sources)
                     .expect("failed writing diagnostics");
             }
             FailureReason::ReturnedNone => {}
