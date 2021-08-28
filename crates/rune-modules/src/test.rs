@@ -20,9 +20,9 @@
 //! # }
 //! ```
 
-use rune::T;
 use rune::ast;
 use rune::macros;
+use rune::T;
 use rune::{quote, Parser, TokenStream};
 
 /// Construct the `std::test` module.
@@ -34,9 +34,7 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
 }
 
 /// Implementation for the `assert!` macro.
-pub(crate) fn assert_macro(
-    stream: &TokenStream,
-) -> runestick::Result<TokenStream> {
+pub(crate) fn assert_macro(stream: &TokenStream) -> runestick::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream);
     let expr = p.parse::<ast::Expr>()?;
 
@@ -65,9 +63,7 @@ pub(crate) fn assert_macro(
 }
 
 /// Implementation for the `assert!` macro.
-pub(crate) fn assert_eq_macro(
-    stream: &TokenStream,
-) -> runestick::Result<TokenStream> {
+pub(crate) fn assert_eq_macro(stream: &TokenStream) -> runestick::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream);
     let left = p.parse::<ast::Expr>()?;
     p.parse::<T![,]>()?;
@@ -94,7 +90,7 @@ pub(crate) fn assert_eq_macro(
             }
         }}
     } else {
-        let message = format!("assertion failed (left == right):");
+        let message = "assertion failed (left == right):".to_string();
         let message = ast::Lit::new(&message);
 
         quote! {{
