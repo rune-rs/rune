@@ -12,7 +12,7 @@ impl Assemble for ast::LitByte {
             return Ok(Asm::top(span));
         }
 
-        let b = self.resolve(&c.storage, &*c.source)?;
+        let b = self.resolve(c.storage, &*c.source)?;
         c.asm.push(Inst::byte(b), span);
         Ok(Asm::top(span))
     }

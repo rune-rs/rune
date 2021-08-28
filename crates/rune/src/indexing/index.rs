@@ -400,7 +400,7 @@ impl<'a> Indexer<'a> {
 
                     let queue = &mut self.queue;
 
-                    import.process(&self.context, &self.storage, &self.query, &mut |task| {
+                    import.process(self.context, &self.storage, &self.query, &mut |task| {
                         queue.push_back(task);
                     })?;
                 }
@@ -457,7 +457,7 @@ impl<'a> Indexer<'a> {
 
                     let queue = &mut self.queue;
 
-                    import.process(&self.context, &self.storage, &self.query, &mut |task| {
+                    import.process(self.context, &self.storage, &self.query, &mut |task| {
                         queue.push_back(task);
                     })?;
                 }

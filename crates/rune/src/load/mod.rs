@@ -100,7 +100,7 @@ pub fn load_sources_with_visitor<'a>(
         sources,
         &unit,
         diagnostics,
-        &options,
+        options,
         visitor,
         source_loader,
     );

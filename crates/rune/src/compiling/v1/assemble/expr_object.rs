@@ -15,7 +15,7 @@ impl Assemble for ast::ExprObject {
 
         for (assign, _) in &self.assignments {
             let span = assign.span();
-            let key = assign.key.resolve(&c.storage, &*c.source)?;
+            let key = assign.key.resolve(c.storage, &*c.source)?;
             keys.push(key.as_ref().into());
             check_keys.push((key.as_ref().into(), assign.key.span()));
 
@@ -36,7 +36,7 @@ impl Assemble for ast::ExprObject {
             if let Some((_, expr)) = &assign.assign {
                 expr.assemble(c, Needs::Value)?.apply(c)?;
             } else {
-                let key = assign.key.resolve(&c.storage, &*c.source)?;
+                let key = assign.key.resolve(c.storage, &*c.source)?;
                 let var = c.scopes.get_var(&*key, c.source_id, span)?;
                 var.copy(&mut c.asm, span, format!("name `{}`", key));
             }

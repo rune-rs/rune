@@ -169,7 +169,6 @@
     clippy::match_single_binding,
     clippy::unnecessary_lazy_evaluations,
     clippy::should_implement_trait,
-    clippy::needless_borrow,
     clippy::branches_sharing_code,
     clippy::result_unit_err,
     clippy::match_like_matches_macro
