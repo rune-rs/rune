@@ -898,10 +898,7 @@ where
         let (lower, upper) = self.iter.size_hint();
 
         let lower = lower.saturating_sub(self.n);
-        let upper = match upper {
-            Some(x) => Some(x.saturating_sub(self.n)),
-            None => None,
-        };
+        let upper = upper.map(|x| x.saturating_sub(self.n));
 
         (lower, upper)
     }

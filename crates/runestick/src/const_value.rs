@@ -56,10 +56,9 @@ impl ConstValue {
             Self::String(s) => Value::String(Shared::new(s)),
             Self::StaticString(s) => Value::StaticString(s),
             Self::Bytes(b) => Value::Bytes(Shared::new(b)),
-            Self::Option(option) => Value::Option(Shared::new(match option {
-                Some(some) => Some(some.into_value()),
-                None => None,
-            })),
+            Self::Option(option) => {
+                Value::Option(Shared::new(option.map(|some| some.into_value())))
+            }
             Self::Vec(vec) => {
                 let mut v = Vec::with_capacity(vec.len());
 
