@@ -55,8 +55,7 @@
     clippy::needless_lifetimes,
     clippy::type_complexity,
     clippy::match_like_matches_macro,
-    clippy::needless_borrow,
-    clippy::unit_arg
+    clippy::needless_borrow
 )]
 
 mod any;

@@ -342,14 +342,16 @@ impl FormatSpec {
         buf: &mut String,
         caller: impl ProtocolCaller,
     ) -> Result<(), VmError> {
-        Ok(match self.format_type {
+        match self.format_type {
             Type::Display => self.format_display(value, out, buf, caller)?,
             Type::Debug => self.format_debug(value, out, buf, caller)?,
             Type::UpperHex => self.format_upper_hex(value, out, buf)?,
             Type::LowerHex => self.format_lower_hex(value, out, buf)?,
             Type::Binary => self.format_binary(value, out, buf)?,
             Type::Pointer => self.format_pointer(value, out, buf)?,
-        })
+        }
+
+        Ok(())
     }
 }
 
