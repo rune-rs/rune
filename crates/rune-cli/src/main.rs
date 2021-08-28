@@ -48,7 +48,7 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 //! [runestick]: https://github.com/rune-rs/rune
-#![allow(clippy::if_same_then_else, clippy::type_complexity)]
+#![allow(clippy::type_complexity)]
 
 use anyhow::{Context as _, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
@@ -515,9 +515,8 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
             diagnostics.emit_diagnostics(&mut out, &sources).unwrap();
 
-            if diagnostics.has_error() {
-                Ok(ExitCode::Failure)
-            } else if checkargs.warnings_are_errors && diagnostics.has_warning() {
+            if diagnostics.has_error() || checkargs.warnings_are_errors && diagnostics.has_warning()
+            {
                 Ok(ExitCode::Failure)
             } else {
                 Ok(ExitCode::Success)
