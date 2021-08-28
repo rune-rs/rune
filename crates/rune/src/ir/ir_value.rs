@@ -45,10 +45,9 @@ impl IrValue {
             ConstValue::String(s) => Self::String(Shared::new(s)),
             ConstValue::StaticString(s) => Self::String(Shared::new((**s).to_owned())),
             ConstValue::Bytes(b) => Self::Bytes(Shared::new(b.into_vec())),
-            ConstValue::Option(option) => Self::Option(Shared::new(match option {
-                Some(some) => Some(Self::from_const(*some)),
-                None => None,
-            })),
+            ConstValue::Option(option) => {
+                Self::Option(Shared::new(option.map(|some| Self::from_const(*some))))
+            }
             ConstValue::Vec(vec) => {
                 let mut ir_vec = Vec::with_capacity(vec.len());
 

@@ -176,7 +176,6 @@
     clippy::result_unit_err,
     clippy::useless_conversion,
     clippy::single_match,
-    clippy::manual_map,
     clippy::match_like_matches_macro
 )]
 
