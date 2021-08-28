@@ -90,6 +90,6 @@ impl Derive {
         let name = &quote!(#name);
         let ident = &self.input.ident;
 
-        ctx.expand_any(&ident, &name, &install_with, &tokens, generics)
+        ctx.expand_any(&ident, name, &install_with, &tokens, generics)
     }
 }

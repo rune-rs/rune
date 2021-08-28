@@ -94,7 +94,7 @@ impl Expander {
         let mut to_values = Vec::new();
 
         for field in &named.named {
-            let ident = self.field_ident(&field)?;
+            let ident = self.field_ident(field)?;
             let _ = self.ctx.parse_field_attrs(&field.attrs)?;
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());

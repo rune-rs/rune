@@ -44,7 +44,7 @@
 //! language.
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
-#![allow(clippy::needless_borrow, clippy::enum_variant_names)]
+#![allow(clippy::enum_variant_names)]
 extern crate proc_macro;
 
 use quote::quote;
