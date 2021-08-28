@@ -102,7 +102,7 @@ impl Assemble for ast::ExprCall {
 
         match &meta.kind {
             CompileMetaKind::UnitStruct { .. } | CompileMetaKind::UnitVariant { .. } => {
-                if 0 != self.args.len() {
+                if !self.args.is_empty() {
                     return Err(CompileError::new(
                         span,
                         CompileErrorKind::UnsupportedArgumentCount {
