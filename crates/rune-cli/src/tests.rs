@@ -75,7 +75,9 @@ impl TestCase {
             // everything is just async when called externally.
             UnitFn::Offset { offset, .. } => offset,
             _ => {
-                return Err(VmError::from(VmErrorKind::MissingFunction { hash: self.hash }).into());
+                return Err(VmError::from(VmErrorKind::MissingFunction {
+                    hash: self.hash,
+                }));
             }
         };
 
