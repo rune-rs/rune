@@ -455,7 +455,7 @@ where
                 );
             }
             CompileErrorKind::CallMacroError { item, .. } => {
-                notes.push(format!("Error originated in the `{}` macro", item).into());
+                notes.push(format!("Error originated in the `{}` macro", item));
             }
             CompileErrorKind::NestedTest { nested_span } => {
                 labels.push(

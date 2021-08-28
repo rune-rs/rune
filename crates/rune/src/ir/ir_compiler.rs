@@ -54,7 +54,7 @@ impl IrCompiler<'_> {
 
                         return Ok(ir::IrTarget {
                             span: expr.span(),
-                            kind: ir::IrTargetKind::Field(Box::new(target), field.into()),
+                            kind: ir::IrTargetKind::Field(Box::new(target), field),
                         });
                     }
                     ast::ExprField::LitNumber(number) => {
