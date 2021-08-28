@@ -51,7 +51,6 @@
     clippy::manual_map,
     clippy::unnecessary_lazy_evaluations,
     clippy::should_implement_trait,
-    clippy::try_err,
     clippy::type_complexity,
     clippy::match_like_matches_macro
 )]
