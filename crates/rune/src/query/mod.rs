@@ -987,8 +987,7 @@ impl QueryInner {
             return Ok(Some(cur));
         }
 
-        let mut locations = Vec::new();
-        locations.push((cur.item.location, cur.item().clone()));
+        let mut locations = vec![(cur.item.location, cur.item().clone())];
 
         while let Some(oth) = it.next() {
             locations.push((oth.item.location, oth.item().clone()));
