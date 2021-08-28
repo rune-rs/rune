@@ -476,7 +476,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
             return None;
         }
 
-        let content = &self.content[..];
+        let content = self.content;
         let (content, tail) = content.split_at(
             content
                 .len()
