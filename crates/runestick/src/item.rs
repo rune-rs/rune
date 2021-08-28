@@ -924,9 +924,7 @@ mod tests {
     #[test]
     fn store_max_string() {
         let mut item = Item::new();
-        let s = std::iter::repeat('x')
-            .take(super::MAX_DATA - 1)
-            .collect::<String>();
+        let s = "x".repeat(super::MAX_DATA - 1);
         item.push(ComponentRef::Str(&s));
         assert_eq!(item.last(), Some(ComponentRef::Str(&s)));
     }
@@ -943,9 +941,7 @@ mod tests {
     #[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
     fn store_max_string_overflow() {
         let mut item = Item::new();
-        let s = std::iter::repeat('x')
-            .take(super::MAX_DATA)
-            .collect::<String>();
+        let s = "x".repeat(super::MAX_DATA);
         item.push(ComponentRef::Str(&s));
     }
 
