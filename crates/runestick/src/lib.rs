@@ -56,8 +56,7 @@
     clippy::type_complexity,
     clippy::match_like_matches_macro,
     clippy::needless_borrow,
-    clippy::unit_arg,
-    clippy::manual_str_repeat
+    clippy::unit_arg
 )]
 
 mod any;
