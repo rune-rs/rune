@@ -93,3 +93,15 @@ fn test_unwrap() {
         }
     );
 }
+
+#[test]
+fn test_unwrap_or() {
+    assert_eq!(
+        rune! { i32 =>
+            pub fn main() {
+                Err("Error").unwrap_or(10)
+            }
+        },
+        10
+    );
+}

@@ -11,6 +11,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("is_ok", is_ok)?;
     module.inst_fn("is_err", is_err)?;
     module.inst_fn("unwrap", unwrap_impl)?;
+    module.inst_fn("unwrap_or", Result::<Value, Value>::unwrap_or)?;
     module.inst_fn("expect", expect_impl)?;
     module.inst_fn("and_then", and_then_impl)?;
     module.inst_fn("map", map_impl)?;
