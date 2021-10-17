@@ -2,19 +2,19 @@
 macro_rules! error {
     (
         $(#[$meta:meta])*
-        $vis:vis struct $error:ident {
+        $vis:vis struct $error_ty:ident {
             kind: $kind:ident,
         }
 
         $(impl From<$from_error:ident>;)*
     ) => {
         $(#[$meta])*
-        $vis struct $error {
+        $vis struct $error_ty {
             span: runestick::Span,
             kind: Box<$kind>,
         }
 
-        impl $error {
+        impl $error_ty {
             /// Construct a new scope error.
             pub fn new<S, K>(spanned: S, kind: K) -> Self
             where
@@ -49,25 +49,25 @@ macro_rules! error {
             }
         }
 
-        impl crate::Spanned for $error {
+        impl crate::Spanned for $error_ty {
             fn span(&self) -> runestick::Span {
                 self.span
             }
         }
 
-        impl std::error::Error for $error {
+        impl std::error::Error for $error_ty {
             fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
                 self.kind.source()
             }
         }
 
-        impl std::fmt::Display for $error {
+        impl std::fmt::Display for $error_ty {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 std::fmt::Display::fmt(&self.kind, f)
             }
         }
 
-        impl From<$crate::shared::Custom> for $error {
+        impl From<$crate::shared::Custom> for $error_ty {
             fn from(error: $crate::shared::Custom) -> Self {
                 Self::new(
                     error.span(),
@@ -79,9 +79,9 @@ macro_rules! error {
         }
 
         $(
-            impl From<$from_error> for $error {
+            impl From<$from_error> for $error_ty {
                 fn from(error: $from_error) -> Self {
-                    $error {
+                    $error_ty {
                         span: error.span(),
                         kind: Box::new($kind::$from_error {
                             error: From::from(error.into_kind()),
