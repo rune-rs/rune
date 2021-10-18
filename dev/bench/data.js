@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1630911535181,
+  "lastUpdate": 1634551982063,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -6556,6 +6556,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4988007,
             "range": "± 457234",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lnicola@dend.ro",
+            "name": "Laurențiu Nicola",
+            "username": "lnicola"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "f002e48180b8112cc7d50a2b7189bd5fcb419b65",
+          "message": "Rename `error!` parameter to work around rust-analyzer hang",
+          "timestamp": "2021-10-18T12:04:59+02:00",
+          "tree_id": "ecb96276f7d8711d823b4a049a66f54b7b278d82",
+          "url": "https://github.com/rune-rs/rune/commit/f002e48180b8112cc7d50a2b7189bd5fcb419b65"
+        },
+        "date": 1634551980617,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 380536495,
+            "range": "± 53921269",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 248078175,
+            "range": "± 38409225",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 298947,
+            "range": "± 65383",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 843639,
+            "range": "± 136379",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 81436610,
+            "range": "± 9754900",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1339808,
+            "range": "± 224816",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 14759567,
+            "range": "± 3152511",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 12696725,
+            "range": "± 2507323",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 458683,
+            "range": "± 67003",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5101683,
+            "range": "± 1143633",
             "unit": "ns/iter"
           }
         ]
