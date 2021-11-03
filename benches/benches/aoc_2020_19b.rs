@@ -14,7 +14,7 @@ fn aoc_2020_19b(b: &mut Bencher) -> runestick::Result<()> {
         data.push(line.to_owned().into());
     }
 
-    let vm = rune_tests::rune_vm! {
+    let mut vm = rune_tests::rune_vm! {
         use std::collections::HashMap;
         fn get_rules() {
             HashMap::from([
@@ -237,7 +237,7 @@ fn aoc_2020_19b(b: &mut Bencher) -> runestick::Result<()> {
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (data.clone(),));
+        let execution = vm.execute(entry, (data.clone(),));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });

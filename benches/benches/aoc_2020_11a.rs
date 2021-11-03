@@ -18,7 +18,7 @@ fn aoc_2020_11a(b: &mut Bencher) -> runestick::Result<()> {
         .map(str::to_owned)
         .collect::<Vec<String>>();
 
-    let vm = rune_tests::rune_vm! {
+    let mut vm = rune_tests::rune_vm! {
         enum CellState {
             Floor,
             Unoccupied,
@@ -244,7 +244,7 @@ fn aoc_2020_11a(b: &mut Bencher) -> runestick::Result<()> {
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (input.clone(),));
+        let execution = vm.execute(entry, (input.clone(),));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });
