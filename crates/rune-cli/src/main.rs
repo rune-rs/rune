@@ -53,6 +53,7 @@
 use anyhow::{Context as _, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{DumpInstructions as _, EmitDiagnostics as _, EmitSource as _};
+use runestick::{Unit, Value, Vm, VmExecution};
 use std::fs;
 use std::io;
 use std::io::Write as _;
@@ -61,7 +62,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use structopt::StructOpt;
 
-use runestick::{Unit, Value, VmExecution};
 mod tests;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
@@ -607,7 +607,7 @@ async fn do_run(
     let last = std::time::Instant::now();
 
     let vm = runestick::Vm::new(runtime, unit.clone());
-    let mut execution: runestick::VmExecution = vm.execute(&["main"], ())?;
+    let mut execution: runestick::VmExecution<_> = vm.execute(&["main"], ())?;
     let result = if args.trace {
         match do_trace(
             &mut out,
@@ -644,7 +644,7 @@ async fn do_run(
     if args.dump_stack {
         writeln!(out, "# full stack dump after halting")?;
 
-        let vm = execution.vm()?;
+        let vm = execution.vm();
 
         let frames = vm.call_frames();
         let stack = vm.stack();
@@ -730,22 +730,21 @@ impl From<std::io::Error> for TraceError {
 }
 
 /// Perform a detailed trace of the program.
-async fn do_trace(
+async fn do_trace<T>(
     out: &mut StandardStream,
-    execution: &mut VmExecution,
+    execution: &mut VmExecution<T>,
     sources: &rune::Sources,
     dump_stack: bool,
     with_source: bool,
-) -> Result<Value, TraceError> {
-    let mut current_frame_len = execution
-        .vm()
-        .map_err(TraceError::VmError)?
-        .call_frames()
-        .len();
+) -> Result<Value, TraceError>
+where
+    T: AsMut<Vm> + AsRef<Vm>,
+{
+    let mut current_frame_len = execution.vm().call_frames().len();
 
     loop {
         {
-            let vm = execution.vm().map_err(TraceError::VmError)?;
+            let vm = execution.vm();
             let mut out = out.lock();
 
             if let Some((hash, signature)) =
@@ -791,7 +790,7 @@ async fn do_trace(
         let mut out = out.lock();
 
         if dump_stack {
-            let vm = execution.vm().map_err(TraceError::VmError)?;
+            let vm = execution.vm();
             let frames = vm.call_frames();
 
             let stack = vm.stack();

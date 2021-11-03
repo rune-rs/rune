@@ -14,7 +14,10 @@ impl VmCall {
     }
 
     /// Encode the push itno an execution.
-    pub(crate) fn into_execution(self, execution: &mut VmExecution) -> Result<(), VmError> {
+    pub(crate) fn into_execution<T>(self, execution: &mut VmExecution<T>) -> Result<(), VmError>
+    where
+        T: AsMut<Vm>,
+    {
         let value = match self.call {
             Call::Async => Value::from(Future::new(self.vm.async_complete())),
             Call::Stream => Value::from(Stream::new(self.vm)),
@@ -25,7 +28,7 @@ impl VmCall {
             }
         };
 
-        let vm = execution.vm_mut()?;
+        let vm = execution.vm_mut();
         vm.stack_mut().push(value);
         vm.advance();
         Ok(())

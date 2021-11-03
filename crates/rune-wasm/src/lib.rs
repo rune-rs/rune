@@ -354,32 +354,31 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
     let output = match future.await {
         Ok(output) => output,
         Err(error) => {
-            if let Ok(vm) = execution.vm() {
-                let (kind, unwound) = error.as_unwound();
+            let vm = execution.vm();
+            let (kind, unwound) = error.as_unwound();
 
-                let (unit, ip, _frames) = match unwound {
-                    Some((unit, ip, frames)) => (unit, ip, frames),
-                    None => (vm.unit(), vm.ip(), vm.call_frames().to_owned()),
-                };
+            let (unit, ip, _frames) = match unwound {
+                Some((unit, ip, frames)) => (unit, ip, frames),
+                None => (vm.unit(), vm.ip(), vm.call_frames().to_owned()),
+            };
 
-                // NB: emit diagnostics if debug info is available.
-                if let Some(debug) = unit.debug_info() {
-                    if let Some(inst) = debug.instruction_at(ip) {
-                        if let Some(source) = sources.get(inst.source_id) {
-                            let start = Position::from(
-                                source.position_to_unicode_line_char(inst.span.start.into_usize()),
-                            );
-                            let end = Position::from(
-                                source.position_to_unicode_line_char(inst.span.end.into_usize()),
-                            );
+            // NB: emit diagnostics if debug info is available.
+            if let Some(debug) = unit.debug_info() {
+                if let Some(inst) = debug.instruction_at(ip) {
+                    if let Some(source) = sources.get(inst.source_id) {
+                        let start = Position::from(
+                            source.position_to_unicode_line_char(inst.span.start.into_usize()),
+                        );
+                        let end = Position::from(
+                            source.position_to_unicode_line_char(inst.span.end.into_usize()),
+                        );
 
-                            diagnostics.push(Diagnostic {
-                                kind: DiagnosticKind::Error,
-                                start,
-                                end,
-                                message: kind.to_string(),
-                            });
-                        }
+                        diagnostics.push(Diagnostic {
+                            kind: DiagnosticKind::Error,
+                            start,
+                            end,
+                            message: kind.to_string(),
+                        });
                     }
                 }
             }

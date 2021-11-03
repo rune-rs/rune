@@ -78,6 +78,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.inst_fn("header", RequestBuilder::header)?;
     module.async_inst_fn("body_bytes", RequestBuilder::body_bytes)?;
 
+    module.inst_fn(Protocol::STRING_DISPLAY, Error::display)?;
     module.inst_fn(Protocol::STRING_DISPLAY, StatusCode::display)?;
     Ok(module)
 }
@@ -90,6 +91,12 @@ pub struct Error {
 impl From<reqwest::Error> for Error {
     fn from(inner: reqwest::Error) -> Self {
         Self { inner }
+    }
+}
+
+impl Error {
+    fn display(&self, buf: &mut String) -> fmt::Result {
+        write!(buf, "{}", self.inner)
     }
 }
 
