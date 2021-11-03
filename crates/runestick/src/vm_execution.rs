@@ -4,13 +4,22 @@ use crate::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo}
 use std::future::Future;
 
 /// The execution environment for a virtual machine.
-pub struct VmExecution<T = Vm> {
+///
+/// When an execution is dropped, the stack of the stack of the head machine
+/// will be cleared.
+pub struct VmExecution<T = Vm>
+where
+    T: AsMut<Vm>,
+{
     /// The head vm which holds the execution.
     head: T,
     vms: Vec<Vm>,
 }
 
-impl<T> VmExecution<T> {
+impl<T> VmExecution<T>
+where
+    T: AsMut<Vm>,
+{
     /// Construct an execution from a virtual machine.
     pub(crate) fn new(head: T) -> Self {
         Self { head, vms: vec![] }
@@ -28,10 +37,7 @@ impl<T> VmExecution<T> {
     }
 
     /// Get the current virtual machine mutably.
-    pub fn vm_mut(&mut self) -> &mut Vm
-    where
-        T: AsMut<Vm>,
-    {
+    pub fn vm_mut(&mut self) -> &mut Vm {
         match self.vms.last_mut() {
             Some(vm) => vm,
             None => self.head.as_mut(),
@@ -41,10 +47,7 @@ impl<T> VmExecution<T> {
     /// Complete the current execution without support for async instructions.
     ///
     /// This will error if the execution is suspended through yielding.
-    pub async fn async_complete(&mut self) -> Result<Value, VmError>
-    where
-        T: AsMut<Vm>,
-    {
+    pub async fn async_complete(&mut self) -> Result<Value, VmError> {
         match self.async_resume().await? {
             GeneratorState::Complete(value) => Ok(value),
             GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
@@ -57,10 +60,7 @@ impl<T> VmExecution<T> {
     ///
     /// If any async instructions are encountered, this will error. This will
     /// also error if the execution is suspended through yielding.
-    pub fn complete(&mut self) -> Result<Value, VmError>
-    where
-        T: AsMut<Vm>,
-    {
+    pub fn complete(&mut self) -> Result<Value, VmError> {
         match self.resume()? {
             GeneratorState::Complete(value) => Ok(value),
             GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
@@ -70,10 +70,7 @@ impl<T> VmExecution<T> {
     }
 
     /// Resume the current execution with support for async instructions.
-    pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError>
-    where
-        T: AsMut<Vm>,
-    {
+    pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError> {
         loop {
             let len = self.vms.len();
             let vm = self.vm_mut();
@@ -97,9 +94,7 @@ impl<T> VmExecution<T> {
             }
 
             if len == 0 {
-                let value = vm.stack_mut().pop()?;
-                debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
-                self.vms.clear();
+                let value = self.end()?;
                 return Ok(GeneratorState::Complete(value));
             }
 
@@ -110,10 +105,7 @@ impl<T> VmExecution<T> {
     /// Resume the current execution without support for async instructions.
     ///
     /// If any async instructions are encountered, this will error.
-    pub fn resume(&mut self) -> Result<GeneratorState, VmError>
-    where
-        T: AsMut<Vm>,
-    {
+    pub fn resume(&mut self) -> Result<GeneratorState, VmError> {
         loop {
             let len = self.vms.len();
             let vm = self.vm_mut();
@@ -133,9 +125,7 @@ impl<T> VmExecution<T> {
             }
 
             if len == 0 {
-                let value = vm.stack_mut().pop()?;
-                debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
-                self.vms.clear();
+                let value = self.end()?;
                 return Ok(GeneratorState::Complete(value));
             }
 
@@ -147,10 +137,7 @@ impl<T> VmExecution<T> {
     /// instructions.
     ///
     /// If any async instructions are encountered, this will error.
-    pub fn step(&mut self) -> Result<Option<Value>, VmError>
-    where
-        T: AsMut<Vm>,
-    {
+    pub fn step(&mut self) -> Result<Option<Value>, VmError> {
         let len = self.vms.len();
         let vm = self.vm_mut();
 
@@ -169,8 +156,7 @@ impl<T> VmExecution<T> {
         }
 
         if len == 0 {
-            let value = vm.stack_mut().pop()?;
-            debug_assert!(vm.stack().is_empty(), "final vm stack not clean");
+            let value = self.end()?;
             return Ok(Some(value));
         }
 
@@ -180,10 +166,7 @@ impl<T> VmExecution<T> {
 
     /// Step the single execution for one step with support for async
     /// instructions.
-    pub async fn async_step(&mut self) -> Result<Option<Value>, VmError>
-    where
-        T: AsMut<Vm>,
-    {
+    pub async fn async_step(&mut self) -> Result<Option<Value>, VmError> {
         let len = self.vms.len();
         let vm = self.vm_mut();
 
@@ -206,13 +189,20 @@ impl<T> VmExecution<T> {
         }
 
         if len == 0 {
-            let value = vm.stack_mut().pop()?;
-            debug_assert!(vm.stack().is_empty(), "final vm stack not clean");
+            let value = self.end()?;
             return Ok(Some(value));
         }
 
         self.pop_vm()?;
         Ok(None)
+    }
+
+    /// End execution and perform debug checks.
+    pub(crate) fn end(&mut self) -> Result<Value, VmError> {
+        let vm = self.head.as_mut();
+        let value = vm.stack_mut().pop()?;
+        debug_assert!(self.vms.is_empty(), "execution vms should be empty");
+        Ok(value)
     }
 
     /// Push a virtual machine state onto the execution.
@@ -222,10 +212,7 @@ impl<T> VmExecution<T> {
 
     /// Pop a virtual machine state from the execution and transfer the top of
     /// the stack from the popped machine.
-    fn pop_vm(&mut self) -> Result<(), VmError>
-    where
-        T: AsMut<Vm>,
-    {
+    fn pop_vm(&mut self) -> Result<(), VmError> {
         let mut from = self.vms.pop().ok_or(VmErrorKind::NoRunningVm)?;
 
         let stack = from.stack_mut();
@@ -244,6 +231,15 @@ impl<T> VmExecution<T> {
             Ok(reason) => Ok(reason),
             Err(error) => Err(error.into_unwinded(vm.unit(), vm.ip(), vm.call_frames().to_vec())),
         }
+    }
+}
+
+impl<T> Drop for VmExecution<T>
+where
+    T: AsMut<Vm>,
+{
+    fn drop(&mut self) {
+        self.head.as_mut().stack_mut().clear();
     }
 }
 
