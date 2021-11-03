@@ -103,13 +103,13 @@ fn make_vm() -> runestick::Result<runestick::Vm> {
 
 #[bench]
 fn bf_hello_world(b: &mut Bencher) -> runestick::Result<()> {
-    let vm = make_vm()?;
+    let mut vm = make_vm()?;
     let hello_world = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.".to_owned();
 
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (hello_world.clone(), 00));
+        let execution = vm.execute(entry, (hello_world.clone(), 00));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });
@@ -121,14 +121,14 @@ fn bf_hello_world(b: &mut Bencher) -> runestick::Result<()> {
 
 #[bench]
 fn bf_hello_world2(b: &mut Bencher) -> runestick::Result<()> {
-    let vm = make_vm()?;
+    let mut vm = make_vm()?;
     // interesting hello world which wraps cells on the negative side
     let hello_world = "+[-[<<[+[--->]-[<<<]]]>>>-]>-.---.>..>.<<<<-.<+.>>>>>.>.<<.<-.".to_owned();
 
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (hello_world.clone(), 0));
+        let execution = vm.execute(entry, (hello_world.clone(), 0));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });
@@ -140,14 +140,14 @@ fn bf_hello_world2(b: &mut Bencher) -> runestick::Result<()> {
 
 #[bench]
 fn bf_fib(b: &mut Bencher) -> runestick::Result<()> {
-    let vm = make_vm()?;
+    let mut vm = make_vm()?;
     // Computes the first 16 fib numbers
     let src = "++++++++++++++++++++++++++++++++++++++++++++>++++++++++++++++++++++++++++++++>++ ++++++++++++++>>+<<[>>>>++++++++++<<[->+>-[>+>>]>[+[-<+>]>+>>]<<<<<<]>[<+>-]>[-] >>>++++++++++<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>>[+++++++++++++++++++++++++++++ +++++++++++++++++++.[-]]<[++++++++++++++++++++++++++++++++++++++++++++++++.[-]]< <<++++++++++++++++++++++++++++++++++++++++++++++++.[-]<<<<<<<.>.>>[>>+<<-]>[>+<< +>-]>[<+>-]<<<-]<<++..."
         .to_owned();
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (src.clone(), 0));
+        let execution = vm.execute(entry, (src.clone(), 0));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution");
     });
@@ -159,13 +159,13 @@ fn bf_fib(b: &mut Bencher) -> runestick::Result<()> {
 
 #[bench]
 fn bf_loopity(b: &mut Bencher) -> runestick::Result<()> {
-    let vm = make_vm()?;
+    let mut vm = make_vm()?;
     // Just a program that runs a lot of instructions
     let src = ">+[>++>+++[-<]>>]+".to_owned();
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (src.clone(), 5));
+        let execution = vm.execute(entry, (src.clone(), 5));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution");
     });

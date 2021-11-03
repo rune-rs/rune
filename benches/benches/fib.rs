@@ -6,7 +6,7 @@ use test::Bencher;
 
 #[bench]
 fn fib_15(b: &mut Bencher) -> runestick::Result<()> {
-    let vm = rune_tests::rune_vm! {
+    let mut vm = rune_tests::rune_vm! {
             fn fib(n) {
         if n <= 1 {
             n
@@ -23,7 +23,7 @@ fn fib_15(b: &mut Bencher) -> runestick::Result<()> {
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (15,));
+        let execution = vm.execute(entry, (15,));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });
@@ -33,7 +33,7 @@ fn fib_15(b: &mut Bencher) -> runestick::Result<()> {
 
 #[bench]
 fn fib_20(b: &mut Bencher) -> runestick::Result<()> {
-    let vm = rune_tests::rune_vm! {
+    let mut vm = rune_tests::rune_vm! {
             fn fib(n) {
         if n <= 1 {
             n
@@ -50,7 +50,7 @@ fn fib_20(b: &mut Bencher) -> runestick::Result<()> {
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (20,));
+        let execution = vm.execute(entry, (20,));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });

@@ -18,7 +18,7 @@ fn aoc_2020_1a(b: &mut Bencher) -> runestick::Result<()> {
         data.push_value(str::parse::<i64>(line)?)?;
     }
 
-    let vm = rune_tests::rune_vm! {
+    let mut vm = rune_tests::rune_vm! {
         use std::string;
 
         struct NoSolution;
@@ -79,7 +79,7 @@ fn aoc_2020_1a(b: &mut Bencher) -> runestick::Result<()> {
     let entry = runestick::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.clone().execute(entry, (data.clone(),));
+        let execution = vm.execute(entry, (data.clone(),));
         let mut execution = execution.expect("successful setup");
         execution.complete().expect("successful execution")
     });
