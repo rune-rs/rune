@@ -374,6 +374,7 @@ impl Vm {
 
         self.ip = offset;
         self.stack.clear();
+        self.call_frames.clear();
         Ok(())
     }
 
