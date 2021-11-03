@@ -37,7 +37,7 @@ fn test_reference_error() {
     )
     .unwrap();
 
-    let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
     let mut foo = Foo::default();
     assert_eq!(foo.value, 0);

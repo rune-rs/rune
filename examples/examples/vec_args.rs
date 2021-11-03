@@ -34,7 +34,7 @@ fn main() -> runestick::Result<()> {
 
     let unit = rune::load_sources(&context, &options, &mut sources, &mut diagnostics)?;
 
-    let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let _ = vm.execute(&["main"], ())?.complete()?;
 
     Ok(())

@@ -331,7 +331,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
         None
     };
 
-    let vm = runestick::Vm::new(Arc::new(context.runtime()), unit);
+    let mut vm = runestick::Vm::new(Arc::new(context.runtime()), unit);
 
     let mut execution = match vm.execute(&["main"], ()) {
         Ok(execution) => execution,

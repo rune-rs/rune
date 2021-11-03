@@ -130,7 +130,7 @@
 //!     }
 //!
 //!     let unit = result?;
-//!     let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+//!     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 //!
 //!     let mut execution = vm.execute(&["calculate"], (10i64, 20i64))?;
 //!     let value = execution.async_complete().await?;
