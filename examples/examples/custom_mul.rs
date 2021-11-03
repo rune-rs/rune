@@ -46,7 +46,7 @@ fn main() -> runestick::Result<()> {
         &mut diagnostics,
     )?;
 
-    let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let output = vm.execute(&["main"], (Foo { field: 5 },))?.complete()?;
     let output = Foo::from_value(output)?;
 

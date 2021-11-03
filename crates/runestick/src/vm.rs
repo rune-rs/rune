@@ -203,7 +203,7 @@ impl Vm {
     ///     // Normally the unit would be created by compiling some source,
     ///     // and since this one is empty it won't do anything.
     ///
-    ///     let vm = runestick::Vm::new(context, unit);
+    ///     let mut vm = runestick::Vm::new(context, unit);
     ///
     ///     let output = vm.execute(&["main"], (33i64,))?.complete()?;
     ///     let output = i64::from_value(output)?;
@@ -227,7 +227,7 @@ impl Vm {
     ///     // Normally the unit would be created by compiling some source,
     ///     // and since this one is empty it won't do anything.
     ///
-    ///     let vm = runestick::Vm::new(context, unit);
+    ///     let mut vm = runestick::Vm::new(context, unit);
     ///
     ///     let mut args = Vec::new();
     ///     args.push(1u32.to_value()?);
@@ -240,14 +240,14 @@ impl Vm {
     ///     Ok(())
     /// }
     /// ```
-    pub fn execute<A, N>(mut self, name: N, args: A) -> Result<VmExecution<Self>, VmError>
+    pub fn execute<A, N>(&mut self, name: N, args: A) -> Result<VmExecution<&mut Self>, VmError>
     where
         N: IntoTypeHash,
         A: Args,
     {
         self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack)?;
-        Ok(self.into_execution())
+        Ok(VmExecution::new(self))
     }
 
     /// An `execute` variant that returns an execution which implements
@@ -265,8 +265,9 @@ impl Vm {
         // being sent along with the virtual machine.
         self.stack.clear();
 
-        let execution = self.execute(name, args)?;
-        Ok(VmSendExecution(execution))
+        self.set_entrypoint(name, args.count())?;
+        args.into_stack(&mut self.stack)?;
+        Ok(VmSendExecution(VmExecution::new(self)))
     }
 
     /// Call the given function immediately, returning the produced value.
@@ -283,7 +284,7 @@ impl Vm {
     ///
     /// [`Mut<T>`]: crate::Mut
     /// [`Ref<T>`]: crate::Ref
-    pub fn call<A, N>(mut self, name: N, args: A) -> Result<Value, VmError>
+    pub fn call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: IntoTypeHash,
         A: GuardedArgs,
@@ -293,18 +294,13 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
-        let value = self.into_execution().complete()?;
+        let value = VmExecution::new(self).complete()?;
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
         // take any owned references to values held by this.
         drop(guard);
         Ok(value)
-    }
-
-    /// Convert this virtual machine into an execution.
-    fn into_execution(self) -> VmExecution<Self> {
-        VmExecution::new(self)
     }
 
     /// Call the given function immediately asynchronously, returning the
@@ -322,7 +318,7 @@ impl Vm {
     ///
     /// [`Mut<T>`]: crate::Mut
     /// [`Ref<T>`]: crate::Ref
-    pub async fn async_call<A, N>(mut self, name: N, args: A) -> Result<Value, VmError>
+    pub async fn async_call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: IntoTypeHash,
         A: GuardedArgs,

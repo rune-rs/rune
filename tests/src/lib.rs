@@ -111,7 +111,7 @@ where
     A: runestick::Args,
     T: FromValue,
 {
-    let vm = vm(context, sources)?;
+    let mut vm = vm(context, sources)?;
 
     let output = vm
         .execute(&Item::with_item(function), args)
@@ -154,7 +154,7 @@ where
     A: runestick::Args,
     T: FromValue,
 {
-    let vm = vm(context, sources)?;
+    let mut vm = vm(context, sources)?;
 
     let output = vm
         .execute(&Item::with_item(function), args)
@@ -258,7 +258,7 @@ pub fn build(
 /// use runestick::Value;
 ///
 /// # fn main() {
-/// let vm = rune_tests::rune_vm!(pub fn main() { true || false });
+/// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
 /// let result = vm.execute(&["main"], ()).unwrap().complete().unwrap();
 /// assert_eq!(result.into_bool().unwrap(), true);
 /// # }
@@ -282,7 +282,7 @@ macro_rules! rune_vm {
 /// use runestick::Value;
 ///
 /// # fn main() {
-/// let vm = rune_tests::rune_vm!(pub fn main() { true || false });
+/// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
 /// let result = vm.execute(&["main"], ()).unwrap().complete().unwrap();
 /// assert_eq!(result.into_bool().unwrap(), true);
 /// # }

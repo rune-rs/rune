@@ -606,7 +606,7 @@ async fn do_run(
 ) -> Result<ExitCode> {
     let last = std::time::Instant::now();
 
-    let vm = runestick::Vm::new(runtime, unit.clone());
+    let mut vm = runestick::Vm::new(runtime, unit.clone());
     let mut execution: runestick::VmExecution<_> = vm.execute(&["main"], ())?;
     let result = if args.trace {
         match do_trace(
