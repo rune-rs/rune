@@ -7,7 +7,7 @@ use std::mem;
 
 /// A stream with a stored virtual machine.
 pub struct Stream {
-    execution: Option<VmExecution>,
+    execution: Option<VmExecution<Vm>>,
     first: bool,
 }
 
@@ -36,7 +36,7 @@ impl Stream {
             .ok_or(VmErrorKind::GeneratorComplete)?;
 
         if !mem::take(&mut self.first) {
-            execution.vm_mut()?.stack_mut().push(value);
+            execution.vm_mut().stack_mut().push(value);
         }
 
         let state = execution.async_resume().await?;

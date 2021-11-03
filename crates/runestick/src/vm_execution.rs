@@ -4,36 +4,47 @@ use crate::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo}
 use std::future::Future;
 
 /// The execution environment for a virtual machine.
-pub struct VmExecution {
+pub struct VmExecution<T = Vm> {
+    /// The head vm which holds the execution.
+    head: T,
     vms: Vec<Vm>,
 }
 
-impl VmExecution {
+impl<T> VmExecution<T> {
     /// Construct an execution from a virtual machine.
-    pub(crate) fn new(vm: Vm) -> Self {
-        Self { vms: vec![vm] }
+    pub(crate) fn new(head: T) -> Self {
+        Self { head, vms: vec![] }
     }
 
     /// Get the current virtual machine.
-    pub fn vm(&self) -> Result<&Vm, VmError> {
+    pub fn vm(&self) -> &Vm
+    where
+        T: AsRef<Vm>,
+    {
         match self.vms.last() {
-            Some(vm) => Ok(vm),
-            None => Err(VmError::from(VmErrorKind::NoRunningVm)),
+            Some(vm) => vm,
+            None => self.head.as_ref(),
         }
     }
 
     /// Get the current virtual machine mutably.
-    pub fn vm_mut(&mut self) -> Result<&mut Vm, VmError> {
+    pub fn vm_mut(&mut self) -> &mut Vm
+    where
+        T: AsMut<Vm>,
+    {
         match self.vms.last_mut() {
-            Some(vm) => Ok(vm),
-            None => Err(VmError::from(VmErrorKind::NoRunningVm)),
+            Some(vm) => vm,
+            None => self.head.as_mut(),
         }
     }
 
     /// Complete the current execution without support for async instructions.
     ///
     /// This will error if the execution is suspended through yielding.
-    pub async fn async_complete(&mut self) -> Result<Value, VmError> {
+    pub async fn async_complete(&mut self) -> Result<Value, VmError>
+    where
+        T: AsMut<Vm>,
+    {
         match self.async_resume().await? {
             GeneratorState::Complete(value) => Ok(value),
             GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
@@ -46,7 +57,10 @@ impl VmExecution {
     ///
     /// If any async instructions are encountered, this will error. This will
     /// also error if the execution is suspended through yielding.
-    pub fn complete(&mut self) -> Result<Value, VmError> {
+    pub fn complete(&mut self) -> Result<Value, VmError>
+    where
+        T: AsMut<Vm>,
+    {
         match self.resume()? {
             GeneratorState::Complete(value) => Ok(value),
             GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
@@ -56,10 +70,13 @@ impl VmExecution {
     }
 
     /// Resume the current execution with support for async instructions.
-    pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError> {
+    pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError>
+    where
+        T: AsMut<Vm>,
+    {
         loop {
             let len = self.vms.len();
-            let vm = self.vm_mut()?;
+            let vm = self.vm_mut();
 
             match Self::run(vm)? {
                 VmHalt::Exited => (),
@@ -79,7 +96,7 @@ impl VmExecution {
                 }
             }
 
-            if len == 1 {
+            if len == 0 {
                 let value = vm.stack_mut().pop()?;
                 debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
                 self.vms.clear();
@@ -93,10 +110,13 @@ impl VmExecution {
     /// Resume the current execution without support for async instructions.
     ///
     /// If any async instructions are encountered, this will error.
-    pub fn resume(&mut self) -> Result<GeneratorState, VmError> {
+    pub fn resume(&mut self) -> Result<GeneratorState, VmError>
+    where
+        T: AsMut<Vm>,
+    {
         loop {
             let len = self.vms.len();
-            let vm = self.vm_mut()?;
+            let vm = self.vm_mut();
 
             match Self::run(vm)? {
                 VmHalt::Exited => (),
@@ -112,7 +132,7 @@ impl VmExecution {
                 }
             }
 
-            if len == 1 {
+            if len == 0 {
                 let value = vm.stack_mut().pop()?;
                 debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
                 self.vms.clear();
@@ -127,9 +147,12 @@ impl VmExecution {
     /// instructions.
     ///
     /// If any async instructions are encountered, this will error.
-    pub fn step(&mut self) -> Result<Option<Value>, VmError> {
+    pub fn step(&mut self) -> Result<Option<Value>, VmError>
+    where
+        T: AsMut<Vm>,
+    {
         let len = self.vms.len();
-        let vm = self.vm_mut()?;
+        let vm = self.vm_mut();
 
         match budget::with(1, || Self::run(vm)).call()? {
             VmHalt::Exited => (),
@@ -145,7 +168,7 @@ impl VmExecution {
             }
         }
 
-        if len == 1 {
+        if len == 0 {
             let value = vm.stack_mut().pop()?;
             debug_assert!(vm.stack().is_empty(), "final vm stack not clean");
             return Ok(Some(value));
@@ -157,9 +180,12 @@ impl VmExecution {
 
     /// Step the single execution for one step with support for async
     /// instructions.
-    pub async fn async_step(&mut self) -> Result<Option<Value>, VmError> {
+    pub async fn async_step(&mut self) -> Result<Option<Value>, VmError>
+    where
+        T: AsMut<Vm>,
+    {
         let len = self.vms.len();
-        let vm = self.vm_mut()?;
+        let vm = self.vm_mut();
 
         match budget::with(1, || Self::run(vm)).call()? {
             VmHalt::Exited => (),
@@ -179,7 +205,7 @@ impl VmExecution {
             }
         }
 
-        if len == 1 {
+        if len == 0 {
             let value = vm.stack_mut().pop()?;
             debug_assert!(vm.stack().is_empty(), "final vm stack not clean");
             return Ok(Some(value));
@@ -196,14 +222,17 @@ impl VmExecution {
 
     /// Pop a virtual machine state from the execution and transfer the top of
     /// the stack from the popped machine.
-    fn pop_vm(&mut self) -> Result<(), VmError> {
+    fn pop_vm(&mut self) -> Result<(), VmError>
+    where
+        T: AsMut<Vm>,
+    {
         let mut from = self.vms.pop().ok_or(VmErrorKind::NoRunningVm)?;
 
         let stack = from.stack_mut();
         let value = stack.pop()?;
         debug_assert!(stack.is_empty(), "vm stack not clean");
 
-        let onto = self.vm_mut()?;
+        let onto = self.vm_mut();
         onto.stack_mut().push(value);
         onto.advance();
         Ok(())
@@ -226,7 +255,7 @@ impl VmExecution {
 /// a thread pool like Tokio's through [tokio::spawn].
 ///
 /// [tokio::spawn]: https://docs.rs/tokio/0/tokio/runtime/struct.Runtime.html#method.spawn
-pub struct VmSendExecution(pub(crate) VmExecution);
+pub struct VmSendExecution(pub(crate) VmExecution<Vm>);
 
 // Safety: we wrap all APIs around the [VmExecution], preventing values from
 // escaping from contained virtual machine.

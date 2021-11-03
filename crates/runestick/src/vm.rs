@@ -240,7 +240,7 @@ impl Vm {
     ///     Ok(())
     /// }
     /// ```
-    pub fn execute<A, N>(mut self, name: N, args: A) -> Result<VmExecution, VmError>
+    pub fn execute<A, N>(mut self, name: N, args: A) -> Result<VmExecution<Self>, VmError>
     where
         N: IntoTypeHash,
         A: Args,
@@ -303,7 +303,7 @@ impl Vm {
     }
 
     /// Convert this virtual machine into an execution.
-    fn into_execution(self) -> VmExecution {
+    fn into_execution(self) -> VmExecution<Self> {
         VmExecution::new(self)
     }
 
@@ -2966,6 +2966,18 @@ impl Vm {
 
             self.advance();
         }
+    }
+}
+
+impl AsMut<Vm> for Vm {
+    fn as_mut(&mut self) -> &mut Vm {
+        self
+    }
+}
+
+impl AsRef<Vm> for Vm {
+    fn as_ref(&self) -> &Vm {
+        self
     }
 }
 

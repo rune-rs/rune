@@ -7,7 +7,7 @@ use std::mem;
 
 /// A generator with a stored virtual machine.
 pub struct Generator {
-    execution: Option<VmExecution>,
+    execution: Option<VmExecution<Vm>>,
     first: bool,
 }
 
@@ -37,7 +37,7 @@ impl Generator {
             .ok_or(VmErrorKind::GeneratorComplete)?;
 
         if !mem::take(&mut self.first) {
-            execution.vm_mut()?.stack_mut().push(value);
+            execution.vm_mut().stack_mut().push(value);
         }
 
         let state = execution.resume()?;
