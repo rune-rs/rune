@@ -291,7 +291,9 @@ impl Vm {
     {
         self.set_entrypoint(name, args.count())?;
 
-        // Safety: We hold onto the guard until the vm has completed.
+        // Safety: We hold onto the guard until the vm has completed and
+        // `VmExecution` will clear the stack before this function returns.
+        // Erronously or not.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
         let value = VmExecution::new(self).complete()?;
@@ -325,7 +327,9 @@ impl Vm {
     {
         self.set_entrypoint(name, args.count())?;
 
-        // Safety: We hold onto the guard until the vm has completed.
+        // Safety: We hold onto the guard until the vm has completed and
+        // `VmExecution` will clear the stack before this function returns.
+        // Erronously or not.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
         let value = VmExecution::new(self).async_complete().await?;
