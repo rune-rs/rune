@@ -196,21 +196,21 @@ impl Vm {
     /// use runestick::{Context, Unit, FromValue, Source};
     /// use std::sync::Arc;
     ///
-    /// fn main() -> runestick::Result<()> {
-    ///     let context = Context::with_default_modules()?;
-    ///     let context = Arc::new(context.runtime());
-    ///     let unit = Arc::new(Unit::default());
-    ///     // Normally the unit would be created by compiling some source,
-    ///     // and since this one is empty it won't do anything.
+    /// # fn main() -> runestick::Result<()> {
+    /// let context = Context::with_default_modules()?;
+    /// let context = Arc::new(context.runtime());
     ///
-    ///     let mut vm = runestick::Vm::new(context, unit);
+    /// // Normally the unit would be created by compiling some source,
+    /// // and since this one is empty it won't do anything.
+    /// let unit = Arc::new(Unit::default());
     ///
-    ///     let output = vm.execute(&["main"], (33i64,))?.complete()?;
-    ///     let output = i64::from_value(output)?;
+    /// let mut vm = runestick::Vm::new(context, unit);
     ///
-    ///     println!("output: {}", output);
-    ///     Ok(())
-    /// }
+    /// let output = vm.execute(&["main"], (33i64,))?.complete()?;
+    /// let output = i64::from_value(output)?;
+    ///
+    /// println!("output: {}", output);
+    /// # Ok(()) }
     /// ```
     ///
     /// You can use a `Vec<Value>` to provide a variadic collection of
@@ -220,25 +220,25 @@ impl Vm {
     /// use runestick::{Context, Unit, FromValue, Source, ToValue};
     /// use std::sync::Arc;
     ///
-    /// fn main() -> runestick::Result<()> {
-    ///     let context = Context::with_default_modules()?;
-    ///     let context = Arc::new(context.runtime());
-    ///     let unit = Arc::new(Unit::default());
-    ///     // Normally the unit would be created by compiling some source,
-    ///     // and since this one is empty it won't do anything.
+    /// # fn main() -> runestick::Result<()> {
+    /// let context = Context::with_default_modules()?;
+    /// let context = Arc::new(context.runtime());
     ///
-    ///     let mut vm = runestick::Vm::new(context, unit);
+    /// // Normally the unit would be created by compiling some source,
+    /// // and since this one is empty it won't do anything.
+    /// let unit = Arc::new(Unit::default());
     ///
-    ///     let mut args = Vec::new();
-    ///     args.push(1u32.to_value()?);
-    ///     args.push(String::from("Hello World").to_value()?);
+    /// let mut vm = runestick::Vm::new(context, unit);
     ///
-    ///     let output = vm.execute(&["main"], args)?.complete()?;
-    ///     let output = i64::from_value(output)?;
+    /// let mut args = Vec::new();
+    /// args.push(1u32.to_value()?);
+    /// args.push(String::from("Hello World").to_value()?);
     ///
-    ///     println!("output: {}", output);
-    ///     Ok(())
-    /// }
+    /// let output = vm.execute(&["main"], args)?.complete()?;
+    /// let output = i64::from_value(output)?;
+    ///
+    /// println!("output: {}", output);
+    /// # Ok(()) }
     /// ```
     pub fn execute<A, N>(&mut self, name: N, args: A) -> Result<VmExecution<&mut Self>, VmError>
     where
@@ -2709,6 +2709,46 @@ impl Vm {
 
         *value = some;
         Ok(())
+    }
+
+    /// Call the provided closure within the context of this virtual machine.
+    ///
+    /// This allows for calling protocol function helpers like
+    /// [Value::string_display] which requires access to a virtual machine.
+    ///
+    /// ```rust,no_run
+    /// use runestick::{Context, Unit, FromValue, Source};
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// let context = Context::with_default_modules()?;
+    /// let context = Arc::new(context.runtime());
+    ///
+    /// // Normally the unit would be created by compiling some source,
+    /// // and since this one is empty it'll just error.
+    /// let unit = Arc::new(Unit::default());
+    ///
+    /// let mut vm = runestick::Vm::new(context, unit);
+    ///
+    /// let output = vm.execute(&["main"], ())?.complete()?;
+    ///
+    /// // Call the string_display protocol on `output`. This requires
+    /// // access to a virtual machine since it might use functions
+    /// // registered in the unit associated with it.
+    /// let mut s = String::new();
+    /// let mut buf = String::new();
+    ///
+    /// // Note: We do an extra unwrap because the return value is
+    /// // `fmt::Result`.
+    /// vm.with(|| output.string_display(&mut s, &mut buf))?.expect("formatting should succeed");
+    /// # Ok(()) }
+    /// ```
+    pub fn with<F, T>(&mut self, f: F) -> T
+    where
+        F: FnOnce() -> T,
+    {
+        let _guard = crate::env::Guard::new(&self.context, &self.unit);
+        f()
     }
 
     /// Evaluate a single instruction.
