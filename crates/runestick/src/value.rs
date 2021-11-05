@@ -286,11 +286,16 @@ pub enum Value {
 impl Value {
     /// Format the value using the [Protocol::STRING_DISPLAY] protocol.
     ///
-    /// Also requires a work buffer `buf` which will be used in case the value
-    /// provided required formatting.
+    /// Requires a work buffer `buf` which will be used in case the value
+    /// provided requires out-of-line formatting. This must be cleared between
+    /// calls and can be re-used.
     ///
-    /// Note that this function will always failed if called outside of a
-    /// virtual machine.
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called outside of a virtual machine.
     pub fn string_display(&self, s: &mut String, buf: &mut String) -> Result<fmt::Result, VmError> {
         self.string_display_with(s, buf, EnvProtocolCaller)
     }
@@ -351,8 +356,12 @@ impl Value {
 
     /// Debug format the value using the [Protocol::STRING_DEBUG] protocol.
     ///
-    /// Note that this function will always failed if called outside of a
-    /// virtual machine.
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called outside of a virtual machine.
     pub fn string_debug(&self, s: &mut String) -> Result<fmt::Result, VmError> {
         self.string_debug_with(s, EnvProtocolCaller)
     }
@@ -468,8 +477,12 @@ impl Value {
 
     /// Convert value into an iterator using the [Protocol::INTO_ITER] protocol.
     ///
-    /// Note that this function will always failed if called outside of a
-    /// virtual machine.
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called outside of a virtual machine.
     pub fn into_iter(self) -> Result<Iterator, VmError> {
         use crate::FromValue as _;
 
@@ -487,8 +500,12 @@ impl Value {
     /// Coerce into future, or convert into a future using the
     /// [Protocol::INTO_FUTURE] protocol.
     ///
-    /// Note that this function will always failed if called outside of a
-    /// virtual machine.
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called outside of a virtual machine.
     pub fn into_future(self) -> Result<Future, VmError> {
         use crate::FromValue as _;
 
@@ -504,8 +521,12 @@ impl Value {
     /// Coerce into a shared future, or convert into a future using the
     /// [Protocol::INTO_FUTURE] protocol.
     ///
-    /// Note that this function will always failed if called outside of a
-    /// virtual machine.
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called outside of a virtual machine.
     #[inline]
     pub fn into_shared_future(self) -> Result<Shared<Future>, VmError> {
         use crate::FromValue as _;
@@ -521,8 +542,12 @@ impl Value {
 
     /// Retrieves a human readable type name for the current value.
     ///
-    /// Note that this function will always failed if called outside of a
-    /// virtual machine.
+    /// You must use [Vm::with] to specify which virtual machine this function
+    /// is called inside.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called outside of a virtual machine.
     pub fn into_type_name(self) -> Result<String, VmError> {
         let hash = Hash::instance_function(self.type_hash()?, Protocol::INTO_TYPE_NAME);
 
