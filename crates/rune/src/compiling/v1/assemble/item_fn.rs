@@ -41,11 +41,7 @@ impl AssembleFn for ast::ItemFn {
         }
 
         if !self.body.produces_nothing() {
-            self.body.assemble(c, Needs::Value)?.apply(c)?;
-
-            let total_var_count = c.scopes.total_var_count(span)?;
-            c.locals_clean(total_var_count, span);
-            c.asm.push(Inst::Return, span);
+            c.return_(span, &self.body)?;
         } else {
             self.body.assemble(c, Needs::None)?.apply(c)?;
 

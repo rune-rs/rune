@@ -8,7 +8,7 @@ impl AssembleClosure for ast::Block {
         captures: &[CompileMetaCapture],
     ) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("ExprBlock (procedure) => {:?}", c.source.source(span));
+        log::trace!("Block (closure) => {:?}", c.source.source(span));
 
         let guard = c.scopes.push_child(span)?;
 
@@ -16,9 +16,8 @@ impl AssembleClosure for ast::Block {
             c.scopes.new_var(&capture.ident, span)?;
         }
 
-        self.assemble(c, Needs::Value)?.apply(c)?;
-        c.clean_last_scope(span, guard, Needs::Value)?;
-        c.asm.push(Inst::Return, span);
+        c.return_(span, self)?;
+        c.scopes.pop(guard, span)?;
         Ok(())
     }
 }

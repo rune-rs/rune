@@ -10,8 +10,8 @@ use crate::{
     UnitBuilder,
 };
 use runestick::{
-    CompileItem, CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label,
-    Source, Span, TypeCheck,
+    CompileItem, CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstAddress, InstValue,
+    Item, Label, Source, Span, TypeCheck,
 };
 use std::rc::Rc;
 use std::sync::Arc;
@@ -940,6 +940,22 @@ impl<'a> Compiler<'a> {
         interpreter.item = query_const_fn.item.item.clone();
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
         Ok(value.into_const(spanned)?)
+    }
+
+    /// Assemble a return statement from the given Assemble.
+    pub(crate) fn return_(&mut self, span: Span, asm: &impl Assemble) -> CompileResult<()> {
+        let clean = self.scopes.total_var_count(span)?;
+
+        let address = asm.assemble(self, Needs::Value)?.apply_targeted(self)?;
+        self.asm.push(Inst::Return { address, clean }, span);
+
+        // Top address produces an anonymous variable, which is consumed by the
+        // return statement.
+        if let InstAddress::Top = address {
+            self.scopes.undecl_anon(span, 1)?;
+        }
+
+        Ok(())
     }
 }
 
