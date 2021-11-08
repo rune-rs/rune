@@ -1924,8 +1924,13 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_return(&mut self) -> Result<bool, VmError> {
-        let return_value = self.stack.pop()?;
+    fn op_return(&mut self, address: InstAddress, clean: usize) -> Result<bool, VmError> {
+        let return_value = self.stack.address(address)?;
+
+        if clean > 0 {
+            self.stack.popn(clean)?;
+        }
+
         let exit = self.pop_call_frame()?;
         self.stack.push(return_value);
         Ok(exit)
@@ -2259,50 +2264,31 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_unwrap(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let value = match value {
-            Value::Option(option) => match &*option.borrow_ref()? {
-                Some(value) => value.clone(),
-                None => {
-                    return Err(VmError::from(VmErrorKind::UnsupportedUnwrapNone));
-                }
-            },
-            Value::Result(result) => match &*result.borrow_ref()? {
-                Ok(value) => value.clone(),
-                Err(err) => {
-                    return Err(VmError::from(VmErrorKind::UnsupportedUnwrapErr {
-                        err: err.type_info()?,
-                    }));
-                }
-            },
-            other => {
-                return Err(VmError::from(VmErrorKind::UnsupportedUnwrap {
-                    actual: other.type_info()?,
-                }));
-            }
-        };
-
-        self.stack.push(value);
-        Ok(())
-    }
-
-    #[cfg_attr(feature = "bench", inline(never))]
     fn op_is_unit(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
         self.stack.push(matches!(value, Value::Unit));
         Ok(())
     }
 
-    /// Test if the top of the stack is an error.
+    /// Perform the try operation on the given stack location.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_is_value(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
+    fn op_try(
+        &mut self,
+        address: InstAddress,
+        clean: usize,
+        preserve: bool,
+    ) -> Result<bool, VmError> {
+        let value = self.stack.address_peek(address)?;
 
-        let is_value = match value {
-            Value::Result(result) => result.borrow_ref()?.is_ok(),
-            Value::Option(option) => option.borrow_ref()?.is_some(),
+        let value = match value {
+            Value::Result(result) => match &*result.borrow_ref()? {
+                Result::Ok(value) => Some(value.clone()),
+                Result::Err(..) => None,
+            },
+            Value::Option(option) => match &*option.borrow_ref()? {
+                Option::Some(value) => Some(value.clone()),
+                Option::None => None,
+            },
             other => {
                 return Err(VmError::from(VmErrorKind::UnsupportedIsValueOperand {
                     actual: other.type_info()?,
@@ -2310,8 +2296,15 @@ impl Vm {
             }
         };
 
-        self.stack.push(is_value);
-        Ok(())
+        if let Some(value) = value {
+            if preserve {
+                self.stack.push(value);
+            }
+
+            Ok(false)
+        } else {
+            self.op_return(address, clean)
+        }
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2817,8 +2810,8 @@ impl Vm {
                 Inst::IndexSet => {
                     self.op_index_set()?;
                 }
-                Inst::Return => {
-                    if self.op_return()? {
+                Inst::Return { address, clean } => {
+                    if self.op_return(address, clean)? {
                         self.advance();
                         return Ok(VmHalt::Exited);
                     }
@@ -2942,11 +2935,15 @@ impl Vm {
                 Inst::IsUnit => {
                     self.op_is_unit()?;
                 }
-                Inst::IsValue => {
-                    self.op_is_value()?;
-                }
-                Inst::Unwrap => {
-                    self.op_unwrap()?;
+                Inst::Try {
+                    address,
+                    clean,
+                    preserve,
+                } => {
+                    if self.op_try(address, clean, preserve)? {
+                        self.advance();
+                        return Ok(VmHalt::Exited);
+                    }
                 }
                 Inst::EqByte { byte } => {
                     self.op_eq_byte(byte)?;

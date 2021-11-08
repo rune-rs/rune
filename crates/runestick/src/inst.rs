@@ -426,7 +426,14 @@ pub enum Inst {
     ///
     /// The stack frame will be cleared, and the value on the top of the stack
     /// will be left on top of it.
-    Return,
+    Return {
+        /// The address of the value to return.
+        address: InstAddress,
+        /// Number of variables to clean. If address is top, this should only
+        /// specify variables in excess of the top variable. Otherwise, this
+        /// includes the return value.
+        clean: usize,
+    },
     /// Pop the current stack frame and restore the instruction pointer from it.
     ///
     /// The stack frame will be cleared, and a unit value will be pushed to the
@@ -726,10 +733,8 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     IsUnit,
-    /// Test if the top of the stack is a value.
-    ///
-    /// This expects the top of the stack to be an `option` or a `result`,
-    /// and it is a value if these are either `Some` or `Ok`.
+    /// Perform the try operation which takes the value at the given `address`
+    /// and tries to unwrap it or return from the current call frame.
     ///
     /// # Operation
     ///
@@ -737,17 +742,15 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    IsValue,
-    /// Unwrap a result from the top of the stack.
-    /// This causes a vm error if the top of the stack is not an ok result.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <result>
-    /// => <value>
-    /// ```
-    Unwrap,
+    Try {
+        /// Address to test if value.
+        address: InstAddress,
+        /// Variable count that needs to be cleaned in case the operation
+        /// results in a return.
+        clean: usize,
+        /// If the value on top of the stack should be preserved.
+        preserve: bool,
+    },
     /// Test if the top of the stack is a specific byte.
     ///
     /// # Operation
@@ -980,7 +983,7 @@ impl fmt::Display for Inst {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Drop { offset } => {
-                write!(fmt, "drop {}", offset)?;
+                write!(fmt, "drop offset={}", offset)?;
             }
             Self::Not => {
                 write!(fmt, "not")?;
@@ -989,40 +992,40 @@ impl fmt::Display for Inst {
                 write!(fmt, "neg")?;
             }
             Self::Call { hash, args } => {
-                write!(fmt, "call {}, {}", hash, args)?;
+                write!(fmt, "call hash={}, args={}", hash, args)?;
             }
             Self::CallInstance { hash, args } => {
-                write!(fmt, "call-instance {}, {}", hash, args)?;
+                write!(fmt, "call-instance hash={}, args={}", hash, args)?;
             }
             Self::Closure { hash, count } => {
-                write!(fmt, "closure {}, {}", hash, count)?;
+                write!(fmt, "closure hash={}, count={}", hash, count)?;
             }
             Self::CallFn { args } => {
-                write!(fmt, "call-fn {}", args)?;
+                write!(fmt, "call-fn args={}", args)?;
             }
             Self::LoadInstanceFn { hash } => {
-                write!(fmt, "load-instance-fn {}", hash)?;
+                write!(fmt, "load-instance-fn hash={}", hash)?;
             }
             Self::IndexGet { target, index } => {
-                write!(fmt, "index-get {}, {}", target, index)?;
+                write!(fmt, "index-get target={}, index={}", target, index)?;
             }
             Self::TupleIndexGet { index } => {
-                write!(fmt, "tuple-index-get {}", index)?;
+                write!(fmt, "tuple-index-get index={}", index)?;
             }
             Self::TupleIndexSet { index } => {
-                write!(fmt, "tuple-index-set {}", index)?;
+                write!(fmt, "tuple-index-set index={}", index)?;
             }
             Self::TupleIndexGetAt { offset, index } => {
-                write!(fmt, "tuple-index-get-at {}, {}", offset, index)?;
+                write!(fmt, "tuple-index-get-at offset={}, index={}", offset, index)?;
             }
             Self::ObjectIndexGet { slot } => {
-                write!(fmt, "object-index-get {}", slot)?;
+                write!(fmt, "object-index-get slot={}", slot)?;
             }
             Self::ObjectIndexSet { slot } => {
-                write!(fmt, "object-index-set {}", slot)?;
+                write!(fmt, "object-index-set slot={}", slot)?;
             }
             Self::ObjectIndexGetAt { offset, slot } => {
-                write!(fmt, "object-index-get-at {}, {}", offset, slot)?;
+                write!(fmt, "object-index-get-at offset={}, slot={}", offset, slot)?;
             }
             Self::IndexSet => {
                 write!(fmt, "index-set")?;
@@ -1031,61 +1034,65 @@ impl fmt::Display for Inst {
                 write!(fmt, "await")?;
             }
             Self::Select { len } => {
-                write!(fmt, "select {}", len)?;
+                write!(fmt, "select len={}", len)?;
             }
             Self::LoadFn { hash } => {
-                write!(fmt, "load-fn {}", hash)?;
+                write!(fmt, "load-fn hash={}", hash)?;
             }
             Self::Push { value } => {
-                write!(fmt, "push {}", value)?;
+                write!(fmt, "push value={}", value)?;
             }
             Self::Pop => {
                 write!(fmt, "pop")?;
             }
             Self::PopN { count } => {
-                write!(fmt, "pop-n {}", count)?;
+                write!(fmt, "pop-n count={}", count)?;
             }
             Self::PopAndJumpIfNot { count, offset } => {
-                write!(fmt, "pop-and-jump-if-not {}, {}", count, offset)?;
+                write!(
+                    fmt,
+                    "pop-and-jump-if-not count={}, offset={}",
+                    count, offset
+                )?;
             }
             Self::Clean { count } => {
-                write!(fmt, "clean {}", count)?;
+                write!(fmt, "clean count={}", count)?;
             }
             Self::Copy { offset } => {
-                write!(fmt, "copy {}", offset)?;
+                write!(fmt, "copy offset={}", offset)?;
             }
             Self::Move { offset } => {
-                write!(fmt, "move {}", offset)?;
+                write!(fmt, "move offset={}", offset)?;
             }
             Self::Dup => {
                 write!(fmt, "dup")?;
             }
             Self::Replace { offset } => {
-                write!(fmt, "replace {}", offset)?;
+                write!(fmt, "replace offset={}", offset)?;
             }
-            Self::Return => {
-                write!(fmt, "return")?;
+            Self::Return { address, clean } => {
+                write!(fmt, "return address={}, clean={}", address, clean)?;
             }
             Self::ReturnUnit => {
                 write!(fmt, "return-unit")?;
             }
             Self::Jump { offset } => {
-                write!(fmt, "jump {}", offset)?;
+                write!(fmt, "jump offset={}", offset)?;
             }
             Self::JumpIf { offset } => {
-                write!(fmt, "jump-if {}", offset)?;
+                write!(fmt, "jump-if offset={}", offset)?;
             }
             Self::JumpIfOrPop { offset } => {
-                write!(fmt, "jump-if-or-pop {}", offset)?;
+                write!(fmt, "jump-if-or-pop offset={}", offset)?;
             }
             Self::JumpIfNotOrPop { offset } => {
-                write!(fmt, "jump-if-not-or-pop {}", offset)?;
+                write!(fmt, "jump-if-not-or-pop offset={}", offset)?;
             }
             Self::JumpIfBranch { branch, offset } => {
-                write!(fmt, "jump-if-branch {}, {}", branch, offset)?;
+                write!(fmt, "jump-if-branch branch={}, offset={}", branch, offset)?;
             }
             Self::Vec { count } => {
-                write!(fmt, "vec {}", count)?;
+                write!(fmt, "vec count={}", count)?;
             }
             Self::Tuple1 { args: [a] } => {
                 write!(fmt, "tuple-1 {}", a)?;
@@ -1100,37 +1107,37 @@ impl fmt::Display for Inst {
                 write!(fmt, "tuple-4 {}, {}, {}, {}", a, b, c, d)?;
             }
             Self::Tuple { count } => {
-                write!(fmt, "tuple {}", count)?;
+                write!(fmt, "tuple count={}", count)?;
             }
             Self::PushTuple => {
                 write!(fmt, "push-tuple")?;
             }
             Self::UnitStruct { hash } => {
-                write!(fmt, "unit-struct {}", hash)?;
+                write!(fmt, "unit-struct hash={}", hash)?;
             }
             Self::Struct { hash, slot } => {
-                write!(fmt, "struct {}, {}", hash, slot)?;
+                write!(fmt, "struct hash={}, slot={}", hash, slot)?;
             }
             Self::UnitVariant { hash } => {
-                write!(fmt, "unit-variant {}", hash)?;
+                write!(fmt, "unit-variant hash={}", hash)?;
             }
             Self::StructVariant { hash, slot } => {
-                write!(fmt, "struct-variant {}, {}", hash, slot)?;
+                write!(fmt, "struct-variant hash={}, slot={}", hash, slot)?;
             }
             Self::Object { slot } => {
-                write!(fmt, "object {}", slot)?;
+                write!(fmt, "object slot={}", slot)?;
             }
             Self::Range { limits } => {
-                write!(fmt, "range {}", limits)?;
+                write!(fmt, "range limits={}", limits)?;
             }
             Self::String { slot } => {
-                write!(fmt, "string {}", slot)?;
+                write!(fmt, "string slot={}", slot)?;
             }
             Self::Bytes { slot } => {
-                write!(fmt, "bytes {}", slot)?;
+                write!(fmt, "bytes slot={}", slot)?;
             }
             Self::StringConcat { len, size_hint } => {
-                write!(fmt, "string-concat {}, {}", len, size_hint)?;
+                write!(fmt, "string-concat len={}, size_hint={}", len, size_hint)?;
             }
             Self::Format { spec } => {
                 write!(
@@ -1147,40 +1154,53 @@ impl fmt::Display for Inst {
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;
             }
-            Self::IsValue => {
-                write!(fmt, "is-value")?;
-            }
-            Self::Unwrap => {
-                write!(fmt, "unwrap")?;
+            Self::Try {
+                address,
+                clean,
+                preserve,
+            } => {
+                write!(
+                    fmt,
+                    "try address={}, clean={}, preserve={}",
+                    address, clean, preserve
+                )?;
             }
             Self::EqByte { byte } => {
-                write!(fmt, "eq-byte {:?}", byte)?;
+                write!(fmt, "eq-byte byte={:?}", byte)?;
             }
             Self::EqCharacter { character } => {
-                write!(fmt, "eq-character {:?}", character)?;
+                write!(fmt, "eq-character character={:?}", character)?;
             }
             Self::EqInteger { integer } => {
-                write!(fmt, "eq-integer {}", integer)?;
+                write!(fmt, "eq-integer integer={}", integer)?;
             }
             Self::EqBool { boolean } => {
-                write!(fmt, "eq-integer {}", boolean)?;
+                write!(fmt, "eq-integer boolean={}", boolean)?;
             }
             Self::EqStaticString { slot } => {
-                write!(fmt, "eq-static-string {}", slot)?;
+                write!(fmt, "eq-static-string slot={}", slot)?;
             }
             Self::MatchSequence {
                 type_check,
                 len,
                 exact,
             } => {
-                write!(fmt, "match-sequence {}, {}, {}", type_check, len, exact)?;
+                write!(
+                    fmt,
+                    "match-sequence type_check={}, len={}, exact={}",
+                    type_check, len, exact
+                )?;
             }
             Self::MatchObject {
                 type_check,
                 slot,
                 exact,
             } => {
-                write!(fmt, "match-object {}, {}, {}", type_check, slot, exact)?;
+                write!(
+                    fmt,
+                    "match-object type_check={}, slot={}, exact={}",
+                    type_check, slot, exact
+                )?;
             }
             Self::Yield => {
                 write!(fmt, "yield")?;
@@ -1189,19 +1209,19 @@ impl fmt::Display for Inst {
                 write!(fmt, "yield-unit")?;
             }
             Self::Variant { variant } => {
-                write!(fmt, "variant {}", variant)?;
+                write!(fmt, "variant variant={}", variant)?;
             }
             Self::Op { op, a, b } => {
-                write!(fmt, "op {}, {}, {}", op, a, b)?;
+                write!(fmt, "op op={}, a={}, b={}", op, a, b)?;
             }
             Self::Assign { target, op } => {
-                write!(fmt, "assign {}, {}", target, op)?;
+                write!(fmt, "assign target={}, op={}", target, op)?;
             }
             Self::IterNext { offset, jump } => {
-                write!(fmt, "iter-next {}, {}", offset, jump)?;
+                write!(fmt, "iter-next offset={}, jump={}", offset, jump)?;
             }
             Self::Panic { reason } => {
-                write!(fmt, "panic {}", reason.ident())?;
+                write!(fmt, "panic reason={}", reason.ident())?;
             }
         }
 

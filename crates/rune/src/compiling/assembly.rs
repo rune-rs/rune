@@ -20,7 +20,7 @@ pub enum AssemblyInst {
 #[derive(Debug, Clone, Default)]
 pub struct Assembly {
     /// The location that caused the assembly.
-    pub(crate) location: Location,
+    location: Location,
     /// Label to offset.
     pub(crate) labels: HashMap<Label, usize>,
     /// Registered label by offset.

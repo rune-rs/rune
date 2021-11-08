@@ -145,6 +145,15 @@ impl Stack {
         })
     }
 
+    /// Peek the given address without removing it from the stack if it's on the
+    /// top.
+    pub fn address_peek(&mut self, address: InstAddress) -> Result<&Value, StackError> {
+        match address {
+            InstAddress::Top => self.last(),
+            InstAddress::Offset(offset) => self.at_offset(offset),
+        }
+    }
+
     /// Pop the given number of elements from the stack.
     pub fn popn(&mut self, count: usize) -> Result<(), StackError> {
         drop(self.drain_stack_top(count)?);

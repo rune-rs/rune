@@ -13,16 +13,13 @@ impl Assemble for ast::ExprReturn {
             }
         }
 
-        // NB: we actually want total_var_count here since we need to clean up
-        // _every_ variable declared until we reached the current return.
-        let total_var_count = c.scopes.total_var_count(span)?;
-
         if let Some(expr) = &self.expr {
-            expr.assemble(c, Needs::Value)?.apply(c)?;
-            c.locals_clean(total_var_count, span);
-            c.asm.push(Inst::Return, span);
+            c.return_(span, expr)?;
         } else {
-            c.locals_pop(total_var_count, span);
+            // NB: we actually want total_var_count here since we need to clean up
+            // _every_ variable declared until we reached the current return.
+            let clean = c.scopes.total_var_count(span)?;
+            c.locals_pop(clean, span);
             c.asm.push(Inst::ReturnUnit, span);
         }
 

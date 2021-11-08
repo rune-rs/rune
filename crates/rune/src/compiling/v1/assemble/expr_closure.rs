@@ -10,44 +10,33 @@ impl AssembleClosure for ast::ExprClosure {
         let span = self.span();
         log::trace!("ExprClosure => {:?}", c.source.source(span));
 
-        let count = {
-            let mut patterns = Vec::new();
+        let mut patterns = Vec::new();
 
-            for (arg, _) in self.args.as_slice() {
-                match arg {
-                    ast::FnArg::SelfValue(s) => {
-                        return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf))
-                    }
-                    ast::FnArg::Pat(pat) => {
-                        let offset = c.scopes.decl_anon(pat.span())?;
-                        patterns.push((pat, offset));
-                    }
+        for (arg, _) in self.args.as_slice() {
+            match arg {
+                ast::FnArg::SelfValue(s) => {
+                    return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf))
+                }
+                ast::FnArg::Pat(pat) => {
+                    let offset = c.scopes.decl_anon(pat.span())?;
+                    patterns.push((pat, offset));
                 }
             }
-
-            if !captures.is_empty() {
-                c.asm.push(Inst::PushTuple, span);
-
-                for capture in captures {
-                    c.scopes.new_var(&capture.ident, span)?;
-                }
-            }
-
-            for (pat, offset) in patterns {
-                c.compile_pat_offset(pat, offset)?;
-            }
-
-            c.scopes.total_var_count(span)?
-        };
-
-        self.body.assemble(c, Needs::Value)?.apply(c)?;
-
-        if count != 0 {
-            c.asm.push(Inst::Clean { count }, span);
         }
 
-        c.asm.push(Inst::Return, span);
+        if !captures.is_empty() {
+            c.asm.push(Inst::PushTuple, span);
 
+            for capture in captures {
+                c.scopes.new_var(&capture.ident, span)?;
+            }
+        }
+
+        for (pat, offset) in patterns {
+            c.compile_pat_offset(pat, offset)?;
+        }
+
+        c.return_(span, &self.body)?;
         c.scopes.pop_last(span)?;
         Ok(())
     }
