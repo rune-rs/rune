@@ -167,8 +167,11 @@ pub enum CompileMetaKind {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
 
-        /// Whether this function has a test annotation
+        /// Whether this function has a `#[test]` annotation
         is_test: bool,
+
+        /// Whether this function has a `#[bench]` annotation.
+        is_bench: bool,
     },
     /// A closure.
     Closure {

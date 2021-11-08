@@ -537,6 +537,7 @@ impl Context {
                 kind: CompileMetaKind::Function {
                     type_hash: hash,
                     is_test: false,
+                    is_bench: false,
                 },
                 source: None,
             },
@@ -639,6 +640,7 @@ impl Context {
                 kind: CompileMetaKind::Function {
                     type_hash: hash,
                     is_test: false,
+                    is_bench: false,
                 },
                 source: None,
             },

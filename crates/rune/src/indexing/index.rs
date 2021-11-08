@@ -711,6 +711,22 @@ impl Index for ast::ItemFn {
             _ => false,
         };
 
+        let is_bench = match attributes.try_parse::<attrs::Bench>()? {
+            Some((span, _)) => {
+                if let Some(nested_span) = idx.nested_item {
+                    let span = span.join(self.descriptive_span());
+
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::NestedBench { nested_span },
+                    ));
+                }
+
+                true
+            }
+            _ => false,
+        };
+
         if let Some(attrs) = attributes.remaining() {
             return Err(CompileError::msg(attrs, "unrecognized function attribute"));
         }
@@ -748,6 +764,7 @@ impl Index for ast::ItemFn {
             let kind = CompileMetaKind::Function {
                 type_hash: Hash::type_hash(&item.item),
                 is_test: false,
+                is_bench: false,
             };
 
             let meta = CompileMeta {
@@ -761,7 +778,7 @@ impl Index for ast::ItemFn {
             };
 
             idx.query.insert_meta(span, meta)?;
-        } else if is_public || is_test {
+        } else if is_public || is_test || is_bench {
             // NB: immediately compile all toplevel functions.
             idx.query.push_build_entry(BuildEntry {
                 location: Location::new(idx.source_id, fun.ast.descriptive_span()),
@@ -774,6 +791,7 @@ impl Index for ast::ItemFn {
             let kind = CompileMetaKind::Function {
                 type_hash: Hash::type_hash(&item.item),
                 is_test,
+                is_bench,
             };
 
             let meta = CompileMeta {

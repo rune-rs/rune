@@ -1240,6 +1240,7 @@ impl QueryInner {
                 CompileMetaKind::Function {
                     type_hash: Hash::type_hash(&query_item.item),
                     is_test: false,
+                    is_bench: false,
                 }
             }
             Indexed::Closure(c) => {
