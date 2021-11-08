@@ -463,6 +463,12 @@ where
                         .with_message("nested in here"),
                 );
             }
+            CompileErrorKind::NestedBench { nested_span } => {
+                labels.push(
+                    Label::secondary(this.source_id(), nested_span.range())
+                        .with_message("nested in here"),
+                );
+            }
             _ => (),
         }
 

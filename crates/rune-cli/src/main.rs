@@ -62,7 +62,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use structopt::StructOpt;
 
+mod benches;
 mod tests;
+mod visitor;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
 
@@ -74,6 +76,9 @@ enum Command {
     /// Run all tests but do not execute
     Test(TestFlags),
 
+    /// Run the given program as a benchmark
+    Bench(BenchFlags),
+
     /// Run the designated script
     Run(RunFlags),
 }
@@ -82,7 +87,12 @@ impl Command {
     fn propagate_related_flags(&mut self) {
         match self {
             Command::Check(_) => {}
-            Command::Test(_) => {}
+            Command::Test(args) => {
+                args.shared.test = true;
+            }
+            Command::Bench(args) => {
+                args.shared.test = true;
+            }
             Command::Run(args) => {
                 if args.dump {
                     args.dump_unit = true;
@@ -118,6 +128,10 @@ struct SharedArgs {
     /// This makes the `std::experimental` module available to scripts.
     #[structopt(long)]
     experimental: bool,
+
+    /// Enabled the std::test experimental module.
+    #[structopt(long)]
+    test: bool,
 
     /// Recursively load all files in the given directory.
     #[structopt(long)]
@@ -156,6 +170,10 @@ impl SharedArgs {
             context.install(&rune_modules::experiments::module(true)?)?;
         }
 
+        if self.test {
+            context.install(&benches::test_module()?)?;
+        }
+
         Ok(context)
     }
 }
@@ -179,6 +197,20 @@ pub(crate) struct TestFlags {
     /// Run all tests regardless of failure
     #[structopt(long)]
     no_fail_fast: bool,
+
+    #[structopt(flatten)]
+    shared: SharedArgs,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub(crate) struct BenchFlags {
+    /// Rounds of warmup to perform
+    #[structopt(long, default_value = "100")]
+    warmup: u32,
+
+    /// Iterations to run of the benchmark
+    #[structopt(long, default_value = "100")]
+    iterations: u32,
 
     #[structopt(flatten)]
     shared: SharedArgs,
@@ -258,7 +290,7 @@ impl Args {
                 options.test(true);
                 options.bytecode(false);
             }
-            Command::Run(_) => (),
+            Command::Bench(_) | Command::Run(_) => (),
         }
 
         for option in &self.shared().compiler_options {
@@ -273,6 +305,7 @@ impl Args {
         match &self.cmd {
             Command::Check(args) => &args.shared,
             Command::Test(args) => &args.shared,
+            Command::Bench(args) => &args.shared,
             Command::Run(args) => &args.shared,
         }
     }
@@ -282,6 +315,7 @@ impl Args {
         match &mut self.cmd {
             Command::Check(args) => &mut args.shared,
             Command::Test(args) => &mut args.shared,
+            Command::Bench(args) => &mut args.shared,
             Command::Run(args) => &mut args.shared,
         }
     }
@@ -380,6 +414,7 @@ fn load_path(
     args: &Args,
     options: &rune::Options,
     path: &Path,
+    attribute: visitor::Attribute,
 ) -> Result<(
     Arc<Unit>,
     runestick::Context,
@@ -420,7 +455,7 @@ fn load_path(
         None
     };
 
-    let (unit, tests) = match maybe_unit {
+    let (unit, functions) = match maybe_unit {
         Some(unit) => (unit, Default::default()),
         None => {
             log::trace!("building file: {}", path.display());
@@ -431,7 +466,7 @@ fn load_path(
                 rune::Diagnostics::without_warnings()
             };
 
-            let test_finder = Rc::new(tests::TestVisitor::default());
+            let test_finder = Rc::new(visitor::FunctionVisitor::new(attribute));
             let source_loader = Rc::new(rune::FileSourceLoader::new());
 
             let result = rune::load_sources_with_visitor(
@@ -457,11 +492,11 @@ fn load_path(
                 Err(..) => panic!("test finder should be uniquely held"),
             };
 
-            (Arc::new(unit), test_finder.into_test_functions())
+            (Arc::new(unit), test_finder.into_functions())
         }
     };
 
-    Ok((unit, context, runtime, sources, tests))
+    Ok((unit, context, runtime, sources, functions))
 }
 
 /// Run a single path.
@@ -501,7 +536,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 rune::Diagnostics::without_warnings()
             };
 
-            let test_finder = Rc::new(tests::TestVisitor::default());
+            let test_finder = Rc::new(visitor::FunctionVisitor::new(visitor::Attribute::None));
             let source_loader = Rc::new(rune::FileSourceLoader::new());
 
             let _ = rune::load_sources_with_visitor(
@@ -522,15 +557,25 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 Ok(ExitCode::Success)
             }
         }
-        Command::Test(testflags) => match load_path(&mut out, args, options, path) {
-            Ok((unit, _context, runtime, sources, tests)) => {
-                tests::do_tests(testflags, out, runtime, unit, sources, tests).await
+        Command::Test(test_flags) => {
+            match load_path(&mut out, args, options, path, visitor::Attribute::Test) {
+                Ok((unit, _context, runtime, sources, tests)) => {
+                    tests::do_tests(test_flags, out, runtime, unit, sources, tests).await
+                }
+                Err(_) => Ok(ExitCode::Failure),
             }
-            Err(_) => Ok(ExitCode::Failure),
-        },
+        }
+        Command::Bench(bench_flags) => {
+            match load_path(&mut out, args, options, path, visitor::Attribute::Bench) {
+                Ok((unit, _context, runtime, sources, benches)) => {
+                    benches::do_benches(bench_flags, out, runtime, unit, sources, benches).await
+                }
+                Err(_) => Ok(ExitCode::Failure),
+            }
+        }
         Command::Run(runargs) => {
-            let (unit, context, runtime, sources, _tests) =
-                match load_path(&mut out, args, options, path) {
+            let (unit, context, runtime, sources, _functions) =
+                match load_path(&mut out, args, options, path, visitor::Attribute::None) {
                     Ok(v) => v,
                     Err(_) => return Ok(ExitCode::Failure),
                 };

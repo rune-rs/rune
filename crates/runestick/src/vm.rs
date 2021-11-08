@@ -341,8 +341,8 @@ impl Vm {
         Ok(value)
     }
 
-    // Update the instruction pointer to match the function matching the given
-    // name and check that the number of argument matches.
+    /// Update the instruction pointer to match the function matching the given
+    /// name and check that the number of argument matches.
     fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<(), VmError>
     where
         N: IntoTypeHash,

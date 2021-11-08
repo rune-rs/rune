@@ -300,6 +300,8 @@ pub enum CompileErrorKind {
     UnsupportedGenerics,
     #[error("#[test] attributes are not supported on nested items")]
     NestedTest { nested_span: Span },
+    #[error("#[bench] attributes are not supported on nested items")]
+    NestedBench { nested_span: Span },
 }
 
 /// A single stap as an import entry.

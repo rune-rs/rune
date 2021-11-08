@@ -59,3 +59,12 @@ impl Attribute for Test {
     /// Must match the specified name.
     const PATH: &'static str = "test";
 }
+
+/// NB: at this point we don't support attributes beyond the empty `#[bench]`.
+#[derive(Parse)]
+pub(crate) struct Bench {}
+
+impl Attribute for Bench {
+    /// Must match the specified name.
+    const PATH: &'static str = "bench";
+}

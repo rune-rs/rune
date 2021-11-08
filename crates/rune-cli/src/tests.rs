@@ -1,35 +1,9 @@
 use crate::ExitCode;
 use rune::{termcolor::StandardStream, EmitDiagnostics, Sources};
-use runestick::{
-    CompileMeta, CompileMetaKind, Hash, RuntimeContext, Unit, UnitFn, Value, Vm, VmError,
-    VmErrorKind,
-};
-use std::{cell::RefCell, io::Write, sync::Arc, time::Instant};
-
-#[derive(Default)]
-pub struct TestVisitor {
-    test_functions: RefCell<Vec<(Hash, CompileMeta)>>,
-}
-
-impl TestVisitor {
-    /// Convert visitor into test functions.
-    pub(crate) fn into_test_functions(self) -> Vec<(Hash, CompileMeta)> {
-        self.test_functions.into_inner()
-    }
-}
-
-impl rune::CompileVisitor for TestVisitor {
-    fn register_meta(&self, meta: &CompileMeta) {
-        let type_hash = match &meta.kind {
-            CompileMetaKind::Function { is_test, type_hash } if *is_test => type_hash,
-            _ => return,
-        };
-
-        self.test_functions
-            .borrow_mut()
-            .push((*type_hash, meta.clone()));
-    }
-}
+use runestick::{CompileMeta, Hash, RuntimeContext, Unit, UnitFn, Value, Vm, VmError, VmErrorKind};
+use std::io::Write;
+use std::sync::Arc;
+use std::time::Instant;
 
 #[derive(Debug)]
 enum FailureReason {

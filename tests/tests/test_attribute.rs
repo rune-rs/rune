@@ -54,3 +54,37 @@ fn deny_nested_use() {
         }  
     }
 }
+
+// We prevent tests from being declared inside of nested items at compile time.
+#[test]
+fn deny_nested_bench() {
+    assert_compile_error! {
+        r#"
+        fn function() {
+            #[bench]
+            fn bench_fn() {
+                assert!(true != true);
+            }
+        }
+        "#,
+        span, NestedBench { nested_span } => {
+            assert_eq!(span, Span::new(37, 71));
+            assert_eq!(nested_span, Span::new(9, 22));
+        }  
+    }
+
+    assert_compile_error! {
+        r#"
+        const ITEM = {
+            #[bench]
+            fn bench_fn() {
+                assert!(true != true);
+            }
+        };
+        "#,
+        span, NestedBench { nested_span } => {
+            assert_eq!(span, Span::new(36, 70));
+            assert_eq!(nested_span, Span::new(9, 19));
+        }  
+    }
+}
