@@ -6,8 +6,6 @@ use thiserror::Error;
 /// Compilation warning.
 #[derive(Debug, Clone, Copy)]
 pub struct Warning {
-    /// The last warning reported in the chain.
-    pub(super) last: Option<usize>,
     /// The id of the source where the warning happened.
     pub(super) source_id: SourceId,
     /// The kind of the warning.

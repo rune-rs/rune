@@ -47,6 +47,7 @@ fn test_from_value_tuple_like() {
 fn test_missing_dynamic_field() {
     #[derive(Debug, FromValue)]
     struct ProxyStruct {
+        #[allow(dead_code)]
         missing: u32,
     }
 
