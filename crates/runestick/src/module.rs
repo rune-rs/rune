@@ -484,7 +484,7 @@ impl Module {
     /// Register a native macro handler.
     pub fn macro_<N, M, A, O>(&mut self, name: N, f: M) -> Result<(), ContextError>
     where
-        M: 'static + Send + Sync + Copy + Fn(&A) -> Result<O, crate::Error>,
+        M: 'static + Send + Sync + Clone + Fn(&A) -> Result<O, crate::Error>,
         A: any::Any,
         O: any::Any,
         N: IntoIterator,
