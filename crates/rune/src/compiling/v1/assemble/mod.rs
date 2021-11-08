@@ -49,7 +49,6 @@ use runestick::{CompileMetaCapture, InstAddress, Span};
 pub(crate) struct Asm {
     span: Span,
     kind: AsmKind,
-    decl_anon: bool,
 }
 
 impl Asm {
@@ -59,7 +58,6 @@ impl Asm {
         Self {
             span,
             kind: AsmKind::Top,
-            decl_anon: false,
         }
     }
 
@@ -67,7 +65,6 @@ impl Asm {
         Self {
             span,
             kind: AsmKind::Var(var, local),
-            decl_anon: false,
         }
     }
 }

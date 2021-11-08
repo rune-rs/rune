@@ -46,21 +46,10 @@ impl Var {
     }
 }
 
-/// A locally declared variable.
-#[derive(Debug, Clone)]
-pub(crate) struct AnonVar {
-    /// Slot offset from the current stack frame.
-    offset: usize,
-    /// Span associated with the anonymous variable.
-    span: Span,
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct Scope {
     /// Named variables.
     locals: HashMap<String, Var>,
-    /// Anonymous variables.
-    anon: Vec<AnonVar>,
     /// The number of variables.
     pub(crate) total_var_count: usize,
     /// The number of variables local to this scope.
@@ -72,7 +61,6 @@ impl Scope {
     fn new() -> Scope {
         Self {
             locals: HashMap::new(),
-            anon: Vec::new(),
             total_var_count: 0,
             local_var_count: 0,
         }
@@ -82,7 +70,6 @@ impl Scope {
     fn child(&self) -> Self {
         Self {
             locals: HashMap::new(),
-            anon: Vec::new(),
             total_var_count: self.total_var_count,
             local_var_count: 0,
         }
@@ -137,11 +124,8 @@ impl Scope {
     /// Declare an anonymous variable.
     ///
     /// This is used if cleanup is required in the middle of an expression.
-    fn decl_anon(&mut self, span: Span) -> usize {
+    fn decl_anon(&mut self, _span: Span) -> usize {
         let offset = self.total_var_count;
-
-        self.anon.push(AnonVar { offset, span });
-
         self.total_var_count += 1;
         self.local_var_count += 1;
         offset
@@ -149,10 +133,6 @@ impl Scope {
 
     /// Undeclare the last anonymous variable.
     pub(crate) fn undecl_anon(&mut self, span: Span, n: usize) -> CompileResult<()> {
-        for _ in 0..n {
-            self.anon.pop();
-        }
-
         self.total_var_count = self
             .total_var_count
             .checked_sub(n)

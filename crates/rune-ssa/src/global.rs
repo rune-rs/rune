@@ -39,7 +39,7 @@ impl fmt::Display for StaticId {
 #[derive(Debug, Clone, Copy)]
 struct SharedAssign {
     id: StaticId,
-    block: BlockId,
+    _block: BlockId,
 }
 
 /// The descriptor of a single assignment.
@@ -57,7 +57,7 @@ impl Assign {
     #[inline]
     pub(crate) fn new(id: StaticId, block: BlockId) -> Self {
         Self {
-            shared: Rc::new(Cell::new(SharedAssign { id, block })),
+            shared: Rc::new(Cell::new(SharedAssign { id, _block: block })),
         }
     }
 

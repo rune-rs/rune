@@ -8,8 +8,6 @@ use thiserror::Error;
 /// An error raised when using one of the `load_*` functions.
 #[derive(Debug)]
 pub struct Error {
-    /// Last error in chain of reported errors.
-    pub(super) last: Option<usize>,
     /// The source id of the error.
     pub(super) source_id: SourceId,
     /// The kind of the load error.

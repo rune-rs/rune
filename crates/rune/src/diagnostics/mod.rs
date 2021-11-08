@@ -59,10 +59,10 @@ pub struct Diagnostics {
     diagnostics: Vec<Diagnostic>,
     /// If warnings are collected or not.
     mode: DiagnosticsMode,
-    /// First error in chain.
-    last_error: Option<usize>,
-    /// First warning in chain.
-    last_warning: Option<usize>,
+    /// Indicates if diagnostics indicates errors.
+    has_error: bool,
+    /// Indicates if diagnostics contains warnings.
+    has_warning: bool,
 }
 
 impl Diagnostics {
@@ -70,8 +70,8 @@ impl Diagnostics {
         Self {
             diagnostics: Vec::new(),
             mode,
-            last_error: None,
-            last_warning: None,
+            has_error: false,
+            has_warning: false,
         }
     }
 
@@ -128,12 +128,12 @@ impl Diagnostics {
 
     /// Check if diagnostics has any errors reported.
     pub fn has_error(&self) -> bool {
-        self.last_error.is_some()
+        self.has_error
     }
 
     /// Check if diagnostics has any warnings reported.
     pub fn has_warning(&self) -> bool {
-        self.last_warning.is_some()
+        self.has_warning
     }
 
     /// Access underlying diagnostics.
@@ -220,15 +220,12 @@ impl Diagnostics {
             return;
         }
 
-        let current = Some(self.diagnostics.len());
-
         self.diagnostics.push(Diagnostic::Warning(Warning {
-            last: self.last_warning,
             source_id,
             kind: kind.into(),
         }));
 
-        self.last_warning = current;
+        self.has_warning = true;
     }
 
     /// Report an error.
@@ -236,15 +233,12 @@ impl Diagnostics {
     where
         ErrorKind: From<T>,
     {
-        let current = Some(self.diagnostics.len());
-
         self.diagnostics.push(Diagnostic::Error(Error {
-            last: self.last_error,
             source_id,
             kind: Box::new(kind.into()),
         }));
 
-        self.last_error = current;
+        self.has_error = true;
     }
 }
 
