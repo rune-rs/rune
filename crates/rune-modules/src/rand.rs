@@ -33,7 +33,7 @@
 //! }
 //! ```
 
-use nanorand::RNG;
+use nanorand::Rng;
 use runestick::{Any, ContextError, Module, Value};
 
 /// Construct the `rand` module.
@@ -85,7 +85,7 @@ impl WyRand {
 
     /// Generate a random integer within the specified range
     fn int_range(&mut self, lower: i64, upper: i64) -> Value {
-        Value::Integer(self.inner.generate_range::<u64>(0, (upper - lower) as u64) as i64 + lower)
+        Value::Integer(self.inner.generate_range(0..(upper - lower) as u64) as i64 + lower)
     }
 }
 
@@ -116,7 +116,7 @@ impl Pcg64 {
 
     /// Generate a random integer within the specified range
     fn int_range(&mut self, lower: i64, upper: i64) -> Value {
-        Value::Integer(self.inner.generate_range::<u64>(0, (upper - lower) as u64) as i64 + lower)
+        Value::Integer(self.inner.generate_range(0..(upper - lower) as u64) as i64 + lower)
     }
 }
 
@@ -128,7 +128,7 @@ fn int() -> runestick::Result<Value> {
 
 fn int_range(lower: i64, upper: i64) -> runestick::Result<Value> {
     Ok(Value::Integer(
-        nanorand::WyRand::new().generate_range::<u64>(0, (upper - lower) as u64) as i64 + lower,
+        nanorand::WyRand::new().generate_range(0..(upper - lower) as u64) as i64 + lower,
     ))
 }
 
