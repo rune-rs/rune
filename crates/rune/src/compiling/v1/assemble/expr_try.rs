@@ -8,6 +8,7 @@ impl Assemble for ast::ExprTry {
 
         let clean = c.scopes.total_var_count(span)?;
         let address = self.expr.assemble(c, Needs::Value)?.apply_targeted(c)?;
+
         c.asm.push(
             Inst::Try {
                 address,
@@ -16,6 +17,17 @@ impl Assemble for ast::ExprTry {
             },
             span,
         );
+
+        if let InstAddress::Top = address {
+            c.scopes.undecl_anon(span, 1)?;
+        }
+
+        // Why no needs.value() check here to declare another anonymous
+        // variable? Because when these assembling functions were initially
+        // implemented it was decided that the caller that indicates
+        // Needs::Value is responsible for declaring any anonymous variables.
+        //
+        // TODO: This should probably change!
 
         Ok(Asm::top(span))
     }

@@ -1923,10 +1923,8 @@ impl Vm {
         Ok(())
     }
 
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_return(&mut self, address: InstAddress, clean: usize) -> Result<bool, VmError> {
-        let return_value = self.stack.address(address)?;
-
+    #[inline]
+    fn op_return_internal(&mut self, return_value: Value, clean: usize) -> Result<bool, VmError> {
         if clean > 0 {
             self.stack.popn(clean)?;
         }
@@ -1934,6 +1932,12 @@ impl Vm {
         let exit = self.pop_call_frame()?;
         self.stack.push(return_value);
         Ok(exit)
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_return(&mut self, address: InstAddress, clean: usize) -> Result<bool, VmError> {
+        let return_value = self.stack.address(address)?;
+        self.op_return_internal(return_value, clean)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2278,9 +2282,9 @@ impl Vm {
         clean: usize,
         preserve: bool,
     ) -> Result<bool, VmError> {
-        let value = self.stack.address_peek(address)?;
+        let return_value = self.stack.address(address)?;
 
-        let value = match value {
+        let unwrapped_value = match &return_value {
             Value::Result(result) => match &*result.borrow_ref()? {
                 Result::Ok(value) => Some(value.clone()),
                 Result::Err(..) => None,
@@ -2296,14 +2300,14 @@ impl Vm {
             }
         };
 
-        if let Some(value) = value {
+        if let Some(value) = unwrapped_value {
             if preserve {
                 self.stack.push(value);
             }
 
             Ok(false)
         } else {
-            self.op_return(address, clean)
+            self.op_return_internal(return_value, clean)
         }
     }
 
