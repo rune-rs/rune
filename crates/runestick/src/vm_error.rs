@@ -279,8 +279,10 @@ pub enum VmErrorKind {
     UnsupportedUnwrapNone,
     #[error("expected Ok value, but got `Err({err})`")]
     UnsupportedUnwrapErr { err: TypeInfo },
-    #[error("expected result or option as value, but got `{actual}`")]
-    UnsupportedIsValueOperand { actual: TypeInfo },
+    #[error("value `{actual}` is not supported as try operand")]
+    UnsupportedTryOperand { actual: TypeInfo },
+    #[error("value `{actual}` is not supported as iter-next operand")]
+    UnsupportedIterNextOperand { actual: TypeInfo },
     /// Trying to resume a generator that has completed.
     #[error("cannot resume a generator that has completed")]
     GeneratorComplete,

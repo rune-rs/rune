@@ -2290,7 +2290,7 @@ impl Vm {
                 Option::None => None,
             },
             other => {
-                return Err(VmError::from(VmErrorKind::UnsupportedIsValueOperand {
+                return Err(VmError::from(VmErrorKind::UnsupportedTryOperand {
                     actual: other.type_info()?,
                 }))
             }
@@ -2694,7 +2694,7 @@ impl Vm {
                 }
             }
             other => {
-                return Err(VmError::from(VmErrorKind::UnsupportedIsValueOperand {
+                return Err(VmError::from(VmErrorKind::UnsupportedIterNextOperand {
                     actual: other.type_info()?,
                 }))
             }
