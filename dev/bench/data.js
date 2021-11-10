@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1636476849252,
+  "lastUpdate": 1636581129418,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -7144,6 +7144,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4133027,
             "range": "± 13794",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "b9c5fcf54750f9cd1f38f7cccb7463f0cb1b32a7",
+          "message": "Reduce memory footprint of debug info and future proof its API",
+          "timestamp": "2021-11-10T22:43:55+01:00",
+          "tree_id": "007580e921d73d0d69547b5d42fc79f704bb48e7",
+          "url": "https://github.com/rune-rs/rune/commit/b9c5fcf54750f9cd1f38f7cccb7463f0cb1b32a7"
+        },
+        "date": 1636581128768,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 451065119,
+            "range": "± 78707047",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 248183280,
+            "range": "± 33879172",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 311284,
+            "range": "± 85969",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 841374,
+            "range": "± 148275",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 71937348,
+            "range": "± 10751802",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1201958,
+            "range": "± 129001",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 12777871,
+            "range": "± 1514938",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 11167548,
+            "range": "± 1043284",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 402338,
+            "range": "± 43329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4486879,
+            "range": "± 493253",
             "unit": "ns/iter"
           }
         ]
