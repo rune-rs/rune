@@ -1,6 +1,7 @@
 //! A simple label used to jump to a code location.
 
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::fmt;
 
 /// A label that can be jumped to.
@@ -19,7 +20,7 @@ impl Label {
     /// Convert into owned label.
     pub fn into_owned(self) -> DebugLabel {
         DebugLabel {
-            name: self.name.to_owned(),
+            name: self.name.into(),
             id: self.id,
         }
     }
@@ -35,7 +36,7 @@ impl fmt::Display for Label {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DebugLabel {
     /// The name of the label.
-    name: String,
+    name: Cow<'static, str>,
     /// The id of the label.
     id: usize,
 }

@@ -2,36 +2,41 @@ use crate::Span;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::slice;
 
 /// A single source file.
 #[derive(Default, Clone)]
 pub struct Source {
     /// The name of the source.
-    name: String,
+    name: Box<str>,
     /// The source string.
-    source: String,
+    source: Box<str>,
     /// The path the source was loaded from.
-    path: Option<PathBuf>,
+    path: Option<Box<Path>>,
     /// The starting byte indices in the source code.
     line_starts: Vec<usize>,
 }
 
 impl Source {
     /// Construct a new source with the given name.
-    pub fn new<N, S>(name: N, source: S) -> Self
-    where
-        N: AsRef<str>,
-        S: AsRef<str>,
-    {
+    pub fn new(name: impl AsRef<str>, source: impl AsRef<str>) -> Self {
+        Self::with_path(name, source, None::<Box<Path>>)
+    }
+
+    /// Construct a new source with the given name.
+    pub fn with_path(
+        name: impl AsRef<str>,
+        source: impl AsRef<str>,
+        path: Option<impl AsRef<Path>>,
+    ) -> Self {
         let source = source.as_ref();
         let line_starts = line_starts(source).collect::<Vec<_>>();
 
         Self {
-            name: name.as_ref().to_owned(),
-            source: source.to_owned(),
-            path: None,
+            name: name.as_ref().into(),
+            source: source.into(),
+            path: path.map(|p| p.as_ref().into()),
             line_starts,
         }
     }
@@ -44,15 +49,15 @@ impl Source {
     /// Load a source from a path.
     pub fn from_path(path: &Path) -> io::Result<Self> {
         let name = path.display().to_string();
-        let path = &path.canonicalize()?;
+        let path = path.canonicalize()?;
 
-        let source = fs::read_to_string(path)?;
+        let source = fs::read_to_string(&path)?;
         let line_starts = line_starts(&source).collect::<Vec<_>>();
 
         Ok(Self {
-            name,
-            source,
-            path: Some(path.to_owned()),
+            name: name.into(),
+            source: source.into(),
+            path: Some(path.into()),
             line_starts,
         })
     }
@@ -98,11 +103,6 @@ impl Source {
     /// Get the (optional) path of the source.
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
-    }
-
-    /// Get a mutable path.
-    pub fn path_mut(&mut self) -> &mut Option<PathBuf> {
-        &mut self.path
     }
 
     /// Convert the given offset to a utf-16 line and character.
