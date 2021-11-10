@@ -126,9 +126,11 @@ impl State {
             by_url.insert(url.clone(), Default::default());
 
             let mut sources = rune::Sources::new();
-
-            let mut input = runestick::Source::new(url.to_string(), source.to_string());
-            *input.path_mut() = url.to_file_path().ok();
+            let input = runestick::Source::with_path(
+                url.to_string(),
+                source.to_string(),
+                url.to_file_path().ok(),
+            );
 
             sources.insert(input);
 

@@ -7,6 +7,7 @@ use std::fmt;
 
 /// Debug information about a unit.
 #[derive(Debug, Default, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct DebugInfo {
     /// Debug information on each instruction.
     pub instructions: Vec<DebugInst>,
@@ -32,15 +33,33 @@ impl DebugInfo {
 
 /// Debug information for every instruction.
 #[derive(Debug, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct DebugInst {
     /// The file by id the instruction belongs to.
     pub source_id: usize,
     /// The span of the instruction.
     pub span: Span,
     /// The comment for the line.
-    pub comment: Option<String>,
+    pub comment: Option<Box<str>>,
     /// Label associated with the location.
     pub label: Option<DebugLabel>,
+}
+
+impl DebugInst {
+    /// Construct a new debug instruction.
+    pub fn new(
+        source_id: usize,
+        span: Span,
+        comment: Option<Box<str>>,
+        label: Option<DebugLabel>,
+    ) -> Self {
+        Self {
+            source_id,
+            span,
+            comment,
+            label,
+        }
+    }
 }
 
 /// Debug information on function arguments.
@@ -51,11 +70,12 @@ pub enum DebugArgs {
     /// A tuple, with the given number of arguments.
     TupleArgs(usize),
     /// A collection of named arguments.
-    Named(Vec<String>),
+    Named(Box<[Box<str>]>),
 }
 
 /// A description of a function signature.
 #[derive(Debug, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct DebugSignature {
     /// The path of the function.
     pub path: Item,
@@ -65,11 +85,8 @@ pub struct DebugSignature {
 
 impl DebugSignature {
     /// Construct a new function signature.
-    pub fn new(path: Item, args: Vec<String>) -> Self {
-        Self {
-            path,
-            args: DebugArgs::Named(args),
-        }
+    pub fn new(path: Item, args: DebugArgs) -> Self {
+        Self { path, args }
     }
 }
 

@@ -323,7 +323,7 @@ impl CompileBuildEntry<'_> {
                         args,
                         asm,
                         b.call,
-                        Vec::new(),
+                        Default::default(),
                     )?;
                 }
             }
@@ -386,7 +386,7 @@ impl CompileBuildEntry<'_> {
     }
 }
 
-fn format_fn_args<'a, I>(source: &Source, arguments: I) -> Result<Vec<String>, CompileError>
+fn format_fn_args<'a, I>(source: &Source, arguments: I) -> Result<Box<[Box<str>]>, CompileError>
 where
     I: IntoIterator<Item = &'a ast::FnArg>,
 {
@@ -395,19 +395,19 @@ where
     for arg in arguments {
         match arg {
             ast::FnArg::SelfValue(..) => {
-                args.push(String::from("self"));
+                args.push("self".into());
             }
             ast::FnArg::Pat(pat) => {
                 let span = pat.span();
 
                 if let Some(s) = source.source(span) {
-                    args.push(s.to_owned());
+                    args.push(s.into());
                 } else {
-                    args.push(String::from("*"));
+                    args.push("*".into());
                 }
             }
         }
     }
 
-    Ok(args)
+    Ok(args.into())
 }

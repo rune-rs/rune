@@ -275,10 +275,7 @@ impl UnitBuilder {
             CompileMetaKind::UnitStruct { empty, .. } => {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
 
-                let signature = DebugSignature {
-                    path: meta.item.item.clone(),
-                    args: DebugArgs::EmptyArgs,
-                };
+                let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
 
                 let rtti = Arc::new(Rtti {
                     hash: empty.hash,
@@ -311,10 +308,8 @@ impl UnitBuilder {
                     args: tuple.args,
                 };
 
-                let signature = DebugSignature {
-                    path: meta.item.item.clone(),
-                    args: DebugArgs::TupleArgs(tuple.args),
-                };
+                let signature =
+                    DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
 
                 let rtti = Arc::new(Rtti {
                     hash: tuple.hash,
@@ -375,10 +370,7 @@ impl UnitBuilder {
 
                 let info = UnitFn::UnitVariant { hash: empty.hash };
 
-                let signature = DebugSignature {
-                    path: meta.item.item.clone(),
-                    args: DebugArgs::EmptyArgs,
-                };
+                let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
 
                 if inner.functions.insert(empty.hash, info).is_some() {
                     return Err(InsertMetaError::FunctionConflict {
@@ -411,10 +403,8 @@ impl UnitBuilder {
                     args: tuple.args,
                 };
 
-                let signature = DebugSignature {
-                    path: meta.item.item.clone(),
-                    args: DebugArgs::TupleArgs(tuple.args),
-                };
+                let signature =
+                    DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
 
                 if inner.functions.insert(tuple.hash, info).is_some() {
                     return Err(InsertMetaError::FunctionConflict {
@@ -472,7 +462,7 @@ impl UnitBuilder {
         args: usize,
         assembly: Assembly,
         call: Call,
-        debug_args: Vec<String>,
+        debug_args: Box<[Box<str>]>,
     ) -> Result<(), CompileError> {
         let mut inner = self.inner.borrow_mut();
 
@@ -481,7 +471,7 @@ impl UnitBuilder {
 
         inner.functions_rev.insert(offset, hash);
         let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(path, debug_args);
+        let signature = DebugSignature::new(path, DebugArgs::Named(debug_args));
 
         if inner.functions.insert(hash, info).is_some() {
             return Err(CompileError::new(
@@ -534,7 +524,7 @@ impl UnitBuilder {
         args: usize,
         assembly: Assembly,
         call: Call,
-        debug_args: Vec<String>,
+        debug_args: Box<[Box<str>]>,
     ) -> Result<(), CompileError> {
         log::trace!("instance fn: {}", path);
 
@@ -545,7 +535,7 @@ impl UnitBuilder {
         let hash = Hash::type_hash(&path);
 
         let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(path, debug_args);
+        let signature = DebugSignature::new(path, DebugArgs::Named(debug_args));
 
         if inner.functions.insert(instance_fn, info).is_some() {
             return Err(CompileError::new(
@@ -680,44 +670,44 @@ impl Inner {
         self.required_functions.extend(assembly.required_functions);
 
         for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
-            let mut comment = None;
+            let mut comment = None::<Box<str>>;
             let label = assembly.labels_rev.get(&pos).copied();
 
             match inst {
                 AssemblyInst::Jump { label } => {
-                    comment = Some(format!("label:{}", label));
+                    comment = Some(format!("label:{}", label).into());
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::Jump { offset });
                 }
                 AssemblyInst::JumpIf { label } => {
-                    comment = Some(format!("label:{}", label));
+                    comment = Some(format!("label:{}", label).into());
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIf { offset });
                 }
                 AssemblyInst::JumpIfOrPop { label } => {
-                    comment = Some(format!("label:{}", label));
+                    comment = Some(format!("label:{}", label).into());
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIfOrPop { offset });
                 }
                 AssemblyInst::JumpIfNotOrPop { label } => {
-                    comment = Some(format!("label:{}", label));
+                    comment = Some(format!("label:{}", label).into());
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIfNotOrPop { offset });
                 }
                 AssemblyInst::JumpIfBranch { branch, label } => {
-                    comment = Some(format!("label:{}", label));
+                    comment = Some(format!("label:{}", label).into());
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions
                         .push(Inst::JumpIfBranch { branch, offset });
                 }
                 AssemblyInst::PopAndJumpIfNot { count, label } => {
-                    comment = Some(format!("label:{}", label));
+                    comment = Some(format!("label:{}", label).into());
                     let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions
                         .push(Inst::PopAndJumpIfNot { count, offset });
                 }
                 AssemblyInst::IterNext { offset, label } => {
-                    comment = Some(format!("label:{}", label));
+                    comment = Some(format!("label:{}", label).into());
                     let jump = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::IterNext { offset, jump });
                 }
@@ -733,17 +723,17 @@ impl Inner {
                     .chain(comments.iter().cloned())
                     .collect::<Vec<_>>()
                     .join("; ");
-                comment = Some(actual)
+                comment = Some(actual.into())
             }
 
             let debug = self.debug.get_or_insert_with(Default::default);
 
-            debug.instructions.push(DebugInst {
-                source_id: location.source_id,
+            debug.instructions.push(DebugInst::new(
+                location.source_id,
                 span,
                 comment,
-                label: label.map(Label::into_owned),
-            });
+                label.map(Label::into_owned),
+            ));
         }
 
         return Ok(());

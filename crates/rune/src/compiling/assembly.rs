@@ -28,7 +28,7 @@ pub struct Assembly {
     /// Instructions with spans.
     pub(crate) instructions: Vec<(AssemblyInst, Span)>,
     /// Comments associated with instructions.
-    pub(crate) comments: HashMap<usize, Vec<String>>,
+    pub(crate) comments: HashMap<usize, Vec<Box<str>>>,
     /// The number of labels.
     pub(crate) label_count: usize,
     /// The collection of functions required by this assembly.
@@ -136,7 +136,7 @@ impl Assembly {
         self.comments
             .entry(pos)
             .or_default()
-            .push(comment.as_ref().to_owned());
+            .push(comment.as_ref().into());
 
         self.push(raw, span);
     }
