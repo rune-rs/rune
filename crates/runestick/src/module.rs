@@ -116,7 +116,7 @@ pub(crate) struct ModuleAssociatedFn {
     pub(crate) handler: Arc<Handler>,
     pub(crate) args: Option<usize>,
     pub(crate) type_info: TypeInfo,
-    pub(crate) name: String,
+    pub(crate) name: Box<str>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -247,7 +247,7 @@ impl Module {
         let type_info = T::type_info();
 
         let ty = ModuleType {
-            name: T::full_name().into_boxed_str(),
+            name: T::full_name(),
             type_info,
         };
 
@@ -257,6 +257,7 @@ impl Module {
                 existing: old.type_info,
             });
         }
+
         T::install_with(self)?;
         Ok(())
     }
@@ -286,7 +287,7 @@ impl Module {
         }
 
         self.unit_type = Some(ModuleUnitType {
-            name: String::from(name.as_ref()).into_boxed_str(),
+            name: <Box<str>>::from(name.as_ref()),
         });
 
         Ok(())
@@ -740,7 +741,7 @@ pub trait InstFnNameHash: Copy {
     fn inst_fn_name_hash(self) -> Hash;
 
     /// Get a human readable name for the function.
-    fn into_name(self) -> String;
+    fn into_name(self) -> Box<str>;
 }
 
 impl<'a> InstFnNameHash for &'a str {
@@ -748,8 +749,8 @@ impl<'a> InstFnNameHash for &'a str {
         Hash::of(self)
     }
 
-    fn into_name(self) -> String {
-        self.to_owned()
+    fn into_name(self) -> Box<str> {
+        self.into()
     }
 }
 
@@ -759,8 +760,8 @@ impl<'a> InstFnNameHash for Hash {
         self
     }
 
-    fn into_name(self) -> String {
-        String::new()
+    fn into_name(self) -> Box<str> {
+        Box::<str>::default()
     }
 }
 

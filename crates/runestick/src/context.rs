@@ -57,7 +57,7 @@ pub enum ContextError {
         /// Type that we register the instance function for.
         type_info: TypeInfo,
         /// The name of the conflicting function.
-        name: String,
+        name: Box<str>,
     },
     /// Tried to insert a module that conflicted with an already existing one.
     #[error("module `{item}` with hash `{hash}` already exists")]
@@ -152,7 +152,7 @@ pub enum ContextSignature {
         /// Path to the instance function.
         item: Item,
         /// Name of the instance function.
-        name: String,
+        name: Box<str>,
         /// Arguments.
         args: Option<usize>,
         /// Information on the self type.

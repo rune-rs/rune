@@ -529,8 +529,8 @@ impl Context {
                 impl #impl_generics #named for #ident #ty_generics #where_clause {
                     const BASE_NAME: #raw_str  = #raw_str::from_str(#name);
 
-                    fn full_name() -> String {
-                        [#name, "<", &#(#generic_names::full_name(),)* ">"].join("")
+                    fn full_name() -> Box<str> {
+                        [#name, "<", &#(#generic_names::full_name(),)* ">"].join("").into_boxed_str()
                     }
                 }
             }
