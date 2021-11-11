@@ -84,7 +84,7 @@ impl<'a> Worker<'a> {
                 } => {
                     log::trace!("load file: {}", mod_item.item);
 
-                    let source = match self.sources.get(source_id).cloned() {
+                    let source = match self.sources.get(source_id) {
                         Some(source) => source,
                         None => {
                             self.diagnostics
@@ -93,7 +93,7 @@ impl<'a> Worker<'a> {
                         }
                     };
 
-                    let mut file = match crate::parse_all::<ast::File>(source.as_str()) {
+                    let mut file = match crate::parse_all::<ast::File>(source.as_str(), source_id) {
                         Ok(file) => file,
                         Err(error) => {
                             self.diagnostics.error(source_id, error);
@@ -120,7 +120,6 @@ impl<'a> Worker<'a> {
                         context: self.context,
                         options: self.options,
                         source_id,
-                        source,
                         diagnostics: self.diagnostics,
                         items,
                         scopes: IndexScopes::new(),
@@ -139,10 +138,15 @@ impl<'a> Worker<'a> {
                     let source_id = import.source_id;
                     let queue = &mut self.queue;
 
-                    let result =
-                        import.process(self.context, &self.storage, &self.query, &mut |task| {
+                    let result = import.process(
+                        self.context,
+                        &self.storage,
+                        self.sources,
+                        &self.query,
+                        &mut |task| {
                             queue.push_back(task);
-                        });
+                        },
+                    );
 
                     if let Err(error) = result {
                         self.diagnostics.error(source_id, error);

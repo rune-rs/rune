@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveOwned, Spanned, Storage,
-    ToTokens,
+    Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveOwned, Sources, Spanned,
+    Storage, ToTokens,
 };
-use runestick::Source;
 use std::borrow::Cow;
 
 /// Parse an object expression.
@@ -139,9 +138,13 @@ impl Peek for AnonExprObject {
 impl<'a> Resolve<'a> for ObjectKey {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ResolveError> {
+    fn resolve(
+        &self,
+        storage: &Storage,
+        sources: &'a Sources,
+    ) -> Result<Self::Output, ResolveError> {
         Ok(match self {
-            Self::LitStr(lit_str) => lit_str.resolve(storage, source)?,
+            Self::LitStr(lit_str) => lit_str.resolve(storage, sources)?,
             Self::Path(path) => {
                 let ident = match path.try_as_ident() {
                     Some(ident) => ident,
@@ -150,7 +153,7 @@ impl<'a> Resolve<'a> for ObjectKey {
                     }
                 };
 
-                ident.resolve(storage, source)?
+                ident.resolve(storage, sources)?
             }
         })
     }
@@ -162,8 +165,8 @@ impl ResolveOwned for ObjectKey {
     fn resolve_owned(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, source)?.into_owned())
+        Ok(self.resolve(storage, sources)?.into_owned())
     }
 }

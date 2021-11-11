@@ -6,6 +6,7 @@ mod items;
 mod scopes;
 #[cfg(compiler_v2)]
 mod with_span;
+mod x_or_owned;
 
 pub(crate) use self::consts::Consts;
 pub(crate) use self::custom::Custom;
@@ -16,3 +17,4 @@ pub(crate) use self::scopes::Scopes;
 pub use self::scopes::{ScopeError, ScopeErrorKind};
 #[cfg(compiler_v2)]
 pub(crate) use self::with_span::{ResultExt, WithSpan};
+pub(crate) use self::x_or_owned::{MutOrOwned, RefOrOwned};

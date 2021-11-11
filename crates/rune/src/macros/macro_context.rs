@@ -1,7 +1,6 @@
 //! Context for a macro.
 
 use crate::ast;
-
 use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
@@ -9,10 +8,10 @@ use crate::macros::{Storage, ToTokens, TokenStream};
 use crate::parsing::{ResolveError, ResolveOwned};
 use crate::query;
 use crate::query::Used;
-use crate::shared::Consts;
-use crate::{IrError, Spanned};
+use crate::shared::{Consts, MutOrOwned, RefOrOwned};
+use crate::{IrError, Sources, Spanned};
 use query::Query;
-use runestick::{CompileItem, Source, Span};
+use runestick::{CompileItem, Span};
 use std::cell::RefCell;
 use std::fmt;
 use std::sync::Arc;
@@ -41,6 +40,25 @@ where
             .try_borrow()
             .expect("expected shared access to macro context");
         let ctx = ctx.as_ref().expect("missing macro context");
+        f(ctx)
+    })
+}
+
+/// Perform the given operation with the current macro context mutably fetched
+/// from TLS.
+///
+/// # Panics
+///
+/// This will panic if it's called outside of a macro context.
+pub(crate) fn current_context_mut<F, O>(f: F) -> O
+where
+    F: FnOnce(&mut MacroContext) -> O,
+{
+    MACRO_CONTEXT.with(|ctx| {
+        let mut ctx = ctx
+            .try_borrow_mut()
+            .expect("expected shared access to macro context");
+        let ctx = ctx.as_mut().expect("missing macro context");
         f(ctx)
     })
 }
@@ -100,16 +118,16 @@ pub struct MacroContext {
     pub(crate) macro_span: Span,
     /// Temporary recorded default span.
     pub(crate) stream_span: Span,
-    /// The current source.
-    pub(crate) source: Arc<Source>,
-    /// Storage used in macro context.
-    pub(crate) storage: Storage,
     /// Query engine.
     pub(crate) query: Query,
     /// The item where the macro is being evaluated.
     pub(crate) item: Arc<CompileItem>,
     /// Constants storage.
     pub(crate) consts: Consts,
+    /// Storage used in macro context.
+    pub(crate) storage: RefOrOwned<Storage>,
+    /// Sources available.
+    pub(crate) sources: MutOrOwned<Sources>,
 }
 
 impl MacroContext {
@@ -118,11 +136,11 @@ impl MacroContext {
         Self {
             macro_span: Span::empty(),
             stream_span: Span::empty(),
-            source: Arc::new(Source::default()),
-            storage: Storage::default(),
             query: Default::default(),
             item: Default::default(),
             consts: Default::default(),
+            storage: RefOrOwned::from_owned(Default::default()),
+            sources: MutOrOwned::from_owned(Default::default()),
         }
     }
 
@@ -131,7 +149,7 @@ impl MacroContext {
     where
         T: ResolveOwned,
     {
-        item.resolve_owned(&self.storage, &self.source)
+        item.resolve_owned(self.storage.as_ref(), self.sources.as_ref())
     }
 
     /// Evaluate the given ast as a constant expression.
@@ -143,8 +161,8 @@ impl MacroContext {
         let mut ir_query = self.query.as_ir_query();
 
         let mut ir_compiler = IrCompiler {
-            storage: self.storage.clone(),
-            source: self.source.clone(),
+            storage: self.storage.as_ref().clone(),
+            sources: self.sources.as_ref(),
             query: &mut *ir_query,
         };
 
@@ -156,6 +174,7 @@ impl MacroContext {
             module: self.item.module.clone(),
             item: self.item.item.clone(),
             consts: self.consts.clone(),
+            sources: self.sources.as_ref(),
             query: &mut *ir_query,
         };
 
@@ -193,12 +212,17 @@ impl MacroContext {
 
     /// Access storage for the macro system.
     pub fn storage(&self) -> &Storage {
-        &self.storage
+        self.storage.as_ref()
     }
 
-    /// Access the current source of the macro context.
-    pub fn source(&self) -> &Source {
-        &*self.source
+    /// Access sources storage.
+    pub fn sources(&self) -> &Sources {
+        self.sources.as_ref()
+    }
+
+    /// Access sources storage mutably.
+    pub fn sources_mut(&mut self) -> &mut Sources {
+        self.sources.as_mut()
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::parsing::Id;
 use crate::query::{BuiltInMacro, QueryConstFn, QueryError, Used};
+use crate::Sources;
 use runestick::{CompileMeta, Item, Span};
 use std::sync::Arc;
 
@@ -8,6 +9,7 @@ pub(crate) trait IrQuery {
     /// Query for the given meta.
     fn query_meta(
         &mut self,
+        sources: &Sources,
         span: Span,
         item: &Item,
         used: Used,

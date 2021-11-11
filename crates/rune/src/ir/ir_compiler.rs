@@ -1,17 +1,15 @@
+use crate::ast;
 use crate::ir;
 use crate::query::BuiltInMacro;
 use crate::query::BuiltInTemplate;
-use crate::{IrErrorKind, Resolve, Spanned, Storage};
-use runestick::{Bytes, ConstValue, Source};
-use std::sync::Arc;
-
-use crate::ast;
 use crate::IrError;
+use crate::{IrErrorKind, Resolve, Sources, Spanned, Storage};
+use runestick::{Bytes, ConstValue};
 
 /// A c that compiles AST into Rune IR.
 pub struct IrCompiler<'a> {
     pub(crate) storage: Storage,
-    pub(crate) source: Arc<Source>,
+    pub(crate) sources: &'a Sources,
     pub(crate) query: &'a mut dyn ir::IrQuery,
 }
 
@@ -29,7 +27,7 @@ impl IrCompiler<'_> {
     where
         T: Resolve<'s>,
     {
-        Ok(value.resolve(&self.storage, &*self.source)?)
+        Ok(value.resolve(&self.storage, self.sources)?)
     }
 
     /// Resolve an ir target from an expression.
@@ -500,7 +498,7 @@ impl IrCompile for BuiltInTemplate {
                     ..
                 } = &**expr_lit
                 {
-                    let s = s.resolve_template_string(&c.storage, &c.source)?;
+                    let s = s.resolve_template_string(&c.storage, c.sources)?;
 
                     components.push(ir::IrTemplateComponent::String(
                         s.into_owned().into_boxed_str(),

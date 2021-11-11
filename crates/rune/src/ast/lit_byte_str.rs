@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
-    Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Sources,
+    Spanned, Storage, ToTokens,
 };
-use runestick::{Source, Span};
+use runestick::Span;
 use std::borrow::Cow;
 
 /// A string literal.
@@ -76,7 +76,7 @@ impl<'a> Resolve<'a> for LitByteStr {
     fn resolve(
         &self,
         storage: &Storage,
-        source: &'a Source,
+        sources: &'a Sources,
     ) -> Result<Cow<'a, [u8]>, ResolveError> {
         let span = self.token.span();
 
@@ -98,8 +98,8 @@ impl<'a> Resolve<'a> for LitByteStr {
         };
 
         let span = span.trim_start(2).trim_end(1);
-        let string = source
-            .source(span)
+        let string = sources
+            .source(text.source_id, span)
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
@@ -116,8 +116,8 @@ impl ResolveOwned for LitByteStr {
     fn resolve_owned(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, source)?.into_owned())
+        Ok(self.resolve(storage, sources)?.into_owned())
     }
 }

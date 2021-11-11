@@ -1,7 +1,6 @@
 mod attributes;
 use crate::ast;
-use crate::{Parse, ParseError, Resolve as _, Storage};
-use runestick::Source;
+use crate::{Parse, ParseError, Resolve as _, Sources, Storage};
 
 pub(crate) use self::attributes::Attributes;
 
@@ -25,13 +24,13 @@ impl BuiltIn {
     pub(crate) fn args(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<BuiltInArgs, ParseError> {
         let mut out = BuiltInArgs::default();
 
         if let Some(args) = &self.args {
             for (ident, _) in args {
-                match ident.resolve(storage, source)?.as_ref() {
+                match ident.resolve(storage, sources)?.as_ref() {
                     "literal" => {
                         out.literal = true;
                     }

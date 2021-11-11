@@ -230,13 +230,27 @@ pub use rune_macros::quote;
 pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
 /// Parse the given input as the given type that implements
-/// [Parse][crate::parsing::Parse].
-pub fn parse_all<T>(source: &str) -> Result<T, ParseError>
+/// [Parse][crate::parsing::Parse]. The specified `source_id` will be used when
+/// referencing any parsed elements.
+pub fn parse_all<T>(source: &str, source_id: runestick::SourceId) -> Result<T, ParseError>
 where
     T: crate::parsing::Parse,
 {
-    let mut parser = Parser::new(source);
+    let mut parser = Parser::new(source, source_id);
     let ast = parser.parse::<T>()?;
     parser.eof()?;
     Ok(ast)
+}
+
+/// Parse the given input as the given type that implements
+/// [Parse][crate::parsing::Parse].
+///
+/// This uses an empty [SourceId][runestick::SourceId] and is therefore not
+/// appropriate to use beyond testing that a certain type parses.
+#[doc(hidden)]
+pub fn parse_all_without_source<T>(source: &str) -> Result<T, ParseError>
+where
+    T: crate::parsing::Parse,
+{
+    parse_all(source, runestick::SourceId::empty())
 }

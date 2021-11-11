@@ -3,7 +3,7 @@ use crate::ir::eval::{IrEval, IrEvalOutcome};
 use crate::ir::{IrQuery, IrValue};
 use crate::query::Used;
 use crate::shared::Consts;
-use crate::{IrError, IrErrorKind, Spanned};
+use crate::{IrError, IrErrorKind, Sources, Spanned};
 use runestick::{CompileMetaKind, CompileMod, ConstValue, Item, Span};
 use std::sync::Arc;
 
@@ -23,6 +23,8 @@ pub struct IrInterpreter<'a> {
     pub(crate) scopes: IrScopes,
     /// Constant values.
     pub(crate) consts: Consts,
+    /// Sources available.
+    pub(crate) sources: &'a Sources,
     /// Query engine to look for constant expressions.
     pub(crate) query: &'a mut dyn IrQuery,
 }
@@ -113,7 +115,7 @@ impl IrInterpreter<'_> {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            if let Some(meta) = self.query.query_meta(spanned, &item, used)? {
+            if let Some(meta) = self.query.query_meta(self.sources, spanned, &item, used)? {
                 match &meta.kind {
                     CompileMetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value.clone()));
@@ -160,7 +162,7 @@ impl IrInterpreter<'_> {
         let id = loop {
             let item = base.extended(target);
 
-            if let Some(meta) = self.query.query_meta(span, &item, used)? {
+            if let Some(meta) = self.query.query_meta(self.sources, span, &item, used)? {
                 match &meta.kind {
                     CompileMetaKind::ConstFn { id, .. } => {
                         break *id;

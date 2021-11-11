@@ -17,7 +17,7 @@ impl Assemble for ast::ExprContinue {
         };
 
         let last_loop = if let Some(label) = &self.label {
-            let (last_loop, _) = c.loops.walk_until_label(c.storage, &*c.source, *label)?;
+            let (last_loop, _) = c.loops.walk_until_label(c.storage, c.sources, *label)?;
             last_loop
         } else {
             current_loop

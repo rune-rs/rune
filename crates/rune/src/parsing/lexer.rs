@@ -1,12 +1,14 @@
 use crate::ast;
 use crate::{ParseError, ParseErrorKind};
-use runestick::Span;
+use runestick::{SourceId, Span};
 use std::collections::VecDeque;
 use std::fmt;
 
 /// Lexer for the rune language.
 #[derive(Debug)]
 pub struct Lexer<'a> {
+    /// The source identifier of the lexed data.
+    source_id: SourceId,
     /// Source iterator.
     iter: SourceIter<'a>,
     /// Current lexer mode.
@@ -23,10 +25,10 @@ impl<'a> Lexer<'a> {
     /// ```rust
     /// use rune::Lexer;
     /// use rune::ast;
-    /// use runestick::span;
+    /// use runestick::{span, SourceId};
     ///
     /// assert_eq! {
-    ///     Lexer::new("fn").next().unwrap().unwrap(),
+    ///     Lexer::new("fn", SourceId::empty()).next().unwrap().unwrap(),
     ///     ast::Token {
     ///         kind: ast::Kind::Fn,
     ///         span: span!(0, 2),
@@ -34,16 +36,17 @@ impl<'a> Lexer<'a> {
     /// };
     ///
     /// assert_eq! {
-    ///     Lexer::new("name").next().unwrap().unwrap(),
+    ///     Lexer::new("name", SourceId::empty()).next().unwrap().unwrap(),
     ///     ast::Token {
-    ///         kind: ast::Kind::Ident(ast::StringSource::Text),
+    ///         kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
     ///         span: span!(0, 4),
     ///     }
     /// };
     /// ```
-    pub fn new(source: &'a str) -> Self {
+    pub fn new(source: &'a str, source_id: SourceId) -> Self {
         Self {
             iter: SourceIter::new(source),
+            source_id,
             modes: LexerModes::default(),
             buffer: VecDeque::new(),
         }
@@ -98,8 +101,8 @@ impl<'a> Lexer<'a> {
         }
 
         let (ident, span) = self.iter.source_from(start);
-        let kind =
-            ast::Kind::from_keyword(ident).unwrap_or(ast::Kind::Ident(ast::StringSource::Text));
+        let kind = ast::Kind::from_keyword(ident)
+            .unwrap_or(ast::Kind::Ident(ast::StringSource::Text(self.source_id)));
         Ok(Some(ast::Token { kind, span }))
     }
 
@@ -165,6 +168,7 @@ impl<'a> Lexer<'a> {
 
         Ok(Some(ast::Token {
             kind: ast::Kind::Number(ast::NumberSource::Text(ast::NumberText {
+                source_id: self.source_id,
                 is_fractional,
                 base,
             })),
@@ -229,12 +233,12 @@ impl<'a> Lexer<'a> {
 
         if is_label {
             Ok(Some(ast::Token {
-                kind: ast::Kind::Label(ast::StringSource::Text),
+                kind: ast::Kind::Label(ast::StringSource::Text(self.source_id)),
                 span: self.iter.span_from(start),
             }))
         } else {
             Ok(Some(ast::Token {
-                kind: ast::Kind::Char(ast::CopySource::Text),
+                kind: ast::Kind::Char(ast::CopySource::Text(self.source_id)),
                 span: self.iter.span_from(start),
             }))
         }
@@ -274,7 +278,7 @@ impl<'a> Lexer<'a> {
         }
 
         Ok(Some(ast::Token {
-            kind: ast::Kind::Byte(ast::CopySource::Text),
+            kind: ast::Kind::Byte(ast::CopySource::Text(self.source_id)),
             span: self.iter.span_from(start),
         }))
     }
@@ -314,6 +318,7 @@ impl<'a> Lexer<'a> {
 
         Ok(Some(ast::Token {
             kind: kind(ast::StrSource::Text(ast::StrText {
+                source_id: self.source_id,
                 escaped,
                 wrapped: true,
             })),
@@ -368,6 +373,7 @@ impl<'a> Lexer<'a> {
 
                         self.buffer.push_back(ast::Token {
                             kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                                source_id: self.source_id,
                                 escaped: take(&mut escaped),
                                 wrapped: false,
                             })),
@@ -417,6 +423,7 @@ impl<'a> Lexer<'a> {
 
                         self.buffer.push_back(ast::Token {
                             kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                                source_id: self.source_id,
                                 escaped: take(&mut escaped),
                                 wrapped: false,
                             })),
@@ -878,10 +885,11 @@ mod tests {
     use super::Lexer;
     use crate::ast;
     use runestick::span;
+    use runestick::SourceId;
 
     macro_rules! test_lexer {
         ($source:expr $(, $pat:pat)* $(,)?) => {{
-            let mut it = Lexer::new($source);
+            let mut it = Lexer::new($source, SourceId::empty());
 
             #[allow(never_used)]
             #[allow(unused_assignments)]
@@ -916,6 +924,7 @@ mod tests {
             ast::Token {
                 span: span!(1, 3),
                 kind: ast::Kind::Number(ast::NumberSource::Text(ast::NumberText {
+                    source_id: SourceId::EMPTY,
                     is_fractional: false,
                     base: ast::NumberBase::Decimal,
                 })),
@@ -932,6 +941,7 @@ mod tests {
             ast::Token {
                 span: span!(1, 4),
                 kind: ast::Kind::Number(ast::NumberSource::Text(ast::NumberText {
+                    source_id: SourceId::EMPTY,
                     is_fractional: true,
                     base: ast::NumberBase::Decimal,
                 })),
@@ -946,7 +956,7 @@ mod tests {
             "'a'",
             ast::Token {
                 span: span!(0, 3),
-                kind: ast::Kind::Char(ast::CopySource::Text),
+                kind: ast::Kind::Char(ast::CopySource::Text(SourceId::EMPTY)),
             }
         };
 
@@ -954,7 +964,7 @@ mod tests {
             "'\\u{abcd}'",
             ast::Token {
                 span: span!(0, 10),
-                kind: ast::Kind::Char(ast::CopySource::Text),
+                kind: ast::Kind::Char(ast::CopySource::Text(SourceId::EMPTY)),
             }
         };
     }
@@ -965,15 +975,15 @@ mod tests {
             "'asdf 'a' \"foo bar\"",
             ast::Token {
                 span: span!(0, 5),
-                kind: ast::Kind::Label(ast::StringSource::Text),
+                kind: ast::Kind::Label(ast::StringSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(6, 9),
-                kind: ast::Kind::Char(ast::CopySource::Text),
+                kind: ast::Kind::Char(ast::CopySource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(10, 19),
-                kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText { escaped: false, wrapped: true })),
+                kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText { source_id: SourceId::EMPTY, escaped: false, wrapped: true })),
             }
         };
     }
@@ -1023,7 +1033,7 @@ mod tests {
             "a.checked_div(10)",
             ast::Token {
                 span: span!(0, 1),
-                kind: ast::Kind::Ident(ast::StringSource::Text),
+                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(1, 2),
@@ -1031,7 +1041,7 @@ mod tests {
             },
             ast::Token {
                 span: span!(2, 13),
-                kind: ast::Kind::Ident(ast::StringSource::Text),
+                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(13, 14),
@@ -1040,6 +1050,7 @@ mod tests {
             ast::Token {
                 span: span!(14, 16),
                 kind: ast::Kind::Number(ast::NumberSource::Text(ast::NumberText {
+                    source_id: SourceId::EMPTY,
                     is_fractional: false,
                     base: ast::NumberBase::Decimal,
                 })),
@@ -1097,6 +1108,7 @@ mod tests {
             },
             ast::Token {
                 kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
                     escaped: false,
                     wrapped: false,
                 })),
@@ -1107,7 +1119,7 @@ mod tests {
                 span: span!(5, 7),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::Text),
+                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
                 span: span!(7, 10),
             },
             ast::Token {
@@ -1116,6 +1128,7 @@ mod tests {
             },
             ast::Token {
                 kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
                     escaped: true,
                     wrapped: false,
                 })),
@@ -1174,6 +1187,7 @@ mod tests {
             },
             ast::Token {
                 kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
                     escaped: false,
                     wrapped: false,
                 })),
@@ -1184,7 +1198,7 @@ mod tests {
                 span: span!(5, 7),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::Text),
+                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
                 span: span!(7, 10),
             },
             ast::Token {
@@ -1193,6 +1207,7 @@ mod tests {
             },
             ast::Token {
                 kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
                     escaped: false,
                     wrapped: false,
                 })),
@@ -1203,7 +1218,7 @@ mod tests {
                 span: span!(12, 14),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::Text),
+                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
                 span: span!(14, 17),
             },
             ast::Token {
@@ -1220,6 +1235,7 @@ mod tests {
             ast::Token {
                 span: span!(0, 3),
                 kind: ast::Kind::ByteStr(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
                     escaped: false,
                     wrapped: true,
                 })),
@@ -1231,6 +1247,7 @@ mod tests {
             ast::Token {
                 span: span!(0, 14),
                 kind: ast::Kind::ByteStr(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
                     escaped: false,
                     wrapped: true,
                 })),
@@ -1241,7 +1258,7 @@ mod tests {
             "b'\\\\''",
             ast::Token {
                 span: span!(0, 6),
-                kind: ast::Kind::Byte(ast::CopySource::Text),
+                kind: ast::Kind::Byte(ast::CopySource::Text(SourceId::EMPTY)),
             },
         };
 
@@ -1249,15 +1266,15 @@ mod tests {
             "'label 'a' b'a'",
             ast::Token {
                 span: span!(0, 6),
-                kind: ast::Kind::Label(ast::StringSource::Text),
+                kind: ast::Kind::Label(ast::StringSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(7, 10),
-                kind: ast::Kind::Char(ast::CopySource::Text),
+                kind: ast::Kind::Char(ast::CopySource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(11, 15),
-                kind: ast::Kind::Byte(ast::CopySource::Text),
+                kind: ast::Kind::Byte(ast::CopySource::Text(SourceId::EMPTY)),
             },
         };
 
@@ -1265,7 +1282,7 @@ mod tests {
             "b'a'",
             ast::Token {
                 span: span!(0, 4),
-                kind: ast::Kind::Byte(ast::CopySource::Text),
+                kind: ast::Kind::Byte(ast::CopySource::Text(SourceId::EMPTY)),
             },
         };
 
@@ -1273,7 +1290,7 @@ mod tests {
             "b'\\n'",
             ast::Token {
                 span: span!(0, 5),
-                kind: ast::Kind::Byte(ast::CopySource::Text),
+                kind: ast::Kind::Byte(ast::CopySource::Text(SourceId::EMPTY)),
             },
         };
     }

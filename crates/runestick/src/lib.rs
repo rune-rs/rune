@@ -100,6 +100,7 @@ mod runtime_context;
 mod select;
 mod shared;
 mod source;
+mod source_id;
 mod span;
 mod spanned_error;
 mod stack;
@@ -143,9 +144,6 @@ macro_rules! span {
         }
     };
 }
-
-/// The identifier of a source file.
-pub type SourceId = usize;
 
 /// Exported result type for convenience.
 pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
@@ -214,6 +212,7 @@ pub use crate::panic::Panic;
 pub use crate::protocol::Protocol;
 pub use crate::range::{Range, RangeLimits};
 pub use crate::shared::{Mut, RawMut, RawRef, Ref, Shared, SharedPointerGuard};
+pub use crate::source_id::SourceId;
 pub use crate::stack::{Stack, StackError};
 pub use crate::type_of::TypeOf;
 pub use crate::unit::{Unit, UnitFn};

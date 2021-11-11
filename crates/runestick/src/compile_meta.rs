@@ -1,7 +1,7 @@
 use crate::collections::HashSet;
-use crate::{ConstValue, Hash, Id, Item, Location, SourceId, Span, Visibility};
+use crate::{ConstValue, Hash, Id, Item, Location, Visibility};
 use std::fmt;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 
 /// Metadata about a closure.
@@ -25,12 +25,10 @@ pub struct CompileMeta {
 /// Information on a compile sourc.
 #[derive(Debug, Clone)]
 pub struct CompileSource {
-    /// The source id where the compile meta is defined.
-    pub source_id: SourceId,
-    /// The span where the meta is declared.
-    pub span: Span,
+    /// The location of the compile source.
+    pub location: Location,
     /// The optional source id where the meta is declared.
-    pub path: Option<PathBuf>,
+    pub path: Option<Box<Path>>,
 }
 
 impl CompileMeta {

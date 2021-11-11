@@ -1,7 +1,7 @@
 //! Debug information for units.
 
 use crate::collections::HashMap;
-use crate::{DebugLabel, Hash, Item, Span};
+use crate::{DebugLabel, Hash, Item, SourceId, Span};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -36,7 +36,7 @@ impl DebugInfo {
 #[non_exhaustive]
 pub struct DebugInst {
     /// The file by id the instruction belongs to.
-    pub source_id: usize,
+    pub source_id: SourceId,
     /// The span of the instruction.
     pub span: Span,
     /// The comment for the line.
@@ -48,7 +48,7 @@ pub struct DebugInst {
 impl DebugInst {
     /// Construct a new debug instruction.
     pub fn new(
-        source_id: usize,
+        source_id: SourceId,
         span: Span,
         comment: Option<Box<str>>,
         label: Option<DebugLabel>,

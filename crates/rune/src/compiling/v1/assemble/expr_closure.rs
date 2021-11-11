@@ -56,7 +56,10 @@ impl Assemble for ast::ExprClosure {
         let item = c.query.item_for(self)?;
         let hash = Hash::type_hash(&item.item);
 
-        let meta = match c.query.query_meta(span, &item.item, Default::default())? {
+        let meta = match c
+            .query
+            .query_meta(c.sources, span, &item.item, Default::default())?
+        {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(

@@ -9,8 +9,8 @@ use crate::{CompileError, CompileErrorKind, Diagnostics};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, ConstValue, Context, DebugInfo, DebugInst, Hash, Inst,
-    IntoComponent, Item, Label, Location, Protocol, Rtti, Span, StaticString, Unit, UnitFn,
-    VariantRtti,
+    IntoComponent, Item, Label, Location, Protocol, Rtti, SourceId, Span, StaticString, Unit,
+    UnitFn, VariantRtti,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -579,7 +579,7 @@ impl UnitBuilder {
         for (hash, spans) in &inner.required_functions {
             if inner.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
                 diagnostics.error(
-                    0,
+                    SourceId::empty(),
                     LinkerError::MissingFunction {
                         hash: *hash,
                         spans: spans.clone(),
@@ -599,7 +599,7 @@ pub enum LinkerError {
         /// Hash of the function.
         hash: Hash,
         /// Spans where the function is used.
-        spans: Vec<(Span, usize)>,
+        spans: Vec<(Span, SourceId)>,
     },
 }
 
@@ -639,7 +639,7 @@ struct Inner {
     /// The current label count.
     label_count: usize,
     /// A collection of required function hashes.
-    required_functions: HashMap<Hash, Vec<(Span, usize)>>,
+    required_functions: HashMap<Hash, Vec<(Span, SourceId)>>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
 

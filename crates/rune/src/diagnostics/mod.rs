@@ -82,12 +82,12 @@ impl Diagnostics {
     ///
     /// ```rust
     /// use rune::{Diagnostic, Diagnostics};
-    /// use runestick::Span;
+    /// use runestick::{SourceId, Span};
     ///
     /// let mut diagnostics = Diagnostics::without_warnings();
     /// assert!(diagnostics.is_empty());
     ///
-    /// diagnostics.not_used(0, Span::empty(), None);
+    /// diagnostics.not_used(SourceId::empty(), Span::empty(), None);
     ///
     /// assert!(diagnostics.is_empty());
     /// let warning = diagnostics.into_diagnostics().into_iter().next();
@@ -103,12 +103,12 @@ impl Diagnostics {
     ///
     /// ```rust
     /// use rune::{Diagnostic, Diagnostics, Warning, WarningKind};
-    /// use runestick::Span;
+    /// use runestick::{SourceId, Span};
     ///
     /// let mut diagnostics = Diagnostics::new();
     /// assert!(diagnostics.is_empty());
     ///
-    /// diagnostics.not_used(0, Span::empty(), None);
+    /// diagnostics.not_used(SourceId::empty(), Span::empty(), None);
     ///
     /// assert!(!diagnostics.is_empty());
     ///
@@ -155,14 +155,19 @@ impl Diagnostics {
     }
 
     /// Indicate that a value is produced but never used.
-    pub fn not_used(&mut self, source_id: usize, span: Span, context: Option<Span>) {
+    pub fn not_used(&mut self, source_id: SourceId, span: Span, context: Option<Span>) {
         self.warning(source_id, WarningKind::NotUsed { span, context });
     }
 
     /// Indicate that a binding pattern might panic.
     ///
     /// Like `let (a, b) = value`.
-    pub fn let_pattern_might_panic(&mut self, source_id: usize, span: Span, context: Option<Span>) {
+    pub fn let_pattern_might_panic(
+        &mut self,
+        source_id: SourceId,
+        span: Span,
+        context: Option<Span>,
+    ) {
         self.warning(
             source_id,
             WarningKind::LetPatternMightPanic { span, context },
@@ -175,7 +180,7 @@ impl Diagnostics {
     /// Like `` `Hello` ``.
     pub fn template_without_expansions(
         &mut self,
-        source_id: usize,
+        source_id: SourceId,
         span: Span,
         context: Option<Span>,
     ) {
@@ -191,7 +196,7 @@ impl Diagnostics {
     /// Like `None()`.
     pub fn remove_tuple_call_parens(
         &mut self,
-        source_id: usize,
+        source_id: SourceId,
         span: Span,
         variant: Span,
         context: Option<Span>,
@@ -207,7 +212,7 @@ impl Diagnostics {
     }
 
     /// Add a warning about an unecessary semi-colon.
-    pub fn uneccessary_semi_colon(&mut self, source_id: usize, span: Span) {
+    pub fn uneccessary_semi_colon(&mut self, source_id: SourceId, span: Span) {
         self.warning(source_id, WarningKind::UnecessarySemiColon { span });
     }
 

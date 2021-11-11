@@ -2,8 +2,8 @@ use crate::ast;
 use crate::parsing::Opaque;
 use crate::shared::Description;
 use crate::{
-    Id, Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveOwned, Spanned,
-    ToTokens,
+    Id, Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveOwned, Sources,
+    Spanned, Storage, ToTokens,
 };
 
 /// A path, where each element is separated by a `::`.
@@ -116,8 +116,8 @@ impl<'a> Resolve<'a> for Path {
 
     fn resolve(
         &self,
-        storage: &crate::Storage,
-        source: &'a runestick::Source,
+        storage: &Storage,
+        sources: &'a Sources,
     ) -> Result<Self::Output, ResolveError> {
         let mut buf = String::new();
 
@@ -133,7 +133,7 @@ impl<'a> Resolve<'a> for Path {
                 buf.push_str("self");
             }
             PathSegment::Ident(ident) => {
-                buf.push_str(ident.resolve(storage, source)?.as_ref());
+                buf.push_str(ident.resolve(storage, sources)?.as_ref());
             }
             PathSegment::Crate(_) => {
                 buf.push_str("crate");
@@ -157,7 +157,7 @@ impl<'a> Resolve<'a> for Path {
                     buf.push_str("self");
                 }
                 PathSegment::Ident(ident) => {
-                    buf.push_str(ident.resolve(storage, source)?.as_ref());
+                    buf.push_str(ident.resolve(storage, sources)?.as_ref());
                 }
                 PathSegment::Crate(_) => {
                     buf.push_str("crate");
@@ -184,10 +184,10 @@ impl ResolveOwned for Path {
 
     fn resolve_owned(
         &self,
-        storage: &crate::Storage,
-        source: &runestick::Source,
+        storage: &Storage,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        self.resolve(storage, source)
+        self.resolve(storage, sources)
     }
 }
 

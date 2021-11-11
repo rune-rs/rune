@@ -217,24 +217,24 @@ decl_tokens! {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ast, parse_all};
+    use crate::{ast, parse_all_without_source};
 
     #[test]
     fn test_expr() {
-        parse_all::<ast::Expr>("foo[\"foo\"]").unwrap();
-        parse_all::<ast::Expr>("foo.bar()").unwrap();
-        parse_all::<ast::Expr>("var()").unwrap();
-        parse_all::<ast::Expr>("var").unwrap();
-        parse_all::<ast::Expr>("42").unwrap();
-        parse_all::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
-        parse_all::<ast::Expr>("foo[\"bar\"]").unwrap();
-        parse_all::<ast::Expr>("let var = 42").unwrap();
-        parse_all::<ast::Expr>("let var = \"foo bar\"").unwrap();
-        parse_all::<ast::Expr>("var[\"foo\"] = \"bar\"").unwrap();
-        parse_all::<ast::Expr>("let var = objects[\"foo\"] + 1").unwrap();
-        parse_all::<ast::Expr>("var = 42").unwrap();
+        parse_all_without_source::<ast::Expr>("foo[\"foo\"]").unwrap();
+        parse_all_without_source::<ast::Expr>("foo.bar()").unwrap();
+        parse_all_without_source::<ast::Expr>("var()").unwrap();
+        parse_all_without_source::<ast::Expr>("var").unwrap();
+        parse_all_without_source::<ast::Expr>("42").unwrap();
+        parse_all_without_source::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
+        parse_all_without_source::<ast::Expr>("foo[\"bar\"]").unwrap();
+        parse_all_without_source::<ast::Expr>("let var = 42").unwrap();
+        parse_all_without_source::<ast::Expr>("let var = \"foo bar\"").unwrap();
+        parse_all_without_source::<ast::Expr>("var[\"foo\"] = \"bar\"").unwrap();
+        parse_all_without_source::<ast::Expr>("let var = objects[\"foo\"] + 1").unwrap();
+        parse_all_without_source::<ast::Expr>("var = 42").unwrap();
 
-        let expr = parse_all::<ast::Expr>(
+        let expr = parse_all_without_source::<ast::Expr>(
             r#"
             if 1 { } else { if 2 { } else { } }
         "#,
@@ -247,10 +247,10 @@ mod tests {
         }
 
         // Chained function calls.
-        parse_all::<ast::Expr>("foo.bar.baz()").unwrap();
-        parse_all::<ast::Expr>("foo[0][1][2]").unwrap();
-        parse_all::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
+        parse_all_without_source::<ast::Expr>("foo.bar.baz()").unwrap();
+        parse_all_without_source::<ast::Expr>("foo[0][1][2]").unwrap();
+        parse_all_without_source::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
 
-        parse_all::<ast::Expr>("42 is int::int").unwrap();
+        parse_all_without_source::<ast::Expr>("42 is int::int").unwrap();
     }
 }
