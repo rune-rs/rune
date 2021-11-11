@@ -17,8 +17,8 @@ impl InstFnNameHash for Protocol {
         self.hash
     }
 
-    fn into_name(self) -> String {
-        String::from(self.name)
+    fn into_name(self) -> Box<str> {
+        <Box<str>>::from(self.name)
     }
 }
 

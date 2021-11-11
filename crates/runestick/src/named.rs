@@ -6,8 +6,8 @@ pub trait Named {
     const BASE_NAME: RawStr;
 
     /// The exact type name
-    fn full_name() -> String {
-        (*Self::BASE_NAME).to_owned()
+    fn full_name() -> Box<str> {
+        (*Self::BASE_NAME).into()
     }
 }
 
