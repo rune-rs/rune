@@ -1,3 +1,5 @@
+use rune::runtime::Function;
+use rune::Value;
 use rune_tests::*;
 use std::sync::Arc;
 

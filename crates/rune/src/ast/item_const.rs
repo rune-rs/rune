@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::{Id, Parse, Spanned, ToTokens};
-use runestick::Span;
+use crate::{Id, Parse, Span, Spanned, ToTokens};
 
 /// A const declaration.
 ///

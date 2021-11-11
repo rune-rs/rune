@@ -1,5 +1,5 @@
 use crate::worker::{Import, WildcardImport};
-use runestick::{CompileMod, SourceId};
+use crate::{CompileMod, SourceId};
 use std::path::PathBuf;
 use std::sync::Arc;
 

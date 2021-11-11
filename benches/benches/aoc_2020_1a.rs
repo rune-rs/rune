@@ -11,8 +11,8 @@ use test::Bencher;
 const INPUT: &str = include_str!("data/aoc_2020_1.txt");
 
 #[bench]
-fn aoc_2020_1a(b: &mut Bencher) -> runestick::Result<()> {
-    let mut data = runestick::Vec::new();
+fn aoc_2020_1a(b: &mut Bencher) -> rune::Result<()> {
+    let mut data = rune::runtime::Vec::new();
 
     for line in INPUT.split('\n').filter(|s| !s.is_empty()) {
         data.push_value(str::parse::<i64>(line)?)?;
@@ -76,7 +76,7 @@ fn aoc_2020_1a(b: &mut Bencher) -> runestick::Result<()> {
         }
     };
 
-    let entry = runestick::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
         let execution = vm.execute(entry, (data.clone(),));

@@ -1,5 +1,6 @@
 #![allow(clippy::unit_cmp)]
 
+use rune::runtime::VecTuple;
 use rune_tests::*;
 
 #[test]
@@ -180,7 +181,7 @@ fn test_while() {
 fn test_loop() {
     assert_eq! {
         rune! {
-            runestick::VecTuple<(i64, bool)> =>
+            VecTuple<(i64, bool)> =>
             pub fn main() {
                 let a = 0;
 
@@ -195,7 +196,7 @@ fn test_loop() {
                 [a, value is unit]
             }
         },
-        runestick::VecTuple((10, true)),
+        VecTuple((10, true)),
     };
 
     assert_eq! {

@@ -1,18 +1,10 @@
 //! Test cases for rune.
 #![allow(dead_code)]
 
-pub use rune::WarningKind::*;
-pub use rune::{CompileErrorKind, CompileErrorKind::*};
-use rune::{Diagnostics, Options, Sources, UnitBuilder};
-pub use rune::{ParseErrorKind, ParseErrorKind::*};
-pub use rune::{QueryErrorKind, QueryErrorKind::*};
-pub use rune::{ResolveErrorKind, ResolveErrorKind::*};
-pub use runestick::VmErrorKind::*;
-pub use runestick::{
-    Bytes, CompileMeta, CompileMetaKind, ContextError, FromValue, Function, IntoComponent, Span,
-    ToValue, Value, VecTuple, VmError,
+use rune::{
+    load_sources, termcolor, Args, Context, Diagnostics, EmitDiagnostics, FromValue, IntoComponent,
+    Item, Options, Source, SourceId, Sources, Unit, UnitBuilder, Vm, VmError,
 };
-use runestick::{Item, Source, SourceId, Unit};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -46,7 +38,7 @@ impl RunError {
 }
 
 fn internal_compile_source(
-    context: &runestick::Context,
+    context: &rune::Context,
     sources: &mut Sources,
 ) -> Result<(Unit, Diagnostics), Diagnostics> {
     let mut diagnostics = Diagnostics::new();
@@ -69,10 +61,7 @@ fn internal_compile_source(
 }
 
 /// Compile the given source into a unit and collection of warnings.
-pub fn compile_source(
-    context: &runestick::Context,
-    source: &str,
-) -> Result<(Unit, Diagnostics), Diagnostics> {
+pub fn compile_source(context: &Context, source: &str) -> Result<(Unit, Diagnostics), Diagnostics> {
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
 
@@ -80,18 +69,15 @@ pub fn compile_source(
 }
 
 /// Construct a virtual machine for the given sources.
-pub fn vm(context: &runestick::Context, sources: &mut Sources) -> Result<runestick::Vm, RunError> {
+pub fn vm(context: &Context, sources: &mut Sources) -> Result<Vm, RunError> {
     let (unit, _) = internal_compile_source(context, sources).map_err(RunError::Diagnostics)?;
     let context = Arc::new(context.runtime());
 
-    Ok(runestick::Vm::new(context, Arc::new(unit)))
+    Ok(Vm::new(context, Arc::new(unit)))
 }
 
 /// Construct a virtual machine for the given source.
-pub fn vm_with_source(
-    context: &runestick::Context,
-    source: &str,
-) -> Result<runestick::Vm, RunError> {
+pub fn vm_with_source(context: &Context, source: &str) -> Result<Vm, RunError> {
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
 
@@ -100,7 +86,7 @@ pub fn vm_with_source(
 
 /// Call the specified function in the given script.
 async fn internal_run_async<N, A, T>(
-    context: &Arc<runestick::Context>,
+    context: &Arc<Context>,
     sources: &mut Sources,
     function: N,
     args: A,
@@ -108,7 +94,7 @@ async fn internal_run_async<N, A, T>(
 where
     N: IntoIterator,
     N::Item: IntoComponent,
-    A: runestick::Args,
+    A: Args,
     T: FromValue,
 {
     let mut vm = vm(context, sources)?;
@@ -126,7 +112,7 @@ where
 /// Call the specified function in the given script sources.
 #[cfg(feature = "futures-executor")]
 fn internal_run<N, A, T>(
-    context: &Arc<runestick::Context>,
+    context: &Arc<rune::Context>,
     sources: &mut Sources,
     function: N,
     args: A,
@@ -134,7 +120,7 @@ fn internal_run<N, A, T>(
 where
     N: IntoIterator,
     N::Item: IntoComponent,
-    A: runestick::Args,
+    A: Args,
     T: FromValue,
 {
     ::futures_executor::block_on(internal_run_async(context, sources, function, args))
@@ -143,7 +129,7 @@ where
 /// Call the specified function in the given script sources.
 #[cfg(not(feature = "futures-executor"))]
 fn internal_run<N, A, T>(
-    context: &Arc<runestick::Context>,
+    context: &Arc<rune::Context>,
     sources: &mut Sources,
     function: N,
     args: A,
@@ -151,7 +137,7 @@ fn internal_run<N, A, T>(
 where
     N: IntoIterator,
     N::Item: IntoComponent,
-    A: runestick::Args,
+    A: Args,
     T: FromValue,
 {
     let mut vm = vm(context, sources)?;
@@ -167,7 +153,7 @@ where
 
 /// Run the given source with diagnostics being printed to stderr.
 pub fn run_with_diagnostics<N, A, T>(
-    context: &Arc<runestick::Context>,
+    context: &Arc<Context>,
     source: &str,
     function: N,
     args: A,
@@ -175,10 +161,10 @@ pub fn run_with_diagnostics<N, A, T>(
 where
     N: IntoIterator,
     N::Item: IntoComponent,
-    A: runestick::Args,
-    T: runestick::FromValue,
+    A: Args,
+    T: FromValue,
 {
-    use rune::EmitDiagnostics as _;
+    use EmitDiagnostics as _;
 
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
@@ -188,7 +174,7 @@ where
         Err(e) => e,
     };
 
-    let mut writer = rune::termcolor::StandardStream::stdout(rune::termcolor::ColorChoice::Never);
+    let mut writer = termcolor::StandardStream::stdout(termcolor::ColorChoice::Never);
 
     match &e {
         RunError::Diagnostics(diagnostics) => {
@@ -207,7 +193,7 @@ where
 
 /// Call the specified function in the given script.
 pub fn run<N, A, T>(
-    context: &Arc<runestick::Context>,
+    context: &Arc<Context>,
     source: &str,
     function: N,
     args: A,
@@ -215,8 +201,8 @@ pub fn run<N, A, T>(
 where
     N: IntoIterator,
     N::Item: IntoComponent,
-    A: runestick::Args,
-    T: runestick::FromValue,
+    A: Args,
+    T: FromValue,
 {
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
@@ -228,22 +214,18 @@ where
 /// testing purposes.
 ///
 /// This is primarily used in examples.
-pub fn build(
-    context: &runestick::Context,
-    source: &str,
-) -> runestick::Result<Arc<runestick::Unit>> {
+pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
     let options = Options::default();
     let mut sources = Sources::new();
     sources.insert(Source::new("source", source));
 
-    let mut diagnostics = rune::Diagnostics::new();
+    let mut diagnostics = Diagnostics::new();
 
-    let result = rune::load_sources(&*context, &options, &mut sources, &mut diagnostics);
+    let result = load_sources(&*context, &options, &mut sources, &mut diagnostics);
 
     if !diagnostics.is_empty() {
-        let mut writer =
-            rune::termcolor::StandardStream::stderr(rune::termcolor::ColorChoice::Always);
-        rune::EmitDiagnostics::emit_diagnostics(&diagnostics, &mut writer, &sources)?;
+        let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
+        diagnostics.emit_diagnostics(&mut writer, &sources)?;
     }
 
     Ok(std::sync::Arc::new(result?))
@@ -255,7 +237,7 @@ pub fn build(
 ///
 /// ```rust
 /// use rune_tests::*;
-/// use runestick::Value;
+/// use rune::Value;
 ///
 /// # fn main() {
 /// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
@@ -279,7 +261,7 @@ macro_rules! rune_vm {
 ///
 /// ```rust
 /// use rune_tests::*;
-/// use runestick::Value;
+/// use rune::Value;
 ///
 /// # fn main() {
 /// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
@@ -355,7 +337,7 @@ macro_rules! rune_s {
 ///
 /// ```rust
 /// use rune_tests::*;
-/// use runestick::Module;
+/// use rune::Module;
 /// fn get_native_module() -> Module {
 ///     Module::new()
 /// }
@@ -444,7 +426,7 @@ macro_rules! assert_errors {
 
         $(
             let e = match it.next().expect("expected error") {
-                rune::Diagnostic::Error(e) => e,
+                rune::diagnostics::Diagnostic::Fatal(e) => e,
                 kind => {
                     panic!(
                         "expected diagnostic error `{}` but was `{:?}`",
@@ -455,7 +437,7 @@ macro_rules! assert_errors {
             };
 
             let e = match e.into_kind() {
-                rune::ErrorKind::$variant(e) => (e),
+                rune::diagnostics::FatalDiagnosticKind::$variant(e) => (e),
                 kind => {
                     panic!("expected error of variant `{}` but was `{:?}`", stringify!($variant), kind);
                 }
@@ -488,7 +470,7 @@ macro_rules! assert_warnings {
             let warning = it.next().expect("expected a warning");
 
             let warning = match warning {
-                rune::Diagnostic::Warning(warning) => warning,
+                rune::diagnostics::Diagnostic::Warning(warning) => warning,
                 kind => {
                     panic!(
                         "expected diagnostic warning `{}` but was `{:?}`",

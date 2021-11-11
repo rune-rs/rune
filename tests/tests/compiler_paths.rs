@@ -1,3 +1,6 @@
+use rune::CompileErrorKind::*;
+use rune::QueryErrorKind::*;
+use rune::Span;
 use rune_tests::*;
 
 #[test]

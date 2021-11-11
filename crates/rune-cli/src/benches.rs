@@ -1,26 +1,25 @@
 use crate::ExitCode;
+use rune::runtime::{Function, RuntimeContext, Unit, Value};
 use rune::termcolor::StandardStream;
-use rune::{EmitDiagnostics, Sources};
-use runestick::{Any, Item};
-use runestick::{CompileMeta, Function, Hash, RuntimeContext, Unit, Value};
+use rune::{Any, CompileMeta, ContextError, EmitDiagnostics, Hash, Item, Module, Sources};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Default, Any)]
 pub(crate) struct Bencher {
-    fns: Vec<runestick::Function>,
+    fns: Vec<Function>,
 }
 
 impl Bencher {
-    fn iter(&mut self, f: runestick::Function) {
+    fn iter(&mut self, f: Function) {
         self.fns.push(f);
     }
 }
 
 /// Registers `std::test` module.
-pub(crate) fn test_module() -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_item(&["std", "test"]);
+pub(crate) fn test_module() -> Result<Module, ContextError> {
+    let mut module = Module::with_item(&["std", "test"]);
     module.ty::<Bencher>()?;
     module.inst_fn("iter", Bencher::iter)?;
     Ok(module)
@@ -35,7 +34,7 @@ pub(crate) async fn do_benches(
     sources: Sources,
     found: Vec<(Hash, CompileMeta)>,
 ) -> anyhow::Result<ExitCode> {
-    let mut vm = runestick::Vm::new(runtime, unit.clone());
+    let mut vm = rune::Vm::new(runtime, unit.clone());
 
     writeln!(out, "Found {} benches...", found.len())?;
 

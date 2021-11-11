@@ -1,3 +1,6 @@
+use rune::CompileErrorKind;
+use rune::QueryErrorKind::*;
+use rune::Span;
 use rune_tests::*;
 
 #[test]
@@ -72,7 +75,7 @@ fn test_access() {
         mod c { use a; fn test() { a::Test } }
         pub fn main() { c::test() }
         "#,
-        span, QueryError { error: NotVisible { .. } } => {
+        span, CompileErrorKind::QueryError { error: NotVisible { .. } } => {
             assert_eq!(span, Span::new(103, 110));
         }
     };

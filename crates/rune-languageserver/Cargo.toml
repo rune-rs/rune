@@ -30,7 +30,6 @@ ropey = "1.2.0"
 
 rune = {version = "0.9.1", path = "../rune"}
 rune-modules = {version = "0.9.1", path = "../rune-modules", features = ["full", "experiments"]}
-runestick = {version = "0.9.1", path = "../runestick"}
 
 [build-dependencies]
 anyhow = "1.0.38"

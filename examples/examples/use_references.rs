@@ -1,5 +1,4 @@
-use rune::{Diagnostics, Options, Sources};
-use runestick::{Any, Context, Module, Protocol, Source, Vm};
+use rune::{Any, Context, Diagnostics, Module, Options, Protocol, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
@@ -14,7 +13,7 @@ impl Foo {
 }
 
 #[allow(clippy::blacklisted_name)]
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let mut module = Module::new();
     module.ty::<Foo>()?;
     module.inst_fn(Protocol::ADD_ASSIGN, Foo::add_assign)?;

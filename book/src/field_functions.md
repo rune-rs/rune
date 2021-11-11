@@ -53,7 +53,7 @@ function. This clearly showcases that there's no relationship between the field
 used and the function registered:
 
 ```rust,noplaypen
-use runestick::{Any, Module};
+use rune::{Any, Module};
 
 #[derive(Any)]
 struct External {
@@ -94,15 +94,15 @@ $> cargo run --example checked_add_assign
 Error: numerical overflow (at inst 2)
 ```
 
-[`Protocol::GET`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.GET
-[`Protocol::SET`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.SET
-[`Protocol::ADD_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.ADD_ASSIGN
-[`Protocol::SUB_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.SUB_ASSIGN
-[`Protocol::MUL_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.MUL_ASSIGN
-[`Protocol::DIV_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.DIV_ASSIGN
-[`Protocol::BIT_AND_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.BIT_AND_ASSIGN
-[`Protocol::BIT_OR_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.BIT_OR_ASSIGN
-[`Protocol::BIT_XOR_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.BIT_XOR_ASSIGN
-[`Protocol::SHL_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.SHL_ASSIGN
-[`Protocol::SHR_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.SHR_ASSIGN
-[`Protocol::REM_ASSIGN`]: https://docs.rs/runestick/0/runestick/struct.Protocol.html#associatedconstant.REM_ASSIGN
+[`Protocol::GET`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.GET
+[`Protocol::SET`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.SET
+[`Protocol::ADD_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.ADD_ASSIGN
+[`Protocol::SUB_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.SUB_ASSIGN
+[`Protocol::MUL_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.MUL_ASSIGN
+[`Protocol::DIV_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.DIV_ASSIGN
+[`Protocol::BIT_AND_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.BIT_AND_ASSIGN
+[`Protocol::BIT_OR_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.BIT_OR_ASSIGN
+[`Protocol::BIT_XOR_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.BIT_XOR_ASSIGN
+[`Protocol::SHL_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.SHL_ASSIGN
+[`Protocol::SHR_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.SHR_ASSIGN
+[`Protocol::REM_ASSIGN`]: https://docs.rs/rune/0/rune/struct.Protocol.html#associatedconstant.REM_ASSIGN

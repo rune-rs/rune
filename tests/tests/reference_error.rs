@@ -1,5 +1,6 @@
-use rune::{Diagnostics, Options, Sources};
-use runestick::{Any, AnyObj, Context, Module, Shared, Source, Vm, VmError};
+use rune::runtime::AnyObj;
+use rune::Any;
+use rune::{Context, Diagnostics, Module, Options, Shared, Source, Sources, Vm, VmError};
 use std::sync::Arc;
 
 #[test]

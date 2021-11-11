@@ -3,15 +3,13 @@ use crate::collections::HashMap;
 use crate::compiling::{Assembly, CompileVisitor};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::query::{Named, Query, QueryConstFn, Used};
+use crate::runtime::{ConstValue, Inst, InstAddress, InstValue, Label, PanicReason, TypeCheck};
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, Diagnostics, Options, Resolve as _, Sources, Spanned,
     UnitBuilder,
 };
-use runestick::{
-    CompileItem, CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstAddress, InstValue,
-    Item, Label, Source, SourceId, Span, TypeCheck,
-};
+use crate::{CompileItem, CompileMeta, CompileMetaKind, Context, Item, Source, SourceId, Span};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -704,7 +702,7 @@ impl<'a> Compiler<'a> {
             self.asm.label(false_label)?;
             self.asm.push(
                 Inst::Panic {
-                    reason: runestick::PanicReason::UnmatchedPattern,
+                    reason: PanicReason::UnmatchedPattern,
                 },
                 span,
             );

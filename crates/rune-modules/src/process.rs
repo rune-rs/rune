@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::process::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -31,7 +31,8 @@
 //! }
 //! ```
 
-use runestick::{Any, Bytes, Shared, Value, VmError, Protocol, Module, ContextError};
+use rune::{Any, Protocol, Module, ContextError};
+use rune::runtime::{Bytes, Shared, Value, VmError};
 use std::fmt;
 use std::io;
 use tokio::process;

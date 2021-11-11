@@ -14,8 +14,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::rand::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -34,7 +34,8 @@
 //! ```
 
 use nanorand::Rng;
-use runestick::{Any, ContextError, Module, Value};
+use rune::{Any, ContextError, Module};
+use rune::runtime::Value;
 
 /// Construct the `rand` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -120,13 +121,13 @@ impl Pcg64 {
     }
 }
 
-fn int() -> runestick::Result<Value> {
+fn int() -> rune::Result<Value> {
     Ok(Value::Integer(
         nanorand::WyRand::new().generate::<u64>() as i64
     ))
 }
 
-fn int_range(lower: i64, upper: i64) -> runestick::Result<Value> {
+fn int_range(lower: i64, upper: i64) -> rune::Result<Value> {
     Ok(Value::Integer(
         nanorand::WyRand::new().generate_range(0..(upper - lower) as u64) as i64 + lower,
     ))

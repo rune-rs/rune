@@ -1,6 +1,7 @@
 use crate::ast;
-use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
-use runestick::{Id, Span};
+use crate::{
+    Id, OptionSpanned as _, Parse, ParseError, Parser, Peek, Peeker, Span, Spanned, ToTokens,
+};
 
 /// A module item.
 ///

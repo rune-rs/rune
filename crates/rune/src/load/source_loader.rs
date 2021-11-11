@@ -1,5 +1,4 @@
-use crate::{CompileError, CompileErrorKind};
-use runestick::{ComponentRef, Item, Source, Span};
+use crate::{CompileError, CompileErrorKind, ComponentRef, Item, Source, Span};
 use std::path::Path;
 
 /// A source loader.

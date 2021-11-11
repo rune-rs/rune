@@ -46,10 +46,11 @@
 
 use wasm_bindgen::prelude::*;
 
-use anyhow::Context as _;
-use rune::{DumpInstructions as _, EmitDiagnostics as _, Spanned as _};
-use runestick::budget;
-use runestick::{ContextError, Value};
+use anyhow::Context;
+use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use rune::runtime::budget;
+use rune::runtime::Value;
+use rune::{ContextError, DumpInstructions, EmitDiagnostics, Spanned};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
@@ -59,12 +60,12 @@ mod http;
 mod time;
 
 #[derive(Default, Serialize)]
-struct Position {
+struct WasmPosition {
     line: u32,
     character: u32,
 }
 
-impl From<(usize, usize)> for Position {
+impl From<(usize, usize)> for WasmPosition {
     fn from((line, character): (usize, usize)) -> Self {
         Self {
             line: line as u32,
@@ -93,7 +94,7 @@ struct Config {
 }
 
 #[derive(Serialize)]
-enum DiagnosticKind {
+enum WasmDiagnosticKind {
     #[serde(rename = "error")]
     Error,
     #[serde(rename = "warning")]
@@ -101,29 +102,29 @@ enum DiagnosticKind {
 }
 
 #[derive(Serialize)]
-struct Diagnostic {
-    kind: DiagnosticKind,
-    start: Position,
-    end: Position,
+struct WasmDiagnostic {
+    kind: WasmDiagnosticKind,
+    start: WasmPosition,
+    end: WasmPosition,
     message: String,
 }
 
 #[derive(Serialize)]
-pub struct CompileResult {
+pub struct WasmCompileResult {
     error: Option<String>,
     diagnostics_output: Option<String>,
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<WasmDiagnostic>,
     result: Option<String>,
     output: Option<String>,
     instructions: Option<String>,
 }
 
-impl CompileResult {
+impl WasmCompileResult {
     /// Construct output from compile result.
     fn output(
         output: Value,
         diagnostics_output: Option<String>,
-        diagnostics: Vec<Diagnostic>,
+        diagnostics: Vec<WasmDiagnostic>,
         instructions: Option<String>,
     ) -> Self {
         Self {
@@ -140,7 +141,7 @@ impl CompileResult {
     fn from_error<E>(
         error: E,
         diagnostics_output: Option<String>,
-        diagnostics: Vec<Diagnostic>,
+        diagnostics: Vec<WasmDiagnostic>,
         instructions: Option<String>,
     ) -> Self
     where
@@ -158,8 +159,8 @@ impl CompileResult {
 }
 
 /// Setup a wasm-compatible context.
-fn setup_context(experimental: bool) -> Result<runestick::Context, ContextError> {
-    let mut context = runestick::Context::with_config(false)?;
+fn setup_context(experimental: bool) -> Result<rune::Context, ContextError> {
+    let mut context = rune::Context::with_config(false)?;
     context.install(&core::module()?)?;
     context.install(&time::module()?)?;
     context.install(&http::module()?)?;
@@ -178,13 +179,13 @@ fn setup_context(experimental: bool) -> Result<runestick::Context, ContextError>
     Ok(context)
 }
 
-async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, anyhow::Error> {
+async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResult, anyhow::Error> {
     let instructions = None;
 
     let config = config.into_serde::<Config>()?;
     let budget = config.budget.unwrap_or(1_000_000);
 
-    let source = runestick::Source::new("entry", input);
+    let source = rune::Source::new("entry", input);
     let mut sources = rune::Sources::new();
     sources.insert(source);
 
@@ -203,73 +204,73 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
 
     for diagnostic in d.diagnostics() {
         match diagnostic {
-            rune::Diagnostic::Error(error) => {
+            Diagnostic::Fatal(error) => {
                 if let Some(source) = sources.get(error.source_id()) {
                     match error.kind() {
-                        rune::ErrorKind::ParseError(error) => {
+                        FatalDiagnosticKind::ParseError(error) => {
                             let span = error.span();
 
-                            let start = Position::from(
+                            let start = WasmPosition::from(
                                 source.position_to_unicode_line_char(span.start.into_usize()),
                             );
-                            let end = Position::from(
+                            let end = WasmPosition::from(
                                 source.position_to_unicode_line_char(span.end.into_usize()),
                             );
 
-                            diagnostics.push(Diagnostic {
-                                kind: DiagnosticKind::Error,
+                            diagnostics.push(WasmDiagnostic {
+                                kind: WasmDiagnosticKind::Error,
                                 start,
                                 end,
                                 message: error.to_string(),
                             });
                         }
-                        rune::ErrorKind::CompileError(error) => {
+                        FatalDiagnosticKind::CompileError(error) => {
                             let span = error.span();
 
-                            let start = Position::from(
+                            let start = WasmPosition::from(
                                 source.position_to_unicode_line_char(span.start.into_usize()),
                             );
-                            let end = Position::from(
+                            let end = WasmPosition::from(
                                 source.position_to_unicode_line_char(span.end.into_usize()),
                             );
 
-                            diagnostics.push(Diagnostic {
-                                kind: DiagnosticKind::Error,
+                            diagnostics.push(WasmDiagnostic {
+                                kind: WasmDiagnosticKind::Error,
                                 start,
                                 end,
                                 message: error.to_string(),
                             });
                         }
-                        rune::ErrorKind::QueryError(error) => {
+                        FatalDiagnosticKind::QueryError(error) => {
                             let span = error.span();
 
-                            let start = Position::from(
+                            let start = WasmPosition::from(
                                 source.position_to_unicode_line_char(span.start.into_usize()),
                             );
-                            let end = Position::from(
+                            let end = WasmPosition::from(
                                 source.position_to_unicode_line_char(span.end.into_usize()),
                             );
 
-                            diagnostics.push(Diagnostic {
-                                kind: DiagnosticKind::Error,
+                            diagnostics.push(WasmDiagnostic {
+                                kind: WasmDiagnosticKind::Error,
                                 start,
                                 end,
                                 message: error.to_string(),
                             });
                         }
-                        rune::ErrorKind::LinkError(error) => match error {
+                        FatalDiagnosticKind::LinkError(error) => match error {
                             rune::LinkerError::MissingFunction { hash, spans } => {
                                 for (span, _) in spans {
-                                    let start = Position::from(
+                                    let start = WasmPosition::from(
                                         source
                                             .position_to_unicode_line_char(span.start.into_usize()),
                                     );
-                                    let end = Position::from(
+                                    let end = WasmPosition::from(
                                         source.position_to_unicode_line_char(span.end.into_usize()),
                                     );
 
-                                    diagnostics.push(Diagnostic {
-                                        kind: DiagnosticKind::Error,
+                                    diagnostics.push(WasmDiagnostic {
+                                        kind: WasmDiagnosticKind::Error,
                                         start,
                                         end,
                                         message: format!("missing function (hash: {})", hash),
@@ -277,23 +278,24 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                                 }
                             }
                         },
-                        rune::ErrorKind::Internal(_) => {}
-                        rune::ErrorKind::BuildError(_) => {}
+                        FatalDiagnosticKind::Internal(_) => {}
+                        FatalDiagnosticKind::BuildError(_) => {}
                     }
                 }
             }
-            rune::Diagnostic::Warning(warning) => {
+            Diagnostic::Warning(warning) => {
                 let span = warning.span();
 
                 if let Some(source) = sources.get(warning.source_id()) {
-                    let start = Position::from(
+                    let start = WasmPosition::from(
                         source.position_to_unicode_line_char(span.start.into_usize()),
                     );
-                    let end =
-                        Position::from(source.position_to_unicode_line_char(span.end.into_usize()));
+                    let end = WasmPosition::from(
+                        source.position_to_unicode_line_char(span.end.into_usize()),
+                    );
 
-                    diagnostics.push(Diagnostic {
-                        kind: DiagnosticKind::Warning,
+                    diagnostics.push(WasmDiagnostic {
+                        kind: WasmDiagnosticKind::Warning,
                         start,
                         end,
                         message: warning.to_string(),
@@ -313,7 +315,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
     let unit = match result {
         Ok(unit) => Arc::new(unit),
         Err(error) => {
-            return Ok(CompileResult::from_error(
+            return Ok(WasmCompileResult::from_error(
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -331,7 +333,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
         None
     };
 
-    let mut vm = runestick::Vm::new(Arc::new(context.runtime()), unit);
+    let mut vm = rune::Vm::new(Arc::new(context.runtime()), unit);
 
     let mut execution = match vm.execute(&["main"], ()) {
         Ok(execution) => execution,
@@ -340,7 +342,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                 .emit_diagnostics(&mut writer, &sources)
                 .context("emitting to buffer should never fail")?;
 
-            return Ok(CompileResult::from_error(
+            return Ok(WasmCompileResult::from_error(
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -366,15 +368,15 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
             if let Some(debug) = unit.debug_info() {
                 if let Some(inst) = debug.instruction_at(ip) {
                     if let Some(source) = sources.get(inst.source_id) {
-                        let start = Position::from(
+                        let start = WasmPosition::from(
                             source.position_to_unicode_line_char(inst.span.start.into_usize()),
                         );
-                        let end = Position::from(
+                        let end = WasmPosition::from(
                             source.position_to_unicode_line_char(inst.span.end.into_usize()),
                         );
 
-                        diagnostics.push(Diagnostic {
-                            kind: DiagnosticKind::Error,
+                        diagnostics.push(WasmDiagnostic {
+                            kind: WasmDiagnosticKind::Error,
                             start,
                             end,
                             message: kind.to_string(),
@@ -387,7 +389,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                 .emit_diagnostics(&mut writer, &sources)
                 .context("emitting to buffer should never fail")?;
 
-            return Ok(CompileResult::from_error(
+            return Ok(WasmCompileResult::from_error(
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -396,7 +398,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
         }
     };
 
-    Ok(CompileResult::output(
+    Ok(WasmCompileResult::output(
         output,
         diagnostics_output(writer),
         diagnostics,
@@ -415,7 +417,7 @@ fn diagnostics_output(writer: rune::termcolor::Buffer) -> Option<String> {
 pub async fn compile(input: String, config: JsValue) -> JsValue {
     let result = match inner_compile(input, config).await {
         Ok(result) => result,
-        Err(error) => CompileResult::from_error(error, None, Vec::new(), None),
+        Err(error) => WasmCompileResult::from_error(error, None, Vec::new(), None),
     };
 
     JsValue::from_serde(&result).unwrap()

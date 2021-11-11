@@ -3,12 +3,10 @@
 use crate::ast;
 use crate::macros::{MacroContext, TokenStream};
 use crate::query::Query;
-use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, IrError, Options, Parse, ParseError, Parser, Sources,
-    Spanned as _,
+    CompileError, CompileErrorKind, CompileItem, CompileResult, Context, Error, Hash, IrError,
+    Options, Parse, ParseError, Parser, Sources, Spanned, SpannedError,
 };
-use runestick::{CompileItem, Context, Hash};
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
@@ -89,7 +87,7 @@ impl MacroCompiler<'_> {
                     Err(error) => error,
                 };
 
-                let error = match error.downcast::<runestick::SpannedError>() {
+                let error = match error.downcast::<SpannedError>() {
                     Ok(error) => {
                         return Err(CompileError::new(
                             error.span(),
@@ -119,7 +117,7 @@ impl MacroCompiler<'_> {
                     span,
                     CompileErrorKind::CallMacroError {
                         item: named.item.clone(),
-                        error: runestick::Error::msg(format!(
+                        error: Error::msg(format!(
                             "failed to downcast macro result, expected `{}`",
                             std::any::type_name::<TokenStream>()
                         )),

@@ -1,7 +1,6 @@
 use crate::ast::Kind;
 use crate::shared::Description;
-use crate::{MacroContext, ParseError, ParseErrorKind, Spanned};
-use runestick::{SourceId, Span};
+use crate::{MacroContext, ParseError, ParseErrorKind, SourceId, Span, Spanned};
 use std::fmt;
 
 /// A single token encountered during parsing.

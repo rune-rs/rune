@@ -22,13 +22,13 @@ fn test_unwrap() {
     assert_eq! {
         rune! { Option<bool> =>
             struct Bar {
-                x, 
+                x,
                 y,
             }
-            
+
             pub fn main() {
                 (Bar{ x: Some(1), y: None? }).x
-            }            
+            }
         },
         None,
     };

@@ -2,8 +2,8 @@ use crate::ir;
 use crate::ir::eval::{IrEval, IrEvalOutcome};
 use crate::ir::IrValue;
 use crate::query::{Query, Used};
-use crate::{IrError, IrErrorKind, Sources, Spanned};
-use runestick::{CompileMetaKind, CompileMod, ConstValue, Item, Span};
+use crate::runtime::{ConstValue, Object, Tuple};
+use crate::{CompileMetaKind, CompileMod, IrError, IrErrorKind, Item, Sources, Span, Spanned};
 use std::sync::Arc;
 
 /// Ir Scopes.
@@ -218,9 +218,7 @@ impl IrScopes {
                             return Ok(value);
                         }
                     }
-                    actual => {
-                        return Err(IrError::expected::<_, runestick::Tuple>(ir_target, &actual))
-                    }
+                    actual => return Err(IrError::expected::<_, Tuple>(ir_target, &actual)),
                 };
 
                 Err(IrError::new(
@@ -248,9 +246,7 @@ impl IrScopes {
                             return Ok(value);
                         }
                     }
-                    actual => {
-                        return Err(IrError::expected::<_, runestick::Tuple>(ir_target, &actual))
-                    }
+                    actual => return Err(IrError::expected::<_, Tuple>(ir_target, &actual)),
                 };
 
                 Err(IrError::new(
@@ -281,9 +277,7 @@ impl IrScopes {
                         object.insert(field.as_ref().to_owned(), value);
                     }
                     actual => {
-                        return Err(IrError::expected::<_, runestick::Object>(
-                            ir_target, &actual,
-                        ));
+                        return Err(IrError::expected::<_, Object>(ir_target, &actual));
                     }
                 }
 
@@ -310,7 +304,7 @@ impl IrScopes {
                         }
                     }
                     actual => {
-                        return Err(IrError::expected::<_, runestick::Tuple>(ir_target, &actual));
+                        return Err(IrError::expected::<_, Tuple>(ir_target, &actual));
                     }
                 };
 
@@ -348,9 +342,7 @@ impl IrScopes {
 
                         op(value)
                     }
-                    actual => Err(IrError::expected::<_, runestick::Object>(
-                        ir_target, &actual,
-                    )),
+                    actual => Err(IrError::expected::<_, Object>(ir_target, &actual)),
                 }
             }
             ir::IrTargetKind::Index(target, index) => {
@@ -375,7 +367,7 @@ impl IrScopes {
 
                         op(value)
                     }
-                    actual => Err(IrError::expected::<_, runestick::Tuple>(ir_target, &actual)),
+                    actual => Err(IrError::expected::<_, Tuple>(ir_target, &actual)),
                 }
             }
         }

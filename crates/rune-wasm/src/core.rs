@@ -1,5 +1,5 @@
-use runestick::{ContextError, Module, Panic, Stack, Value, VmError};
-use std::io::Write as _;
+use rune::{ContextError, Module, Panic, Stack, Value, VmError};
+use std::io::Write;
 
 /// Provide a bunch of `std` functions which does something appropriate to the
 /// wasm context.

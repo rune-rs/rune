@@ -1,11 +1,8 @@
 use crate::ast;
 use crate::ir;
-use crate::query::BuiltInMacro;
-use crate::query::BuiltInTemplate;
-use crate::query::Query;
-use crate::IrError;
-use crate::{IrErrorKind, Resolve, Sources, Spanned};
-use runestick::{Bytes, ConstValue};
+use crate::query::{BuiltInMacro, BuiltInTemplate, Query};
+use crate::runtime::{Bytes, ConstValue};
+use crate::{IrError, IrErrorKind, Resolve, Sources, Spanned};
 
 /// A c that compiles AST into Rune IR.
 pub struct IrCompiler<'a> {

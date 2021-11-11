@@ -1,4 +1,4 @@
-use crate::context::Context;
+use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -18,9 +18,10 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let mut expander = Expander {
-            ctx: Context::new(),
-        };
+        let ctx = Context::with_crate();
+        let tokens = ctx.tokens_with_module(None);
+
+        let mut expander = Expander { ctx, tokens };
 
         match &self.input.data {
             syn::Data::Struct(st) => {
@@ -47,6 +48,7 @@ impl Derive {
 
 struct Expander {
     ctx: Context,
+    tokens: Tokens,
 }
 
 impl Expander {
@@ -56,7 +58,7 @@ impl Expander {
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
     ) -> Option<TokenStream> {
-        let _ = self.ctx.parse_derive_attributes(&input.attrs)?;
+        let _ = self.ctx.type_attrs(&input.attrs)?;
         let inner = self.expand_struct_fields(input, &st.fields)?;
 
         Some(quote! {
@@ -66,7 +68,7 @@ impl Expander {
 
     /// Expand on a struct.
     fn expand_enum(&mut self, input: &syn::DeriveInput, st: &syn::DataEnum) -> Option<TokenStream> {
-        let _ = self.ctx.parse_derive_attributes(&input.attrs)?;
+        let _ = self.ctx.type_attrs(&input.attrs)?;
 
         let mut impl_into_tokens = Vec::new();
 
@@ -76,9 +78,9 @@ impl Expander {
         }
 
         let ident = &input.ident;
-        let to_tokens = &self.ctx.to_tokens;
-        let macro_context = &self.ctx.macro_context;
-        let token_stream = &self.ctx.token_stream;
+        let to_tokens = &self.tokens.to_tokens;
+        let macro_context = &self.tokens.macro_context;
+        let token_stream = &self.tokens.token_stream;
 
         Some(quote_spanned! { input.span() =>
             impl #to_tokens for #ident {
@@ -139,7 +141,7 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.ctx.field_ident(field)?;
-            let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
+            let attrs = self.ctx.field_attrs(&field.attrs)?;
 
             if attrs.skip() {
                 continue;
@@ -150,9 +152,9 @@ impl Expander {
 
         let ident = &input.ident;
 
-        let to_tokens = &self.ctx.to_tokens;
-        let macro_context = &self.ctx.macro_context;
-        let token_stream = &self.ctx.token_stream;
+        let to_tokens = &self.tokens.to_tokens;
+        let macro_context = &self.tokens.macro_context;
+        let token_stream = &self.tokens.token_stream;
 
         let generics = &input.generics;
 
@@ -182,7 +184,7 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.ctx.field_ident(field)?;
-            let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
+            let attrs = self.ctx.field_attrs(&field.attrs)?;
             idents.push(ident);
 
             if attrs.skip() {
@@ -210,7 +212,7 @@ impl Expander {
 
         for (n, field) in named.unnamed.iter().enumerate() {
             let ident = syn::Ident::new(&format!("f{}", n), field.span());
-            let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
+            let attrs = self.ctx.field_attrs(&field.attrs)?;
 
             idents.push(ident.clone());
 

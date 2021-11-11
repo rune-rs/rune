@@ -28,7 +28,7 @@ impl Server {
     pub fn new(
         output: Output,
         rebuild_tx: mpsc::Sender<()>,
-        context: runestick::Context,
+        context: rune::Context,
         options: rune::Options,
     ) -> Self {
         Self {

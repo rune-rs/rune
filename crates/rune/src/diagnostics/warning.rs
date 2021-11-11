@@ -1,52 +1,53 @@
-use runestick::{SourceId, Span};
+use crate::{SourceId, Span};
 use std::error;
 use std::fmt;
 use thiserror::Error;
 
-/// Compilation warning.
+/// Warning diagnostic emitted during compilation. Warning diagnostics indicates
+/// an recoverable issues.
 #[derive(Debug, Clone, Copy)]
-pub struct Warning {
+pub struct WarningDiagnostic {
     /// The id of the source where the warning happened.
     pub(super) source_id: SourceId,
     /// The kind of the warning.
-    pub(super) kind: WarningKind,
+    pub(super) kind: WarningDiagnosticKind,
 }
 
-impl Warning {
+impl WarningDiagnostic {
     /// The source id where the warning originates from.
     pub fn source_id(&self) -> SourceId {
         self.source_id
     }
 
     /// The kind of the warning.
-    pub fn kind(&self) -> &WarningKind {
+    pub fn kind(&self) -> &WarningDiagnosticKind {
         &self.kind
     }
 
     /// Convert into the kind of the warning.
-    pub fn into_kind(self) -> WarningKind {
+    pub fn into_kind(self) -> WarningDiagnosticKind {
         self.kind
     }
 
     /// Get the span of the warning.
     pub fn span(&self) -> Span {
         match &self.kind {
-            WarningKind::NotUsed { span, .. } => *span,
-            WarningKind::LetPatternMightPanic { span, .. } => *span,
-            WarningKind::TemplateWithoutExpansions { span, .. } => *span,
-            WarningKind::RemoveTupleCallParams { span, .. } => *span,
-            WarningKind::UnecessarySemiColon { span, .. } => *span,
+            WarningDiagnosticKind::NotUsed { span, .. } => *span,
+            WarningDiagnosticKind::LetPatternMightPanic { span, .. } => *span,
+            WarningDiagnosticKind::TemplateWithoutExpansions { span, .. } => *span,
+            WarningDiagnosticKind::RemoveTupleCallParams { span, .. } => *span,
+            WarningDiagnosticKind::UnecessarySemiColon { span, .. } => *span,
         }
     }
 }
 
-impl fmt::Display for Warning {
+impl fmt::Display for WarningDiagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.kind, f)
     }
 }
 
-impl error::Error for Warning {
+impl error::Error for WarningDiagnostic {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         self.kind.source()
     }
@@ -54,7 +55,7 @@ impl error::Error for Warning {
 
 /// Compilation warning kind.
 #[derive(Debug, Clone, Copy, Error)]
-pub enum WarningKind {
+pub enum WarningDiagnosticKind {
     /// Item identified by the span is not used.
     #[error("not used")]
     NotUsed {

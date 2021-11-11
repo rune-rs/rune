@@ -1,3 +1,4 @@
+use rune::VmErrorKind::*;
 use rune_tests::*;
 
 #[test]

@@ -1,30 +1,24 @@
-use rune::{ast, macros, Diagnostics, MacroContext, Options, Parser, Sources};
-use runestick::{Context, FromValue, Module, Source, Vm};
+use rune::ast;
+use rune::{Context, Diagnostics, FromValue, Module, Options, Parser, Source, Sources, Vm};
 use std::sync::Arc;
 
-pub fn main() -> runestick::Result<()> {
+pub fn main() -> rune::Result<()> {
     let mut m = Module::default();
 
     let string = "1 + 2 + 13 * 3";
 
-    m.macro_(
-        &["string_as_code"],
-        move |ctx: &mut MacroContext<'_>, _: &macros::TokenStream| {
-            let expr = ctx.parse_all::<ast::Expr>(&string)?;
-            Ok(rune::quote!(#expr).into_token_stream(ctx))
-        },
-    )?;
+    m.macro_(&["string_as_code"], move |ctx, _| {
+        let expr = ctx.parse_all::<ast::Expr>(&string)?;
+        Ok(rune::quote!(#expr).into_token_stream(ctx))
+    })?;
 
-    m.macro_(
-        &["string_as_code_from_arg"],
-        |ctx: &mut MacroContext<'_>, stream| {
-            let mut p = Parser::from_token_stream(stream, ctx.stream_span());
-            let s = p.parse_all::<ast::LitStr>()?;
-            let s = ctx.resolve(s)?;
-            let expr = ctx.parse_all::<ast::Expr>(&s)?;
-            Ok(rune::quote!(#expr).into_token_stream(ctx))
-        },
-    )?;
+    m.macro_(&["string_as_code_from_arg"], |ctx, stream| {
+        let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+        let s = p.parse_all::<ast::LitStr>()?;
+        let s = ctx.resolve(s)?;
+        let expr = ctx.parse_all::<ast::Expr>(&s)?;
+        Ok(rune::quote!(#expr).into_token_stream(ctx))
+    })?;
 
     let mut context = Context::with_default_modules()?;
     context.install(&m)?;

@@ -1,3 +1,4 @@
+use rune::runtime::Bytes;
 use rune_tests::*;
 
 #[test]
@@ -8,7 +9,7 @@ fn test_literals() {
     );
 
     assert_eq!(
-        rune!(runestick::Bytes => pub fn main() { b"Hello World" }),
+        rune!(Bytes => pub fn main() { b"Hello World" }),
         b"Hello World"[..]
     );
 

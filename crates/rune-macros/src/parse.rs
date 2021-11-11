@@ -1,4 +1,4 @@
-use crate::context::{Context, ParseKind};
+use crate::context::{Context, ParseKind, Tokens};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -18,9 +18,10 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let mut expander = Expander {
-            ctx: Context::new(),
-        };
+        let ctx = Context::with_crate();
+        let tokens = ctx.tokens_with_module(None);
+
+        let mut expander = Expander { ctx, tokens };
 
         match &self.input.data {
             syn::Data::Struct(st) => {
@@ -48,6 +49,7 @@ impl Derive {
 
 struct Expander {
     ctx: Context,
+    tokens: Tokens,
 }
 
 impl Expander {
@@ -102,26 +104,26 @@ impl Expander {
         let mut meta_parse = Vec::new();
         let mut meta_fields = Vec::new();
 
-        let derive_attrs = self.ctx.parse_derive_attributes(&input.attrs)?;
+        let ty_attrs = self.ctx.type_attrs(&input.attrs)?;
         let mut skipped = 0;
 
         for (i, field) in named.named.iter().enumerate() {
-            let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
+            let field_attrs = self.ctx.field_attrs(&field.attrs)?;
             let ident = self.ctx.field_ident(field)?;
 
-            if attrs.id.is_some() {
+            if field_attrs.id.is_some() {
                 fields.push(quote_spanned! { field.span() => #ident: Default::default() });
                 skipped += 1;
                 continue;
             }
 
-            let parse_impl = if let Some(parse_with) = attrs.parse_with {
+            let parse_impl = if let Some(parse_with) = field_attrs.parse_with {
                 quote_spanned!(field.span() => #parse_with(parser)?)
             } else {
                 quote_spanned!(field.span() => parser.parse()?)
             };
 
-            if attrs.meta.is_none() {
+            if field_attrs.meta.is_none() {
                 fields.push(quote_spanned! { field.span() => #ident: #parse_impl });
                 continue;
             }
@@ -152,11 +154,11 @@ impl Expander {
             quote!(parser)
         };
 
-        let parse = &self.ctx.parse;
-        let parser = &self.ctx.parser;
-        let parse_error = &self.ctx.parse_error;
+        let parse = &self.tokens.parse;
+        let parser = &self.tokens.parser;
+        let parse_error = &self.tokens.parse_error;
 
-        let inner = if let ParseKind::MetaOnly = derive_attrs.parse {
+        let inner = if let ParseKind::MetaOnly = ty_attrs.parse {
             None
         } else {
             Some(quote_spanned! {

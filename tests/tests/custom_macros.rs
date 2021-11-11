@@ -1,19 +1,19 @@
-use rune::{ast, macros, Diagnostics, Options, Parser, Sources, MacroContext};
-use runestick::{Context, FromValue, Module, Source, Vm};
+use rune::ast;
+use rune::{Context, Diagnostics, FromValue, Module, Options, Parser, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[test]
-fn test_parse_in_macro() -> runestick::Result<()> {
+fn test_parse_in_macro() -> rune::Result<()> {
     let mut m = Module::default();
 
     let string = "1 + 2 + 13 * 3";
 
-    m.macro_(&["string_as_code"], move |ctx: &mut MacroContext<'_>, _: &macros::TokenStream| {
+    m.macro_(&["string_as_code"], move |ctx, _| {
         let expr = ctx.parse_all::<ast::Expr>(&string)?;
         Ok(rune::quote!(#expr).into_token_stream(ctx))
     })?;
 
-    m.macro_(&["string_as_code_from_arg"], |ctx: &mut MacroContext<'_>, stream| {
+    m.macro_(&["string_as_code_from_arg"], |ctx, stream| {
         let mut p = Parser::from_token_stream(stream, ctx.stream_span());
         let s = p.parse_all::<ast::LitStr>()?;
         let s = ctx.resolve(s)?;

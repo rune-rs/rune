@@ -1,17 +1,20 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
-use crate::{
-    CompileErrorKind, Diagnostics, Error, ErrorKind, IrErrorKind, LinkerError, QueryErrorKind,
-    ResolveErrorKind, Sources, Spanned as _, Warning, WarningKind,
+use crate::diagnostics::{
+    Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
-use runestick::{Location, Source, SourceId, Span, Unit, VmError, VmErrorKind};
+use crate::runtime::{Unit, VmError, VmErrorKind};
+use crate::{
+    CompileErrorKind, Diagnostics, IrErrorKind, LinkerError, Location, QueryErrorKind,
+    ResolveErrorKind, Source, SourceId, Sources, Span, Spanned,
+};
 use std::error::Error as _;
 use std::fmt;
-use std::fmt::Write as _;
+use std::fmt::Write;
 use std::io;
 use thiserror::Error;
 
-use codespan_reporting::diagnostic::{Diagnostic, Label};
+use codespan_reporting::diagnostic as d;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 
@@ -62,11 +65,11 @@ impl EmitDiagnostics for Diagnostics {
 
         for diagnostic in self.diagnostics() {
             match diagnostic {
-                crate::Diagnostic::Error(e) => {
-                    error_emit_diagnostics_with(e, out, sources, &config)?;
+                Diagnostic::Fatal(e) => {
+                    fatal_diagnostics_emit(e, out, sources, &config)?;
                 }
-                crate::Diagnostic::Warning(w) => {
-                    warning_emit_diagnostics_with(w, out, sources, &config)?;
+                Diagnostic::Warning(w) => {
+                    warning_diagnostics_emit(w, out, sources, &config)?;
                 }
             }
         }
@@ -125,12 +128,12 @@ impl EmitDiagnostics for VmError {
         let mut backtrace = vec![StackFrame { source_id, span }];
         let (reason, notes) = match error {
             VmErrorKind::Panic { reason } => {
-                labels.push(Label::primary(source_id, span.range()).with_message("panicked"));
+                labels.push(d::Label::primary(source_id, span.range()).with_message("panicked"));
                 ("panic in runtime".to_owned(), vec![reason.to_string()])
             }
             VmErrorKind::UnsupportedBinaryOperation { lhs, rhs, op } => {
                 labels.push(
-                    Label::primary(source_id, span.range())
+                    d::Label::primary(source_id, span.range())
                         .with_message("in this expression".to_string()),
                 );
 
@@ -144,7 +147,7 @@ impl EmitDiagnostics for VmError {
             }
             VmErrorKind::BadArgumentCount { actual, expected } => {
                 labels.push(
-                    Label::primary(source_id, span.range())
+                    d::Label::primary(source_id, span.range())
                         .with_message("in this function call".to_string()),
                 );
 
@@ -158,7 +161,7 @@ impl EmitDiagnostics for VmError {
             }
             e => {
                 labels.push(
-                    Label::primary(source_id, span.range())
+                    d::Label::primary(source_id, span.range())
                         .with_message("in this expression".to_string()),
                 );
                 ("internal vm error".to_owned(), vec![e.to_string()])
@@ -184,7 +187,7 @@ impl EmitDiagnostics for VmError {
 
             backtrace.push(StackFrame { source_id, span });
         }
-        let diagnostic = Diagnostic::error()
+        let diagnostic = d::Diagnostic::error()
             .with_message(reason)
             .with_labels(labels)
             .with_notes(notes);
@@ -212,8 +215,8 @@ impl EmitDiagnostics for VmError {
 }
 
 /// Helper to emit diagnostics for a warning.
-fn warning_emit_diagnostics_with<'a, O>(
-    this: &Warning,
+fn warning_diagnostics_emit<'a, O>(
+    this: &WarningDiagnostic,
     out: &mut O,
     sources: &'a Sources,
     config: &codespan_reporting::term::Config,
@@ -225,14 +228,14 @@ where
     let mut labels = Vec::new();
 
     let context = match this.kind() {
-        WarningKind::NotUsed { span, context } => {
-            labels.push(Label::primary(this.source_id(), span.range()).with_message("not used"));
+        WarningDiagnosticKind::NotUsed { span, context } => {
+            labels.push(d::Label::primary(this.source_id(), span.range()).with_message("not used"));
 
             *context
         }
-        WarningKind::LetPatternMightPanic { span, context } => {
+        WarningDiagnosticKind::LetPatternMightPanic { span, context } => {
             labels.push(
-                Label::primary(this.source_id(), span.range())
+                d::Label::primary(this.source_id(), span.range())
                     .with_message("let binding might panic"),
             );
 
@@ -251,21 +254,21 @@ where
 
             *context
         }
-        WarningKind::TemplateWithoutExpansions { span, context } => {
+        WarningDiagnosticKind::TemplateWithoutExpansions { span, context } => {
             labels.push(
-                Label::primary(this.source_id(), span.range())
+                d::Label::primary(this.source_id(), span.range())
                     .with_message("template string without expansions like `${1 + 2}`"),
             );
 
             *context
         }
-        WarningKind::RemoveTupleCallParams {
+        WarningDiagnosticKind::RemoveTupleCallParams {
             span,
             variant,
             context,
         } => {
             labels.push(
-                Label::secondary(this.source_id(), span.range())
+                d::Label::secondary(this.source_id(), span.range())
                     .with_message("constructing this variant could be done without parentheses"),
             );
 
@@ -281,9 +284,9 @@ where
 
             *context
         }
-        WarningKind::UnecessarySemiColon { span } => {
+        WarningDiagnosticKind::UnecessarySemiColon { span } => {
             labels.push(
-                Label::primary(this.source_id(), span.range())
+                d::Label::primary(this.source_id(), span.range())
                     .with_message("unnecessary semicolon"),
             );
 
@@ -293,11 +296,11 @@ where
 
     if let Some(context) = context {
         labels.push(
-            Label::secondary(this.source_id(), context.range()).with_message("in this context"),
+            d::Label::secondary(this.source_id(), context.range()).with_message("in this context"),
         );
     }
 
-    let diagnostic = Diagnostic::warning()
+    let diagnostic = d::Diagnostic::warning()
         .with_message("warning")
         .with_labels(labels)
         .with_notes(notes);
@@ -307,8 +310,8 @@ where
 }
 
 /// Custom shared helper for emitting diagnostics for a single error.
-fn error_emit_diagnostics_with<O>(
-    this: &Error,
+fn fatal_diagnostics_emit<O>(
+    this: &FatalDiagnostic,
     out: &mut O,
     sources: &Sources,
     config: &codespan_reporting::term::Config,
@@ -320,26 +323,27 @@ where
     let mut notes = Vec::new();
 
     let span = match this.kind() {
-        ErrorKind::Internal(message) => {
+        FatalDiagnosticKind::Internal(message) => {
             writeln!(out, "internal error: {}", message)?;
             return Ok(());
         }
-        ErrorKind::BuildError(error) => {
+        FatalDiagnosticKind::BuildError(error) => {
             writeln!(out, "build error: {}", error)?;
             return Ok(());
         }
-        ErrorKind::LinkError(error) => {
+        FatalDiagnosticKind::LinkError(error) => {
             match error {
                 LinkerError::MissingFunction { hash, spans } => {
                     let mut labels = Vec::new();
 
                     for (span, source_id) in spans {
                         labels.push(
-                            Label::primary(*source_id, span.range()).with_message("called here."),
+                            d::Label::primary(*source_id, span.range())
+                                .with_message("called here."),
                         );
                     }
 
-                    let diagnostic = Diagnostic::error()
+                    let diagnostic = d::Diagnostic::error()
                         .with_message(format!(
                             "linker error: missing function with hash `{}`",
                             hash
@@ -352,8 +356,8 @@ where
 
             return Ok(());
         }
-        ErrorKind::ParseError(error) => error.span(),
-        ErrorKind::CompileError(error) => {
+        FatalDiagnosticKind::ParseError(error) => error.span(),
+        FatalDiagnosticKind::CompileError(error) => {
             format_compile_error(
                 this,
                 sources,
@@ -365,7 +369,7 @@ where
 
             error.span()
         }
-        ErrorKind::QueryError(error) => {
+        FatalDiagnosticKind::QueryError(error) => {
             format_query_error(
                 this,
                 sources,
@@ -380,10 +384,10 @@ where
     };
 
     if let Some(e) = this.kind().source() {
-        labels.push(Label::primary(this.source_id(), span.range()).with_message(e.to_string()));
+        labels.push(d::Label::primary(this.source_id(), span.range()).with_message(e.to_string()));
     }
 
-    let diagnostic = Diagnostic::error()
+    let diagnostic = d::Diagnostic::error()
         .with_message(this.kind().to_string())
         .with_labels(labels)
         .with_notes(notes);
@@ -392,11 +396,11 @@ where
     return Ok(());
 
     fn format_compile_error(
-        this: &Error,
+        this: &FatalDiagnostic,
         sources: &Sources,
         error_span: Span,
         kind: &CompileErrorKind,
-        labels: &mut Vec<Label<SourceId>>,
+        labels: &mut Vec<d::Label<SourceId>>,
         notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
@@ -405,12 +409,12 @@ where
             }
             CompileErrorKind::DuplicateObjectKey { existing, object } => {
                 labels.push(
-                    Label::secondary(this.source_id(), existing.range())
+                    d::Label::secondary(this.source_id(), existing.range())
                         .with_message("previously defined here"),
                 );
 
                 labels.push(
-                    Label::secondary(this.source_id(), object.range())
+                    d::Label::secondary(this.source_id(), object.range())
                         .with_message("object being defined here"),
                 );
             }
@@ -418,13 +422,13 @@ where
                 let (existing_source_id, existing_span) = *existing;
 
                 labels.push(
-                    Label::secondary(existing_source_id, existing_span.range())
+                    d::Label::secondary(existing_source_id, existing_span.range())
                         .with_message("previously loaded here"),
                 );
             }
             CompileErrorKind::ExpectedBlockSemiColon { followed_span } => {
                 labels.push(
-                    Label::secondary(this.source_id(), followed_span.range())
+                    d::Label::secondary(this.source_id(), followed_span.range())
                         .with_message("because this immediately follows"),
                 );
 
@@ -440,7 +444,8 @@ where
             }
             CompileErrorKind::VariableMoved { moved_at, .. } => {
                 labels.push(
-                    Label::secondary(this.source_id(), moved_at.range()).with_message("moved here"),
+                    d::Label::secondary(this.source_id(), moved_at.range())
+                        .with_message("moved here"),
                 );
             }
             CompileErrorKind::CallMacroError { item, .. } => {
@@ -448,13 +453,13 @@ where
             }
             CompileErrorKind::NestedTest { nested_span } => {
                 labels.push(
-                    Label::secondary(this.source_id(), nested_span.range())
+                    d::Label::secondary(this.source_id(), nested_span.range())
                         .with_message("nested in here"),
                 );
             }
             CompileErrorKind::NestedBench { nested_span } => {
                 labels.push(
-                    Label::secondary(this.source_id(), nested_span.range())
+                    d::Label::secondary(this.source_id(), nested_span.range())
                         .with_message("nested in here"),
                 );
             }
@@ -465,11 +470,11 @@ where
     }
 
     fn format_query_error(
-        this: &Error,
+        this: &FatalDiagnostic,
         sources: &Sources,
         error_span: Span,
         kind: &QueryErrorKind,
-        labels: &mut Vec<Label<SourceId>>,
+        labels: &mut Vec<d::Label<SourceId>>,
         notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
@@ -485,14 +490,14 @@ where
 
                 for (step, entry) in (1..).zip(it) {
                     labels.push(
-                        Label::secondary(entry.location.source_id, entry.location.span.range())
+                        d::Label::secondary(entry.location.source_id, entry.location.span.range())
                             .with_message(format!("step #{} for `{}`", step, entry.item)),
                     );
                 }
 
                 if let Some(entry) = last {
                     labels.push(
-                        Label::secondary(entry.location.source_id, entry.location.span.range())
+                        d::Label::secondary(entry.location.source_id, entry.location.span.range())
                             .with_message(format!("final step cycling back to `{}`", entry.item)),
                     );
                 }
@@ -502,7 +507,7 @@ where
                 ..
             } => {
                 labels.push(
-                    Label::secondary(*source_id, span.range())
+                    d::Label::secondary(*source_id, span.range())
                         .with_message("previously defined here"),
                 );
             }
@@ -513,12 +518,14 @@ where
             } => {
                 for Location { source_id, span } in chain {
                     labels.push(
-                        Label::secondary(*source_id, span.range()).with_message("re-exported here"),
+                        d::Label::secondary(*source_id, span.range())
+                            .with_message("re-exported here"),
                     );
                 }
 
-                labels
-                    .push(Label::secondary(*source_id, span.range()).with_message("defined here"));
+                labels.push(
+                    d::Label::secondary(*source_id, span.range()).with_message("defined here"),
+                );
             }
             QueryErrorKind::NotVisibleMod {
                 chain,
@@ -527,18 +534,20 @@ where
             } => {
                 for Location { source_id, span } in chain {
                     labels.push(
-                        Label::secondary(*source_id, span.range()).with_message("re-exported here"),
+                        d::Label::secondary(*source_id, span.range())
+                            .with_message("re-exported here"),
                     );
                 }
 
                 labels.push(
-                    Label::secondary(*source_id, span.range()).with_message("module defined here"),
+                    d::Label::secondary(*source_id, span.range())
+                        .with_message("module defined here"),
                 );
             }
             QueryErrorKind::AmbiguousItem { locations, .. } => {
                 for (Location { source_id, span }, item) in locations {
                     labels.push(
-                        Label::secondary(*source_id, span.range())
+                        d::Label::secondary(*source_id, span.range())
                             .with_message(format!("here as `{}`", item)),
                     );
                 }
@@ -550,11 +559,11 @@ where
     }
 
     fn format_ir_error(
-        this: &Error,
+        this: &FatalDiagnostic,
         sources: &Sources,
         error_span: Span,
         kind: &IrErrorKind,
-        labels: &mut Vec<Label<SourceId>>,
+        labels: &mut Vec<d::Label<SourceId>>,
         notes: &mut Vec<String>,
     ) -> fmt::Result {
         if let IrErrorKind::QueryError { error } = kind {
@@ -565,25 +574,25 @@ where
     }
 
     fn format_resolve_error(
-        _: &Error,
+        _: &FatalDiagnostic,
         _: &Sources,
         _: Span,
         _: &ResolveErrorKind,
-        _: &mut Vec<Label<SourceId>>,
+        _: &mut Vec<d::Label<SourceId>>,
         _: &mut Vec<String>,
     ) -> fmt::Result {
         Ok(())
     }
 }
 
-impl EmitDiagnostics for Error {
+impl EmitDiagnostics for FatalDiagnostic {
     fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
     {
         let config = codespan_reporting::term::Config::default();
 
-        error_emit_diagnostics_with(self, out, sources, &config)
+        fatal_diagnostics_emit(self, out, sources, &config)
     }
 }
 

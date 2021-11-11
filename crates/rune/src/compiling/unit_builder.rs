@@ -5,12 +5,14 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
-use crate::{CompileError, CompileErrorKind, Diagnostics};
-use runestick::debug::{DebugArgs, DebugSignature};
-use runestick::{
-    Call, CompileMeta, CompileMetaKind, ConstValue, Context, DebugInfo, DebugInst, Hash, Inst,
-    IntoComponent, Item, Label, Location, Protocol, Rtti, SourceId, Span, StaticString, Unit,
-    UnitFn, VariantRtti,
+use crate::runtime::debug::{DebugArgs, DebugSignature};
+use crate::runtime::{
+    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Rtti, StaticString, Unit, UnitFn,
+    VariantRtti,
+};
+use crate::{
+    CompileError, CompileErrorKind, CompileMeta, CompileMetaKind, Context, Diagnostics, Hash,
+    IntoComponent, Item, Location, Protocol, SourceId, Span,
 };
 use std::cell::RefCell;
 use std::rc::Rc;

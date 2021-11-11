@@ -1,8 +1,9 @@
+use rune::runtime::Object;
+use rune::Value;
 use rune_tests::run;
-use runestick::{Object, Value};
 use std::sync::Arc;
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let context = Arc::new(rune_modules::default_context()?);
 
     let mut object = Object::new();

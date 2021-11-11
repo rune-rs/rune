@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::time::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -31,7 +31,7 @@
 //! }
 //! ```
 
-use runestick::{Any, ContextError, Module};
+use rune::{Any, ContextError, Module};
 
 /// Construct the `time` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {

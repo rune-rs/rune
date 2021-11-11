@@ -4,7 +4,7 @@ extern crate test;
 
 use test::Bencher;
 
-fn make_vm() -> runestick::Result<runestick::Vm> {
+fn make_vm() -> rune::Result<rune::Vm> {
     Ok(rune_tests::rune_vm_capture! {
     enum Op {
         Inc(v),
@@ -102,11 +102,11 @@ fn make_vm() -> runestick::Result<runestick::Vm> {
 }
 
 #[bench]
-fn bf_hello_world(b: &mut Bencher) -> runestick::Result<()> {
+fn bf_hello_world(b: &mut Bencher) -> rune::Result<()> {
     let mut vm = make_vm()?;
     let hello_world = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.".to_owned();
 
-    let entry = runestick::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
         let execution = vm.execute(entry, (hello_world.clone(), 00));
@@ -120,12 +120,12 @@ fn bf_hello_world(b: &mut Bencher) -> runestick::Result<()> {
 }
 
 #[bench]
-fn bf_hello_world2(b: &mut Bencher) -> runestick::Result<()> {
+fn bf_hello_world2(b: &mut Bencher) -> rune::Result<()> {
     let mut vm = make_vm()?;
     // interesting hello world which wraps cells on the negative side
     let hello_world = "+[-[<<[+[--->]-[<<<]]]>>>-]>-.---.>..>.<<<<-.<+.>>>>>.>.<<.<-.".to_owned();
 
-    let entry = runestick::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
         let execution = vm.execute(entry, (hello_world.clone(), 0));
@@ -139,12 +139,12 @@ fn bf_hello_world2(b: &mut Bencher) -> runestick::Result<()> {
 }
 
 #[bench]
-fn bf_fib(b: &mut Bencher) -> runestick::Result<()> {
+fn bf_fib(b: &mut Bencher) -> rune::Result<()> {
     let mut vm = make_vm()?;
     // Computes the first 16 fib numbers
     let src = "++++++++++++++++++++++++++++++++++++++++++++>++++++++++++++++++++++++++++++++>++ ++++++++++++++>>+<<[>>>>++++++++++<<[->+>-[>+>>]>[+[-<+>]>+>>]<<<<<<]>[<+>-]>[-] >>>++++++++++<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>>[+++++++++++++++++++++++++++++ +++++++++++++++++++.[-]]<[++++++++++++++++++++++++++++++++++++++++++++++++.[-]]< <<++++++++++++++++++++++++++++++++++++++++++++++++.[-]<<<<<<<.>.>>[>>+<<-]>[>+<< +>-]>[<+>-]<<<-]<<++..."
         .to_owned();
-    let entry = runestick::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
         let execution = vm.execute(entry, (src.clone(), 0));
@@ -158,11 +158,11 @@ fn bf_fib(b: &mut Bencher) -> runestick::Result<()> {
 }
 
 #[bench]
-fn bf_loopity(b: &mut Bencher) -> runestick::Result<()> {
+fn bf_loopity(b: &mut Bencher) -> rune::Result<()> {
     let mut vm = make_vm()?;
     // Just a program that runs a lot of instructions
     let src = ">+[>++>+++[-<]>>]+".to_owned();
-    let entry = runestick::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
         let execution = vm.execute(entry, (src.clone(), 5));

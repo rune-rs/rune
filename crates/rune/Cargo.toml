@@ -17,19 +17,27 @@ An embeddable dynamic programming language for Rust.
 [features]
 default = ["diagnostics"]
 diagnostics = ["codespan-reporting"]
+bench = []
 
 [dependencies]
 thiserror = "1.0.24"
 log = "0.4.14"
 codespan-reporting = { version = "0.11.1", optional = true }
 
-hashbrown = "0.9.1"
+hashbrown = { version = "0.9.1", features = ["serde"] }
 num = "0.4.0"
 itoa = "0.4.7"
 ryu = "1.0.5"
 smallvec = "1.6.1"
+serde = { version = "1.0.124", features = ["derive", "rc"] }
+byteorder = "1.3.4"
+pin-project = "1.0.5"
+futures-core = "0.3.13"
+futures-util = "0.3.13"
+anyhow = "1.0.38"
+twox-hash = { version = "1.6.0", default-features = false }
+num-bigint = "0.4.0"
 
-runestick = {version = "0.9.1", path = "../runestick"}
 rune-macros = {version = "0.9.1", path = "../rune-macros"}
 
 [target."cfg(compiler_v2)".dependencies]
@@ -37,6 +45,8 @@ rune-ssa = {version = "0.9.1", path = "../rune-ssa"}
 
 [dev-dependencies]
 tokio = { version = "1.2.0", features = ["macros"] }
+static_assertions = "1.1.0"
+checkers = "0.6.0"
 
 [package.metadata.docs.rs]
 all-features = true

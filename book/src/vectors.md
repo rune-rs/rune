@@ -57,4 +57,4 @@ $> cargo run --example vec_tuple
 ```
 
 [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
-[`VecTuple`]: https://docs.rs/runestick/0/runestick/struct.VecTuple.html
+[`VecTuple`]: https://docs.rs/rune/0/rune/struct.VecTuple.html

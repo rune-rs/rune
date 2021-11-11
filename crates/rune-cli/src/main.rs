@@ -47,16 +47,16 @@
 //! ```
 //!
 //! [Rune Language]: https://rune-rs.github.io
-//! [runestick]: https://github.com/rune-rs/rune
+//! [rune]: https://github.com/rune-rs/rune
 #![allow(clippy::type_complexity)]
 
-use anyhow::{Context as _, Result};
+use anyhow::{Context, Result};
+use rune::runtime::{Unit, Value, Vm, VmExecution};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{DumpInstructions as _, EmitDiagnostics as _, EmitSource as _};
-use runestick::{Unit, Value, Vm, VmExecution};
+use rune::{DumpInstructions, EmitDiagnostics, EmitSource};
 use std::fs;
 use std::io;
-use std::io::Write as _;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -162,8 +162,8 @@ struct SharedArgs {
 }
 
 impl SharedArgs {
-    /// Construct a runestick context according to the specified argument.
-    fn context(&self) -> Result<runestick::Context, runestick::ContextError> {
+    /// Construct a rune context according to the specified argument.
+    fn context(&self) -> Result<rune::Context, rune::ContextError> {
         let mut context = rune_modules::default_context()?;
 
         if self.experimental {
@@ -417,17 +417,17 @@ fn load_path(
     attribute: visitor::Attribute,
 ) -> Result<(
     Arc<Unit>,
-    runestick::Context,
-    Arc<runestick::RuntimeContext>,
+    rune::Context,
+    Arc<rune::RuntimeContext>,
     rune::Sources,
-    Vec<(runestick::Hash, runestick::CompileMeta)>,
+    Vec<(rune::Hash, rune::CompileMeta)>,
 )> {
     let shared = args.shared();
     let context = shared.context()?;
 
     let bytecode_path = path.with_extension("rnc");
 
-    let source = runestick::Source::from_path(path)
+    let source = rune::Source::from_path(path)
         .with_context(|| format!("reading file: {}", path.display()))?;
 
     let runtime = Arc::new(context.runtime());
@@ -523,7 +523,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
             let context = checkargs.shared.context()?;
 
-            let source = runestick::Source::from_path(path)
+            let source = rune::Source::from_path(path)
                 .with_context(|| format!("reading file: {}", path.display()))?;
 
             let mut sources = rune::Sources::new();
@@ -645,14 +645,14 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 async fn do_run(
     args: &RunFlags,
     mut out: StandardStream,
-    runtime: Arc<runestick::RuntimeContext>,
+    runtime: Arc<rune::RuntimeContext>,
     unit: Arc<Unit>,
     sources: rune::Sources,
 ) -> Result<ExitCode> {
     let last = std::time::Instant::now();
 
-    let mut vm = runestick::Vm::new(runtime, unit.clone());
-    let mut execution: runestick::VmExecution<_> = vm.execute(&["main"], ())?;
+    let mut vm = rune::Vm::new(runtime, unit.clone());
+    let mut execution: rune::VmExecution<_> = vm.execute(&["main"], ())?;
     let result = if args.trace {
         match do_trace(
             &mut out,
@@ -765,7 +765,7 @@ async fn main() {
 
 enum TraceError {
     Io(std::io::Error),
-    VmError(runestick::VmError),
+    VmError(rune::VmError),
 }
 
 impl From<std::io::Error> for TraceError {

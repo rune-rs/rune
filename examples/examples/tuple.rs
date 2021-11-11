@@ -1,7 +1,7 @@
 use rune_tests::run;
 use std::sync::Arc;
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let context = Arc::new(rune_modules::default_context()?);
 
     let object: (i64, i64) = run(

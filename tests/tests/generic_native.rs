@@ -1,7 +1,7 @@
 //! Tests for derive(Any) on generic types
 
+use rune::{Any, ContextError, Module, Named, ToValue, UnsafeFromValue};
 use rune_tests::*;
-use runestick::{Any, ContextError, Module, Named, ToValue, UnsafeFromValue};
 
 #[derive(Any)]
 struct Generic<T>

@@ -58,7 +58,7 @@ pub use crate::state::State;
 use anyhow::Result;
 use tokio::sync::mpsc;
 
-pub fn run(context: runestick::Context, options: rune::Options) -> Result<()> {
+pub fn run(context: rune::Context, options: rune::Options) -> Result<()> {
     let (mut input, output) = stdio()?;
 
     let (rebuild_tx, mut rebuild_rx) = mpsc::channel(1);

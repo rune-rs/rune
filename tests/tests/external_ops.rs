@@ -1,5 +1,5 @@
-use rune::{Diagnostics, Options, Sources};
-use runestick::{Any, Context, Module, Protocol, Source, Value, Vm};
+use rune::{Any, Context, Diagnostics, Module, Options, Protocol, Source, Sources, Value, Vm};
+use rune_tests::*;
 use std::sync::Arc;
 
 #[test]

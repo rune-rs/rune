@@ -1,6 +1,6 @@
 use crate::compiling;
-use crate::{Diagnostics, Options};
-use runestick::{Context, SourceId, Unit};
+use crate::runtime::Unit;
+use crate::{Context, Diagnostics, Options, SourceId};
 use std::rc::Rc;
 use thiserror::Error;
 
@@ -19,7 +19,7 @@ pub struct LoadSourcesError;
 
 /// Load and compile the given sources.
 ///
-/// Uses the [Source::name](runestick::Source::name) when generating diagnostics
+/// Uses the [Source::name](crate::Source::name) when generating diagnostics
 /// to reference the file.
 ///
 /// # Examples
@@ -29,18 +29,15 @@ pub struct LoadSourcesError;
 ///
 /// ```rust
 /// use rune::termcolor::{ColorChoice, StandardStream};
-/// use rune::EmitDiagnostics as _;
-///
-/// use std::path::Path;
+/// use rune::{Context, EmitDiagnostics, Source, Vm};
 /// use std::sync::Arc;
-/// use std::error::Error;
 ///
-/// # fn main() -> Result<(), Box<dyn Error>> {
-/// let context = runestick::Context::with_default_modules()?;
+/// # fn main() -> rune::Result<()> {
+/// let context = Context::with_default_modules()?;
 /// let mut options = rune::Options::default();
 ///
 /// let mut sources = rune::Sources::new();
-/// sources.insert(runestick::Source::new("entry", r#"
+/// sources.insert(Source::new("entry", r#"
 /// pub fn main() {
 ///     println("Hello World");
 /// }
@@ -57,9 +54,8 @@ pub struct LoadSourcesError;
 ///
 /// let unit = result?;
 /// let unit = Arc::new(unit);
-/// let vm = runestick::Vm::new(Arc::new(context.runtime()), unit.clone());
-/// # Ok(())
-/// # }
+/// let vm = Vm::new(Arc::new(context.runtime()), unit.clone());
+/// # Ok(()) }
 /// ```
 pub fn load_sources(
     context: &Context,

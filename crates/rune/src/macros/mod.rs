@@ -12,5 +12,6 @@ pub use self::macro_context::{IntoLit, MacroContext};
 pub use self::quote_fn::{quote_fn, Quote};
 pub use self::storage::Storage;
 pub use self::token_stream::{ToTokens, TokenStream, TokenStreamIter};
+pub use rune_macros::ToTokens;
 
 pub(crate) use self::macro_compiler::MacroCompiler;

@@ -1,5 +1,5 @@
-use crate::Id;
-use runestick::Span;
+use crate::{Id, Span};
+pub use rune_macros::{OptionSpanned, Spanned};
 
 /// Types for which we can get a span.
 pub trait Spanned {

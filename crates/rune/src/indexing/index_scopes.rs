@@ -1,8 +1,7 @@
 //! Simplified scope implementation used for indexing.
 
 use crate::collections::{HashMap, HashSet};
-use crate::{CompileError, CompileErrorKind};
-use runestick::{CompileMetaCapture, Span};
+use crate::{CompileError, CompileErrorKind, CompileMetaCapture, Span};
 use std::cell::RefCell;
 use std::rc::Rc;
 

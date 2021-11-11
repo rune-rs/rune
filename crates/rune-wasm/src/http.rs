@@ -1,4 +1,4 @@
-use runestick::{Any, ContextError, Module};
+use rune::{Any, ContextError, Module};
 use wasm_bindgen::JsCast as _;
 use wasm_bindgen_futures::JsFuture;
 

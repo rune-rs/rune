@@ -1,6 +1,6 @@
-use runestick::Function;
+use rune::runtime::Function;
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let function: Function = rune_tests::rune! { Function =>
         fn foo(a, b) {
             a + b

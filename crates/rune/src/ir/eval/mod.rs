@@ -1,7 +1,6 @@
 use crate::ir::{IrInterpreter, IrPat, IrValue};
 use crate::query::Used;
-use crate::{IrError, Spanned};
-use runestick::Span;
+use crate::{IrError, Span, Spanned};
 
 mod ir;
 mod ir_assign;

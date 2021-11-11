@@ -1,6 +1,6 @@
+use crate::{Source, SourceId, Span};
 #[cfg(feature = "codespan-reporting")]
 use codespan_reporting::files;
-use runestick::{Source, SourceId, Span};
 use std::convert::TryFrom;
 use std::path::Path;
 use std::sync::Arc;

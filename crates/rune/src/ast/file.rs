@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{OptionSpanned, Parse, ParseError, Parser, ToTokens};
+use crate::{OptionSpanned, Parse, ParseError, Parser, Span, ToTokens};
 
 /// A parsed file.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
@@ -13,7 +13,7 @@ pub struct File {
 }
 
 impl OptionSpanned for File {
-    fn option_span(&self) -> Option<runestick::Span> {
+    fn option_span(&self) -> Option<Span> {
         let start = self.attributes.option_span();
         let end = self.attributes.option_span();
 

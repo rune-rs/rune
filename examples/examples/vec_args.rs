@@ -1,13 +1,12 @@
+use rune::runtime::Function;
+use rune::{Context, Diagnostics, Module, Options, Source, Sources, Value, Vm, VmError};
 use std::sync::Arc;
 
-use rune::{Diagnostics, Options, Sources};
-use runestick::{Context, Module, Source, Value, Vm, VmError};
-
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let mut my_module = Module::with_item(&["mymodule"]);
     my_module.function(
         &["pass_along"],
-        |func: runestick::Function, args: Vec<Value>| -> Result<Value, VmError> { func.call(args) },
+        |func: Function, args: Vec<Value>| -> Result<Value, VmError> { func.call(args) },
     )?;
 
     let mut context = Context::with_default_modules()?;

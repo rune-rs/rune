@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 #[tokio::main]
-async fn main() -> runestick::Result<()> {
+async fn main() -> rune::Result<()> {
     let context = rune_modules::default_context()?;
 
     let unit = rune_tests::build(
@@ -13,8 +13,8 @@ async fn main() -> runestick::Result<()> {
         "#,
     )?;
 
-    let main = runestick::Hash::type_hash(&["main"]);
-    let vm = runestick::Vm::new(Arc::new(context.runtime()), unit.clone());
+    let main = rune::Hash::type_hash(&["main"]);
+    let vm = rune::Vm::new(Arc::new(context.runtime()), unit.clone());
 
     let execution = vm.clone().send_execute(main, (5,))?;
     let t1 = tokio::spawn(async move {

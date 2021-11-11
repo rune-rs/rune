@@ -3,9 +3,9 @@ use crate::collections::HashMap;
 use crate::ir::IrValue;
 use crate::macros::{MacroContext, Quote};
 use crate::quote;
-use crate::{Parse, ParseError, Parser, Peek, Spanned};
-use runestick::format;
-use runestick::{Span, SpannedError, WithSpan as _};
+use crate::runtime::format;
+use crate::shared::WithSpan;
+use crate::{Parse, ParseError, Parser, Peek, Span, Spanned, SpannedError};
 use std::collections::{BTreeMap, BTreeSet};
 
 // NB: needed for quote macro.

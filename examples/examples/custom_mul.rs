@@ -1,8 +1,7 @@
 //! This example showcases overloading the multiplication protocol for a
 //! specific type `Foo`.
 
-use rune::{Diagnostics, Options, Sources};
-use runestick::{Any, Context, FromValue, Module, Protocol, Source, Vm};
+use rune::{Any, Context, Diagnostics, FromValue, Module, Options, Protocol, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
@@ -18,7 +17,7 @@ impl Foo {
     }
 }
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let mut context = Context::with_default_modules()?;
 
     let mut module = Module::with_item(&["module"]);

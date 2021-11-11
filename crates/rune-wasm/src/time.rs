@@ -1,5 +1,5 @@
 use js_sys::Promise;
-use runestick::{Any, ContextError, Module, VmError};
+use rune::{Any, ContextError, Module, VmError};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 

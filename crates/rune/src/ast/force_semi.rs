@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::{Spanned, ToTokens};
-use runestick::Span;
+use crate::{Span, Spanned, ToTokens};
 
 /// Helper to force an expression to have a specific semi-colon policy.
 #[derive(Debug, Clone, PartialEq, Eq)]

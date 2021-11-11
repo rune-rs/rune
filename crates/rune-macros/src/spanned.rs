@@ -1,4 +1,4 @@
-use crate::context::Context;
+use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -18,9 +18,10 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let mut expander = Expander {
-            ctx: Context::new(),
-        };
+        let ctx = Context::with_crate();
+        let tokens = ctx.tokens_with_module(None);
+
+        let mut expander = Expander { ctx, tokens };
 
         match &self.input.data {
             syn::Data::Struct(st) => {
@@ -47,6 +48,7 @@ impl Derive {
 
 struct Expander {
     ctx: Context,
+    tokens: Tokens,
 }
 
 impl Expander {
@@ -59,8 +61,8 @@ impl Expander {
         let inner = self.expand_struct_fields(&st.fields)?;
 
         let ident = &input.ident;
-        let spanned = &self.ctx.spanned;
-        let span = &self.ctx.span;
+        let spanned = &self.tokens.spanned;
+        let span = &self.tokens.span;
 
         let generics = &input.generics;
 
@@ -75,7 +77,7 @@ impl Expander {
 
     /// Expand on a struct.
     fn expand_enum(&mut self, input: &syn::DeriveInput, st: &syn::DataEnum) -> Option<TokenStream> {
-        let _ = self.ctx.parse_derive_attributes(&input.attrs)?;
+        let _ = self.ctx.type_attrs(&input.attrs)?;
 
         let mut impl_spanned = Vec::new();
 
@@ -84,8 +86,8 @@ impl Expander {
         }
 
         let ident = &input.ident;
-        let spanned = &self.ctx.spanned;
-        let span = &self.ctx.span;
+        let spanned = &self.tokens.spanned;
+        let span = &self.tokens.span;
 
         Some(quote_spanned! { input.span() =>
             impl #spanned for #ident {
@@ -142,9 +144,9 @@ impl Expander {
         tokens: &(impl quote::ToTokens + syn::spanned::Spanned),
         values: Vec<(Option<TokenStream>, &'a syn::Field)>,
     ) -> Option<TokenStream> {
-        let (optional, begin) = self
-            .ctx
-            .build_spanned_iter(false, values.clone().into_iter())?;
+        let (optional, begin) =
+            self.ctx
+                .build_spanned_iter(&self.tokens, false, values.clone().into_iter())?;
 
         let begin = match (optional, begin) {
             (false, Some(begin)) => begin,
@@ -157,9 +159,9 @@ impl Expander {
             }
         };
 
-        let (end_optional, end) = self
-            .ctx
-            .build_spanned_iter(true, values.into_iter().rev())?;
+        let (end_optional, end) =
+            self.ctx
+                .build_spanned_iter(&self.tokens, true, values.into_iter().rev())?;
 
         Some(if end_optional {
             if let Some(end) = end {

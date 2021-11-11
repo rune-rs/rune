@@ -1,5 +1,6 @@
+use rune::FromValue;
+use rune::VmErrorKind::*;
 use rune_tests::*;
-use runestick::FromValue;
 
 #[test]
 fn test_from_value_object_like() {

@@ -49,4 +49,3 @@ cargo run --bin rune -- scripts/hello_world.rn
 ```
 
 [Rune Language]: https://rune-rs.github.io
-[runestick]: https://github.com/rune-rs/rune
