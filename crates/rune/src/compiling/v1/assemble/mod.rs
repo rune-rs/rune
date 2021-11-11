@@ -42,7 +42,8 @@ mod prelude;
 
 use crate::compiling::v1::{Compiler, Needs, Var};
 use crate::compiling::CompileResult;
-use runestick::{CompileMetaCapture, InstAddress, Span};
+use crate::runtime::InstAddress;
+use crate::{CompileMetaCapture, Span};
 
 #[derive(Debug)]
 #[must_use = "must be consumed to make sure the value is realized"]

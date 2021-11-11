@@ -141,6 +141,6 @@ copied and called with zero arguments.
 [`Resolve` implementation of `LitStr`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/ast/lit_str.rs
 [`Resolve`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/parsing/resolve.rs
 [`Scopes`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/scopes.rs
-[`Source::insert`]: https://docs.rs/runestick/0/runestick/struct.Source.html#method.insert
+[`Source::insert`]: https://docs.rs/rune/0/rune/struct.Source.html#method.insert
 [`Worker`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/worker.rs
-[components]: https://github.com/rune-rs/rune/blob/main/crates/runestick/src/item.rs
+[components]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/item.rs

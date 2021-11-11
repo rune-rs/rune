@@ -1,4 +1,4 @@
-use runestick::SourceId;
+use crate::SourceId;
 
 /// Function used during parse testing to take the source, parse it as the given
 /// type, tokenize it using [ToTokens][crate::macros::ToTokens], and parse the

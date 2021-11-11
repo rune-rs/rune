@@ -54,5 +54,5 @@ $> cargo run --example object
 Some("World")
 ```
 
-[`Object`]: https://docs.rs/runestick/0/runestick/type.Object.html
-[`Value`]: https://docs.rs/runestick/0/runestick/enum.Value.html
+[`Object`]: https://docs.rs/rune/0/rune/type.Object.html
+[`Value`]: https://docs.rs/rune/0/rune/enum.Value.html

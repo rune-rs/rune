@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::macros::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -28,18 +28,18 @@
 //! }
 //! ```
 
-use rune::{MacroContext, Parser, TokenStream};
+use rune::{MacroContext, Parser, TokenStream, Module, ContextError};
 
 /// Construct the supplemental `std::macros` module.
-pub fn module(_unused: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut builtins = runestick::Module::with_crate_item("std", &["macros", "builtin"]);
+pub fn module(_unused: bool) -> Result<Module, ContextError> {
+    let mut builtins = Module::with_crate_item("std", &["macros", "builtin"]);
     builtins.macro_(&["file"], emit_file)?;
     builtins.macro_(&["line"], emit_line)?;
     Ok(builtins)
 }
 
 /// Implementation for the `line!()` macro
-pub(crate) fn emit_line(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+pub(crate) fn emit_line(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
     parser.eof()?;
 
@@ -51,7 +51,7 @@ pub(crate) fn emit_line(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> run
 }
 
 /// Implementation for the `file!()` macro
-pub(crate) fn emit_file(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+pub(crate) fn emit_file(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
     parser.eof()?;
 

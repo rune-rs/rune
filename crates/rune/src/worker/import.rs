@@ -1,8 +1,10 @@
 use crate::ast;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
-use crate::{CompileError, CompileErrorKind, CompileResult, Resolve as _, Sources, Spanned as _};
-use runestick::{CompileMod, Context, Item, SourceId, Visibility};
+use crate::{
+    CompileError, CompileErrorKind, CompileMod, CompileResult, Context, Item, Resolve, SourceId,
+    Sources, Spanned, Visibility,
+};
 use std::collections::VecDeque;
 
 use std::sync::Arc;

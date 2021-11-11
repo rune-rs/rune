@@ -1,6 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, EmitDiagnostics as _, Options, Sources};
-use runestick::{FromValue as _, Source, Vm};
+use rune::{Diagnostics, EmitDiagnostics, FromValue, Options, Source, Sources, Vm};
 
 use std::error::Error;
 use std::sync::Arc;

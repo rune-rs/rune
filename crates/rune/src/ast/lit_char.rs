@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::{
     MacroContext, Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned,
-    Sources, Spanned, Storage, ToTokens,
+    Sources, Span, Spanned, Storage, ToTokens,
 };
-use runestick::Span;
 
 /// A character literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

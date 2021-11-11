@@ -1,8 +1,9 @@
 //! Tests for `std::any::type_name_of_val(v)` for native types
 
+use rune::{Any, ContextError, Module, Protocol};
 use rune_tests::*;
-use runestick::{ContextError, Module};
-#[derive(runestick::Any)]
+
+#[derive(Any)]
 pub struct NativeStruct(pub u32);
 
 pub fn native_fn() {}
@@ -19,7 +20,7 @@ fn make_native_module() -> Result<Module, ContextError> {
     module.ty::<NativeStruct>()?;
     module.function(&["native_fn"], native_fn)?;
     module.inst_fn("instance_fn", NativeStruct::instance_fn)?;
-    module.field_fn(runestick::Protocol::GET, "x", NativeStruct::get_x)?;
+    module.field_fn(Protocol::GET, "x", NativeStruct::get_x)?;
 
     Ok(module)
 }

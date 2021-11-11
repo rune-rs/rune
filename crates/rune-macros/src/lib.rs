@@ -45,13 +45,49 @@
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 extern crate proc_macro;
 
+mod any;
 mod context;
+mod from_value;
 mod internals;
 mod option_spanned;
 mod parse;
 mod quote;
 mod spanned;
 mod to_tokens;
+mod to_value;
+
+/// Macro helper function for quoting the token stream as macro output.
+///
+/// Is capable of quoting everything in Rune, except for the following:
+/// * Labels, which must be created using `Label::new`.
+/// * Dynamic quoted strings and other literals, which must be created using
+///   `Lit::new`.
+///
+/// ```rust
+/// rune::quote!(hello self);
+/// ```
+///
+/// # Interpolating values
+///
+/// Values are interpolated with `#value`, or `#(value + 1)` for expressions.
+///
+/// # Iterators
+///
+/// Anything that can be used as an iterator can be iterated over with
+/// `#(iter)*`. A token can also be used to join inbetween each iteration, like
+/// `#(iter),*`.
+#[proc_macro]
+pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = proc_macro2::TokenStream::from(input);
+    let parser = crate::quote::Quote::new();
+
+    let output = match parser.parse(input) {
+        Ok(output) => output,
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+    };
+
+    output.into()
+}
 
 /// Helper derive to implement `ToTokens`.
 #[proc_macro_derive(ToTokens, attributes(rune))]
@@ -85,37 +121,66 @@ pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
-/// Macro helper function for quoting the token stream as macro output.
+/// Conversion macro for constructing proxy objects from a dynamic value.
+#[proc_macro_derive(FromValue, attributes(rune))]
+pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    from_value::expand(&input)
+        .unwrap_or_else(to_compile_errors)
+        .into()
+}
+
+/// Conversion macro for constructing proxy objects from a dynamic value.
+#[proc_macro_derive(ToValue, attributes(rune))]
+pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    to_value::expand(&input)
+        .unwrap_or_else(to_compile_errors)
+        .into()
+}
+
+/// Macro to mark a value as external, which will implement all the appropriate
+/// traits.
 ///
-/// Is capable of quoting everything in Rune, except for the following:
-/// * Labels, which must be created using `Label::new`.
-/// * Dynamic quoted strings and other literals, which must be created using
-///   `Lit::new`.
+/// This is required to support the external type as a type argument in a
+/// registered function.
+///
+/// ## `#[rune(name = "..")]` attribute
+///
+/// The name of a type defaults to its identifiers, so `struct Foo {}` would be
+/// given the name `"Foo"`.
+///
+/// This can be overrided with the `#[rune(name = "...")]` attribute:
 ///
 /// ```rust
-/// rune::quote!(hello self);
+/// use rune::Any;
+///
+/// #[derive(Any)]
+/// #[rune(name = "Bar")]
+/// struct Foo {
+/// }
+///
+/// fn install() -> Result<rune::Module, rune::ContextError> {
+///     let mut module = rune::Module::new();
+///     module.ty::<Foo>()?;
+///     Ok(module)
+/// }
 /// ```
-///
-/// # Interpolating values
-///
-/// Values are interpolated with `#value`, or `#(value + 1)` for expressions.
-///
-/// # Iterators
-///
-/// Anything that can be used as an iterator can be iterated over with
-/// `#(iter)*`. A token can also be used to join inbetween each iteration, like
-/// `#(iter),*`.
+#[proc_macro_derive(Any, attributes(rune))]
+pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as any::Derive);
+    derive.expand().unwrap_or_else(to_compile_errors).into()
+}
+
+/// Internal macro to implement external.
 #[proc_macro]
-pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = proc_macro2::TokenStream::from(input);
-    let parser = crate::quote::Quote::new();
-
-    let output = match parser.parse(input) {
-        Ok(output) => output,
-        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
-    };
-
-    output.into()
+#[doc(hidden)]
+pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let internal_call = syn::parse_macro_input!(input as any::InternalCall);
+    internal_call
+        .expand()
+        .unwrap_or_else(to_compile_errors)
+        .into()
 }
 
 fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {

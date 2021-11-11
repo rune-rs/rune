@@ -1,3 +1,5 @@
+use rune::ParseErrorKind::*;
+use rune::Span;
 use rune_tests::*;
 
 #[test]

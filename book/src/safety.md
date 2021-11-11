@@ -51,7 +51,7 @@ So the current conclusion is:
 
 [`AnyObjVtable`]: https://github.com/rune-rs/rune/blob/e910fb9/crates/runestick/src/any.rs#L171
 [a soundness hole in Rust]: https://github.com/rust-lang/rust/issues/10389
-[`Context`]: https://docs.rs/runestick/0.6.16/runestick/struct.Context.html
+[`Context`]: https://docs.rs/rune/0/rune/struct.Context.html
 
 ## Internal `Any` type
 
@@ -62,8 +62,8 @@ implementation should be sound. We have an internal `Any` type instead of
 relying on `Box<dyn Any>` to allow [`AnyObjVtable`] to be implementable by external
 types to support external types through a C ffi.
 
-[internal `Any` type]: https://docs.rs/runestick/0/runestick/struct.Any.html
-[`AnyObjVtable`]: https://docs.rs/runestick/0/runestick/struct.AnyObjVtable.html
+[internal `Any` type]: https://docs.rs/rune/0/rune/struct.Any.html
+[`AnyObjVtable`]: https://docs.rs/rune/0/rune/struct.AnyObjVtable.html
 
 ## `Shared<T>` and `UnsafeFromValue`
 
@@ -78,5 +78,5 @@ pointer and a raw guard, which is used in many implementations of
 [`UnsafeFromValue`] is a conversion trait which is strictly used internally to
 convert values into references. Its safety is documented in the trait.
 
-["owned borrows"]: https://docs.rs/runestick/0/runestick/struct.Shared.html#method.into_ref
-[`UnsafeFromValue`]: https://docs.rs/runestick/0/runestick/trait.UnsafeFromValue.html
+["owned borrows"]: https://docs.rs/rune/0/rune/struct.Shared.html#method.into_ref
+[`UnsafeFromValue`]: https://docs.rs/rune/0/rune/trait.UnsafeFromValue.html

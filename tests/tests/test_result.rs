@@ -1,5 +1,6 @@
 //! Test for result functions
 
+use rune::VmErrorKind::*;
 use rune_tests::*;
 
 #[test]

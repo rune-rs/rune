@@ -1,9 +1,8 @@
 use crate::{ast, MacroContext};
 use crate::{
     Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveErrorKind, ResolveOwned,
-    Sources, Spanned, Storage, ToTokens,
+    Sources, Span, Spanned, Storage, ToTokens,
 };
-use runestick::Span;
 use std::borrow::Cow;
 
 /// A label, like `'foo`

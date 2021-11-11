@@ -1,6 +1,5 @@
 use crate::ast::{Kind, Token};
-use crate::{MacroContext, OptionSpanned};
-use runestick::Span;
+use crate::{MacroContext, OptionSpanned, Span};
 use std::fmt;
 use std::slice;
 

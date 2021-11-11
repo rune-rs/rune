@@ -98,18 +98,15 @@
 //!
 //! ```rust
 //! use rune::termcolor::{ColorChoice, StandardStream};
-//! use rune::EmitDiagnostics as _;
-//! use runestick::{Vm, FromValue as _, Item, Source};
-//!
-//! use std::error::Error;
+//! use rune::{Diagnostics, EmitDiagnostics, Context, Options, Sources, Vm, FromValue, Item, Source};
 //! use std::sync::Arc;
 //!
 //! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn Error>> {
-//!     let context = runestick::Context::with_default_modules()?;
-//!     let options = rune::Options::default();
+//! async fn main() -> rune::Result<()> {
+//!     let context = Context::with_default_modules()?;
+//!     let options = Options::default();
 //!
-//!     let mut sources = rune::Sources::new();
+//!     let mut sources = Sources::new();
 //!     sources.insert(Source::new(
 //!         "script",
 //!         r#"
@@ -120,7 +117,7 @@
 //!         "#,
 //!     ));
 //!
-//!     let mut diagnostics = rune::Diagnostics::new();
+//!     let mut diagnostics = Diagnostics::new();
 //!
 //!     let result = rune::load_sources(&context, &options, &mut sources, &mut diagnostics);
 //!
@@ -161,78 +158,137 @@
 //! [support-serde]: https://github.com/rune-rs/rune/blob/main/crates/rune-modules/src/json.rs
 
 #![deny(missing_docs)]
-#![allow(
-    clippy::enum_variant_names,
-    clippy::needless_doctest_main,
-    clippy::never_loop,
-    clippy::too_many_arguments,
-    clippy::should_implement_trait,
-    clippy::branches_sharing_code,
-    clippy::result_unit_err,
-    clippy::match_like_matches_macro
-)]
+#![allow(clippy::enum_variant_names)]
+#![allow(clippy::needless_doctest_main)]
+#![allow(clippy::never_loop)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::should_implement_trait)]
+#![allow(clippy::branches_sharing_code)]
+#![allow(clippy::result_unit_err)]
+#![allow(clippy::match_like_matches_macro)]
+#![allow(clippy::type_complexity)]
+
+/// A macro that can be used to construct a [Span] that can be pattern matched
+/// over.
+///
+/// # Examples
+///
+/// ```
+/// let span = rune::Span::new(42, 84);
+/// assert!(matches!(span, rune::span!(42, 84)));
+/// ```
+#[macro_export]
+macro_rules! span {
+    ($start:expr, $end:expr) => {
+        $crate::Span {
+            start: $crate::ByteIndex($start),
+            end: $crate::ByteIndex($end),
+        }
+    };
+}
 
 #[macro_use]
 mod internal_macros;
 #[macro_use]
 pub mod ast;
+mod any;
 mod attrs;
+mod compile_meta;
 mod compiling;
-mod diagnostics;
+mod context;
+pub mod diagnostics;
 #[cfg(feature = "diagnostics")]
 mod emit_diagnostics;
+mod hash;
+mod id;
 mod indexing;
 mod ir;
+mod item;
 mod load;
+mod location;
 pub mod macros;
+pub mod module;
+pub mod modules;
+mod named;
 mod options;
 mod parsing;
+mod protocol;
 mod query;
+mod raw_str;
+pub mod runtime;
 mod shared;
+mod source;
+mod source_id;
+mod span;
 mod spanned;
+mod visibility;
 mod worker;
 
 #[doc(hidden)]
 pub mod testing;
 
-/// Internal collection re-export.
-mod collections {
-    pub use hashbrown::{hash_map, HashMap};
-    pub use hashbrown::{hash_set, HashSet};
-}
+/// Exported result type for convenience.
+pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 
+/// Exported boxed error type for convenience.
+pub type Error = anyhow::Error;
+
+pub use self::any::Any;
+pub use self::compile_meta::{
+    CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
+    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource,
+};
 pub use self::compiling::{
     BuildError, CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntryStep,
     LinkerError, NoopCompileVisitor, UnitBuilder,
 };
-pub use self::diagnostics::{Diagnostic, Diagnostics, Error, ErrorKind, Warning, WarningKind};
+pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
+pub use self::diagnostics::Diagnostics;
 #[cfg(feature = "diagnostics")]
 pub use self::emit_diagnostics::{
     termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource,
 };
+pub use self::hash::{Hash, IntoTypeHash};
+pub use self::id::Id;
 pub use self::ir::{IrError, IrErrorKind, IrValue};
+pub use self::item::{Component, ComponentRef, IntoComponent, Item};
 pub use self::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
+pub use self::location::Location;
 pub use self::macros::{MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter};
+pub use self::module::{InstFnNameHash, InstallWith, Module};
+pub use self::named::Named;
 pub use self::options::{ConfigurationError, Options};
 pub use self::parsing::{
-    Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,
+    Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,
     ResolveErrorKind, ResolveOwned,
 };
+pub use self::protocol::Protocol;
 pub use self::query::{QueryError, QueryErrorKind, Used};
-pub use self::shared::{ScopeError, ScopeErrorKind};
+pub use self::raw_str::RawStr;
+pub use self::runtime::{
+    Args, BorrowMut, BorrowRef, FromValue, GuardedArgs, Mut, Panic, Ref, RuntimeContext, Shared,
+    Stack, StackError, ToValue, Unit, UnsafeFromValue, UnsafeToValue, Value, Vm, VmError,
+    VmErrorKind, VmExecution,
+};
+pub use self::shared::{ScopeError, ScopeErrorKind, SpannedError};
+pub use self::source::Source;
+pub use self::source_id::SourceId;
+pub use self::span::{ByteIndex, IntoByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
+pub use self::visibility::Visibility;
 pub use compiling::compile;
 pub use rune_macros::quote;
 
-pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
+// Macros used internally and re-exported.
+pub(crate) use rune_macros::__internal_impl_any;
 
 /// Parse the given input as the given type that implements
 /// [Parse][crate::parsing::Parse]. The specified `source_id` will be used when
 /// referencing any parsed elements.
-pub fn parse_all<T>(source: &str, source_id: runestick::SourceId) -> Result<T, ParseError>
+pub fn parse_all<T>(source: &str, source_id: SourceId) -> Result<T, ParseError>
 where
-    T: crate::parsing::Parse,
+    T: Parse,
 {
     let mut parser = Parser::new(source, source_id);
     let ast = parser.parse::<T>()?;
@@ -243,12 +299,19 @@ where
 /// Parse the given input as the given type that implements
 /// [Parse][crate::parsing::Parse].
 ///
-/// This uses an empty [SourceId][runestick::SourceId] and is therefore not
-/// appropriate to use beyond testing that a certain type parses.
+/// This uses an empty [SourceId] and is therefore not appropriate to use beyond
+/// testing that a certain type parses.
 #[doc(hidden)]
 pub fn parse_all_without_source<T>(source: &str) -> Result<T, ParseError>
 where
-    T: crate::parsing::Parse,
+    T: Parse,
 {
-    parse_all(source, runestick::SourceId::empty())
+    parse_all(source, SourceId::empty())
+}
+
+/// Internal collection re-export.
+mod collections {
+    pub use hashbrown::{hash_map, HashMap};
+    pub use hashbrown::{hash_set, HashSet};
+    pub use std::collections::{btree_map, BTreeMap};
 }

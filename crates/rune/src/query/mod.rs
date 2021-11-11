@@ -5,16 +5,17 @@ use crate::collections::{HashMap, HashSet};
 use crate::ir;
 use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter};
 use crate::parsing::Opaque;
+use crate::runtime::format;
+use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
 use crate::{
     CompileError, CompileErrorKind, CompileVisitor, Id, ImportEntryStep, NoopCompileVisitor,
     Resolve as _, Sources, Spanned, Storage, UnitBuilder,
 };
-use runestick::format;
-use runestick::{
-    Call, CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
+use crate::{
+    CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
     CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource, Component, ComponentRef,
-    Context, Hash, IntoComponent, Item, Location, Names, SourceId, Span, Visibility,
+    Context, Hash, IntoComponent, Item, Location, SourceId, Span, Visibility,
 };
 use std::collections::VecDeque;
 use std::fmt;

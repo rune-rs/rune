@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::compiling::v1::Needs;
-use crate::{CompileError, CompileErrorKind, CompileResult, Sources, Spanned as _, Storage};
-use runestick::Label;
+use crate::runtime::Label;
+use crate::{CompileError, CompileErrorKind, CompileResult, Sources, Spanned, Storage};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -68,7 +68,7 @@ impl Loops {
         sources: &Sources,
         expected: ast::Label,
     ) -> CompileResult<(Loop, Vec<usize>)> {
-        use crate::parsing::Resolve as _;
+        use crate::parsing::Resolve;
 
         let span = expected.span();
         let expected = expected.resolve(storage, sources)?;

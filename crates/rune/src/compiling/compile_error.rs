@@ -1,13 +1,12 @@
 use crate::ast;
 use crate::compiling::InsertMetaError;
-#[cfg(compiler_v2)]
-use crate::shared::WithSpan;
+use crate::runtime::debug::DebugSignature;
+use crate::runtime::Label;
 use crate::{
-    IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, ResolveError,
-    ResolveErrorKind, Spanned,
+    CompileMeta, Error, Hash, IrError, IrErrorKind, Item, Location, ParseError, ParseErrorKind,
+    QueryError, QueryErrorKind, ResolveError, ResolveErrorKind, SourceId, Span, Spanned,
+    SpannedError,
 };
-use runestick::debug::DebugSignature;
-use runestick::{CompileMeta, Hash, Item, Label, Location, SourceId, Span, SpannedError};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -31,13 +30,6 @@ error! {
 impl From<CompileError> for SpannedError {
     fn from(error: CompileError) -> Self {
         SpannedError::new(error.span, *error.kind)
-    }
-}
-
-#[cfg(compiler_v2)]
-impl From<WithSpan<rune_ssa::Error>> for CompileError {
-    fn from(w: WithSpan<rune_ssa::Error>) -> Self {
-        CompileError::new(w.span, w.error)
     }
 }
 
@@ -112,13 +104,6 @@ pub enum CompileErrorKind {
         #[source]
         error: io::Error,
     },
-    #[cfg(compiler_v2)]
-    #[error("failed to assemble ssa: {error}")]
-    SsaError {
-        #[source]
-        #[from]
-        error: rune_ssa::Error,
-    },
     #[error("error during constant evaluation: {msg}")]
     ConstError { msg: &'static str },
     #[error("experimental feature: {msg}")]
@@ -135,7 +120,7 @@ pub enum CompileErrorKind {
     #[error("missing macro `{item}`")]
     MissingMacro { item: Item },
     #[error("{error}")]
-    CallMacroError { item: Item, error: runestick::Error },
+    CallMacroError { item: Item, error: Error },
     #[error("no local variable `{name}`")]
     MissingLocal { name: String },
     #[error("missing item `{item}`")]

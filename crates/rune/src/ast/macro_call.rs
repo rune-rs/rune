@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::parsing::Opaque;
 use crate::{
-    OptionSpanned, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens, TokenStream,
+    Id, OptionSpanned, Parse, ParseError, ParseErrorKind, Parser, Span, Spanned, ToTokens,
+    TokenStream,
 };
-use runestick::{Id, Span};
 
 /// A function call `<expr>!(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

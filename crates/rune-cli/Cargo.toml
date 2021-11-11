@@ -26,7 +26,6 @@ structopt = { version = "0.3.21", default-features = false, features = ["wrap_he
 
 rune = {version = "0.9.1", path = "../rune"}
 rune-modules = {version = "0.9.1", path = "../rune-modules", features = ["full", "experiments"]}
-runestick = {version = "0.9.1", path = "../runestick"}
 
 [build-dependencies]
 anyhow = "1.0.38"

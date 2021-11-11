@@ -1,8 +1,7 @@
 use crate::ast::{Kind, Token};
 use crate::macros::{TokenStream, TokenStreamIter};
 use crate::parsing::{Lexer, Parse, ParseError, ParseErrorKind, Peek};
-use crate::OptionSpanned as _;
-use runestick::{SourceId, Span};
+use crate::{OptionSpanned, SourceId, Span};
 use std::collections::VecDeque;
 use std::fmt;
 use std::ops;
@@ -12,8 +11,8 @@ use std::ops;
 /// # Examples
 ///
 /// ```rust
-/// use rune::{ast, Parser};
-/// use runestick::SourceId;
+/// use rune::ast;
+/// use rune::{Parser, SourceId};
 ///
 /// let mut parser = Parser::new("fn foo() {}", SourceId::empty());
 /// parser.parse::<ast::ItemFn>().unwrap();

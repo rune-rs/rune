@@ -1,4 +1,4 @@
-use runestick::{Any, Context, Module, VmError, VmErrorKind};
+use rune::{Any, Context, Module, VmError, VmErrorKind};
 use std::sync::Arc;
 
 #[derive(Any)]
@@ -19,7 +19,7 @@ impl External {
     }
 }
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let mut module = Module::default();
     module.ty::<External>()?;
 

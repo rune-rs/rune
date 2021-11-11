@@ -38,7 +38,7 @@
 //! </a>
 //! </div>
 //!
-//! Native modules for the runestick virtual machine.
+//! Native modules for the rune virtual machine.
 //!
 //! These are modules that can be used with the [Rune language].
 //!
@@ -107,12 +107,12 @@ macro_rules! modules {
             pub mod $ident;
         )*
 
-        /// Construct a a default context runestick context with all enabled
-        /// modules provided based on the [default runestick
-        /// context](runestick::Context::with_default_modules).
-        pub fn with_config(stdio: bool) -> Result<runestick::Context, runestick::ContextError> {
+        /// Construct a a default rune context with all enabled modules provided
+        /// based on the [default rune
+        /// context](rune::Context::with_default_modules).
+        pub fn with_config(stdio: bool) -> Result<rune::Context, rune::ContextError> {
             #[allow(unused_mut)]
-            let mut context = runestick::Context::with_config(stdio)?;
+            let mut context = rune::Context::with_config(stdio)?;
 
             $(
                 #[cfg(feature = $name)]
@@ -124,8 +124,8 @@ macro_rules! modules {
             Ok(context)
         }
 
-        /// Construct a a default context runestick context with default config.
-        pub fn default_context() -> Result<runestick::Context, runestick::ContextError> {
+        /// Construct a a default context rune context with default config.
+        pub fn default_context() -> Result<rune::Context, rune::ContextError> {
             with_config(true)
         }
     }

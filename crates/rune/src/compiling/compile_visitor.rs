@@ -1,4 +1,4 @@
-use runestick::{CompileMeta, SourceId, Span};
+use crate::{CompileMeta, SourceId, Span};
 
 /// A visitor that will be called for every language item compiled.
 pub trait CompileVisitor {

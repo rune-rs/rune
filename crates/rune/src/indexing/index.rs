@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::attrs;
 use crate::collections::HashMap;
-use crate::indexing::{IndexFnKind, IndexLocal as _, IndexScopes};
+use crate::indexing::{IndexFnKind, IndexLocal, IndexScopes};
 use crate::load::{SourceLoader, Sources};
 use crate::macros::MacroCompiler;
 use crate::parsing::{Parse, Parser};
@@ -9,16 +9,14 @@ use crate::query::{
     Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
     Function, Indexed, IndexedEntry, InstanceFunction, Query, Used,
 };
+use crate::runtime::format;
+use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{
-    CompileError, CompileErrorKind, CompileResult, CompileVisitor, Diagnostics, OptionSpanned as _,
-    Options, ParseError, ParseErrorKind, Resolve as _, Spanned as _,
-};
-use runestick::format;
-use runestick::{
-    Call, CompileMeta, CompileMetaKind, CompileMod, CompileSource, Context, Hash, Item, Location,
-    SourceId, Span, Visibility,
+    CompileError, CompileErrorKind, CompileMeta, CompileMetaKind, CompileMod, CompileResult,
+    CompileSource, CompileVisitor, Context, Diagnostics, Hash, Item, Location, OptionSpanned,
+    Options, ParseError, ParseErrorKind, Resolve, SourceId, Span, Spanned, Visibility,
 };
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;

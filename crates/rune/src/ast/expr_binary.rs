@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::{ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
-use runestick::Span;
+use crate::{ParseError, Parser, Peek, Peeker, Span, Spanned, ToTokens};
 use std::fmt;
 
 /// A binary expression.

@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::{ParseError, ParseErrorKind};
-use runestick::{SourceId, Span};
+use crate::{ParseError, ParseErrorKind, SourceId, Span};
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -25,7 +24,7 @@ impl<'a> Lexer<'a> {
     /// ```rust
     /// use rune::Lexer;
     /// use rune::ast;
-    /// use runestick::{span, SourceId};
+    /// use rune::{span, SourceId};
     ///
     /// assert_eq! {
     ///     Lexer::new("fn", SourceId::empty()).next().unwrap().unwrap(),
@@ -883,9 +882,7 @@ impl fmt::Display for LexerMode {
 #[cfg(test)]
 mod tests {
     use super::Lexer;
-    use crate::ast;
-    use runestick::span;
-    use runestick::SourceId;
+    use crate::{ast, SourceId};
 
     macro_rules! test_lexer {
         ($source:expr $(, $pat:pat)* $(,)?) => {{

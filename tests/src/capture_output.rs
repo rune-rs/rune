@@ -1,6 +1,6 @@
 //! Utilities related to testing
 
-use runestick::{ContextError, Module, Panic, Stack, Value, VmError};
+use rune::{ContextError, Module, Panic, Stack, Value, VmError};
 use std::io::Write as _;
 
 /// Provide a bunch of `std` functions that can be used during tests to capture output.

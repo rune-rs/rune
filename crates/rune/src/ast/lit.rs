@@ -1,7 +1,6 @@
 use crate::ast;
 use crate::macros::IntoLit;
-use crate::{MacroContext, Parse, ParseError, Parser, Peeker, Spanned, Storage, ToTokens};
-use runestick::Span;
+use crate::{MacroContext, Parse, ParseError, Parser, Peeker, Span, Spanned, Storage, ToTokens};
 
 /// A literal value
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -48,8 +47,8 @@ impl Lit {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{ast, Storage};
-    /// use runestick::Span;
+    /// use rune::ast;
+    /// use rune::{Storage, Span};
     ///
     /// let mut storage = Storage::default();
     /// let string = ast::Lit::new_with("hello world", Span::empty(), &mut storage);

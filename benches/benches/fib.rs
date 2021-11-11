@@ -5,7 +5,7 @@ extern crate test;
 use test::Bencher;
 
 #[bench]
-fn fib_15(b: &mut Bencher) -> runestick::Result<()> {
+fn fib_15(b: &mut Bencher) -> rune::Result<()> {
     let mut vm = rune_tests::rune_vm! {
             fn fib(n) {
         if n <= 1 {
@@ -20,7 +20,7 @@ fn fib_15(b: &mut Bencher) -> runestick::Result<()> {
     }
     };
 
-    let entry = runestick::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
         let execution = vm.execute(entry, (15,));
@@ -32,7 +32,7 @@ fn fib_15(b: &mut Bencher) -> runestick::Result<()> {
 }
 
 #[bench]
-fn fib_20(b: &mut Bencher) -> runestick::Result<()> {
+fn fib_20(b: &mut Bencher) -> rune::Result<()> {
     let mut vm = rune_tests::rune_vm! {
             fn fib(n) {
         if n <= 1 {
@@ -47,7 +47,7 @@ fn fib_20(b: &mut Bencher) -> runestick::Result<()> {
     }
     };
 
-    let entry = runestick::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
         let execution = vm.execute(entry, (20,));

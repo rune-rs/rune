@@ -37,8 +37,8 @@ which will be covered in one of the advanced sections.
 A macro is added to a [`Module`] using the [`Module::macro_`] function.
 
 ```rust,noplaypen
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["std", "experiments"]);
+pub fn module() -> Result<rune::Module, rune::ContextError> {
+    let mut module = rune::Module::new(&["std", "experiments"]);
     module.macro_(&["stringy_math"], stringy_math_macro::stringy_math)?;
     Ok(module)
 }
@@ -61,5 +61,5 @@ option to the Rune CLI.
 
 [`quote!` macro]: https://docs.rs/rune/0/rune/macro.quote.html
 [famed counterpart in the Rust world]: https://docs.rs/quote/1/quote/
-[`Module`]: https://docs.rs/runestick/0/runestick/module/struct.Module.html
-[`Module::macro_`]: https://docs.rs/runestick/0/runestick/module/struct.Module.html#method.macro_
+[`Module`]: https://docs.rs/rune/0/rune/module/struct.Module.html
+[`Module::macro_`]: https://docs.rs/rune/0/rune/module/struct.Module.html#method.macro_

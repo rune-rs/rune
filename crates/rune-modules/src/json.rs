@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::json::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -31,7 +31,8 @@
 //! }
 //! ```
 
-use runestick::{Bytes, ContextError, Module, Value};
+use rune::{ContextError, Module};
+use rune::runtime::{Bytes, Value};
 
 /// Construct the `json` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -43,22 +44,22 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn from_bytes(bytes: &[u8]) -> runestick::Result<Value> {
+fn from_bytes(bytes: &[u8]) -> rune::Result<Value> {
     Ok(serde_json::from_slice(bytes)?)
 }
 
 /// Get value from json string.
-fn from_string(string: &str) -> runestick::Result<Value> {
+fn from_string(string: &str) -> rune::Result<Value> {
     Ok(serde_json::from_str(string)?)
 }
 
 /// Convert any value to a json string.
-fn to_string(value: Value) -> runestick::Result<String> {
+fn to_string(value: Value) -> rune::Result<String> {
     Ok(serde_json::to_string(&value)?)
 }
 
 /// Convert any value to json bytes.
-fn to_bytes(value: Value) -> runestick::Result<Bytes> {
+fn to_bytes(value: Value) -> rune::Result<Bytes> {
     let bytes = serde_json::to_vec(&value)?;
     Ok(Bytes::from_vec(bytes))
 }

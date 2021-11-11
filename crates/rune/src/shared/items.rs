@@ -1,5 +1,5 @@
 use crate::shared::Gen;
-use runestick::{ComponentRef, Id, Item};
+use crate::{ComponentRef, Id, Item};
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 

@@ -1,8 +1,7 @@
-use rune::{Diagnostics, Options, Sources};
-use runestick::{Context, FromValue, Source, Vm};
+use rune::{Context, Diagnostics, FromValue, Options, Source, Sources, Vm};
 use std::sync::Arc;
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let context = Context::with_default_modules()?;
     let mut sources = Sources::new();
 

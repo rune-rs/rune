@@ -1,6 +1,7 @@
 use crate::collections::HashMap;
+use crate::runtime as rt;
+use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 use crate::{IrError, IrErrorKind, Spanned};
-use runestick::{Bytes, ConstValue, Shared, TypeInfo};
 use std::convert::TryFrom;
 
 /// A constant value.
@@ -170,18 +171,18 @@ impl IrValue {
     /// Get the type information of the value.
     pub fn type_info(&self) -> TypeInfo {
         match self {
-            Self::Unit => TypeInfo::StaticType(runestick::UNIT_TYPE),
-            Self::Byte(..) => TypeInfo::StaticType(runestick::BYTE_TYPE),
-            Self::Char(..) => TypeInfo::StaticType(runestick::CHAR_TYPE),
-            Self::Bool(..) => TypeInfo::StaticType(runestick::BOOL_TYPE),
-            Self::String(..) => TypeInfo::StaticType(runestick::STRING_TYPE),
-            Self::Bytes(..) => TypeInfo::StaticType(runestick::BYTES_TYPE),
-            Self::Integer(..) => TypeInfo::StaticType(runestick::INTEGER_TYPE),
-            Self::Float(..) => TypeInfo::StaticType(runestick::FLOAT_TYPE),
-            Self::Option(..) => TypeInfo::StaticType(runestick::OPTION_TYPE),
-            Self::Vec(..) => TypeInfo::StaticType(runestick::VEC_TYPE),
-            Self::Tuple(..) => TypeInfo::StaticType(runestick::TUPLE_TYPE),
-            Self::Object(..) => TypeInfo::StaticType(runestick::OBJECT_TYPE),
+            Self::Unit => TypeInfo::StaticType(rt::UNIT_TYPE),
+            Self::Byte(..) => TypeInfo::StaticType(rt::BYTE_TYPE),
+            Self::Char(..) => TypeInfo::StaticType(rt::CHAR_TYPE),
+            Self::Bool(..) => TypeInfo::StaticType(rt::BOOL_TYPE),
+            Self::String(..) => TypeInfo::StaticType(rt::STRING_TYPE),
+            Self::Bytes(..) => TypeInfo::StaticType(rt::BYTES_TYPE),
+            Self::Integer(..) => TypeInfo::StaticType(rt::INTEGER_TYPE),
+            Self::Float(..) => TypeInfo::StaticType(rt::FLOAT_TYPE),
+            Self::Option(..) => TypeInfo::StaticType(rt::OPTION_TYPE),
+            Self::Vec(..) => TypeInfo::StaticType(rt::VEC_TYPE),
+            Self::Tuple(..) => TypeInfo::StaticType(rt::TUPLE_TYPE),
+            Self::Object(..) => TypeInfo::StaticType(rt::OBJECT_TYPE),
         }
     }
 }

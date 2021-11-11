@@ -1,7 +1,6 @@
 use crate::ast;
 use crate::parsing::Opaque;
-use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
-use runestick::Span;
+use crate::{Id, Parse, ParseError, Parser, Span, Spanned, ToTokens};
 
 /// A closure expression.
 ///

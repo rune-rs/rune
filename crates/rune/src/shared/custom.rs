@@ -1,5 +1,4 @@
-use crate::Spanned;
-use runestick::{Span, SpannedError};
+use crate::{Span, Spanned, SpannedError};
 
 /// A custom opaque error helper.
 pub(crate) struct Custom {

@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::core::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -22,11 +22,12 @@
 
 use rune::ast;
 use rune::macros;
-use rune::{quote, Parser, MacroContext, TokenStream};
+use rune::{Parser, MacroContext, TokenStream, Module, ContextError};
+use rune::quote;
 
 /// Construct the `std::core` module.
-pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_crate("std");
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
+    let mut module = Module::with_crate("std");
     module.macro_(&["stringify"], stringify_macro)?;
     module.macro_(&["panic"], panic_macro)?;
     Ok(module)
@@ -36,7 +37,7 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
 pub(crate) fn stringify_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> runestick::Result<TokenStream> {
+) -> rune::Result<TokenStream> {
     let lit = ctx.stringify(stream).to_string();
     let lit = ast::Lit::new(ctx, lit);
     Ok(quote!(#lit).into_token_stream(ctx))
@@ -45,7 +46,7 @@ pub(crate) fn stringify_macro(
 pub(crate) fn panic_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> runestick::Result<TokenStream> {
+) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse_all::<macros::FormatArgs>()?;
     let expanded = args.expand(ctx)?;

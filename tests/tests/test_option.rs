@@ -1,5 +1,4 @@
-//! Test for option functions
-
+use rune::VmErrorKind::*;
 use rune_tests::*;
 
 #[test]

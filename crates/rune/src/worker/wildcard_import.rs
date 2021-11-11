@@ -1,6 +1,8 @@
 use crate::query::Query;
-use crate::{CompileError, CompileErrorKind, CompileResult};
-use runestick::{CompileMod, Context, Item, SourceId, Span, Visibility};
+use crate::{
+    CompileError, CompileErrorKind, CompileMod, CompileResult, Context, Item, SourceId, Span,
+    Visibility,
+};
 use std::sync::Arc;
 
 #[derive(Debug)]

@@ -9,9 +9,8 @@ use crate::parsing::{Parse, ParseError};
 use crate::parsing::{ResolveError, ResolveOwned};
 use crate::query;
 use crate::query::Used;
-use crate::{IrError, Sources, Spanned};
+use crate::{CompileItem, IrError, Source, Sources, Span, Spanned};
 use query::Query;
-use runestick::{CompileItem, Source, Span};
 use std::fmt;
 use std::sync::Arc;
 

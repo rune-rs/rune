@@ -1,3 +1,4 @@
+use rune::runtime::{Object, Tuple, Vec};
 use rune_tests::*;
 
 macro_rules! test_op {
@@ -93,22 +94,22 @@ fn test_float_ops() {
 
 #[test]
 fn test_const_collections() {
-    let object = rune!(runestick::Object => pub fn main() { VALUE } const VALUE = #{};);
+    let object = rune!(Object => pub fn main() { VALUE } const VALUE = #{};);
     assert!(object.is_empty());
 
-    let tuple = rune!(runestick::Tuple => pub fn main() { VALUE } const VALUE = (););
+    let tuple = rune!(Tuple => pub fn main() { VALUE } const VALUE = (););
     assert!(tuple.is_empty());
 
-    let tuple = rune!(runestick::Tuple => pub fn main() { VALUE } const VALUE = ("Hello World",););
+    let tuple = rune!(Tuple => pub fn main() { VALUE } const VALUE = ("Hello World",););
     assert_eq!(
         Some("Hello World"),
         tuple.get_value::<String>(0).unwrap().as_deref()
     );
 
-    let vec = rune!(runestick::Vec => pub fn main() { VALUE } const VALUE = [];);
+    let vec = rune!(Vec => pub fn main() { VALUE } const VALUE = [];);
     assert!(vec.is_empty());
 
-    let vec = rune!(runestick::Vec => pub fn main() { VALUE } const VALUE = ["Hello World"];);
+    let vec = rune!(Vec => pub fn main() { VALUE } const VALUE = ["Hello World"];);
     assert_eq!(
         Some("Hello World"),
         vec.get_value::<String>(0).unwrap().as_deref()

@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::signal::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -30,10 +30,11 @@
 //! ```
 
 use tokio::signal;
+use rune::{Module, ContextError};
 
 /// Construct the `signal` module.
-pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_crate("signal");
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
+    let mut module = Module::with_crate("signal");
     module.async_function(&["ctrl_c"], signal::ctrl_c)?;
     Ok(module)
 }

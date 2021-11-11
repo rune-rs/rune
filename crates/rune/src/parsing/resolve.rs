@@ -1,7 +1,6 @@
 use crate::macros::Storage;
-use crate::shared::Description;
+use crate::shared::{Description, SpannedError};
 use crate::{Sources, Spanned};
-use runestick::SpannedError;
 use thiserror::Error;
 
 error! {

@@ -62,7 +62,7 @@ output: 11
 For more examples on how modules can be used you can have a look at the source
 for the [`rune-modules`] crate.
 
-[`Module::inst_fn`]: https://docs.rs/runestick/0.5.3/runestick/struct.Module.html#method.inst_fn
-[`Module::async_inst_fn`]: https://docs.rs/runestick/0.5.3/runestick/struct.Module.html#method.async_inst_fn
-[`Module::ty`]: https://docs.rs/runestick/0.5.3/runestick/struct.Module.html#method.ty
+[`Module::inst_fn`]: https://docs.rs/rune/0/rune/struct.Module.html#method.inst_fn
+[`Module::async_inst_fn`]: https://docs.rs/rune/0/rune/struct.Module.html#method.async_inst_fn
+[`Module::ty`]: https://docs.rs/rune/0/rune/struct.Module.html#method.ty
 [`rune-modules`]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules

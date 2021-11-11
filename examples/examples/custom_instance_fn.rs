@@ -1,5 +1,4 @@
-use rune::{Diagnostics, Options, Sources};
-use runestick::{Context, FromValue, Module, Source, Vm};
+use rune::{Context, Diagnostics, FromValue, Module, Options, Source, Sources, Vm};
 use std::sync::Arc;
 
 fn divide_by_three(value: i64) -> i64 {
@@ -7,7 +6,7 @@ fn divide_by_three(value: i64) -> i64 {
 }
 
 #[tokio::main]
-async fn main() -> runestick::Result<()> {
+async fn main() -> rune::Result<()> {
     let mut my_module = Module::with_item(&["mymodule"]);
     my_module.inst_fn("divide_by_three", divide_by_three)?;
 

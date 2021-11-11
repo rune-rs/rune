@@ -1,8 +1,7 @@
-use rune::{Diagnostics, Options, Sources};
-use runestick::{Context, FromValue, Module, Source};
+use rune::{Context, Diagnostics, FromValue, Module, Options, Source, Sources, Vm};
 use std::sync::Arc;
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let mut context = Context::default();
 
     let mut module = Module::default();
@@ -21,7 +20,7 @@ fn main() -> runestick::Result<()> {
         &mut diagnostics,
     )?;
 
-    let mut vm = runestick::Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let output = i64::from_value(vm.execute(&["main"], (1,))?.complete()?)?;
 
     println!("output: {}", output);

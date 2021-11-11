@@ -4,7 +4,8 @@
 //! detect resolution cycles during constant evaluation.
 
 use crate::collections::{HashMap, HashSet};
-use runestick::{ConstValue, Item};
+use crate::runtime::ConstValue;
+use crate::Item;
 
 /// State for constants processing.
 #[derive(Default)]

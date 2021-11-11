@@ -1,3 +1,5 @@
+use rune::diagnostics::WarningDiagnosticKind::*;
+use rune::Span;
 use rune_tests::*;
 
 #[test]

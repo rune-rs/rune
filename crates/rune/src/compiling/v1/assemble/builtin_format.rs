@@ -1,6 +1,6 @@
 use crate::compiling::v1::assemble::prelude::*;
 use crate::query::BuiltInFormat;
-use runestick::format;
+use crate::runtime::format;
 
 /// Compile a literal template string.
 impl Assemble for BuiltInFormat {

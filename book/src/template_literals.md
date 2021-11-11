@@ -44,9 +44,9 @@ impl StatusCode {
     }
 }
 
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["http"]);
-    module.inst_fn(runestick::STRING_DISPLAY, StatusCode::display)?;
+pub fn module() -> Result<rune::Module, rune::ContextError> {
+    let mut module = rune::Module::new(&["http"]);
+    module.inst_fn(rune::Protocol::STRING_DISPLAY, StatusCode::display)?;
     Ok(module)
 }
 ```

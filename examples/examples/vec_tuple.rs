@@ -1,8 +1,8 @@
+use rune::runtime::VecTuple;
 use rune_tests::run;
-use runestick::VecTuple;
 use std::sync::Arc;
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let context = Arc::new(rune_modules::default_context()?);
 
     let input: VecTuple<(i64, String)> = VecTuple::new((1, String::from("Hello")));

@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::experiments::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -22,23 +22,26 @@
 
 use rune::ast;
 use rune::T;
-use rune::{MacroContext, Parser, TokenStream};
+use rune::{ContextError, MacroContext, Module, Parser, TokenStream};
 
 mod stringy_math_macro;
 
+/// Construct the `std::experiments` module, which contains experiments.
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
+    let mut module = Module::with_crate_item("std", &["experiments"]);
+    module.macro_(&["passthrough"], passthrough_impl)?;
+    module.macro_(&["stringy_math"], stringy_math_macro::stringy_math)?;
+    module.macro_(&["make_function"], make_function)?;
+    Ok(module)
+}
+
 /// Implementation for the `passthrough!` macro.
-fn passthrough_impl(
-    _: &mut MacroContext<'_>,
-    stream: &TokenStream,
-) -> runestick::Result<TokenStream> {
+fn passthrough_impl(_: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     Ok(stream.clone())
 }
 
 /// Implementation for the `make_function!` macro.
-fn make_function(
-    ctx: &mut MacroContext<'_>,
-    stream: &TokenStream,
-) -> runestick::Result<TokenStream> {
+fn make_function(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
 
     let ident = parser.parse::<ast::Ident>()?;
@@ -47,13 +50,4 @@ fn make_function(
     parser.eof()?;
 
     Ok(rune::quote!(fn #ident() { #output }).into_token_stream(ctx))
-}
-
-/// Construct the `std::experiments` module, which contains experiments.
-pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_crate_item("std", &["experiments"]);
-    module.macro_(&["passthrough"], passthrough_impl)?;
-    module.macro_(&["stringy_math"], stringy_math_macro::stringy_math)?;
-    module.macro_(&["make_function"], make_function)?;
-    Ok(module)
 }

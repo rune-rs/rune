@@ -23,7 +23,7 @@ impl Assemble for ast::ExprLet {
             c.asm.label(false_label)?;
             c.asm.push(
                 Inst::Panic {
-                    reason: runestick::PanicReason::UnmatchedPattern,
+                    reason: PanicReason::UnmatchedPattern,
                 },
                 span,
             );

@@ -1,7 +1,8 @@
 #![allow(unused)]
 
+use rune::runtime::{Mut, Ref};
+use rune::{Any, FromValue};
 use rune_tests::*;
-use runestick::{Any, FromValue, Mut, Ref};
 use std::sync::Arc;
 
 #[derive(Any, Debug, Default)]
@@ -15,7 +16,7 @@ struct Proxy {
     my_bytes: Ref<MyBytes>,
 }
 
-fn main() -> runestick::Result<()> {
+fn main() -> rune::Result<()> {
     let context = Arc::new(rune_modules::default_context()?);
 
     let my_bytes = MyBytes::default();

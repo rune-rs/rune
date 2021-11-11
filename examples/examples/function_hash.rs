@@ -1,4 +1,4 @@
-use runestick::{Hash, Item};
+use rune::{Hash, Item};
 
 fn main() {
     println!("{}", Hash::type_hash(&Item::with_item(&["Foo", "new"])));

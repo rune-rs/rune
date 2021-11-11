@@ -1,8 +1,9 @@
+use rune::runtime::Function;
 use rune_tests::*;
 use std::sync::Arc;
 
 #[test]
-fn test_external_function() -> runestick::Result<()> {
+fn test_external_function() -> rune::Result<()> {
     let context = Arc::new(rune_modules::default_context()?);
 
     // NB: here we test passing the function from one virtual machine instance
@@ -33,7 +34,7 @@ fn test_external_function() -> runestick::Result<()> {
 }
 
 #[test]
-fn test_external_generator() -> runestick::Result<()> {
+fn test_external_generator() -> rune::Result<()> {
     let context = Arc::new(rune_modules::default_context()?);
 
     // NB: here we test passing the generator from one virtual machine instance

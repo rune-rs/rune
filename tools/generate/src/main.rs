@@ -118,7 +118,7 @@ fn main() -> Result<()> {
     let parser = &rust::import("crate::parsing", "Parser");
     let peeker = &rust::import("crate::parsing", "Peeker");
     let peek = &rust::import("crate::parsing", "Peek");
-    let span = &rust::import("runestick", "Span");
+    let span = &rust::import("crate", "Span");
     let spanned = &rust::import("crate", "Spanned");
     let string_source = &rust::import("crate::ast", "StringSource");
     let to_tokens= &rust::import("crate::macros", "ToTokens");

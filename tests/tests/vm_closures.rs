@@ -1,3 +1,5 @@
+use rune::runtime::{Function, VecTuple};
+use rune::FromValue;
 use rune_tests::*;
 
 #[test]
@@ -165,7 +167,7 @@ fn test_nested_async_closure() {
 }
 
 #[test]
-fn test_closure_in_lit_vec() -> runestick::Result<()> {
+fn test_closure_in_lit_vec() -> rune::Result<()> {
     let ret = rune_s! {
         VecTuple<(i64, Function, Function, i64)> => r#"pub fn main() { let a = 4; [0, || 2, || 4, 3] }"#
     };
@@ -179,7 +181,7 @@ fn test_closure_in_lit_vec() -> runestick::Result<()> {
 }
 
 #[test]
-fn test_closure_in_lit_tuple() -> runestick::Result<()> {
+fn test_closure_in_lit_tuple() -> rune::Result<()> {
     let ret = rune_s! {
         (i64, Function, Function, i64) => r#"pub fn main() { let a = 4; (0, || 2, || a, 3) }"#
     };
@@ -193,7 +195,7 @@ fn test_closure_in_lit_tuple() -> runestick::Result<()> {
 }
 
 #[test]
-fn test_closure_in_lit_object() -> runestick::Result<()> {
+fn test_closure_in_lit_object() -> rune::Result<()> {
     #[derive(FromValue)]
     struct Proxy {
         a: i64,

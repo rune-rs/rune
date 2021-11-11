@@ -1,7 +1,6 @@
 use crate::ast;
 use crate::ast::expr::EagerBrace;
-use crate::{ParseError, Parser, Spanned, ToTokens};
-use runestick::Span;
+use crate::{ParseError, Parser, Span, Spanned, ToTokens};
 use std::fmt;
 
 /// A unary expression.

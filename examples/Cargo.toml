@@ -15,4 +15,3 @@ tokio = { version = "1.2.0", features = ["macros"] }
 rune = {path = "../crates/rune"}
 rune-modules = {path = "../crates/rune-modules"}
 rune-tests = {path = "../tests"}
-runestick = {path = "../crates/runestick"}

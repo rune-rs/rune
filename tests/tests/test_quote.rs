@@ -1,9 +1,8 @@
+use rune::ast::Kind::*;
 use rune::ast::{CopySource, Delimiter, Kind, NumberSource, StrSource, StringSource, Token};
-use rune::macros::MacroContext;
 use rune::quote;
-
-use runestick::Span;
-use Kind::*;
+use rune::MacroContext;
+use rune::Span;
 
 macro_rules! assert_quote {
     ($ctx:expr, [$($expected:expr),* $(,)?], $quote:expr) => {
@@ -144,7 +143,8 @@ fn test_interpolate() {
 #[test]
 fn test_attribute() {
     MacroContext::test(|ctx| {
-        assert_quote!(ctx, 
+        assert_quote!(
+            ctx,
             [
                 Pound,
                 Open(Delimiter::Bracket),
@@ -159,7 +159,8 @@ fn test_attribute() {
 #[test]
 fn test_object() {
     MacroContext::test(|ctx| {
-        assert_quote!(ctx, 
+        assert_quote!(
+            ctx,
             [
                 Pound,
                 Open(Delimiter::Brace),

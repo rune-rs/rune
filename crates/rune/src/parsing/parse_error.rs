@@ -1,9 +1,7 @@
 use crate::ast;
 use crate::parsing::{LexerMode, ResolveError, ResolveErrorKind};
-use crate::shared::Description;
-use crate::Spanned;
-use runestick::{SourceId, SpannedError};
-
+use crate::shared::{Description, SpannedError};
+use crate::{SourceId, Spanned};
 use thiserror::Error;
 
 error! {

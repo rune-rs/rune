@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::http::module(true)?)?;
 //! context.install(&rune_modules::json::module(true)?)?;
 //! # Ok(())
@@ -50,9 +50,10 @@
 //! }
 //! ```
 
-use runestick::{Any, Bytes, Value, Protocol, Module, ContextError};
+use rune::{Any, Protocol, Module, ContextError};
+use rune::runtime::{Bytes, Value};
 use std::fmt;
-use std::fmt::Write as _;
+use std::fmt::Write;
 
 /// Construct the `http` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {

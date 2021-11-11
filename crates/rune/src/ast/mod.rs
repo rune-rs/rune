@@ -1,7 +1,6 @@
 //! AST for the Rune language.
 
-use crate::{Parse, ParseError, Parser, Peek};
-use runestick::Span;
+use crate::{Parse, ParseError, Parser, Peek, Span};
 
 #[macro_use]
 /// Generated modules.

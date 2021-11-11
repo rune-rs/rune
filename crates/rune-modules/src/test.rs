@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::test::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -27,15 +27,15 @@ use rune::T;
 use rune::{quote, Parser, TokenStream};
 
 /// Construct the `std::test` module.
-pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_crate_item("std", &["test"]);
+pub fn module(_stdio: bool) -> Result<rune::Module, rune::ContextError> {
+    let mut module = rune::Module::with_crate_item("std", &["test"]);
     module.macro_(&["assert"], assert_macro)?;
     module.macro_(&["assert_eq"], assert_eq_macro)?;
     Ok(module)
 }
 
 /// Implementation for the `assert!` macro.
-pub(crate) fn assert_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+pub(crate) fn assert_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let expr = p.parse::<ast::Expr>()?;
 
@@ -64,7 +64,7 @@ pub(crate) fn assert_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> 
 }
 
 /// Implementation for the `assert!` macro.
-pub(crate) fn assert_eq_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+pub(crate) fn assert_eq_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let left = p.parse::<ast::Expr>()?;
     p.parse::<T![,]>()?;

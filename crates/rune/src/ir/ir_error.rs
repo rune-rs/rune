@@ -1,7 +1,9 @@
 use crate::ir::IrValue;
+use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::{ScopeError, ScopeErrorKind};
-use crate::{QueryError, QueryErrorKind, ResolveError, ResolveErrorKind, Spanned};
-use runestick::{AccessError, CompileMeta, SpannedError, TypeInfo, TypeOf};
+use crate::{
+    CompileMeta, QueryError, QueryErrorKind, ResolveError, ResolveErrorKind, Spanned, SpannedError,
+};
 use thiserror::Error;
 
 error! {

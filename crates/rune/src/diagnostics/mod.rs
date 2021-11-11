@@ -1,30 +1,35 @@
-use runestick::{SourceId, Span};
+//! Diagnostics module for Rune.
+//!
+//! Diagnostics collects information about a source program in order to provide
+//! good human-readable diagnostics like errors, warnings, and hints.
 
-mod error;
+use crate::{SourceId, Span};
+
+mod fatal;
 mod warning;
 
-pub use self::error::{Error, ErrorKind};
-pub use self::warning::{Warning, WarningKind};
+pub use self::fatal::{FatalDiagnostic, FatalDiagnosticKind};
+pub use self::warning::{WarningDiagnostic, WarningDiagnosticKind};
 
 /// A single diagnostic.
 #[derive(Debug)]
 pub enum Diagnostic {
-    /// An error diagnostic.
-    Error(Error),
+    /// A fatal diagnostic.
+    Fatal(FatalDiagnostic),
     /// A warning diagnostic.
-    Warning(Warning),
+    Warning(WarningDiagnostic),
 }
 
 /// The diagnostics mode to use.
 #[derive(Debug, Clone, Copy)]
-enum DiagnosticsMode {
+enum Mode {
     /// Collect all forms of diagnostics.
     All,
     /// Collect errors.
     WithoutWarnings,
 }
 
-impl DiagnosticsMode {
+impl Mode {
     /// If warnings are enabled.
     fn warnings(self) -> bool {
         matches!(self, Self::All)
@@ -42,7 +47,7 @@ impl DiagnosticsMode {
 /// use rune::{Sources, Diagnostics, EmitDiagnostics};
 /// use rune::termcolor::{StandardStream, ColorChoice};
 ///
-/// # fn main() -> runestick::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// let mut sources = Sources::new();
 /// let mut diagnostics = Diagnostics::new();
 ///
@@ -58,7 +63,7 @@ impl DiagnosticsMode {
 pub struct Diagnostics {
     diagnostics: Vec<Diagnostic>,
     /// If warnings are collected or not.
-    mode: DiagnosticsMode,
+    mode: Mode,
     /// Indicates if diagnostics indicates errors.
     has_error: bool,
     /// Indicates if diagnostics contains warnings.
@@ -66,7 +71,7 @@ pub struct Diagnostics {
 }
 
 impl Diagnostics {
-    fn with_mode(mode: DiagnosticsMode) -> Self {
+    fn with_mode(mode: Mode) -> Self {
         Self {
             diagnostics: Vec::new(),
             mode,
@@ -81,8 +86,7 @@ impl Diagnostics {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Diagnostic, Diagnostics};
-    /// use runestick::{SourceId, Span};
+    /// use rune::{Diagnostics, SourceId, Span};
     ///
     /// let mut diagnostics = Diagnostics::without_warnings();
     /// assert!(diagnostics.is_empty());
@@ -94,7 +98,7 @@ impl Diagnostics {
     /// assert!(matches!(warning, None));
     /// ```
     pub fn without_warnings() -> Self {
-        Self::with_mode(DiagnosticsMode::WithoutWarnings)
+        Self::with_mode(Mode::WithoutWarnings)
     }
 
     /// Construct a new, empty collection of compilation warnings.
@@ -102,8 +106,8 @@ impl Diagnostics {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Diagnostic, Diagnostics, Warning, WarningKind};
-    /// use runestick::{SourceId, Span};
+    /// use rune::{Diagnostics, SourceId, Span};
+    /// use rune::diagnostics::Diagnostic;
     ///
     /// let mut diagnostics = Diagnostics::new();
     /// assert!(diagnostics.is_empty());
@@ -151,12 +155,12 @@ impl Diagnostics {
     /// This should be used for programming invariants of the compiler which are
     /// broken for some reason.
     pub(crate) fn internal(&mut self, source_id: SourceId, message: &'static str) {
-        self.error(source_id, ErrorKind::Internal(message));
+        self.error(source_id, FatalDiagnosticKind::Internal(message));
     }
 
     /// Indicate that a value is produced but never used.
     pub fn not_used(&mut self, source_id: SourceId, span: Span, context: Option<Span>) {
-        self.warning(source_id, WarningKind::NotUsed { span, context });
+        self.warning(source_id, WarningDiagnosticKind::NotUsed { span, context });
     }
 
     /// Indicate that a binding pattern might panic.
@@ -170,7 +174,7 @@ impl Diagnostics {
     ) {
         self.warning(
             source_id,
-            WarningKind::LetPatternMightPanic { span, context },
+            WarningDiagnosticKind::LetPatternMightPanic { span, context },
         );
     }
 
@@ -186,7 +190,7 @@ impl Diagnostics {
     ) {
         self.warning(
             source_id,
-            WarningKind::TemplateWithoutExpansions { span, context },
+            WarningDiagnosticKind::TemplateWithoutExpansions { span, context },
         );
     }
 
@@ -203,7 +207,7 @@ impl Diagnostics {
     ) {
         self.warning(
             source_id,
-            WarningKind::RemoveTupleCallParams {
+            WarningDiagnosticKind::RemoveTupleCallParams {
                 span,
                 variant,
                 context,
@@ -213,22 +217,26 @@ impl Diagnostics {
 
     /// Add a warning about an unecessary semi-colon.
     pub fn uneccessary_semi_colon(&mut self, source_id: SourceId, span: Span) {
-        self.warning(source_id, WarningKind::UnecessarySemiColon { span });
+        self.warning(
+            source_id,
+            WarningDiagnosticKind::UnecessarySemiColon { span },
+        );
     }
 
     /// Push a warning to the collection of diagnostics.
     pub fn warning<T>(&mut self, source_id: SourceId, kind: T)
     where
-        WarningKind: From<T>,
+        WarningDiagnosticKind: From<T>,
     {
         if !self.mode.warnings() {
             return;
         }
 
-        self.diagnostics.push(Diagnostic::Warning(Warning {
-            source_id,
-            kind: kind.into(),
-        }));
+        self.diagnostics
+            .push(Diagnostic::Warning(WarningDiagnostic {
+                source_id,
+                kind: kind.into(),
+            }));
 
         self.has_warning = true;
     }
@@ -236,9 +244,9 @@ impl Diagnostics {
     /// Report an error.
     pub fn error<T>(&mut self, source_id: SourceId, kind: T)
     where
-        ErrorKind: From<T>,
+        FatalDiagnosticKind: From<T>,
     {
-        self.diagnostics.push(Diagnostic::Error(Error {
+        self.diagnostics.push(Diagnostic::Fatal(FatalDiagnostic {
             source_id,
             kind: Box::new(kind.into()),
         }));
@@ -249,6 +257,6 @@ impl Diagnostics {
 
 impl Default for Diagnostics {
     fn default() -> Self {
-        Self::with_mode(DiagnosticsMode::All)
+        Self::with_mode(Mode::All)
     }
 }

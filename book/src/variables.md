@@ -80,4 +80,4 @@ object is no longer readable 😢
 == () (943.8µs)
 ```
 
-[`Shared<T>`]: https://docs.rs/runestick/0/runestick/struct.Shared.html
+[`Shared<T>`]: https://docs.rs/rune/0/rune/struct.Shared.html

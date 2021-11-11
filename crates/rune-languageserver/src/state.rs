@@ -3,9 +3,10 @@ use anyhow::{anyhow, Result};
 use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
-use rune::Spanned as _;
-use runestick::{
+use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use rune::{
     CompileMeta, CompileMetaKind, CompileSource, ComponentRef, Item, Location, SourceId, Span,
+    Spanned,
 };
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -27,7 +28,7 @@ impl State {
     /// Construct a new state.
     pub fn new(
         rebuild_tx: mpsc::Sender<()>,
-        context: runestick::Context,
+        context: rune::Context,
         options: rune::Options,
     ) -> Self {
         Self {
@@ -133,7 +134,7 @@ impl State {
             by_url.insert(url.clone(), Default::default());
 
             let mut sources = rune::Sources::new();
-            let input = runestick::Source::with_path(
+            let input = rune::Source::with_path(
                 url.to_string(),
                 source.to_string(),
                 url.to_file_path().ok(),
@@ -156,11 +157,11 @@ impl State {
             if let Err(rune::LoadSourcesError) = result {
                 for diagnostic in diagnostics.diagnostics() {
                     match diagnostic {
-                        rune::Diagnostic::Error(error) => {
-                            let source_id = error.source_id();
+                        Diagnostic::Fatal(fatal) => {
+                            let source_id = fatal.source_id();
 
-                            match error.kind() {
-                                rune::ErrorKind::ParseError(error) => {
+                            match fatal.kind() {
+                                FatalDiagnosticKind::ParseError(error) => {
                                     report(
                                         &sources,
                                         &mut by_url,
@@ -170,7 +171,7 @@ impl State {
                                         display_to_error,
                                     );
                                 }
-                                rune::ErrorKind::CompileError(error) => {
+                                FatalDiagnosticKind::CompileError(error) => {
                                     report(
                                         &sources,
                                         &mut by_url,
@@ -180,7 +181,7 @@ impl State {
                                         display_to_error,
                                     );
                                 }
-                                rune::ErrorKind::QueryError(error) => {
+                                FatalDiagnosticKind::QueryError(error) => {
                                     report(
                                         &sources,
                                         &mut by_url,
@@ -190,7 +191,7 @@ impl State {
                                         display_to_error,
                                     );
                                 }
-                                rune::ErrorKind::LinkError(error) => match error {
+                                FatalDiagnosticKind::LinkError(error) => match error {
                                     rune::LinkerError::MissingFunction { hash, spans } => {
                                         for (span, _) in spans {
                                             let diagnostics =
@@ -205,13 +206,13 @@ impl State {
                                         }
                                     }
                                 },
-                                rune::ErrorKind::Internal(message) => {
+                                FatalDiagnosticKind::Internal(message) => {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
 
                                     let range = lsp::Range::default();
                                     diagnostics.push(display_to_error(range, message));
                                 }
-                                rune::ErrorKind::BuildError(error) => {
+                                FatalDiagnosticKind::BuildError(error) => {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
 
                                     let range = lsp::Range::default();
@@ -219,7 +220,7 @@ impl State {
                                 }
                             }
                         }
-                        rune::Diagnostic::Warning(warning) => {
+                        Diagnostic::Warning(warning) => {
                             report(
                                 &sources,
                                 &mut by_url,
@@ -276,7 +277,7 @@ struct Inner {
     /// Can be triggered on modification.
     rebuild_tx: mpsc::Sender<()>,
     /// The rune context to build for.
-    context: runestick::Context,
+    context: rune::Context,
     /// Build options.
     options: rune::Options,
     /// Indicate if the server is initialized.
@@ -404,7 +405,7 @@ impl fmt::Display for Source {
 }
 
 /// Convert the given span into an lsp range.
-fn span_to_lsp_range(source: &runestick::Source, span: Span) -> Option<lsp::Range> {
+fn span_to_lsp_range(source: &rune::Source, span: Span) -> Option<lsp::Range> {
     let (line, character) = source.position_to_utf16cu_line_char(span.start.into_usize())?;
     let start = lsp::Position::new(line as u32, character as u32);
     let (line, character) = source.position_to_utf16cu_line_char(span.end.into_usize())?;
@@ -704,13 +705,13 @@ impl rune::SourceLoader for SourceLoader {
         root: &Path,
         item: &Item,
         span: Span,
-    ) -> Result<runestick::Source, rune::CompileError> {
+    ) -> Result<rune::Source, rune::CompileError> {
         log::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {
             for url in candidates.iter() {
                 if let Some(s) = self.sources.borrow().get(url) {
-                    return Ok(runestick::Source::new(url.to_string(), s.to_string()));
+                    return Ok(rune::Source::new(url.to_string(), s.to_string()));
                 }
             }
         }

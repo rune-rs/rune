@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::{Id, Parse, Peek, Peeker, Spanned, ToTokens};
-use runestick::Span;
+use crate::{Id, Parse, Peek, Peeker, Span, Spanned, ToTokens};
 
 /// A function item.
 ///

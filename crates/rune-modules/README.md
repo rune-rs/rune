@@ -40,9 +40,7 @@
 </a>
 </div>
 
-Native modules for the runestick virtual machine.
-
-These are modules that can be used with the [Rune language].
+Native modules for the [Rune Language].
 
 [Rune Language]: https://rune-rs.github.io
 

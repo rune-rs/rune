@@ -1,4 +1,5 @@
 use crate::compiling::v1::assemble::prelude::*;
+use crate::runtime::PanicReason;
 
 /// Compile a let expression.
 impl Assemble for ast::Local {
@@ -23,7 +24,7 @@ impl Assemble for ast::Local {
             c.asm.label(false_label)?;
             c.asm.push(
                 Inst::Panic {
-                    reason: runestick::PanicReason::UnmatchedPattern,
+                    reason: PanicReason::UnmatchedPattern,
                 },
                 span,
             );

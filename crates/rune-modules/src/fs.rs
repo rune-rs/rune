@@ -13,8 +13,8 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_modules()?;
+//! # fn main() -> rune::Result<()> {
+//! let mut context = rune::Context::with_default_modules()?;
 //! context.install(&rune_modules::fs::module(true)?)?;
 //! # Ok(())
 //! # }
@@ -31,10 +31,11 @@
 
 use std::io;
 use tokio::fs;
+use rune::{Module, ContextError};
 
 /// Construct the `fs` module.
-pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::with_crate("fs");
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
+    let mut module = Module::with_crate("fs");
     module.async_function(&["read_to_string"], read_to_string)?;
     Ok(module)
 }
