@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::{
     Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveErrorKind, ResolveOwned,
-    Spanned, Storage, ToTokens,
+    Sources, Spanned, Storage, ToTokens,
 };
-use runestick::{Source, Span};
+use runestick::Span;
 use std::borrow::Cow;
 
 /// A label, like `'foo`
@@ -68,15 +68,19 @@ impl Peek for Label {
 impl<'a> Resolve<'a> for Label {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ResolveError> {
+    fn resolve(
+        &self,
+        storage: &Storage,
+        sources: &'a Sources,
+    ) -> Result<Cow<'a, str>, ResolveError> {
         let span = self.token.span();
 
         match self.source {
-            ast::StringSource::Text => {
+            ast::StringSource::Text(source_id) => {
                 let span = self.token.span();
 
-                let ident = source
-                    .source(span.trim_start(1))
+                let ident = sources
+                    .source(source_id, span.trim_start(1))
                     .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
                 Ok(Cow::Borrowed(ident))
@@ -99,8 +103,8 @@ impl ResolveOwned for Label {
     fn resolve_owned(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, source)?.into_owned())
+        Ok(self.resolve(storage, sources)?.into_owned())
     }
 }

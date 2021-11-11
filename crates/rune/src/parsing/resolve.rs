@@ -1,7 +1,7 @@
 use crate::macros::Storage;
 use crate::shared::Description;
-use crate::Spanned;
-use runestick::{Source, SpannedError};
+use crate::{Sources, Spanned};
+use runestick::SpannedError;
 use thiserror::Error;
 
 error! {
@@ -80,7 +80,11 @@ pub trait Resolve<'a>: ResolveOwned {
     type Output: 'a;
 
     /// Resolve the value from parsed AST.
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ResolveError>;
+    fn resolve(
+        &self,
+        storage: &Storage,
+        sources: &'a Sources,
+    ) -> Result<Self::Output, ResolveError>;
 }
 
 /// Trait for resolving a token into an owned value.
@@ -92,6 +96,6 @@ pub trait ResolveOwned {
     fn resolve_owned(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError>;
 }

@@ -1,6 +1,6 @@
 use crate::query::Query;
 use crate::{CompileError, CompileErrorKind, CompileResult};
-use runestick::{CompileMod, Context, Item, Source, SourceId, Span, Visibility};
+use runestick::{CompileMod, Context, Item, SourceId, Span, Visibility};
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -9,7 +9,6 @@ pub(crate) struct WildcardImport {
     pub(crate) from: Item,
     pub(crate) name: Item,
     pub(crate) source_id: SourceId,
-    pub(crate) source: Arc<Source>,
     pub(crate) span: Span,
     pub(crate) module: Arc<CompileMod>,
     pub(crate) found: bool,
@@ -24,7 +23,6 @@ impl WildcardImport {
                 query.insert_import(
                     self.source_id,
                     self.span,
-                    &self.source,
                     &self.module,
                     self.visibility,
                     self.from.clone(),
@@ -48,7 +46,6 @@ impl WildcardImport {
                 query.insert_import(
                     self.source_id,
                     self.span,
-                    &self.source,
                     &self.module,
                     self.visibility,
                     self.from.clone(),

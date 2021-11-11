@@ -1,7 +1,8 @@
 use crate::ir::{IrCompile, IrError, IrEval};
-use crate::macros::{current_context, ToTokens, TokenStream};
-use crate::parsing::{ResolveError, ResolveOwned};
+use crate::macros::{current_context, current_context_mut, ToTokens, TokenStream};
+use crate::parsing::{Parse, ParseError, ResolveError, ResolveOwned};
 use crate::Spanned;
+use runestick::Source;
 
 /// Evaluate the given target as a constant expression.
 ///
@@ -69,4 +70,21 @@ where
     T: ToTokens,
 {
     current_context(|ctx| ctx.stringify(stream).to_string())
+}
+
+/// Parse the given input as the given type that implements
+/// [Parse][crate::parsing::Parse].
+///
+/// # Panics
+///
+/// This will panic if it's called outside of a macro context.
+pub fn parse_all<T>(source: &str) -> Result<T, ParseError>
+where
+    T: Parse,
+{
+    current_context_mut(|ctx| {
+        let sources = ctx.sources_mut();
+        let source_id = sources.insert(Source::new("macro", source));
+        crate::parse_all(source, source_id)
+    })
 }

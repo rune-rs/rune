@@ -1,6 +1,6 @@
 use crate::compiling;
 use crate::{Diagnostics, Options};
-use runestick::{Context, Unit};
+use runestick::{Context, SourceId, Unit};
 use std::rc::Rc;
 use thiserror::Error;
 
@@ -120,7 +120,7 @@ pub fn load_sources_with_visitor<'a>(
     match unit.build() {
         Ok(unit) => Ok(unit),
         Err(error) => {
-            diagnostics.error(0, error);
+            diagnostics.error(SourceId::empty(), error);
             Err(LoadSourcesError)
         }
     }

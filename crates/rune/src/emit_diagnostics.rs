@@ -12,7 +12,6 @@ use std::io;
 use thiserror::Error;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use codespan_reporting::files::{Files, SimpleFiles};
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 
@@ -60,19 +59,14 @@ impl EmitDiagnostics for Diagnostics {
         }
 
         let config = codespan_reporting::term::Config::default();
-        let mut files = SimpleFiles::new();
-
-        for source in sources.iter() {
-            files.add(source.name(), source.as_str());
-        }
 
         for diagnostic in self.diagnostics() {
             match diagnostic {
                 crate::Diagnostic::Error(e) => {
-                    error_emit_diagnostics_with(e, out, sources, &files, &config)?;
+                    error_emit_diagnostics_with(e, out, sources, &config)?;
                 }
                 crate::Diagnostic::Warning(w) => {
-                    warning_emit_diagnostics_with(w, out, sources, &files, &config)?;
+                    warning_emit_diagnostics_with(w, out, sources, &config)?;
                 }
             }
         }
@@ -86,12 +80,6 @@ impl EmitDiagnostics for VmError {
     where
         O: WriteColor,
     {
-        let mut files = SimpleFiles::new();
-
-        for source in sources.iter() {
-            files.add(source.name(), source.as_str());
-        }
-
         let (error, unwound) = self.as_unwound();
 
         let (unit, ip, frames) = match unwound {
@@ -201,21 +189,24 @@ impl EmitDiagnostics for VmError {
             .with_labels(labels)
             .with_notes(notes);
 
-        term::emit(out, &config, &files, &diagnostic)?;
+        term::emit(out, &config, sources, &diagnostic)?;
 
         writeln!(out, "Callstack:")?;
-        for frame in &backtrace {
-            let line = files
-                .line_index(frame.source_id, frame.span.start.into_usize())
-                .unwrap();
-            let line = files.line_number(frame.source_id, line).unwrap() - 1;
-            let line_range = files.line_range(frame.source_id, line).expect("a range");
-            let source = files.get(frame.source_id)?;
-            let name = source.name();
-            let slice = &source.source()[line_range];
 
-            write!(out, "\t{}:{}\n\t\t{}", name, line, slice)?;
+        for frame in &backtrace {
+            let source = match sources.get(frame.source_id) {
+                Some(source) => source,
+                None => continue,
+            };
+
+            let (line, text) = match source.line(frame.span) {
+                Some(out) => out,
+                None => continue,
+            };
+
+            write!(out, "\t{}:{}\n\t\t{}", source.name(), line, text)?;
         }
+
         Ok(())
     }
 }
@@ -225,7 +216,6 @@ fn warning_emit_diagnostics_with<'a, O>(
     this: &Warning,
     out: &mut O,
     sources: &'a Sources,
-    files: &'a impl Files<'a, FileId = SourceId>,
     config: &codespan_reporting::term::Config,
 ) -> Result<(), DiagnosticsError>
 where
@@ -312,7 +302,7 @@ where
         .with_labels(labels)
         .with_notes(notes);
 
-    term::emit(out, config, files, &diagnostic)?;
+    term::emit(out, config, sources, &diagnostic)?;
     Ok(())
 }
 
@@ -321,7 +311,6 @@ fn error_emit_diagnostics_with<O>(
     this: &Error,
     out: &mut O,
     sources: &Sources,
-    files: &SimpleFiles<&str, &str>,
     config: &codespan_reporting::term::Config,
 ) -> Result<(), DiagnosticsError>
 where
@@ -357,7 +346,7 @@ where
                         ))
                         .with_labels(labels);
 
-                    term::emit(out, config, files, &diagnostic)?;
+                    term::emit(out, config, sources, &diagnostic)?;
                 }
             }
 
@@ -399,7 +388,7 @@ where
         .with_labels(labels)
         .with_notes(notes);
 
-    term::emit(out, config, files, &diagnostic)?;
+    term::emit(out, config, sources, &diagnostic)?;
     return Ok(());
 
     fn format_compile_error(
@@ -594,13 +583,7 @@ impl EmitDiagnostics for Error {
     {
         let config = codespan_reporting::term::Config::default();
 
-        let mut files = SimpleFiles::new();
-
-        for source in sources.iter() {
-            files.add(source.name(), source.as_str());
-        }
-
-        error_emit_diagnostics_with(self, out, sources, &files, &config)
+        error_emit_diagnostics_with(self, out, sources, &config)
     }
 }
 

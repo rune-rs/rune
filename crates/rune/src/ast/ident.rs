@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::{
     Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveErrorKind, ResolveOwned,
-    Spanned, Storage, ToTokens,
+    Sources, Spanned, Storage, ToTokens,
 };
-use runestick::{Source, Span};
+use runestick::Span;
 use std::borrow::Cow;
 
 /// An identifier, like `foo` or `Hello`.".
@@ -67,13 +67,17 @@ impl Peek for Ident {
 impl<'a> Resolve<'a> for Ident {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ResolveError> {
+    fn resolve(
+        &self,
+        storage: &Storage,
+        sources: &'a Sources,
+    ) -> Result<Cow<'a, str>, ResolveError> {
         let span = self.token.span();
 
         match self.source {
-            ast::StringSource::Text => {
-                let ident = source
-                    .source(span)
+            ast::StringSource::Text(source_id) => {
+                let ident = sources
+                    .source(source_id, span)
                     .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
                 Ok(Cow::Borrowed(ident))
@@ -96,9 +100,9 @@ impl ResolveOwned for Ident {
     fn resolve_owned(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        let output = self.resolve(storage, source)?;
+        let output = self.resolve(storage, sources)?;
 
         match output {
             Cow::Borrowed(borrowed) => Ok(borrowed.to_owned()),

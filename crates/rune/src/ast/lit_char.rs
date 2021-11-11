@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
-    Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Sources,
+    Spanned, Storage, ToTokens,
 };
-use runestick::{Source, Span};
+use runestick::Span;
 
 /// A character literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -59,16 +59,16 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<char, ResolveError> {
-        match self.source {
+    fn resolve(&self, _: &Storage, sources: &'a Sources) -> Result<char, ResolveError> {
+        let source_id = match self.source {
             ast::CopySource::Inline(c) => return Ok(c),
-            ast::CopySource::Text => (),
-        }
+            ast::CopySource::Text(source_id) => source_id,
+        };
 
         let span = self.token.span();
 
-        let string = source
-            .source(span.narrow(1))
+        let string = sources
+            .source(source_id, span.narrow(1))
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();
@@ -134,8 +134,8 @@ impl ResolveOwned for LitChar {
     fn resolve_owned(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        self.resolve(storage, source)
+        self.resolve(storage, sources)
     }
 }

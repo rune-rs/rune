@@ -2,7 +2,7 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{CompileError, CompileErrorKind};
-use runestick::{Hash, Inst, Label, Location, Span};
+use runestick::{Hash, Inst, Label, Location, SourceId, Span};
 
 #[derive(Debug, Clone)]
 pub enum AssemblyInst {
@@ -32,7 +32,7 @@ pub struct Assembly {
     /// The number of labels.
     pub(crate) label_count: usize,
     /// The collection of functions required by this assembly.
-    pub(crate) required_functions: HashMap<Hash, Vec<(Span, usize)>>,
+    pub(crate) required_functions: HashMap<Hash, Vec<(Span, SourceId)>>,
 }
 
 impl Assembly {

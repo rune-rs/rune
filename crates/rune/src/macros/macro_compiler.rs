@@ -1,21 +1,24 @@
 //! Macro compiler.
 
+use crate::ast;
 use crate::macros::{MacroContext, Storage, TokenStream};
 use crate::query::Query;
-use crate::shared::Consts;
+use crate::shared::RefOrOwned;
+use crate::shared::{Consts, MutOrOwned};
 use crate::CompileResult;
 use crate::{
-    ast, CompileError, CompileErrorKind, IrError, Options, Parse, ParseError, Parser, Spanned as _,
+    CompileError, CompileErrorKind, IrError, Options, Parse, ParseError, Parser, Sources,
+    Spanned as _,
 };
-use runestick::{CompileItem, Context, Hash, Source};
+use runestick::{CompileItem, Context, Hash};
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) item: Arc<CompileItem>,
     pub(crate) storage: Storage,
+    pub(crate) sources: &'a mut Sources,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
-    pub(crate) source: Arc<Source>,
     pub(crate) query: Query,
     pub(crate) consts: Consts,
 }
@@ -37,12 +40,9 @@ impl MacroCompiler<'_> {
 
         // TODO: include information on the module the macro is being called
         // from.
-        let named = self.query.convert_path(
-            self.context,
-            &self.storage,
-            &*self.source,
-            &macro_call.path,
-        )?;
+        let named =
+            self.query
+                .convert_path(self.context, &self.storage, self.sources, &macro_call.path)?;
 
         let hash = Hash::type_hash(&named.item);
 
@@ -58,17 +58,21 @@ impl MacroCompiler<'_> {
 
         let input_stream = &macro_call.stream;
 
-        let macro_context = MacroContext {
-            macro_span: macro_call.span(),
-            stream_span: macro_call.stream_span(),
-            source: self.source.clone(),
-            storage: self.storage.clone(),
-            item: self.item.clone(),
-            query: self.query.clone(),
-            consts: self.consts.clone(),
-        };
+        // SAFETY: Macro context only needs to live for the duration of
+        // `with_context`.
+        let result = unsafe {
+            let macro_context = MacroContext {
+                macro_span: macro_call.span(),
+                stream_span: macro_call.stream_span(),
+                item: self.item.clone(),
+                query: self.query.clone(),
+                consts: self.consts.clone(),
+                storage: RefOrOwned::from_ref(&self.storage),
+                sources: MutOrOwned::from_mut(self.sources),
+            };
 
-        let result = crate::macros::with_context(macro_context, || handler(input_stream));
+            crate::macros::with_context(macro_context, || handler(input_stream))
+        };
 
         let output = match result {
             Ok(output) => output,

@@ -111,6 +111,7 @@ pub fn compile_with_options<'a>(
                 context,
                 options,
                 storage: &storage,
+                sources: worker.sources,
                 unit,
                 diagnostics: worker.diagnostics,
                 consts: &worker.consts,
@@ -122,7 +123,7 @@ pub fn compile_with_options<'a>(
             }
         }
 
-        match worker.query.queue_unused_entries() {
+        match worker.query.queue_unused_entries(worker.sources) {
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
@@ -143,6 +144,7 @@ struct CompileBuildEntry<'a> {
     context: &'a Context,
     options: &'a Options,
     storage: &'a Storage,
+    sources: &'a Sources,
     unit: &'a UnitBuilder,
     diagnostics: &'a mut Diagnostics,
     consts: &'a Consts,
@@ -160,6 +162,7 @@ impl CompileBuildEntry<'_> {
         self::v1::Compiler {
             visitor: self.visitor.clone(),
             storage: self.storage,
+            sources: self.sources,
             source_id: location.source_id,
             source: source.clone(),
             context: self.context,
@@ -206,9 +209,17 @@ impl CompileBuildEntry<'_> {
             item,
             location,
             build,
-            source,
             used,
         } = entry;
+
+        let source = self.sources.get(location.source_id).ok_or_else(|| {
+            CompileError::new(
+                location.span,
+                CompileErrorKind::MissingSourceId {
+                    source_id: location.source_id,
+                },
+            )
+        })?;
 
         let mut asm = self.unit.new_assembly(location);
 
@@ -254,7 +265,7 @@ impl CompileBuildEntry<'_> {
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
-                let name = f.ast.name.resolve(self.storage, &*source)?;
+                let name = f.ast.name.resolve(self.storage, self.sources)?;
 
                 let mut c = self.compiler1(location, &source, span, &mut asm);
                 let meta = c.lookup_meta(f.instance_span, &f.impl_item)?;
@@ -333,9 +344,13 @@ impl CompileBuildEntry<'_> {
             }
             Build::Import(import) => {
                 // Issue the import to check access.
-                let result = self
-                    .query
-                    .import(location.span, &item.module, &item.item, used)?;
+                let result = self.query.import(
+                    self.sources,
+                    location.span,
+                    &item.module,
+                    &item.item,
+                    used,
+                )?;
 
                 if used.is_unused() {
                     self.diagnostics
@@ -361,21 +376,23 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::ReExport => {
-                let import =
-                    match self
-                        .query
-                        .import(location.span, &item.module, &item.item, used)?
-                    {
-                        Some(item) => item,
-                        None => {
-                            return Err(CompileError::new(
-                                location.span,
-                                CompileErrorKind::MissingItem {
-                                    item: item.item.clone(),
-                                },
-                            ))
-                        }
-                    };
+                let import = match self.query.import(
+                    self.sources,
+                    location.span,
+                    &item.module,
+                    &item.item,
+                    used,
+                )? {
+                    Some(item) => item,
+                    None => {
+                        return Err(CompileError::new(
+                            location.span,
+                            CompileErrorKind::MissingItem {
+                                item: item.item.clone(),
+                            },
+                        ))
+                    }
+                };
 
                 self.unit
                     .new_function_reexport(location, &item.item, &import)?;

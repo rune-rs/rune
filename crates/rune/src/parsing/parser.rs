@@ -2,7 +2,7 @@ use crate::ast::{Kind, Token};
 use crate::macros::{TokenStream, TokenStreamIter};
 use crate::parsing::{Lexer, Parse, ParseError, ParseErrorKind, Peek};
 use crate::OptionSpanned as _;
-use runestick::Span;
+use runestick::{SourceId, Span};
 use std::collections::VecDeque;
 use std::fmt;
 use std::ops;
@@ -13,8 +13,9 @@ use std::ops;
 ///
 /// ```rust
 /// use rune::{ast, Parser};
+/// use runestick::SourceId;
 ///
-/// let mut parser = Parser::new("fn foo() {}");
+/// let mut parser = Parser::new("fn foo() {}", SourceId::empty());
 /// parser.parse::<ast::ItemFn>().unwrap();
 /// ```
 #[derive(Debug)]
@@ -26,9 +27,9 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     /// Construct a new parser around the given source.
-    pub fn new(source: &'a str) -> Self {
+    pub fn new(source: &'a str, source_id: SourceId) -> Self {
         Self::with_source(Source {
-            inner: SourceInner::Lexer(Lexer::new(source)),
+            inner: SourceInner::Lexer(Lexer::new(source, source_id)),
         })
     }
 

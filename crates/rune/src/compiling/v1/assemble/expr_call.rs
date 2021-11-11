@@ -38,7 +38,7 @@ impl Assemble for ast::ExprCall {
                                 c.scopes.decl_anon(span)?;
                             }
 
-                            let ident = ident.resolve(c.storage, &*c.source)?;
+                            let ident = ident.resolve(c.storage, c.sources)?;
                             let hash = Hash::instance_fn_name(ident.as_ref());
                             c.asm.push(Inst::CallInstance { hash, args }, span);
                             false

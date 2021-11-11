@@ -2,6 +2,7 @@ use crate::Span;
 use std::fmt;
 use std::fs;
 use std::io;
+use std::ops::Range;
 use std::path::Path;
 use std::slice;
 
@@ -78,7 +79,7 @@ impl Source {
     }
 
     /// Fetch source for the given span.
-    pub fn source(&self, span: Span) -> Option<&'_ str> {
+    pub fn source(&self, span: Span) -> Option<&str> {
         self.get(span.range())
     }
 
@@ -169,6 +170,45 @@ impl Source {
         }
 
         (line, line_count)
+    }
+
+    /// Get the line index for the given byte.
+    pub fn line_index(&self, byte_index: usize) -> usize {
+        self.line_starts
+            .binary_search(&byte_index)
+            .unwrap_or_else(|next_line| next_line.saturating_sub(1))
+    }
+
+    /// Get the range corresponding to the given line index.
+    pub fn line_range(&self, line_index: usize) -> Option<Range<usize>> {
+        let line_start = self.line_start(line_index)?;
+        let next_line_start = self.line_start(line_index + 1)?;
+
+        Some(line_start..next_line_start)
+    }
+
+    /// Get the number of lines in the source.
+    pub fn line_count(&self) -> usize {
+        self.line_starts.len()
+    }
+
+    /// Access the line number of content that starts with the given span.
+    pub fn line(&self, span: Span) -> Option<(usize, &str)> {
+        let start = span.start.into_usize();
+        let line = self.line_index(start);
+        let range = self.line_range(line)?;
+        let text = self.source.get(range)?;
+        Some((line, text))
+    }
+
+    fn line_start(&self, line_index: usize) -> Option<usize> {
+        use std::cmp::Ordering;
+
+        match line_index.cmp(&self.line_starts.len()) {
+            Ordering::Less => self.line_starts.get(line_index).copied(),
+            Ordering::Equal => Some(self.source.as_ref().len()),
+            Ordering::Greater => None,
+        }
     }
 }
 

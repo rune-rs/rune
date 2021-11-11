@@ -2,7 +2,7 @@ use crate::ast;
 use crate::parsing::{LexerMode, ResolveError, ResolveErrorKind};
 use crate::shared::Description;
 use crate::Spanned;
-use runestick::SpannedError;
+use runestick::{SourceId, SpannedError};
 
 use thiserror::Error;
 
@@ -110,4 +110,6 @@ pub enum ParseErrorKind {
     BadNumber,
     #[error("can only specify one attribute named `{name}`")]
     MultipleMatchingAttributes { name: &'static str },
+    #[error("missing source id `{source_id}`")]
+    MissingSourceId { source_id: SourceId },
 }

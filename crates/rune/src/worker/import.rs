@@ -1,8 +1,10 @@
 use crate::ast;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
-use crate::{CompileError, CompileErrorKind, CompileResult, Resolve as _, Spanned as _, Storage};
-use runestick::{CompileMod, Context, Item, Source, Visibility};
+use crate::{
+    CompileError, CompileErrorKind, CompileResult, Resolve as _, Sources, Spanned as _, Storage,
+};
+use runestick::{CompileMod, Context, Item, SourceId, Visibility};
 use std::collections::VecDeque;
 
 use std::sync::Arc;
@@ -14,8 +16,7 @@ pub(crate) struct Import {
     pub(crate) module: Arc<CompileMod>,
     pub(crate) visibility: Visibility,
     pub(crate) item: Item,
-    pub(crate) source: Arc<Source>,
-    pub(crate) source_id: usize,
+    pub(crate) source_id: SourceId,
     pub(crate) ast: Box<ast::ItemUse>,
 }
 
@@ -42,6 +43,7 @@ impl Import {
         mut self,
         context: &Context,
         storage: &Storage,
+        sources: &Sources,
         query: &Query,
         add_task: &mut impl FnMut(Task),
     ) -> CompileResult<()> {
@@ -50,7 +52,7 @@ impl Import {
                 match self.ast.path.global {
                     Some(global) => match &self.ast.path.first {
                         ast::ItemUseSegment::PathSegment(ast::PathSegment::Ident(ident)) => {
-                            let ident = ident.resolve(storage, &self.source)?;
+                            let ident = ident.resolve(storage, sources)?;
                             (Item::with_crate(ident.as_ref()), None, false)
                         }
                         _ => {
@@ -93,7 +95,7 @@ impl Import {
                 match segment {
                     ast::ItemUseSegment::PathSegment(segment) => match segment {
                         ast::PathSegment::Ident(ident) => {
-                            let ident = ident.resolve(storage, &self.source)?;
+                            let ident = ident.resolve(storage, sources)?;
 
                             if !initial {
                                 name.push(ident);
@@ -151,7 +153,6 @@ impl Import {
                             name: name.clone(),
                             span: star_token.span(),
                             source_id: self.source_id,
-                            source: self.source.clone(),
                             module: self.module.clone(),
                             found: false,
                         };
@@ -193,7 +194,7 @@ impl Import {
                         ));
                     }
 
-                    Some(ident.resolve(storage, &self.source)?)
+                    Some(ident.resolve(storage, sources)?)
                 }
                 None => None,
             };
@@ -202,7 +203,6 @@ impl Import {
                 query.insert_import(
                     self.source_id,
                     path.span(),
-                    &self.source,
                     &self.module,
                     self.visibility,
                     self.item.clone(),

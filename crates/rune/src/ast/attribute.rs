@@ -168,8 +168,8 @@ fn test_parse_attribute() {
     ];
 
     for s in TEST_STRINGS.iter() {
-        crate::parse_all::<ast::Attribute>(s).expect(s);
+        crate::parse_all_without_source::<ast::Attribute>(s).expect(s);
         let withbang = s.replacen("#[", "#![", 1);
-        crate::parse_all::<ast::Attribute>(&withbang).expect(&withbang);
+        crate::parse_all_without_source::<ast::Attribute>(&withbang).expect(&withbang);
     }
 }

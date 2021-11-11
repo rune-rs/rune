@@ -12,7 +12,7 @@ pub use runestick::{
     Bytes, CompileMeta, CompileMetaKind, ContextError, FromValue, Function, IntoComponent, Span,
     ToValue, Value, VecTuple, VmError,
 };
-use runestick::{Item, Source, Unit};
+use runestick::{Item, Source, SourceId, Unit};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -60,7 +60,7 @@ fn internal_compile_source(
     let unit = match unit.build() {
         Ok(unit) => unit,
         Err(error) => {
-            diagnostics.error(0, error);
+            diagnostics.error(SourceId::empty(), error);
             return Err(diagnostics);
         }
     };

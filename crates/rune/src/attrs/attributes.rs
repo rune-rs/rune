@@ -2,11 +2,9 @@ use crate::ast;
 use crate::attrs::Attribute;
 use crate::macros::Storage;
 use crate::parsing::{Parse, ParseError, ParseErrorKind, Parser, Resolve as _};
-use crate::Spanned as _;
-use runestick::Source;
+use crate::{Sources, Spanned as _};
 use runestick::Span;
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 /// Helper for parsing internal attributes.
 pub(crate) struct Attributes {
@@ -14,22 +12,17 @@ pub(crate) struct Attributes {
     unused: BTreeSet<usize>,
     /// All raw attributes.
     attributes: Vec<ast::Attribute>,
+    /// Storage used in attributes.
     storage: Storage,
-    source: Arc<Source>,
 }
 
 impl Attributes {
     /// Construct a new attriutes parser.
-    pub(crate) fn new(
-        attributes: Vec<ast::Attribute>,
-        storage: Storage,
-        source: Arc<Source>,
-    ) -> Self {
+    pub(crate) fn new(attributes: Vec<ast::Attribute>, storage: Storage) -> Self {
         Self {
             unused: attributes.iter().enumerate().map(|(i, _)| i).collect(),
             attributes,
             storage,
-            source,
         }
     }
 
@@ -43,7 +36,10 @@ impl Attributes {
     ///
     /// Returns the parsed element and the span it was parsed from if
     /// successful.
-    pub(crate) fn try_parse<T>(&mut self) -> Result<Option<(Span, T)>, ParseError>
+    pub(crate) fn try_parse<T>(
+        &mut self,
+        sources: &Sources,
+    ) -> Result<Option<(Span, T)>, ParseError>
     where
         T: Attribute + Parse,
     {
@@ -60,7 +56,7 @@ impl Attributes {
                 None => continue,
             };
 
-            let ident = ident.resolve(&self.storage, &self.source)?;
+            let ident = ident.resolve(&self.storage, sources)?;
 
             if ident != T::PATH {
                 continue;

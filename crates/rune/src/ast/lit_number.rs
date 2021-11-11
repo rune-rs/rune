@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
-    Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Sources,
+    Spanned, Storage, ToTokens,
 };
-use runestick::{Source, Span};
+use runestick::Span;
 
 /// A number literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -41,7 +41,11 @@ impl Parse for LitNumber {
 impl<'a> Resolve<'a> for LitNumber {
     type Output = ast::Number;
 
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<ast::Number, ResolveError> {
+    fn resolve(
+        &self,
+        storage: &Storage,
+        sources: &'a Sources,
+    ) -> Result<ast::Number, ResolveError> {
         use num::Num as _;
         use std::str::FromStr as _;
 
@@ -60,8 +64,8 @@ impl<'a> Resolve<'a> for LitNumber {
             ast::NumberSource::Text(text) => text,
         };
 
-        let string = source
-            .source(span)
+        let string = sources
+            .source(text.source_id, span)
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         if text.is_fractional {
@@ -91,8 +95,8 @@ impl ResolveOwned for LitNumber {
     fn resolve_owned(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        self.resolve(storage, source)
+        self.resolve(storage, sources)
     }
 }

@@ -7,10 +7,10 @@ use runestick::Span;
 /// # Examples
 ///
 /// ```rust
-/// use rune::{testing, ast, parse_all};
+/// use rune::{testing, ast, parse_all_without_source};
 ///
 /// testing::roundtrip::<ast::ItemFn>("async fn hello() {}");
-/// assert!(parse_all::<ast::ItemFn>("fn async hello() {}").is_err());
+/// assert!(parse_all_without_source::<ast::ItemFn>("fn async hello() {}").is_err());
 ///
 /// let item = testing::roundtrip::<ast::ItemFn>("fn hello() {}");
 /// assert_eq!(item.args.len(), 0);

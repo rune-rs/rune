@@ -4,7 +4,9 @@ use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
 use rune::Spanned as _;
-use runestick::{CompileMeta, CompileMetaKind, CompileSource, ComponentRef, Item, SourceId, Span};
+use runestick::{
+    CompileMeta, CompileMetaKind, CompileSource, ComponentRef, Item, Location, SourceId, Span,
+};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -83,15 +85,20 @@ impl State {
             None => uri.clone(),
         };
 
-        let source = source.build_sources.as_ref()?.get(def.source.source_id)?;
+        let source = source
+            .build_sources
+            .as_ref()?
+            .get(def.source.location.source_id)?;
 
-        let (l, c) = source.position_to_utf16cu_line_char(def.source.span.start.into_usize())?;
+        let (l, c) =
+            source.position_to_utf16cu_line_char(def.source.location.span.start.into_usize())?;
         let start = lsp::Position {
             line: l as u32,
             character: c as u32,
         };
 
-        let (l, c) = source.position_to_utf16cu_line_char(def.source.span.end.into_usize())?;
+        let (l, c) =
+            source.position_to_utf16cu_line_char(def.source.location.span.end.into_usize())?;
         let end = lsp::Position {
             line: l as u32,
             character: c as u32,
@@ -439,7 +446,7 @@ fn report<E, R>(
     sources: &rune::Sources,
     by_url: &mut HashMap<Url, Vec<lsp::Diagnostic>>,
     span: Span,
-    source_id: usize,
+    source_id: SourceId,
     error: E,
     report: R,
 ) where
@@ -564,7 +571,7 @@ impl Visitor {
 
 impl rune::CompileVisitor for Visitor {
     fn visit_meta(&self, source_id: SourceId, meta: &CompileMeta, span: Span) {
-        if source_id != 0 {
+        if source_id.into_index() != 0 {
             return;
         }
 
@@ -596,16 +603,15 @@ impl rune::CompileVisitor for Visitor {
     }
 
     fn visit_variable_use(&self, source_id: SourceId, var_span: Span, span: Span) {
-        if source_id != 0 {
+        if source_id.into_index() != 0 {
             return;
         }
 
         let definition = Definition {
             kind: DefinitionKind::Local,
             source: CompileSource {
-                span: var_span,
+                location: Location::new(source_id, var_span),
                 path: None,
-                source_id,
             },
         };
 
@@ -615,16 +621,15 @@ impl rune::CompileVisitor for Visitor {
     }
 
     fn visit_mod(&self, source_id: SourceId, span: Span) {
-        if source_id != 0 {
+        if source_id.into_index() != 0 {
             return;
         }
 
         let definition = Definition {
             kind: DefinitionKind::Module,
             source: CompileSource {
-                span: Span::empty(),
+                location: Location::new(source_id, Span::empty()),
                 path: None,
-                source_id,
             },
         };
 

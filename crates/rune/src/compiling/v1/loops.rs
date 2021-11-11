@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::compiling::v1::Needs;
-use crate::{CompileError, CompileErrorKind, CompileResult, Spanned as _, Storage};
-use runestick::{Label, Source};
+use crate::{CompileError, CompileErrorKind, CompileResult, Sources, Spanned as _, Storage};
+use runestick::Label;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -65,13 +65,13 @@ impl Loops {
     pub(crate) fn walk_until_label(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
         expected: ast::Label,
     ) -> CompileResult<(Loop, Vec<usize>)> {
         use crate::parsing::Resolve as _;
 
         let span = expected.span();
-        let expected = expected.resolve(storage, source)?;
+        let expected = expected.resolve(storage, sources)?;
         let mut to_drop = Vec::new();
 
         for l in self.loops.borrow().iter().rev() {
@@ -84,7 +84,7 @@ impl Loops {
                 }
             };
 
-            let label = label.resolve(storage, source)?;
+            let label = label.resolve(storage, sources)?;
 
             if expected == label {
                 return Ok((*l, to_drop));

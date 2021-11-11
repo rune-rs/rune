@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Spanned,
-    Storage, ToTokens,
+    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Sources,
+    Spanned, Storage, ToTokens,
 };
-use runestick::{Source, Span};
+use runestick::Span;
 use std::borrow::Cow;
 
 /// A string literal.
@@ -21,16 +21,16 @@ impl LitStr {
     pub(crate) fn resolve_template_string<'a>(
         &self,
         storage: &Storage,
-        source: &'a Source,
+        sources: &'a Sources,
     ) -> Result<Cow<'a, str>, ResolveError> {
-        self.resolve_string(storage, source, ast::utils::WithTemplate(true))
+        self.resolve_string(storage, sources, ast::utils::WithTemplate(true))
     }
 
     /// Resolve the given string with the specified configuration.
     pub(crate) fn resolve_string<'a>(
         &self,
         storage: &Storage,
-        source: &'a Source,
+        sources: &'a Sources,
         with_template: ast::utils::WithTemplate,
     ) -> Result<Cow<'a, str>, ResolveError> {
         let span = self.token.span();
@@ -51,8 +51,8 @@ impl LitStr {
 
         let span = if text.wrapped { span.narrow(1) } else { span };
 
-        let string = source
-            .source(span)
+        let string = sources
+            .source(text.source_id, span)
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
@@ -124,8 +124,12 @@ impl Parse for LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ResolveError> {
-        self.resolve_string(storage, source, ast::utils::WithTemplate(false))
+    fn resolve(
+        &self,
+        storage: &Storage,
+        sources: &'a Sources,
+    ) -> Result<Cow<'a, str>, ResolveError> {
+        self.resolve_string(storage, sources, ast::utils::WithTemplate(false))
     }
 }
 
@@ -135,8 +139,8 @@ impl ResolveOwned for LitStr {
     fn resolve_owned(
         &self,
         storage: &Storage,
-        source: &Source,
+        sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, source)?.into_owned())
+        Ok(self.resolve(storage, sources)?.into_owned())
     }
 }
