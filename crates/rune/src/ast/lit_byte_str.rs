@@ -93,7 +93,7 @@ impl<'a> Resolve<'a> for LitByteStr {
                     )
                 })?;
 
-                return Ok(Cow::Owned(bytes));
+                return Ok(Cow::Owned(bytes.clone()));
             }
         };
 

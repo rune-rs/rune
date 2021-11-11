@@ -1,4 +1,4 @@
-use crate::ast;
+use crate::{ast, MacroContext};
 use crate::{
     Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveErrorKind, ResolveOwned,
     Sources, Spanned, Storage, ToTokens,
@@ -21,12 +21,8 @@ impl Label {
     /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
     ///
     /// This constructor must only be used inside of a macro.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if it's called outside of a macro context.
-    pub fn new(label: &str) -> Self {
-        crate::macros::current_context(|ctx| Self::new_with(label, ctx.macro_span(), ctx.storage()))
+    pub fn new(ctx: &mut MacroContext<'_>, label: &str) -> Self {
+        Self::new_with(label, ctx.macro_span(), ctx.storage_mut())
     }
 
     /// Construct a new label from the given string. The string should be
@@ -34,7 +30,7 @@ impl Label {
     ///
     /// This constructor does not panic when called outside of a macro context
     /// but requires access to a `span` and `storage`.
-    pub fn new_with(label: &str, span: Span, storage: &Storage) -> Self {
+    pub fn new_with(label: &str, span: Span, storage: &mut Storage) -> Self {
         let id = storage.insert_str(label);
         let source = ast::StringSource::Synthetic(id);
 
@@ -90,7 +86,7 @@ impl<'a> Resolve<'a> for Label {
                     ResolveError::new(span, ResolveErrorKind::BadSyntheticId { kind: "ident", id })
                 })?;
 
-                Ok(Cow::Owned(ident))
+                Ok(Cow::Owned(ident.clone()))
             }
             ast::StringSource::BuiltIn(builtin) => Ok(Cow::Borrowed(builtin.as_str())),
         }

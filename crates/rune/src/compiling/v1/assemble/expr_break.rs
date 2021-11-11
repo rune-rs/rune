@@ -26,7 +26,8 @@ impl Assemble for ast::ExprBreak {
                 }
                 ast::ExprBreakValue::Label(label) => {
                     let (last_loop, to_drop) =
-                        c.loops.walk_until_label(c.storage, c.sources, *label)?;
+                        c.loops
+                            .walk_until_label(c.query.storage(), c.sources, *label)?;
                     (last_loop, to_drop, false)
                 }
             }

@@ -53,7 +53,7 @@ impl<'a> Resolve<'a> for LitNumber {
 
         let text = match self.source {
             ast::NumberSource::Synthetic(id) => match storage.get_number(id) {
-                Some(number) => return Ok(number),
+                Some(number) => return Ok(number.clone()),
                 None => {
                     return Err(ResolveError::new(
                         span,

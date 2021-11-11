@@ -1,9 +1,7 @@
 use crate::ast;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
-use crate::{
-    CompileError, CompileErrorKind, CompileResult, Resolve as _, Sources, Spanned as _, Storage,
-};
+use crate::{CompileError, CompileErrorKind, CompileResult, Resolve as _, Sources, Spanned as _};
 use runestick::{CompileMod, Context, Item, SourceId, Visibility};
 use std::collections::VecDeque;
 
@@ -42,9 +40,8 @@ impl Import {
     pub(crate) fn process(
         mut self,
         context: &Context,
-        storage: &Storage,
         sources: &Sources,
-        query: &Query,
+        query: &mut Query,
         add_task: &mut impl FnMut(Task),
     ) -> CompileResult<()> {
         let (name, first, initial) = match self.kind {
@@ -52,7 +49,7 @@ impl Import {
                 match self.ast.path.global {
                     Some(global) => match &self.ast.path.first {
                         ast::ItemUseSegment::PathSegment(ast::PathSegment::Ident(ident)) => {
-                            let ident = ident.resolve(storage, sources)?;
+                            let ident = ident.resolve(query.storage(), sources)?;
                             (Item::with_crate(ident.as_ref()), None, false)
                         }
                         _ => {
@@ -95,7 +92,7 @@ impl Import {
                 match segment {
                     ast::ItemUseSegment::PathSegment(segment) => match segment {
                         ast::PathSegment::Ident(ident) => {
-                            let ident = ident.resolve(storage, sources)?;
+                            let ident = ident.resolve(query.storage(), sources)?;
 
                             if !initial {
                                 name.push(ident);
@@ -194,7 +191,7 @@ impl Import {
                         ));
                     }
 
-                    Some(ident.resolve(storage, sources)?)
+                    Some(ident.resolve(query.storage(), sources)?)
                 }
                 None => None,
             };

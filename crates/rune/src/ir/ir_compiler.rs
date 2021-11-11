@@ -2,15 +2,15 @@ use crate::ast;
 use crate::ir;
 use crate::query::BuiltInMacro;
 use crate::query::BuiltInTemplate;
+use crate::query::Query;
 use crate::IrError;
-use crate::{IrErrorKind, Resolve, Sources, Spanned, Storage};
+use crate::{IrErrorKind, Resolve, Sources, Spanned};
 use runestick::{Bytes, ConstValue};
 
 /// A c that compiles AST into Rune IR.
 pub struct IrCompiler<'a> {
-    pub(crate) storage: Storage,
     pub(crate) sources: &'a Sources,
-    pub(crate) query: &'a mut dyn ir::IrQuery,
+    pub(crate) query: &'a mut Query,
 }
 
 impl IrCompiler<'_> {
@@ -27,7 +27,7 @@ impl IrCompiler<'_> {
     where
         T: Resolve<'s>,
     {
-        Ok(value.resolve(&self.storage, self.sources)?)
+        Ok(value.resolve(&self.query.storage(), self.sources)?)
     }
 
     /// Resolve an ir target from an expression.
@@ -105,9 +105,7 @@ impl IrCompile for ast::Expr {
             ast::Expr::Break(expr_break) => ir::Ir::new(expr_break, expr_break.compile(c)?),
             ast::Expr::Let(expr_let) => ir::Ir::new(expr_let, expr_let.compile(c)?),
             ast::Expr::MacroCall(macro_call) => {
-                let internal_macro = c
-                    .query
-                    .builtin_macro_for(macro_call.span(), macro_call.id)?;
+                let internal_macro = c.query.builtin_macro_for(&**macro_call)?;
 
                 match &*internal_macro {
                     BuiltInMacro::Template(template) => {
@@ -498,7 +496,7 @@ impl IrCompile for BuiltInTemplate {
                     ..
                 } = &**expr_lit
                 {
-                    let s = s.resolve_template_string(&c.storage, c.sources)?;
+                    let s = s.resolve_template_string(&c.query.storage(), c.sources)?;
 
                     components.push(ir::IrTemplateComponent::String(
                         s.into_owned().into_boxed_str(),

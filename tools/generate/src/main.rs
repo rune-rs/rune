@@ -111,7 +111,7 @@ fn main() -> Result<()> {
     let formatter = &rust::import("std::fmt", "Formatter");
     let kind = &rust::import("crate::ast", "Kind");
     let lit_str_source = &rust::import("crate::ast", "StrSource");
-    let macro_context= &rust::import("crate::macros", "MacroContext");
+    let macro_context = &rust::import("crate::macros", "MacroContext");
     let number_source = &rust::import("crate::ast", "NumberSource");
     let parse = &rust::import("crate::parsing", "Parse");
     let parse_error = &rust::import("crate::parsing", "ParseError");
@@ -163,7 +163,7 @@ fn main() -> Result<()> {
                 }
 
                 impl #to_tokens for #(t.variant()) {
-                    fn to_tokens(&self, _: &#macro_context, stream: &mut #token_stream) {
+                    fn to_tokens(&self, _: &mut #macro_context, stream: &mut #token_stream) {
                         stream.push(self.token);
                     }
                 }
@@ -305,7 +305,7 @@ fn main() -> Result<()> {
             }
 
             impl #to_tokens for Kind {
-                fn to_tokens(&self, context: &#macro_context, stream: &mut #token_stream) {
+                fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
                     stream.push(#token {
                         kind: *self,
                         span: context.macro_span(),

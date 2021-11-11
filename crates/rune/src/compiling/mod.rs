@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
+use crate::shared::Gen;
 #[cfg(compiler_v2)]
 use crate::shared::ResultExt as _;
-use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Diagnostics, Options, Spanned as _, Storage};
+use crate::{Diagnostics, Options, Spanned as _};
 use runestick::{Context, Location, Source, Span};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -58,12 +58,8 @@ pub fn compile_with_options<'a>(
     visitor: Rc<dyn CompileVisitor>,
     source_loader: Rc<dyn SourceLoader + 'a>,
 ) -> Result<(), ()> {
-    // Global storage.
-    let storage = Storage::new();
     // Shared id generator.
     let gen = Gen::new();
-    // Constants storage.
-    let consts = Consts::default();
 
     // The worker queue.
     let mut worker = Worker::new(
@@ -71,11 +67,9 @@ pub fn compile_with_options<'a>(
         sources,
         options,
         unit.clone(),
-        consts,
         diagnostics,
         visitor.clone(),
         source_loader,
-        storage.clone(),
         gen,
     );
 
@@ -110,11 +104,9 @@ pub fn compile_with_options<'a>(
                 visitor: &visitor,
                 context,
                 options,
-                storage: &storage,
                 sources: worker.sources,
                 unit,
                 diagnostics: worker.diagnostics,
-                consts: &worker.consts,
                 query: &mut worker.query,
             };
 
@@ -143,11 +135,9 @@ struct CompileBuildEntry<'a> {
     visitor: &'a Rc<dyn CompileVisitor>,
     context: &'a Context,
     options: &'a Options,
-    storage: &'a Storage,
     sources: &'a Sources,
     unit: &'a UnitBuilder,
     diagnostics: &'a mut Diagnostics,
-    consts: &'a Consts,
     query: &'a mut Query,
 }
 
@@ -161,12 +151,10 @@ impl CompileBuildEntry<'_> {
     ) -> self::v1::Compiler<'a> {
         self::v1::Compiler {
             visitor: self.visitor.clone(),
-            storage: self.storage,
             sources: self.sources,
             source_id: location.source_id,
             source: source.clone(),
             context: self.context,
-            consts: self.consts,
             query: self.query,
             asm,
             unit: self.unit.clone(),
@@ -265,7 +253,7 @@ impl CompileBuildEntry<'_> {
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
-                let name = f.ast.name.resolve(self.storage, self.sources)?;
+                let name = f.ast.name.resolve(self.query.storage(), self.sources)?;
 
                 let mut c = self.compiler1(location, &source, span, &mut asm);
                 let meta = c.lookup_meta(f.instance_span, &f.impl_item)?;

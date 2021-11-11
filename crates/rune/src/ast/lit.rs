@@ -1,5 +1,6 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peeker, Spanned, Storage, ToTokens};
+use crate::macros::IntoLit;
+use crate::{MacroContext, Parse, ParseError, Parser, Peeker, Spanned, Storage, ToTokens};
 use runestick::Span;
 
 /// A literal value
@@ -20,16 +21,23 @@ pub enum Lit {
 }
 
 impl Lit {
-    /// Construct a new literal.
+    /// Construct a new literal from within a macro context.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// This will panic if it's called outside of a macro context.
-    pub fn new<T>(lit: T) -> Self
+    /// ```
+    /// use rune::ast;
+    ///
+    /// rune::MacroContext::test(|ctx| {
+    ///     let lit = ast::Lit::new(ctx, "hello world");
+    ///     assert!(matches!(lit, ast::Lit::Str(..)))
+    /// });
+    /// ```
+    pub fn new<T>(ctx: &mut MacroContext<'_>, lit: T) -> Self
     where
-        T: crate::macros::IntoLit,
+        T: IntoLit,
     {
-        crate::macros::current_context(|ctx| Self::new_with(lit, ctx.macro_span(), ctx.storage()))
+        Self::new_with(lit, ctx.macro_span(), ctx.storage_mut())
     }
 
     /// Construct a new literal with the specified span and storage.
@@ -43,12 +51,12 @@ impl Lit {
     /// use rune::{ast, Storage};
     /// use runestick::Span;
     ///
-    /// let storage = Storage::default();
-    /// let string = ast::Lit::new_with("hello world", Span::empty(), &storage);
+    /// let mut storage = Storage::default();
+    /// let string = ast::Lit::new_with("hello world", Span::empty(), &mut storage);
     /// ```
-    pub fn new_with<T>(lit: T, span: Span, storage: &Storage) -> Self
+    pub fn new_with<T>(lit: T, span: Span, storage: &mut Storage) -> Self
     where
-        T: crate::macros::IntoLit,
+        T: IntoLit,
     {
         T::into_lit(lit, span, storage)
     }

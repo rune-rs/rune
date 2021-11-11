@@ -20,7 +20,7 @@ impl Spanned for ForceSemi {
 }
 
 impl ToTokens for ForceSemi {
-    fn to_tokens(&self, context: &crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.expr.to_tokens(context, stream)
+    fn to_tokens(&self, ctx: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.expr.to_tokens(ctx, stream)
     }
 }

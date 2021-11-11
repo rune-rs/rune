@@ -20,6 +20,7 @@
 //! # }
 //! ```
 
+use rune::MacroContext;
 use rune::ast;
 use rune::macros;
 use rune::T;
@@ -34,8 +35,8 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
 }
 
 /// Implementation for the `assert!` macro.
-pub(crate) fn assert_macro(stream: &TokenStream) -> runestick::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream);
+pub(crate) fn assert_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let expr = p.parse::<ast::Expr>()?;
 
     let message = if p.parse::<Option<T![,]>>()?.is_some() {
@@ -45,26 +46,26 @@ pub(crate) fn assert_macro(stream: &TokenStream) -> runestick::Result<TokenStrea
     };
 
     let output = if let Some(message) = &message {
-        let expanded = message.expand()?;
+        let expanded = message.expand(ctx)?;
 
         quote!(if !(#expr) {
             panic("assertion failed: " + (#expanded));
         })
     } else {
-        let message = format!("assertion failed: {}", macros::stringify(&expr));
-        let message = ast::Lit::new(&message);
+        let message = format!("assertion failed: {}", ctx.stringify(&expr));
+        let message = ast::Lit::new(ctx, &message);
 
         quote!(if !(#expr) {
             panic(#message);
         })
     };
 
-    Ok(output.into_token_stream())
+    Ok(output.into_token_stream(ctx))
 }
 
 /// Implementation for the `assert!` macro.
-pub(crate) fn assert_eq_macro(stream: &TokenStream) -> runestick::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream);
+pub(crate) fn assert_eq_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let left = p.parse::<ast::Expr>()?;
     p.parse::<T![,]>()?;
     let right = p.parse::<ast::Expr>()?;
@@ -76,7 +77,7 @@ pub(crate) fn assert_eq_macro(stream: &TokenStream) -> runestick::Result<TokenSt
     };
 
     let output = if let Some(message) = &message {
-        let message = message.expand()?;
+        let message = message.expand(ctx)?;
 
         quote! {{
             let left = #left;
@@ -91,7 +92,7 @@ pub(crate) fn assert_eq_macro(stream: &TokenStream) -> runestick::Result<TokenSt
         }}
     } else {
         let message = "assertion failed (left == right):".to_string();
-        let message = ast::Lit::new(&message);
+        let message = ast::Lit::new(ctx, &message);
 
         quote! {{
             let left = #left;
@@ -106,5 +107,5 @@ pub(crate) fn assert_eq_macro(stream: &TokenStream) -> runestick::Result<TokenSt
         }}
     };
 
-    Ok(output.into_token_stream())
+    Ok(output.into_token_stream(ctx))
 }

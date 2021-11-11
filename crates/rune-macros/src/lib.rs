@@ -92,18 +92,8 @@ pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream
 /// * Dynamic quoted strings and other literals, which must be created using
 ///   `Lit::new`.
 ///
-/// # Panics
-///
-/// Calling this macro will panic if called outside of a macro context. A macro
-/// context can be setup using `with_context`.
-///
 /// ```rust
-/// use rune::macros::{with_context, MacroContext};
-/// let ctx = MacroContext::empty();
-///
-/// with_context(ctx, || {
-///     rune::quote!(hello self);
-/// });
+/// rune::quote!(hello self);
 /// ```
 ///
 /// # Interpolating values

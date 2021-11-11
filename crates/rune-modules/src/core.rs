@@ -22,7 +22,7 @@
 
 use rune::ast;
 use rune::macros;
-use rune::{quote, Parser, TokenStream};
+use rune::{quote, Parser, MacroContext, TokenStream};
 
 /// Construct the `std::core` module.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
@@ -34,18 +34,20 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
 
 /// Implementation for the `stringify!` macro.
 pub(crate) fn stringify_macro(
+    ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> runestick::Result<TokenStream> {
-    let lit = macros::stringify(stream);
-    let lit = ast::Lit::new(lit);
-    Ok(quote!(#lit).into_token_stream())
+    let lit = ctx.stringify(stream).to_string();
+    let lit = ast::Lit::new(ctx, lit);
+    Ok(quote!(#lit).into_token_stream(ctx))
 }
 
 pub(crate) fn panic_macro(
+    ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> runestick::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream);
+    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse_all::<macros::FormatArgs>()?;
-    let expanded = args.expand()?;
-    Ok(quote!(::std::panic(#expanded)).into_token_stream())
+    let expanded = args.expand(ctx)?;
+    Ok(quote!(::std::panic(#expanded)).into_token_stream(ctx))
 }

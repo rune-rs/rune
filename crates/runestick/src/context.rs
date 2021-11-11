@@ -1,8 +1,8 @@
+use crate::collections::{HashMap, HashSet};
+use crate::module::{
+    ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
+};
 use crate::{
-    collections::{HashMap, HashSet},
-    module::{
-        ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
-    },
     CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, ComponentRef, ConstValue,
     Hash, IntoComponent, Item, Module, Names, Protocol, RuntimeContext, Stack, StaticType,
     TypeCheck, TypeInfo, TypeOf, VmError,
@@ -108,8 +108,9 @@ pub enum ContextError {
 pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync;
 
 /// A (type erased) macro handler.
-pub(crate) type Macro =
-    dyn Fn(&dyn any::Any) -> Result<Box<dyn any::Any>, crate::Error> + Send + Sync;
+pub(crate) type Macro = dyn Fn(&mut dyn any::Any, &dyn any::Any) -> Result<Box<dyn any::Any>, crate::Error>
+    + Send
+    + Sync;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]

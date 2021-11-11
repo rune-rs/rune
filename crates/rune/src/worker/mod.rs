@@ -4,8 +4,8 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::indexing::{Index as _, IndexScopes, Indexer};
 use crate::query::Query;
-use crate::shared::{Consts, Gen, Items};
-use crate::{CompileVisitor, Diagnostics, Options, SourceLoader, Sources, Storage, UnitBuilder};
+use crate::shared::{Gen, Items};
+use crate::{CompileVisitor, Diagnostics, Options, SourceLoader, Sources, UnitBuilder};
 use runestick::{Context, Item, SourceId, Span};
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -25,14 +25,10 @@ pub(crate) struct Worker<'a> {
     pub(crate) diagnostics: &'a mut Diagnostics,
     pub(crate) visitor: Rc<dyn CompileVisitor>,
     pub(crate) source_loader: Rc<dyn SourceLoader + 'a>,
-    /// Constants storage.
-    pub(crate) consts: Consts,
     /// Worker queue.
     pub(crate) queue: VecDeque<Task>,
     /// Query engine.
     pub(crate) query: Query,
-    /// Macro storage.
-    pub(crate) storage: Storage,
     /// Id generator.
     pub(crate) gen: Gen,
     /// Files that have been loaded.
@@ -46,11 +42,9 @@ impl<'a> Worker<'a> {
         sources: &'a mut Sources,
         options: &'a Options,
         unit: UnitBuilder,
-        consts: Consts,
         diagnostics: &'a mut Diagnostics,
         visitor: Rc<dyn CompileVisitor>,
         source_loader: Rc<dyn SourceLoader + 'a>,
-        storage: Storage,
         gen: Gen,
     ) -> Self {
         Self {
@@ -60,10 +54,8 @@ impl<'a> Worker<'a> {
             diagnostics,
             visitor: visitor.clone(),
             source_loader,
-            consts: consts.clone(),
             queue: VecDeque::new(),
-            query: Query::new(visitor, storage.clone(), unit, consts, gen.clone()),
-            storage,
+            query: Query::new(visitor, unit, gen.clone()),
             gen,
             loaded: HashMap::new(),
         }
@@ -111,10 +103,8 @@ impl<'a> Worker<'a> {
 
                     let mut indexer = Indexer {
                         root,
-                        storage: self.query.storage(),
                         loaded: &mut self.loaded,
-                        consts: self.consts.clone(),
-                        query: self.query.clone(),
+                        query: &mut self.query,
                         queue: &mut self.queue,
                         sources: self.sources,
                         context: self.context,
@@ -138,15 +128,10 @@ impl<'a> Worker<'a> {
                     let source_id = import.source_id;
                     let queue = &mut self.queue;
 
-                    let result = import.process(
-                        self.context,
-                        &self.storage,
-                        self.sources,
-                        &self.query,
-                        &mut |task| {
+                    let result =
+                        import.process(self.context, self.sources, &mut self.query, &mut |task| {
                             queue.push_back(task);
-                        },
-                    );
+                        });
 
                     if let Err(error) = result {
                         self.diagnostics.error(source_id, error);
@@ -161,7 +146,7 @@ impl<'a> Worker<'a> {
         for wildcard_import in wildcard_imports {
             let source_id = wildcard_import.source_id;
 
-            if let Err(error) = wildcard_import.process_local(&self.query) {
+            if let Err(error) = wildcard_import.process_local(&mut self.query) {
                 self.diagnostics.error(source_id, error);
             }
         }

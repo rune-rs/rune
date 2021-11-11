@@ -15,7 +15,7 @@ impl Assemble for ast::ExprAssign {
                     .first
                     .try_as_ident()
                     .ok_or_else(|| CompileError::msg(path, "unsupported path"))?;
-                let ident = segment.resolve(c.storage, c.sources)?;
+                let ident = segment.resolve(c.query.storage(), c.sources)?;
                 let var = c.scopes.get_var(&*ident, c.source_id, span)?;
                 c.asm.push(Inst::Replace { offset: var.offset }, span);
                 true
@@ -28,7 +28,7 @@ impl Assemble for ast::ExprAssign {
                 match &field_access.expr_field {
                     ast::ExprField::Path(path) => {
                         if let Some(ident) = path.try_as_ident() {
-                            let slot = ident.resolve(c.storage, c.sources)?;
+                            let slot = ident.resolve(c.query.storage(), c.sources)?;
                             let slot = c.unit.new_static_string(ident.span(), slot.as_ref())?;
 
                             self.rhs.assemble(c, Needs::Value)?.apply(c)?;
@@ -45,7 +45,7 @@ impl Assemble for ast::ExprAssign {
                         }
                     }
                     ast::ExprField::LitNumber(field) => {
-                        let number = field.resolve(c.storage, c.sources)?;
+                        let number = field.resolve(c.query.storage(), c.sources)?;
                         let index = number.as_tuple_index().ok_or_else(|| {
                             CompileError::new(
                                 span,

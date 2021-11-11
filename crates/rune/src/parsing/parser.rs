@@ -22,15 +22,18 @@ use std::ops;
 pub struct Parser<'a> {
     peeker: Peeker<'a>,
     /// The default span to use in case no better one is available.
-    span: Option<Span>,
+    default_span: Span,
 }
 
 impl<'a> Parser<'a> {
     /// Construct a new parser around the given source.
     pub fn new(source: &'a str, source_id: SourceId) -> Self {
-        Self::with_source(Source {
-            inner: SourceInner::Lexer(Lexer::new(source, source_id)),
-        })
+        Self::with_source(
+            Source {
+                inner: SourceInner::Lexer(Lexer::new(source, source_id)),
+            },
+            Span::new(0, source.len()),
+        )
     }
 
     /// Try to consume a single thing matching `T`, returns `true` if any tokens
@@ -63,16 +66,20 @@ impl<'a> Parser<'a> {
         Ok(consumed)
     }
 
-    /// Construct a parser from a token stream.
-    pub fn from_token_stream(token_stream: &'a TokenStream) -> Self {
-        Self::with_source(Source {
-            inner: SourceInner::TokenStream(token_stream.iter()),
-        })
+    /// Construct a parser from a token stream. The second argument `span` is
+    /// the span to use if the stream is empty.
+    pub fn from_token_stream(token_stream: &'a TokenStream, span: Span) -> Self {
+        Self::with_source(
+            Source {
+                inner: SourceInner::TokenStream(token_stream.iter()),
+            },
+            span,
+        )
     }
 
     /// Construct a new parser with a source.
-    fn with_source(source: Source<'a>) -> Self {
-        let span = source.span().or_else(crate::macros::current_stream_span);
+    fn with_source(source: Source<'a>, span: Span) -> Self {
+        let default_span = source.span().unwrap_or(span);
 
         Self {
             peeker: Peeker {
@@ -81,7 +88,7 @@ impl<'a> Parser<'a> {
                 error: None,
                 last: None,
             },
-            span,
+            default_span,
         }
     }
 
@@ -201,7 +208,7 @@ impl<'a> Parser<'a> {
 
     /// The last known span in this parser.
     pub fn last_span(&self) -> Span {
-        self.peeker.last.or(self.span).unwrap_or_default()
+        self.peeker.last.unwrap_or(self.default_span)
     }
 }
 

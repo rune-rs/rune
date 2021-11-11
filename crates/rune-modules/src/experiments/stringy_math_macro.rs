@@ -1,11 +1,13 @@
 use rune::ast;
-use rune::macros;
-use rune::{quote, Parser, Spanned, TokenStream};
+use rune::{quote, MacroContext, Parser, Spanned, TokenStream};
 use runestick::SpannedError;
 
 /// Implementation for the `stringy_math!` macro.
-pub(crate) fn stringy_math(stream: &TokenStream) -> runestick::Result<TokenStream> {
-    let mut parser = Parser::from_token_stream(stream);
+pub(crate) fn stringy_math(
+    ctx: &mut MacroContext<'_>,
+    stream: &TokenStream,
+) -> runestick::Result<TokenStream> {
+    let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
 
     let mut output = quote!(0);
 
@@ -13,7 +15,7 @@ pub(crate) fn stringy_math(stream: &TokenStream) -> runestick::Result<TokenStrea
         let op = parser.parse::<ast::Ident>()?;
         let arg = parser.parse::<ast::Expr>()?;
 
-        output = match macros::resolve(op)?.as_ref() {
+        output = match ctx.resolve(op)?.as_ref() {
             "add" => quote!((#output) + #arg),
             "sub" => quote!((#output) - #arg),
             "div" => quote!((#output) / #arg),
@@ -23,5 +25,5 @@ pub(crate) fn stringy_math(stream: &TokenStream) -> runestick::Result<TokenStrea
     }
 
     parser.eof()?;
-    Ok(output.into_token_stream())
+    Ok(output.into_token_stream(ctx))
 }

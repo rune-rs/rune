@@ -1,13 +1,13 @@
 use rune::ast::{CopySource, Delimiter, Kind, NumberSource, StrSource, StringSource, Token};
-use rune::macros::{with_context, MacroContext};
+use rune::macros::MacroContext;
 use rune::quote;
 
 use runestick::Span;
 use Kind::*;
 
 macro_rules! assert_quote {
-    ([$($expected:expr),* $(,)?], $quote:expr) => {
-        assert_eq!(vec![$(token($expected),)*], $quote.into_token_stream());
+    ($ctx:expr, [$($expected:expr),* $(,)?], $quote:expr) => {
+        assert_eq!(vec![$(token($expected),)*], $quote.into_token_stream($ctx));
     }
 }
 
@@ -20,139 +20,131 @@ fn token(kind: Kind) -> Token {
 
 #[test]
 fn test_tokens() {
-    let ctx = MacroContext::empty();
-
-    with_context(ctx, || {
-        assert_quote!([Amp], quote!(&));
-        assert_quote!([Abstract], quote!(abstract));
-        assert_quote!([AlignOf], quote!(alignof));
-        assert_quote!([Amp], quote!(&));
-        assert_quote!([AmpAmp], quote!(&&));
-        assert_quote!([AmpEq], quote!(&=));
-        assert_quote!([Arrow], quote!(->));
-        assert_quote!([As], quote!(as));
-        assert_quote!([Async], quote!(async));
-        assert_quote!([At], quote!(@));
-        assert_quote!([Await], quote!(await));
-        assert_quote!([Bang], quote!(!));
-        assert_quote!([BangEq], quote!(!=));
-        assert_quote!([Become], quote!(become));
-        assert_quote!([Break], quote!(break));
-        assert_quote!([Caret], quote!(^));
-        assert_quote!([CaretEq], quote!(^=));
-        assert_quote!([Colon], quote!(:));
-        assert_quote!([ColonColon], quote!(::));
-        assert_quote!([Comma], quote!(,));
-        assert_quote!([Const], quote!(const));
-        assert_quote!([Crate], quote!(crate));
-        assert_quote!([Dash], quote!(-));
-        assert_quote!([DashEq], quote!(-=));
-        assert_quote!([Default], quote!(default));
-        assert_quote!([Div], quote!(/));
-        assert_quote!([Do], quote!(do));
-        assert_quote!([Dollar], quote!($));
-        assert_quote!([Dot], quote!(.));
-        assert_quote!([DotDot], quote!(..));
-        assert_quote!([Else], quote!(else));
-        assert_quote!([Enum], quote!(enum));
-        assert_quote!([Eq], quote!(=));
-        assert_quote!([EqEq], quote!(==));
-        assert_quote!([Extern], quote!(extern));
-        assert_quote!([False], quote!(false));
-        assert_quote!([Final], quote!(final));
-        assert_quote!([Fn], quote!(fn));
-        assert_quote!([For], quote!(for));
-        assert_quote!([Gt], quote!(>));
-        assert_quote!([GtEq], quote!(>=));
-        assert_quote!([GtGt], quote!(>>));
-        assert_quote!([GtGtEq], quote!(>>=));
-        assert_quote!([If], quote!(if));
-        assert_quote!([Impl], quote!(impl));
-        assert_quote!([In], quote!(in));
-        assert_quote!([Is], quote!(is));
-        assert_quote!([Let], quote!(let));
-        assert_quote!([Loop], quote!(loop));
-        assert_quote!([Lt], quote!(<));
-        assert_quote!([LtEq], quote!(<=));
-        assert_quote!([LtLt], quote!(<<));
-        assert_quote!([LtLtEq], quote!(<<=));
-        assert_quote!([Macro], quote!(macro));
-        assert_quote!([Match], quote!(match));
-        assert_quote!([Mod], quote!(mod));
-        assert_quote!([Move], quote!(move));
-        assert_quote!([Not], quote!(not));
-        assert_quote!([OffsetOf], quote!(offsetof));
-        assert_quote!([Override], quote!(override));
-        assert_quote!([Perc], quote!(%));
-        assert_quote!([PercEq], quote!(%=));
-        assert_quote!([Pipe], quote!(|));
-        assert_quote!([PipeEq], quote!(|=));
-        assert_quote!([PipePipe], quote!(||));
-        assert_quote!([Plus], quote!(+));
-        assert_quote!([PlusEq], quote!(+=));
-        assert_quote!([Pound], quote!(#));
-        assert_quote!([Priv], quote!(priv));
-        assert_quote!([Proc], quote!(proc));
-        assert_quote!([Pub], quote!(pub));
-        assert_quote!([Pure], quote!(pure));
-        assert_quote!([QuestionMark], quote!(?));
-        assert_quote!([Ref], quote!(ref));
-        assert_quote!([Return], quote!(return));
-        assert_quote!([Rocket], quote!(=>));
-        assert_quote!([Select], quote!(select));
-        assert_quote!([SelfType], quote!(Self));
-        assert_quote!([SelfValue], quote!(self));
-        assert_quote!([SemiColon], quote!(;));
-        assert_quote!([SizeOf], quote!(sizeof));
-        assert_quote!([SlashEq], quote!(/=));
-        assert_quote!([Star], quote!(*));
-        assert_quote!([StarEq], quote!(*=));
-        assert_quote!([Static], quote!(static));
-        assert_quote!([Struct], quote!(struct));
-        assert_quote!([Super], quote!(super));
-        assert_quote!([Tilde], quote!(~));
-        assert_quote!([True], quote!(true));
-        assert_quote!([TypeOf], quote!(typeof));
-        assert_quote!([Underscore], quote!(_));
-        assert_quote!([Unsafe], quote!(unsafe));
-        assert_quote!([Use], quote!(use));
-        assert_quote!([Virtual], quote!(virtual));
-        assert_quote!([While], quote!(while));
-        assert_quote!([Yield], quote!(yield));
+    MacroContext::test(|ctx| {
+        assert_quote!(ctx, [Amp], quote!(&));
+        assert_quote!(ctx, [Abstract], quote!(abstract));
+        assert_quote!(ctx, [AlignOf], quote!(alignof));
+        assert_quote!(ctx, [Amp], quote!(&));
+        assert_quote!(ctx, [AmpAmp], quote!(&&));
+        assert_quote!(ctx, [AmpEq], quote!(&=));
+        assert_quote!(ctx, [Arrow], quote!(->));
+        assert_quote!(ctx, [As], quote!(as));
+        assert_quote!(ctx, [Async], quote!(async));
+        assert_quote!(ctx, [At], quote!(@));
+        assert_quote!(ctx, [Await], quote!(await));
+        assert_quote!(ctx, [Bang], quote!(!));
+        assert_quote!(ctx, [BangEq], quote!(!=));
+        assert_quote!(ctx, [Become], quote!(become));
+        assert_quote!(ctx, [Break], quote!(break));
+        assert_quote!(ctx, [Caret], quote!(^));
+        assert_quote!(ctx, [CaretEq], quote!(^=));
+        assert_quote!(ctx, [Colon], quote!(:));
+        assert_quote!(ctx, [ColonColon], quote!(::));
+        assert_quote!(ctx, [Comma], quote!(,));
+        assert_quote!(ctx, [Const], quote!(const));
+        assert_quote!(ctx, [Crate], quote!(crate));
+        assert_quote!(ctx, [Dash], quote!(-));
+        assert_quote!(ctx, [DashEq], quote!(-=));
+        assert_quote!(ctx, [Default], quote!(default));
+        assert_quote!(ctx, [Div], quote!(/));
+        assert_quote!(ctx, [Do], quote!(do));
+        assert_quote!(ctx, [Dollar], quote!($));
+        assert_quote!(ctx, [Dot], quote!(.));
+        assert_quote!(ctx, [DotDot], quote!(..));
+        assert_quote!(ctx, [Else], quote!(else));
+        assert_quote!(ctx, [Enum], quote!(enum));
+        assert_quote!(ctx, [Eq], quote!(=));
+        assert_quote!(ctx, [EqEq], quote!(==));
+        assert_quote!(ctx, [Extern], quote!(extern));
+        assert_quote!(ctx, [False], quote!(false));
+        assert_quote!(ctx, [Final], quote!(final));
+        assert_quote!(ctx, [Fn], quote!(fn));
+        assert_quote!(ctx, [For], quote!(for));
+        assert_quote!(ctx, [Gt], quote!(>));
+        assert_quote!(ctx, [GtEq], quote!(>=));
+        assert_quote!(ctx, [GtGt], quote!(>>));
+        assert_quote!(ctx, [GtGtEq], quote!(>>=));
+        assert_quote!(ctx, [If], quote!(if));
+        assert_quote!(ctx, [Impl], quote!(impl));
+        assert_quote!(ctx, [In], quote!(in));
+        assert_quote!(ctx, [Is], quote!(is));
+        assert_quote!(ctx, [Let], quote!(let));
+        assert_quote!(ctx, [Loop], quote!(loop));
+        assert_quote!(ctx, [Lt], quote!(<));
+        assert_quote!(ctx, [LtEq], quote!(<=));
+        assert_quote!(ctx, [LtLt], quote!(<<));
+        assert_quote!(ctx, [LtLtEq], quote!(<<=));
+        assert_quote!(ctx, [Macro], quote!(macro));
+        assert_quote!(ctx, [Match], quote!(match));
+        assert_quote!(ctx, [Mod], quote!(mod));
+        assert_quote!(ctx, [Move], quote!(move));
+        assert_quote!(ctx, [Not], quote!(not));
+        assert_quote!(ctx, [OffsetOf], quote!(offsetof));
+        assert_quote!(ctx, [Override], quote!(override));
+        assert_quote!(ctx, [Perc], quote!(%));
+        assert_quote!(ctx, [PercEq], quote!(%=));
+        assert_quote!(ctx, [Pipe], quote!(|));
+        assert_quote!(ctx, [PipeEq], quote!(|=));
+        assert_quote!(ctx, [PipePipe], quote!(||));
+        assert_quote!(ctx, [Plus], quote!(+));
+        assert_quote!(ctx, [PlusEq], quote!(+=));
+        assert_quote!(ctx, [Pound], quote!(#));
+        assert_quote!(ctx, [Priv], quote!(priv));
+        assert_quote!(ctx, [Proc], quote!(proc));
+        assert_quote!(ctx, [Pub], quote!(pub));
+        assert_quote!(ctx, [Pure], quote!(pure));
+        assert_quote!(ctx, [QuestionMark], quote!(?));
+        assert_quote!(ctx, [Ref], quote!(ref));
+        assert_quote!(ctx, [Return], quote!(return));
+        assert_quote!(ctx, [Rocket], quote!(=>));
+        assert_quote!(ctx, [Select], quote!(select));
+        assert_quote!(ctx, [SelfType], quote!(Self));
+        assert_quote!(ctx, [SelfValue], quote!(self));
+        assert_quote!(ctx, [SemiColon], quote!(;));
+        assert_quote!(ctx, [SizeOf], quote!(sizeof));
+        assert_quote!(ctx, [SlashEq], quote!(/=));
+        assert_quote!(ctx, [Star], quote!(*));
+        assert_quote!(ctx, [StarEq], quote!(*=));
+        assert_quote!(ctx, [Static], quote!(static));
+        assert_quote!(ctx, [Struct], quote!(struct));
+        assert_quote!(ctx, [Super], quote!(super));
+        assert_quote!(ctx, [Tilde], quote!(~));
+        assert_quote!(ctx, [True], quote!(true));
+        assert_quote!(ctx, [TypeOf], quote!(typeof));
+        assert_quote!(ctx, [Underscore], quote!(_));
+        assert_quote!(ctx, [Unsafe], quote!(unsafe));
+        assert_quote!(ctx, [Use], quote!(use));
+        assert_quote!(ctx, [Virtual], quote!(virtual));
+        assert_quote!(ctx, [While], quote!(while));
+        assert_quote!(ctx, [Yield], quote!(yield));
     });
 }
 
 #[test]
 fn test_synthetic() {
-    let ctx = MacroContext::empty();
-
-    with_context(ctx, || {
-        assert_quote!([Ident(StringSource::Synthetic(0))], quote!(hello));
-        assert_quote!([ByteStr(StrSource::Synthetic(0))], quote!(b"hello"));
-        assert_quote!([Str(StrSource::Synthetic(0))], quote!("hello"));
-        assert_quote!([Number(NumberSource::Synthetic(0))], quote!(0));
-        assert_quote!([Number(NumberSource::Synthetic(1))], quote!(42.0));
-        assert_quote!([Char(CopySource::Inline('a'))], quote!('a'));
-        assert_quote!([Byte(CopySource::Inline(b'a'))], quote!(b'a'));
+    MacroContext::test(|ctx| {
+        assert_quote!(ctx, [Ident(StringSource::Synthetic(0))], quote!(hello));
+        assert_quote!(ctx, [ByteStr(StrSource::Synthetic(0))], quote!(b"hello"));
+        assert_quote!(ctx, [Str(StrSource::Synthetic(0))], quote!("hello"));
+        assert_quote!(ctx, [Number(NumberSource::Synthetic(0))], quote!(0));
+        assert_quote!(ctx, [Number(NumberSource::Synthetic(1))], quote!(42.0));
+        assert_quote!(ctx, [Char(CopySource::Inline('a'))], quote!('a'));
+        assert_quote!(ctx, [Byte(CopySource::Inline(b'a'))], quote!(b'a'));
     });
 }
 
 #[test]
 fn test_interpolate() {
-    let ctx = MacroContext::empty();
-
-    with_context(ctx, || {
+    MacroContext::test(|ctx| {
         let outer = quote!(self struct enum);
-        assert_quote!([SelfValue, Struct, Enum], quote!(#outer));
+        assert_quote!(ctx, [SelfValue, Struct, Enum], quote!(#outer));
     });
 }
 
 #[test]
 fn test_attribute() {
-    let ctx = MacroContext::empty();
-
-    with_context(ctx, || {
-        assert_quote!(
+    MacroContext::test(|ctx| {
+        assert_quote!(ctx, 
             [
                 Pound,
                 Open(Delimiter::Bracket),
@@ -166,10 +158,8 @@ fn test_attribute() {
 
 #[test]
 fn test_object() {
-    let ctx = MacroContext::empty();
-
-    with_context(ctx, || {
-        assert_quote!(
+    MacroContext::test(|ctx| {
+        assert_quote!(ctx, 
             [
                 Pound,
                 Open(Delimiter::Brace),

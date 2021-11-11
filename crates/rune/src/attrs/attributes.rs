@@ -12,17 +12,14 @@ pub(crate) struct Attributes {
     unused: BTreeSet<usize>,
     /// All raw attributes.
     attributes: Vec<ast::Attribute>,
-    /// Storage used in attributes.
-    storage: Storage,
 }
 
 impl Attributes {
     /// Construct a new attriutes parser.
-    pub(crate) fn new(attributes: Vec<ast::Attribute>, storage: Storage) -> Self {
+    pub(crate) fn new(attributes: Vec<ast::Attribute>) -> Self {
         Self {
             unused: attributes.iter().enumerate().map(|(i, _)| i).collect(),
             attributes,
-            storage,
         }
     }
 
@@ -38,6 +35,7 @@ impl Attributes {
     /// successful.
     pub(crate) fn try_parse<T>(
         &mut self,
+        storage: &Storage,
         sources: &Sources,
     ) -> Result<Option<(Span, T)>, ParseError>
     where
@@ -56,7 +54,7 @@ impl Attributes {
                 None => continue,
             };
 
-            let ident = ident.resolve(&self.storage, sources)?;
+            let ident = ident.resolve(storage, sources)?;
 
             if ident != T::PATH {
                 continue;
@@ -71,7 +69,7 @@ impl Attributes {
                 ));
             }
 
-            let mut parser = Parser::from_token_stream(&a.input);
+            let mut parser = Parser::from_token_stream(&a.input, a.span());
             matched = Some((index, span, parser.parse::<T>()?));
             parser.eof()?;
         }

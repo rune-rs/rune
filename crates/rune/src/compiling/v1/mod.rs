@@ -3,10 +3,9 @@ use crate::collections::HashMap;
 use crate::compiling::{Assembly, CompileVisitor};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::query::{Named, Query, QueryConstFn, Used};
-use crate::shared::Consts;
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, Diagnostics, Options, Resolve as _, Sources, Spanned, Storage,
+    CompileError, CompileErrorKind, Diagnostics, Options, Resolve as _, Sources, Spanned,
     UnitBuilder,
 };
 use runestick::{
@@ -48,16 +47,12 @@ pub(crate) struct Compiler<'a> {
     pub(crate) source_id: SourceId,
     /// The source we are compiling for.
     pub(crate) source: Arc<Source>,
-    /// The current macro context.
-    pub(crate) storage: &'a Storage,
     /// Sources available during compilation.
     pub(crate) sources: &'a Sources,
     /// The context we are compiling for.
     pub(crate) context: &'a Context,
-    /// Constants storage.
-    pub(crate) consts: &'a Consts,
     /// Query system to compile required items.
-    pub(crate) query: &'a Query,
+    pub(crate) query: &'a mut Query,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// The compilation unit we are compiling for.
@@ -245,9 +240,7 @@ impl<'a> Compiler<'a> {
 
     /// Convert a path to an item.
     pub(crate) fn convert_path_to_named(&mut self, path: &ast::Path) -> CompileResult<Named> {
-        let named = self
-            .query
-            .convert_path(self.context, self.storage, self.sources, path)?;
+        let named = self.query.convert_path(self.context, self.sources, path)?;
 
         Ok(named)
     }
@@ -484,7 +477,7 @@ impl<'a> Compiler<'a> {
 
             let key = match pat {
                 ast::Pat::PatBinding(binding) => {
-                    let key = binding.key.resolve(self.storage, self.sources)?;
+                    let key = binding.key.resolve(self.query.storage(), self.sources)?;
                     bindings.push(Binding::Binding(
                         binding.span(),
                         key.as_ref().into(),
@@ -503,7 +496,7 @@ impl<'a> Compiler<'a> {
                         }
                     };
 
-                    let key = ident.resolve(self.storage, self.sources)?;
+                    let key = ident.resolve(self.query.storage(), self.sources)?;
 
                     bindings.push(Binding::Ident(path.span(), key.as_ref().into()));
                     key
@@ -803,7 +796,7 @@ impl<'a> Compiler<'a> {
                         {
                             let span = lit_number.span();
                             let integer = lit_number
-                                .resolve(self.storage, self.sources)?
+                                .resolve(self.query.storage(), self.sources)?
                                 .as_i64(pat_lit.span(), true)?;
                             load(self, Needs::Value)?;
                             self.asm.push(Inst::EqInteger { integer }, span);
@@ -813,13 +806,13 @@ impl<'a> Compiler<'a> {
                 }
                 ast::Expr::Lit(expr_lit) => match &expr_lit.lit {
                     ast::Lit::Byte(lit_byte) => {
-                        let byte = lit_byte.resolve(self.storage, self.sources)?;
+                        let byte = lit_byte.resolve(self.query.storage(), self.sources)?;
                         load(self, Needs::Value)?;
                         self.asm.push(Inst::EqByte { byte }, lit_byte.span());
                         break;
                     }
                     ast::Lit::Char(lit_char) => {
-                        let character = lit_char.resolve(self.storage, self.sources)?;
+                        let character = lit_char.resolve(self.query.storage(), self.sources)?;
                         load(self, Needs::Value)?;
                         self.asm
                             .push(Inst::EqCharacter { character }, lit_char.span());
@@ -827,7 +820,7 @@ impl<'a> Compiler<'a> {
                     }
                     ast::Lit::Str(pat_string) => {
                         let span = pat_string.span();
-                        let string = pat_string.resolve(self.storage, self.sources)?;
+                        let string = pat_string.resolve(self.query.storage(), self.sources)?;
                         let slot = self.unit.new_static_string(span, &*string)?;
                         load(self, Needs::Value)?;
                         self.asm.push(Inst::EqStaticString { slot }, span);
@@ -836,7 +829,7 @@ impl<'a> Compiler<'a> {
                     ast::Lit::Number(lit_number) => {
                         let span = lit_number.span();
                         let integer = lit_number
-                            .resolve(self.storage, self.sources)?
+                            .resolve(self.query.storage(), self.sources)?
                             .as_i64(pat_lit.span(), false)?;
                         load(self, Needs::Value)?;
                         self.asm.push(Inst::EqInteger { integer }, span);
@@ -912,12 +905,9 @@ impl<'a> Compiler<'a> {
             ));
         }
 
-        let mut ir_query = self.query.as_ir_query();
-
         let mut compiler = IrCompiler {
-            storage: self.storage.clone(),
             sources: self.sources,
-            query: &mut *ir_query,
+            query: self.query,
         };
 
         let mut compiled = Vec::new();
@@ -932,9 +922,8 @@ impl<'a> Compiler<'a> {
             scopes: Default::default(),
             module: from.module.clone(),
             item: from.item.clone(),
-            consts: self.consts.clone(),
             sources: self.sources,
-            query: &mut *ir_query,
+            query: self.query,
         };
 
         for (ir, name) in compiled {
