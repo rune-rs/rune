@@ -15,7 +15,11 @@ pub(crate) struct WildcardImport {
 }
 
 impl WildcardImport {
-    pub(crate) fn process_global(&mut self, query: &Query, context: &Context) -> CompileResult<()> {
+    pub(crate) fn process_global(
+        &mut self,
+        query: &mut Query,
+        context: &Context,
+    ) -> CompileResult<()> {
         if context.contains_prefix(&self.name) {
             for c in context.iter_components(&self.name) {
                 let name = self.name.extended(c);
@@ -38,7 +42,7 @@ impl WildcardImport {
         Ok(())
     }
 
-    pub(crate) fn process_local(mut self, query: &Query) -> CompileResult<()> {
+    pub(crate) fn process_local(mut self, query: &mut Query) -> CompileResult<()> {
         if query.contains_prefix(&self.name) {
             for c in query.iter_components(&self.name) {
                 let name = self.name.extended(c);

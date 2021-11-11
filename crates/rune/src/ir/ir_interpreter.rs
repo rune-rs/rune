@@ -1,8 +1,7 @@
 use crate::ir;
 use crate::ir::eval::{IrEval, IrEvalOutcome};
-use crate::ir::{IrQuery, IrValue};
-use crate::query::Used;
-use crate::shared::Consts;
+use crate::ir::IrValue;
+use crate::query::{Query, Used};
 use crate::{IrError, IrErrorKind, Sources, Spanned};
 use runestick::{CompileMetaKind, CompileMod, ConstValue, Item, Span};
 use std::sync::Arc;
@@ -21,12 +20,10 @@ pub struct IrInterpreter<'a> {
     pub(crate) item: Item,
     /// Constant scopes.
     pub(crate) scopes: IrScopes,
-    /// Constant values.
-    pub(crate) consts: Consts,
     /// Sources available.
     pub(crate) sources: &'a Sources,
     /// Query engine to look for constant expressions.
-    pub(crate) query: &'a mut dyn IrQuery,
+    pub(crate) query: &'a mut Query,
 }
 
 impl IrInterpreter<'_> {
@@ -42,11 +39,11 @@ impl IrInterpreter<'_> {
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
         log::trace!("processing constant: {}", self.item);
 
-        if let Some(const_value) = self.consts.get(&self.item) {
+        if let Some(const_value) = self.query.consts().get(&self.item) {
             return Ok(const_value);
         }
 
-        if !self.consts.mark(&self.item) {
+        if !self.query.consts_mut().mark(&self.item) {
             return Err(IrError::new(ir, IrErrorKind::ConstCycle));
         }
 
@@ -68,7 +65,8 @@ impl IrInterpreter<'_> {
         let const_value = ir_value.into_const(ir)?;
 
         if self
-            .consts
+            .query
+            .consts_mut()
             .insert(self.item.clone(), const_value.clone())
             .is_some()
         {
@@ -111,7 +109,7 @@ impl IrInterpreter<'_> {
         loop {
             let item = base.extended(name);
 
-            if let Some(const_value) = self.consts.get(&item) {
+            if let Some(const_value) = self.query.consts().get(&item) {
                 return Ok(IrValue::from_const(const_value));
             }
 
@@ -180,7 +178,7 @@ impl IrInterpreter<'_> {
             base.pop();
         };
 
-        let const_fn = self.query.const_fn_for(spanned.span(), Some(id))?;
+        let const_fn = self.query.const_fn_for((spanned.span(), Some(id)))?;
 
         if const_fn.ir_fn.args.len() != args.len() {
             return Err(IrError::new(

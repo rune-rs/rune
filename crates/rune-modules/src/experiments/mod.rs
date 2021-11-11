@@ -22,25 +22,31 @@
 
 use rune::ast;
 use rune::T;
-use rune::{Parser, TokenStream};
+use rune::{MacroContext, Parser, TokenStream};
 
 mod stringy_math_macro;
 
 /// Implementation for the `passthrough!` macro.
-fn passthrough_impl(stream: &TokenStream) -> runestick::Result<TokenStream> {
+fn passthrough_impl(
+    _: &mut MacroContext<'_>,
+    stream: &TokenStream,
+) -> runestick::Result<TokenStream> {
     Ok(stream.clone())
 }
 
 /// Implementation for the `make_function!` macro.
-fn make_function(stream: &TokenStream) -> runestick::Result<TokenStream> {
-    let mut parser = Parser::from_token_stream(stream);
+fn make_function(
+    ctx: &mut MacroContext<'_>,
+    stream: &TokenStream,
+) -> runestick::Result<TokenStream> {
+    let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
 
     let ident = parser.parse::<ast::Ident>()?;
     let _ = parser.parse::<T![=>]>()?;
     let output = parser.parse::<ast::ExprBlock>()?;
     parser.eof()?;
 
-    Ok(rune::quote!(fn #ident() { #output }).into_token_stream())
+    Ok(rune::quote!(fn #ident() { #output }).into_token_stream(ctx))
 }
 
 /// Construct the `std::experiments` module, which contains experiments.

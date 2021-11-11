@@ -12,7 +12,7 @@ impl Assemble for ast::LitChar {
             return Ok(Asm::top(span));
         }
 
-        let ch = self.resolve(c.storage, c.sources)?;
+        let ch = self.resolve(c.query.storage(), c.sources)?;
         c.asm.push(Inst::char(ch), span);
         Ok(Asm::top(span))
     }

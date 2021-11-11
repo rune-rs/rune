@@ -28,7 +28,7 @@
 //! }
 //! ```
 
-use rune::{Parser, TokenStream};
+use rune::{MacroContext, Parser, TokenStream};
 
 /// Construct the supplemental `std::macros` module.
 pub fn module(_unused: bool) -> Result<runestick::Module, runestick::ContextError> {
@@ -39,27 +39,25 @@ pub fn module(_unused: bool) -> Result<runestick::Module, runestick::ContextErro
 }
 
 /// Implementation for the `line!()` macro
-pub(crate) fn emit_line(stream: &TokenStream) -> runestick::Result<TokenStream> {
-    let mut parser = Parser::from_token_stream(stream);
-
+pub(crate) fn emit_line(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+    let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
     parser.eof()?;
 
     Ok(rune::quote!(
         #[builtin]
         line!()
     )
-    .into_token_stream())
+    .into_token_stream(ctx))
 }
 
 /// Implementation for the `file!()` macro
-pub(crate) fn emit_file(stream: &TokenStream) -> runestick::Result<TokenStream> {
-    let mut parser = Parser::from_token_stream(stream);
-
+pub(crate) fn emit_file(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+    let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
     parser.eof()?;
 
     Ok(rune::quote!(
         #[builtin]
         file!()
     )
-    .into_token_stream())
+    .into_token_stream(ctx))
 }

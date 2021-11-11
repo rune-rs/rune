@@ -7,7 +7,6 @@ mod eval;
 mod ir_compiler;
 mod ir_error;
 mod ir_interpreter;
-mod ir_query;
 mod ir_value;
 
 pub use self::eval::{IrEval, IrEvalBreak, IrEvalOutcome};
@@ -17,7 +16,6 @@ pub use self::ir_interpreter::IrInterpreter;
 pub use self::ir_value::IrValue;
 
 pub(crate) use self::ir_interpreter::IrBudget;
-pub(crate) use self::ir_query::IrQuery;
 
 use crate::Spanned;
 use runestick::{ConstValue, Span};

@@ -146,7 +146,7 @@ fn compile_assign_binop(
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
 
-            let ident = segment.resolve(c.storage, c.sources)?;
+            let ident = segment.resolve(c.query.storage(), c.sources)?;
             let var = c.scopes.get_var(&*ident, c.source_id, span)?;
 
             Some(InstTarget::Offset(var.offset))
@@ -160,7 +160,7 @@ fn compile_assign_binop(
             match &field_access.expr_field {
                 ast::ExprField::Path(path) => {
                     if let Some(ident) = path.try_as_ident() {
-                        let n = ident.resolve(c.storage, c.sources)?;
+                        let n = ident.resolve(c.query.storage(), c.sources)?;
                         let n = c.unit.new_static_string(path.span(), n.as_ref())?;
 
                         Some(InstTarget::Field(n))
@@ -171,7 +171,7 @@ fn compile_assign_binop(
                 ast::ExprField::LitNumber(field) => {
                     let span = field.span();
 
-                    let number = field.resolve(c.storage, c.sources)?;
+                    let number = field.resolve(c.query.storage(), c.sources)?;
                     let index = number.as_tuple_index().ok_or_else(|| {
                         CompileError::new(span, CompileErrorKind::UnsupportedTupleIndex { number })
                     })?;

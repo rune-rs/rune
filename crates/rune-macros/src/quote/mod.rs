@@ -88,7 +88,11 @@ impl Quote {
                     let kind = match generated::kind_from_ident(string.as_str()) {
                         Some(kind) => kind,
                         None => {
-                            self.encode_to_tokens(ident.span(), &mut output, NewIdent(&string));
+                            self.encode_to_tokens(
+                                ident.span(),
+                                &mut output,
+                                NewIdent(self.ctx, &string),
+                            );
                             continue;
                         }
                     };
@@ -115,7 +119,7 @@ impl Quote {
                     self.encode_to_tokens(punct.span(), &mut output, kind);
                 }
                 TokenTree::Literal(lit) => {
-                    self.encode_to_tokens(lit.span(), &mut output, NewLit(lit));
+                    self.encode_to_tokens(lit.span(), &mut output, NewLit(self.ctx, lit));
                 }
             }
         }

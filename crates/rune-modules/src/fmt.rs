@@ -20,8 +20,7 @@
 //! # }
 //! ```
 
-use rune::macros;
-use rune::{Parser, TokenStream};
+use rune::{macros, MacroContext, Parser, TokenStream};
 
 /// Construct the supplemental `std::io` module.
 pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
@@ -31,10 +30,10 @@ pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError
 }
 
 /// Implementation for the `format!` macro.
-pub(crate) fn format_macro(stream: &TokenStream) -> runestick::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream);
+pub(crate) fn format_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> runestick::Result<TokenStream> {
+    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse::<macros::FormatArgs>()?;
     p.eof()?;
-    let expanded = args.expand()?;
-    Ok(expanded.into_token_stream())
+    let expanded = args.expand(ctx)?;
+    Ok(expanded.into_token_stream(ctx))
 }

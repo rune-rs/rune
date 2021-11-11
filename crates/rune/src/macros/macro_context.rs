@@ -5,165 +5,89 @@ use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
+use crate::parsing::{Parse, ParseError};
 use crate::parsing::{ResolveError, ResolveOwned};
 use crate::query;
 use crate::query::Used;
-use crate::shared::{Consts, MutOrOwned, RefOrOwned};
 use crate::{IrError, Sources, Spanned};
 use query::Query;
-use runestick::{CompileItem, Span};
-use std::cell::RefCell;
+use runestick::{CompileItem, Source, Span};
 use std::fmt;
 use std::sync::Arc;
 
-thread_local! {
-    static MACRO_CONTEXT: RefCell<Option<MacroContext>> = RefCell::new(None);
-}
-
-/// Optionally get the span associated with the current context if it is
-/// specified.
-pub(crate) fn current_stream_span() -> Option<Span> {
-    MACRO_CONTEXT.with(|ctx| Some(ctx.borrow().as_ref()?.stream_span()))
-}
-
-/// Perform the given operation with the current macro context fetched from TLS.
-///
-/// # Panics
-///
-/// This will panic if it's called outside of a macro context.
-pub(crate) fn current_context<F, O>(f: F) -> O
-where
-    F: FnOnce(&MacroContext) -> O,
-{
-    MACRO_CONTEXT.with(|ctx| {
-        let ctx = ctx
-            .try_borrow()
-            .expect("expected shared access to macro context");
-        let ctx = ctx.as_ref().expect("missing macro context");
-        f(ctx)
-    })
-}
-
-/// Perform the given operation with the current macro context mutably fetched
-/// from TLS.
-///
-/// # Panics
-///
-/// This will panic if it's called outside of a macro context.
-pub(crate) fn current_context_mut<F, O>(f: F) -> O
-where
-    F: FnOnce(&mut MacroContext) -> O,
-{
-    MACRO_CONTEXT.with(|ctx| {
-        let mut ctx = ctx
-            .try_borrow_mut()
-            .expect("expected shared access to macro context");
-        let ctx = ctx.as_mut().expect("missing macro context");
-        f(ctx)
-    })
-}
-
-/// Install the given context and call the provided function with the installed
-/// context.
-///
-/// # Panics
-///
-/// This will panic if called while the current context is in use.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::macros::{with_context, MacroContext};
-/// let ctx = MacroContext::empty();
-///
-/// with_context(ctx, || {
-///     rune::quote!(hello self);
-/// });
-/// ```
-pub fn with_context<F, O>(new: MacroContext, f: F) -> O
-where
-    F: FnOnce() -> O,
-{
-    let old = MACRO_CONTEXT.with(|ctx| {
-        let mut ctx = ctx
-            .try_borrow_mut()
-            .expect("expected exclusive access to macro context");
-
-        ctx.replace(new)
-    });
-
-    let _guard = Guard(old);
-    return f();
-
-    struct Guard(Option<MacroContext>);
-
-    impl Drop for Guard {
-        fn drop(&mut self) {
-            let old = self.0.take();
-
-            MACRO_CONTEXT.with(|ctx| {
-                let mut ctx = ctx
-                    .try_borrow_mut()
-                    .expect("expected exclusive access to macro context");
-
-                *ctx = old;
-            });
-        }
-    }
-}
-
 /// Context for a running macro.
-pub struct MacroContext {
-    /// The span of the macro call.
+pub struct MacroContext<'a> {
+    /// Macro span of the full macro call.
     pub(crate) macro_span: Span,
-    /// Temporary recorded default span.
+    /// Macro span of the stream.
     pub(crate) stream_span: Span,
-    /// Query engine.
-    pub(crate) query: Query,
     /// The item where the macro is being evaluated.
     pub(crate) item: Arc<CompileItem>,
-    /// Constants storage.
-    pub(crate) consts: Consts,
-    /// Storage used in macro context.
-    pub(crate) storage: RefOrOwned<Storage>,
-    /// Sources available.
-    pub(crate) sources: MutOrOwned<Sources>,
+    /// Accessible query required to run the IR interpreter and has access to
+    /// storage.
+    pub(crate) query: &'a mut Query,
+    /// Accessible sources.
+    pub(crate) sources: &'a mut Sources,
 }
 
-impl MacroContext {
-    /// Construct an empty macro context. Should only be used for testing.
-    pub fn empty() -> Self {
-        Self {
+impl<'a> MacroContext<'a> {
+    /// Construct an empty macro context which can be used for testing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::MacroContext;
+    ///
+    /// MacroContext::test(|ctx| ());
+    /// ```
+    pub fn test<F, O>(f: F) -> O
+    where
+        F: FnOnce(&mut MacroContext<'_>) -> O,
+    {
+        let mut query = Default::default();
+        let mut sources = Default::default();
+
+        let mut ctx = MacroContext {
             macro_span: Span::empty(),
             stream_span: Span::empty(),
-            query: Default::default(),
             item: Default::default(),
-            consts: Default::default(),
-            storage: RefOrOwned::from_owned(Default::default()),
-            sources: MutOrOwned::from_owned(Default::default()),
-        }
+            query: &mut query,
+            sources: &mut sources,
+        };
+
+        f(&mut ctx)
     }
 
-    /// Resolve the given item into an owned variant.
-    pub fn resolve_owned<T>(&self, item: T) -> Result<T::Owned, ResolveError>
-    where
-        T: ResolveOwned,
-    {
-        item.resolve_owned(self.storage.as_ref(), self.sources.as_ref())
-    }
-
-    /// Evaluate the given ast as a constant expression.
-    pub fn eval<T>(&self, target: &T) -> Result<<T::Output as IrEval>::Output, IrError>
+    /// Evaluate the given target as a constant expression.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if it's called outside of a macro context.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use rune::ast;
+    ///
+    /// // Note: should only be used for testing.
+    /// rune::MacroContext::test(|ctx| {
+    ///     let stream = rune::quote!(1 + 2).into_token_stream(ctx);
+    ///
+    ///     let mut p = rune::Parser::from_token_stream(&stream, ctx.stream_span());
+    ///     let expr = p.parse_all::<ast::Expr>().unwrap();
+    ///     let value = ctx.eval(&expr).unwrap();
+    ///
+    ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
+    /// });
+    /// ```
+    pub fn eval<T>(&mut self, target: &T) -> Result<<T::Output as IrEval>::Output, IrError>
     where
         T: Spanned + IrCompile,
         T::Output: IrEval,
     {
-        let mut ir_query = self.query.as_ir_query();
-
         let mut ir_compiler = IrCompiler {
-            storage: self.storage.as_ref().clone(),
-            sources: self.sources.as_ref(),
-            query: &mut *ir_query,
+            sources: self.sources,
+            query: self.query,
         };
 
         let output = ir_compiler.compile(target)?;
@@ -173,9 +97,8 @@ impl MacroContext {
             scopes: Default::default(),
             module: self.item.module.clone(),
             item: self.item.item.clone(),
-            consts: self.consts.clone(),
-            sources: self.sources.as_ref(),
-            query: &mut *ir_query,
+            sources: self.sources,
+            query: self.query,
         };
 
         match ir_interpreter.eval(&output, Used::Used) {
@@ -190,8 +113,8 @@ impl MacroContext {
         }
     }
 
-    /// Stringify the given token stream.
-    pub fn stringify<'a, T>(&'a self, tokens: &T) -> Stringify<'_>
+    /// Stringify the token stream.
+    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a>
     where
         T: ToTokens,
     {
@@ -200,43 +123,71 @@ impl MacroContext {
         Stringify { ctx: self, stream }
     }
 
-    /// Access span of the whole macro.
+    /// Resolve the value of a token.
+    pub fn resolve<T>(&self, item: T) -> Result<T::Owned, ResolveError>
+    where
+        T: ResolveOwned,
+    {
+        item.resolve_owned(self.query.storage(), self.sources)
+    }
+
+    /// Parse the given input as the given type that implements
+    /// [Parse][crate::parsing::Parse].
+    pub fn parse_all<T>(&mut self, source: &str) -> Result<T, ParseError>
+    where
+        T: Parse,
+    {
+        let source_id = self.sources.insert(Source::new("macro", source));
+        crate::parse_all(source, source_id)
+    }
+
+    /// The span of the macro call including the name of the macro.
+    ///
+    /// If the macro call was `stringify!(a + b)` this would refer to the whole
+    /// macro call.
     pub fn macro_span(&self) -> Span {
         self.macro_span
     }
 
-    /// Access the span of the stream being parsed.
+    /// The span of the macro stream (the argument).
+    ///
+    /// If the macro call was `stringify!(a + b)` this would refer to `a + b`.
     pub fn stream_span(&self) -> Span {
         self.stream_span
     }
 
-    /// Access storage for the macro system.
+    /// Access storage associated with macro context.
     pub fn storage(&self) -> &Storage {
-        self.storage.as_ref()
+        self.query.storage()
     }
 
-    /// Access sources storage.
+    /// Access mutable storage associated with macro context.
+    pub fn storage_mut(&mut self) -> &mut Storage {
+        self.query.storage_mut()
+    }
+
+    /// Access sources associated with macro context.
     pub fn sources(&self) -> &Sources {
-        self.sources.as_ref()
+        self.sources
     }
 
-    /// Access sources storage mutably.
+    /// Access sources associated with macro context.
     pub fn sources_mut(&mut self) -> &mut Sources {
-        self.sources.as_mut()
+        self.sources
     }
 }
 
 /// Helper trait used for things that can be converted into tokens.
 pub trait IntoLit {
     /// Convert the current thing into a token.
-    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit;
+    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit;
 }
 
 impl<T> IntoLit for T
 where
     ast::Number: From<T>,
 {
-    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
         let id = storage.insert_number(self);
         let source = ast::NumberSource::Synthetic(id);
 
@@ -251,7 +202,7 @@ where
 }
 
 impl IntoLit for char {
-    fn into_lit(self, span: Span, _: &Storage) -> ast::Lit {
+    fn into_lit(self, span: Span, _: &mut Storage) -> ast::Lit {
         let source = ast::CopySource::Inline(self);
 
         ast::Lit::Char(ast::LitChar {
@@ -265,7 +216,7 @@ impl IntoLit for char {
 }
 
 impl IntoLit for u8 {
-    fn into_lit(self, span: Span, _: &Storage) -> ast::Lit {
+    fn into_lit(self, span: Span, _: &mut Storage) -> ast::Lit {
         let source = ast::CopySource::Inline(self);
 
         ast::Lit::Byte(ast::LitByte {
@@ -279,7 +230,7 @@ impl IntoLit for u8 {
 }
 
 impl IntoLit for &str {
-    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
         let id = storage.insert_str(self);
         let source = ast::StrSource::Synthetic(id);
 
@@ -294,13 +245,13 @@ impl IntoLit for &str {
 }
 
 impl IntoLit for &String {
-    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
         <&str>::into_lit(self, span, storage)
     }
 }
 
 impl IntoLit for String {
-    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
         let id = storage.insert_string(self);
         let source = ast::StrSource::Synthetic(id);
 
@@ -315,7 +266,7 @@ impl IntoLit for String {
 }
 
 impl IntoLit for &[u8] {
-    fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
         let id = storage.insert_byte_string(self);
         let source = ast::StrSource::Synthetic(id);
 
@@ -332,7 +283,7 @@ impl IntoLit for &[u8] {
 macro_rules! impl_into_lit_byte_array {
     ($($n:literal),*) => {
         $(impl IntoLit for &[u8; $n] {
-            fn into_lit(self, span: Span, storage: &Storage) -> ast::Lit {
+            fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
                 <&[u8]>::into_lit(self, span, storage)
             }
         })*
@@ -343,12 +294,12 @@ impl_into_lit_byte_array! {
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
 }
 
-pub struct Stringify<'a> {
-    ctx: &'a MacroContext,
+pub struct Stringify<'ctx, 'a> {
+    ctx: &'ctx MacroContext<'a>,
     stream: TokenStream,
 }
 
-impl<'a> fmt::Display for Stringify<'a> {
+impl fmt::Display for Stringify<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut it = self.stream.iter();
         let last = it.next_back();

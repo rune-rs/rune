@@ -45,7 +45,7 @@ impl LitStr {
                     )
                 })?;
 
-                return Ok(Cow::Owned(bytes));
+                return Ok(Cow::Owned(bytes.clone()));
             }
         };
 

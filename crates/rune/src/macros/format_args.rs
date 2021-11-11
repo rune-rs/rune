@@ -1,7 +1,6 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::ir::IrValue;
-use crate::macros;
 use crate::macros::{MacroContext, Quote};
 use crate::quote;
 use crate::{Parse, ParseError, Parser, Peek, Spanned};
@@ -26,16 +25,7 @@ pub struct FormatArgs {
 
 impl FormatArgs {
     /// Expand the format specification.
-    ///
-    /// # Panics
-    ///
-    /// Panics if called outside of a macro context.
-    pub fn expand(&self) -> Result<Quote<'_>, SpannedError> {
-        macros::current_context(|ctx| self.expand_with(ctx))
-    }
-
-    /// Expand the format specification.
-    pub fn expand_with(&self, ctx: &MacroContext) -> Result<Quote<'_>, SpannedError> {
+    pub fn expand(&self, ctx: &mut MacroContext<'_>) -> Result<Quote<'_>, SpannedError> {
         let format = ctx.eval(&self.format)?;
 
         let mut pos = Vec::new();
@@ -54,7 +44,7 @@ impl FormatArgs {
                     pos.push(expr);
                 }
                 FormatArg::Named(n) => {
-                    let name = ctx.resolve_owned(n.key)?;
+                    let name = ctx.resolve(n.key)?;
                     named.insert(name.into(), n);
                 }
             }
@@ -166,7 +156,7 @@ impl Parse for FormatArg {
 }
 
 fn expand_format_spec<'a>(
-    ctx: &MacroContext,
+    ctx: &mut MacroContext<'_>,
     span: Span,
     input: &str,
     pos: &[&'a ast::Expr],
@@ -240,7 +230,7 @@ fn expand_format_spec<'a>(
     for c in components {
         match c {
             C::Literal(literal) => {
-                let lit = ast::Lit::new(&*literal);
+                let lit = ast::Lit::new(ctx, &*literal);
                 args.push(quote!(#lit));
             }
             C::Format {
@@ -255,32 +245,32 @@ fn expand_format_spec<'a>(
                 let mut specs = Vec::new();
 
                 specs.extend(fill.map(|fill| {
-                    let fill = ast::LitChar::new(fill);
+                    let fill = ast::LitChar::new(ctx, fill);
                     quote!(fill = #fill)
                 }));
 
                 specs.extend(width.map(|width| {
-                    let width = ast::Lit::new(width);
+                    let width = ast::Lit::new(ctx, width);
                     quote!(width = #width)
                 }));
 
                 specs.extend(precision.map(|precision| {
-                    let precision = ast::Lit::new(precision);
+                    let precision = ast::Lit::new(ctx, precision);
                     quote!(precision = #precision)
                 }));
 
                 specs.extend(align.map(|align| {
-                    let align = ast::Ident::new(&align.to_string());
+                    let align = ast::Ident::new(ctx, &align.to_string());
                     quote!(align = #align)
                 }));
 
                 if !flags.is_empty() {
-                    let flags = ast::Lit::new(flags.into_u32());
+                    let flags = ast::Lit::new(ctx, flags.into_u32());
                     specs.push(quote!(flags = #flags));
                 }
 
                 specs.extend(format_type.map(|format_type| {
-                    let format_type = ast::Ident::new(&format_type.to_string());
+                    let format_type = ast::Ident::new(ctx, &format_type.to_string());
                     quote!(type = #format_type)
                 }));
 
@@ -337,7 +327,7 @@ fn expand_format_spec<'a>(
 
     /// Parse a single expansion group.
     fn parse_group<'a>(
-        ctx: &MacroContext,
+        ctx: &mut MacroContext<'_>,
         span: Span,
         iter: &mut Iter<'_>,
         count: &mut usize,

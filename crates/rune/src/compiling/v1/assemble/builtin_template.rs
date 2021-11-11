@@ -18,7 +18,7 @@ impl Assemble for BuiltInTemplate {
                     ..
                 } = &**expr_lit
                 {
-                    let s = s.resolve_template_string(c.storage, c.sources)?;
+                    let s = s.resolve_template_string(c.query.storage(), c.sources)?;
                     size_hint += s.len();
 
                     let slot = c.unit.new_static_string(span, &s)?;

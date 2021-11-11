@@ -73,7 +73,7 @@ impl IndexLocal for ast::Ident {
         log::trace!("Ident => {:?}", idx.sources.source(idx.source_id, span));
 
         let span = self.span();
-        let ident = self.resolve(&idx.storage, idx.sources)?;
+        let ident = self.resolve(idx.query.storage(), idx.sources)?;
         idx.scopes.declare(ident.as_ref(), span)?;
         Ok(())
     }

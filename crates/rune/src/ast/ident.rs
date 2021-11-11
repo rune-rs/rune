@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveErrorKind, ResolveOwned,
-    Sources, Spanned, Storage, ToTokens,
+    MacroContext, Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveErrorKind,
+    ResolveOwned, Sources, Spanned, Storage, ToTokens,
 };
 use runestick::Span;
 use std::borrow::Cow;
@@ -21,19 +21,15 @@ impl Ident {
     /// context.
     ///
     /// This constructor must only be used inside of a macro.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if it's called outside of a macro context.
-    pub fn new(ident: &str) -> Self {
-        crate::macros::current_context(|ctx| Self::new_with(ident, ctx.macro_span(), ctx.storage()))
+    pub fn new(ctx: &mut MacroContext<'_>, ident: &str) -> Self {
+        Self::new_with(ident, ctx.macro_span(), ctx.storage_mut())
     }
 
     /// Construct a new identifier from the given string.
     ///
     /// This does not panic when called outside of a macro but requires access
     /// to a `span` and `storage`.
-    pub(crate) fn new_with(ident: &str, span: Span, storage: &Storage) -> ast::Ident {
+    pub(crate) fn new_with(ident: &str, span: Span, storage: &mut Storage) -> ast::Ident {
         let id = storage.insert_str(ident);
         let source = ast::StringSource::Synthetic(id);
 
@@ -87,7 +83,7 @@ impl<'a> Resolve<'a> for Ident {
                     ResolveError::new(span, ResolveErrorKind::BadSyntheticId { kind: "label", id })
                 })?;
 
-                Ok(Cow::Owned(ident))
+                Ok(Cow::Owned(ident.clone()))
             }
             ast::StringSource::BuiltIn(builtin) => Ok(Cow::Borrowed(builtin.as_str())),
         }

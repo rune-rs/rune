@@ -1,10 +1,8 @@
 //! Macro compiler.
 
 use crate::ast;
-use crate::macros::{MacroContext, Storage, TokenStream};
+use crate::macros::{MacroContext, TokenStream};
 use crate::query::Query;
-use crate::shared::RefOrOwned;
-use crate::shared::{Consts, MutOrOwned};
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, IrError, Options, Parse, ParseError, Parser, Sources,
@@ -15,12 +13,10 @@ use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) item: Arc<CompileItem>,
-    pub(crate) storage: Storage,
     pub(crate) sources: &'a mut Sources,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
-    pub(crate) query: Query,
-    pub(crate) consts: Consts,
+    pub(crate) query: &'a mut Query,
 }
 
 impl MacroCompiler<'_> {
@@ -40,9 +36,9 @@ impl MacroCompiler<'_> {
 
         // TODO: include information on the module the macro is being called
         // from.
-        let named =
-            self.query
-                .convert_path(self.context, &self.storage, self.sources, &macro_call.path)?;
+        let named = self
+            .query
+            .convert_path(self.context, self.sources, &macro_call.path)?;
 
         let hash = Hash::type_hash(&named.item);
 
@@ -58,20 +54,21 @@ impl MacroCompiler<'_> {
 
         let input_stream = &macro_call.stream;
 
-        // SAFETY: Macro context only needs to live for the duration of
-        // `with_context`.
+        // SAFETY: Macro context only needs to live for the duration of the
+        // `handler` call.
         let result = unsafe {
-            let macro_context = MacroContext {
+            let mut macro_context = MacroContext {
                 macro_span: macro_call.span(),
                 stream_span: macro_call.stream_span(),
                 item: self.item.clone(),
-                query: self.query.clone(),
-                consts: self.consts.clone(),
-                storage: RefOrOwned::from_ref(&self.storage),
-                sources: MutOrOwned::from_mut(self.sources),
+                query: self.query,
+                sources: self.sources,
             };
 
-            crate::macros::with_context(macro_context, || handler(input_stream))
+            handler(
+                std::mem::transmute::<_, &mut MacroContext<'static>>(&mut macro_context),
+                input_stream,
+            )
         };
 
         let output = match result {
@@ -131,7 +128,7 @@ impl MacroCompiler<'_> {
             }
         };
 
-        let mut parser = Parser::from_token_stream(&token_stream);
+        let mut parser = Parser::from_token_stream(&token_stream, span);
         let output = parser.parse::<T>()?;
         parser.eof()?;
 

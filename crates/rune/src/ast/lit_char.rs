@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Sources,
-    Spanned, Storage, ToTokens,
+    MacroContext, Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned,
+    Sources, Spanned, Storage, ToTokens,
 };
 use runestick::Span;
 
@@ -17,18 +17,14 @@ pub struct LitChar {
 
 impl LitChar {
     /// Construct a new literal character.
-    ///
-    /// # Panics
-    ///
-    /// This panics if called outside of a macro context.
-    pub fn new(c: char) -> Self {
-        crate::macros::current_context(|ctx| Self {
+    pub fn new(ctx: &mut MacroContext<'_>, c: char) -> Self {
+        Self {
             token: ast::Token {
                 kind: ast::Kind::Char(ast::CopySource::Inline(c)),
                 span: ctx.macro_span(),
             },
             source: ast::CopySource::Inline(c),
-        })
+        }
     }
 }
 

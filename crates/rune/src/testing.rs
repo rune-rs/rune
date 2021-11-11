@@ -15,13 +15,16 @@ where
     let ast = parser.parse::<T>().expect("first parse");
     parser.eof().expect("first parse eof");
 
-    let ctx = crate::macros::MacroContext::empty();
-    let mut token_stream = crate::macros::TokenStream::new();
+    let ast2 = crate::macros::MacroContext::test(|ctx| {
+        let mut token_stream = crate::macros::TokenStream::new();
 
-    ast.to_tokens(&ctx, &mut token_stream);
-    let mut parser = crate::parsing::Parser::from_token_stream(&token_stream);
-    let ast2 = parser.parse::<T>().expect("second parse");
-    parser.eof().expect("second parse eof");
+        ast.to_tokens(ctx, &mut token_stream);
+        let mut parser =
+            crate::parsing::Parser::from_token_stream(&token_stream, ctx.stream_span());
+        let ast2 = parser.parse::<T>().expect("second parse");
+        parser.eof().expect("second parse eof");
+        ast2
+    });
 
     assert_eq!(ast, ast2);
     ast

@@ -174,19 +174,27 @@ where
 }
 
 /// An identifier constructor.
-pub(crate) struct NewIdent<'a>(pub(crate) &'a str);
+pub(crate) struct NewIdent<'a>(pub(crate) &'static str, pub(crate) &'a str);
 
-impl<'a> ToTokens for NewIdent<'a> {
+impl ToTokens for NewIdent<'_> {
     fn to_tokens(self, stream: &mut p::TokenStream, span: p::Span) {
-        (AST, S, "Ident", S, "new", p(p::Literal::string(self.0))).to_tokens(stream, span);
+        (
+            AST,
+            S,
+            "Ident",
+            S,
+            "new",
+            p((self.0, ',', p::Literal::string(self.1))),
+        )
+            .to_tokens(stream, span);
     }
 }
 
 /// An identifier constructor.
-pub(crate) struct NewLit(pub(crate) p::Literal);
+pub(crate) struct NewLit(pub(crate) &'static str, pub(crate) p::Literal);
 
 impl ToTokens for NewLit {
     fn to_tokens(self, stream: &mut p::TokenStream, span: p::Span) {
-        (AST, S, "Lit", S, "new", p(self.0)).to_tokens(stream, span);
+        (AST, S, "Lit", S, "new", p((self.0, ',', self.1))).to_tokens(stream, span);
     }
 }

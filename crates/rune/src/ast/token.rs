@@ -30,10 +30,8 @@ impl Token {
                     write!(f, "{}", s)?;
                 }
                 StringSource::Synthetic(id) => {
-                    match ctx.storage().with_string(*id, |s| write!(f, "{}", s)) {
-                        Some(result) => result?,
-                        None => return Err(fmt::Error),
-                    }
+                    let s = ctx.storage().get_string(*id).ok_or(fmt::Error)?;
+                    write!(f, "{}", s)?;
                 }
                 StringSource::BuiltIn(builtin) => {
                     write!(f, "{}", builtin)?;
@@ -48,10 +46,8 @@ impl Token {
                     write!(f, "{}", s)?;
                 }
                 StringSource::Synthetic(id) => {
-                    match ctx.storage().with_string(*id, |s| write!(f, "'{}", s)) {
-                        Some(result) => result?,
-                        None => return Err(fmt::Error),
-                    }
+                    let s = ctx.storage().get_string(*id).ok_or(fmt::Error)?;
+                    write!(f, "'{}", s)?;
                 }
                 StringSource::BuiltIn(builtin) => {
                     write!(f, "'{}", builtin)?;
@@ -81,16 +77,12 @@ impl Token {
                         .sources()
                         .source(text.source_id, span)
                         .ok_or(fmt::Error)?;
+
                     write!(f, "b\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    match ctx
-                        .storage()
-                        .with_byte_string(*id, |bytes| write!(f, "{}", FormatBytes(bytes)))
-                    {
-                        Some(result) => result?,
-                        None => return Err(fmt::Error),
-                    }
+                    let b = ctx.storage().get_byte_string(*id).ok_or(fmt::Error)?;
+                    write!(f, "{}", FormatBytes(b))?;
                 }
             },
             Kind::Char(s) => match s {
@@ -114,10 +106,8 @@ impl Token {
                     write!(f, "{}", s)?;
                 }
                 NumberSource::Synthetic(id) => {
-                    match ctx.storage().with_number(*id, |n| write!(f, "{}", n)) {
-                        Some(result) => result?,
-                        None => return Err(fmt::Error),
-                    }
+                    let n = ctx.storage().get_number(*id).ok_or(fmt::Error)?;
+                    write!(f, "{}", n)?;
                 }
             },
             Kind::Str(s) => match s {
@@ -135,10 +125,8 @@ impl Token {
                     write!(f, "\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    match ctx.storage().with_string(*id, |s| write!(f, "{:?}", s)) {
-                        Some(result) => result?,
-                        None => return Err(fmt::Error),
-                    }
+                    let s = ctx.storage().get_string(*id).ok_or(fmt::Error)?;
+                    write!(f, "{:?}", s)?;
                 }
             },
             other => {
@@ -170,7 +158,7 @@ impl Token {
 }
 
 impl crate::ToTokens for Token {
-    fn to_tokens(&self, _: &MacroContext, stream: &mut crate::TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut crate::TokenStream) {
         stream.push(*self);
     }
 }

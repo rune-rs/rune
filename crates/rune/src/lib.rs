@@ -213,9 +213,7 @@ pub use self::emit_diagnostics::{
 pub use self::ir::{IrError, IrErrorKind, IrValue};
 pub use self::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
-pub use self::macros::{
-    with_context, MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter,
-};
+pub use self::macros::{MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter};
 pub use self::options::{ConfigurationError, Options};
 pub use self::parsing::{
     Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,

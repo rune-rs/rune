@@ -24,7 +24,7 @@ impl Assemble for ast::ExprFieldAccess {
 
         match &self.expr_field {
             ast::ExprField::LitNumber(n) => {
-                if let Some(index) = n.resolve(c.storage, c.sources)?.as_tuple_index() {
+                if let Some(index) = n.resolve(c.query.storage(), c.sources)?.as_tuple_index() {
                     c.asm.push(Inst::TupleIndexGet { index }, span);
 
                     if !needs.value() {
@@ -37,7 +37,7 @@ impl Assemble for ast::ExprFieldAccess {
             }
             ast::ExprField::Path(path) => {
                 if let Some(ident) = path.try_as_ident() {
-                    let field = ident.resolve(c.storage, c.sources)?;
+                    let field = ident.resolve(c.query.storage(), c.sources)?;
                     let slot = c.unit.new_static_string(span, field.as_ref())?;
 
                     c.asm.push(Inst::ObjectIndexGet { slot }, span);
@@ -57,7 +57,7 @@ impl Assemble for ast::ExprFieldAccess {
 }
 
 fn try_immediate_field_access_optimization(
-    this: &mut Compiler<'_>,
+    c: &mut Compiler<'_>,
     span: Span,
     path: &ast::Path,
     n: &ast::LitNumber,
@@ -68,9 +68,9 @@ fn try_immediate_field_access_optimization(
         None => return Ok(false),
     };
 
-    let ident = ident.resolve(this.storage, this.sources)?;
+    let ident = ident.resolve(c.query.storage(), c.sources)?;
 
-    let index = match n.resolve(this.storage, this.sources)? {
+    let index = match n.resolve(c.query.storage(), c.sources)? {
         ast::Number::Integer(n) => n,
         _ => return Ok(false),
     };
@@ -80,15 +80,15 @@ fn try_immediate_field_access_optimization(
         Err(..) => return Ok(false),
     };
 
-    let var = match this
+    let var = match c
         .scopes
-        .try_get_var(ident.as_ref(), this.source_id, path.span())?
+        .try_get_var(ident.as_ref(), c.source_id, path.span())?
     {
         Some(var) => var,
         None => return Ok(false),
     };
 
-    this.asm.push(
+    c.asm.push(
         Inst::TupleIndexGetAt {
             offset: var.offset,
             index,
@@ -97,9 +97,8 @@ fn try_immediate_field_access_optimization(
     );
 
     if !needs.value() {
-        this.diagnostics
-            .not_used(this.source_id, span, this.context());
-        this.asm.push(Inst::Pop, span);
+        c.diagnostics.not_used(c.source_id, span, c.context());
+        c.asm.push(Inst::Pop, span);
     }
 
     Ok(true)
