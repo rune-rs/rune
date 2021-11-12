@@ -25,6 +25,15 @@ impl Source {
         Self::with_path(name, source, None::<Box<Path>>)
     }
 
+    /// Read and load a source from the given path.
+    pub fn from_path(path: &Path) -> io::Result<Self> {
+        let name = path.display().to_string();
+        let source = fs::read_to_string(&path)?;
+        let path = path.canonicalize()?;
+
+        Ok(Self::with_path(name, source, Some(path)))
+    }
+
     /// Construct a new source with the given name.
     pub fn with_path(
         name: impl AsRef<str>,
@@ -47,22 +56,6 @@ impl Source {
         &self.line_starts
     }
 
-    /// Load a source from a path.
-    pub fn from_path(path: &Path) -> io::Result<Self> {
-        let name = path.display().to_string();
-        let path = path.canonicalize()?;
-
-        let source = fs::read_to_string(&path)?;
-        let line_starts = line_starts(&source).collect::<Vec<_>>();
-
-        Ok(Self {
-            name: name.into(),
-            source: source.into(),
-            path: Some(path.into()),
-            line_starts,
-        })
-    }
-
     /// Test if the source is empty.
     pub fn is_empty(&self) -> bool {
         self.source.is_empty()
@@ -78,22 +71,12 @@ impl Source {
         &self.name
     }
 
-    /// Fetch source for the given span.
-    pub fn source(&self, span: Span) -> Option<&str> {
-        self.get(span.range())
-    }
-
     ///  et the given range from the source.
     pub fn get<I>(&self, i: I) -> Option<&I::Output>
     where
         I: slice::SliceIndex<str>,
     {
         self.source.get(i)
-    }
-
-    /// Get the end of the source.
-    pub fn end(&self) -> usize {
-        self.source.len()
     }
 
     /// Access the underlying string for the source.

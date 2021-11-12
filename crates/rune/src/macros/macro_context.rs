@@ -7,13 +7,10 @@ use crate::ir::{
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
 use crate::meta::CompileItem;
-use crate::parsing::{Parse, ParseError};
-use crate::parsing::{ResolveError, ResolveOwned};
-use crate::query;
-use crate::query::Used;
+use crate::parsing::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
+use crate::query::{Query, Used};
 use crate::shared::Gen;
-use crate::{IrError, NoopCompileVisitor, Source, Sources, Span, Spanned};
-use query::Query;
+use crate::{IrError, NoopCompileVisitor, Source, SourceId, Sources, Span, Spanned};
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -127,21 +124,34 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     }
 
     /// Resolve the value of a token.
-    pub fn resolve<T>(&self, item: T) -> Result<T::Owned, ResolveError>
+    pub fn resolve<'r, T>(&'r self, item: T) -> Result<T::Output, ResolveError>
     where
-        T: ResolveOwned,
+        T: Resolve<'r>,
     {
-        item.resolve_owned(self.q.storage(), self.q.sources)
+        item.resolve(&self.q.storage, self.q.sources)
+    }
+
+    /// Insert the given source so that it has a [SourceId] that can be used in
+    /// combination with parsing functions such as
+    /// [parse_all][MacroContext::parse_all].
+    pub fn insert_source(&mut self, name: &str, source: &str) -> SourceId {
+        self.q.sources.insert(Source::new(name, source))
     }
 
     /// Parse the given input as the given type that implements
     /// [Parse][crate::parsing::Parse].
-    pub fn parse_all<T>(&mut self, source: &str) -> Result<T, ParseError>
+    pub fn parse_source<T>(&self, id: SourceId) -> Result<T, ParseError>
     where
         T: Parse,
     {
-        let source_id = self.q.sources.insert(Source::new("macro", source));
-        crate::parse_all(source, source_id)
+        let source = self.q.sources.get(id).ok_or_else(|| {
+            ParseError::new(
+                Span::empty(),
+                ParseErrorKind::MissingSourceId { source_id: id },
+            )
+        })?;
+
+        crate::parse_all(source.as_str(), id)
     }
 
     /// The span of the macro call including the name of the macro.

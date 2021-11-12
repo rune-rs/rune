@@ -173,18 +173,6 @@ impl<'a> Resolve<'a> for Path {
     }
 }
 
-impl ResolveOwned for Path {
-    type Owned = Box<str>;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        self.resolve(storage, sources)
-    }
-}
-
 /// An identified path kind.
 pub enum PathKind {
     /// A path that is the `self` value.

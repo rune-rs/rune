@@ -127,15 +127,3 @@ impl<'a> Resolve<'a> for LitStr {
         self.resolve_string(storage, sources, ast::utils::WithTemplate(false))
     }
 }
-
-impl ResolveOwned for LitStr {
-    type Owned = String;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, sources)?.into_owned())
-    }
-}

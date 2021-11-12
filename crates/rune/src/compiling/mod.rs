@@ -3,7 +3,7 @@ use crate::load::{SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::Gen;
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Context, Diagnostics, Location, Options, Source, Span, Spanned};
+use crate::{Context, Diagnostics, Location, Options, Span, Spanned};
 use std::rc::Rc;
 
 mod assembly;
@@ -137,22 +137,14 @@ impl<'q> CompileBuildEntry<'_, 'q> {
             used,
         } = entry;
 
-        let source = self.q.sources.get(location.source_id).ok_or_else(|| {
-            CompileError::new(
-                location.span,
-                CompileErrorKind::MissingSourceId {
-                    source_id: location.source_id,
-                },
-            )
-        })?;
-
         let mut asm = self.q.unit.new_assembly(location);
 
         match build {
             Build::Function(f) => {
                 use self::v1::AssembleFn;
 
-                let args = format_fn_args(source, f.ast.args.iter().map(|(a, _)| a))?;
+                let args =
+                    format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
@@ -176,7 +168,8 @@ impl<'q> CompileBuildEntry<'_, 'q> {
             Build::InstanceFunction(f) => {
                 use self::v1::AssembleFn;
 
-                let args = format_fn_args(&*source, f.ast.args.iter().map(|(a, _)| a))?;
+                let args =
+                    format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
@@ -211,8 +204,11 @@ impl<'q> CompileBuildEntry<'_, 'q> {
                 use self::v1::AssembleClosure;
 
                 let span = closure.ast.span();
-                let args =
-                    format_fn_args(&*source, closure.ast.args.as_slice().iter().map(|(a, _)| a))?;
+                let args = format_fn_args(
+                    self.q.sources,
+                    location,
+                    closure.ast.args.as_slice().iter().map(|(a, _)| a),
+                )?;
 
                 let mut c = self.compiler1(location, span, &mut asm);
                 closure.ast.assemble_closure(&mut c, &closure.captures)?;
@@ -313,7 +309,11 @@ impl<'q> CompileBuildEntry<'_, 'q> {
     }
 }
 
-fn format_fn_args<'a, I>(source: &Source, arguments: I) -> Result<Box<[Box<str>]>, CompileError>
+fn format_fn_args<'a, I>(
+    sources: &Sources,
+    location: Location,
+    arguments: I,
+) -> Result<Box<[Box<str>]>, CompileError>
 where
     I: IntoIterator<Item = &'a ast::FnArg>,
 {
@@ -327,7 +327,7 @@ where
             ast::FnArg::Pat(pat) => {
                 let span = pat.span();
 
-                if let Some(s) = source.source(span) {
+                if let Some(s) = sources.source(location.source_id, span) {
                     args.push(s.into());
                 } else {
                     args.push("*".into());

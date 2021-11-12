@@ -104,15 +104,3 @@ impl<'a> Resolve<'a> for LitByteStr {
         })
     }
 }
-
-impl ResolveOwned for LitByteStr {
-    type Owned = Vec<u8>;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, sources)?.into_owned())
-    }
-}

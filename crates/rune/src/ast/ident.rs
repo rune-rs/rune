@@ -79,15 +79,3 @@ impl<'a> Resolve<'a> for Ident {
         }
     }
 }
-
-impl ResolveOwned for Ident {
-    type Owned = String;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, sources)?.to_owned())
-    }
-}
