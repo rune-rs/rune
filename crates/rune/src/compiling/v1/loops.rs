@@ -1,7 +1,9 @@
 use crate::ast;
 use crate::compiling::v1::Needs;
+use crate::compiling::{CompileError, CompileErrorKind, CompileResult};
+use crate::macros::Storage;
 use crate::runtime::Label;
-use crate::{CompileError, CompileErrorKind, CompileResult, Sources, Spanned, Storage};
+use crate::{Sources, Spanned};
 use std::cell::RefCell;
 use std::rc::Rc;
 

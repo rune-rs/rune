@@ -21,9 +21,9 @@
 //! ```
 
 use rune::ast;
-use rune::macros;
-use rune::{Parser, MacroContext, TokenStream, Module, ContextError};
-use rune::quote;
+use rune::parsing::Parser;
+use rune::{Module, ContextError};
+use rune::macros::{quote, FormatArgs, MacroContext, TokenStream};
 
 /// Construct the `std::core` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -48,7 +48,7 @@ pub(crate) fn panic_macro(
     stream: &TokenStream,
 ) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
-    let args = p.parse_all::<macros::FormatArgs>()?;
+    let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;
     Ok(quote!(::std::panic(#expanded)).into_token_stream(ctx))
 }

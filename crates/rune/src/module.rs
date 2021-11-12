@@ -5,11 +5,12 @@
 
 use crate::collections::HashMap;
 use crate::context::{ContextError, Handler, Macro};
+use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
     ConstValue, FromValue, Future, GeneratorState, Stack, StaticType, ToValue, TypeCheck, TypeInfo,
     TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, IntoComponent, Item, MacroContext, Named, Protocol, TokenStream};
+use crate::{Hash, IntoComponent, Item, Named, Protocol};
 use std::future;
 use std::sync::Arc;
 

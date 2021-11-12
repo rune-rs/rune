@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
-use crate::compiling::Assembly;
+use crate::compiling::{Assembly, CompileError, CompileErrorKind, CompileResult, CompileVisitor};
 use crate::runtime::Inst;
-use crate::{CompileError, CompileErrorKind, CompileResult, CompileVisitor, SourceId, Span};
+use crate::{SourceId, Span};
 use std::rc::Rc;
 
 /// A locally declared variable, its calculated stack offset and where it was

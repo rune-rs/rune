@@ -20,11 +20,11 @@
 //! # }
 //! ```
 
-use rune::MacroContext;
+use rune::macros::{quote, MacroContext, TokenStream};
 use rune::ast;
 use rune::macros;
 use rune::T;
-use rune::{quote, Parser, TokenStream};
+use rune::parsing::Parser;
 
 /// Construct the `std::test` module.
 pub fn module(_stdio: bool) -> Result<rune::Module, rune::ContextError> {

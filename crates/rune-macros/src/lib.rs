@@ -64,7 +64,9 @@ mod to_value;
 ///   `Lit::new`.
 ///
 /// ```rust
-/// rune::quote!(hello self);
+/// use rune::macros::quote;
+///
+/// quote!(hello self);
 /// ```
 ///
 /// # Interpolating values
@@ -121,7 +123,38 @@ pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
-/// Conversion macro for constructing proxy objects from a dynamic value.
+/// Derive macro for the `FromValue` trait for converting types from the dynamic
+/// `Value` container.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{Context, FromValue, Sources, Source, Diagnostics, Options, Vm};
+/// use std::sync::Arc;
+///
+/// #[derive(FromValue)]
+/// struct Foo {
+///     field: u64,
+/// }
+///
+/// # fn main() -> rune::Result<()> {
+/// let context = Context::with_default_modules()?;
+/// let options = Options::default();
+///
+/// let mut sources = Sources::new();
+/// sources.insert(Source::new("entry", "pub fn main() { #{field: 42} }"));
+///
+/// let mut diag = Diagnostics::new();
+///
+/// let unit = rune::load_sources(&context, &options, &mut sources, &mut diag)?;
+///
+/// let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+/// let foo = vm.call(&["main"], ())?;
+/// let foo = Foo::from_value(foo)?;
+///
+/// assert_eq!(foo.field, 42);
+/// # Ok(()) }
+/// ```
 #[proc_macro_derive(FromValue, attributes(rune))]
 pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
@@ -130,7 +163,38 @@ pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         .into()
 }
 
-/// Conversion macro for constructing proxy objects from a dynamic value.
+/// Derive macro for the `FromValue` trait for converting types into the dynamic
+/// `Value` container.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{Context, FromValue, ToValue, Sources, Source, Diagnostics, Options, Vm};
+/// use std::sync::Arc;
+///
+/// #[derive(ToValue)]
+/// struct Foo {
+///     field: u64,
+/// }
+///
+/// # fn main() -> rune::Result<()> {
+/// let context = Context::with_default_modules()?;
+/// let options = Options::default();
+///
+/// let mut sources = Sources::new();
+/// sources.insert(Source::new("entry", "pub fn main(foo) { foo.field + 1 }"));
+///
+/// let mut diag = Diagnostics::new();
+///
+/// let unit = rune::load_sources(&context, &options, &mut sources, &mut diag)?;
+///
+/// let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+/// let foo = vm.call(&["main"], (Foo { field: 42 },))?;
+/// let foo = u64::from_value(foo)?;
+///
+/// assert_eq!(foo, 43);
+/// # Ok(()) }
+/// ```
 #[proc_macro_derive(ToValue, attributes(rune))]
 pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);

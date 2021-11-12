@@ -1,5 +1,6 @@
 use crate::ast;
-use crate::{ParseError, ParseErrorKind, SourceId, Span};
+use crate::parsing::{ParseError, ParseErrorKind};
+use crate::{SourceId, Span};
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -22,9 +23,9 @@ impl<'a> Lexer<'a> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Lexer;
-    /// use rune::ast;
     /// use rune::{span, SourceId};
+    /// use rune::ast;
+    /// use rune::parsing::Lexer;
     ///
     /// assert_eq! {
     ///     Lexer::new("fn", SourceId::empty()).next().unwrap().unwrap(),
@@ -850,6 +851,7 @@ impl LexerModes {
     }
 }
 
+/// The mode of the lexer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LexerMode {
     /// Default mode, boolean indicating if we are inside a template or not.

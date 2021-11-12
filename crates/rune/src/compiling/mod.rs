@@ -1,23 +1,33 @@
+//! The Rune compiler.
+//!
+//! The main entry to compiling rune source is
+//! [load_sources][crate::load_sources] which uses this compiler. In here you'll
+//! just find compiler-specific types.
+
 use crate::ast;
-use crate::load::{SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::Gen;
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Context, Diagnostics, Location, Options, Span, Spanned};
+use crate::{Context, Diagnostics, Location, Options, Sources, Span, Spanned};
 use std::rc::Rc;
 
 mod assembly;
 mod compile_error;
 mod compile_visitor;
+mod source_loader;
 mod unit_builder;
 mod v1;
 
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
-pub use self::compile_error::{CompileError, CompileErrorKind, CompileResult, ImportEntryStep};
+pub use self::compile_error::{CompileError, CompileErrorKind, ImportStep};
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
+pub use self::source_loader::{FileSourceLoader, SourceLoader};
+pub use self::unit_builder::LinkerError;
 pub(crate) use self::unit_builder::UnitBuilder;
-pub use self::unit_builder::{BuildError, InsertMetaError, LinkerError};
 use crate::parsing::Resolve;
+
+/// A compile result alias.
+pub(crate) type CompileResult<T> = ::std::result::Result<T, CompileError>;
 
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile_with_options<'a>(

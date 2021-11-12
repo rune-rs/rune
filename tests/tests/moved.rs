@@ -1,4 +1,4 @@
-use rune::CompileErrorKind::*;
+use rune::compiling::CompileErrorKind::*;
 use rune::Span;
 use rune_tests::*;
 

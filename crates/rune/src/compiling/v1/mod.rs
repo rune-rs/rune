@@ -1,15 +1,12 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compiling::{Assembly, CompileVisitor};
+use crate::compiling::{Assembly, CompileError, CompileErrorKind, CompileResult, CompileVisitor};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::meta::{CompileItem, CompileMeta, CompileMetaKind};
+use crate::parsing::Resolve;
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst, InstAddress, InstValue, Label, PanicReason, TypeCheck};
-use crate::CompileResult;
-use crate::{
-    CompileError, CompileErrorKind, Context, Diagnostics, Item, Options, Resolve, SourceId, Span,
-    Spanned,
-};
+use crate::{Context, Diagnostics, Item, Options, SourceId, Span, Spanned};
 use std::rc::Rc;
 
 mod assemble;

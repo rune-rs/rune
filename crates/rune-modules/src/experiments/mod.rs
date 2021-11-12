@@ -21,8 +21,10 @@
 //! ```
 
 use rune::ast;
+use rune::macros::{quote, MacroContext, TokenStream};
+use rune::parsing::Parser;
 use rune::T;
-use rune::{ContextError, MacroContext, Module, Parser, TokenStream};
+use rune::{ContextError, Module};
 
 mod stringy_math_macro;
 
@@ -55,5 +57,5 @@ fn make_function(
     let output = parser.parse::<ast::ExprBlock>()?;
     parser.eof()?;
 
-    Ok(rune::quote!(fn #ident() { #output }).into_token_stream(ctx))
+    Ok(quote!(fn #ident() { #output }).into_token_stream(ctx))
 }

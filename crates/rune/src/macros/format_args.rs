@@ -1,10 +1,10 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::ir::IrValue;
-use crate::macros::{MacroContext, Quote};
-use crate::quote;
+use crate::macros::{quote, MacroContext, Quote};
+use crate::parsing::{Parse, ParseError, Parser, Peek, Peeker};
 use crate::runtime::format;
-use crate::{Parse, ParseError, Parser, Peek, Span, Spanned, SpannedError, WithSpan};
+use crate::{Span, Spanned, SpannedError, WithSpan};
 use std::collections::{BTreeMap, BTreeSet};
 
 // NB: needed for quote macro.
@@ -119,7 +119,7 @@ impl Parse for FormatArgs {
 }
 
 impl Peek for FormatArgs {
-    fn peek(p: &mut crate::Peeker<'_>) -> bool {
+    fn peek(p: &mut Peeker<'_>) -> bool {
         !p.is_eof()
     }
 }

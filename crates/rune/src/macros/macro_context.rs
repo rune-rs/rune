@@ -1,7 +1,8 @@
 //! Context for a macro.
 
 use crate::ast;
-use crate::compiling::UnitBuilder;
+use crate::compiling::{NoopCompileVisitor, UnitBuilder};
+use crate::ir::IrError;
 use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
@@ -10,7 +11,7 @@ use crate::meta::CompileItem;
 use crate::parsing::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
 use crate::query::{Query, Used};
 use crate::shared::Gen;
-use crate::{IrError, NoopCompileVisitor, Source, SourceId, Sources, Span, Spanned};
+use crate::{Source, SourceId, Sources, Span, Spanned};
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -34,7 +35,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     /// # Examples
     ///
     /// ```
-    /// use rune::MacroContext;
+    /// use rune::macros::MacroContext;
     ///
     /// MacroContext::test(|ctx| ());
     /// ```
@@ -72,12 +73,14 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     ///
     /// ```rust
     /// use rune::ast;
+    /// use rune::macros::{MacroContext, quote};
+    /// use rune::parsing::{Parser};
     ///
     /// // Note: should only be used for testing.
-    /// rune::MacroContext::test(|ctx| {
-    ///     let stream = rune::quote!(1 + 2).into_token_stream(ctx);
+    /// MacroContext::test(|ctx| {
+    ///     let stream = quote!(1 + 2).into_token_stream(ctx);
     ///
-    ///     let mut p = rune::Parser::from_token_stream(&stream, ctx.stream_span());
+    ///     let mut p = Parser::from_token_stream(&stream, ctx.stream_span());
     ///     let expr = p.parse_all::<ast::Expr>().unwrap();
     ///     let value = ctx.eval(&expr).unwrap();
     ///
@@ -133,7 +136,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
 
     /// Insert the given source so that it has a [SourceId] that can be used in
     /// combination with parsing functions such as
-    /// [parse_all][MacroContext::parse_all].
+    /// [parse_source][MacroContext::parse_source].
     pub fn insert_source(&mut self, name: &str, source: &str) -> SourceId {
         self.q.sources.insert(Source::new(name, source))
     }
@@ -151,7 +154,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
             )
         })?;
 
-        crate::parse_all(source.as_str(), id)
+        crate::parsing::parse_all(source.as_str(), id)
     }
 
     /// The span of the macro call including the name of the macro.

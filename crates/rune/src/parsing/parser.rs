@@ -12,7 +12,8 @@ use std::ops;
 ///
 /// ```rust
 /// use rune::ast;
-/// use rune::{Parser, SourceId};
+/// use rune::SourceId;
+/// use rune::parsing::Parser;
 ///
 /// let mut parser = Parser::new("fn foo() {}", SourceId::empty());
 /// parser.parse::<ast::ItemFn>().unwrap();

@@ -1,3 +1,5 @@
+//! Internal testing module.
+
 use crate::SourceId;
 
 /// Function used during parse testing to take the source, parse it as the given

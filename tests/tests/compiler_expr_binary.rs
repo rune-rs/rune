@@ -1,4 +1,4 @@
-use rune::ParseErrorKind::*;
+use rune::parsing::ParseErrorKind::*;
 use rune::Span;
 use rune_tests::*;
 

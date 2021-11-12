@@ -28,7 +28,9 @@
 //! }
 //! ```
 
-use rune::{MacroContext, Parser, TokenStream, Module, ContextError};
+use rune::parsing::Parser;
+use rune::{Module, ContextError};
+use rune::macros::{quote, MacroContext, TokenStream};
 
 /// Construct the supplemental `std::macros` module.
 pub fn module(_unused: bool) -> Result<Module, ContextError> {
@@ -43,11 +45,7 @@ pub(crate) fn emit_line(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) ->
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
     parser.eof()?;
 
-    Ok(rune::quote!(
-        #[builtin]
-        line!()
-    )
-    .into_token_stream(ctx))
+    Ok(quote!(#[builtin] line!()).into_token_stream(ctx))
 }
 
 /// Implementation for the `file!()` macro
@@ -55,9 +53,5 @@ pub(crate) fn emit_file(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) ->
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
     parser.eof()?;
 
-    Ok(rune::quote!(
-        #[builtin]
-        file!()
-    )
-    .into_token_stream(ctx))
+    Ok(quote!(#[builtin] file!()).into_token_stream(ctx))
 }

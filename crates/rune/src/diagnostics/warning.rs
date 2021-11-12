@@ -8,9 +8,9 @@ use thiserror::Error;
 #[derive(Debug, Clone, Copy)]
 pub struct WarningDiagnostic {
     /// The id of the source where the warning happened.
-    pub(super) source_id: SourceId,
+    pub(crate) source_id: SourceId,
     /// The kind of the warning.
-    pub(super) kind: WarningDiagnosticKind,
+    pub(crate) kind: WarningDiagnosticKind,
 }
 
 impl WarningDiagnostic {
@@ -53,8 +53,10 @@ impl error::Error for WarningDiagnostic {
     }
 }
 
-/// Compilation warning kind.
+/// The kind of a [WarningDiagnostic].
 #[derive(Debug, Clone, Copy, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum WarningDiagnosticKind {
     /// Item identified by the span is not used.
     #[error("not used")]

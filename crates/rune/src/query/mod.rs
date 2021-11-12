@@ -1,22 +1,24 @@
-//! Lazy query system, used to compile and build items on demand.
+//! Lazy query system, used to compile and build items on demand and keep track
+//! of what's being used and not.
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::compiling::UnitBuilder;
+use crate::compiling::{CompileError, CompileErrorKind, CompileVisitor};
+use crate::compiling::{ImportStep, UnitBuilder};
 use crate::ir;
 use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter};
+use crate::macros::Storage;
 use crate::meta::{
     CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
     CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource,
 };
-use crate::parsing::Opaque;
+use crate::parsing::{Opaque, Resolve};
 use crate::runtime::format;
 use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, ComponentRef, Context, Hash, Id,
-    ImportEntryStep, IntoComponent, Item, Location, Resolve, SourceId, Sources, Span, Spanned,
-    Storage, Visibility,
+    ComponentRef, Context, Hash, Id, IntoComponent, Item, Location, SourceId, Sources, Span,
+    Spanned, Visibility,
 };
 use std::collections::VecDeque;
 use std::fmt;
@@ -66,7 +68,7 @@ pub(crate) struct BuiltInFormat {
 }
 
 /// Macro data for `file!()`
-pub struct BuiltInFile {
+pub(crate) struct BuiltInFile {
     /// The span of the built-in-file
     pub(crate) span: Span,
     /// Path value to use
@@ -74,7 +76,7 @@ pub struct BuiltInFile {
 }
 
 /// Macro data for `line!()`
-pub struct BuiltInLine {
+pub(crate) struct BuiltInLine {
     /// The span of the built-in-file
     pub(crate) span: Span,
     /// The line number
@@ -121,7 +123,7 @@ pub(crate) struct Query<'a> {
 
 impl<'a> Query<'a> {
     /// Construct a new compilation context.
-    pub fn new(
+    pub(crate) fn new(
         unit: &'a mut UnitBuilder,
         sources: &'a mut Sources,
         visitor: Rc<dyn CompileVisitor>,
@@ -344,7 +346,7 @@ impl<'a> Query<'a> {
     }
 
     /// Index the given entry. It is not allowed to overwrite other entries.
-    pub fn index(&mut self, entry: IndexedEntry) {
+    pub(crate) fn index(&mut self, entry: IndexedEntry) {
         log::trace!("indexed: {}", entry.item.item);
 
         self.insert_name(&entry.item.item);
@@ -355,7 +357,11 @@ impl<'a> Query<'a> {
     }
 
     /// Index a constant expression.
-    pub fn index_const<T>(&mut self, item: &Arc<CompileItem>, expr: &T) -> Result<(), QueryError>
+    pub(crate) fn index_const<T>(
+        &mut self,
+        item: &Arc<CompileItem>,
+        expr: &T,
+    ) -> Result<(), QueryError>
     where
         T: IrCompile<Output = ir::Ir>,
     {
@@ -377,7 +383,7 @@ impl<'a> Query<'a> {
     }
 
     /// Index a constant function.
-    pub fn index_const_fn(
+    pub(crate) fn index_const_fn(
         &mut self,
         item: &Arc<CompileItem>,
         item_fn: Box<ast::ItemFn>,
@@ -393,7 +399,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new enum item.
-    pub fn index_enum(&mut self, item: &Arc<CompileItem>) -> Result<(), QueryError> {
+    pub(crate) fn index_enum(&mut self, item: &Arc<CompileItem>) -> Result<(), QueryError> {
         log::trace!("new enum: {:?}", item.item);
 
         self.index(IndexedEntry {
@@ -405,7 +411,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new struct item that can be queried.
-    pub fn index_struct(
+    pub(crate) fn index_struct(
         &mut self,
         item: &Arc<CompileItem>,
         ast: Box<ast::ItemStruct>,
@@ -421,7 +427,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new variant item that can be queried.
-    pub fn index_variant(
+    pub(crate) fn index_variant(
         &mut self,
         item: &Arc<CompileItem>,
         enum_id: Id,
@@ -438,7 +444,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new function that can be queried for.
-    pub fn index_closure(
+    pub(crate) fn index_closure(
         &mut self,
         item: &Arc<CompileItem>,
         ast: Box<ast::ExprClosure>,
@@ -462,7 +468,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new async block.
-    pub fn index_async_block(
+    pub(crate) fn index_async_block(
         &mut self,
         item: &Arc<CompileItem>,
         ast: ast::Block,
@@ -537,11 +543,7 @@ impl<'a> Query<'a> {
         };
 
         let meta = self.build_indexed_entry(span, entry, used)?;
-
-        self.unit
-            .insert_meta(&meta)
-            .map_err(|error| QueryError::new(span, error))?;
-
+        self.unit.insert_meta(span, &meta)?;
         self.insert_meta(span, meta.clone())?;
         Ok(Some(meta))
     }
@@ -754,7 +756,7 @@ impl<'a> Query<'a> {
                     None => continue,
                 };
 
-                path.push(ImportEntryStep {
+                path.push(ImportStep {
                     location: update.location,
                     item: update.target.clone(),
                 });
@@ -786,8 +788,8 @@ impl<'a> Query<'a> {
         module: &Arc<CompileMod>,
         item: &Item,
         used: Used,
-        path: &mut Vec<ImportEntryStep>,
-    ) -> Result<Option<ImportStep>, QueryError> {
+        path: &mut Vec<ImportStep>,
+    ) -> Result<Option<QueryImportStep>, QueryError> {
         // already resolved query.
         if let Some(meta) = self.meta.get(item) {
             return Ok(match &meta.kind {
@@ -795,7 +797,7 @@ impl<'a> Query<'a> {
                     module,
                     location,
                     target,
-                } => Some(ImportStep {
+                } => Some(QueryImportStep {
                     module: module.clone(),
                     location: *location,
                     target: target.clone(),
@@ -840,7 +842,7 @@ impl<'a> Query<'a> {
 
         self.insert_meta(span, meta)?;
 
-        Ok(Some(ImportStep {
+        Ok(Some(QueryImportStep {
             module: import.module,
             location: import.location,
             target: import.target,
@@ -1049,11 +1051,7 @@ impl<'a> Query<'a> {
         let entry = IndexedEntry { item, indexed };
 
         let meta = self.build_indexed_entry(span, entry, used)?;
-
-        self.unit
-            .insert_meta(&meta)
-            .map_err(|error| QueryError::new(span, error))?;
-
+        self.unit.insert_meta(span, &meta)?;
         self.insert_meta(span, meta)?;
         Ok(())
     }
@@ -1186,7 +1184,7 @@ impl<'a> Query<'a> {
         module: &CompileMod,
         location: Location,
         visibility: Visibility,
-        chain: &mut Vec<ImportEntryStep>,
+        chain: &mut Vec<ImportStep>,
     ) -> Result<(), QueryError> {
         let (common, tree) = from.item.ancestry(&module.item);
         let mut current_module = common.clone();
@@ -1271,7 +1269,7 @@ pub(crate) enum Indexed {
 }
 
 #[derive(Debug, Clone)]
-pub struct Import {
+pub(crate) struct Import {
     /// The import entry.
     pub(crate) entry: ImportEntry,
     /// Indicates if the import is a wildcard or not.
@@ -1281,20 +1279,20 @@ pub struct Import {
 }
 
 #[derive(Debug, Clone)]
-pub struct Struct {
+pub(crate) struct Struct {
     /// The ast of the struct.
     ast: Box<ast::ItemStruct>,
 }
 
 impl Struct {
     /// Construct a new struct entry.
-    pub fn new(ast: Box<ast::ItemStruct>) -> Self {
+    pub(crate) fn new(ast: Box<ast::ItemStruct>) -> Self {
         Self { ast }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Variant {
+pub(crate) struct Variant {
     /// Id of of the enum type.
     enum_id: Id,
     /// Ast for declaration.
@@ -1303,7 +1301,7 @@ pub struct Variant {
 
 impl Variant {
     /// Construct a new variant.
-    pub fn new(enum_id: Id, ast: ast::ItemVariant) -> Self {
+    pub(crate) fn new(enum_id: Id, ast: ast::ItemVariant) -> Self {
         Self { enum_id, ast }
     }
 }
@@ -1401,7 +1399,7 @@ pub(crate) struct IndexedEntry {
 
 impl IndexedEntry {
     /// The item that best describes this indexed entry.
-    pub fn item(&self) -> &Item {
+    pub(crate) fn item(&self) -> &Item {
         match &self.indexed {
             Indexed::Import(Import { entry, .. }) => &entry.target,
             _ => &self.item.item,
@@ -1428,7 +1426,7 @@ pub(crate) struct QueryConstFn {
 
 /// The result of calling [Query::convert_path].
 #[derive(Debug)]
-pub struct Named {
+pub(crate) struct Named {
     /// If the resolved value is local.
     pub local: Option<Box<str>>,
     /// The path resolved to the given item.
@@ -1437,7 +1435,7 @@ pub struct Named {
 
 impl Named {
     /// Get the local identifier of this named.
-    pub fn as_local(&self) -> Option<&str> {
+    pub(crate) fn as_local(&self) -> Option<&str> {
         self.local.as_deref()
     }
 }
@@ -1564,12 +1562,12 @@ pub(crate) struct ImportEntry {
     pub(crate) module: Arc<CompileMod>,
 }
 
-struct ImportStep {
+struct QueryImportStep {
     module: Arc<CompileMod>,
     location: Location,
     target: Item,
 }
 
-fn into_chain(chain: Vec<ImportEntryStep>) -> Vec<Location> {
+fn into_chain(chain: Vec<ImportStep>) -> Vec<Location> {
     chain.into_iter().map(|c| c.location).collect()
 }

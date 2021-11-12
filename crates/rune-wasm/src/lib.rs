@@ -44,9 +44,8 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
-use wasm_bindgen::prelude::*;
-
 use anyhow::Context;
+use rune::compiling::LinkerError;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::runtime::budget;
 use rune::runtime::Value;
@@ -54,6 +53,7 @@ use rune::{ContextError, DumpInstructions, EmitDiagnostics, Spanned};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
+use wasm_bindgen::prelude::*;
 
 mod core;
 mod http;
@@ -259,7 +259,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
                             });
                         }
                         FatalDiagnosticKind::LinkError(error) => match error {
-                            rune::LinkerError::MissingFunction { hash, spans } => {
+                            LinkerError::MissingFunction { hash, spans } => {
                                 for (span, _) in spans {
                                     let start = WasmPosition::from(
                                         source
@@ -279,8 +279,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
                             }
                             _ => {}
                         },
-                        FatalDiagnosticKind::Internal(_) => {}
-                        FatalDiagnosticKind::BuildError(_) => {}
+                        _ => {}
                     }
                 }
             }

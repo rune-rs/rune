@@ -33,11 +33,11 @@ pub enum ExprRangeLimits {
 }
 
 impl Parse for ExprRangeLimits {
-    fn parse(p: &mut crate::Parser) -> Result<Self, crate::ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         Ok(match p.nth(0)? {
             K![..] => Self::HalfOpen(p.parse()?),
             K![..=] => Self::Closed(p.parse()?),
-            _ => return Err(crate::ParseError::expected(&p.tok_at(0)?, "range limits")),
+            _ => return Err(ParseError::expected(&p.tok_at(0)?, "range limits")),
         })
     }
 }
