@@ -4,10 +4,10 @@ use std::fmt;
 pub trait BoxedPanic: 'static + fmt::Display + fmt::Debug + Send + Sync {}
 impl<T> BoxedPanic for T where T: 'static + fmt::Display + fmt::Debug + Send + Sync {}
 
-/// A descriptibe panic.
+/// A descriptive panic.
 ///
-/// This can be used as an error variant in functions that you want to be able
-/// to panic.
+/// This can be used as an error variant in native functions that you want to be
+/// able to panic.
 #[derive(Debug)]
 pub struct Panic {
     inner: Box<dyn BoxedPanic>,

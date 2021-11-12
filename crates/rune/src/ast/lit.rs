@@ -25,8 +25,9 @@ impl Lit {
     ///
     /// ```
     /// use rune::ast;
+    /// use rune::macros::MacroContext;
     ///
-    /// rune::MacroContext::test(|ctx| {
+    /// MacroContext::test(|ctx| {
     ///     let lit = ast::Lit::new(ctx, "hello world");
     ///     assert!(matches!(lit, ast::Lit::Str(..)))
     /// });
@@ -47,7 +48,8 @@ impl Lit {
     ///
     /// ```rust
     /// use rune::ast;
-    /// use rune::{Storage, Span};
+    /// use rune::Span;
+    /// use rune::macros::Storage;
     ///
     /// let mut storage = Storage::default();
     /// let string = ast::Lit::new_with("hello world", Span::empty(), &mut storage);

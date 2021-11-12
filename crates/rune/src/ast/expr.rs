@@ -841,15 +841,43 @@ impl Peek for ExprWithoutBinary {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ast, testing};
+    use crate::ast;
+    use crate::testing::roundtrip;
 
     #[test]
     fn test_expr_if() {
-        testing::roundtrip::<ast::Expr>(r#"if true {} else {}"#);
+        let expr = roundtrip::<ast::Expr>(r#"if true {} else {}"#);
+        assert!(matches!(expr, ast::Expr::If(..)));
+
+        let expr = roundtrip::<ast::Expr>("if 1 { } else { if 2 { } else { } }");
+        assert!(matches!(expr, ast::Expr::If(..)));
     }
 
     #[test]
     fn test_expr_while() {
-        testing::roundtrip::<ast::ExprWhile>(r#"while true {}"#);
+        let expr = roundtrip::<ast::Expr>(r#"while true {}"#);
+        assert!(matches!(expr, ast::Expr::While(..)));
+    }
+
+    #[test]
+    fn test_expr() {
+        roundtrip::<ast::Expr>("foo[\"foo\"]");
+        roundtrip::<ast::Expr>("foo.bar()");
+        roundtrip::<ast::Expr>("var()");
+        roundtrip::<ast::Expr>("var");
+        roundtrip::<ast::Expr>("42");
+        roundtrip::<ast::Expr>("1 + 2 / 3 - 4 * 1");
+        roundtrip::<ast::Expr>("foo[\"bar\"]");
+        roundtrip::<ast::Expr>("let var = 42");
+        roundtrip::<ast::Expr>("let var = \"foo bar\"");
+        roundtrip::<ast::Expr>("var[\"foo\"] = \"bar\"");
+        roundtrip::<ast::Expr>("let var = objects[\"foo\"] + 1");
+        roundtrip::<ast::Expr>("var = 42");
+
+        // Chained function calls.
+        roundtrip::<ast::Expr>("foo.bar.baz()");
+        roundtrip::<ast::Expr>("foo[0][1][2]");
+        roundtrip::<ast::Expr>("foo.bar()[0].baz()[1]");
+        roundtrip::<ast::Expr>("42 is int::int");
     }
 }

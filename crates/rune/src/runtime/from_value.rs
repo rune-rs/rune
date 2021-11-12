@@ -5,7 +5,40 @@ use crate::runtime::{
 use crate::Any;
 use std::sync::Arc;
 
-/// Trait for converting from a value.
+#[doc(inline)]
+pub use rune_macros::FromValue;
+
+/// Trait for converting types from the dynamic [Value] container.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{Context, FromValue, Sources, Source, Diagnostics, Options, Vm};
+/// use std::sync::Arc;
+///
+/// #[derive(FromValue)]
+/// struct Foo {
+///     field: u64,
+/// }
+///
+/// # fn main() -> rune::Result<()> {
+/// let context = Context::with_default_modules()?;
+/// let options = Options::default();
+///
+/// let mut sources = Sources::new();
+/// sources.insert(Source::new("entry", "pub fn main() { #{field: 42} }"));
+///
+/// let mut diag = Diagnostics::new();
+///
+/// let unit = rune::load_sources(&context, &options, &mut sources, &mut diag)?;
+///
+/// let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+/// let foo = vm.call(&["main"], ())?;
+/// let foo = Foo::from_value(foo)?;
+///
+/// assert_eq!(foo.field, 42);
+/// # Ok(()) }
+/// ```
 pub trait FromValue: 'static + Sized {
     /// Try to convert to the given type, from the given value.
     fn from_value(value: Value) -> Result<Self, VmError>;

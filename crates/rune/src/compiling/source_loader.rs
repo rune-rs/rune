@@ -1,4 +1,5 @@
-use crate::{CompileError, CompileErrorKind, ComponentRef, Item, Source, Span};
+use crate::compiling::{CompileError, CompileErrorKind};
+use crate::{ComponentRef, Item, Source, Span};
 use std::path::Path;
 
 /// A source loader.

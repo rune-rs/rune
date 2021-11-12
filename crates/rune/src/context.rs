@@ -1,4 +1,5 @@
 use crate::collections::{HashMap, HashSet};
+use crate::macros::{MacroContext, TokenStream};
 use crate::meta::{CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple};
 use crate::module::{
     ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
@@ -6,7 +7,7 @@ use crate::module::{
 use crate::runtime::{
     ConstValue, Names, RuntimeContext, Stack, StaticType, TypeCheck, TypeInfo, TypeOf, VmError,
 };
-use crate::{ComponentRef, Hash, IntoComponent, Item, MacroContext, Module, Protocol, TokenStream};
+use crate::{ComponentRef, Hash, IntoComponent, Item, Module, Protocol};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;

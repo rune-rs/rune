@@ -187,124 +187,122 @@ macro_rules! span {
     };
 }
 
-#[macro_use]
-mod internal_macros;
-#[macro_use]
-pub mod ast;
-mod any;
-mod attrs;
-mod compiling;
-mod context;
-pub mod diagnostics;
-#[cfg(feature = "diagnostics")]
-mod emit_diagnostics;
-mod hash;
-mod id;
-mod indexing;
-mod ir;
-mod item;
-mod load;
-mod location;
-pub mod macros;
-pub mod meta;
-pub mod module;
-pub mod modules;
-mod named;
-mod options;
-mod parsing;
-mod protocol;
-mod query;
-mod raw_str;
-pub mod runtime;
-mod shared;
-mod source;
-mod source_id;
-mod span;
-mod spanned;
-mod spanned_error;
-mod visibility;
-mod worker;
-
-#[doc(hidden)]
-pub mod testing;
-
 /// Exported result type for convenience.
 pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 
 /// Exported boxed error type for convenience.
 pub type Error = anyhow::Error;
 
+#[macro_use]
+mod internal_macros;
+#[macro_use]
+pub mod ast;
+
+mod any;
 pub use self::any::Any;
-pub use self::compiling::{
-    BuildError, CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntryStep,
-    LinkerError, NoopCompileVisitor,
-};
+
+mod attrs;
+
+pub mod compiling;
+
+mod context;
 pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
+
+pub mod diagnostics;
+#[doc(inline)]
 pub use self::diagnostics::Diagnostics;
+
 #[cfg(feature = "diagnostics")]
+mod emit_diagnostics;
+#[cfg(feature = "diagnostics")]
+#[doc(inline)]
 pub use self::emit_diagnostics::{
     termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource,
 };
+
+mod hash;
 pub use self::hash::{Hash, IntoTypeHash};
+
+mod id;
 pub use self::id::Id;
-pub use self::ir::{IrError, IrErrorKind, IrValue};
+
+mod indexing;
+
+pub mod ir;
+
+mod item;
 pub use self::item::{Component, ComponentRef, IntoComponent, Item};
+
+mod load;
 pub use self::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
-pub use self::load::{FileSourceLoader, SourceLoader, Sources};
+
+mod location;
 pub use self::location::Location;
-pub use self::macros::{MacroContext, Quote, Storage, ToTokens, TokenStream, TokenStreamIter};
+
+pub mod macros;
+
+pub mod meta;
+
+pub mod module;
+#[doc(inline)]
 pub use self::module::{InstFnNameHash, InstallWith, Module};
+
+pub mod modules;
+
+mod named;
 pub use self::named::Named;
+
+mod options;
 pub use self::options::{ConfigurationError, Options};
-pub use self::parsing::{
-    Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,
-    ResolveErrorKind,
-};
+
+pub mod parsing;
+
+mod protocol;
 pub use self::protocol::Protocol;
-pub use self::query::{QueryError, QueryErrorKind, Used};
+
+pub mod query;
+
+mod raw_str;
 pub use self::raw_str::RawStr;
+
+pub mod runtime;
 pub use self::runtime::{
     Args, BorrowMut, BorrowRef, FromValue, GuardedArgs, Mut, Panic, Ref, RuntimeContext, Shared,
     Stack, StackError, ToValue, Unit, UnsafeFromValue, UnsafeToValue, Value, Vm, VmError,
     VmErrorKind, VmExecution,
 };
+
+mod shared;
+
+mod source;
 pub use self::source::Source;
+
+mod source_id;
 pub use self::source_id::SourceId;
+
+mod sources;
+pub use self::sources::Sources;
+
+mod span;
 pub use self::span::{ByteIndex, IntoByteIndex, Span};
+
+mod spanned;
 pub use self::spanned::{OptionSpanned, Spanned};
+
+mod spanned_error;
 pub use self::spanned_error::SpannedError;
 pub(crate) use self::spanned_error::WithSpan;
+
+mod visibility;
 pub(crate) use self::visibility::Visibility;
-pub use rune_macros::quote;
+
+mod worker;
+
+#[doc(hidden)]
+pub mod testing;
 
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
-
-/// Parse the given input as the given type that implements
-/// [Parse][crate::parsing::Parse]. The specified `source_id` will be used when
-/// referencing any parsed elements.
-pub fn parse_all<T>(source: &str, source_id: SourceId) -> Result<T, ParseError>
-where
-    T: Parse,
-{
-    let mut parser = Parser::new(source, source_id);
-    let ast = parser.parse::<T>()?;
-    parser.eof()?;
-    Ok(ast)
-}
-
-/// Parse the given input as the given type that implements
-/// [Parse][crate::parsing::Parse].
-///
-/// This uses an empty [SourceId] and is therefore not appropriate to use beyond
-/// testing that a certain type parses.
-#[doc(hidden)]
-pub fn parse_all_without_source<T>(source: &str) -> Result<T, ParseError>
-where
-    T: Parse,
-{
-    parse_all(source, SourceId::empty())
-}
 
 /// Internal collection re-export.
 mod collections {

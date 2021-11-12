@@ -1,14 +1,9 @@
 use crate::compiling;
+use crate::compiling::{FileSourceLoader, NoopCompileVisitor, SourceLoader};
 use crate::runtime::Unit;
-use crate::{Context, Diagnostics, Options, SourceId};
+use crate::{Context, Diagnostics, Options, SourceId, Sources, Span};
 use std::rc::Rc;
 use thiserror::Error;
-
-mod source_loader;
-mod sources;
-
-pub use self::source_loader::{FileSourceLoader, SourceLoader};
-pub use self::sources::Sources;
 
 /// Error raised when we failed to load sources.
 ///
@@ -63,7 +58,7 @@ pub fn load_sources(
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
 ) -> Result<Unit, LoadSourcesError> {
-    let visitor = Rc::new(compiling::NoopCompileVisitor::new());
+    let visitor = Rc::new(NoopCompileVisitor::new());
     let source_loader = Rc::new(FileSourceLoader::new());
 
     load_sources_with_visitor(
@@ -113,7 +108,7 @@ pub fn load_sources_with_visitor<'a>(
         }
     }
 
-    match unit.build() {
+    match unit.build(Span::empty()) {
         Ok(unit) => Ok(unit),
         Err(error) => {
             diagnostics.error(SourceId::empty(), error);

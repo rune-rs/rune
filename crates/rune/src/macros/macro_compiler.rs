@@ -1,12 +1,13 @@
 //! Macro compiler.
 
 use crate::ast;
+use crate::compiling::{CompileError, CompileErrorKind, CompileResult};
+use crate::ir::IrError;
+use crate::macros::MacroContext;
 use crate::meta::CompileItem;
+use crate::parsing::{Parse, ParseError, Parser};
 use crate::query::Query;
-use crate::{
-    CompileError, CompileErrorKind, CompileResult, Context, Hash, IrError, MacroContext, Options,
-    Parse, ParseError, Parser, Spanned, SpannedError,
-};
+use crate::{Context, Hash, Options, Spanned, SpannedError};
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a, 'q> {

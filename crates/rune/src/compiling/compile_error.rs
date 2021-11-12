@@ -1,18 +1,14 @@
 use crate::ast;
-use crate::compiling::InsertMetaError;
+use crate::ir::{IrError, IrErrorKind};
 use crate::meta::CompileMeta;
+use crate::parsing::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
+use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::Label;
-use crate::{
-    Error, Hash, IrError, IrErrorKind, Item, Location, ParseError, ParseErrorKind, QueryError,
-    QueryErrorKind, ResolveError, ResolveErrorKind, SourceId, Span, Spanned, SpannedError,
-};
+use crate::{Error, Hash, Item, Location, SourceId, Span, Spanned, SpannedError};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
-
-/// A compile result.
-pub type CompileResult<T> = std::result::Result<T, CompileError>;
 
 error! {
     /// An error raised during compiling.
@@ -86,12 +82,6 @@ pub enum CompileErrorKind {
         #[source]
         #[from]
         error: ParseErrorKind,
-    },
-    #[error("failed to insert meta: {error}")]
-    InsertMetaError {
-        #[source]
-        #[from]
-        error: InsertMetaError,
     },
     #[error("{error}")]
     ResolveError {
@@ -288,12 +278,18 @@ pub enum CompileErrorKind {
     NestedTest { nested_span: Span },
     #[error("#[bench] attributes are not supported on nested items")]
     NestedBench { nested_span: Span },
+    #[error("missing function with hash `{hash}`")]
+    MissingFunctionHash { hash: Hash },
+    #[error("conflicting function already exists `{hash}`")]
+    FunctionConflictHash { hash: Hash },
 }
 
-/// A single stap as an import entry.
+/// A single step in an import.
+///
+/// This is used to indicate a step in an import chain in an error message.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct ImportEntryStep {
+pub struct ImportStep {
     /// The location of the import.
     pub location: Location,
     /// The item being imported.

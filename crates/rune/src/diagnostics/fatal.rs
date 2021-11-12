@@ -1,5 +1,7 @@
-use crate::compiling::LinkerError;
-use crate::{BuildError, CompileError, ParseError, QueryError, SourceId};
+use crate::compiling::{CompileError, LinkerError};
+use crate::parsing::ParseError;
+use crate::query::QueryError;
+use crate::SourceId;
 use std::error;
 use std::fmt;
 use thiserror::Error;
@@ -9,9 +11,9 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct FatalDiagnostic {
     /// The source id of the error.
-    pub(super) source_id: SourceId,
+    pub(crate) source_id: SourceId,
     /// The kind of the load error.
-    pub(super) kind: Box<FatalDiagnosticKind>,
+    pub(crate) kind: Box<FatalDiagnosticKind>,
 }
 
 impl FatalDiagnostic {
@@ -43,8 +45,10 @@ impl error::Error for FatalDiagnostic {
     }
 }
 
-#[allow(missing_docs)]
+/// The kind of a [FatalDiagnostic].
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum FatalDiagnosticKind {
     #[error("parse error")]
     ParseError(
@@ -69,12 +73,6 @@ pub enum FatalDiagnosticKind {
         #[from]
         #[source]
         LinkerError,
-    ),
-    #[error("builder error: {0}")]
-    BuildError(
-        #[from]
-        #[source]
-        BuildError,
     ),
     /// An internal error.
     #[error("internal error: {0}")]

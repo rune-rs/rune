@@ -5,10 +5,13 @@ use crate::ast::prelude::*;
 /// # Examples
 ///
 /// ```rust
-/// use rune::{testing, ast, parse_all_without_source};
+/// use rune::ast;
+/// use rune::parsing::parse_all;
+/// use rune::SourceId;
+/// use rune::testing;
 ///
 /// testing::roundtrip::<ast::ItemFn>("async fn hello() {}");
-/// assert!(parse_all_without_source::<ast::ItemFn>("fn async hello() {}").is_err());
+/// assert!(parse_all::<ast::ItemFn>("fn async hello() {}", SourceId::empty()).is_err());
 ///
 /// let item = testing::roundtrip::<ast::ItemFn>("fn hello() {}");
 /// assert_eq!(item.args.len(), 0);

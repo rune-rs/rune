@@ -2,13 +2,11 @@
 
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compiling::UnitBuilder;
-use crate::indexing::{Index as _, IndexScopes, Indexer};
+use crate::compiling::{CompileVisitor, SourceLoader, UnitBuilder};
+use crate::indexing::{Index, IndexScopes, Indexer};
 use crate::query::Query;
 use crate::shared::{Gen, Items};
-use crate::{
-    CompileVisitor, Context, Diagnostics, Item, Options, SourceId, SourceLoader, Sources, Span,
-};
+use crate::{Context, Diagnostics, Item, Options, SourceId, Sources, Span};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -85,13 +83,14 @@ impl<'a> Worker<'a> {
                         }
                     };
 
-                    let mut file = match crate::parse_all::<ast::File>(source.as_str(), source_id) {
-                        Ok(file) => file,
-                        Err(error) => {
-                            self.diagnostics.error(source_id, error);
-                            continue;
-                        }
-                    };
+                    let mut file =
+                        match crate::parsing::parse_all::<ast::File>(source.as_str(), source_id) {
+                            Ok(file) => file,
+                            Err(error) => {
+                                self.diagnostics.error(source_id, error);
+                                continue;
+                            }
+                        };
 
                     let root = match kind {
                         LoadFileKind::Root => source.path().map(ToOwned::to_owned),

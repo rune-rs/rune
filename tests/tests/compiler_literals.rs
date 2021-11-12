@@ -1,6 +1,6 @@
-use rune::CompileErrorKind::{ParseError, ResolveError};
-use rune::ParseErrorKind::*;
-use rune::ResolveErrorKind::*;
+use rune::compiling::CompileErrorKind::{ParseError, ResolveError};
+use rune::parsing::ParseErrorKind::*;
+use rune::parsing::ResolveErrorKind::*;
 use rune::Span;
 use rune_tests::*;
 

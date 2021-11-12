@@ -1,6 +1,7 @@
 //! AST for the Rune language.
 
-use crate::{Parse, ParseError, Parser, Peek, Span, Spanned};
+use crate::parsing::{Parse, ParseError, Parser, Peek};
+use crate::{Span, Spanned};
 
 #[macro_use]
 /// Generated modules.
@@ -8,13 +9,15 @@ pub mod generated;
 
 macro_rules! expr_parse {
     ($ty:ident, $local:ty, $expected:literal) => {
-        impl crate::Parse for $local {
-            fn parse(p: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
+        impl $crate::parsing::Parse for $local {
+            fn parse(
+                p: &mut $crate::parsing::Parser<'_>,
+            ) -> Result<Self, $crate::parsing::ParseError> {
                 let t = p.tok_at(0)?;
 
-                match crate::ast::Expr::parse(p)? {
-                    crate::ast::Expr::$ty(expr) => Ok(*expr),
-                    _ => Err(crate::ParseError::expected(&t, $expected)),
+                match $crate::ast::Expr::parse(p)? {
+                    $crate::ast::Expr::$ty(expr) => Ok(*expr),
+                    _ => Err($crate::parsing::ParseError::expected(&t, $expected)),
                 }
             }
         }
@@ -23,13 +26,15 @@ macro_rules! expr_parse {
 
 macro_rules! item_parse {
     ($ty:ident, $local:ty, $expected:literal) => {
-        impl crate::Parse for $local {
-            fn parse(p: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
+        impl $crate::parsing::Parse for $local {
+            fn parse(
+                p: &mut $crate::parsing::Parser<'_>,
+            ) -> Result<Self, $crate::parsing::ParseError> {
                 let t = p.tok_at(0)?;
 
-                match crate::ast::Item::parse(p)? {
-                    crate::ast::Item::$ty(item) => Ok(*item),
-                    _ => Err(crate::ParseError::expected(&t, $expected)),
+                match $crate::ast::Item::parse(p)? {
+                    $crate::ast::Item::$ty(item) => Ok(*item),
+                    _ => Err($crate::parsing::ParseError::expected(&t, $expected)),
                 }
             }
         }
@@ -197,8 +202,8 @@ macro_rules! decl_tokens {
                 }
             }
 
-            impl crate::ToTokens for $parser {
-                fn to_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+            impl $crate::macros::ToTokens for $parser {
+                fn to_tokens(&self, _: &mut $crate::macros::MacroContext, stream: &mut $crate::macros::TokenStream) {
                     stream.push(self.token);
                 }
             }
@@ -213,44 +218,4 @@ decl_tokens! {
     (OpenBrace, "An opening brace `{`.", "opening brace", Kind::Open(Delimiter::Brace)),
     (OpenBracket, "An open bracket `[`.", "opening bracket", Kind::Open(Delimiter::Bracket)),
     (OpenParen, "An opening parenthesis `(`.", "opening parenthesis", Kind::Open(Delimiter::Parenthesis)),
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{ast, parse_all_without_source};
-
-    #[test]
-    fn test_expr() {
-        parse_all_without_source::<ast::Expr>("foo[\"foo\"]").unwrap();
-        parse_all_without_source::<ast::Expr>("foo.bar()").unwrap();
-        parse_all_without_source::<ast::Expr>("var()").unwrap();
-        parse_all_without_source::<ast::Expr>("var").unwrap();
-        parse_all_without_source::<ast::Expr>("42").unwrap();
-        parse_all_without_source::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
-        parse_all_without_source::<ast::Expr>("foo[\"bar\"]").unwrap();
-        parse_all_without_source::<ast::Expr>("let var = 42").unwrap();
-        parse_all_without_source::<ast::Expr>("let var = \"foo bar\"").unwrap();
-        parse_all_without_source::<ast::Expr>("var[\"foo\"] = \"bar\"").unwrap();
-        parse_all_without_source::<ast::Expr>("let var = objects[\"foo\"] + 1").unwrap();
-        parse_all_without_source::<ast::Expr>("var = 42").unwrap();
-
-        let expr = parse_all_without_source::<ast::Expr>(
-            r#"
-            if 1 { } else { if 2 { } else { } }
-        "#,
-        )
-        .unwrap();
-
-        if let ast::Expr::If(..) = expr {
-        } else {
-            panic!("not an if statement");
-        }
-
-        // Chained function calls.
-        parse_all_without_source::<ast::Expr>("foo.bar.baz()").unwrap();
-        parse_all_without_source::<ast::Expr>("foo[0][1][2]").unwrap();
-        parse_all_without_source::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
-
-        parse_all_without_source::<ast::Expr>("42 is int::int").unwrap();
-    }
 }

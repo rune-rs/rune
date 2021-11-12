@@ -1,5 +1,5 @@
+use rune::compiling::CompileErrorKind::*;
 use rune::meta::{CompileMeta, CompileMetaKind};
-use rune::CompileErrorKind::*;
 use rune::Span;
 use rune_tests::*;
 

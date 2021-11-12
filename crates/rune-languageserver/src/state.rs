@@ -3,6 +3,7 @@ use anyhow::{anyhow, Result};
 use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
+use rune::compiling::{CompileError, CompileVisitor, FileSourceLoader, LinkerError};
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::meta::{CompileMeta, CompileMetaKind, CompileSource};
 use rune::{ComponentRef, Item, Location, SourceId, Span, Spanned};
@@ -185,7 +186,7 @@ impl State {
                                     );
                                 }
                                 FatalDiagnosticKind::LinkError(error) => match error {
-                                    rune::LinkerError::MissingFunction { hash, spans } => {
+                                    LinkerError::MissingFunction { hash, spans } => {
                                         for (span, _) in spans {
                                             let diagnostics =
                                                 by_url.entry(url.clone()).or_default();
@@ -209,7 +210,7 @@ impl State {
                                     let range = lsp::Range::default();
                                     diagnostics.push(display_to_error(range, message));
                                 }
-                                FatalDiagnosticKind::BuildError(error) => {
+                                error => {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
                                     let range = lsp::Range::default();
                                     diagnostics.push(display_to_error(range, error));
@@ -602,7 +603,7 @@ impl Visitor {
     }
 }
 
-impl rune::CompileVisitor for Visitor {
+impl CompileVisitor for Visitor {
     fn visit_meta(&self, source_id: SourceId, meta: &CompileMeta, span: Span) {
         if source_id.into_index() != 0 {
             return;
@@ -668,7 +669,7 @@ impl rune::CompileVisitor for Visitor {
 
 struct SourceLoader {
     sources: RefCell<HashMap<Url, Source>>,
-    base: rune::FileSourceLoader,
+    base: FileSourceLoader,
 }
 
 impl SourceLoader {
@@ -676,7 +677,7 @@ impl SourceLoader {
     pub fn new(sources: HashMap<Url, Source>) -> Self {
         Self {
             sources: RefCell::new(sources),
-            base: rune::FileSourceLoader::new(),
+            base: FileSourceLoader::new(),
         }
     }
 
@@ -725,13 +726,8 @@ impl SourceLoader {
     }
 }
 
-impl rune::SourceLoader for SourceLoader {
-    fn load(
-        &self,
-        root: &Path,
-        item: &Item,
-        span: Span,
-    ) -> Result<rune::Source, rune::CompileError> {
+impl rune::compiling::SourceLoader for SourceLoader {
+    fn load(&self, root: &Path, item: &Item, span: Span) -> Result<rune::Source, CompileError> {
         log::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {

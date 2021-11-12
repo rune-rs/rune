@@ -1,6 +1,7 @@
 use rune::ast;
-use rune::quote;
-use rune::{MacroContext, Parser, Spanned, SpannedError, TokenStream};
+use rune::macros::{quote, MacroContext, TokenStream};
+use rune::parsing::Parser;
+use rune::{Spanned, SpannedError};
 
 /// Implementation for the `stringy_math!` macro.
 pub(crate) fn stringy_math(

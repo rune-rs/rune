@@ -1,3 +1,4 @@
+use rune::compiling::CompileVisitor;
 use rune::meta::{CompileMeta, CompileMetaKind};
 use rune::Hash;
 use std::cell::RefCell;
@@ -33,7 +34,7 @@ impl FunctionVisitor {
     }
 }
 
-impl rune::CompileVisitor for FunctionVisitor {
+impl CompileVisitor for FunctionVisitor {
     fn register_meta(&self, meta: &CompileMeta) {
         let type_hash = match (self.attribute, &meta.kind) {
             (

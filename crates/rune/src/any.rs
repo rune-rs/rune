@@ -1,7 +1,7 @@
 use crate::{Hash, Named};
 pub use rune_macros::Any;
 
-/// A trait which can be stored inside of an [AnyObj](crate::AnyObj).
+/// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).
 ///
 /// We use our own marker trait that must be explicitly derived to prevent other
 /// VM native types (like strings) which also implement `std::any::Any` from

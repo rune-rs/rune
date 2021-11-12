@@ -1,6 +1,8 @@
 mod attributes;
 use crate::ast;
-use crate::{Parse, ParseError, Resolve as _, Sources, Storage};
+use crate::macros::Storage;
+use crate::parsing::{Parse, ParseError, Resolve};
+use crate::Sources;
 
 pub(crate) use self::attributes::Attributes;
 

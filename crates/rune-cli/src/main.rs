@@ -51,6 +51,7 @@
 #![allow(clippy::type_complexity)]
 
 use anyhow::{Context, Result};
+use rune::compiling::FileSourceLoader;
 use rune::meta::CompileMeta;
 use rune::runtime::{Unit, Value, Vm, VmExecution};
 use rune::termcolor::{ColorChoice, StandardStream};
@@ -468,7 +469,7 @@ fn load_path(
             };
 
             let test_finder = Rc::new(visitor::FunctionVisitor::new(attribute));
-            let source_loader = Rc::new(rune::FileSourceLoader::new());
+            let source_loader = Rc::new(FileSourceLoader::new());
 
             let result = rune::load_sources_with_visitor(
                 &context,
@@ -538,7 +539,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             };
 
             let test_finder = Rc::new(visitor::FunctionVisitor::new(visitor::Attribute::None));
-            let source_loader = Rc::new(rune::FileSourceLoader::new());
+            let source_loader = Rc::new(FileSourceLoader::new());
 
             let _ = rune::load_sources_with_visitor(
                 &context,

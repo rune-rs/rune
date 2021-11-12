@@ -1,11 +1,13 @@
 use crate::ast;
 use crate::attrs;
 use crate::collections::HashMap;
+use crate::compiling::{
+    CompileError, CompileErrorKind, CompileResult, CompileVisitor, SourceLoader,
+};
 use crate::indexing::{IndexFnKind, IndexLocal, IndexScopes};
-use crate::load::SourceLoader;
 use crate::macros::MacroCompiler;
 use crate::meta::{CompileMeta, CompileMetaKind, CompileMod, CompileSource};
-use crate::parsing::{Parse, Parser};
+use crate::parsing::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
 use crate::query::{
     Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
     Function, Indexed, IndexedEntry, InstanceFunction, Query, Used,
@@ -15,9 +17,8 @@ use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{
-    CompileError, CompileErrorKind, CompileResult, CompileVisitor, Context, Diagnostics, Hash,
-    Item, Location, OptionSpanned, Options, ParseError, ParseErrorKind, Resolve, SourceId, Span,
-    Spanned, Visibility,
+    Context, Diagnostics, Hash, Item, Location, OptionSpanned, Options, SourceId, Span, Spanned,
+    Visibility,
 };
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;

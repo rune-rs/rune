@@ -1,8 +1,10 @@
 use crate::ir::IrValue;
 use crate::meta::CompileMeta;
+use crate::parsing::{ResolveError, ResolveErrorKind};
+use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::{ScopeError, ScopeErrorKind};
-use crate::{QueryError, QueryErrorKind, ResolveError, ResolveErrorKind, Spanned, SpannedError};
+use crate::{Spanned, SpannedError};
 use thiserror::Error;
 
 error! {
@@ -19,7 +21,7 @@ error! {
 
 impl IrError {
     /// An error raised when we expect a certain constant value but get another.
-    pub fn expected<S, E>(spanned: S, actual: &IrValue) -> Self
+    pub(crate) fn expected<S, E>(spanned: S, actual: &IrValue) -> Self
     where
         S: Spanned,
         E: TypeOf,
@@ -34,7 +36,7 @@ impl IrError {
     }
 
     /// Construct a callback to build an access error with the given spanned.
-    pub fn access<S>(spanned: S) -> impl FnOnce(AccessError) -> Self
+    pub(crate) fn access<S>(spanned: S) -> impl FnOnce(AccessError) -> Self
     where
         S: Spanned,
     {

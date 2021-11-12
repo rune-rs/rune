@@ -1,9 +1,9 @@
-use crate::compiling::{ImportEntryStep, InsertMetaError};
+use crate::compiling::ImportStep;
+use crate::ir::{IrError, IrErrorKind};
 use crate::meta::CompileMeta;
-use crate::{
-    Id, IrError, IrErrorKind, Item, Location, ParseError, ParseErrorKind, ResolveError,
-    ResolveErrorKind, Spanned, Visibility,
-};
+use crate::parsing::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
+use crate::runtime::debug::DebugSignature;
+use crate::{Hash, Id, Item, Location, Spanned, Visibility};
 use thiserror::Error;
 
 error! {
@@ -25,12 +25,6 @@ error! {
 pub enum QueryErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },
-    #[error("failed to insert meta: {error}")]
-    InsertMetaError {
-        #[source]
-        #[from]
-        error: InsertMetaError,
-    },
     #[error("{error}")]
     IrError {
         #[source]
@@ -81,7 +75,7 @@ pub enum QueryErrorKind {
     #[error("missing query meta for module {item}")]
     MissingMod { item: Item },
     #[error("cycle in import")]
-    ImportCycle { path: Vec<ImportEntryStep> },
+    ImportCycle { path: Vec<ImportStep> },
     #[error("missing last use component")]
     LastUseComponent,
     #[error("found indexed entry for `{item}`, but was not an import")]
@@ -96,4 +90,10 @@ pub enum QueryErrorKind {
         /// The existing item.
         existing: CompileMeta,
     },
+    #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
+    VariantRttiConflict { hash: Hash },
+    #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
+    TypeRttiConflict { hash: Hash },
+    #[error("conflicting function signature already exists `{existing}`")]
+    FunctionConflict { existing: DebugSignature },
 }

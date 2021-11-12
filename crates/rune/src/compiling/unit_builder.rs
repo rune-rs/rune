@@ -4,33 +4,19 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::compiling::{Assembly, AssemblyInst};
+use crate::compiling::{Assembly, AssemblyInst, CompileError, CompileErrorKind};
 use crate::meta::{CompileMeta, CompileMetaKind};
+use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{
     Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Rtti, StaticString, Unit, UnitFn,
     VariantRtti,
 };
-use crate::{
-    CompileError, CompileErrorKind, Context, Diagnostics, Hash, IntoComponent, Item, Location,
-    Protocol, SourceId, Span,
-};
+use crate::{Context, Diagnostics, Hash, IntoComponent, Item, Location, Protocol, SourceId, Span};
 use std::sync::Arc;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub enum BuildError {
-    #[error("builder not exclusively held")]
-    NotExclusivelyHeld,
-    #[error("missing function with hash `{hash}`")]
-    MissingFunctionHash { hash: Hash },
-    #[error("conflicting function already exists `{hash}`")]
-    FunctionConflictHash { hash: Hash },
-}
-
-/// An error raised during linking.
+/// Errors that can be raised when linking units.
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
@@ -40,19 +26,6 @@ pub enum LinkerError {
         hash: Hash,
         spans: Vec<(Span, SourceId)>,
     },
-}
-
-/// Errors raised when building a new unit.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub enum InsertMetaError {
-    #[error("conflicting function signature already exists `{existing}`")]
-    FunctionConflict { existing: DebugSignature },
-    #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
-    VariantRttiConflict { hash: Hash },
-    #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
-    TypeRttiConflict { hash: Hash },
 }
 
 /// Instructions from a single source file.
@@ -144,7 +117,7 @@ impl UnitBuilder {
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
-    pub(crate) fn build(mut self) -> Result<Unit, BuildError> {
+    pub(crate) fn build(mut self, span: Span) -> Result<Unit, CompileError> {
         if let Some(debug) = &mut self.debug {
             debug.functions_rev = self.functions_rev;
         }
@@ -152,11 +125,19 @@ impl UnitBuilder {
         for (from, to) in self.reexports {
             let info = match self.functions.get(&to) {
                 Some(info) => *info,
-                None => return Err(BuildError::MissingFunctionHash { hash: to }),
+                None => {
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::MissingFunctionHash { hash: to },
+                    ))
+                }
             };
 
             if self.functions.insert(from, info).is_some() {
-                return Err(BuildError::FunctionConflictHash { hash: from });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::FunctionConflictHash { hash: from },
+                ));
             }
         }
 
@@ -318,7 +299,7 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub(crate) fn insert_meta(&mut self, meta: &CompileMeta) -> Result<(), InsertMetaError> {
+    pub(crate) fn insert_meta(&mut self, span: Span, meta: &CompileMeta) -> Result<(), QueryError> {
         match &meta.kind {
             CompileMetaKind::UnitStruct { empty, .. } => {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
@@ -331,13 +312,19 @@ impl UnitBuilder {
                 });
 
                 if self.rtti.insert(empty.hash, rtti).is_some() {
-                    return Err(InsertMetaError::TypeRttiConflict { hash: empty.hash });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::TypeRttiConflict { hash: empty.hash },
+                    ));
                 }
 
                 if self.functions.insert(empty.hash, info).is_some() {
-                    return Err(InsertMetaError::FunctionConflict {
-                        existing: signature,
-                    });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::FunctionConflict {
+                            existing: signature,
+                        },
+                    ));
                 }
 
                 self.constants.insert(
@@ -364,13 +351,19 @@ impl UnitBuilder {
                 });
 
                 if self.rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(InsertMetaError::TypeRttiConflict { hash: tuple.hash });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::TypeRttiConflict { hash: tuple.hash },
+                    ));
                 }
 
                 if self.functions.insert(tuple.hash, info).is_some() {
-                    return Err(InsertMetaError::FunctionConflict {
-                        existing: signature,
-                    });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::FunctionConflict {
+                            existing: signature,
+                        },
+                    ));
                 }
 
                 self.constants.insert(
@@ -396,7 +389,10 @@ impl UnitBuilder {
                 );
 
                 if self.rtti.insert(hash, rtti).is_some() {
-                    return Err(InsertMetaError::TypeRttiConflict { hash });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::TypeRttiConflict { hash },
+                    ));
                 }
             }
             CompileMetaKind::UnitVariant {
@@ -411,7 +407,10 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(empty.hash, rtti).is_some() {
-                    return Err(InsertMetaError::VariantRttiConflict { hash: empty.hash });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::VariantRttiConflict { hash: empty.hash },
+                    ));
                 }
 
                 let info = UnitFn::UnitVariant { hash: empty.hash };
@@ -419,9 +418,12 @@ impl UnitBuilder {
                 let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
 
                 if self.functions.insert(empty.hash, info).is_some() {
-                    return Err(InsertMetaError::FunctionConflict {
-                        existing: signature,
-                    });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::FunctionConflict {
+                            existing: signature,
+                        },
+                    ));
                 }
 
                 self.debug_info_mut()
@@ -440,7 +442,10 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(InsertMetaError::VariantRttiConflict { hash: tuple.hash });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::VariantRttiConflict { hash: tuple.hash },
+                    ));
                 }
 
                 let info = UnitFn::TupleVariant {
@@ -452,9 +457,12 @@ impl UnitBuilder {
                     DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
 
                 if self.functions.insert(tuple.hash, info).is_some() {
-                    return Err(InsertMetaError::FunctionConflict {
-                        existing: signature,
-                    });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::FunctionConflict {
+                            existing: signature,
+                        },
+                    ));
                 }
 
                 self.debug_info_mut()
@@ -472,7 +480,10 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(hash, rtti).is_some() {
-                    return Err(InsertMetaError::VariantRttiConflict { hash });
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::VariantRttiConflict { hash },
+                    ));
                 }
             }
             CompileMetaKind::Enum { type_hash } => {

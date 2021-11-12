@@ -1,5 +1,7 @@
 use rune::ast;
-use rune::{Context, Diagnostics, FromValue, Module, Options, Parser, Source, Sources, Vm};
+use rune::macros::quote;
+use rune::parsing::Parser;
+use rune::{Context, Diagnostics, FromValue, Module, Options, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[test]
@@ -12,7 +14,7 @@ fn test_parse_in_macro() -> rune::Result<()> {
         let id = ctx.insert_source("string_as_code", &string);
         let expr = ctx.parse_source::<ast::Expr>(id)?;
 
-        Ok(rune::quote!(#expr).into_token_stream(ctx))
+        Ok(quote!(#expr).into_token_stream(ctx))
     })?;
 
     m.macro_(&["string_as_code_from_arg"], |ctx, stream| {
@@ -22,7 +24,7 @@ fn test_parse_in_macro() -> rune::Result<()> {
         let id = ctx.insert_source("string_as_code_from_arg", &s);
         let expr = ctx.parse_source::<ast::Expr>(id)?;
 
-        Ok(rune::quote!(#expr).into_token_stream(ctx))
+        Ok(quote!(#expr).into_token_stream(ctx))
     })?;
 
     let mut context = Context::with_default_modules()?;

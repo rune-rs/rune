@@ -1,7 +1,6 @@
 use rune::ast::Kind::*;
 use rune::ast::{CopySource, Delimiter, Kind, NumberSource, StrSource, StringSource, Token};
-use rune::quote;
-use rune::MacroContext;
+use rune::macros::{quote, MacroContext};
 use rune::Span;
 
 macro_rules! assert_quote {

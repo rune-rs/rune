@@ -1,6 +1,6 @@
-use crate::ir::{IrInterpreter, IrPat, IrValue};
+use crate::ir::{IrError, IrInterpreter, IrPat, IrValue};
 use crate::query::Used;
-use crate::{IrError, Span, Spanned};
+use crate::{Span, Spanned};
 
 mod ir;
 mod ir_assign;

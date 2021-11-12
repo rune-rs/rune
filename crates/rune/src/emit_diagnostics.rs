@@ -1,13 +1,14 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
+use crate::compiling::{CompileErrorKind, LinkerError};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
+use crate::ir::IrErrorKind;
+use crate::parsing::ResolveErrorKind;
+use crate::query::QueryErrorKind;
 use crate::runtime::{Unit, VmError, VmErrorKind};
-use crate::{
-    CompileErrorKind, Diagnostics, IrErrorKind, LinkerError, Location, QueryErrorKind,
-    ResolveErrorKind, Source, SourceId, Sources, Span, Spanned,
-};
+use crate::{Diagnostics, Location, Source, SourceId, Sources, Span, Spanned};
 use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
@@ -329,10 +330,6 @@ where
     let span = match this.kind() {
         FatalDiagnosticKind::Internal(message) => {
             writeln!(out, "internal error: {}", message)?;
-            return Ok(());
-        }
-        FatalDiagnosticKind::BuildError(error) => {
-            writeln!(out, "build error: {}", error)?;
             return Ok(());
         }
         FatalDiagnosticKind::LinkError(error) => {

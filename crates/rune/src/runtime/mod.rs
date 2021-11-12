@@ -104,6 +104,3 @@ pub use self::vm_call::VmCall;
 pub use self::vm_error::{VmError, VmErrorKind, VmIntegerRepr};
 pub use self::vm_execution::{VmExecution, VmSendExecution};
 pub use self::vm_halt::{VmHalt, VmHaltInfo};
-
-// Re-exported macros.
-pub use rune_macros::{FromValue, ToValue};

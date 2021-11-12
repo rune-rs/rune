@@ -20,8 +20,9 @@
 //! # }
 //! ```
 
-use rune::{MacroContext, Parser, TokenStream, Module, ContextError};
-use rune::macros;
+use rune::parsing::Parser;
+use rune::{Module, ContextError};
+use rune::macros::{MacroContext, TokenStream, quote, FormatArgs};
 
 /// Construct the supplemental `std::io` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -33,7 +34,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// Implementation for the `println!` macro.
 pub(crate) fn println_macro(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
-    let args = p.parse_all::<macros::FormatArgs>()?;
+    let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;
-    Ok(rune::quote!(std::io::println(#expanded)).into_token_stream(ctx))
+    Ok(quote!(std::io::println(#expanded)).into_token_stream(ctx))
 }

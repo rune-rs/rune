@@ -141,33 +141,40 @@ impl Peek for OuterAttribute {
     }
 }
 
-#[test]
-fn test_parse_attribute() {
-    const TEST_STRINGS: &[&str] = &[
-        "#[foo]",
-        "#[a::b::c]",
-        "#[foo = \"hello world\"]",
-        "#[foo = 1]",
-        "#[foo = 1.3]",
-        "#[foo = true]",
-        "#[foo = b\"bytes\"]",
-        "#[foo = (1, 2, \"string\")]",
-        "#[foo = #{\"a\": 1} ]",
-        r#"#[foo = Fred {"a": 1} ]"#,
-        r#"#[foo = a::Fred {"a": #{ "b": 2 } } ]"#,
-        "#[bar()]",
-        "#[bar(baz)]",
-        "#[derive(Debug, PartialEq, PartialOrd)]",
-        "#[tracing::instrument(skip(non_debug))]",
-        "#[zanzibar(a = \"z\", both = false, sasquatch::herring)]",
-        r#"#[doc = "multiline \
-                  docs are neat"
-          ]"#,
-    ];
+#[cfg(test)]
+mod tests {
+    use crate::ast;
+    use crate::parsing::parse_all;
+    use crate::SourceId;
 
-    for s in TEST_STRINGS.iter() {
-        crate::parse_all_without_source::<ast::Attribute>(s).expect(s);
-        let withbang = s.replacen("#[", "#![", 1);
-        crate::parse_all_without_source::<ast::Attribute>(&withbang).expect(&withbang);
+    #[test]
+    fn test_parse_attribute() {
+        const TEST_STRINGS: &[&str] = &[
+            "#[foo]",
+            "#[a::b::c]",
+            "#[foo = \"hello world\"]",
+            "#[foo = 1]",
+            "#[foo = 1.3]",
+            "#[foo = true]",
+            "#[foo = b\"bytes\"]",
+            "#[foo = (1, 2, \"string\")]",
+            "#[foo = #{\"a\": 1} ]",
+            r#"#[foo = Fred {"a": 1} ]"#,
+            r#"#[foo = a::Fred {"a": #{ "b": 2 } } ]"#,
+            "#[bar()]",
+            "#[bar(baz)]",
+            "#[derive(Debug, PartialEq, PartialOrd)]",
+            "#[tracing::instrument(skip(non_debug))]",
+            "#[zanzibar(a = \"z\", both = false, sasquatch::herring)]",
+            r#"#[doc = "multiline \
+                    docs are neat"
+            ]"#,
+        ];
+
+        for s in TEST_STRINGS.iter() {
+            parse_all::<ast::Attribute>(s, SourceId::empty()).expect(s);
+            let withbang = s.replacen("#[", "#![", 1);
+            parse_all::<ast::Attribute>(&withbang, SourceId::empty()).expect(&withbang);
+        }
     }
 }

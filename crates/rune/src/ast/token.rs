@@ -1,6 +1,8 @@
 use crate::ast::Kind;
+use crate::macros::{MacroContext, ToTokens, TokenStream};
+use crate::parsing::{ParseError, ParseErrorKind};
 use crate::shared::Description;
-use crate::{MacroContext, ParseError, ParseErrorKind, SourceId, Span, Spanned};
+use crate::{SourceId, Span, Spanned};
 use std::fmt;
 
 /// A single token encountered during parsing.
@@ -163,8 +165,8 @@ impl Token {
     }
 }
 
-impl crate::ToTokens for Token {
-    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut crate::TokenStream) {
+impl ToTokens for Token {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         stream.push(*self);
     }
 }
