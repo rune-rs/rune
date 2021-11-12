@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::Lit {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("Lit => {:?}", c.source.source(span));
+        log::trace!("Lit => {:?}", c.q.sources.source(c.source_id, span));
 
         let asm = match self {
             ast::Lit::Bool(lit_bool) => lit_bool.assemble(c, needs)?,

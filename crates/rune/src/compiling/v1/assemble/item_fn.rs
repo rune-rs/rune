@@ -3,7 +3,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl AssembleFn for ast::ItemFn {
     fn assemble_fn(&self, c: &mut Compiler<'_, '_>, instance_fn: bool) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("ItemFn => {:?}", c.source.source(span));
+        log::trace!("ItemFn => {:?}", c.q.sources.source(c.source_id, span));
 
         let mut patterns = Vec::new();
         let mut first = true;

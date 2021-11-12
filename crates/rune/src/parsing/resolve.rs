@@ -82,7 +82,7 @@ pub trait Resolve<'a>: ResolveOwned {
     /// Resolve the value from parsed AST.
     fn resolve(
         &self,
-        storage: &Storage,
+        storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<Self::Output, ResolveError>;
 }

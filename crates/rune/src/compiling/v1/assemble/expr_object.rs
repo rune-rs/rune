@@ -7,7 +7,11 @@ impl Assemble for ast::ExprObject {
         let span = self.span();
         let guard = c.scopes.push_child(span)?;
 
-        log::trace!("ExprObject => {:?} {:?}", c.source.source(span), needs);
+        log::trace!(
+            "ExprObject => {:?} {:?}",
+            c.q.sources.source(c.source_id, span),
+            needs
+        );
 
         let mut keys = Vec::<Box<str>>::new();
         let mut check_keys = Vec::new();
@@ -15,7 +19,7 @@ impl Assemble for ast::ExprObject {
 
         for (assign, _) in &self.assignments {
             let span = assign.span();
-            let key = assign.key.resolve(c.query.storage(), c.sources)?;
+            let key = assign.key.resolve(c.q.storage(), c.q.sources)?;
             keys.push(key.as_ref().into());
             check_keys.push((key.as_ref().into(), assign.key.span()));
 
@@ -36,17 +40,14 @@ impl Assemble for ast::ExprObject {
             if let Some((_, expr)) = &assign.assign {
                 expr.assemble(c, Needs::Value)?.apply(c)?;
             } else {
-                let key = assign.key.resolve(c.query.storage(), c.sources)?;
+                let key = assign.key.resolve(c.q.storage(), c.q.sources)?;
                 let var = c.scopes.get_var(&*key, c.source_id, span)?;
                 var.copy(&mut c.asm, span, format!("name `{}`", key));
             }
             c.scopes.decl_anon(span)?;
         }
 
-        let slot = c
-            .query
-            .unit_mut()
-            .new_static_object_keys_iter(span, &keys)?;
+        let slot = c.q.unit.new_static_object_keys_iter(span, &keys)?;
 
         match &self.ident {
             ast::ObjectIdent::Named(path) => {

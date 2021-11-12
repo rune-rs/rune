@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprFor {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprFor => {:?}", c.source.source(span));
+        log::trace!("ExprFor => {:?}", c.q.sources.source(c.source_id, span));
 
         let continue_label = c.asm.new_label("for_continue");
         let end_label = c.asm.new_label("for_end");

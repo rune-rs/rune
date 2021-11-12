@@ -6,7 +6,7 @@ impl Assemble for ast::LitNumber {
         use num::ToPrimitive as _;
 
         let span = self.span();
-        log::trace!("LitNumber => {:?}", c.source.source(span));
+        log::trace!("LitNumber => {:?}", c.q.sources.source(c.source_id, span));
 
         // NB: don't encode unecessary literal.
         if !needs.value() {
@@ -14,7 +14,7 @@ impl Assemble for ast::LitNumber {
             return Ok(Asm::top(span));
         }
 
-        let number = self.resolve(c.query.storage(), c.sources)?;
+        let number = self.resolve(c.q.storage(), c.q.sources)?;
 
         match number {
             ast::Number::Float(number) => {

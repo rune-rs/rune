@@ -1,5 +1,6 @@
 //! Context for a macro.
 
+use crate::ast;
 use crate::compiling::UnitBuilder;
 use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
@@ -11,8 +12,7 @@ use crate::parsing::{ResolveError, ResolveOwned};
 use crate::query;
 use crate::query::Used;
 use crate::shared::Gen;
-use crate::{ast, NoopCompileVisitor};
-use crate::{IrError, Source, Sources, Span, Spanned};
+use crate::{IrError, NoopCompileVisitor, Source, Sources, Span, Spanned};
 use query::Query;
 use std::fmt;
 use std::rc::Rc;
@@ -28,9 +28,7 @@ pub struct MacroContext<'a, 'q> {
     pub(crate) item: Arc<CompileItem>,
     /// Accessible query required to run the IR interpreter and has access to
     /// storage.
-    pub(crate) query: &'a mut Query<'q>,
-    /// Accessible sources.
-    pub(crate) sources: &'a mut Sources,
+    pub(crate) q: &'a mut Query<'q>,
 }
 
 impl<'a, 'q> MacroContext<'a, 'q> {
@@ -49,15 +47,19 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     {
         let mut unit = UnitBuilder::default();
         let gen = Gen::default();
-        let mut query = Query::new(&mut unit, Rc::new(NoopCompileVisitor::new()), gen);
-        let mut sources = Default::default();
+        let mut sources = Sources::default();
+        let mut query = Query::new(
+            &mut unit,
+            &mut sources,
+            Rc::new(NoopCompileVisitor::new()),
+            gen,
+        );
 
         let mut ctx = MacroContext {
             macro_span: Span::empty(),
             stream_span: Span::empty(),
             item: Default::default(),
-            query: &mut query,
-            sources: &mut sources,
+            q: &mut query,
         };
 
         f(&mut ctx)
@@ -90,10 +92,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
         T: Spanned + IrCompile,
         T::Output: IrEval,
     {
-        let mut ir_compiler = IrCompiler {
-            sources: self.sources,
-            query: self.query,
-        };
+        let mut ir_compiler = IrCompiler { q: self.q };
 
         let output = ir_compiler.compile(target)?;
 
@@ -102,8 +101,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
             scopes: Default::default(),
             module: self.item.module.clone(),
             item: self.item.item.clone(),
-            sources: self.sources,
-            query: self.query,
+            q: self.q,
         };
 
         match ir_interpreter.eval(&output, Used::Used) {
@@ -133,7 +131,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     where
         T: ResolveOwned,
     {
-        item.resolve_owned(self.query.storage(), self.sources)
+        item.resolve_owned(self.q.storage(), self.q.sources)
     }
 
     /// Parse the given input as the given type that implements
@@ -142,7 +140,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     where
         T: Parse,
     {
-        let source_id = self.sources.insert(Source::new("macro", source));
+        let source_id = self.q.sources.insert(Source::new("macro", source));
         crate::parse_all(source, source_id)
     }
 
@@ -162,23 +160,13 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     }
 
     /// Access storage associated with macro context.
-    pub fn storage(&self) -> &Storage {
-        self.query.storage()
+    pub(crate) fn q(&self) -> &Query<'q> {
+        self.q
     }
 
     /// Access mutable storage associated with macro context.
-    pub fn storage_mut(&mut self) -> &mut Storage {
-        self.query.storage_mut()
-    }
-
-    /// Access sources associated with macro context.
-    pub fn sources(&self) -> &Sources {
-        self.sources
-    }
-
-    /// Access sources associated with macro context.
-    pub fn sources_mut(&mut self) -> &mut Sources {
-        self.sources
+    pub(crate) fn q_mut(&mut self) -> &mut Query<'q> {
+        self.q
     }
 }
 

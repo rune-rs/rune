@@ -6,7 +6,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprBreak {
     fn assemble(&self, c: &mut Compiler<'_, '_>, _: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprBreak => {:?}", c.source.source(span));
+        log::trace!("ExprBreak => {:?}", c.q.sources.source(c.source_id, span));
 
         let current_loop = match c.loops.last() {
             Some(current_loop) => current_loop,
@@ -27,7 +27,7 @@ impl Assemble for ast::ExprBreak {
                 ast::ExprBreakValue::Label(label) => {
                     let (last_loop, to_drop) =
                         c.loops
-                            .walk_until_label(c.query.storage(), c.sources, *label)?;
+                            .walk_until_label(c.q.storage(), c.q.sources, *label)?;
                     (last_loop, to_drop, false)
                 }
             }

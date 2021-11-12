@@ -5,7 +5,7 @@ use crate::query::BuiltInMacro;
 impl Assemble for ast::Expr {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("Expr => {:?}", c.source.source(span));
+        log::trace!("Expr => {:?}", c.q.sources.source(c.source_id, span));
 
         let asm = match self {
             ast::Expr::Path(path) => path.assemble(c, needs)?,
@@ -38,7 +38,7 @@ impl Assemble for ast::Expr {
             ast::Expr::Object(expr_object) => expr_object.assemble(c, needs)?,
             ast::Expr::Range(expr_range) => expr_range.assemble(c, needs)?,
             ast::Expr::MacroCall(expr_call_macro) => {
-                let internal_macro = c.query.builtin_macro_for(&**expr_call_macro)?;
+                let internal_macro = c.q.builtin_macro_for(&**expr_call_macro)?;
 
                 match &*internal_macro {
                     BuiltInMacro::Template(template) => template.assemble(c, needs)?,

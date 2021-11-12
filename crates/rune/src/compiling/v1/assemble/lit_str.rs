@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::LitStr {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("LitStr => {:?}", c.source.source(span));
+        log::trace!("LitStr => {:?}", c.q.sources.source(c.source_id, span));
 
         // NB: Elide the entire literal if it's not needed.
         if !needs.value() {
@@ -12,8 +12,8 @@ impl Assemble for ast::LitStr {
             return Ok(Asm::top(span));
         }
 
-        let string = self.resolve(c.query.storage(), c.sources)?;
-        let slot = c.query.unit_mut().new_static_string(span, &*string)?;
+        let string = self.resolve(&c.q.storage, c.q.sources)?;
+        let slot = c.q.unit.new_static_string(span, &*string)?;
         c.asm.push(Inst::String { slot }, span);
         Ok(Asm::top(span))
     }

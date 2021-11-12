@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprIf {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprIf => {:?}", c.source.source(span));
+        log::trace!("ExprIf => {:?}", c.q.sources.source(c.source_id, span));
 
         let then_label = c.asm.new_label("if_then");
         let end_label = c.asm.new_label("if_end");

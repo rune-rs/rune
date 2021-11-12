@@ -38,7 +38,7 @@ impl<'a> Resolve<'a> for LitNumber {
 
     fn resolve(
         &self,
-        storage: &Storage,
+        storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<ast::Number, ResolveError> {
         use num::Num as _;

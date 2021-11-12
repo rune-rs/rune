@@ -35,7 +35,7 @@ impl Lit {
     where
         T: IntoLit,
     {
-        Self::new_with(lit, ctx.macro_span(), ctx.storage_mut())
+        Self::new_with(lit, ctx.macro_span(), &mut ctx.q_mut().storage)
     }
 
     /// Construct a new literal with the specified span and storage.

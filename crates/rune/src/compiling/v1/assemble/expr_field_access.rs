@@ -24,7 +24,7 @@ impl Assemble for ast::ExprFieldAccess {
 
         match &self.expr_field {
             ast::ExprField::LitNumber(n) => {
-                if let Some(index) = n.resolve(c.query.storage(), c.sources)?.as_tuple_index() {
+                if let Some(index) = n.resolve(c.q.storage(), c.q.sources)?.as_tuple_index() {
                     c.asm.push(Inst::TupleIndexGet { index }, span);
 
                     if !needs.value() {
@@ -37,8 +37,8 @@ impl Assemble for ast::ExprFieldAccess {
             }
             ast::ExprField::Path(path) => {
                 if let Some(ident) = path.try_as_ident() {
-                    let field = ident.resolve(c.query.storage(), c.sources)?;
-                    let slot = c.query.unit_mut().new_static_string(span, field.as_ref())?;
+                    let field = ident.resolve(&c.q.storage, c.q.sources)?;
+                    let slot = c.q.unit.new_static_string(span, field.as_ref())?;
 
                     c.asm.push(Inst::ObjectIndexGet { slot }, span);
 
@@ -68,9 +68,9 @@ fn try_immediate_field_access_optimization(
         None => return Ok(false),
     };
 
-    let ident = ident.resolve(c.query.storage(), c.sources)?;
+    let ident = ident.resolve(c.q.storage(), c.q.sources)?;
 
-    let index = match n.resolve(c.query.storage(), c.sources)? {
+    let index = match n.resolve(c.q.storage(), c.q.sources)? {
         ast::Number::Integer(n) => n,
         _ => return Ok(false),
     };

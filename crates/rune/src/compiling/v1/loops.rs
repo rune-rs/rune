@@ -94,7 +94,7 @@ impl Loops {
         Err(CompileError::new(
             span,
             CompileErrorKind::MissingLoopLabel {
-                label: expected.as_ref().into(),
+                label: expected.into(),
             },
         ))
     }

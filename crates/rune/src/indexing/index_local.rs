@@ -13,7 +13,7 @@ pub(crate) trait IndexLocal {
 impl IndexLocal for ast::Pat {
     fn index_local(&mut self, idx: &mut Indexer<'_, '_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("Pat => {:?}", idx.sources.source(idx.source_id, span));
+        log::trace!("Pat => {:?}", idx.q.sources.source(idx.source_id, span));
 
         match self {
             ast::Pat::PatPath(pat_path) => {
@@ -43,7 +43,7 @@ impl IndexLocal for ast::Pat {
 impl IndexLocal for ast::PatPath {
     fn index_local(&mut self, idx: &mut Indexer<'_, '_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("Ident => {:?}", idx.sources.source(idx.source_id, span));
+        log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
         self.path.index_local(idx)?;
         Ok(())
     }
@@ -52,10 +52,10 @@ impl IndexLocal for ast::PatPath {
 impl IndexLocal for ast::Path {
     fn index_local(&mut self, idx: &mut Indexer<'_, '_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("Ident => {:?}", idx.sources.source(idx.source_id, span));
+        log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
 
         let id = idx
-            .query
+            .q
             .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
         self.id = Some(id);
 
@@ -70,10 +70,10 @@ impl IndexLocal for ast::Path {
 impl IndexLocal for ast::Ident {
     fn index_local(&mut self, idx: &mut Indexer<'_, '_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("Ident => {:?}", idx.sources.source(idx.source_id, span));
+        log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
 
         let span = self.span();
-        let ident = self.resolve(idx.query.storage(), idx.sources)?;
+        let ident = self.resolve(idx.q.storage(), idx.q.sources)?;
         idx.scopes.declare(ident.as_ref(), span)?;
         Ok(())
     }
@@ -82,7 +82,10 @@ impl IndexLocal for ast::Ident {
 impl IndexLocal for ast::PatObject {
     fn index_local(&mut self, idx: &mut Indexer<'_, '_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("PatObject => {:?}", idx.sources.source(idx.source_id, span));
+        log::trace!(
+            "PatObject => {:?}",
+            idx.q.sources.source(idx.source_id, span)
+        );
 
         match &mut self.ident {
             ast::ObjectIdent::Anonymous(_) => {}
@@ -102,7 +105,7 @@ impl IndexLocal for ast::PatObject {
 impl IndexLocal for ast::PatVec {
     fn index_local(&mut self, idx: &mut Indexer<'_, '_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("PatVec => {:?}", idx.sources.source(idx.source_id, span));
+        log::trace!("PatVec => {:?}", idx.q.sources.source(idx.source_id, span));
 
         for (pat, _) in &mut self.items {
             pat.index_local(idx)?;
@@ -115,7 +118,10 @@ impl IndexLocal for ast::PatVec {
 impl IndexLocal for ast::PatTuple {
     fn index_local(&mut self, idx: &mut Indexer<'_, '_>) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("PatTuple => {:?}", idx.sources.source(idx.source_id, span));
+        log::trace!(
+            "PatTuple => {:?}",
+            idx.q.sources.source(idx.source_id, span)
+        );
 
         if let Some(path) = &mut self.path {
             path.index_local(idx)?;
@@ -134,7 +140,7 @@ impl IndexLocal for ast::PatBinding {
         let span = self.span();
         log::trace!(
             "PatBinding => {:?}",
-            idx.sources.source(idx.source_id, span)
+            idx.q.sources.source(idx.source_id, span)
         );
         self.pat.index_local(idx)?;
         Ok(())

@@ -7,11 +7,10 @@ use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst, InstAddress, InstValue, Label, PanicReason, TypeCheck};
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, Context, Diagnostics, Item, Options, Resolve, Source, SourceId,
-    Sources, Span, Spanned,
+    CompileError, CompileErrorKind, Context, Diagnostics, Item, Options, Resolve, SourceId, Span,
+    Spanned,
 };
 use std::rc::Rc;
-use std::sync::Arc;
 
 mod assemble;
 mod loops;
@@ -43,14 +42,10 @@ pub(crate) struct Compiler<'a, 'q> {
     pub(crate) visitor: Rc<dyn CompileVisitor>,
     /// The source id of the source.
     pub(crate) source_id: SourceId,
-    /// The source we are compiling for.
-    pub(crate) source: Arc<Source>,
-    /// Sources available during compilation.
-    pub(crate) sources: &'a Sources,
     /// The context we are compiling for.
     pub(crate) context: &'a Context,
     /// Query system to compile required items.
-    pub(crate) query: &'a mut Query<'q>,
+    pub(crate) q: &'a mut Query<'q>,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// Scopes defined in the compiler.
@@ -74,10 +69,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
     ) -> CompileResult<Option<CompileMeta>> {
         log::trace!("lookup meta: {:?}", item);
 
-        if let Some(meta) =
-            self.query
-                .query_meta(self.sources, spanned, item, Default::default())?
-        {
+        if let Some(meta) = self.q.query_meta(spanned, item, Default::default())? {
             log::trace!("found in query: {:?}", meta);
             self.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
@@ -236,7 +228,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
 
     /// Convert a path to an item.
     pub(crate) fn convert_path_to_named(&mut self, path: &ast::Path) -> CompileResult<Named> {
-        let named = self.query.convert_path(self.context, self.sources, path)?;
+        let named = self.q.convert_path(self.context, path)?;
 
         Ok(named)
     }
@@ -247,7 +239,10 @@ impl<'a, 'q> Compiler<'a, 'q> {
         then_label: Label,
     ) -> CompileResult<Scope> {
         let span = condition.span();
-        log::trace!("Condition => {:?}", self.source.source(span));
+        log::trace!(
+            "Condition => {:?}",
+            self.q.sources.source(self.source_id, span)
+        );
 
         match condition {
             ast::Condition::Expr(expr) => {
@@ -292,7 +287,10 @@ impl<'a, 'q> Compiler<'a, 'q> {
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_vec.span();
-        log::trace!("PatVec => {:?}", self.source.source(span));
+        log::trace!(
+            "PatVec => {:?}",
+            self.q.sources.source(self.source_id, span)
+        );
 
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
@@ -342,7 +340,10 @@ impl<'a, 'q> Compiler<'a, 'q> {
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_tuple.span();
-        log::trace!("PatTuple => {:?}", self.source.source(span));
+        log::trace!(
+            "PatTuple => {:?}",
+            self.q.sources.source(self.source_id, span)
+        );
 
         load(self, Needs::Value)?;
 
@@ -452,7 +453,10 @@ impl<'a, 'q> Compiler<'a, 'q> {
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_object.span();
-        log::trace!("PatObject => {:?}", self.source.source(span));
+        log::trace!(
+            "PatObject => {:?}",
+            self.q.sources.source(self.source_id, span)
+        );
 
         // NB: bind the loaded variable (once) to an anonymous var.
         // We reduce the number of copy operations by having specialized
@@ -470,16 +474,17 @@ impl<'a, 'q> Compiler<'a, 'q> {
 
         for (pat, _) in pat_object.items.iter().take(count) {
             let span = pat.span();
+            let cow_key;
 
             let key = match pat {
                 ast::Pat::PatBinding(binding) => {
-                    let key = binding.key.resolve(self.query.storage(), self.sources)?;
+                    cow_key = binding.key.resolve(&self.q.storage, self.q.sources)?;
                     bindings.push(Binding::Binding(
                         binding.span(),
-                        key.as_ref().into(),
+                        cow_key.as_ref().into(),
                         &*binding.pat,
                     ));
-                    key
+                    cow_key.as_ref()
                 }
                 ast::Pat::PatPath(path) => {
                     let ident = match path.path.try_as_ident() {
@@ -492,9 +497,8 @@ impl<'a, 'q> Compiler<'a, 'q> {
                         }
                     };
 
-                    let key = ident.resolve(self.query.storage(), self.sources)?;
-
-                    bindings.push(Binding::Ident(path.span(), key.as_ref().into()));
+                    let key = ident.resolve(&self.q.storage, self.q.sources)?;
+                    bindings.push(Binding::Ident(path.span(), key.into()));
                     key
                 }
                 _ => {
@@ -505,7 +509,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
                 }
             };
 
-            string_slots.push(self.query.unit_mut().new_static_string(span, &*key)?);
+            string_slots.push(self.q.unit.new_static_string(span, key)?);
 
             if let Some(existing) = keys_dup.insert(key.to_string(), span) {
                 return Err(CompileError::new(
@@ -520,10 +524,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
             keys.push(key.to_string());
         }
 
-        let keys = self
-            .query
-            .unit_mut()
-            .new_static_object_keys_iter(span, &keys[..])?;
+        let keys = self.q.unit.new_static_object_keys_iter(span, &keys[..])?;
 
         let type_check = match &pat_object.ident {
             ast::ObjectIdent::Named(path) => {
@@ -727,7 +728,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let span = pat.span();
-        log::trace!("Pat => {:?}", self.source.source(span));
+        log::trace!("Pat => {:?}", self.q.sources.source(self.source_id, span));
 
         match pat {
             ast::Pat::PatPath(path) => {
@@ -795,7 +796,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
                         {
                             let span = lit_number.span();
                             let integer = lit_number
-                                .resolve(self.query.storage(), self.sources)?
+                                .resolve(self.q.storage(), self.q.sources)?
                                 .as_i64(pat_lit.span(), true)?;
                             load(self, Needs::Value)?;
                             self.asm.push(Inst::EqInteger { integer }, span);
@@ -805,13 +806,13 @@ impl<'a, 'q> Compiler<'a, 'q> {
                 }
                 ast::Expr::Lit(expr_lit) => match &expr_lit.lit {
                     ast::Lit::Byte(lit_byte) => {
-                        let byte = lit_byte.resolve(self.query.storage(), self.sources)?;
+                        let byte = lit_byte.resolve(self.q.storage(), self.q.sources)?;
                         load(self, Needs::Value)?;
                         self.asm.push(Inst::EqByte { byte }, lit_byte.span());
                         break;
                     }
                     ast::Lit::Char(lit_char) => {
-                        let character = lit_char.resolve(self.query.storage(), self.sources)?;
+                        let character = lit_char.resolve(self.q.storage(), self.q.sources)?;
                         load(self, Needs::Value)?;
                         self.asm
                             .push(Inst::EqCharacter { character }, lit_char.span());
@@ -819,8 +820,8 @@ impl<'a, 'q> Compiler<'a, 'q> {
                     }
                     ast::Lit::Str(pat_string) => {
                         let span = pat_string.span();
-                        let string = pat_string.resolve(self.query.storage(), self.sources)?;
-                        let slot = self.query.unit_mut().new_static_string(span, &*string)?;
+                        let string = pat_string.resolve(&self.q.storage, self.q.sources)?;
+                        let slot = self.q.unit.new_static_string(span, &*string)?;
                         load(self, Needs::Value)?;
                         self.asm.push(Inst::EqStaticString { slot }, span);
                         break;
@@ -828,7 +829,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
                     ast::Lit::Number(lit_number) => {
                         let span = lit_number.span();
                         let integer = lit_number
-                            .resolve(self.query.storage(), self.sources)?
+                            .resolve(self.q.storage(), self.q.sources)?
                             .as_i64(pat_lit.span(), false)?;
                         load(self, Needs::Value)?;
                         self.asm.push(Inst::EqInteger { integer }, span);
@@ -904,10 +905,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
             ));
         }
 
-        let mut compiler = IrCompiler {
-            sources: self.sources,
-            query: self.query,
-        };
+        let mut compiler = IrCompiler { q: self.q };
 
         let mut compiled = Vec::new();
 
@@ -921,8 +919,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
             scopes: Default::default(),
             module: from.module.clone(),
             item: from.item.clone(),
-            sources: self.sources,
-            query: self.query,
+            q: self.q,
         };
 
         for (ir, name) in compiled {

@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::Path {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("Path => {:?}", c.source.source(span));
+        log::trace!("Path => {:?}", c.q.sources.source(c.source_id, span));
 
         if let Some(ast::PathKind::SelfValue) = self.as_kind() {
             let var = c.scopes.get_var("self", c.source_id, span)?;

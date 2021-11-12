@@ -83,15 +83,17 @@ pub struct BuiltInLine {
 
 pub(crate) struct Query<'a> {
     /// The current unit being built.
-    unit: &'a mut UnitBuilder,
+    pub(crate) unit: &'a mut UnitBuilder,
+    /// Sources available.
+    pub(crate) sources: &'a mut Sources,
     /// Visitor for the compiler meta.
     visitor: Rc<dyn CompileVisitor>,
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<Item, CompileMeta>,
     /// Macro storage.
-    storage: Storage,
+    pub(crate) storage: Storage,
     /// Cache of constants that have been expanded.
-    consts: Consts,
+    pub(crate) consts: Consts,
     /// Shared id generator.
     gen: Gen,
     /// Build queue.
@@ -119,9 +121,15 @@ pub(crate) struct Query<'a> {
 
 impl<'a> Query<'a> {
     /// Construct a new compilation context.
-    pub fn new(unit: &'a mut UnitBuilder, visitor: Rc<dyn CompileVisitor>, gen: Gen) -> Self {
+    pub fn new(
+        unit: &'a mut UnitBuilder,
+        sources: &'a mut Sources,
+        visitor: Rc<dyn CompileVisitor>,
+        gen: Gen,
+    ) -> Self {
         Self {
             unit,
+            sources,
             visitor,
             meta: HashMap::new(),
             storage: Storage::new(),
@@ -138,9 +146,9 @@ impl<'a> Query<'a> {
         }
     }
 
-    /// Access the unit being built.
-    pub(crate) fn unit_mut(&mut self) -> &mut UnitBuilder {
-        &mut self.unit
+    /// Access reference to storage.
+    pub(crate) fn storage(&self) -> &Storage {
+        &self.storage
     }
 
     /// Insert the given compile meta.
@@ -171,26 +179,6 @@ impl<'a> Query<'a> {
     /// Push a build entry.
     pub(crate) fn push_build_entry(&mut self, entry: BuildEntry) {
         self.queue.push_back(entry)
-    }
-
-    /// Access the constants associated with query.
-    pub(crate) fn consts(&self) -> &Consts {
-        &self.consts
-    }
-
-    /// Access the constants mutably associated with query.
-    pub(crate) fn consts_mut(&mut self) -> &mut Consts {
-        &mut self.consts
-    }
-
-    /// Access the storage associated with query.
-    pub(crate) fn storage(&self) -> &Storage {
-        &self.storage
-    }
-
-    /// Access the storage mutably associated with query.
-    pub(crate) fn storage_mut(&mut self) -> &mut Storage {
-        &mut self.storage
     }
 
     /// Insert path information.
@@ -367,21 +355,13 @@ impl<'a> Query<'a> {
     }
 
     /// Index a constant expression.
-    pub fn index_const<T>(
-        &mut self,
-        item: &Arc<CompileItem>,
-        sources: &Sources,
-        expr: &T,
-    ) -> Result<(), QueryError>
+    pub fn index_const<T>(&mut self, item: &Arc<CompileItem>, expr: &T) -> Result<(), QueryError>
     where
         T: IrCompile<Output = ir::Ir>,
     {
         log::trace!("new const: {:?}", item.item);
 
-        let mut ir_compiler = IrCompiler {
-            sources,
-            query: self,
-        };
+        let mut ir_compiler = IrCompiler { q: self };
 
         let ir = ir_compiler.compile(expr)?;
 
@@ -508,10 +488,7 @@ impl<'a> Query<'a> {
     /// Remove and queue up unused entries for building.
     ///
     /// Returns boolean indicating if any unused entries were queued up.
-    pub(crate) fn queue_unused_entries(
-        &mut self,
-        sources: &Sources,
-    ) -> Result<bool, (SourceId, QueryError)> {
+    pub(crate) fn queue_unused_entries(&mut self) -> Result<bool, (SourceId, QueryError)> {
         let unused = self
             .indexed
             .values()
@@ -527,12 +504,7 @@ impl<'a> Query<'a> {
             // NB: recursive queries might remove from `indexed`, so we expect
             // to miss things here.
             if let Some(meta) = self
-                .query_meta(
-                    sources,
-                    query_item.location.span,
-                    &query_item.item,
-                    Used::Unused,
-                )
+                .query_meta(query_item.location.span, &query_item.item, Used::Unused)
                 .map_err(|e| (query_item.location.source_id, e))?
             {
                 self.visitor.visit_meta(
@@ -550,7 +522,6 @@ impl<'a> Query<'a> {
     /// item.
     pub(crate) fn query_meta(
         &mut self,
-        sources: &Sources,
         span: Span,
         item: &Item,
         used: Used,
@@ -565,7 +536,7 @@ impl<'a> Query<'a> {
             None => return Ok(None),
         };
 
-        let meta = self.build_indexed_entry(sources, span, entry, used)?;
+        let meta = self.build_indexed_entry(span, entry, used)?;
 
         self.unit
             .insert_meta(&meta)
@@ -579,7 +550,6 @@ impl<'a> Query<'a> {
     pub(crate) fn convert_path(
         &mut self,
         context: &Context,
-        sources: &Sources,
         path: &ast::Path,
     ) -> Result<Named, CompileError> {
         let id = path.id();
@@ -594,7 +564,7 @@ impl<'a> Query<'a> {
 
         let mut item = match (&path.global, &path.first) {
             (Some(..), ast::PathSegment::Ident(ident)) => {
-                let ident = ident.resolve(&self.storage, sources)?;
+                let ident = ident.resolve(&self.storage, self.sources)?;
                 Item::with_crate(ident.as_ref())
             }
             (Some(global), _) => {
@@ -605,13 +575,11 @@ impl<'a> Query<'a> {
             }
             (None, segment) => match segment {
                 ast::PathSegment::Ident(ident) => {
-                    let ident = ident.resolve(&self.storage, sources)?;
-
                     if path.rest.is_empty() {
-                        local = Some(<Box<str>>::from(ident.as_ref()));
+                        local = Some(*ident);
                     }
 
-                    self.lookup_initial(context, &qp.module, &qp.item, &*ident)?
+                    self.lookup_initial(context, &qp.module, &qp.item, ident)?
                 }
                 ast::PathSegment::Super(super_value) => {
                     let mut item = qp.module.item.clone();
@@ -645,8 +613,8 @@ impl<'a> Query<'a> {
 
             match segment {
                 ast::PathSegment::Ident(ident) => {
-                    let ident = ident.resolve(&self.storage, sources)?;
-                    item.push(ident.as_ref());
+                    let ident = ident.resolve(&self.storage, self.sources)?;
+                    item.push(ident);
                 }
                 ast::PathSegment::Super(super_token) => {
                     if in_self_type {
@@ -676,7 +644,12 @@ impl<'a> Query<'a> {
 
         let span = path.span();
 
-        if let Some(new) = self.import(sources, span, &qp.module, &item, Used::Used)? {
+        let local = match local {
+            Some(local) => Some(local.resolve(&self.storage, self.sources)?.into()),
+            None => None,
+        };
+
+        if let Some(new) = self.import(span, &qp.module, &item, Used::Used)? {
             return Ok(Named { local, item: new });
         }
 
@@ -692,9 +665,14 @@ impl<'a> Query<'a> {
         visibility: Visibility,
         at: Item,
         target: Item,
-        alias: Option<&str>,
+        alias: Option<ast::Ident>,
         wildcard: bool,
     ) -> Result<(), QueryError> {
+        let alias = match alias {
+            Some(alias) => Some(alias.resolve(&self.storage, self.sources)?),
+            None => None,
+        };
+
         let last = alias
             .as_ref()
             .map(IntoComponent::as_component_ref)
@@ -751,7 +729,6 @@ impl<'a> Query<'a> {
     /// Get the given import by name.
     pub(crate) fn import(
         &mut self,
-        sources: &Sources,
         span: Span,
         module: &Arc<CompileMod>,
         item: &Item,
@@ -770,7 +747,7 @@ impl<'a> Query<'a> {
             while let Some(c) = it.next() {
                 cur.push(c);
 
-                let update = self.import_step(sources, span, &module, &cur, used, &mut path)?;
+                let update = self.import_step(span, &module, &cur, used, &mut path)?;
 
                 let update = match update {
                     Some(update) => update,
@@ -805,7 +782,6 @@ impl<'a> Query<'a> {
     /// Inner import implementation that doesn't walk the imported name.
     fn import_step(
         &mut self,
-        sources: &Sources,
         span: Span,
         module: &Arc<CompileMod>,
         item: &Item,
@@ -847,7 +823,7 @@ impl<'a> Query<'a> {
         let import = match entry.indexed {
             Indexed::Import(import) => import.entry,
             indexed => {
-                self.import_indexed(sources, span, entry.item, indexed, used)?;
+                self.import_indexed(span, entry.item, indexed, used)?;
                 return Ok(None);
             }
         };
@@ -874,7 +850,6 @@ impl<'a> Query<'a> {
     /// Build a single, indexed entry and return its metadata.
     fn build_indexed_entry(
         &mut self,
-        sources: &Sources,
         span: Span,
         entry: IndexedEntry,
         used: Used,
@@ -892,19 +867,23 @@ impl<'a> Query<'a> {
                 let enum_item = self.item_for((query_item.location.span, Some(variant.enum_id)))?;
 
                 // Assert that everything is built for the enum.
-                self.query_meta(sources, span, &enum_item.item, Default::default())?;
+                self.query_meta(span, &enum_item.item, Default::default())?;
 
                 variant_into_item_decl(
                     &query_item.item,
                     variant.ast.body,
                     Some(&enum_item.item),
                     &self.storage,
-                    sources,
+                    self.sources,
                 )?
             }
-            Indexed::Struct(st) => {
-                struct_into_item_decl(&query_item.item, st.ast.body, None, &self.storage, sources)?
-            }
+            Indexed::Struct(st) => struct_into_item_decl(
+                &query_item.item,
+                st.ast.body,
+                None,
+                &self.storage,
+                self.sources,
+            )?,
             Indexed::Function(f) => {
                 self.queue.push_back(BuildEntry {
                     location: query_item.location,
@@ -959,8 +938,7 @@ impl<'a> Query<'a> {
                     scopes: Default::default(),
                     module: c.module.clone(),
                     item: query_item.item.clone(),
-                    sources,
-                    query: self,
+                    q: self,
                 };
 
                 let const_value = const_compiler.eval_const(&c.ir, used)?;
@@ -977,10 +955,7 @@ impl<'a> Query<'a> {
                 CompileMetaKind::Const { const_value }
             }
             Indexed::ConstFn(c) => {
-                let mut ir_compiler = IrCompiler {
-                    sources,
-                    query: self,
-                };
+                let mut ir_compiler = IrCompiler { q: self };
 
                 let ir_fn = ir_compiler.compile(&*c.item_fn)?;
 
@@ -1021,7 +996,10 @@ impl<'a> Query<'a> {
 
         let source = CompileSource {
             location: query_item.location,
-            path: sources.path(query_item.location.source_id).map(Into::into),
+            path: self
+                .sources
+                .path(query_item.location.source_id)
+                .map(Into::into),
         };
 
         Ok(CompileMeta {
@@ -1060,7 +1038,6 @@ impl<'a> Query<'a> {
     /// Handle an imported indexed entry.
     fn import_indexed(
         &mut self,
-        sources: &Sources,
         span: Span,
         item: Arc<CompileItem>,
         indexed: Indexed,
@@ -1071,7 +1048,7 @@ impl<'a> Query<'a> {
         // results.
         let entry = IndexedEntry { item, indexed };
 
-        let meta = self.build_indexed_entry(sources, span, entry, used)?;
+        let meta = self.build_indexed_entry(span, entry, used)?;
 
         self.unit
             .insert_meta(&meta)
@@ -1152,10 +1129,12 @@ impl<'a> Query<'a> {
         context: &Context,
         module: &Arc<CompileMod>,
         base: &Item,
-        local: &str,
+        local: &ast::Ident,
     ) -> Result<Item, CompileError> {
         debug_assert!(base.starts_with(&module.item));
         let mut base = base.clone();
+
+        let local = local.resolve(&self.storage, self.sources)?;
 
         while base.starts_with(&module.item) {
             let item = base.extended(local);

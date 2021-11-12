@@ -15,7 +15,7 @@ impl LitStr {
     /// Resolve a template string.
     pub(crate) fn resolve_template_string<'a>(
         &self,
-        storage: &Storage,
+        storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<Cow<'a, str>, ResolveError> {
         self.resolve_string(storage, sources, ast::utils::WithTemplate(true))
@@ -24,7 +24,7 @@ impl LitStr {
     /// Resolve the given string with the specified configuration.
     pub(crate) fn resolve_string<'a>(
         &self,
-        storage: &Storage,
+        storage: &'a Storage,
         sources: &'a Sources,
         with_template: ast::utils::WithTemplate,
     ) -> Result<Cow<'a, str>, ResolveError> {
@@ -40,7 +40,7 @@ impl LitStr {
                     )
                 })?;
 
-                return Ok(Cow::Owned(bytes.clone()));
+                return Ok(Cow::Borrowed(bytes));
             }
         };
 
@@ -121,7 +121,7 @@ impl<'a> Resolve<'a> for LitStr {
 
     fn resolve(
         &self,
-        storage: &Storage,
+        storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<Cow<'a, str>, ResolveError> {
         self.resolve_string(storage, sources, ast::utils::WithTemplate(false))

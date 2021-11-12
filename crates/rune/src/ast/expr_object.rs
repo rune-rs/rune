@@ -136,7 +136,7 @@ impl<'a> Resolve<'a> for ObjectKey {
 
     fn resolve(
         &self,
-        storage: &Storage,
+        storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<Self::Output, ResolveError> {
         Ok(match self {
@@ -149,7 +149,7 @@ impl<'a> Resolve<'a> for ObjectKey {
                     }
                 };
 
-                ident.resolve(storage, sources)?
+                Cow::Borrowed(ident.resolve(storage, sources)?)
             }
         })
     }

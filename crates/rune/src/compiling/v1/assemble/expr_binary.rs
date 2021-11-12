@@ -4,15 +4,15 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprBinary {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprBinary => {:?}", c.source.source(span));
+        log::trace!("ExprBinary => {:?}", c.q.sources.source(c.source_id, span));
         log::trace!(
             "ExprBinary {{ lhs => {:?} }}",
-            c.source.source(self.lhs.span())
+            c.q.sources.source(c.source_id, self.lhs.span())
         );
         log::trace!("ExprBinary {{ op => {:?} }}", self.op);
         log::trace!(
             "ExprBinary {{ rhs => {:?} }}",
-            c.source.source(self.rhs.span())
+            c.q.sources.source(c.source_id, self.rhs.span())
         );
 
         // Special expressions which operates on the stack in special ways.
@@ -146,7 +146,7 @@ fn compile_assign_binop(
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
 
-            let ident = segment.resolve(c.query.storage(), c.sources)?;
+            let ident = segment.resolve(c.q.storage(), c.q.sources)?;
             let var = c.scopes.get_var(&*ident, c.source_id, span)?;
 
             Some(InstTarget::Offset(var.offset))
@@ -160,11 +160,8 @@ fn compile_assign_binop(
             match &field_access.expr_field {
                 ast::ExprField::Path(path) => {
                     if let Some(ident) = path.try_as_ident() {
-                        let n = ident.resolve(c.query.storage(), c.sources)?;
-                        let n = c
-                            .query
-                            .unit_mut()
-                            .new_static_string(path.span(), n.as_ref())?;
+                        let n = ident.resolve(&c.q.storage, c.q.sources)?;
+                        let n = c.q.unit.new_static_string(path.span(), n.as_ref())?;
 
                         Some(InstTarget::Field(n))
                     } else {
@@ -174,7 +171,7 @@ fn compile_assign_binop(
                 ast::ExprField::LitNumber(field) => {
                     let span = field.span();
 
-                    let number = field.resolve(c.query.storage(), c.sources)?;
+                    let number = field.resolve(c.q.storage(), c.q.sources)?;
                     let index = number.as_tuple_index().ok_or_else(|| {
                         CompileError::new(span, CompileErrorKind::UnsupportedTupleIndex { number })
                     })?;

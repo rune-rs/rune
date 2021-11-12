@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprUnary {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprUnary => {:?}", c.source.source(span));
+        log::trace!("ExprUnary => {:?}", c.q.sources.source(c.source_id, span));
 
         // NB: special unary expressions.
         if let ast::UnOp::BorrowRef { .. } = self.op {
@@ -13,7 +13,7 @@ impl Assemble for ast::ExprUnary {
 
         if let (ast::UnOp::Neg, ast::Expr::Lit(expr_lit)) = (self.op, &self.expr) {
             if let ast::Lit::Number(n) = &expr_lit.lit {
-                match n.resolve(c.query.storage(), c.sources)? {
+                match n.resolve(c.q.storage(), c.q.sources)? {
                     ast::Number::Float(n) => {
                         c.asm.push(Inst::float(-n), span);
                     }

@@ -5,7 +5,6 @@ use crate::shared::Gen;
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Context, Diagnostics, Location, Options, Source, Span, Spanned};
 use std::rc::Rc;
-use std::sync::Arc;
 
 mod assembly;
 mod compile_error;
@@ -46,8 +45,8 @@ pub(crate) fn compile_with_options<'a>(
     );
 
     // Queue up the initial sources to be loaded.
-    for source_id in worker.sources.source_ids() {
-        let mod_item = match worker.query.insert_root_mod(source_id, Span::empty()) {
+    for source_id in worker.q.sources.source_ids() {
+        let mod_item = match worker.q.insert_root_mod(source_id, Span::empty()) {
             Ok(result) => result,
             Err(error) => {
                 worker.diagnostics.error(source_id, error);
@@ -69,16 +68,15 @@ pub(crate) fn compile_with_options<'a>(
     }
 
     loop {
-        while let Some(entry) = worker.query.next_build_entry() {
+        while let Some(entry) = worker.q.next_build_entry() {
             let source_id = entry.location.source_id;
 
             let task = CompileBuildEntry {
                 visitor: &visitor,
                 context,
                 options,
-                sources: worker.sources,
                 diagnostics: worker.diagnostics,
-                query: &mut worker.query,
+                q: &mut worker.q,
             };
 
             if let Err(error) = task.compile(entry) {
@@ -86,7 +84,7 @@ pub(crate) fn compile_with_options<'a>(
             }
         }
 
-        match worker.query.queue_unused_entries(worker.sources) {
+        match worker.q.queue_unused_entries() {
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
@@ -106,26 +104,22 @@ struct CompileBuildEntry<'a, 'q> {
     visitor: &'a Rc<dyn CompileVisitor>,
     context: &'a Context,
     options: &'a Options,
-    sources: &'a Sources,
     diagnostics: &'a mut Diagnostics,
-    query: &'a mut Query<'q>,
+    q: &'a mut Query<'q>,
 }
 
 impl<'q> CompileBuildEntry<'_, 'q> {
     fn compiler1<'a>(
         &'a mut self,
         location: Location,
-        source: &Arc<Source>,
         span: Span,
         asm: &'a mut Assembly,
     ) -> self::v1::Compiler<'a, 'q> {
         self::v1::Compiler {
             visitor: self.visitor.clone(),
-            sources: self.sources,
             source_id: location.source_id,
-            source: source.clone(),
             context: self.context,
-            query: self.query,
+            q: self.q,
             asm,
             scopes: self::v1::Scopes::new(self.visitor.clone()),
             contexts: vec![span],
@@ -143,7 +137,7 @@ impl<'q> CompileBuildEntry<'_, 'q> {
             used,
         } = entry;
 
-        let source = self.sources.get(location.source_id).ok_or_else(|| {
+        let source = self.q.sources.get(location.source_id).ok_or_else(|| {
             CompileError::new(
                 location.span,
                 CompileErrorKind::MissingSourceId {
@@ -152,24 +146,24 @@ impl<'q> CompileBuildEntry<'_, 'q> {
             )
         })?;
 
-        let mut asm = self.query.unit_mut().new_assembly(location);
+        let mut asm = self.q.unit.new_assembly(location);
 
         match build {
             Build::Function(f) => {
                 use self::v1::AssembleFn;
 
-                let args = format_fn_args(&*source, f.ast.args.iter().map(|(a, _)| a))?;
+                let args = format_fn_args(source, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
 
-                let mut c = self.compiler1(location, &source, span, &mut asm);
+                let mut c = self.compiler1(location, span, &mut asm);
                 f.ast.assemble_fn(&mut c, false)?;
 
                 if used.is_unused() {
                     self.diagnostics.not_used(location.source_id, span, None);
                 } else {
-                    self.query.unit_mut().new_function(
+                    self.q.unit.new_function(
                         location,
                         item.item.clone(),
                         count,
@@ -186,9 +180,8 @@ impl<'q> CompileBuildEntry<'_, 'q> {
 
                 let span = f.ast.span();
                 let count = f.ast.args.len();
-                let name = f.ast.name.resolve(self.query.storage(), self.sources)?;
 
-                let mut c = self.compiler1(location, &source, span, &mut asm);
+                let mut c = self.compiler1(location, span, &mut asm);
                 let meta = c.lookup_meta(f.instance_span, &f.impl_item)?;
 
                 let type_hash = meta
@@ -200,7 +193,9 @@ impl<'q> CompileBuildEntry<'_, 'q> {
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
                 } else {
-                    self.query.unit_mut().new_instance_function(
+                    let name = f.ast.name.resolve(&self.q.storage, self.q.sources)?;
+
+                    self.q.unit.new_instance_function(
                         location,
                         item.item.clone(),
                         type_hash,
@@ -219,14 +214,14 @@ impl<'q> CompileBuildEntry<'_, 'q> {
                 let args =
                     format_fn_args(&*source, closure.ast.args.as_slice().iter().map(|(a, _)| a))?;
 
-                let mut c = self.compiler1(location, &source, span, &mut asm);
+                let mut c = self.compiler1(location, span, &mut asm);
                 closure.ast.assemble_closure(&mut c, &closure.captures)?;
 
                 if used.is_unused() {
                     c.diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
-                    self.query.unit_mut().new_function(
+                    self.q.unit.new_function(
                         location,
                         item.item.clone(),
                         closure.ast.args.len(),
@@ -242,14 +237,14 @@ impl<'q> CompileBuildEntry<'_, 'q> {
                 let args = b.captures.len();
                 let span = b.ast.span();
 
-                let mut c = self.compiler1(location, &source, span, &mut asm);
+                let mut c = self.compiler1(location, span, &mut asm);
                 b.ast.assemble_closure(&mut c, &b.captures)?;
 
                 if used.is_unused() {
                     self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
-                    self.query.unit_mut().new_function(
+                    self.q.unit.new_function(
                         location,
                         item.item.clone(),
                         args,
@@ -265,13 +260,9 @@ impl<'q> CompileBuildEntry<'_, 'q> {
             }
             Build::Import(import) => {
                 // Issue the import to check access.
-                let result = self.query.import(
-                    self.sources,
-                    location.span,
-                    &item.module,
-                    &item.item,
-                    used,
-                )?;
+                let result = self
+                    .q
+                    .import(location.span, &item.module, &item.item, used)?;
 
                 if used.is_unused() {
                     self.diagnostics
@@ -280,7 +271,7 @@ impl<'q> CompileBuildEntry<'_, 'q> {
 
                 let missing = match &result {
                     Some(item) => {
-                        if self.context.contains_prefix(item) || self.query.contains_prefix(item) {
+                        if self.context.contains_prefix(item) || self.q.contains_prefix(item) {
                             None
                         } else {
                             Some(item)
@@ -297,13 +288,10 @@ impl<'q> CompileBuildEntry<'_, 'q> {
                 }
             }
             Build::ReExport => {
-                let import = match self.query.import(
-                    self.sources,
-                    location.span,
-                    &item.module,
-                    &item.item,
-                    used,
-                )? {
+                let import = match self
+                    .q
+                    .import(location.span, &item.module, &item.item, used)?
+                {
                     Some(item) => item,
                     None => {
                         return Err(CompileError::new(
@@ -315,8 +303,8 @@ impl<'q> CompileBuildEntry<'_, 'q> {
                     }
                 };
 
-                self.query
-                    .unit_mut()
+                self.q
+                    .unit
                     .new_function_reexport(location, &item.item, &import)?;
             }
         }

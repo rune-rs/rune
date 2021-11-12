@@ -33,7 +33,7 @@ impl WildcardImport {
                     self.visibility,
                     self.from.clone(),
                     name,
-                    None::<&str>,
+                    None,
                     true,
                 )?;
             }
@@ -56,7 +56,7 @@ impl WildcardImport {
                     self.visibility,
                     self.from.clone(),
                     name,
-                    None::<&str>,
+                    None,
                     true,
                 )?;
             }

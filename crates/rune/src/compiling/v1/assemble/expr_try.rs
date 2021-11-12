@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprTry {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprTry => {:?}", c.source.source(span));
+        log::trace!("ExprTry => {:?}", c.q.sources.source(c.source_id, span));
 
         let clean = c.scopes.total_var_count(span)?;
         let address = self.expr.assemble(c, Needs::Value)?.apply_targeted(c)?;
