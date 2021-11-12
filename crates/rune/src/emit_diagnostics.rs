@@ -125,7 +125,6 @@ impl EmitDiagnostics for VmError {
         let source_id = debug_inst.source_id;
         let span = debug_inst.span;
 
-        let mut backtrace = vec![StackFrame { source_id, span }];
         let (reason, notes) = match error {
             VmErrorKind::Panic { reason } => {
                 labels.push(d::Label::primary(source_id, span.range()).with_message("panicked"));
@@ -168,6 +167,8 @@ impl EmitDiagnostics for VmError {
             }
         };
 
+        let mut backtrace = vec![StackFrame { source_id, span }];
+
         for ip in frames.iter().map(|v| v.ip()) {
             let debug_inst = match debug_info.instruction_at(ip) {
                 Some(debug_inst) => debug_inst,
@@ -187,6 +188,7 @@ impl EmitDiagnostics for VmError {
 
             backtrace.push(StackFrame { source_id, span });
         }
+
         let diagnostic = d::Diagnostic::error()
             .with_message(reason)
             .with_labels(labels)
@@ -194,20 +196,26 @@ impl EmitDiagnostics for VmError {
 
         term::emit(out, &config, sources, &diagnostic)?;
 
-        writeln!(out, "Callstack:")?;
+        if !backtrace.is_empty() {
+            writeln!(out, "backtrace:")?;
 
-        for frame in &backtrace {
-            let source = match sources.get(frame.source_id) {
-                Some(source) => source,
-                None => continue,
-            };
+            for frame in &backtrace {
+                let source = match sources.get(frame.source_id) {
+                    Some(source) => source,
+                    None => continue,
+                };
 
-            let (line, text) = match source.line(frame.span) {
-                Some(out) => out,
-                None => continue,
-            };
+                let (line, line_count, text) = match source.line(frame.span) {
+                    Some((line, line_count, text)) => (
+                        line.saturating_add(1),
+                        line_count.saturating_add(1),
+                        text.trim_end(),
+                    ),
+                    None => continue,
+                };
 
-            write!(out, "\t{}:{}\n\t\t{}", source.name(), line, text)?;
+                writeln!(out, "{}:{}:{}: {}", source.name(), line, line_count, text)?;
+            }
         }
 
         Ok(())
