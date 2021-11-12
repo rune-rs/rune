@@ -22,7 +22,7 @@
 
 use rune::ast;
 use rune::macros::{quote, MacroContext, TokenStream};
-use rune::parsing::Parser;
+use rune::parse::Parser;
 use rune::T;
 use rune::{ContextError, Module};
 

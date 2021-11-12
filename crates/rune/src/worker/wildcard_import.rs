@@ -1,4 +1,4 @@
-use crate::compiling::{CompileError, CompileErrorKind, CompileResult};
+use crate::compile::{CompileError, CompileErrorKind, CompileResult};
 use crate::meta::CompileMod;
 use crate::query::Query;
 use crate::{Context, Item, SourceId, Span, Visibility};

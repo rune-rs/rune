@@ -3,8 +3,8 @@
 pub(crate) use crate::ast;
 pub(crate) use crate::ast::utils;
 pub(crate) use crate::macros::{MacroContext, Storage, ToTokens, TokenStream};
-pub(crate) use crate::parsing::Opaque;
-pub(crate) use crate::parsing::{
+pub(crate) use crate::parse::Opaque;
+pub(crate) use crate::parse::{
     Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,
     ResolveErrorKind,
 };

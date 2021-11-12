@@ -1,6 +1,6 @@
 use rune::ast;
 use rune::macros::quote;
-use rune::parsing::Parser;
+use rune::parse::Parser;
 use rune::{Context, Diagnostics, FromValue, Module, Options, Source, Sources, Vm};
 use std::sync::Arc;
 

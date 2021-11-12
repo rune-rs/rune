@@ -1,6 +1,6 @@
 use crate::ast::Kind;
 use crate::macros::{MacroContext, ToTokens, TokenStream};
-use crate::parsing::{ParseError, ParseErrorKind};
+use crate::parse::{ParseError, ParseErrorKind};
 use crate::shared::Description;
 use crate::{SourceId, Span, Spanned};
 use std::fmt;

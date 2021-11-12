@@ -1,13 +1,11 @@
 use crate::ast;
 use crate::attrs;
 use crate::collections::HashMap;
-use crate::compiling::{
-    CompileError, CompileErrorKind, CompileResult, CompileVisitor, SourceLoader,
-};
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, CompileVisitor, SourceLoader};
 use crate::indexing::{IndexFnKind, IndexLocal, IndexScopes};
 use crate::macros::MacroCompiler;
 use crate::meta::{CompileMeta, CompileMetaKind, CompileMod, CompileSource};
-use crate::parsing::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
+use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
 use crate::query::{
     Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
     Function, Indexed, IndexedEntry, InstanceFunction, Query, Used,

@@ -6,7 +6,7 @@ use crate::ast::prelude::*;
 ///
 /// ```rust
 /// use rune::ast;
-/// use rune::parsing::parse_all;
+/// use rune::parse::parse_all;
 /// use rune::SourceId;
 /// use rune::testing;
 ///

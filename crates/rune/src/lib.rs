@@ -203,7 +203,7 @@ pub use self::any::Any;
 
 mod attrs;
 
-pub mod compiling;
+pub mod compile;
 
 mod context;
 pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
@@ -211,14 +211,9 @@ pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo
 pub mod diagnostics;
 #[doc(inline)]
 pub use self::diagnostics::Diagnostics;
-
-#[cfg(feature = "diagnostics")]
-mod emit_diagnostics;
 #[cfg(feature = "diagnostics")]
 #[doc(inline)]
-pub use self::emit_diagnostics::{
-    termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource,
-};
+pub use self::diagnostics::EmitDiagnostics;
 
 mod hash;
 pub use self::hash::{Hash, IntoTypeHash};
@@ -255,7 +250,7 @@ pub use self::named::Named;
 mod options;
 pub use self::options::{ConfigurationError, Options};
 
-pub mod parsing;
+pub mod parse;
 
 mod protocol;
 pub use self::protocol::Protocol;
@@ -292,6 +287,9 @@ pub use self::spanned::{OptionSpanned, Spanned};
 mod spanned_error;
 pub use self::spanned_error::SpannedError;
 pub(crate) use self::spanned_error::WithSpan;
+
+#[cfg(feature = "diagnostics")]
+pub use codespan_reporting::term::termcolor;
 
 mod visibility;
 pub(crate) use self::visibility::Visibility;

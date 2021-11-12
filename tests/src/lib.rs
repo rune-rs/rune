@@ -38,7 +38,7 @@ impl RunError {
 }
 
 fn internal_compile_source(
-    context: &rune::Context,
+    context: &Context,
     sources: &mut Sources,
 ) -> Result<(Unit, Diagnostics), Diagnostics> {
     let options = Options::default();
@@ -104,7 +104,7 @@ where
 /// Call the specified function in the given script sources.
 #[cfg(feature = "futures-executor")]
 fn internal_run<N, A, T>(
-    context: &Arc<rune::Context>,
+    context: &Arc<Context>,
     sources: &mut Sources,
     function: N,
     args: A,
@@ -121,7 +121,7 @@ where
 /// Call the specified function in the given script sources.
 #[cfg(not(feature = "futures-executor"))]
 fn internal_run<N, A, T>(
-    context: &Arc<rune::Context>,
+    context: &Arc<Context>,
     sources: &mut Sources,
     function: N,
     args: A,

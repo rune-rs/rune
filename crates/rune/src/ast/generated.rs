@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::macros;
-use crate::parsing;
+use crate::parse;
 use crate::shared;
 use std::fmt;
 
@@ -20,19 +20,19 @@ impl crate::Spanned for Abstract {
     }
 }
 
-impl parsing::Parse for Abstract {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Abstract {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Abstract => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "abstract")),
+            _ => Err(parse::ParseError::expected(&token, "abstract")),
         }
     }
 }
 
-impl parsing::Peek for Abstract {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Abstract {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Abstract)
     }
 }
@@ -56,19 +56,19 @@ impl crate::Spanned for AlignOf {
     }
 }
 
-impl parsing::Parse for AlignOf {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for AlignOf {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::AlignOf => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "alignof")),
+            _ => Err(parse::ParseError::expected(&token, "alignof")),
         }
     }
 }
 
-impl parsing::Peek for AlignOf {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for AlignOf {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::AlignOf)
     }
 }
@@ -92,19 +92,19 @@ impl crate::Spanned for Amp {
     }
 }
 
-impl parsing::Parse for Amp {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Amp {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Amp => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "&")),
+            _ => Err(parse::ParseError::expected(&token, "&")),
         }
     }
 }
 
-impl parsing::Peek for Amp {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Amp {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Amp)
     }
 }
@@ -128,19 +128,19 @@ impl crate::Spanned for AmpAmp {
     }
 }
 
-impl parsing::Parse for AmpAmp {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for AmpAmp {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::AmpAmp => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "&&")),
+            _ => Err(parse::ParseError::expected(&token, "&&")),
         }
     }
 }
 
-impl parsing::Peek for AmpAmp {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for AmpAmp {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::AmpAmp)
     }
 }
@@ -164,19 +164,19 @@ impl crate::Spanned for AmpEq {
     }
 }
 
-impl parsing::Parse for AmpEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for AmpEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::AmpEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "&=")),
+            _ => Err(parse::ParseError::expected(&token, "&=")),
         }
     }
 }
 
-impl parsing::Peek for AmpEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for AmpEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::AmpEq)
     }
 }
@@ -200,19 +200,19 @@ impl crate::Spanned for Arrow {
     }
 }
 
-impl parsing::Parse for Arrow {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Arrow {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Arrow => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "->")),
+            _ => Err(parse::ParseError::expected(&token, "->")),
         }
     }
 }
 
-impl parsing::Peek for Arrow {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Arrow {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Arrow)
     }
 }
@@ -236,19 +236,19 @@ impl crate::Spanned for As {
     }
 }
 
-impl parsing::Parse for As {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for As {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::As => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "as")),
+            _ => Err(parse::ParseError::expected(&token, "as")),
         }
     }
 }
 
-impl parsing::Peek for As {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for As {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::As)
     }
 }
@@ -272,19 +272,19 @@ impl crate::Spanned for Async {
     }
 }
 
-impl parsing::Parse for Async {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Async {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Async => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "async")),
+            _ => Err(parse::ParseError::expected(&token, "async")),
         }
     }
 }
 
-impl parsing::Peek for Async {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Async {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Async)
     }
 }
@@ -308,19 +308,19 @@ impl crate::Spanned for At {
     }
 }
 
-impl parsing::Parse for At {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for At {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::At => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "@")),
+            _ => Err(parse::ParseError::expected(&token, "@")),
         }
     }
 }
 
-impl parsing::Peek for At {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for At {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::At)
     }
 }
@@ -344,19 +344,19 @@ impl crate::Spanned for Await {
     }
 }
 
-impl parsing::Parse for Await {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Await {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Await => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "await")),
+            _ => Err(parse::ParseError::expected(&token, "await")),
         }
     }
 }
 
-impl parsing::Peek for Await {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Await {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Await)
     }
 }
@@ -380,19 +380,19 @@ impl crate::Spanned for Bang {
     }
 }
 
-impl parsing::Parse for Bang {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Bang {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Bang => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "!")),
+            _ => Err(parse::ParseError::expected(&token, "!")),
         }
     }
 }
 
-impl parsing::Peek for Bang {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Bang {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Bang)
     }
 }
@@ -416,19 +416,19 @@ impl crate::Spanned for BangEq {
     }
 }
 
-impl parsing::Parse for BangEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for BangEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::BangEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "!=")),
+            _ => Err(parse::ParseError::expected(&token, "!=")),
         }
     }
 }
 
-impl parsing::Peek for BangEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for BangEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::BangEq)
     }
 }
@@ -452,19 +452,19 @@ impl crate::Spanned for Become {
     }
 }
 
-impl parsing::Parse for Become {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Become {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Become => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "become")),
+            _ => Err(parse::ParseError::expected(&token, "become")),
         }
     }
 }
 
-impl parsing::Peek for Become {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Become {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Become)
     }
 }
@@ -488,19 +488,19 @@ impl crate::Spanned for Break {
     }
 }
 
-impl parsing::Parse for Break {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Break {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Break => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "break")),
+            _ => Err(parse::ParseError::expected(&token, "break")),
         }
     }
 }
 
-impl parsing::Peek for Break {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Break {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Break)
     }
 }
@@ -524,19 +524,19 @@ impl crate::Spanned for Caret {
     }
 }
 
-impl parsing::Parse for Caret {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Caret {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Caret => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "^")),
+            _ => Err(parse::ParseError::expected(&token, "^")),
         }
     }
 }
 
-impl parsing::Peek for Caret {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Caret {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Caret)
     }
 }
@@ -560,19 +560,19 @@ impl crate::Spanned for CaretEq {
     }
 }
 
-impl parsing::Parse for CaretEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for CaretEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::CaretEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "^=")),
+            _ => Err(parse::ParseError::expected(&token, "^=")),
         }
     }
 }
 
-impl parsing::Peek for CaretEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for CaretEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::CaretEq)
     }
 }
@@ -596,19 +596,19 @@ impl crate::Spanned for Colon {
     }
 }
 
-impl parsing::Parse for Colon {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Colon {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Colon => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, ":")),
+            _ => Err(parse::ParseError::expected(&token, ":")),
         }
     }
 }
 
-impl parsing::Peek for Colon {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Colon {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Colon)
     }
 }
@@ -632,19 +632,19 @@ impl crate::Spanned for ColonColon {
     }
 }
 
-impl parsing::Parse for ColonColon {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for ColonColon {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::ColonColon => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "::")),
+            _ => Err(parse::ParseError::expected(&token, "::")),
         }
     }
 }
 
-impl parsing::Peek for ColonColon {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for ColonColon {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::ColonColon)
     }
 }
@@ -668,19 +668,19 @@ impl crate::Spanned for Comma {
     }
 }
 
-impl parsing::Parse for Comma {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Comma {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Comma => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, ",")),
+            _ => Err(parse::ParseError::expected(&token, ",")),
         }
     }
 }
 
-impl parsing::Peek for Comma {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Comma {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Comma)
     }
 }
@@ -704,19 +704,19 @@ impl crate::Spanned for Const {
     }
 }
 
-impl parsing::Parse for Const {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Const {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Const => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "const")),
+            _ => Err(parse::ParseError::expected(&token, "const")),
         }
     }
 }
 
-impl parsing::Peek for Const {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Const {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Const)
     }
 }
@@ -740,19 +740,19 @@ impl crate::Spanned for Continue {
     }
 }
 
-impl parsing::Parse for Continue {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Continue {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Continue => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "continue")),
+            _ => Err(parse::ParseError::expected(&token, "continue")),
         }
     }
 }
 
-impl parsing::Peek for Continue {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Continue {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Continue)
     }
 }
@@ -776,19 +776,19 @@ impl crate::Spanned for Crate {
     }
 }
 
-impl parsing::Parse for Crate {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Crate {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Crate => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "crate")),
+            _ => Err(parse::ParseError::expected(&token, "crate")),
         }
     }
 }
 
-impl parsing::Peek for Crate {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Crate {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Crate)
     }
 }
@@ -812,19 +812,19 @@ impl crate::Spanned for Dash {
     }
 }
 
-impl parsing::Parse for Dash {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Dash {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Dash => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "-")),
+            _ => Err(parse::ParseError::expected(&token, "-")),
         }
     }
 }
 
-impl parsing::Peek for Dash {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Dash {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Dash)
     }
 }
@@ -848,19 +848,19 @@ impl crate::Spanned for DashEq {
     }
 }
 
-impl parsing::Parse for DashEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for DashEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::DashEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "-=")),
+            _ => Err(parse::ParseError::expected(&token, "-=")),
         }
     }
 }
 
-impl parsing::Peek for DashEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for DashEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::DashEq)
     }
 }
@@ -884,19 +884,19 @@ impl crate::Spanned for Default {
     }
 }
 
-impl parsing::Parse for Default {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Default {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Default => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "default")),
+            _ => Err(parse::ParseError::expected(&token, "default")),
         }
     }
 }
 
-impl parsing::Peek for Default {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Default {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Default)
     }
 }
@@ -920,19 +920,19 @@ impl crate::Spanned for Div {
     }
 }
 
-impl parsing::Parse for Div {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Div {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Div => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "/")),
+            _ => Err(parse::ParseError::expected(&token, "/")),
         }
     }
 }
 
-impl parsing::Peek for Div {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Div {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Div)
     }
 }
@@ -956,19 +956,19 @@ impl crate::Spanned for Do {
     }
 }
 
-impl parsing::Parse for Do {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Do {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Do => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "do")),
+            _ => Err(parse::ParseError::expected(&token, "do")),
         }
     }
 }
 
-impl parsing::Peek for Do {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Do {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Do)
     }
 }
@@ -992,19 +992,19 @@ impl crate::Spanned for Dollar {
     }
 }
 
-impl parsing::Parse for Dollar {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Dollar {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Dollar => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "$")),
+            _ => Err(parse::ParseError::expected(&token, "$")),
         }
     }
 }
 
-impl parsing::Peek for Dollar {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Dollar {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Dollar)
     }
 }
@@ -1028,19 +1028,19 @@ impl crate::Spanned for Dot {
     }
 }
 
-impl parsing::Parse for Dot {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Dot {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Dot => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, ".")),
+            _ => Err(parse::ParseError::expected(&token, ".")),
         }
     }
 }
 
-impl parsing::Peek for Dot {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Dot {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Dot)
     }
 }
@@ -1064,19 +1064,19 @@ impl crate::Spanned for DotDot {
     }
 }
 
-impl parsing::Parse for DotDot {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for DotDot {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::DotDot => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "..")),
+            _ => Err(parse::ParseError::expected(&token, "..")),
         }
     }
 }
 
-impl parsing::Peek for DotDot {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for DotDot {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::DotDot)
     }
 }
@@ -1100,19 +1100,19 @@ impl crate::Spanned for DotDotEq {
     }
 }
 
-impl parsing::Parse for DotDotEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for DotDotEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::DotDotEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "..=")),
+            _ => Err(parse::ParseError::expected(&token, "..=")),
         }
     }
 }
 
-impl parsing::Peek for DotDotEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for DotDotEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::DotDotEq)
     }
 }
@@ -1136,19 +1136,19 @@ impl crate::Spanned for Else {
     }
 }
 
-impl parsing::Parse for Else {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Else {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Else => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "else")),
+            _ => Err(parse::ParseError::expected(&token, "else")),
         }
     }
 }
 
-impl parsing::Peek for Else {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Else {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Else)
     }
 }
@@ -1172,19 +1172,19 @@ impl crate::Spanned for Enum {
     }
 }
 
-impl parsing::Parse for Enum {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Enum {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Enum => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "enum")),
+            _ => Err(parse::ParseError::expected(&token, "enum")),
         }
     }
 }
 
-impl parsing::Peek for Enum {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Enum {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Enum)
     }
 }
@@ -1208,19 +1208,19 @@ impl crate::Spanned for Eq {
     }
 }
 
-impl parsing::Parse for Eq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Eq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Eq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "=")),
+            _ => Err(parse::ParseError::expected(&token, "=")),
         }
     }
 }
 
-impl parsing::Peek for Eq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Eq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Eq)
     }
 }
@@ -1244,19 +1244,19 @@ impl crate::Spanned for EqEq {
     }
 }
 
-impl parsing::Parse for EqEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for EqEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::EqEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "==")),
+            _ => Err(parse::ParseError::expected(&token, "==")),
         }
     }
 }
 
-impl parsing::Peek for EqEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for EqEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::EqEq)
     }
 }
@@ -1280,19 +1280,19 @@ impl crate::Spanned for Extern {
     }
 }
 
-impl parsing::Parse for Extern {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Extern {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Extern => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "extern")),
+            _ => Err(parse::ParseError::expected(&token, "extern")),
         }
     }
 }
 
-impl parsing::Peek for Extern {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Extern {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Extern)
     }
 }
@@ -1316,19 +1316,19 @@ impl crate::Spanned for False {
     }
 }
 
-impl parsing::Parse for False {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for False {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::False => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "false")),
+            _ => Err(parse::ParseError::expected(&token, "false")),
         }
     }
 }
 
-impl parsing::Peek for False {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for False {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::False)
     }
 }
@@ -1352,19 +1352,19 @@ impl crate::Spanned for Final {
     }
 }
 
-impl parsing::Parse for Final {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Final {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Final => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "final")),
+            _ => Err(parse::ParseError::expected(&token, "final")),
         }
     }
 }
 
-impl parsing::Peek for Final {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Final {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Final)
     }
 }
@@ -1388,19 +1388,19 @@ impl crate::Spanned for Fn {
     }
 }
 
-impl parsing::Parse for Fn {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Fn {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Fn => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "fn")),
+            _ => Err(parse::ParseError::expected(&token, "fn")),
         }
     }
 }
 
-impl parsing::Peek for Fn {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Fn {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Fn)
     }
 }
@@ -1424,19 +1424,19 @@ impl crate::Spanned for For {
     }
 }
 
-impl parsing::Parse for For {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for For {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::For => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "for")),
+            _ => Err(parse::ParseError::expected(&token, "for")),
         }
     }
 }
 
-impl parsing::Peek for For {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for For {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::For)
     }
 }
@@ -1460,19 +1460,19 @@ impl crate::Spanned for Gt {
     }
 }
 
-impl parsing::Parse for Gt {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Gt {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Gt => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, ">")),
+            _ => Err(parse::ParseError::expected(&token, ">")),
         }
     }
 }
 
-impl parsing::Peek for Gt {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Gt {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Gt)
     }
 }
@@ -1496,19 +1496,19 @@ impl crate::Spanned for GtEq {
     }
 }
 
-impl parsing::Parse for GtEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for GtEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::GtEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, ">=")),
+            _ => Err(parse::ParseError::expected(&token, ">=")),
         }
     }
 }
 
-impl parsing::Peek for GtEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for GtEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::GtEq)
     }
 }
@@ -1532,19 +1532,19 @@ impl crate::Spanned for GtGt {
     }
 }
 
-impl parsing::Parse for GtGt {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for GtGt {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::GtGt => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, ">>")),
+            _ => Err(parse::ParseError::expected(&token, ">>")),
         }
     }
 }
 
-impl parsing::Peek for GtGt {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for GtGt {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::GtGt)
     }
 }
@@ -1568,19 +1568,19 @@ impl crate::Spanned for GtGtEq {
     }
 }
 
-impl parsing::Parse for GtGtEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for GtGtEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::GtGtEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, ">>=")),
+            _ => Err(parse::ParseError::expected(&token, ">>=")),
         }
     }
 }
 
-impl parsing::Peek for GtGtEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for GtGtEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::GtGtEq)
     }
 }
@@ -1604,19 +1604,19 @@ impl crate::Spanned for If {
     }
 }
 
-impl parsing::Parse for If {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for If {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::If => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "if")),
+            _ => Err(parse::ParseError::expected(&token, "if")),
         }
     }
 }
 
-impl parsing::Peek for If {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for If {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::If)
     }
 }
@@ -1640,19 +1640,19 @@ impl crate::Spanned for Impl {
     }
 }
 
-impl parsing::Parse for Impl {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Impl {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Impl => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "impl")),
+            _ => Err(parse::ParseError::expected(&token, "impl")),
         }
     }
 }
 
-impl parsing::Peek for Impl {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Impl {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Impl)
     }
 }
@@ -1676,19 +1676,19 @@ impl crate::Spanned for In {
     }
 }
 
-impl parsing::Parse for In {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for In {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::In => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "in")),
+            _ => Err(parse::ParseError::expected(&token, "in")),
         }
     }
 }
 
-impl parsing::Peek for In {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for In {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::In)
     }
 }
@@ -1712,19 +1712,19 @@ impl crate::Spanned for Is {
     }
 }
 
-impl parsing::Parse for Is {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Is {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Is => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "is")),
+            _ => Err(parse::ParseError::expected(&token, "is")),
         }
     }
 }
 
-impl parsing::Peek for Is {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Is {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Is)
     }
 }
@@ -1748,19 +1748,19 @@ impl crate::Spanned for Let {
     }
 }
 
-impl parsing::Parse for Let {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Let {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Let => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "let")),
+            _ => Err(parse::ParseError::expected(&token, "let")),
         }
     }
 }
 
-impl parsing::Peek for Let {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Let {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Let)
     }
 }
@@ -1784,19 +1784,19 @@ impl crate::Spanned for Loop {
     }
 }
 
-impl parsing::Parse for Loop {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Loop {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Loop => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "loop")),
+            _ => Err(parse::ParseError::expected(&token, "loop")),
         }
     }
 }
 
-impl parsing::Peek for Loop {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Loop {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Loop)
     }
 }
@@ -1820,19 +1820,19 @@ impl crate::Spanned for Lt {
     }
 }
 
-impl parsing::Parse for Lt {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Lt {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Lt => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "<")),
+            _ => Err(parse::ParseError::expected(&token, "<")),
         }
     }
 }
 
-impl parsing::Peek for Lt {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Lt {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Lt)
     }
 }
@@ -1856,19 +1856,19 @@ impl crate::Spanned for LtEq {
     }
 }
 
-impl parsing::Parse for LtEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for LtEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::LtEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "<=")),
+            _ => Err(parse::ParseError::expected(&token, "<=")),
         }
     }
 }
 
-impl parsing::Peek for LtEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for LtEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::LtEq)
     }
 }
@@ -1892,19 +1892,19 @@ impl crate::Spanned for LtLt {
     }
 }
 
-impl parsing::Parse for LtLt {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for LtLt {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::LtLt => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "<<")),
+            _ => Err(parse::ParseError::expected(&token, "<<")),
         }
     }
 }
 
-impl parsing::Peek for LtLt {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for LtLt {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::LtLt)
     }
 }
@@ -1928,19 +1928,19 @@ impl crate::Spanned for LtLtEq {
     }
 }
 
-impl parsing::Parse for LtLtEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for LtLtEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::LtLtEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "<<=")),
+            _ => Err(parse::ParseError::expected(&token, "<<=")),
         }
     }
 }
 
-impl parsing::Peek for LtLtEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for LtLtEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::LtLtEq)
     }
 }
@@ -1964,19 +1964,19 @@ impl crate::Spanned for Macro {
     }
 }
 
-impl parsing::Parse for Macro {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Macro {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Macro => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "macro")),
+            _ => Err(parse::ParseError::expected(&token, "macro")),
         }
     }
 }
 
-impl parsing::Peek for Macro {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Macro {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Macro)
     }
 }
@@ -2000,19 +2000,19 @@ impl crate::Spanned for Match {
     }
 }
 
-impl parsing::Parse for Match {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Match {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Match => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "match")),
+            _ => Err(parse::ParseError::expected(&token, "match")),
         }
     }
 }
 
-impl parsing::Peek for Match {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Match {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Match)
     }
 }
@@ -2036,19 +2036,19 @@ impl crate::Spanned for Mod {
     }
 }
 
-impl parsing::Parse for Mod {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Mod {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Mod => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "mod")),
+            _ => Err(parse::ParseError::expected(&token, "mod")),
         }
     }
 }
 
-impl parsing::Peek for Mod {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Mod {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Mod)
     }
 }
@@ -2072,19 +2072,19 @@ impl crate::Spanned for Move {
     }
 }
 
-impl parsing::Parse for Move {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Move {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Move => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "move")),
+            _ => Err(parse::ParseError::expected(&token, "move")),
         }
     }
 }
 
-impl parsing::Peek for Move {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Move {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Move)
     }
 }
@@ -2108,19 +2108,19 @@ impl crate::Spanned for Not {
     }
 }
 
-impl parsing::Parse for Not {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Not {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Not => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "not")),
+            _ => Err(parse::ParseError::expected(&token, "not")),
         }
     }
 }
 
-impl parsing::Peek for Not {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Not {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Not)
     }
 }
@@ -2144,19 +2144,19 @@ impl crate::Spanned for OffsetOf {
     }
 }
 
-impl parsing::Parse for OffsetOf {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for OffsetOf {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::OffsetOf => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "offsetof")),
+            _ => Err(parse::ParseError::expected(&token, "offsetof")),
         }
     }
 }
 
-impl parsing::Peek for OffsetOf {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for OffsetOf {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::OffsetOf)
     }
 }
@@ -2180,19 +2180,19 @@ impl crate::Spanned for Override {
     }
 }
 
-impl parsing::Parse for Override {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Override {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Override => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "override")),
+            _ => Err(parse::ParseError::expected(&token, "override")),
         }
     }
 }
 
-impl parsing::Peek for Override {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Override {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Override)
     }
 }
@@ -2216,19 +2216,19 @@ impl crate::Spanned for Perc {
     }
 }
 
-impl parsing::Parse for Perc {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Perc {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Perc => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "%")),
+            _ => Err(parse::ParseError::expected(&token, "%")),
         }
     }
 }
 
-impl parsing::Peek for Perc {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Perc {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Perc)
     }
 }
@@ -2252,19 +2252,19 @@ impl crate::Spanned for PercEq {
     }
 }
 
-impl parsing::Parse for PercEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for PercEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::PercEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "%=")),
+            _ => Err(parse::ParseError::expected(&token, "%=")),
         }
     }
 }
 
-impl parsing::Peek for PercEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for PercEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::PercEq)
     }
 }
@@ -2288,19 +2288,19 @@ impl crate::Spanned for Pipe {
     }
 }
 
-impl parsing::Parse for Pipe {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Pipe {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Pipe => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "|")),
+            _ => Err(parse::ParseError::expected(&token, "|")),
         }
     }
 }
 
-impl parsing::Peek for Pipe {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Pipe {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Pipe)
     }
 }
@@ -2324,19 +2324,19 @@ impl crate::Spanned for PipeEq {
     }
 }
 
-impl parsing::Parse for PipeEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for PipeEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::PipeEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "|=")),
+            _ => Err(parse::ParseError::expected(&token, "|=")),
         }
     }
 }
 
-impl parsing::Peek for PipeEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for PipeEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::PipeEq)
     }
 }
@@ -2360,19 +2360,19 @@ impl crate::Spanned for PipePipe {
     }
 }
 
-impl parsing::Parse for PipePipe {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for PipePipe {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::PipePipe => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "||")),
+            _ => Err(parse::ParseError::expected(&token, "||")),
         }
     }
 }
 
-impl parsing::Peek for PipePipe {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for PipePipe {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::PipePipe)
     }
 }
@@ -2396,19 +2396,19 @@ impl crate::Spanned for Plus {
     }
 }
 
-impl parsing::Parse for Plus {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Plus {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Plus => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "+")),
+            _ => Err(parse::ParseError::expected(&token, "+")),
         }
     }
 }
 
-impl parsing::Peek for Plus {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Plus {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Plus)
     }
 }
@@ -2432,19 +2432,19 @@ impl crate::Spanned for PlusEq {
     }
 }
 
-impl parsing::Parse for PlusEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for PlusEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::PlusEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "+=")),
+            _ => Err(parse::ParseError::expected(&token, "+=")),
         }
     }
 }
 
-impl parsing::Peek for PlusEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for PlusEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::PlusEq)
     }
 }
@@ -2468,19 +2468,19 @@ impl crate::Spanned for Pound {
     }
 }
 
-impl parsing::Parse for Pound {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Pound {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Pound => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "#")),
+            _ => Err(parse::ParseError::expected(&token, "#")),
         }
     }
 }
 
-impl parsing::Peek for Pound {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Pound {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Pound)
     }
 }
@@ -2504,19 +2504,19 @@ impl crate::Spanned for Priv {
     }
 }
 
-impl parsing::Parse for Priv {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Priv {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Priv => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "priv")),
+            _ => Err(parse::ParseError::expected(&token, "priv")),
         }
     }
 }
 
-impl parsing::Peek for Priv {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Priv {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Priv)
     }
 }
@@ -2540,19 +2540,19 @@ impl crate::Spanned for Proc {
     }
 }
 
-impl parsing::Parse for Proc {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Proc {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Proc => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "proc")),
+            _ => Err(parse::ParseError::expected(&token, "proc")),
         }
     }
 }
 
-impl parsing::Peek for Proc {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Proc {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Proc)
     }
 }
@@ -2576,19 +2576,19 @@ impl crate::Spanned for Pub {
     }
 }
 
-impl parsing::Parse for Pub {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Pub {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Pub => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "pub")),
+            _ => Err(parse::ParseError::expected(&token, "pub")),
         }
     }
 }
 
-impl parsing::Peek for Pub {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Pub {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Pub)
     }
 }
@@ -2612,19 +2612,19 @@ impl crate::Spanned for Pure {
     }
 }
 
-impl parsing::Parse for Pure {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Pure {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Pure => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "pure")),
+            _ => Err(parse::ParseError::expected(&token, "pure")),
         }
     }
 }
 
-impl parsing::Peek for Pure {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Pure {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Pure)
     }
 }
@@ -2648,19 +2648,19 @@ impl crate::Spanned for QuestionMark {
     }
 }
 
-impl parsing::Parse for QuestionMark {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for QuestionMark {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::QuestionMark => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "?")),
+            _ => Err(parse::ParseError::expected(&token, "?")),
         }
     }
 }
 
-impl parsing::Peek for QuestionMark {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for QuestionMark {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::QuestionMark)
     }
 }
@@ -2684,19 +2684,19 @@ impl crate::Spanned for Ref {
     }
 }
 
-impl parsing::Parse for Ref {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Ref {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Ref => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "ref")),
+            _ => Err(parse::ParseError::expected(&token, "ref")),
         }
     }
 }
 
-impl parsing::Peek for Ref {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Ref {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Ref)
     }
 }
@@ -2720,19 +2720,19 @@ impl crate::Spanned for Return {
     }
 }
 
-impl parsing::Parse for Return {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Return {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Return => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "return")),
+            _ => Err(parse::ParseError::expected(&token, "return")),
         }
     }
 }
 
-impl parsing::Peek for Return {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Return {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Return)
     }
 }
@@ -2756,19 +2756,19 @@ impl crate::Spanned for Rocket {
     }
 }
 
-impl parsing::Parse for Rocket {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Rocket {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Rocket => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "=>")),
+            _ => Err(parse::ParseError::expected(&token, "=>")),
         }
     }
 }
 
-impl parsing::Peek for Rocket {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Rocket {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Rocket)
     }
 }
@@ -2792,19 +2792,19 @@ impl crate::Spanned for Select {
     }
 }
 
-impl parsing::Parse for Select {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Select {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Select => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "select")),
+            _ => Err(parse::ParseError::expected(&token, "select")),
         }
     }
 }
 
-impl parsing::Peek for Select {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Select {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Select)
     }
 }
@@ -2828,19 +2828,19 @@ impl crate::Spanned for SelfType {
     }
 }
 
-impl parsing::Parse for SelfType {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for SelfType {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SelfType => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "Self")),
+            _ => Err(parse::ParseError::expected(&token, "Self")),
         }
     }
 }
 
-impl parsing::Peek for SelfType {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for SelfType {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SelfType)
     }
 }
@@ -2864,19 +2864,19 @@ impl crate::Spanned for SelfValue {
     }
 }
 
-impl parsing::Parse for SelfValue {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for SelfValue {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SelfValue => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "self")),
+            _ => Err(parse::ParseError::expected(&token, "self")),
         }
     }
 }
 
-impl parsing::Peek for SelfValue {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for SelfValue {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SelfValue)
     }
 }
@@ -2900,19 +2900,19 @@ impl crate::Spanned for SemiColon {
     }
 }
 
-impl parsing::Parse for SemiColon {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for SemiColon {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SemiColon => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, ";")),
+            _ => Err(parse::ParseError::expected(&token, ";")),
         }
     }
 }
 
-impl parsing::Peek for SemiColon {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for SemiColon {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SemiColon)
     }
 }
@@ -2936,19 +2936,19 @@ impl crate::Spanned for SizeOf {
     }
 }
 
-impl parsing::Parse for SizeOf {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for SizeOf {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SizeOf => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "sizeof")),
+            _ => Err(parse::ParseError::expected(&token, "sizeof")),
         }
     }
 }
 
-impl parsing::Peek for SizeOf {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for SizeOf {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SizeOf)
     }
 }
@@ -2972,19 +2972,19 @@ impl crate::Spanned for SlashEq {
     }
 }
 
-impl parsing::Parse for SlashEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for SlashEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SlashEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "/=")),
+            _ => Err(parse::ParseError::expected(&token, "/=")),
         }
     }
 }
 
-impl parsing::Peek for SlashEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for SlashEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::SlashEq)
     }
 }
@@ -3008,19 +3008,19 @@ impl crate::Spanned for Star {
     }
 }
 
-impl parsing::Parse for Star {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Star {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Star => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "*")),
+            _ => Err(parse::ParseError::expected(&token, "*")),
         }
     }
 }
 
-impl parsing::Peek for Star {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Star {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Star)
     }
 }
@@ -3044,19 +3044,19 @@ impl crate::Spanned for StarEq {
     }
 }
 
-impl parsing::Parse for StarEq {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for StarEq {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::StarEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "*=")),
+            _ => Err(parse::ParseError::expected(&token, "*=")),
         }
     }
 }
 
-impl parsing::Peek for StarEq {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for StarEq {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::StarEq)
     }
 }
@@ -3080,19 +3080,19 @@ impl crate::Spanned for Static {
     }
 }
 
-impl parsing::Parse for Static {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Static {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Static => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "static")),
+            _ => Err(parse::ParseError::expected(&token, "static")),
         }
     }
 }
 
-impl parsing::Peek for Static {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Static {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Static)
     }
 }
@@ -3116,19 +3116,19 @@ impl crate::Spanned for Struct {
     }
 }
 
-impl parsing::Parse for Struct {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Struct {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Struct => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "struct")),
+            _ => Err(parse::ParseError::expected(&token, "struct")),
         }
     }
 }
 
-impl parsing::Peek for Struct {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Struct {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Struct)
     }
 }
@@ -3152,19 +3152,19 @@ impl crate::Spanned for Super {
     }
 }
 
-impl parsing::Parse for Super {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Super {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Super => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "super")),
+            _ => Err(parse::ParseError::expected(&token, "super")),
         }
     }
 }
 
-impl parsing::Peek for Super {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Super {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Super)
     }
 }
@@ -3188,19 +3188,19 @@ impl crate::Spanned for Tilde {
     }
 }
 
-impl parsing::Parse for Tilde {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Tilde {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Tilde => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "~")),
+            _ => Err(parse::ParseError::expected(&token, "~")),
         }
     }
 }
 
-impl parsing::Peek for Tilde {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Tilde {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Tilde)
     }
 }
@@ -3224,19 +3224,19 @@ impl crate::Spanned for True {
     }
 }
 
-impl parsing::Parse for True {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for True {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::True => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "true")),
+            _ => Err(parse::ParseError::expected(&token, "true")),
         }
     }
 }
 
-impl parsing::Peek for True {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for True {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::True)
     }
 }
@@ -3260,19 +3260,19 @@ impl crate::Spanned for TypeOf {
     }
 }
 
-impl parsing::Parse for TypeOf {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for TypeOf {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::TypeOf => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "typeof")),
+            _ => Err(parse::ParseError::expected(&token, "typeof")),
         }
     }
 }
 
-impl parsing::Peek for TypeOf {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for TypeOf {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::TypeOf)
     }
 }
@@ -3296,19 +3296,19 @@ impl crate::Spanned for Underscore {
     }
 }
 
-impl parsing::Parse for Underscore {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Underscore {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Underscore => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "_")),
+            _ => Err(parse::ParseError::expected(&token, "_")),
         }
     }
 }
 
-impl parsing::Peek for Underscore {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Underscore {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Underscore)
     }
 }
@@ -3332,19 +3332,19 @@ impl crate::Spanned for Unsafe {
     }
 }
 
-impl parsing::Parse for Unsafe {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Unsafe {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Unsafe => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "unsafe")),
+            _ => Err(parse::ParseError::expected(&token, "unsafe")),
         }
     }
 }
 
-impl parsing::Peek for Unsafe {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Unsafe {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Unsafe)
     }
 }
@@ -3368,19 +3368,19 @@ impl crate::Spanned for Use {
     }
 }
 
-impl parsing::Parse for Use {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Use {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Use => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "use")),
+            _ => Err(parse::ParseError::expected(&token, "use")),
         }
     }
 }
 
-impl parsing::Peek for Use {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Use {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Use)
     }
 }
@@ -3404,19 +3404,19 @@ impl crate::Spanned for Virtual {
     }
 }
 
-impl parsing::Parse for Virtual {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Virtual {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Virtual => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "virtual")),
+            _ => Err(parse::ParseError::expected(&token, "virtual")),
         }
     }
 }
 
-impl parsing::Peek for Virtual {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Virtual {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Virtual)
     }
 }
@@ -3440,19 +3440,19 @@ impl crate::Spanned for While {
     }
 }
 
-impl parsing::Parse for While {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for While {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::While => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "while")),
+            _ => Err(parse::ParseError::expected(&token, "while")),
         }
     }
 }
 
-impl parsing::Peek for While {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for While {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::While)
     }
 }
@@ -3476,19 +3476,19 @@ impl crate::Spanned for Yield {
     }
 }
 
-impl parsing::Parse for Yield {
-    fn parse(p: &mut parsing::Parser<'_>) -> Result<Self, parsing::ParseError> {
+impl parse::Parse for Yield {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Yield => Ok(Self { token }),
-            _ => Err(parsing::ParseError::expected(&token, "yield")),
+            _ => Err(parse::ParseError::expected(&token, "yield")),
         }
     }
 }
 
-impl parsing::Peek for Yield {
-    fn peek(peeker: &mut parsing::Peeker<'_>) -> bool {
+impl parse::Peek for Yield {
+    fn peek(peeker: &mut parse::Peeker<'_>) -> bool {
         matches!(peeker.nth(0), ast::Kind::Yield)
     }
 }

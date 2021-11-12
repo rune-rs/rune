@@ -24,7 +24,7 @@ use rune::macros::{quote, MacroContext, TokenStream};
 use rune::ast;
 use rune::macros;
 use rune::T;
-use rune::parsing::Parser;
+use rune::parse::Parser;
 
 /// Construct the `std::test` module.
 pub fn module(_stdio: bool) -> Result<rune::Module, rune::ContextError> {

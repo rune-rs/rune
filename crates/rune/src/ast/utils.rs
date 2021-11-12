@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::parsing::ResolveErrorKind;
+use crate::parse::ResolveErrorKind;
 use std::iter::Peekable;
 use std::ops;
 

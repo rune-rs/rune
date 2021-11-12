@@ -113,11 +113,11 @@ fn main() -> Result<()> {
     let lit_str_source = &rust::import("crate::ast", "StrSource");
     let macro_context = &rust::import("crate::macros", "MacroContext");
     let number_source = &rust::import("crate::ast", "NumberSource");
-    let parse = &rust::import("crate::parsing", "Parse");
-    let parse_error = &rust::import("crate::parsing", "ParseError");
-    let parser = &rust::import("crate::parsing", "Parser");
-    let peeker = &rust::import("crate::parsing", "Peeker");
-    let peek = &rust::import("crate::parsing", "Peek");
+    let parse = &rust::import("crate::parse", "Parse");
+    let parse_error = &rust::import("crate::parse", "ParseError");
+    let parser = &rust::import("crate::parse", "Parser");
+    let peeker = &rust::import("crate::parse", "Peeker");
+    let peek = &rust::import("crate::parse", "Peek");
     let span = &rust::import("crate", "Span");
     let spanned = &rust::import("crate", "Spanned");
     let string_source = &rust::import("crate::ast", "StringSource");

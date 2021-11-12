@@ -2,7 +2,7 @@
 
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compiling::{CompileVisitor, SourceLoader, UnitBuilder};
+use crate::compile::{CompileVisitor, SourceLoader, UnitBuilder};
 use crate::indexing::{Index, IndexScopes, Indexer};
 use crate::query::Query;
 use crate::shared::{Gen, Items};
@@ -84,7 +84,7 @@ impl<'a> Worker<'a> {
                     };
 
                     let mut file =
-                        match crate::parsing::parse_all::<ast::File>(source.as_str(), source_id) {
+                        match crate::parse::parse_all::<ast::File>(source.as_str(), source_id) {
                             Ok(file) => file,
                             Err(error) => {
                                 self.diagnostics.error(source_id, error);

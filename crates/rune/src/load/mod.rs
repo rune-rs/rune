@@ -1,5 +1,5 @@
-use crate::compiling;
-use crate::compiling::{FileSourceLoader, NoopCompileVisitor, SourceLoader};
+use crate::compile;
+use crate::compile::{FileSourceLoader, NoopCompileVisitor, SourceLoader};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, Options, SourceId, Sources, Span};
 use std::rc::Rc;
@@ -24,12 +24,12 @@ pub struct LoadSourcesError;
 ///
 /// ```rust
 /// use rune::termcolor::{ColorChoice, StandardStream};
-/// use rune::{Context, EmitDiagnostics, Source, Vm};
+/// use rune::{Context, EmitDiagnostics, Options, Source, Vm};
 /// use std::sync::Arc;
 ///
 /// # fn main() -> rune::Result<()> {
 /// let context = Context::with_default_modules()?;
-/// let mut options = rune::Options::default();
+/// let mut options = Options::default();
 ///
 /// let mut sources = rune::Sources::new();
 /// sources.insert(Source::new("entry", r#"
@@ -77,16 +77,16 @@ pub fn load_sources_with_visitor<'a>(
     options: &Options,
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
-    visitor: Rc<dyn compiling::CompileVisitor>,
+    visitor: Rc<dyn compile::CompileVisitor>,
     source_loader: Rc<dyn SourceLoader + 'a>,
 ) -> Result<Unit, LoadSourcesError> {
     let mut unit = if context.has_default_modules() {
-        compiling::UnitBuilder::with_default_prelude()
+        compile::UnitBuilder::with_default_prelude()
     } else {
-        compiling::UnitBuilder::default()
+        compile::UnitBuilder::default()
     };
 
-    let result = compiling::compile_with_options(
+    let result = compile::compile_with_options(
         &*context,
         sources,
         &mut unit,

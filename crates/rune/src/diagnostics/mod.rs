@@ -5,9 +5,19 @@
 
 use crate::{SourceId, Span};
 
+#[cfg(feature = "diagnostics")]
+mod dump_instructions;
+#[cfg(feature = "diagnostics")]
+mod emit_diagnostics;
 mod fatal;
 mod warning;
 
+#[cfg(feature = "diagnostics")]
+#[doc(inline)]
+pub use self::dump_instructions::{DumpInstructions, EmitSource};
+#[cfg(feature = "diagnostics")]
+#[doc(inline)]
+pub use self::emit_diagnostics::{EmitDiagnostics, EmitDiagnosticsError};
 pub use self::fatal::{FatalDiagnostic, FatalDiagnosticKind};
 pub use self::warning::{WarningDiagnostic, WarningDiagnosticKind};
 

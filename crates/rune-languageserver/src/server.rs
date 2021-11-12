@@ -3,6 +3,7 @@ use crate::envelope::{Code, IncomingMessage};
 use crate::State;
 use anyhow::Result;
 use hashbrown::HashMap;
+use rune::{Context, Options};
 use std::future::Future;
 use std::pin::Pin;
 use tokio::sync::mpsc;
@@ -28,8 +29,8 @@ impl Server {
     pub fn new(
         output: Output,
         rebuild_tx: mpsc::Sender<()>,
-        context: rune::Context,
-        options: rune::Options,
+        context: Context,
+        options: Options,
     ) -> Self {
         Self {
             state: State::new(rebuild_tx, context, options),

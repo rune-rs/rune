@@ -1,4 +1,4 @@
-use rune::compiling::CompileVisitor;
+use rune::compile::CompileVisitor;
 use rune::meta::{CompileMeta, CompileMetaKind};
 use rune::Hash;
 use std::cell::RefCell;

@@ -1,5 +1,5 @@
-use crate::compiling::{CompileError, LinkerError};
-use crate::parsing::ParseError;
+use crate::compile::{CompileError, LinkerError};
+use crate::parse::ParseError;
 use crate::query::QueryError;
 use crate::SourceId;
 use std::error;

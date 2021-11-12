@@ -1,4 +1,4 @@
-use rune::compiling::CompileErrorKind::*;
+use rune::compile::CompileErrorKind::*;
 use rune::query::QueryErrorKind::*;
 use rune::Span;
 use rune_tests::*;
