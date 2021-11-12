@@ -157,7 +157,7 @@ impl Token {
 }
 
 impl crate::ToTokens for Token {
-    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut crate::TokenStream) {
+    fn to_tokens(&self, _: &mut MacroContext<'_, '_>, stream: &mut crate::TokenStream) {
         stream.push(*self);
     }
 }

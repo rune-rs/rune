@@ -2,7 +2,7 @@ use crate::compiling::v1::assemble::prelude::*;
 
 /// Compile a binary expression.
 impl Assemble for ast::ExprBinary {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprBinary => {:?}", c.source.source(span));
         log::trace!(
@@ -89,7 +89,7 @@ fn rhs_needs_of(op: ast::BinOp) -> Needs {
 }
 
 fn compile_conditional_binop(
-    c: &mut Compiler<'_>,
+    c: &mut Compiler<'_, '_>,
     lhs: &ast::Expr,
     rhs: &ast::Expr,
     bin_op: ast::BinOp,
@@ -128,7 +128,7 @@ fn compile_conditional_binop(
 }
 
 fn compile_assign_binop(
-    c: &mut Compiler<'_>,
+    c: &mut Compiler<'_, '_>,
     lhs: &ast::Expr,
     rhs: &ast::Expr,
     bin_op: ast::BinOp,
@@ -161,7 +161,10 @@ fn compile_assign_binop(
                 ast::ExprField::Path(path) => {
                     if let Some(ident) = path.try_as_ident() {
                         let n = ident.resolve(c.query.storage(), c.sources)?;
-                        let n = c.unit.new_static_string(path.span(), n.as_ref())?;
+                        let n = c
+                            .query
+                            .unit_mut()
+                            .new_static_string(path.span(), n.as_ref())?;
 
                         Some(InstTarget::Field(n))
                     } else {

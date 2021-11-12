@@ -85,7 +85,7 @@ pub fn load_sources_with_visitor<'a>(
     visitor: Rc<dyn compiling::CompileVisitor>,
     source_loader: Rc<dyn SourceLoader + 'a>,
 ) -> Result<Unit, LoadSourcesError> {
-    let unit = if context.has_default_modules() {
+    let mut unit = if context.has_default_modules() {
         compiling::UnitBuilder::with_default_prelude()
     } else {
         compiling::UnitBuilder::default()
@@ -94,7 +94,7 @@ pub fn load_sources_with_visitor<'a>(
     let result = compiling::compile_with_options(
         &*context,
         sources,
-        &unit,
+        &mut unit,
         diagnostics,
         options,
         visitor,

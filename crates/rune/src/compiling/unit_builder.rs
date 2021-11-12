@@ -15,8 +15,6 @@ use crate::{
     CompileError, CompileErrorKind, Context, Diagnostics, Hash, IntoComponent, Item, Location,
     Protocol, SourceId, Span,
 };
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -58,569 +56,8 @@ pub enum InsertMetaError {
 }
 
 /// Instructions from a single source file.
-#[derive(Debug, Default, Clone)]
-pub(crate) struct UnitBuilder {
-    inner: Rc<RefCell<Inner>>,
-}
-
-impl UnitBuilder {
-    /// Construct a new unit with the default prelude.
-    pub(crate) fn with_default_prelude() -> Self {
-        let mut this = Inner::default();
-
-        this.prelude("assert_eq", &["test", "assert_eq"]);
-        this.prelude("assert", &["test", "assert"]);
-        this.prelude("bool", &["bool"]);
-        this.prelude("byte", &["byte"]);
-        this.prelude("char", &["char"]);
-        this.prelude("dbg", &["io", "dbg"]);
-        this.prelude("drop", &["mem", "drop"]);
-        this.prelude("Err", &["result", "Result", "Err"]);
-        this.prelude("file", &["macros", "builtin", "file"]);
-        this.prelude("float", &["float"]);
-        this.prelude("format", &["fmt", "format"]);
-        this.prelude("int", &["int"]);
-        this.prelude("is_readable", &["is_readable"]);
-        this.prelude("is_writable", &["is_writable"]);
-        this.prelude("line", &["macros", "builtin", "line"]);
-        this.prelude("None", &["option", "Option", "None"]);
-        this.prelude("Object", &["object", "Object"]);
-        this.prelude("Ok", &["result", "Result", "Ok"]);
-        this.prelude("Option", &["option", "Option"]);
-        this.prelude("panic", &["panic"]);
-        this.prelude("print", &["io", "print"]);
-        this.prelude("println", &["io", "println"]);
-        this.prelude("Result", &["result", "Result"]);
-        this.prelude("Some", &["option", "Option", "Some"]);
-        this.prelude("String", &["string", "String"]);
-        this.prelude("stringify", &["stringify"]);
-        this.prelude("unit", &["unit"]);
-        this.prelude("Vec", &["vec", "Vec"]);
-
-        Self {
-            inner: Rc::new(RefCell::new(this)),
-        }
-    }
-
-    /// Clone the prelude.
-    pub(crate) fn prelude(&self) -> HashMap<Box<str>, Item> {
-        self.inner.borrow().prelude.clone()
-    }
-
-    /// Convert into a runtime unit, shedding our build metadata in the process.
-    ///
-    /// Returns `None` if the builder is still in use.
-    pub(crate) fn build(self) -> Result<Unit, BuildError> {
-        let inner = match Rc::try_unwrap(self.inner) {
-            Ok(inner) => inner,
-            Err(..) => return Err(BuildError::NotExclusivelyHeld),
-        };
-
-        let mut inner = inner.into_inner();
-
-        if let Some(debug) = &mut inner.debug {
-            debug.functions_rev = inner.functions_rev;
-        }
-
-        for (from, to) in inner.reexports {
-            let info = match inner.functions.get(&to) {
-                Some(info) => *info,
-                None => return Err(BuildError::MissingFunctionHash { hash: to }),
-            };
-
-            if inner.functions.insert(from, info).is_some() {
-                return Err(BuildError::FunctionConflictHash { hash: from });
-            }
-        }
-
-        Ok(Unit::new(
-            inner.instructions,
-            inner.functions,
-            inner.static_strings,
-            inner.static_bytes,
-            inner.static_object_keys,
-            inner.rtti,
-            inner.variant_rtti,
-            inner.debug,
-            inner.constants,
-        ))
-    }
-
-    /// Insert a static string and return its associated slot that can later be
-    /// looked up through [lookup_string][Unit::lookup_string].
-    ///
-    /// Only uses up space if the static string is unique.
-    pub(crate) fn new_static_string(
-        &self,
-        span: Span,
-        current: &str,
-    ) -> Result<usize, CompileError> {
-        let mut inner = self.inner.borrow_mut();
-
-        let current = StaticString::new(current);
-        let hash = current.hash();
-
-        if let Some(existing_slot) = inner.static_string_rev.get(&hash).copied() {
-            let existing = inner.static_strings.get(existing_slot).ok_or_else(|| {
-                CompileError::new(
-                    span,
-                    CompileErrorKind::StaticStringMissing {
-                        hash,
-                        slot: existing_slot,
-                    },
-                )
-            })?;
-
-            if ***existing != *current {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::StaticStringHashConflict {
-                        hash,
-                        current: (*current).clone(),
-                        existing: (***existing).clone(),
-                    },
-                ));
-            }
-
-            return Ok(existing_slot);
-        }
-
-        let new_slot = inner.static_strings.len();
-        inner.static_strings.push(Arc::new(current));
-        inner.static_string_rev.insert(hash, new_slot);
-        Ok(new_slot)
-    }
-
-    /// Insert a static byte string and return its associated slot that can
-    /// later be looked up through [lookup_bytes][Unit::lookup_bytes].
-    ///
-    /// Only uses up space if the static byte string is unique.
-    pub(crate) fn new_static_bytes(
-        &self,
-        span: Span,
-        current: &[u8],
-    ) -> Result<usize, CompileError> {
-        let mut inner = self.inner.borrow_mut();
-
-        let hash = Hash::static_bytes(current);
-
-        if let Some(existing_slot) = inner.static_bytes_rev.get(&hash).copied() {
-            let existing = inner.static_bytes.get(existing_slot).ok_or_else(|| {
-                CompileError::new(
-                    span,
-                    CompileErrorKind::StaticBytesMissing {
-                        hash,
-                        slot: existing_slot,
-                    },
-                )
-            })?;
-
-            if &**existing != current {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::StaticBytesHashConflict {
-                        hash,
-                        current: current.to_owned(),
-                        existing: existing.clone(),
-                    },
-                ));
-            }
-
-            return Ok(existing_slot);
-        }
-
-        let new_slot = inner.static_bytes.len();
-        inner.static_bytes.push(current.to_owned());
-        inner.static_bytes_rev.insert(hash, new_slot);
-        Ok(new_slot)
-    }
-
-    /// Insert a new collection of static object keys, or return one already
-    /// existing.
-    pub(crate) fn new_static_object_keys_iter<I>(
-        &self,
-        span: Span,
-        current: I,
-    ) -> Result<usize, CompileError>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
-        let current = current
-            .into_iter()
-            .map(|s| s.as_ref().to_owned())
-            .collect::<Box<_>>();
-
-        self.new_static_object_keys(span, current)
-    }
-
-    /// Insert a new collection of static object keys, or return one already
-    /// existing.
-    pub(crate) fn new_static_object_keys(
-        &self,
-        span: Span,
-        current: Box<[String]>,
-    ) -> Result<usize, CompileError> {
-        let mut inner = self.inner.borrow_mut();
-
-        let hash = Hash::object_keys(&current[..]);
-
-        if let Some(existing_slot) = inner.static_object_keys_rev.get(&hash).copied() {
-            let existing = inner.static_object_keys.get(existing_slot).ok_or_else(|| {
-                CompileError::new(
-                    span,
-                    CompileErrorKind::StaticObjectKeysMissing {
-                        hash,
-                        slot: existing_slot,
-                    },
-                )
-            })?;
-
-            if *existing != current {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::StaticObjectKeysHashConflict {
-                        hash,
-                        current,
-                        existing: existing.clone(),
-                    },
-                ));
-            }
-
-            return Ok(existing_slot);
-        }
-
-        let new_slot = inner.static_object_keys.len();
-        inner.static_object_keys.push(current);
-        inner.static_object_keys_rev.insert(hash, new_slot);
-        Ok(new_slot)
-    }
-
-    /// Declare a new struct.
-    pub(crate) fn insert_meta(&self, meta: &CompileMeta) -> Result<(), InsertMetaError> {
-        let mut inner = self.inner.borrow_mut();
-
-        match &meta.kind {
-            CompileMetaKind::UnitStruct { empty, .. } => {
-                let info = UnitFn::UnitStruct { hash: empty.hash };
-
-                let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
-
-                let rtti = Arc::new(Rtti {
-                    hash: empty.hash,
-                    item: meta.item.item.clone(),
-                });
-
-                if inner.rtti.insert(empty.hash, rtti).is_some() {
-                    return Err(InsertMetaError::TypeRttiConflict { hash: empty.hash });
-                }
-
-                if inner.functions.insert(empty.hash, info).is_some() {
-                    return Err(InsertMetaError::FunctionConflict {
-                        existing: signature,
-                    });
-                }
-
-                inner.constants.insert(
-                    Hash::instance_function(empty.hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(signature.path.to_string()),
-                );
-
-                inner
-                    .debug_info_mut()
-                    .functions
-                    .insert(empty.hash, signature);
-            }
-            CompileMetaKind::TupleStruct { tuple, .. } => {
-                let info = UnitFn::TupleStruct {
-                    hash: tuple.hash,
-                    args: tuple.args,
-                };
-
-                let signature =
-                    DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
-
-                let rtti = Arc::new(Rtti {
-                    hash: tuple.hash,
-                    item: meta.item.item.clone(),
-                });
-
-                if inner.rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(InsertMetaError::TypeRttiConflict { hash: tuple.hash });
-                }
-
-                if inner.functions.insert(tuple.hash, info).is_some() {
-                    return Err(InsertMetaError::FunctionConflict {
-                        existing: signature,
-                    });
-                }
-
-                inner.constants.insert(
-                    Hash::instance_function(tuple.hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(signature.path.to_string()),
-                );
-
-                inner
-                    .debug_info_mut()
-                    .functions
-                    .insert(tuple.hash, signature);
-            }
-            CompileMetaKind::Struct { .. } => {
-                let hash = Hash::type_hash(&meta.item.item);
-
-                let rtti = Arc::new(Rtti {
-                    hash,
-                    item: meta.item.item.clone(),
-                });
-
-                inner.constants.insert(
-                    Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(rtti.item.to_string()),
-                );
-
-                if inner.rtti.insert(hash, rtti).is_some() {
-                    return Err(InsertMetaError::TypeRttiConflict { hash });
-                }
-            }
-            CompileMetaKind::UnitVariant {
-                enum_item, empty, ..
-            } => {
-                let enum_hash = Hash::type_hash(enum_item);
-
-                let rtti = Arc::new(VariantRtti {
-                    enum_hash,
-                    hash: empty.hash,
-                    item: meta.item.item.clone(),
-                });
-
-                if inner.variant_rtti.insert(empty.hash, rtti).is_some() {
-                    return Err(InsertMetaError::VariantRttiConflict { hash: empty.hash });
-                }
-
-                let info = UnitFn::UnitVariant { hash: empty.hash };
-
-                let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
-
-                if inner.functions.insert(empty.hash, info).is_some() {
-                    return Err(InsertMetaError::FunctionConflict {
-                        existing: signature,
-                    });
-                }
-
-                inner
-                    .debug_info_mut()
-                    .functions
-                    .insert(empty.hash, signature);
-            }
-            CompileMetaKind::TupleVariant {
-                enum_item, tuple, ..
-            } => {
-                let enum_hash = Hash::type_hash(enum_item);
-
-                let rtti = Arc::new(VariantRtti {
-                    enum_hash,
-                    hash: tuple.hash,
-                    item: meta.item.item.clone(),
-                });
-
-                if inner.variant_rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(InsertMetaError::VariantRttiConflict { hash: tuple.hash });
-                }
-
-                let info = UnitFn::TupleVariant {
-                    hash: tuple.hash,
-                    args: tuple.args,
-                };
-
-                let signature =
-                    DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
-
-                if inner.functions.insert(tuple.hash, info).is_some() {
-                    return Err(InsertMetaError::FunctionConflict {
-                        existing: signature,
-                    });
-                }
-
-                inner
-                    .debug_info_mut()
-                    .functions
-                    .insert(tuple.hash, signature);
-            }
-            CompileMetaKind::StructVariant { enum_item, .. } => {
-                let hash = Hash::type_hash(&meta.item.item);
-                let enum_hash = Hash::type_hash(enum_item);
-
-                let rtti = Arc::new(VariantRtti {
-                    enum_hash,
-                    hash,
-                    item: meta.item.item.clone(),
-                });
-
-                if inner.variant_rtti.insert(hash, rtti).is_some() {
-                    return Err(InsertMetaError::VariantRttiConflict { hash });
-                }
-            }
-            CompileMetaKind::Enum { type_hash } => {
-                inner.constants.insert(
-                    Hash::instance_function(*type_hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(meta.item.item.to_string()),
-                );
-            }
-            CompileMetaKind::Function { .. } => (),
-            CompileMetaKind::Closure { .. } => (),
-            CompileMetaKind::AsyncBlock { .. } => (),
-            CompileMetaKind::Const { .. } => (),
-            CompileMetaKind::ConstFn { .. } => (),
-            CompileMetaKind::Import { .. } => (),
-        }
-
-        Ok(())
-    }
-
-    /// Construct a new empty assembly associated with the current unit.
-    pub(crate) fn new_assembly(&self, location: Location) -> Assembly {
-        let label_count = self.inner.borrow().label_count;
-        Assembly::new(location, label_count)
-    }
-
-    /// Declare a new function at the current instruction pointer.
-    pub(crate) fn new_function(
-        &self,
-        location: Location,
-        path: Item,
-        args: usize,
-        assembly: Assembly,
-        call: Call,
-        debug_args: Box<[Box<str>]>,
-    ) -> Result<(), CompileError> {
-        let mut inner = self.inner.borrow_mut();
-
-        let offset = inner.instructions.len();
-        let hash = Hash::type_hash(&path);
-
-        inner.functions_rev.insert(offset, hash);
-        let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(path, DebugArgs::Named(debug_args));
-
-        if inner.functions.insert(hash, info).is_some() {
-            return Err(CompileError::new(
-                location.span,
-                CompileErrorKind::FunctionConflict {
-                    existing: signature,
-                },
-            ));
-        }
-
-        inner.constants.insert(
-            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(signature.path.to_string()),
-        );
-
-        inner.debug_info_mut().functions.insert(hash, signature);
-
-        inner.add_assembly(location, assembly)?;
-        Ok(())
-    }
-
-    /// Register a new function re-export.
-    pub(crate) fn new_function_reexport(
-        &self,
-        location: Location,
-        item: &Item,
-        target: &Item,
-    ) -> Result<(), CompileError> {
-        let mut inner = self.inner.borrow_mut();
-        let hash = Hash::type_hash(item);
-        let target = Hash::type_hash(target);
-
-        if inner.reexports.insert(hash, target).is_some() {
-            return Err(CompileError::new(
-                location.span,
-                CompileErrorKind::FunctionReExportConflict { hash },
-            ));
-        }
-
-        Ok(())
-    }
-
-    /// Declare a new instance function at the current instruction pointer.
-    pub(crate) fn new_instance_function(
-        &self,
-        location: Location,
-        path: Item,
-        type_hash: Hash,
-        name: &str,
-        args: usize,
-        assembly: Assembly,
-        call: Call,
-        debug_args: Box<[Box<str>]>,
-    ) -> Result<(), CompileError> {
-        log::trace!("instance fn: {}", path);
-
-        let mut inner = self.inner.borrow_mut();
-
-        let offset = inner.instructions.len();
-        let instance_fn = Hash::instance_function(type_hash, name);
-        let hash = Hash::type_hash(&path);
-
-        let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(path, DebugArgs::Named(debug_args));
-
-        if inner.functions.insert(instance_fn, info).is_some() {
-            return Err(CompileError::new(
-                location.span,
-                CompileErrorKind::FunctionConflict {
-                    existing: signature,
-                },
-            ));
-        }
-
-        if inner.functions.insert(hash, info).is_some() {
-            return Err(CompileError::new(
-                location.span,
-                CompileErrorKind::FunctionConflict {
-                    existing: signature,
-                },
-            ));
-        }
-
-        inner.constants.insert(
-            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(signature.path.to_string()),
-        );
-
-        inner
-            .debug_info_mut()
-            .functions
-            .insert(instance_fn, signature);
-        inner.functions_rev.insert(offset, hash);
-        inner.add_assembly(location, assembly)?;
-        Ok(())
-    }
-
-    /// Try to link the unit with the context, checking that all necessary
-    /// functions are provided.
-    ///
-    /// This can prevent a number of runtime errors, like missing functions.
-    pub(crate) fn link(&self, context: &Context, diagnostics: &mut Diagnostics) {
-        let inner = self.inner.borrow();
-
-        for (hash, spans) in &inner.required_functions {
-            if inner.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
-                diagnostics.error(
-                    SourceId::empty(),
-                    LinkerError::MissingFunction {
-                        hash: *hash,
-                        spans: spans.clone(),
-                    },
-                );
-            }
-        }
-    }
-}
-
 #[derive(Debug, Default)]
-struct Inner {
+pub(crate) struct UnitBuilder {
     /// Prelude imports.
     prelude: HashMap<Box<str>, Item>,
     /// The instructions contained in the source file.
@@ -662,9 +99,533 @@ struct Inner {
     constants: HashMap<Hash, ConstValue>,
 }
 
-impl Inner {
+impl UnitBuilder {
+    /// Construct a new unit with the default prelude.
+    pub(crate) fn with_default_prelude() -> Self {
+        let mut this = Self::default();
+
+        this.add_prelude("assert_eq", &["test", "assert_eq"]);
+        this.add_prelude("assert", &["test", "assert"]);
+        this.add_prelude("bool", &["bool"]);
+        this.add_prelude("byte", &["byte"]);
+        this.add_prelude("char", &["char"]);
+        this.add_prelude("dbg", &["io", "dbg"]);
+        this.add_prelude("drop", &["mem", "drop"]);
+        this.add_prelude("Err", &["result", "Result", "Err"]);
+        this.add_prelude("file", &["macros", "builtin", "file"]);
+        this.add_prelude("float", &["float"]);
+        this.add_prelude("format", &["fmt", "format"]);
+        this.add_prelude("int", &["int"]);
+        this.add_prelude("is_readable", &["is_readable"]);
+        this.add_prelude("is_writable", &["is_writable"]);
+        this.add_prelude("line", &["macros", "builtin", "line"]);
+        this.add_prelude("None", &["option", "Option", "None"]);
+        this.add_prelude("Object", &["object", "Object"]);
+        this.add_prelude("Ok", &["result", "Result", "Ok"]);
+        this.add_prelude("Option", &["option", "Option"]);
+        this.add_prelude("panic", &["panic"]);
+        this.add_prelude("print", &["io", "print"]);
+        this.add_prelude("println", &["io", "println"]);
+        this.add_prelude("Result", &["result", "Result"]);
+        this.add_prelude("Some", &["option", "Option", "Some"]);
+        this.add_prelude("String", &["string", "String"]);
+        this.add_prelude("stringify", &["stringify"]);
+        this.add_prelude("unit", &["unit"]);
+        this.add_prelude("Vec", &["vec", "Vec"]);
+
+        this
+    }
+
+    /// Clone the prelude.
+    pub(crate) fn prelude(&self) -> &HashMap<Box<str>, Item> {
+        &self.prelude
+    }
+
+    /// Convert into a runtime unit, shedding our build metadata in the process.
+    ///
+    /// Returns `None` if the builder is still in use.
+    pub(crate) fn build(mut self) -> Result<Unit, BuildError> {
+        if let Some(debug) = &mut self.debug {
+            debug.functions_rev = self.functions_rev;
+        }
+
+        for (from, to) in self.reexports {
+            let info = match self.functions.get(&to) {
+                Some(info) => *info,
+                None => return Err(BuildError::MissingFunctionHash { hash: to }),
+            };
+
+            if self.functions.insert(from, info).is_some() {
+                return Err(BuildError::FunctionConflictHash { hash: from });
+            }
+        }
+
+        Ok(Unit::new(
+            self.instructions,
+            self.functions,
+            self.static_strings,
+            self.static_bytes,
+            self.static_object_keys,
+            self.rtti,
+            self.variant_rtti,
+            self.debug,
+            self.constants,
+        ))
+    }
+
+    /// Insert a static string and return its associated slot that can later be
+    /// looked up through [lookup_string][Unit::lookup_string].
+    ///
+    /// Only uses up space if the static string is unique.
+    pub(crate) fn new_static_string(
+        &mut self,
+        span: Span,
+        current: &str,
+    ) -> Result<usize, CompileError> {
+        let current = StaticString::new(current);
+        let hash = current.hash();
+
+        if let Some(existing_slot) = self.static_string_rev.get(&hash).copied() {
+            let existing = self.static_strings.get(existing_slot).ok_or_else(|| {
+                CompileError::new(
+                    span,
+                    CompileErrorKind::StaticStringMissing {
+                        hash,
+                        slot: existing_slot,
+                    },
+                )
+            })?;
+
+            if ***existing != *current {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::StaticStringHashConflict {
+                        hash,
+                        current: (*current).clone(),
+                        existing: (***existing).clone(),
+                    },
+                ));
+            }
+
+            return Ok(existing_slot);
+        }
+
+        let new_slot = self.static_strings.len();
+        self.static_strings.push(Arc::new(current));
+        self.static_string_rev.insert(hash, new_slot);
+        Ok(new_slot)
+    }
+
+    /// Insert a static byte string and return its associated slot that can
+    /// later be looked up through [lookup_bytes][Unit::lookup_bytes].
+    ///
+    /// Only uses up space if the static byte string is unique.
+    pub(crate) fn new_static_bytes(
+        &mut self,
+        span: Span,
+        current: &[u8],
+    ) -> Result<usize, CompileError> {
+        let hash = Hash::static_bytes(current);
+
+        if let Some(existing_slot) = self.static_bytes_rev.get(&hash).copied() {
+            let existing = self.static_bytes.get(existing_slot).ok_or_else(|| {
+                CompileError::new(
+                    span,
+                    CompileErrorKind::StaticBytesMissing {
+                        hash,
+                        slot: existing_slot,
+                    },
+                )
+            })?;
+
+            if &**existing != current {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::StaticBytesHashConflict {
+                        hash,
+                        current: current.to_owned(),
+                        existing: existing.clone(),
+                    },
+                ));
+            }
+
+            return Ok(existing_slot);
+        }
+
+        let new_slot = self.static_bytes.len();
+        self.static_bytes.push(current.to_owned());
+        self.static_bytes_rev.insert(hash, new_slot);
+        Ok(new_slot)
+    }
+
+    /// Insert a new collection of static object keys, or return one already
+    /// existing.
+    pub(crate) fn new_static_object_keys_iter<I>(
+        &mut self,
+        span: Span,
+        current: I,
+    ) -> Result<usize, CompileError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let current = current
+            .into_iter()
+            .map(|s| s.as_ref().to_owned())
+            .collect::<Box<_>>();
+
+        self.new_static_object_keys(span, current)
+    }
+
+    /// Insert a new collection of static object keys, or return one already
+    /// existing.
+    pub(crate) fn new_static_object_keys(
+        &mut self,
+        span: Span,
+        current: Box<[String]>,
+    ) -> Result<usize, CompileError> {
+        let hash = Hash::object_keys(&current[..]);
+
+        if let Some(existing_slot) = self.static_object_keys_rev.get(&hash).copied() {
+            let existing = self.static_object_keys.get(existing_slot).ok_or_else(|| {
+                CompileError::new(
+                    span,
+                    CompileErrorKind::StaticObjectKeysMissing {
+                        hash,
+                        slot: existing_slot,
+                    },
+                )
+            })?;
+
+            if *existing != current {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::StaticObjectKeysHashConflict {
+                        hash,
+                        current,
+                        existing: existing.clone(),
+                    },
+                ));
+            }
+
+            return Ok(existing_slot);
+        }
+
+        let new_slot = self.static_object_keys.len();
+        self.static_object_keys.push(current);
+        self.static_object_keys_rev.insert(hash, new_slot);
+        Ok(new_slot)
+    }
+
+    /// Declare a new struct.
+    pub(crate) fn insert_meta(&mut self, meta: &CompileMeta) -> Result<(), InsertMetaError> {
+        match &meta.kind {
+            CompileMetaKind::UnitStruct { empty, .. } => {
+                let info = UnitFn::UnitStruct { hash: empty.hash };
+
+                let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
+
+                let rtti = Arc::new(Rtti {
+                    hash: empty.hash,
+                    item: meta.item.item.clone(),
+                });
+
+                if self.rtti.insert(empty.hash, rtti).is_some() {
+                    return Err(InsertMetaError::TypeRttiConflict { hash: empty.hash });
+                }
+
+                if self.functions.insert(empty.hash, info).is_some() {
+                    return Err(InsertMetaError::FunctionConflict {
+                        existing: signature,
+                    });
+                }
+
+                self.constants.insert(
+                    Hash::instance_function(empty.hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(signature.path.to_string()),
+                );
+
+                self.debug_info_mut()
+                    .functions
+                    .insert(empty.hash, signature);
+            }
+            CompileMetaKind::TupleStruct { tuple, .. } => {
+                let info = UnitFn::TupleStruct {
+                    hash: tuple.hash,
+                    args: tuple.args,
+                };
+
+                let signature =
+                    DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
+
+                let rtti = Arc::new(Rtti {
+                    hash: tuple.hash,
+                    item: meta.item.item.clone(),
+                });
+
+                if self.rtti.insert(tuple.hash, rtti).is_some() {
+                    return Err(InsertMetaError::TypeRttiConflict { hash: tuple.hash });
+                }
+
+                if self.functions.insert(tuple.hash, info).is_some() {
+                    return Err(InsertMetaError::FunctionConflict {
+                        existing: signature,
+                    });
+                }
+
+                self.constants.insert(
+                    Hash::instance_function(tuple.hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(signature.path.to_string()),
+                );
+
+                self.debug_info_mut()
+                    .functions
+                    .insert(tuple.hash, signature);
+            }
+            CompileMetaKind::Struct { .. } => {
+                let hash = Hash::type_hash(&meta.item.item);
+
+                let rtti = Arc::new(Rtti {
+                    hash,
+                    item: meta.item.item.clone(),
+                });
+
+                self.constants.insert(
+                    Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(rtti.item.to_string()),
+                );
+
+                if self.rtti.insert(hash, rtti).is_some() {
+                    return Err(InsertMetaError::TypeRttiConflict { hash });
+                }
+            }
+            CompileMetaKind::UnitVariant {
+                enum_item, empty, ..
+            } => {
+                let enum_hash = Hash::type_hash(enum_item);
+
+                let rtti = Arc::new(VariantRtti {
+                    enum_hash,
+                    hash: empty.hash,
+                    item: meta.item.item.clone(),
+                });
+
+                if self.variant_rtti.insert(empty.hash, rtti).is_some() {
+                    return Err(InsertMetaError::VariantRttiConflict { hash: empty.hash });
+                }
+
+                let info = UnitFn::UnitVariant { hash: empty.hash };
+
+                let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
+
+                if self.functions.insert(empty.hash, info).is_some() {
+                    return Err(InsertMetaError::FunctionConflict {
+                        existing: signature,
+                    });
+                }
+
+                self.debug_info_mut()
+                    .functions
+                    .insert(empty.hash, signature);
+            }
+            CompileMetaKind::TupleVariant {
+                enum_item, tuple, ..
+            } => {
+                let enum_hash = Hash::type_hash(enum_item);
+
+                let rtti = Arc::new(VariantRtti {
+                    enum_hash,
+                    hash: tuple.hash,
+                    item: meta.item.item.clone(),
+                });
+
+                if self.variant_rtti.insert(tuple.hash, rtti).is_some() {
+                    return Err(InsertMetaError::VariantRttiConflict { hash: tuple.hash });
+                }
+
+                let info = UnitFn::TupleVariant {
+                    hash: tuple.hash,
+                    args: tuple.args,
+                };
+
+                let signature =
+                    DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
+
+                if self.functions.insert(tuple.hash, info).is_some() {
+                    return Err(InsertMetaError::FunctionConflict {
+                        existing: signature,
+                    });
+                }
+
+                self.debug_info_mut()
+                    .functions
+                    .insert(tuple.hash, signature);
+            }
+            CompileMetaKind::StructVariant { enum_item, .. } => {
+                let hash = Hash::type_hash(&meta.item.item);
+                let enum_hash = Hash::type_hash(enum_item);
+
+                let rtti = Arc::new(VariantRtti {
+                    enum_hash,
+                    hash,
+                    item: meta.item.item.clone(),
+                });
+
+                if self.variant_rtti.insert(hash, rtti).is_some() {
+                    return Err(InsertMetaError::VariantRttiConflict { hash });
+                }
+            }
+            CompileMetaKind::Enum { type_hash } => {
+                self.constants.insert(
+                    Hash::instance_function(*type_hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(meta.item.item.to_string()),
+                );
+            }
+            CompileMetaKind::Function { .. } => (),
+            CompileMetaKind::Closure { .. } => (),
+            CompileMetaKind::AsyncBlock { .. } => (),
+            CompileMetaKind::Const { .. } => (),
+            CompileMetaKind::ConstFn { .. } => (),
+            CompileMetaKind::Import { .. } => (),
+        }
+
+        Ok(())
+    }
+
+    /// Construct a new empty assembly associated with the current unit.
+    pub(crate) fn new_assembly(&self, location: Location) -> Assembly {
+        Assembly::new(location, self.label_count)
+    }
+
+    /// Declare a new function at the current instruction pointer.
+    pub(crate) fn new_function(
+        &mut self,
+        location: Location,
+        path: Item,
+        args: usize,
+        assembly: Assembly,
+        call: Call,
+        debug_args: Box<[Box<str>]>,
+    ) -> Result<(), CompileError> {
+        let offset = self.instructions.len();
+        let hash = Hash::type_hash(&path);
+
+        self.functions_rev.insert(offset, hash);
+        let info = UnitFn::Offset { offset, call, args };
+        let signature = DebugSignature::new(path, DebugArgs::Named(debug_args));
+
+        if self.functions.insert(hash, info).is_some() {
+            return Err(CompileError::new(
+                location.span,
+                CompileErrorKind::FunctionConflict {
+                    existing: signature,
+                },
+            ));
+        }
+
+        self.constants.insert(
+            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(signature.path.to_string()),
+        );
+
+        self.debug_info_mut().functions.insert(hash, signature);
+
+        self.add_assembly(location, assembly)?;
+        Ok(())
+    }
+
+    /// Register a new function re-export.
+    pub(crate) fn new_function_reexport(
+        &mut self,
+        location: Location,
+        item: &Item,
+        target: &Item,
+    ) -> Result<(), CompileError> {
+        let hash = Hash::type_hash(item);
+        let target = Hash::type_hash(target);
+
+        if self.reexports.insert(hash, target).is_some() {
+            return Err(CompileError::new(
+                location.span,
+                CompileErrorKind::FunctionReExportConflict { hash },
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Declare a new instance function at the current instruction pointer.
+    pub(crate) fn new_instance_function(
+        &mut self,
+        location: Location,
+        path: Item,
+        type_hash: Hash,
+        name: &str,
+        args: usize,
+        assembly: Assembly,
+        call: Call,
+        debug_args: Box<[Box<str>]>,
+    ) -> Result<(), CompileError> {
+        log::trace!("instance fn: {}", path);
+
+        let offset = self.instructions.len();
+        let instance_fn = Hash::instance_function(type_hash, name);
+        let hash = Hash::type_hash(&path);
+
+        let info = UnitFn::Offset { offset, call, args };
+        let signature = DebugSignature::new(path, DebugArgs::Named(debug_args));
+
+        if self.functions.insert(instance_fn, info).is_some() {
+            return Err(CompileError::new(
+                location.span,
+                CompileErrorKind::FunctionConflict {
+                    existing: signature,
+                },
+            ));
+        }
+
+        if self.functions.insert(hash, info).is_some() {
+            return Err(CompileError::new(
+                location.span,
+                CompileErrorKind::FunctionConflict {
+                    existing: signature,
+                },
+            ));
+        }
+
+        self.constants.insert(
+            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(signature.path.to_string()),
+        );
+
+        self.debug_info_mut()
+            .functions
+            .insert(instance_fn, signature);
+        self.functions_rev.insert(offset, hash);
+        self.add_assembly(location, assembly)?;
+        Ok(())
+    }
+
+    /// Try to link the unit with the context, checking that all necessary
+    /// functions are provided.
+    ///
+    /// This can prevent a number of runtime errors, like missing functions.
+    pub(crate) fn link(&mut self, context: &Context, diagnostics: &mut Diagnostics) {
+        for (hash, spans) in &self.required_functions {
+            if self.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
+                diagnostics.error(
+                    SourceId::empty(),
+                    LinkerError::MissingFunction {
+                        hash: *hash,
+                        spans: spans.clone(),
+                    },
+                );
+            }
+        }
+    }
+
     /// Define a prelude item.
-    fn prelude<I>(&mut self, local: &str, path: I)
+    fn add_prelude<I>(&mut self, local: &str, path: I)
     where
         I: IntoIterator,
         I::Item: IntoComponent,

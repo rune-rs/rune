@@ -43,7 +43,7 @@ pub struct Unit {
 impl Unit {
     /// Construct a new unit with the given content.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         instructions: Vec<Inst>,
         functions: HashMap<Hash, UnitFn>,
         static_strings: Vec<Arc<StaticString>>,

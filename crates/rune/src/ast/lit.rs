@@ -31,7 +31,7 @@ impl Lit {
     ///     assert!(matches!(lit, ast::Lit::Str(..)))
     /// });
     /// ```
-    pub fn new<T>(ctx: &mut MacroContext<'_>, lit: T) -> Self
+    pub fn new<T>(ctx: &mut MacroContext<'_, '_>, lit: T) -> Self
     where
         T: IntoLit,
     {

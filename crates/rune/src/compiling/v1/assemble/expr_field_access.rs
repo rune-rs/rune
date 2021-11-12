@@ -2,7 +2,7 @@ use crate::compiling::v1::assemble::prelude::*;
 
 /// Compile an expr field access, like `<value>.<field>`.
 impl Assemble for ast::ExprFieldAccess {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
 
         // Optimizations!
@@ -38,7 +38,7 @@ impl Assemble for ast::ExprFieldAccess {
             ast::ExprField::Path(path) => {
                 if let Some(ident) = path.try_as_ident() {
                     let field = ident.resolve(c.query.storage(), c.sources)?;
-                    let slot = c.unit.new_static_string(span, field.as_ref())?;
+                    let slot = c.query.unit_mut().new_static_string(span, field.as_ref())?;
 
                     c.asm.push(Inst::ObjectIndexGet { slot }, span);
 
@@ -57,7 +57,7 @@ impl Assemble for ast::ExprFieldAccess {
 }
 
 fn try_immediate_field_access_optimization(
-    c: &mut Compiler<'_>,
+    c: &mut Compiler<'_, '_>,
     span: Span,
     path: &ast::Path,
     n: &ast::LitNumber,

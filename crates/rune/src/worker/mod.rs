@@ -30,7 +30,7 @@ pub(crate) struct Worker<'a> {
     /// Worker queue.
     pub(crate) queue: VecDeque<Task>,
     /// Query engine.
-    pub(crate) query: Query,
+    pub(crate) query: Query<'a>,
     /// Id generator.
     pub(crate) gen: Gen,
     /// Files that have been loaded.
@@ -43,7 +43,7 @@ impl<'a> Worker<'a> {
         context: &'a Context,
         sources: &'a mut Sources,
         options: &'a Options,
-        unit: UnitBuilder,
+        unit: &'a mut UnitBuilder,
         diagnostics: &'a mut Diagnostics,
         visitor: Rc<dyn CompileVisitor>,
         source_loader: Rc<dyn SourceLoader + 'a>,
@@ -57,7 +57,7 @@ impl<'a> Worker<'a> {
             visitor: visitor.clone(),
             source_loader,
             queue: VecDeque::new(),
-            query: Query::new(visitor, unit, gen.clone()),
+            query: Query::new(unit, visitor, gen.clone()),
             gen,
             loaded: HashMap::new(),
         }

@@ -3,7 +3,7 @@ use crate::compiling::v1::assemble::prelude::*;
 
 /// Compile a literal object.
 impl Assemble for ast::ExprObject {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         let guard = c.scopes.push_child(span)?;
 
@@ -43,7 +43,10 @@ impl Assemble for ast::ExprObject {
             c.scopes.decl_anon(span)?;
         }
 
-        let slot = c.unit.new_static_object_keys_iter(span, &keys)?;
+        let slot = c
+            .query
+            .unit_mut()
+            .new_static_object_keys_iter(span, &keys)?;
 
         match &self.ident {
             ast::ObjectIdent::Named(path) => {

@@ -103,14 +103,14 @@ impl IntoIterator for TokenStream {
 /// Trait for things that can be turned into tokens.
 pub trait ToTokens: Sized {
     /// Turn the current item into tokens.
-    fn to_tokens(&self, context: &mut MacroContext<'_>, stream: &mut TokenStream);
+    fn to_tokens(&self, context: &mut MacroContext<'_, '_>, stream: &mut TokenStream);
 }
 
 impl<T> ToTokens for Box<T>
 where
     T: ToTokens,
 {
-    fn to_tokens(&self, context: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         (**self).to_tokens(context, stream);
     }
 }
@@ -119,7 +119,7 @@ impl<T> ToTokens for &T
 where
     T: ToTokens,
 {
-    fn to_tokens(&self, context: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         ToTokens::to_tokens(*self, context, stream)
     }
 }
@@ -128,7 +128,7 @@ impl<T> ToTokens for Option<T>
 where
     T: ToTokens,
 {
-    fn to_tokens(&self, context: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         if let Some(this) = self {
             this.to_tokens(context, stream);
         }
@@ -139,7 +139,7 @@ impl<T> ToTokens for Vec<T>
 where
     T: ToTokens,
 {
-    fn to_tokens(&self, context: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         for item in self {
             item.to_tokens(context, stream);
         }
@@ -151,7 +151,7 @@ where
     A: ToTokens,
     B: ToTokens,
 {
-    fn to_tokens(&self, context: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         self.0.to_tokens(context, stream);
         self.1.to_tokens(context, stream);
     }
@@ -163,7 +163,7 @@ where
     B: ToTokens,
     C: ToTokens,
 {
-    fn to_tokens(&self, context: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         self.0.to_tokens(context, stream);
         self.1.to_tokens(context, stream);
         self.2.to_tokens(context, stream);
@@ -171,7 +171,7 @@ where
 }
 
 impl ToTokens for TokenStream {
-    fn to_tokens(&self, context: &mut MacroContext<'_>, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext<'_, '_>, stream: &mut TokenStream) {
         self.stream.to_tokens(context, stream);
     }
 }

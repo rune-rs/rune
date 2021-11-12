@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compiling::{Assembly, CompileVisitor, UnitBuilder};
+use crate::compiling::{Assembly, CompileVisitor};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::meta::{CompileItem, CompileMeta, CompileMetaKind};
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -38,7 +38,7 @@ impl Needs {
     }
 }
 
-pub(crate) struct Compiler<'a> {
+pub(crate) struct Compiler<'a, 'q> {
     /// Compiler visitor.
     pub(crate) visitor: Rc<dyn CompileVisitor>,
     /// The source id of the source.
@@ -50,11 +50,9 @@ pub(crate) struct Compiler<'a> {
     /// The context we are compiling for.
     pub(crate) context: &'a Context,
     /// Query system to compile required items.
-    pub(crate) query: &'a mut Query,
+    pub(crate) query: &'a mut Query<'q>,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
-    /// The compilation unit we are compiling for.
-    pub(crate) unit: UnitBuilder,
     /// Scopes defined in the compiler.
     pub(crate) scopes: Scopes,
     /// Context for which to emit warnings.
@@ -67,7 +65,7 @@ pub(crate) struct Compiler<'a> {
     pub(crate) diagnostics: &'a mut Diagnostics,
 }
 
-impl<'a> Compiler<'a> {
+impl<'a, 'q> Compiler<'a, 'q> {
     /// Access the meta for the given language item.
     pub fn try_lookup_meta(
         &mut self,
@@ -507,7 +505,7 @@ impl<'a> Compiler<'a> {
                 }
             };
 
-            string_slots.push(self.unit.new_static_string(span, &*key)?);
+            string_slots.push(self.query.unit_mut().new_static_string(span, &*key)?);
 
             if let Some(existing) = keys_dup.insert(key.to_string(), span) {
                 return Err(CompileError::new(
@@ -522,7 +520,10 @@ impl<'a> Compiler<'a> {
             keys.push(key.to_string());
         }
 
-        let keys = self.unit.new_static_object_keys_iter(span, &keys[..])?;
+        let keys = self
+            .query
+            .unit_mut()
+            .new_static_object_keys_iter(span, &keys[..])?;
 
         let type_check = match &pat_object.ident {
             ast::ObjectIdent::Named(path) => {
@@ -819,7 +820,7 @@ impl<'a> Compiler<'a> {
                     ast::Lit::Str(pat_string) => {
                         let span = pat_string.span();
                         let string = pat_string.resolve(self.query.storage(), self.sources)?;
-                        let slot = self.unit.new_static_string(span, &*string)?;
+                        let slot = self.query.unit_mut().new_static_string(span, &*string)?;
                         load(self, Needs::Value)?;
                         self.asm.push(Inst::EqStaticString { slot }, span);
                         break;

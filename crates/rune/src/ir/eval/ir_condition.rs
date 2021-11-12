@@ -5,7 +5,7 @@ impl IrEval for ir::IrCondition {
 
     fn eval(
         &self,
-        interp: &mut IrInterpreter<'_>,
+        interp: &mut IrInterpreter<'_, '_>,
         used: Used,
     ) -> Result<Self::Output, IrEvalOutcome> {
         match self {

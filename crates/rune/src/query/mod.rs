@@ -15,8 +15,8 @@ use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
 use crate::{
     CompileError, CompileErrorKind, CompileVisitor, Component, ComponentRef, Context, Hash, Id,
-    ImportEntryStep, IntoComponent, Item, Location, NoopCompileVisitor, Resolve, SourceId, Sources,
-    Span, Spanned, Storage, Visibility,
+    ImportEntryStep, IntoComponent, Item, Location, Resolve, SourceId, Sources, Span, Spanned,
+    Storage, Visibility,
 };
 use std::collections::VecDeque;
 use std::fmt;
@@ -81,17 +81,15 @@ pub struct BuiltInLine {
     pub(crate) value: ast::LitNumber,
 }
 
-pub(crate) struct Query {
+pub(crate) struct Query<'a> {
+    /// The current unit being built.
+    unit: &'a mut UnitBuilder,
     /// Visitor for the compiler meta.
     visitor: Rc<dyn CompileVisitor>,
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<Item, CompileMeta>,
     /// Macro storage.
     storage: Storage,
-    /// Prelude from the prelude.
-    prelude: HashMap<Box<str>, Item>,
-    /// Unit being built.
-    unit: UnitBuilder,
     /// Cache of constants that have been expanded.
     consts: Consts,
     /// Shared id generator.
@@ -119,15 +117,14 @@ pub(crate) struct Query {
     modules: HashMap<Item, Arc<CompileMod>>,
 }
 
-impl Query {
+impl<'a> Query<'a> {
     /// Construct a new compilation context.
-    pub fn new(visitor: Rc<dyn CompileVisitor>, unit: UnitBuilder, gen: Gen) -> Self {
+    pub fn new(unit: &'a mut UnitBuilder, visitor: Rc<dyn CompileVisitor>, gen: Gen) -> Self {
         Self {
+            unit,
             visitor,
             meta: HashMap::new(),
             storage: Storage::new(),
-            prelude: unit.prelude(),
-            unit,
             consts: Consts::default(),
             gen,
             queue: VecDeque::new(),
@@ -139,6 +136,11 @@ impl Query {
             names: Names::default(),
             modules: HashMap::new(),
         }
+    }
+
+    /// Access the unit being built.
+    pub(crate) fn unit_mut(&mut self) -> &mut UnitBuilder {
+        &mut self.unit
     }
 
     /// Insert the given compile meta.
@@ -1167,7 +1169,7 @@ impl Query {
             }
         }
 
-        if let Some(item) = self.prelude.get(local) {
+        if let Some(item) = self.unit.prelude().get(local) {
             return Ok(item.clone());
         }
 
@@ -1248,28 +1250,6 @@ impl Query {
         }
 
         Ok(())
-    }
-}
-
-impl Default for Query {
-    fn default() -> Self {
-        Self {
-            visitor: Rc::new(NoopCompileVisitor::new()),
-            meta: Default::default(),
-            storage: Default::default(),
-            prelude: Default::default(),
-            unit: Default::default(),
-            consts: Default::default(),
-            gen: Default::default(),
-            queue: Default::default(),
-            indexed: Default::default(),
-            const_fns: Default::default(),
-            query_paths: Default::default(),
-            internal_macros: Default::default(),
-            items: Default::default(),
-            names: Default::default(),
-            modules: Default::default(),
-        }
     }
 }
 

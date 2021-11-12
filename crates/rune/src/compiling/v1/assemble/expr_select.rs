@@ -2,7 +2,7 @@ use crate::compiling::v1::assemble::prelude::*;
 
 /// Compile a select expression.
 impl Assemble for ast::ExprSelect {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprSelect => {:?}", c.source.source(span));
         let len = self.branches.len();
