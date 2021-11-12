@@ -1,16 +1,19 @@
 use crate::RawStr;
-use byteorder::{ByteOrder as _, NativeEndian, WriteBytesExt as _};
+use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom as _;
+use smallvec::SmallVec;
+use std::convert::TryFrom;
 use std::fmt;
 use std::hash;
-use std::hash::Hash as _;
+use std::hash::Hash;
 
 // Types available.
-const CRATE: u8 = 0;
-const STRING: u8 = 1;
-const ID: u8 = 2;
+const CRATE: u8 = 0b00;
+const STRING: u8 = 0b01;
+const ID: u8 = 0b10;
 
+/// Inline size.
+const INLINE: usize = 32;
 /// How many bits the type of a tag takes up.
 const TYPE_BITS: usize = 2;
 /// Mask of the type of a tag.
@@ -24,6 +27,12 @@ const MAX_DATA: usize = 0b1 << (TAG_BYTES * 8 - TYPE_BITS);
 ///
 /// This is made up of a collection of strings, like `["foo", "bar"]`.
 /// This is indicated in rune as `foo::bar`.
+///
+/// An item can also belongs to a crate, which in rune could be indicated as
+/// `::crate::foo::bar`. These items must be constructed using
+/// [Item::with_crate].
+///
+/// Items are inlined if they are smaller than 32 bytes.
 ///
 /// # Panics
 ///
@@ -54,25 +63,50 @@ const MAX_DATA: usize = 0b1 << (TAG_BYTES * 8 - TYPE_BITS);
 /// dddddddd dddddddt
 /// ```
 #[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[repr(transparent)]
 pub struct Item {
-    content: Vec<u8>,
+    content: SmallVec<[u8; INLINE]>,
 }
 
 impl Item {
-    /// Construct an empty item.
+    /// Construct a new empty item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Item;
+    ///
+    /// let item = Item::new();
+    /// let mut it = item.iter();
+    ///
+    /// assert_eq!(it.next(), None);
+    /// ```
     pub const fn new() -> Self {
         Self {
-            content: Vec::new(),
+            content: SmallVec::new_const(),
         }
     }
 
-    /// Construct a new item path.
+    /// Construct a new item with the given path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{ComponentRef, Item};
+    ///
+    /// let item = Item::with_item(&["foo", "bar"]);
+    /// let mut it = item.iter();
+    ///
+    /// assert_eq!(it.next(), Some(ComponentRef::Str("foo")));
+    /// assert_eq!(it.next(), Some(ComponentRef::Str("bar")));
+    /// assert_eq!(it.next(), None);
+    /// ```
     pub fn with_item<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        let mut content = Vec::new();
+        let mut content = SmallVec::new();
 
         for c in iter {
             c.write_component(&mut content);
@@ -85,14 +119,16 @@ impl Item {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// use rune::{Item, ComponentRef};
+    /// ```
+    /// use rune::{ComponentRef, Item};
     ///
-    /// let item = Item::with_crate("std");
+    /// let mut item = Item::with_crate("std");
+    /// item.push("foo");
     /// assert_eq!(item.as_crate(), Some("std"));
     ///
     /// let mut it = item.iter();
     /// assert_eq!(it.next(), Some(ComponentRef::Crate("std")));
+    /// assert_eq!(it.next(), Some(ComponentRef::Str("foo")));
     /// assert_eq!(it.next(), None);
     /// ```
     pub fn with_crate(name: &str) -> Self {
@@ -103,8 +139,8 @@ impl Item {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// use rune::{Item, ComponentRef};
+    /// ```
+    /// use rune::{ComponentRef, Item};
     ///
     /// let item = Item::with_crate_item("std", &["option"]);
     /// assert_eq!(item.as_crate(), Some("std"));
@@ -119,7 +155,7 @@ impl Item {
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        let mut content = Vec::new();
+        let mut content = SmallVec::new();
         ComponentRef::Crate(name).write_component(&mut content);
 
         for c in iter {
@@ -133,7 +169,7 @@ impl Item {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Item;
     ///
     /// let item = Item::with_crate("std");
@@ -154,7 +190,7 @@ impl Item {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{ComponentRef, Item};
     ///
     /// let item = Item::with_item(&["foo", "bar"]);
@@ -196,7 +232,7 @@ impl Item {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Item;
     ///
     /// let item = Item::new();
@@ -525,25 +561,25 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
 
 impl PartialEq<Item> for Iter<'_> {
     fn eq(&self, other: &Item) -> bool {
-        self.content == other.content
+        self.content == other.content.as_ref()
     }
 }
 
 impl PartialEq<&Item> for Iter<'_> {
     fn eq(&self, other: &&Item) -> bool {
-        self.content == other.content
+        self.content == other.content.as_ref()
     }
 }
 
 impl PartialEq<Iter<'_>> for Item {
     fn eq(&self, other: &Iter<'_>) -> bool {
-        self.content == other.content
+        self.content.as_ref() == other.content
     }
 }
 
 impl PartialEq<Iter<'_>> for &Item {
     fn eq(&self, other: &Iter<'_>) -> bool {
-        self.content == other.content
+        self.content.as_ref() == other.content
     }
 }
 
@@ -623,7 +659,7 @@ impl ComponentRef<'_> {
     }
 
     /// Write the current component to the given vector.
-    pub fn write_component(self, output: &mut Vec<u8>) {
+    pub fn write_component(self, output: &mut SmallVec<[u8; INLINE]>) {
         match self {
             ComponentRef::Crate(s) => {
                 write_crate(s, output);
@@ -680,7 +716,7 @@ pub trait IntoComponent: Sized {
     }
 
     /// Write a component directly to a buffer.
-    fn write_component(self, output: &mut Vec<u8>) {
+    fn write_component(self, output: &mut SmallVec<[u8; INLINE]>) {
         ComponentRef::write_component(self.as_component_ref(), output)
     }
 
@@ -744,7 +780,7 @@ macro_rules! impl_into_component_for_str {
                 Component::Str($into)
             }
 
-            fn write_component(self, output: &mut Vec<u8>) {
+            fn write_component(self, output: &mut smallvec::SmallVec<[u8; INLINE]>) {
                 write_str(self.as_ref(), output)
             }
 
@@ -784,7 +820,7 @@ fn read_tag(content: &[u8]) -> (u8, usize) {
 /// # Panics
 ///
 /// Panics if the provided size cannot fit withing an identifier.
-fn write_tag(output: &mut Vec<u8>, tag: u8, n: usize) {
+fn write_tag(output: &mut SmallVec<[u8; INLINE]>, tag: u8, n: usize) {
     debug_assert!(tag as usize <= TYPE_MASK);
     assert!(
         n < MAX_DATA,
@@ -795,16 +831,16 @@ fn write_tag(output: &mut Vec<u8>, tag: u8, n: usize) {
 }
 
 /// Internal function to write only the crate of a component.
-fn write_crate(s: &str, output: &mut Vec<u8>) {
+fn write_crate(s: &str, output: &mut SmallVec<[u8; INLINE]>) {
     write_tag(output, CRATE, s.len());
-    output.extend(s.as_bytes());
+    output.extend_from_slice(s.as_bytes());
     write_tag(output, CRATE, s.len());
 }
 
 /// Internal function to write only the string of a component.
-fn write_str(s: &str, output: &mut Vec<u8>) {
+fn write_str(s: &str, output: &mut SmallVec<[u8; INLINE]>) {
     write_tag(output, STRING, s.len());
-    output.extend(s.as_bytes());
+    output.extend_from_slice(s.as_bytes());
     write_tag(output, STRING, s.len());
 }
 
@@ -819,7 +855,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Component, ComponentRef, IntoComponent as _, Item};
+    use super::{Component, ComponentRef, IntoComponent, Item};
 
     #[test]
     fn test_pop() {
