@@ -15,6 +15,6 @@ Intermediate mode representation for Rune.
 """
 
 [dependencies]
-hashbrown = "0.9.1"
-thiserror = "1.0.24"
-ordered-float = "2.1.1"
+hashbrown = "0.11.2"
+thiserror = "1.0.30"
+ordered-float = "2.8.0"

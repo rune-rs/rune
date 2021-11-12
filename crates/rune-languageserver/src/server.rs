@@ -78,7 +78,7 @@ impl Server {
 
         self.output
             .log(
-                lsp::MessageType::Info,
+                lsp::MessageType::INFO,
                 format!("Unhandled method `{}`", method),
             )
             .await?;
