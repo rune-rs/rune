@@ -8,51 +8,78 @@ on:
 
 jobs:
   build:
-    name: Linux Build
+    name: Run Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
-        id: rust_toolchain
+        id: toolchain
         with:
           toolchain: stable
-          override: true
-      - name: Caching
-        uses: actions/cache@v2
+          profile: minimal
+      - uses: actions/cache@v2
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
             target
-          key: ${{ runner.os }}-cargo-${{ steps.rust_toolchain.outputs.rustc_hash }}
-      - name: Formatting Check
-        run: cargo fmt --all -- --check
+          key: build-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
       - name: Run tests
         run: cargo test --all
-      - name: Build benchmarks (without running)
-        run: cargo bench --no-run
       - name: Run example scripts
         run: cargo run --bin rune -- check --recursive --experimental -O macros=true scripts
-  wasm:
-    name: Wasm Build
+
+  build_benchmarks:
+    name: Build Benchmarks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
-        id: rust_toolchain
+        id: toolchain
         with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          override: true
-      - name: Caching
-        uses: actions/cache@v2
+          toolchain: nightly
+          profile: minimal
+          default: true
+      - uses: actions/cache@v2
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
             target
-          key: ${{ runner.os }}-cargo-${{ steps.rust_toolchain.outputs.rustc_hash }}
-      - name: Build WASM component
-        run: cargo build --package rune-wasm --target wasm32-unknown-unknown
+          key: build_benchmarks-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
+      - run: cargo build --benches
+
+  check_formatting:
+    name: Check Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  build_wasm:
+    name: Build Wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          target: wasm32-unknown-unknown
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            target
+          key: build_wasm-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
+      - run: cargo build --package rune-wasm --target wasm32-unknown-unknown
