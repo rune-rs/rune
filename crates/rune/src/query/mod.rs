@@ -1137,11 +1137,14 @@ impl<'a> Query<'a> {
         let local = local.resolve(&self.storage, self.sources)?;
 
         while base.starts_with(&module.item) {
-            let item = base.extended(local);
+            base.push(local);
 
-            if self.names.contains(&item) {
-                return Ok(item);
+            if self.names.contains(&base) {
+                return Ok(base);
             }
+
+            let c = base.pop();
+            debug_assert!(c.is_some());
 
             if base.pop().is_none() {
                 break;
