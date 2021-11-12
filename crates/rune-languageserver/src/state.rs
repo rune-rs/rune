@@ -477,7 +477,7 @@ fn display_to_error<E>(range: lsp::Range, error: E) -> lsp::Diagnostic
 where
     E: fmt::Display,
 {
-    display_to_diagnostic(range, error, lsp::DiagnosticSeverity::Error)
+    display_to_diagnostic(range, error, lsp::DiagnosticSeverity::ERROR)
 }
 
 /// Convert the given span and error into a warning diagnostic.
@@ -485,7 +485,7 @@ fn display_to_warning<E>(range: lsp::Range, error: E) -> lsp::Diagnostic
 where
     E: fmt::Display,
 {
-    display_to_diagnostic(range, error, lsp::DiagnosticSeverity::Warning)
+    display_to_diagnostic(range, error, lsp::DiagnosticSeverity::WARNING)
 }
 
 /// Convert a span and something displayeable into diagnostics.

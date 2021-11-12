@@ -115,12 +115,12 @@ async fn initialize(
     state.initialize();
 
     output
-        .log(lsp::MessageType::Info, "Starting language server")
+        .log(lsp::MessageType::INFO, "Starting language server")
         .await?;
 
     let capabilities = lsp::ServerCapabilities {
         text_document_sync: Some(lsp::TextDocumentSyncCapability::Kind(
-            lsp::TextDocumentSyncKind::Incremental,
+            lsp::TextDocumentSyncKind::INCREMENTAL,
         )),
         definition_provider: Some(lsp::OneOf::Left(true)),
         ..Default::default()
