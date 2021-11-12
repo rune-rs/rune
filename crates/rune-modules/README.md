@@ -40,7 +40,9 @@
 </a>
 </div>
 
-Native modules for the [Rune Language].
+Native modules for the rune virtual machine.
+
+These are modules that can be used with the [Rune language].
 
 [Rune Language]: https://rune-rs.github.io
 

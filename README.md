@@ -100,18 +100,15 @@ The following is a complete example, including rich diagnostics using
 
 ```rust
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::EmitDiagnostics as _;
-use runestick::{Vm, FromValue as _, Item, Source};
-
-use std::error::Error;
+use rune::{Diagnostics, EmitDiagnostics, Context, Options, Sources, Vm, FromValue, Item, Source};
 use std::sync::Arc;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let context = runestick::Context::with_default_modules()?;
-    let options = rune::Options::default();
+async fn main() -> rune::Result<()> {
+    let context = Context::with_default_modules()?;
+    let options = Options::default();
 
-    let mut sources = rune::Sources::new();
+    let mut sources = Sources::new();
     sources.insert(Source::new(
         "script",
         r#"
@@ -122,7 +119,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "#,
     ));
 
-    let mut diagnostics = rune::Diagnostics::new();
+    let mut diagnostics = Diagnostics::new();
 
     let result = rune::load_sources(&context, &options, &mut sources, &mut diagnostics);
 
@@ -132,7 +129,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let unit = result?;
-    let vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
     let mut execution = vm.execute(&["calculate"], (10i64, 20i64))?;
     let value = execution.async_complete().await?;
