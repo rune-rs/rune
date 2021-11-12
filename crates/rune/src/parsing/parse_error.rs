@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::parsing::{LexerMode, ResolveError, ResolveErrorKind};
-use crate::shared::{Description, SpannedError};
-use crate::{SourceId, Spanned};
+use crate::shared::Description;
+use crate::{SourceId, Spanned, SpannedError};
 use thiserror::Error;
 
 error! {
@@ -54,6 +54,7 @@ impl From<ParseError> for SpannedError {
 /// Error when parsing.
 #[derive(Debug, Clone, Copy, Error)]
 #[allow(missing_docs)]
+#[non_exhaustive]
 pub enum ParseErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },

@@ -19,8 +19,9 @@ const TAKEN: isize = (isize::max_value() ^ IS_REF_MASK) >> 1;
 const MAX_USES: isize = 0b11isize.rotate_right(2);
 
 /// An error raised while downcasting.
-#[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum AccessError {
     #[error("expected data of type `{expected}`, but found `{actual}`")]
     UnexpectedType { expected: RawStr, actual: RawStr },

@@ -1,7 +1,8 @@
 use crate::compiling::{ImportEntryStep, InsertMetaError};
+use crate::meta::CompileMeta;
 use crate::{
-    CompileMeta, Id, IrError, IrErrorKind, Item, Location, ParseError, ParseErrorKind,
-    ResolveError, ResolveErrorKind, Spanned, Visibility,
+    Id, IrError, IrErrorKind, Item, Location, ParseError, ParseErrorKind, ResolveError,
+    ResolveErrorKind, Spanned, Visibility,
 };
 use thiserror::Error;
 
@@ -18,8 +19,9 @@ error! {
 }
 
 /// Error raised during queries.
-#[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum QueryErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },

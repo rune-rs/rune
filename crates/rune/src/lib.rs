@@ -193,7 +193,6 @@ mod internal_macros;
 pub mod ast;
 mod any;
 mod attrs;
-mod compile_meta;
 mod compiling;
 mod context;
 pub mod diagnostics;
@@ -207,6 +206,7 @@ mod item;
 mod load;
 mod location;
 pub mod macros;
+pub mod meta;
 pub mod module;
 pub mod modules;
 mod named;
@@ -221,6 +221,7 @@ mod source;
 mod source_id;
 mod span;
 mod spanned;
+mod spanned_error;
 mod visibility;
 mod worker;
 
@@ -234,13 +235,9 @@ pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 pub type Error = anyhow::Error;
 
 pub use self::any::Any;
-pub use self::compile_meta::{
-    CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
-    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource,
-};
 pub use self::compiling::{
     BuildError, CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntryStep,
-    LinkerError, NoopCompileVisitor, UnitBuilder,
+    LinkerError, NoopCompileVisitor,
 };
 pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
 pub use self::diagnostics::Diagnostics;
@@ -271,13 +268,13 @@ pub use self::runtime::{
     Stack, StackError, ToValue, Unit, UnsafeFromValue, UnsafeToValue, Value, Vm, VmError,
     VmErrorKind, VmExecution,
 };
-pub use self::shared::{ScopeError, ScopeErrorKind, SpannedError};
 pub use self::source::Source;
 pub use self::source_id::SourceId;
 pub use self::span::{ByteIndex, IntoByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
-pub use self::visibility::Visibility;
-pub use compiling::compile;
+pub use self::spanned_error::SpannedError;
+pub(crate) use self::spanned_error::WithSpan;
+pub(crate) use self::visibility::Visibility;
 pub use rune_macros::quote;
 
 // Macros used internally and re-exported.

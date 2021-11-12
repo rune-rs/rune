@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// An index get operation `<target>[<index>]`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

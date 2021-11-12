@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::parsing::Opaque;
-use crate::{
-    Id, OptionSpanned, Parse, ParseError, ParseErrorKind, Parser, Span, Spanned, ToTokens,
-    TokenStream,
-};
+use crate::ast::prelude::*;
 
 /// A function call `<expr>!(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

@@ -3,7 +3,7 @@
 
 use rune::{
     load_sources, termcolor, Args, Context, Diagnostics, EmitDiagnostics, FromValue, IntoComponent,
-    Item, Options, Source, SourceId, Sources, Unit, UnitBuilder, Vm, VmError,
+    Item, Options, Source, Sources, Unit, Vm, VmError,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -41,20 +41,12 @@ fn internal_compile_source(
     context: &rune::Context,
     sources: &mut Sources,
 ) -> Result<(Unit, Diagnostics), Diagnostics> {
+    let options = Options::default();
     let mut diagnostics = Diagnostics::new();
 
-    let unit = UnitBuilder::with_default_prelude();
-
-    if let Err(()) = rune::compile(context, sources, &unit, &mut diagnostics) {
-        return Err(diagnostics);
-    }
-
-    let unit = match unit.build() {
+    let unit = match rune::load_sources(context, &options, sources, &mut diagnostics) {
         Ok(unit) => unit,
-        Err(error) => {
-            diagnostics.error(SourceId::empty(), error);
-            return Err(diagnostics);
-        }
+        Err(..) => return Err(diagnostics),
     };
 
     Ok((unit, diagnostics))

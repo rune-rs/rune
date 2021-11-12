@@ -277,6 +277,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
                                     });
                                 }
                             }
+                            _ => {}
                         },
                         FatalDiagnosticKind::Internal(_) => {}
                         FatalDiagnosticKind::BuildError(_) => {}

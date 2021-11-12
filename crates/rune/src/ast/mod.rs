@@ -1,6 +1,6 @@
 //! AST for the Rune language.
 
-use crate::{Parse, ParseError, Parser, Peek, Span};
+use crate::{Parse, ParseError, Parser, Peek, Span, Spanned};
 
 #[macro_use]
 /// Generated modules.
@@ -92,6 +92,7 @@ mod local;
 mod macro_call;
 mod pat;
 mod path;
+mod prelude;
 mod stmt;
 mod token;
 pub(super) mod utils;
@@ -171,7 +172,7 @@ macro_rules! decl_tokens {
                 pub token: Token,
             }
 
-            impl crate::Spanned for $parser {
+            impl Spanned for $parser {
                 fn span(&self) -> Span {
                     self.token.span()
                 }

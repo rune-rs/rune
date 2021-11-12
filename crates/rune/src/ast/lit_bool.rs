@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// The unit literal `()`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

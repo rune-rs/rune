@@ -1,15 +1,15 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compiling::{Assembly, CompileVisitor};
+use crate::compiling::{Assembly, CompileVisitor, UnitBuilder};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
+use crate::meta::{CompileItem, CompileMeta, CompileMetaKind};
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst, InstAddress, InstValue, Label, PanicReason, TypeCheck};
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, Diagnostics, Options, Resolve as _, Sources, Spanned,
-    UnitBuilder,
+    CompileError, CompileErrorKind, Context, Diagnostics, Item, Options, Resolve, Source, SourceId,
+    Sources, Span, Spanned,
 };
-use crate::{CompileItem, CompileMeta, CompileMetaKind, Context, Item, Source, SourceId, Span};
 use std::rc::Rc;
 use std::sync::Arc;
 

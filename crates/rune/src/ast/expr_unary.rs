@@ -1,6 +1,4 @@
-use crate::ast;
-use crate::ast::expr::EagerBrace;
-use crate::{ParseError, Parser, Span, Spanned, ToTokens};
+use crate::ast::prelude::*;
 use std::fmt;
 
 /// A unary expression.
@@ -41,7 +39,7 @@ impl ExprUnary {
     pub(crate) fn parse_with_meta(
         parser: &mut Parser,
         attributes: Vec<ast::Attribute>,
-        eager_brace: EagerBrace,
+        eager_brace: ast::expr::EagerBrace,
     ) -> Result<Self, ParseError> {
         let op_token = parser.next()?;
         let op = UnOp::from_token(op_token)?;

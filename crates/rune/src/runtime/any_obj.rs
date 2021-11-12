@@ -8,8 +8,9 @@ use std::ops::{Deref, DerefMut};
 use thiserror::Error;
 
 /// Errors raised during casting operations.
-#[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum AnyObjError {
     #[error("cannot borrow a shared reference `&{name}` mutably as `&mut {name}`")]
     RefAsMut { name: RawStr },

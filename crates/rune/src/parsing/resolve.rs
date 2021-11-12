@@ -1,6 +1,6 @@
 use crate::macros::Storage;
-use crate::shared::{Description, SpannedError};
-use crate::{Sources, Spanned};
+use crate::shared::Description;
+use crate::{Sources, Spanned, SpannedError};
 use thiserror::Error;
 
 error! {
@@ -35,8 +35,9 @@ impl From<ResolveError> for SpannedError {
 }
 
 /// The kind of a resolve error.
-#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum ResolveErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },

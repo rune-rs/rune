@@ -3,6 +3,7 @@ use std::fmt;
 
 /// Information on the visibility of an item.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum Visibility {
     /// Inherited, or private visibility.
     Inherited,
@@ -18,12 +19,12 @@ pub enum Visibility {
 
 impl Visibility {
     /// Test if visibility is public.
-    pub fn is_public(self) -> bool {
+    pub(crate) fn is_public(self) -> bool {
         matches!(self, Self::Public)
     }
 
     /// Check if `from` can access `to` with the current visibility.
-    pub fn is_visible(self, from: &Item, to: &Item) -> bool {
+    pub(crate) fn is_visible(self, from: &Item, to: &Item) -> bool {
         match self {
             Visibility::Inherited | Visibility::SelfValue => from.is_super_of(to, 1),
             Visibility::Super => from.is_super_of(to, 2),
@@ -33,7 +34,7 @@ impl Visibility {
     }
 
     /// Check if `from` can access `to` with the current visibility.
-    pub fn is_visible_inside(self, from: &Item, to: &Item) -> bool {
+    pub(crate) fn is_visible_inside(self, from: &Item, to: &Item) -> bool {
         match self {
             Visibility::Inherited | Visibility::SelfValue => from == to,
             Visibility::Super => from.is_super_of(to, 1),

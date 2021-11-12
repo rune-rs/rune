@@ -1,3 +1,5 @@
+//! Compiler metadata for Rune.
+
 use crate::collections::HashSet;
 use crate::runtime::ConstValue;
 use crate::{Hash, Id, Item, Location, Visibility};
@@ -7,6 +9,7 @@ use std::sync::Arc;
 
 /// Metadata about a closure.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CompileMetaCapture {
     /// Identity of the captured variable.
     pub ident: Box<str>,
@@ -14,6 +17,7 @@ pub struct CompileMetaCapture {
 
 /// Compile-time metadata about a unit.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CompileMeta {
     /// The item of the returned compile meta.
     pub item: Arc<CompileItem>,
@@ -25,6 +29,7 @@ pub struct CompileMeta {
 
 /// Information on a compile sourc.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CompileSource {
     /// The location of the compile source.
     pub location: Location,
@@ -38,7 +43,7 @@ impl CompileMeta {
     ///
     /// Note: Variants cannot be used for type checking, you should instead
     /// compare them against the enum type.
-    pub fn type_hash_of(&self) -> Option<Hash> {
+    pub(crate) fn type_hash_of(&self) -> Option<Hash> {
         match &self.kind {
             CompileMetaKind::UnitStruct { type_hash, .. } => Some(*type_hash),
             CompileMetaKind::TupleStruct { type_hash, .. } => Some(*type_hash),
@@ -216,6 +221,7 @@ pub enum CompileMetaKind {
 
 /// The metadata about a type.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CompileMetaEmpty {
     /// Hash of the constructor function.
     pub hash: Hash,
@@ -223,6 +229,7 @@ pub struct CompileMetaEmpty {
 
 /// The metadata about a type.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CompileMetaStruct {
     /// Fields associated with the type.
     pub fields: HashSet<Box<str>>,
@@ -230,6 +237,7 @@ pub struct CompileMetaStruct {
 
 /// The metadata about a variant.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CompileMetaTuple {
     /// The number of arguments the variant takes.
     pub args: usize,
@@ -239,6 +247,7 @@ pub struct CompileMetaTuple {
 
 /// Item and the module that the item belongs to.
 #[derive(Default, Debug, Clone)]
+#[non_exhaustive]
 pub struct CompileItem {
     /// The id of the item.
     pub id: Id,
@@ -254,7 +263,7 @@ pub struct CompileItem {
 
 impl CompileItem {
     /// Test if the item is public (and should be exported).
-    pub fn is_public(&self) -> bool {
+    pub(crate) fn is_public(&self) -> bool {
         self.visibility.is_public() && self.module.is_public()
     }
 }
@@ -273,6 +282,7 @@ impl From<Item> for CompileItem {
 
 /// Module, its item and its visibility.
 #[derive(Default, Debug)]
+#[non_exhaustive]
 pub struct CompileMod {
     /// The location of the module.
     pub location: Location,
@@ -286,7 +296,7 @@ pub struct CompileMod {
 
 impl CompileMod {
     /// Test if the module recursively is public.
-    pub fn is_public(&self) -> bool {
+    pub(crate) fn is_public(&self) -> bool {
         let mut current = Some(self);
 
         while let Some(m) = current.take() {

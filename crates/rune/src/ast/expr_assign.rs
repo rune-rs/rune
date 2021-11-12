@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// An assign expression `a = b`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

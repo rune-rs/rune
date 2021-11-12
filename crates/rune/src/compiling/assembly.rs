@@ -6,7 +6,7 @@ use crate::runtime::{Inst, Label};
 use crate::{Hash, Location, SourceId, Span};
 
 #[derive(Debug, Clone)]
-pub enum AssemblyInst {
+pub(crate) enum AssemblyInst {
     Jump { label: Label },
     JumpIf { label: Label },
     JumpIfOrPop { label: Label },
@@ -19,7 +19,7 @@ pub enum AssemblyInst {
 
 /// Helper structure to build instructions and maintain certain invariants.
 #[derive(Debug, Clone, Default)]
-pub struct Assembly {
+pub(crate) struct Assembly {
     /// The location that caused the assembly.
     location: Location,
     /// Label to offset.

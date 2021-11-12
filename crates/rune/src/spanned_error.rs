@@ -3,7 +3,7 @@ use std::error;
 use std::fmt;
 
 /// Trait to coerce a result of a non-spanned error into a spanned error.
-pub trait WithSpan<T> {
+pub(crate) trait WithSpan<T> {
     /// Convert the given result into a result which produces a spanned error.
     fn with_span(self, span: Span) -> Result<T, SpannedError>;
 }

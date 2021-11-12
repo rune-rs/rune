@@ -1,7 +1,6 @@
 use crate::collections::HashMap;
 use crate::shared::Custom;
 use crate::Spanned;
-
 use thiserror::Error;
 
 /// A hierarchy of constant scopes.
@@ -184,6 +183,7 @@ error! {
 
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ScopeErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },

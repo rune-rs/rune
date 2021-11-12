@@ -4,10 +4,8 @@ use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
-use rune::{
-    CompileMeta, CompileMetaKind, CompileSource, ComponentRef, Item, Location, SourceId, Span,
-    Spanned,
-};
+use rune::meta::{CompileMeta, CompileMetaKind, CompileSource};
+use rune::{ComponentRef, Item, Location, SourceId, Span, Spanned};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -81,25 +79,20 @@ impl State {
         let offset = source.lsp_position_to_offset(position);
         let def = source.find_definition_at(Span::point(offset))?;
 
-        let url = match def.source.path.as_ref() {
+        let url = match def.source.path() {
             Some(path) => Url::from_file_path(path).ok()?,
             None => uri.clone(),
         };
 
-        let source = source
-            .build_sources
-            .as_ref()?
-            .get(def.source.location.source_id)?;
+        let source = source.build_sources.as_ref()?.get(def.source.source_id())?;
 
-        let (l, c) =
-            source.position_to_utf16cu_line_char(def.source.location.span.start.into_usize())?;
+        let (l, c) = source.position_to_utf16cu_line_char(def.source.span().start.into_usize())?;
         let start = lsp::Position {
             line: l as u32,
             character: c as u32,
         };
 
-        let (l, c) =
-            source.position_to_utf16cu_line_char(def.source.location.span.end.into_usize())?;
+        let (l, c) = source.position_to_utf16cu_line_char(def.source.span().end.into_usize())?;
         let end = lsp::Position {
             line: l as u32,
             character: c as u32,
@@ -205,16 +198,19 @@ impl State {
                                             ));
                                         }
                                     }
+                                    error => {
+                                        let diagnostics = by_url.entry(url.clone()).or_default();
+                                        let range = lsp::Range::default();
+                                        diagnostics.push(display_to_error(range, error));
+                                    }
                                 },
                                 FatalDiagnosticKind::Internal(message) => {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
-
                                     let range = lsp::Range::default();
                                     diagnostics.push(display_to_error(range, message));
                                 }
                                 FatalDiagnosticKind::BuildError(error) => {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
-
                                     let range = lsp::Range::default();
                                     diagnostics.push(display_to_error(range, error));
                                 }
@@ -520,12 +516,48 @@ pub struct Index {
     definitions: BTreeMap<Span, Definition>,
 }
 
+/// A definition source.
+#[derive(Debug, Clone)]
+pub enum DefinitionSource {
+    /// Only a file source.
+    Source(SourceId),
+    /// A location definition (source and span).
+    Location(Location),
+    /// A complete compile source.
+    CompileSource(CompileSource),
+}
+
+impl DefinitionSource {
+    fn span(&self) -> Span {
+        match self {
+            Self::Source(..) => Span::empty(),
+            Self::Location(location) => location.span,
+            Self::CompileSource(compile_source) => compile_source.location.span,
+        }
+    }
+
+    fn source_id(&self) -> SourceId {
+        match self {
+            Self::Source(source_id) => *source_id,
+            Self::Location(location) => location.source_id,
+            Self::CompileSource(compile_source) => compile_source.location.source_id,
+        }
+    }
+
+    fn path(&self) -> Option<&Path> {
+        match self {
+            Self::CompileSource(compile_source) => compile_source.path.as_deref(),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Definition {
     /// The kind of the definition.
     pub(crate) kind: DefinitionKind,
     /// The id of the source id the definition corresponds to.
-    pub(crate) source: CompileSource,
+    pub(crate) source: DefinitionSource,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -595,7 +627,7 @@ impl rune::CompileVisitor for Visitor {
 
         let definition = Definition {
             kind,
-            source: source.clone(),
+            source: DefinitionSource::CompileSource(source.clone()),
         };
 
         if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
@@ -610,10 +642,7 @@ impl rune::CompileVisitor for Visitor {
 
         let definition = Definition {
             kind: DefinitionKind::Local,
-            source: CompileSource {
-                location: Location::new(source_id, var_span),
-                path: None,
-            },
+            source: DefinitionSource::Location(Location::new(source_id, var_span)),
         };
 
         if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
@@ -628,10 +657,7 @@ impl rune::CompileVisitor for Visitor {
 
         let definition = Definition {
             kind: DefinitionKind::Module,
-            source: CompileSource {
-                location: Location::new(source_id, Span::empty()),
-                path: None,
-            },
+            source: DefinitionSource::Source(source_id),
         };
 
         if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {

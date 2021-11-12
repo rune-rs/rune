@@ -4,8 +4,7 @@ use crate::ir::IrValue;
 use crate::macros::{MacroContext, Quote};
 use crate::quote;
 use crate::runtime::format;
-use crate::shared::WithSpan;
-use crate::{Parse, ParseError, Parser, Peek, Span, Spanned, SpannedError};
+use crate::{Parse, ParseError, Parser, Peek, Span, Spanned, SpannedError, WithSpan};
 use std::collections::{BTreeMap, BTreeSet};
 
 // NB: needed for quote macro.

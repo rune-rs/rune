@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Parse, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// A `yield [expr]` expression to return a value from a generator.
 ///

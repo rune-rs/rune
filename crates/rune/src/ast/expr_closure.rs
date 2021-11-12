@@ -1,6 +1,4 @@
-use crate::ast;
-use crate::parsing::Opaque;
-use crate::{Id, Parse, ParseError, Parser, Span, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// A closure expression.
 ///

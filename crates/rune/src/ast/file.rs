@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{OptionSpanned, Parse, ParseError, Parser, Span, ToTokens};
+use crate::ast::prelude::*;
 
 /// A parsed file.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]

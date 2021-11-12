@@ -5,22 +5,24 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
+use crate::meta::{CompileMeta, CompileMetaKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{
     Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Rtti, StaticString, Unit, UnitFn,
     VariantRtti,
 };
 use crate::{
-    CompileError, CompileErrorKind, CompileMeta, CompileMetaKind, Context, Diagnostics, Hash,
-    IntoComponent, Item, Location, Protocol, SourceId, Span,
+    CompileError, CompileErrorKind, Context, Diagnostics, Hash, IntoComponent, Item, Location,
+    Protocol, SourceId, Span,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
 
-#[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum BuildError {
     #[error("builder not exclusively held")]
     NotExclusivelyHeld,
@@ -30,15 +32,40 @@ pub enum BuildError {
     FunctionConflictHash { hash: Hash },
 }
 
+/// An error raised during linking.
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub enum LinkerError {
+    #[error("missing function with hash {hash}")]
+    MissingFunction {
+        hash: Hash,
+        spans: Vec<(Span, SourceId)>,
+    },
+}
+
+/// Errors raised when building a new unit.
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub enum InsertMetaError {
+    #[error("conflicting function signature already exists `{existing}`")]
+    FunctionConflict { existing: DebugSignature },
+    #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
+    VariantRttiConflict { hash: Hash },
+    #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
+    TypeRttiConflict { hash: Hash },
+}
+
 /// Instructions from a single source file.
 #[derive(Debug, Default, Clone)]
-pub struct UnitBuilder {
+pub(crate) struct UnitBuilder {
     inner: Rc<RefCell<Inner>>,
 }
 
 impl UnitBuilder {
     /// Construct a new unit with the default prelude.
-    pub fn with_default_prelude() -> Self {
+    pub(crate) fn with_default_prelude() -> Self {
         let mut this = Inner::default();
 
         this.prelude("assert_eq", &["test", "assert_eq"]);
@@ -83,7 +110,7 @@ impl UnitBuilder {
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
-    pub fn build(self) -> Result<Unit, BuildError> {
+    pub(crate) fn build(self) -> Result<Unit, BuildError> {
         let inner = match Rc::try_unwrap(self.inner) {
             Ok(inner) => inner,
             Err(..) => return Err(BuildError::NotExclusivelyHeld),
@@ -592,19 +619,6 @@ impl UnitBuilder {
     }
 }
 
-/// An error raised during linking.
-#[derive(Debug, Error)]
-pub enum LinkerError {
-    /// Missing a function with the given hash.
-    #[error("missing function with hash {hash}")]
-    MissingFunction {
-        /// Hash of the function.
-        hash: Hash,
-        /// Spans where the function is used.
-        spans: Vec<(Span, SourceId)>,
-    },
-}
-
 #[derive(Debug, Default)]
 struct Inner {
     /// Prelude imports.
@@ -644,7 +658,6 @@ struct Inner {
     required_functions: HashMap<Hash, Vec<(Span, SourceId)>>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
-
     /// Constant values
     constants: HashMap<Hash, ConstValue>,
 }
@@ -763,27 +776,4 @@ impl Inner {
             Ok(offset)
         }
     }
-}
-
-/// Errors raised when building a new unit.
-#[derive(Debug, Error)]
-pub enum InsertMetaError {
-    /// Trying to register a conflicting function.
-    #[error("conflicting function signature already exists `{existing}`")]
-    FunctionConflict {
-        /// The signature of an already existing function.
-        existing: DebugSignature,
-    },
-    /// Trying to insert a conflicting variant.
-    #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
-    VariantRttiConflict {
-        /// The hash of the variant.
-        hash: Hash,
-    },
-    /// Trying to insert a conflicting type.
-    #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
-    TypeRttiConflict {
-        /// The hash of the type.
-        hash: Hash,
-    },
 }
