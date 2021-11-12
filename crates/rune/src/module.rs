@@ -9,8 +9,7 @@ use crate::runtime::{
     ConstValue, FromValue, Future, GeneratorState, Stack, StaticType, ToValue, TypeCheck, TypeInfo,
     TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, IntoComponent, Item, Named, Protocol};
-use std::any;
+use crate::{Hash, IntoComponent, Item, MacroContext, Named, Protocol, TokenStream};
 use std::future;
 use std::sync::Arc;
 
@@ -484,12 +483,12 @@ impl Module {
     }
 
     /// Register a native macro handler.
-    pub fn macro_<N, M, C, A, O>(&mut self, name: N, f: M) -> Result<(), ContextError>
+    pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<(), ContextError>
     where
-        M: 'static + Send + Sync + Clone + Fn(&mut C, &A) -> Result<O, crate::Error>,
-        C: any::Any,
-        A: any::Any,
-        O: any::Any,
+        M: 'static
+            + Send
+            + Sync
+            + Fn(&mut MacroContext<'_>, &TokenStream) -> crate::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -499,31 +498,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Arc<Macro> = Arc::new(move |c, a| {
-            let c = match c.downcast_mut::<C>() {
-                Some(c) => c,
-                None => {
-                    return Err(crate::Error::msg(format!(
-                        "expected argument #1 `{}`",
-                        std::any::type_name::<C>()
-                    )));
-                }
-            };
-
-            let a = match a.downcast_ref::<A>() {
-                Some(a) => a,
-                None => {
-                    return Err(crate::Error::msg(format!(
-                        "expected argument #2 `{}`",
-                        std::any::type_name::<A>()
-                    )));
-                }
-            };
-
-            let output = f(c, a)?;
-            Ok(Box::new(output))
-        });
-
+        let handler: Arc<Macro> = Arc::new(f);
         self.macros.insert(name, ModuleMacro { handler });
         Ok(())
     }
