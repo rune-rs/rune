@@ -24,7 +24,7 @@ use crate::parsing::Resolve;
 pub(crate) fn compile_with_options<'a>(
     context: &Context,
     sources: &mut Sources,
-    unit: &UnitBuilder,
+    unit: &mut UnitBuilder,
     diagnostics: &mut Diagnostics,
     options: &Options,
     visitor: Rc<dyn CompileVisitor>,
@@ -38,7 +38,7 @@ pub(crate) fn compile_with_options<'a>(
         context,
         sources,
         options,
-        unit.clone(),
+        unit,
         diagnostics,
         visitor.clone(),
         source_loader,
@@ -77,7 +77,6 @@ pub(crate) fn compile_with_options<'a>(
                 context,
                 options,
                 sources: worker.sources,
-                unit,
                 diagnostics: worker.diagnostics,
                 query: &mut worker.query,
             };
@@ -103,24 +102,23 @@ pub(crate) fn compile_with_options<'a>(
     Ok(())
 }
 
-struct CompileBuildEntry<'a> {
+struct CompileBuildEntry<'a, 'q> {
     visitor: &'a Rc<dyn CompileVisitor>,
     context: &'a Context,
     options: &'a Options,
     sources: &'a Sources,
-    unit: &'a UnitBuilder,
     diagnostics: &'a mut Diagnostics,
-    query: &'a mut Query,
+    query: &'a mut Query<'q>,
 }
 
-impl CompileBuildEntry<'_> {
+impl<'q> CompileBuildEntry<'_, 'q> {
     fn compiler1<'a>(
         &'a mut self,
         location: Location,
         source: &Arc<Source>,
         span: Span,
         asm: &'a mut Assembly,
-    ) -> self::v1::Compiler<'a> {
+    ) -> self::v1::Compiler<'a, 'q> {
         self::v1::Compiler {
             visitor: self.visitor.clone(),
             sources: self.sources,
@@ -129,7 +127,6 @@ impl CompileBuildEntry<'_> {
             context: self.context,
             query: self.query,
             asm,
-            unit: self.unit.clone(),
             scopes: self::v1::Scopes::new(self.visitor.clone()),
             contexts: vec![span],
             loops: self::v1::Loops::new(),
@@ -155,7 +152,7 @@ impl CompileBuildEntry<'_> {
             )
         })?;
 
-        let mut asm = self.unit.new_assembly(location);
+        let mut asm = self.query.unit_mut().new_assembly(location);
 
         match build {
             Build::Function(f) => {
@@ -172,7 +169,7 @@ impl CompileBuildEntry<'_> {
                 if used.is_unused() {
                     self.diagnostics.not_used(location.source_id, span, None);
                 } else {
-                    self.unit.new_function(
+                    self.query.unit_mut().new_function(
                         location,
                         item.item.clone(),
                         count,
@@ -203,7 +200,7 @@ impl CompileBuildEntry<'_> {
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
                 } else {
-                    self.unit.new_instance_function(
+                    self.query.unit_mut().new_instance_function(
                         location,
                         item.item.clone(),
                         type_hash,
@@ -229,7 +226,7 @@ impl CompileBuildEntry<'_> {
                     c.diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
-                    self.unit.new_function(
+                    self.query.unit_mut().new_function(
                         location,
                         item.item.clone(),
                         closure.ast.args.len(),
@@ -252,7 +249,7 @@ impl CompileBuildEntry<'_> {
                     self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 } else {
-                    self.unit.new_function(
+                    self.query.unit_mut().new_function(
                         location,
                         item.item.clone(),
                         args,
@@ -318,7 +315,8 @@ impl CompileBuildEntry<'_> {
                     }
                 };
 
-                self.unit
+                self.query
+                    .unit_mut()
                     .new_function_reexport(location, &item.item, &import)?;
             }
         }

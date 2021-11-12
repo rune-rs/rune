@@ -5,7 +5,7 @@ impl IrEval for ir::IrBinary {
 
     fn eval(
         &self,
-        interp: &mut IrInterpreter<'_>,
+        interp: &mut IrInterpreter<'_, '_>,
         used: Used,
     ) -> Result<Self::Output, IrEvalOutcome> {
         use std::ops::{Add, Mul, Shl, Shr, Sub};

@@ -111,25 +111,30 @@ impl Asm {
 /// This is the new compiler trait to implement.
 pub(crate) trait Assemble {
     /// Walk the current type with the given item.
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm>;
+    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm>;
 }
 
 /// Assemble a constant.
 pub(crate) trait AssembleConst {
-    fn assemble_const(&self, c: &mut Compiler<'_>, needs: Needs, span: Span) -> CompileResult<()>;
+    fn assemble_const(
+        &self,
+        c: &mut Compiler<'_, '_>,
+        needs: Needs,
+        span: Span,
+    ) -> CompileResult<()>;
 }
 
 /// Assemble a function.
 pub(crate) trait AssembleFn {
     /// Walk the current type with the given item.
-    fn assemble_fn(&self, c: &mut Compiler<'_>, instance_fn: bool) -> CompileResult<()>;
+    fn assemble_fn(&self, c: &mut Compiler<'_, '_>, instance_fn: bool) -> CompileResult<()>;
 }
 
 /// Assemble a closure with captures.
 pub(crate) trait AssembleClosure {
     fn assemble_closure(
         &self,
-        c: &mut Compiler<'_>,
+        c: &mut Compiler<'_, '_>,
         captures: &[CompileMetaCapture],
     ) -> CompileResult<()>;
 }

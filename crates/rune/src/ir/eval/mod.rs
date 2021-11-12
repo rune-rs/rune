@@ -27,21 +27,25 @@ pub trait IrEval {
     /// Evaluate the given type.
     fn eval(
         &self,
-        interp: &mut IrInterpreter<'_>,
+        interp: &mut IrInterpreter<'_, '_>,
         used: Used,
     ) -> Result<Self::Output, IrEvalOutcome>;
 }
 
 pub(crate) trait ConstAs {
     /// Process constant value as a boolean.
-    fn as_bool(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<bool, IrEvalOutcome>;
+    fn as_bool(
+        &self,
+        interp: &mut IrInterpreter<'_, '_>,
+        used: Used,
+    ) -> Result<bool, IrEvalOutcome>;
 }
 
 pub(crate) trait Matches {
     /// Test if the current trait matches the given value.
     fn matches<S>(
         &self,
-        compiler: &mut IrInterpreter<'_>,
+        compiler: &mut IrInterpreter<'_, '_>,
         value: IrValue,
         used: Used,
         spanned: S,
@@ -55,7 +59,11 @@ where
     T: IrEval<Output = IrValue>,
     T: Spanned,
 {
-    fn as_bool(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<bool, IrEvalOutcome> {
+    fn as_bool(
+        &self,
+        interp: &mut IrInterpreter<'_, '_>,
+        used: Used,
+    ) -> Result<bool, IrEvalOutcome> {
         let span = self.span();
 
         let value = self
@@ -70,7 +78,7 @@ where
 impl Matches for IrPat {
     fn matches<S>(
         &self,
-        interp: &mut IrInterpreter<'_>,
+        interp: &mut IrInterpreter<'_, '_>,
         value: IrValue,
         _used: Used,
         spanned: S,

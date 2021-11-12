@@ -11,7 +11,7 @@ use std::sync::Arc;
 pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
-pub struct IrInterpreter<'a> {
+pub struct IrInterpreter<'a, 'q> {
     /// A budget associated with the compiler, for how many expressions it's
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
@@ -24,10 +24,10 @@ pub struct IrInterpreter<'a> {
     /// Sources available.
     pub(crate) sources: &'a Sources,
     /// Query engine to look for constant expressions.
-    pub(crate) query: &'a mut Query,
+    pub(crate) query: &'a mut Query<'q>,
 }
 
-impl IrInterpreter<'_> {
+impl IrInterpreter<'_, '_> {
     /// Evaluate the given target.
     pub(crate) fn eval<T>(&mut self, target: &T, used: Used) -> Result<T::Output, IrEvalOutcome>
     where

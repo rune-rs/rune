@@ -6,7 +6,7 @@ impl IrEval for ir::IrObject {
 
     fn eval(
         &self,
-        interp: &mut IrInterpreter<'_>,
+        interp: &mut IrInterpreter<'_, '_>,
         used: Used,
     ) -> Result<Self::Output, IrEvalOutcome> {
         let mut object = HashMap::with_capacity(self.assignments.len());

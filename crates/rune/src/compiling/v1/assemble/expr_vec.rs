@@ -2,7 +2,7 @@ use crate::compiling::v1::assemble::prelude::*;
 
 /// Compile a literal vector.
 impl Assemble for ast::ExprVec {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprVec => {:?}", c.source.source(span));
 

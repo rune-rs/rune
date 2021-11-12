@@ -2,7 +2,7 @@ use crate::compiling::v1::assemble::prelude::*;
 
 /// Compile an `.await` expression.
 impl Assemble for ast::ExprAssign {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprAssign => {:?}", c.source.source(span));
 
@@ -29,7 +29,10 @@ impl Assemble for ast::ExprAssign {
                     ast::ExprField::Path(path) => {
                         if let Some(ident) = path.try_as_ident() {
                             let slot = ident.resolve(c.query.storage(), c.sources)?;
-                            let slot = c.unit.new_static_string(ident.span(), slot.as_ref())?;
+                            let slot = c
+                                .query
+                                .unit_mut()
+                                .new_static_string(ident.span(), slot.as_ref())?;
 
                             self.rhs.assemble(c, Needs::Value)?.apply(c)?;
                             c.scopes.decl_anon(self.rhs.span())?;

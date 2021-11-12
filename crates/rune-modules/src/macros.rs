@@ -39,7 +39,7 @@ pub fn module(_unused: bool) -> Result<Module, ContextError> {
 }
 
 /// Implementation for the `line!()` macro
-pub(crate) fn emit_line(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+pub(crate) fn emit_line(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
     parser.eof()?;
 
@@ -51,7 +51,7 @@ pub(crate) fn emit_line(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> run
 }
 
 /// Implementation for the `file!()` macro
-pub(crate) fn emit_file(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+pub(crate) fn emit_file(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
     parser.eof()?;
 

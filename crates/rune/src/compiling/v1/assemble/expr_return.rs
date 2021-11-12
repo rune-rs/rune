@@ -2,7 +2,7 @@ use crate::compiling::v1::assemble::prelude::*;
 
 /// Compile a return.
 impl Assemble for ast::ExprReturn {
-    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_, '_>, _: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprReturn => {:?}", c.source.source(span));
 

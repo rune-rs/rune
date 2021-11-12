@@ -2,7 +2,12 @@ use crate::compiling::v1::assemble::prelude::*;
 
 /// Assemble a constant value.
 impl AssembleConst for ConstValue {
-    fn assemble_const(&self, c: &mut Compiler<'_>, needs: Needs, span: Span) -> CompileResult<()> {
+    fn assemble_const(
+        &self,
+        c: &mut Compiler<'_, '_>,
+        needs: Needs,
+        span: Span,
+    ) -> CompileResult<()> {
         use num::ToPrimitive as _;
 
         if !needs.value() {
@@ -40,15 +45,15 @@ impl AssembleConst for ConstValue {
                 c.asm.push(Inst::bool(*b), span);
             }
             ConstValue::String(s) => {
-                let slot = c.unit.new_static_string(span, s)?;
+                let slot = c.query.unit_mut().new_static_string(span, s)?;
                 c.asm.push(Inst::String { slot }, span);
             }
             ConstValue::StaticString(s) => {
-                let slot = c.unit.new_static_string(span, s.as_ref())?;
+                let slot = c.query.unit_mut().new_static_string(span, s.as_ref())?;
                 c.asm.push(Inst::String { slot }, span);
             }
             ConstValue::Bytes(b) => {
-                let slot = c.unit.new_static_bytes(span, &*b)?;
+                let slot = c.query.unit_mut().new_static_bytes(span, &*b)?;
                 c.asm.push(Inst::Bytes { slot }, span);
             }
             ConstValue::Option(option) => match option {
@@ -93,7 +98,8 @@ impl AssembleConst for ConstValue {
                 }
 
                 let slot = c
-                    .unit
+                    .query
+                    .unit_mut()
                     .new_static_object_keys_iter(span, entries.iter().map(|e| e.0))?;
 
                 c.asm.push(Inst::Object { slot }, span);

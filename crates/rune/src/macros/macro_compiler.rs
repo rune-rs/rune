@@ -9,15 +9,15 @@ use crate::{
 };
 use std::sync::Arc;
 
-pub(crate) struct MacroCompiler<'a> {
+pub(crate) struct MacroCompiler<'a, 'q> {
     pub(crate) item: Arc<CompileItem>,
     pub(crate) sources: &'a mut Sources,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
-    pub(crate) query: &'a mut Query,
+    pub(crate) query: &'a mut Query<'q>,
 }
 
-impl MacroCompiler<'_> {
+impl MacroCompiler<'_, '_> {
     /// Compile the given macro into the given output type.
     pub(crate) fn eval_macro<T>(&mut self, macro_call: &ast::MacroCall) -> CompileResult<T>
     where
@@ -54,7 +54,7 @@ impl MacroCompiler<'_> {
 
         // SAFETY: Macro context only needs to live for the duration of the
         // `handler` call.
-        let result = unsafe {
+        let result = {
             let mut macro_context = MacroContext {
                 macro_span: macro_call.span(),
                 stream_span: macro_call.stream_span(),
@@ -63,10 +63,7 @@ impl MacroCompiler<'_> {
                 sources: self.sources,
             };
 
-            handler(
-                std::mem::transmute::<_, &mut MacroContext<'static>>(&mut macro_context),
-                input_stream,
-            )
+            handler(&mut macro_context, input_stream)
         };
 
         let token_stream = match result {

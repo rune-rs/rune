@@ -1,6 +1,6 @@
 //! Context for a macro.
 
-use crate::ast;
+use crate::compiling::UnitBuilder;
 use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
@@ -10,13 +10,16 @@ use crate::parsing::{Parse, ParseError};
 use crate::parsing::{ResolveError, ResolveOwned};
 use crate::query;
 use crate::query::Used;
+use crate::shared::Gen;
+use crate::{ast, NoopCompileVisitor};
 use crate::{IrError, Source, Sources, Span, Spanned};
 use query::Query;
 use std::fmt;
+use std::rc::Rc;
 use std::sync::Arc;
 
 /// Context for a running macro.
-pub struct MacroContext<'a> {
+pub struct MacroContext<'a, 'q> {
     /// Macro span of the full macro call.
     pub(crate) macro_span: Span,
     /// Macro span of the stream.
@@ -25,12 +28,12 @@ pub struct MacroContext<'a> {
     pub(crate) item: Arc<CompileItem>,
     /// Accessible query required to run the IR interpreter and has access to
     /// storage.
-    pub(crate) query: &'a mut Query,
+    pub(crate) query: &'a mut Query<'q>,
     /// Accessible sources.
     pub(crate) sources: &'a mut Sources,
 }
 
-impl<'a> MacroContext<'a> {
+impl<'a, 'q> MacroContext<'a, 'q> {
     /// Construct an empty macro context which can be used for testing.
     ///
     /// # Examples
@@ -42,9 +45,11 @@ impl<'a> MacroContext<'a> {
     /// ```
     pub fn test<F, O>(f: F) -> O
     where
-        F: FnOnce(&mut MacroContext<'_>) -> O,
+        F: FnOnce(&mut MacroContext<'_, '_>) -> O,
     {
-        let mut query = Default::default();
+        let mut unit = UnitBuilder::default();
+        let gen = Gen::default();
+        let mut query = Query::new(&mut unit, Rc::new(NoopCompileVisitor::new()), gen);
         let mut sources = Default::default();
 
         let mut ctx = MacroContext {
@@ -114,7 +119,7 @@ impl<'a> MacroContext<'a> {
     }
 
     /// Stringify the token stream.
-    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a>
+    pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a, 'q>
     where
         T: ToTokens,
     {
@@ -294,12 +299,12 @@ impl_into_lit_byte_array! {
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
 }
 
-pub struct Stringify<'ctx, 'a> {
-    ctx: &'ctx MacroContext<'a>,
+pub struct Stringify<'ctx, 'a, 'q> {
+    ctx: &'ctx MacroContext<'a, 'q>,
     stream: TokenStream,
 }
 
-impl fmt::Display for Stringify<'_, '_> {
+impl fmt::Display for Stringify<'_, '_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut it = self.stream.iter();
         let last = it.next_back();

@@ -5,7 +5,7 @@ impl IrEval for &ir::IrTuple {
 
     fn eval(
         &self,
-        interp: &mut IrInterpreter<'_>,
+        interp: &mut IrInterpreter<'_, '_>,
         used: Used,
     ) -> Result<Self::Output, IrEvalOutcome> {
         let mut items = Vec::with_capacity(self.items.len());
