@@ -7,9 +7,8 @@ use crate::runtime::{
 };
 use crate::{
     CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, ComponentRef, Hash,
-    IntoComponent, Item, Module, Protocol,
+    IntoComponent, Item, MacroContext, Module, Protocol, TokenStream,
 };
-use std::any;
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -111,9 +110,8 @@ pub enum ContextError {
 pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync;
 
 /// A (type erased) macro handler.
-pub(crate) type Macro = dyn Fn(&mut dyn any::Any, &dyn any::Any) -> Result<Box<dyn any::Any>, crate::Error>
-    + Send
-    + Sync;
+pub(crate) type Macro =
+    dyn Fn(&mut MacroContext, &TokenStream) -> crate::Result<TokenStream> + Send + Sync;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]

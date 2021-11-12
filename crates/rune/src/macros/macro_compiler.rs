@@ -1,11 +1,10 @@
 //! Macro compiler.
 
 use crate::ast;
-use crate::macros::{MacroContext, TokenStream};
 use crate::query::Query;
 use crate::{
-    CompileError, CompileErrorKind, CompileItem, CompileResult, Context, Error, Hash, IrError,
-    Options, Parse, ParseError, Parser, Sources, Spanned, SpannedError,
+    CompileError, CompileErrorKind, CompileItem, CompileResult, Context, Hash, IrError,
+    MacroContext, Options, Parse, ParseError, Parser, Sources, Spanned, SpannedError,
 };
 use std::sync::Arc;
 
@@ -69,7 +68,7 @@ impl MacroCompiler<'_> {
             )
         };
 
-        let output = match result {
+        let token_stream = match result {
             Ok(output) => output,
             Err(error) => {
                 let error = match error.downcast::<ParseError>() {
@@ -105,22 +104,6 @@ impl MacroCompiler<'_> {
                     CompileErrorKind::CallMacroError {
                         item: named.item.clone(),
                         error,
-                    },
-                ));
-            }
-        };
-
-        let token_stream = match output.downcast::<TokenStream>() {
-            Ok(token_stream) => *token_stream,
-            Err(..) => {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::CallMacroError {
-                        item: named.item.clone(),
-                        error: Error::msg(format!(
-                            "failed to downcast macro result, expected `{}`",
-                            std::any::type_name::<TokenStream>()
-                        )),
                     },
                 ));
             }
