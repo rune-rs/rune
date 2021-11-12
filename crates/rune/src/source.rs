@@ -176,12 +176,12 @@ impl Source {
     }
 
     /// Access the line number of content that starts with the given span.
-    pub fn line(&self, span: Span) -> Option<(usize, &str)> {
+    pub fn line(&self, span: Span) -> Option<(usize, usize, &str)> {
         let start = span.start.into_usize();
-        let line = self.line_index(start);
+        let (line, line_count) = self.position_to_unicode_line_char(start);
         let range = self.line_range(line)?;
         let text = self.source.get(range)?;
-        Some((line, text))
+        Some((line, line_count, text))
     }
 
     fn line_start(&self, line_index: usize) -> Option<usize> {
