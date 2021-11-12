@@ -1,8 +1,4 @@
-use crate::ast;
-use crate::{
-    MacroContext, Parse, ParseError, Parser, Resolve, ResolveError, ResolveErrorKind, ResolveOwned,
-    Sources, Span, Spanned, Storage, ToTokens,
-};
+use crate::ast::prelude::*;
 
 /// A character literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

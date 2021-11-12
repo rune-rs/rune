@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::load::{FileSourceLoader, SourceLoader, Sources};
+use crate::load::{SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::Gen;
 use crate::worker::{LoadFileKind, Task, Worker};
@@ -13,38 +13,15 @@ mod compile_visitor;
 mod unit_builder;
 mod v1;
 
+pub(crate) use self::assembly::{Assembly, AssemblyInst};
 pub use self::compile_error::{CompileError, CompileErrorKind, CompileResult, ImportEntryStep};
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
-pub use self::unit_builder::{BuildError, InsertMetaError, LinkerError, UnitBuilder};
-use crate::parsing::Resolve as _;
-
-pub(crate) use self::assembly::{Assembly, AssemblyInst};
-
-/// Compile the given source with default options.
-pub fn compile(
-    context: &Context,
-    sources: &mut Sources,
-    unit: &UnitBuilder,
-    diagnostics: &mut Diagnostics,
-) -> Result<(), ()> {
-    let visitor = Rc::new(NoopCompileVisitor::new());
-    let source_loader = Rc::new(FileSourceLoader::new());
-
-    compile_with_options(
-        context,
-        sources,
-        unit,
-        diagnostics,
-        &Default::default(),
-        visitor,
-        source_loader,
-    )?;
-
-    Ok(())
-}
+pub(crate) use self::unit_builder::UnitBuilder;
+pub use self::unit_builder::{BuildError, InsertMetaError, LinkerError};
+use crate::parsing::Resolve;
 
 /// Encode the given object into a collection of asm.
-pub fn compile_with_options<'a>(
+pub(crate) fn compile_with_options<'a>(
     context: &Context,
     sources: &mut Sources,
     unit: &UnitBuilder,
@@ -182,7 +159,7 @@ impl CompileBuildEntry<'_> {
 
         match build {
             Build::Function(f) => {
-                use self::v1::AssembleFn as _;
+                use self::v1::AssembleFn;
 
                 let args = format_fn_args(&*source, f.ast.args.iter().map(|(a, _)| a))?;
 
@@ -206,7 +183,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::InstanceFunction(f) => {
-                use self::v1::AssembleFn as _;
+                use self::v1::AssembleFn;
 
                 let args = format_fn_args(&*source, f.ast.args.iter().map(|(a, _)| a))?;
 
@@ -239,7 +216,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Closure(closure) => {
-                use self::v1::AssembleClosure as _;
+                use self::v1::AssembleClosure;
 
                 let span = closure.ast.span();
                 let args =
@@ -263,7 +240,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::AsyncBlock(b) => {
-                use self::v1::AssembleClosure as _;
+                use self::v1::AssembleClosure;
 
                 let args = b.captures.len();
                 let span = b.ast.span();

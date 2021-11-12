@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Id, Parse, Peek, Peeker, Span, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// A function item.
 ///

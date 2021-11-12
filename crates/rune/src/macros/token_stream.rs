@@ -1,4 +1,4 @@
-use crate::ast::{Kind, Token};
+use crate::ast;
 use crate::{MacroContext, OptionSpanned, Span};
 use std::fmt;
 use std::slice;
@@ -6,7 +6,7 @@ use std::slice;
 /// A token stream.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TokenStream {
-    stream: Vec<Token>,
+    stream: Vec<ast::Token>,
 }
 
 impl TokenStream {
@@ -16,7 +16,7 @@ impl TokenStream {
     }
 
     /// Push the current token to the stream.
-    pub fn push(&mut self, token: Token) {
+    pub fn push(&mut self, token: ast::Token) {
         self.stream.push(token);
     }
 
@@ -24,9 +24,9 @@ impl TokenStream {
     pub fn extend<I>(&mut self, tokens: I)
     where
         I: IntoIterator,
-        Token: From<I::Item>,
+        ast::Token: From<I::Item>,
     {
-        self.stream.extend(tokens.into_iter().map(Token::from));
+        self.stream.extend(tokens.into_iter().map(ast::Token::from));
     }
 
     /// Create an iterator over the token stream.
@@ -44,8 +44,8 @@ impl TokenStream {
     }
 }
 
-impl From<Vec<Token>> for TokenStream {
-    fn from(stream: Vec<Token>) -> Self {
+impl From<Vec<ast::Token>> for TokenStream {
+    fn from(stream: Vec<ast::Token>) -> Self {
         Self { stream }
     }
 }
@@ -59,7 +59,7 @@ impl OptionSpanned for TokenStream {
 /// A token stream iterator.
 #[derive(Debug, Clone)]
 pub struct TokenStreamIter<'a> {
-    iter: slice::Iter<'a, Token>,
+    iter: slice::Iter<'a, ast::Token>,
 }
 
 impl OptionSpanned for TokenStreamIter<'_> {
@@ -69,7 +69,7 @@ impl OptionSpanned for TokenStreamIter<'_> {
 }
 
 impl Iterator for TokenStreamIter<'_> {
-    type Item = Token;
+    type Item = ast::Token;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().copied()
@@ -83,8 +83,8 @@ impl DoubleEndedIterator for TokenStreamIter<'_> {
 }
 
 impl<'a> IntoIterator for &'a TokenStream {
-    type Item = &'a Token;
-    type IntoIter = std::slice::Iter<'a, Token>;
+    type Item = &'a ast::Token;
+    type IntoIter = std::slice::Iter<'a, ast::Token>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.stream.iter()
@@ -92,8 +92,8 @@ impl<'a> IntoIterator for &'a TokenStream {
 }
 
 impl IntoIterator for TokenStream {
-    type Item = Token;
-    type IntoIter = std::vec::IntoIter<Token>;
+    type Item = ast::Token;
+    type IntoIter = std::vec::IntoIter<ast::Token>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.stream.into_iter()
@@ -176,24 +176,24 @@ impl ToTokens for TokenStream {
     }
 }
 
-impl PartialEq<Vec<Token>> for TokenStream {
-    fn eq(&self, other: &Vec<Token>) -> bool {
+impl PartialEq<Vec<ast::Token>> for TokenStream {
+    fn eq(&self, other: &Vec<ast::Token>) -> bool {
         self.stream == *other
     }
 }
 
-impl PartialEq<TokenStream> for Vec<Token> {
+impl PartialEq<TokenStream> for Vec<ast::Token> {
     fn eq(&self, other: &TokenStream) -> bool {
         *self == other.stream
     }
 }
 
 pub struct Kinds<'a> {
-    stream: &'a [Token],
+    stream: &'a [ast::Token],
 }
 
 impl Iterator for Kinds<'_> {
-    type Item = Kind;
+    type Item = ast::Kind;
 
     fn next(&mut self) -> Option<Self::Item> {
         let (first, rest) = self.stream.split_first()?;

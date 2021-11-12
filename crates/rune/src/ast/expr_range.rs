@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Parse, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// A range expression `a .. b` or `a ..= b`.
 ///

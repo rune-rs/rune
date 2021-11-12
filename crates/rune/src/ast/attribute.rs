@@ -1,6 +1,4 @@
-use crate::ast;
-use crate::shared::Description;
-use crate::{Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens, TokenStream};
+use crate::ast::prelude::*;
 
 /// Attribute like `#[derive(Debug)]`
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

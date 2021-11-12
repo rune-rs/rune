@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{ParseError, Parser, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// A `for` loop over an iterator: `for i in [1, 2, 3] {}`.
 ///

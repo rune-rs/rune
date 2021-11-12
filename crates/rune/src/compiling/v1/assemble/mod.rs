@@ -42,8 +42,9 @@ mod prelude;
 
 use crate::compiling::v1::{Compiler, Needs, Var};
 use crate::compiling::CompileResult;
+use crate::meta::CompileMetaCapture;
 use crate::runtime::InstAddress;
-use crate::{CompileMetaCapture, Span};
+use crate::Span;
 
 #[derive(Debug)]
 #[must_use = "must be consumed to make sure the value is realized"]

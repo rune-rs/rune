@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Span, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// Helper to force an expression to have a specific semi-colon policy.
 #[derive(Debug, Clone, PartialEq, Eq)]

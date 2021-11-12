@@ -1,10 +1,4 @@
-use crate::ast;
-use crate::parsing::Opaque;
-use crate::shared::Description;
-use crate::{
-    Id, Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveError, ResolveOwned, Sources,
-    Spanned, Storage, ToTokens,
-};
+use crate::ast::prelude::*;
 
 /// A path, where each element is separated by a `::`.
 ///

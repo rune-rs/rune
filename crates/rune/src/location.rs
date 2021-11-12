@@ -3,6 +3,7 @@ use std::fmt;
 
 /// A source location.
 #[derive(Default, Clone, Copy)]
+#[non_exhaustive]
 pub struct Location {
     /// The source id of the file of the location.
     pub source_id: SourceId,

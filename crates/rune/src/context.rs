@@ -1,14 +1,12 @@
 use crate::collections::{HashMap, HashSet};
+use crate::meta::{CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple};
 use crate::module::{
     ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
 };
 use crate::runtime::{
     ConstValue, Names, RuntimeContext, Stack, StaticType, TypeCheck, TypeInfo, TypeOf, VmError,
 };
-use crate::{
-    CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, ComponentRef, Hash,
-    IntoComponent, Item, MacroContext, Module, Protocol, TokenStream,
-};
+use crate::{ComponentRef, Hash, IntoComponent, Item, MacroContext, Module, Protocol, TokenStream};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;

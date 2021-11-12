@@ -1,12 +1,12 @@
 use crate::ast;
+use crate::meta::CompileMod;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
 use crate::{
-    CompileError, CompileErrorKind, CompileMod, CompileResult, Context, Item, Resolve, SourceId,
-    Sources, Spanned, Visibility,
+    CompileError, CompileErrorKind, CompileResult, Context, Item, Resolve, SourceId, Sources,
+    Spanned, Visibility,
 };
 use std::collections::VecDeque;
-
 use std::sync::Arc;
 
 /// Import to process.

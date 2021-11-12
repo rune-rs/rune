@@ -4,6 +4,7 @@ use crate::collections::HashMap;
 use crate::indexing::{IndexFnKind, IndexLocal, IndexScopes};
 use crate::load::{SourceLoader, Sources};
 use crate::macros::MacroCompiler;
+use crate::meta::{CompileMeta, CompileMetaKind, CompileMod, CompileSource};
 use crate::parsing::{Parse, Parser};
 use crate::query::{
     Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
@@ -14,9 +15,9 @@ use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{
-    CompileError, CompileErrorKind, CompileMeta, CompileMetaKind, CompileMod, CompileResult,
-    CompileSource, CompileVisitor, Context, Diagnostics, Hash, Item, Location, OptionSpanned,
-    Options, ParseError, ParseErrorKind, Resolve, SourceId, Span, Spanned, Visibility,
+    CompileError, CompileErrorKind, CompileResult, CompileVisitor, Context, Diagnostics, Hash,
+    Item, Location, OptionSpanned, Options, ParseError, ParseErrorKind, Resolve, SourceId, Span,
+    Spanned, Visibility,
 };
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;

@@ -1,5 +1,6 @@
+use crate::meta::CompileMod;
 use crate::worker::{Import, WildcardImport};
-use crate::{CompileMod, SourceId};
+use crate::SourceId;
 use std::path::PathBuf;
 use std::sync::Arc;
 

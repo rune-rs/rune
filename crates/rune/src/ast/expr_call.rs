@@ -1,6 +1,4 @@
-use crate::ast;
-use crate::parsing::Opaque;
-use crate::{Id, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// A function call `<expr>(<args>)`.
 ///

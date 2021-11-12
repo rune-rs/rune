@@ -1,4 +1,5 @@
-use rune::{CompileMeta, CompileMetaKind, Hash};
+use rune::meta::{CompileMeta, CompileMetaKind};
+use rune::Hash;
 use std::cell::RefCell;
 
 /// Attribute to collect.

@@ -51,6 +51,7 @@
 #![allow(clippy::type_complexity)]
 
 use anyhow::{Context, Result};
+use rune::meta::CompileMeta;
 use rune::runtime::{Unit, Value, Vm, VmExecution};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{DumpInstructions, EmitDiagnostics, EmitSource};
@@ -420,7 +421,7 @@ fn load_path(
     rune::Context,
     Arc<rune::RuntimeContext>,
     rune::Sources,
-    Vec<(rune::Hash, rune::CompileMeta)>,
+    Vec<(rune::Hash, CompileMeta)>,
 )> {
     let shared = args.shared();
     let context = shared.context()?;

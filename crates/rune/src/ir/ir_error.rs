@@ -1,9 +1,8 @@
 use crate::ir::IrValue;
+use crate::meta::CompileMeta;
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::{ScopeError, ScopeErrorKind};
-use crate::{
-    CompileMeta, QueryError, QueryErrorKind, ResolveError, ResolveErrorKind, Spanned, SpannedError,
-};
+use crate::{QueryError, QueryErrorKind, ResolveError, ResolveErrorKind, Spanned, SpannedError};
 use thiserror::Error;
 
 error! {
@@ -52,6 +51,7 @@ impl From<IrError> for SpannedError {
 /// Error when encoding AST.
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
+#[non_exhaustive]
 pub enum IrErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },

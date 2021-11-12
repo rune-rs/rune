@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// A field access `<expr>.<field>`.
 ///

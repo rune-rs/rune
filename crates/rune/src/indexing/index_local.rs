@@ -2,8 +2,8 @@
 use crate::ast;
 use crate::compiling::CompileResult;
 use crate::indexing::Indexer;
-use crate::parsing::Resolve as _;
-use crate::Spanned as _;
+use crate::parsing::Resolve;
+use crate::Spanned;
 
 pub(crate) trait IndexLocal {
     /// Walk the current type with the given item.

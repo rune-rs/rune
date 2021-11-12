@@ -5,11 +5,12 @@ use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
+use crate::meta::CompileItem;
 use crate::parsing::{Parse, ParseError};
 use crate::parsing::{ResolveError, ResolveOwned};
 use crate::query;
 use crate::query::Used;
-use crate::{CompileItem, IrError, Source, Sources, Span, Spanned};
+use crate::{IrError, Source, Sources, Span, Spanned};
 use query::Query;
 use std::fmt;
 use std::sync::Arc;

@@ -8,7 +8,7 @@ use crate::{
     CompileErrorKind, Diagnostics, IrErrorKind, LinkerError, Location, QueryErrorKind,
     ResolveErrorKind, Source, SourceId, Sources, Span, Spanned,
 };
-use std::error::Error as _;
+use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
 use std::io;

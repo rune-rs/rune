@@ -5,7 +5,6 @@ mod description;
 mod gen;
 mod items;
 mod scopes;
-mod spanned_error;
 
 pub(crate) use self::assert_send::AssertSend;
 pub(crate) use self::consts::Consts;
@@ -14,5 +13,4 @@ pub(crate) use self::description::Description;
 pub(crate) use self::gen::Gen;
 pub(crate) use self::items::Items;
 pub(crate) use self::scopes::Scopes;
-pub use self::scopes::{ScopeError, ScopeErrorKind};
-pub use self::spanned_error::{SpannedError, WithSpan};
+pub(crate) use self::scopes::{ScopeError, ScopeErrorKind};

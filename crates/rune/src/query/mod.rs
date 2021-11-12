@@ -2,20 +2,21 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
+use crate::compiling::UnitBuilder;
 use crate::ir;
 use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter};
+use crate::meta::{
+    CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
+    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource,
+};
 use crate::parsing::Opaque;
 use crate::runtime::format;
 use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Id, ImportEntryStep, NoopCompileVisitor,
-    Resolve as _, Sources, Spanned, Storage, UnitBuilder,
-};
-use crate::{
-    CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
-    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource, Component, ComponentRef,
-    Context, Hash, IntoComponent, Item, Location, SourceId, Span, Visibility,
+    CompileError, CompileErrorKind, CompileVisitor, Component, ComponentRef, Context, Hash, Id,
+    ImportEntryStep, IntoComponent, Item, Location, NoopCompileVisitor, Resolve, SourceId, Sources,
+    Span, Spanned, Storage, Visibility,
 };
 use std::collections::VecDeque;
 use std::fmt;
@@ -703,7 +704,6 @@ impl Query {
 
         let entry = ImportEntry {
             location,
-            visibility,
             target: target.clone(),
             module: module.clone(),
         };
@@ -1592,13 +1592,12 @@ fn struct_into_item_decl(
 
 /// An imported entry.
 #[derive(Debug, Clone)]
-pub struct ImportEntry {
+#[non_exhaustive]
+pub(crate) struct ImportEntry {
     /// The location of the import.
-    pub location: Location,
-    /// The visibility of the import.
-    pub visibility: Visibility,
+    pub(crate) location: Location,
     /// The item being imported.
-    pub target: Item,
+    pub(crate) target: Item,
     /// The module in which the imports is located.
     pub(crate) module: Arc<CompileMod>,
 }

@@ -2,12 +2,12 @@
 
 use crate::ast;
 use crate::collections::HashMap;
+use crate::compiling::UnitBuilder;
 use crate::indexing::{Index as _, IndexScopes, Indexer};
 use crate::query::Query;
 use crate::shared::{Gen, Items};
 use crate::{
     CompileVisitor, Context, Diagnostics, Item, Options, SourceId, SourceLoader, Sources, Span,
-    UnitBuilder,
 };
 use std::collections::VecDeque;
 use std::rc::Rc;

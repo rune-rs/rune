@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// An if condition.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

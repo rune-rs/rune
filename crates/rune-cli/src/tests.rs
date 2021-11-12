@@ -1,8 +1,8 @@
 use crate::ExitCode;
+use rune::meta::CompileMeta;
 use rune::runtime::{RuntimeContext, Unit, UnitFn, Value, Vm, VmError, VmErrorKind};
 use rune::termcolor::StandardStream;
-use rune::{CompileMeta, Hash};
-use rune::{EmitDiagnostics, Sources};
+use rune::{EmitDiagnostics, Hash, Sources};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;

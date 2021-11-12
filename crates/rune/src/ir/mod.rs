@@ -12,10 +12,9 @@ mod ir_value;
 pub use self::eval::{IrEval, IrEvalBreak, IrEvalOutcome};
 pub use self::ir_compiler::{IrCompile, IrCompiler};
 pub use self::ir_error::{IrError, IrErrorKind};
+pub(crate) use self::ir_interpreter::IrBudget;
 pub use self::ir_interpreter::IrInterpreter;
 pub use self::ir_value::IrValue;
-
-pub(crate) use self::ir_interpreter::IrBudget;
 
 use crate::runtime::ConstValue;
 use crate::{Span, Spanned};

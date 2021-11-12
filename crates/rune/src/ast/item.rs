@@ -1,5 +1,4 @@
-use crate::ast;
-use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peeker, Spanned, ToTokens};
+use crate::ast::prelude::*;
 
 /// A declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

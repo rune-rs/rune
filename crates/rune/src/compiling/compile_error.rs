@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::compiling::InsertMetaError;
+use crate::meta::CompileMeta;
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::Label;
 use crate::{
-    CompileMeta, Error, Hash, IrError, IrErrorKind, Item, Location, ParseError, ParseErrorKind,
-    QueryError, QueryErrorKind, ResolveError, ResolveErrorKind, SourceId, Span, Spanned,
-    SpannedError,
+    Error, Hash, IrError, IrErrorKind, Item, Location, ParseError, ParseErrorKind, QueryError,
+    QueryErrorKind, ResolveError, ResolveErrorKind, SourceId, Span, Spanned, SpannedError,
 };
 use std::io;
 use std::path::PathBuf;
@@ -63,8 +63,9 @@ impl CompileError {
 }
 
 /// Compiler error.
-#[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum CompileErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },
@@ -293,6 +294,7 @@ pub enum CompileErrorKind {
 
 /// A single stap as an import entry.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ImportEntryStep {
     /// The location of the import.
     pub location: Location,
