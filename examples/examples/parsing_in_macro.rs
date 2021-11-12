@@ -8,15 +8,19 @@ pub fn main() -> rune::Result<()> {
     let string = "1 + 2 + 13 * 3";
 
     m.macro_(&["string_as_code"], move |ctx, _| {
-        let expr = ctx.parse_all::<ast::Expr>(&string)?;
+        let id = ctx.insert_source("string_as_code", string);
+        let expr = ctx.parse_source::<ast::Expr>(id)?;
+
         Ok(rune::quote!(#expr).into_token_stream(ctx))
     })?;
 
     m.macro_(&["string_as_code_from_arg"], |ctx, stream| {
         let mut p = Parser::from_token_stream(stream, ctx.stream_span());
         let s = p.parse_all::<ast::LitStr>()?;
-        let s = ctx.resolve(s)?;
-        let expr = ctx.parse_all::<ast::Expr>(&s)?;
+        let s = ctx.resolve(s)?.into_owned();
+        let id = ctx.insert_source("string_as_code_from_arg", &s);
+        let expr = ctx.parse_source::<ast::Expr>(id)?;
+
         Ok(rune::quote!(#expr).into_token_stream(ctx))
     })?;
 

@@ -107,15 +107,3 @@ impl<'a> Resolve<'a> for LitByte {
         Ok(c)
     }
 }
-
-impl ResolveOwned for LitByte {
-    type Owned = u8;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        self.resolve(storage, sources)
-    }
-}

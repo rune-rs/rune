@@ -288,8 +288,6 @@ pub enum CompileErrorKind {
     NestedTest { nested_span: Span },
     #[error("#[bench] attributes are not supported on nested items")]
     NestedBench { nested_span: Span },
-    #[error("missing source id `{source_id}`")]
-    MissingSourceId { source_id: SourceId },
 }
 
 /// A single stap as an import entry.

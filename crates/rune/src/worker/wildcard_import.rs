@@ -44,9 +44,15 @@ impl WildcardImport {
         Ok(())
     }
 
+    /// Process a local wildcard import.
     pub(crate) fn process_local(mut self, query: &mut Query) -> CompileResult<()> {
         if query.contains_prefix(&self.name) {
-            for c in query.iter_components(&self.name) {
+            let components = query
+                .iter_components(&self.name)
+                .map(|c| c.into_component())
+                .collect::<Vec<_>>();
+
+            for c in components {
                 let name = self.name.extended(c);
 
                 query.insert_import(

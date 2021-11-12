@@ -1,4 +1,5 @@
 use crate::parsing::{ParseError, Parser, Peek};
+pub use rune_macros::Parse;
 
 /// The parse trait, implemented by items that can be parsed.
 pub trait Parse

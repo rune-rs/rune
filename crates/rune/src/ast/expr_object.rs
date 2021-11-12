@@ -154,15 +154,3 @@ impl<'a> Resolve<'a> for ObjectKey {
         })
     }
 }
-
-impl ResolveOwned for ObjectKey {
-    type Owned = String;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, sources)?.into_owned())
-    }
-}

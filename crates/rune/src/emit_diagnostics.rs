@@ -239,9 +239,7 @@ where
                     .with_message("let binding might panic"),
             );
 
-            let binding = sources
-                .source_at(this.source_id())
-                .and_then(|s| s.source(*span));
+            let binding = sources.source(this.source_id(), *span);
 
             if let Some(binding) = binding {
                 let mut note = String::new();
@@ -272,9 +270,7 @@ where
                     .with_message("constructing this variant could be done without parentheses"),
             );
 
-            let variant = sources
-                .source_at(this.source_id())
-                .and_then(|s| s.source(*variant));
+            let variant = sources.source(this.source_id(), *variant);
 
             if let Some(variant) = variant {
                 let mut note = String::new();
@@ -432,9 +428,7 @@ where
                         .with_message("because this immediately follows"),
                 );
 
-                let binding = sources
-                    .source_at(this.source_id())
-                    .and_then(|s| s.source(error_span));
+                let binding = sources.source(this.source_id(), error_span);
 
                 if let Some(binding) = binding {
                     let mut note = String::new();

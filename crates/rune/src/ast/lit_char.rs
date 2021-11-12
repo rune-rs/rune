@@ -118,15 +118,3 @@ impl<'a> Resolve<'a> for LitChar {
         Ok(c)
     }
 }
-
-impl ResolveOwned for LitChar {
-    type Owned = char;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        self.resolve(storage, sources)
-    }
-}

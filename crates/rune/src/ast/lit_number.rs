@@ -83,15 +83,3 @@ impl<'a> Resolve<'a> for LitNumber {
         }
     }
 }
-
-impl ResolveOwned for LitNumber {
-    type Owned = ast::Number;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        self.resolve(storage, sources)
-    }
-}

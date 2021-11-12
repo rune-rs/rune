@@ -6,6 +6,6 @@ pub(crate) use crate::parsing::Opaque;
 pub(crate) use crate::shared::Description;
 pub(crate) use crate::{
     Id, MacroContext, OptionSpanned, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker,
-    Resolve, ResolveError, ResolveErrorKind, ResolveOwned, Sources, Span, Spanned, Storage,
-    ToTokens, TokenStream,
+    Resolve, ResolveError, ResolveErrorKind, Sources, Span, Spanned, Storage, ToTokens,
+    TokenStream,
 };

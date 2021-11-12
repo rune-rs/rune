@@ -3,13 +3,12 @@ use crate::{Source, SourceId, Span};
 use codespan_reporting::files;
 use std::convert::TryFrom;
 use std::path::Path;
-use std::sync::Arc;
 
 /// A collection of source files, and a queue of things to compile.
 #[derive(Debug, Default)]
 pub struct Sources {
     /// Sources associated.
-    sources: Vec<Arc<Source>>,
+    sources: Vec<Source>,
 }
 
 impl Sources {
@@ -20,46 +19,35 @@ impl Sources {
         }
     }
 
-    /// Get the source at the given source id.
-    pub fn source_at(&self, source_id: SourceId) -> Option<&Arc<Source>> {
-        self.sources.get(source_id.into_index())
-    }
-
-    /// Insert a source to be built and return its id.
-    #[deprecated = "use `insert` instead"]
-    pub fn insert_default(&mut self, source: Source) -> SourceId {
-        self.insert(source)
+    /// Get the source matching the given source id.
+    pub fn get(&self, id: SourceId) -> Option<&Source> {
+        self.sources.get(id.into_index())
     }
 
     /// Insert a source to be built and return its id.
     pub fn insert(&mut self, source: Source) -> SourceId {
-        let source_id =
+        let id =
             SourceId::try_from(self.sources.len()).expect("could not build a source identifier");
-        self.sources.push(Arc::new(source));
-        source_id
+        self.sources.push(source);
+        id
     }
 
     /// Fetch name for the given source id.
-    pub fn name(&self, source_id: SourceId) -> Option<&str> {
-        let source = self.sources.get(source_id.into_index())?;
+    pub fn name(&self, id: SourceId) -> Option<&str> {
+        let source = self.sources.get(id.into_index())?;
         Some(source.name())
     }
 
     /// Fetch source for the given span.
-    pub fn source(&self, source_id: SourceId, span: Span) -> Option<&str> {
-        let source = self.sources.get(source_id.into_index())?;
-        source.source(span)
+    pub fn source(&self, id: SourceId, span: Span) -> Option<&str> {
+        let source = self.sources.get(id.into_index())?;
+        source.get(span.range())
     }
 
     /// Access the optional path of the given source id.
-    pub fn path(&self, source_id: SourceId) -> Option<&Path> {
-        let source = self.sources.get(source_id.into_index())?;
+    pub fn path(&self, id: SourceId) -> Option<&Path> {
+        let source = self.sources.get(id.into_index())?;
         source.path()
-    }
-
-    /// Get the source matching the given source id.
-    pub fn get(&self, source_id: SourceId) -> Option<&Arc<Source>> {
-        self.sources.get(source_id.into_index())
     }
 
     /// Get all available source ids.

@@ -1,6 +1,6 @@
+use rune::meta::{CompileMeta, CompileMetaKind};
 use rune::CompileErrorKind::*;
 use rune::Span;
-use rune::meta::{CompileMeta, CompileMetaKind};
 use rune_tests::*;
 
 #[test]

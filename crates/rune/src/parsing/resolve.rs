@@ -75,7 +75,7 @@ pub enum ResolveErrorKind {
 }
 
 /// A type that can be resolved to an internal value based on a source.
-pub trait Resolve<'a>: ResolveOwned {
+pub trait Resolve<'a> {
     /// The output type being resolved into.
     type Output: 'a;
 
@@ -85,17 +85,4 @@ pub trait Resolve<'a>: ResolveOwned {
         storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<Self::Output, ResolveError>;
-}
-
-/// Trait for resolving a token into an owned value.
-pub trait ResolveOwned {
-    /// The output type being resolved into.
-    type Owned;
-
-    /// Resolve into an owned value.
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError>;
 }

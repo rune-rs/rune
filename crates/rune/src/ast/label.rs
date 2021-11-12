@@ -82,15 +82,3 @@ impl<'a> Resolve<'a> for Label {
         }
     }
 }
-
-impl ResolveOwned for Label {
-    type Owned = String;
-
-    fn resolve_owned(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, sources)?.to_owned())
-    }
-}

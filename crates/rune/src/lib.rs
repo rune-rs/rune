@@ -258,7 +258,7 @@ pub use self::named::Named;
 pub use self::options::{ConfigurationError, Options};
 pub use self::parsing::{
     Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveError,
-    ResolveErrorKind, ResolveOwned,
+    ResolveErrorKind,
 };
 pub use self::protocol::Protocol;
 pub use self::query::{QueryError, QueryErrorKind, Used};

@@ -14,7 +14,7 @@ use crate::runtime::format;
 use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Component, ComponentRef, Context, Hash, Id,
+    CompileError, CompileErrorKind, CompileVisitor, ComponentRef, Context, Hash, Id,
     ImportEntryStep, IntoComponent, Item, Location, Resolve, SourceId, Sources, Span, Spanned,
     Storage, Visibility,
 };
@@ -579,7 +579,7 @@ impl<'a> Query<'a> {
                         local = Some(*ident);
                     }
 
-                    self.lookup_initial(context, &qp.module, &qp.item, ident)?
+                    self.convert_initial_path(context, &qp.module, &qp.item, ident)?
                 }
                 ast::PathSegment::Super(super_value) => {
                     let mut item = qp.module.item.clone();
@@ -715,15 +715,15 @@ impl<'a> Query<'a> {
     }
 
     /// Iterate over known child components of the given name.
-    pub(crate) fn iter_components<I>(&self, iter: I) -> Vec<Component>
+    pub(crate) fn iter_components<'it, I: 'it>(
+        &'it self,
+        iter: I,
+    ) -> impl Iterator<Item = ComponentRef<'it>> + 'it
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        self.names
-            .iter_components(iter)
-            .map(ComponentRef::into_component)
-            .collect::<Vec<_>>()
+        self.names.iter_components(iter)
     }
 
     /// Get the given import by name.
@@ -1124,7 +1124,7 @@ impl<'a> Query<'a> {
     }
 
     /// Walk the names to find the first one that is contained in the unit.
-    fn lookup_initial(
+    fn convert_initial_path(
         &mut self,
         context: &Context,
         module: &Arc<CompileMod>,
