@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::attrs::Attribute;
 use crate::macros::Storage;
-use crate::parsing::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
+use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
 use crate::{Sources, Span, Spanned};
 use std::collections::BTreeSet;
 

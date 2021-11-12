@@ -1,6 +1,6 @@
 use crate::ir::IrValue;
 use crate::meta::CompileMeta;
-use crate::parsing::{ResolveError, ResolveErrorKind};
+use crate::parse::{ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::{ScopeError, ScopeErrorKind};

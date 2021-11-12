@@ -3,10 +3,10 @@ use anyhow::{anyhow, Result};
 use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
-use rune::compiling::{CompileError, CompileVisitor, FileSourceLoader, LinkerError};
+use rune::compile::{CompileError, CompileVisitor, FileSourceLoader, LinkerError};
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::meta::{CompileMeta, CompileMetaKind, CompileSource};
-use rune::{ComponentRef, Item, Location, SourceId, Span, Spanned};
+use rune::{ComponentRef, Context, Item, Location, Options, SourceId, Span, Spanned};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -25,11 +25,7 @@ pub struct State {
 
 impl State {
     /// Construct a new state.
-    pub fn new(
-        rebuild_tx: mpsc::Sender<()>,
-        context: rune::Context,
-        options: rune::Options,
-    ) -> Self {
+    pub fn new(rebuild_tx: mpsc::Sender<()>, context: Context, options: Options) -> Self {
         Self {
             inner: Arc::new(Inner {
                 rebuild_tx,
@@ -276,7 +272,7 @@ struct Inner {
     /// The rune context to build for.
     context: rune::Context,
     /// Build options.
-    options: rune::Options,
+    options: Options,
     /// Indicate if the server is initialized.
     initialized: AtomicBool,
     /// Sources used in the project.
@@ -726,7 +722,7 @@ impl SourceLoader {
     }
 }
 
-impl rune::compiling::SourceLoader for SourceLoader {
+impl rune::compile::SourceLoader for SourceLoader {
     fn load(&self, root: &Path, item: &Item, span: Span) -> Result<rune::Source, CompileError> {
         log::trace!("load {} (root: {})", item, root.display());
 

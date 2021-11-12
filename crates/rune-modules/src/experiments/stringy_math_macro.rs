@@ -1,6 +1,6 @@
 use rune::ast;
 use rune::macros::{quote, MacroContext, TokenStream};
-use rune::parsing::Parser;
+use rune::parse::Parser;
 use rune::{Spanned, SpannedError};
 
 /// Implementation for the `stringy_math!` macro.

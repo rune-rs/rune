@@ -45,6 +45,7 @@
 //! [Rune Language]: https://rune-rs.github.io
 
 use anyhow::{bail, Result};
+use rune::Options;
 use std::env;
 
 fn setup_logging() -> Result<()> {
@@ -92,7 +93,7 @@ fn main() -> Result<()> {
     let mut context = rune_modules::default_context()?;
     context.install(&rune_modules::experiments::module(true)?)?;
 
-    let mut options = rune::Options::default();
+    let mut options = Options::default();
     options.macros(true);
 
     rune_languageserver::run(context, options)

@@ -50,12 +50,16 @@
 //! [rune]: https://github.com/rune-rs/rune
 #![allow(clippy::type_complexity)]
 
-use anyhow::{Context, Result};
-use rune::compiling::FileSourceLoader;
+use anyhow::{Context as _, Result};
+use rune::compile::FileSourceLoader;
+use rune::diagnostics::{DumpInstructions, EmitSource};
 use rune::meta::CompileMeta;
 use rune::runtime::{Unit, Value, Vm, VmExecution};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{DumpInstructions, EmitDiagnostics, EmitSource};
+use rune::{
+    ConfigurationError, Context, ContextError, Diagnostics, EmitDiagnostics, Hash, Options,
+    RuntimeContext, Source, Sources, VmError,
+};
 use std::fs;
 use std::io;
 use std::io::Write;
@@ -165,7 +169,7 @@ struct SharedArgs {
 
 impl SharedArgs {
     /// Construct a rune context according to the specified argument.
-    fn context(&self) -> Result<rune::Context, rune::ContextError> {
+    fn context(&self) -> Result<Context, ContextError> {
         let mut context = rune_modules::default_context()?;
 
         if self.experimental {
@@ -283,8 +287,8 @@ struct Args {
 
 impl Args {
     /// Construct compiler options from cli arguments.
-    fn options(&self) -> Result<rune::Options, rune::ConfigurationError> {
-        let mut options = rune::Options::default();
+    fn options(&self) -> Result<Options, ConfigurationError> {
+        let mut options = Options::default();
 
         // Command-specific override defaults.
         match &self.cmd {
@@ -414,26 +418,26 @@ fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::
 fn load_path(
     out: &mut StandardStream,
     args: &Args,
-    options: &rune::Options,
+    options: &Options,
     path: &Path,
     attribute: visitor::Attribute,
 ) -> Result<(
     Arc<Unit>,
-    rune::Context,
-    Arc<rune::RuntimeContext>,
-    rune::Sources,
-    Vec<(rune::Hash, CompileMeta)>,
+    Context,
+    Arc<RuntimeContext>,
+    Sources,
+    Vec<(Hash, CompileMeta)>,
 )> {
     let shared = args.shared();
     let context = shared.context()?;
 
     let bytecode_path = path.with_extension("rnc");
 
-    let source = rune::Source::from_path(path)
-        .with_context(|| format!("reading file: {}", path.display()))?;
+    let source =
+        Source::from_path(path).with_context(|| format!("reading file: {}", path.display()))?;
 
     let runtime = Arc::new(context.runtime());
-    let mut sources = rune::Sources::new();
+    let mut sources = Sources::new();
 
     sources.insert(source);
 
@@ -463,9 +467,9 @@ fn load_path(
             log::trace!("building file: {}", path.display());
 
             let mut diagnostics = if shared.warnings {
-                rune::Diagnostics::new()
+                Diagnostics::new()
             } else {
-                rune::Diagnostics::without_warnings()
+                Diagnostics::without_warnings()
             };
 
             let test_finder = Rc::new(visitor::FunctionVisitor::new(attribute));
@@ -502,7 +506,7 @@ fn load_path(
 }
 
 /// Run a single path.
-async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<ExitCode> {
+async fn run_path(args: &Args, options: &Options, path: &Path) -> Result<ExitCode> {
     let choice = match args.color.as_str() {
         "always" => ColorChoice::Always,
         "ansi" => ColorChoice::AlwaysAnsi,
@@ -525,17 +529,17 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
             let context = checkargs.shared.context()?;
 
-            let source = rune::Source::from_path(path)
+            let source = Source::from_path(path)
                 .with_context(|| format!("reading file: {}", path.display()))?;
 
-            let mut sources = rune::Sources::new();
+            let mut sources = Sources::new();
 
             sources.insert(source);
 
             let mut diagnostics = if checkargs.shared.warnings || checkargs.warnings_are_errors {
-                rune::Diagnostics::new()
+                Diagnostics::new()
             } else {
-                rune::Diagnostics::without_warnings()
+                Diagnostics::without_warnings()
             };
 
             let test_finder = Rc::new(visitor::FunctionVisitor::new(visitor::Attribute::None));
@@ -647,14 +651,14 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 async fn do_run(
     args: &RunFlags,
     mut out: StandardStream,
-    runtime: Arc<rune::RuntimeContext>,
+    runtime: Arc<RuntimeContext>,
     unit: Arc<Unit>,
-    sources: rune::Sources,
+    sources: Sources,
 ) -> Result<ExitCode> {
     let last = std::time::Instant::now();
 
-    let mut vm = rune::Vm::new(runtime, unit.clone());
-    let mut execution: rune::VmExecution<_> = vm.execute(&["main"], ())?;
+    let mut vm = Vm::new(runtime, unit.clone());
+    let mut execution: VmExecution<_> = vm.execute(&["main"], ())?;
     let result = if args.trace {
         match do_trace(
             &mut out,
@@ -767,7 +771,7 @@ async fn main() {
 
 enum TraceError {
     Io(std::io::Error),
-    VmError(rune::VmError),
+    VmError(VmError),
 }
 
 impl From<std::io::Error> for TraceError {
@@ -780,7 +784,7 @@ impl From<std::io::Error> for TraceError {
 async fn do_trace<T>(
     out: &mut StandardStream,
     execution: &mut VmExecution<T>,
-    sources: &rune::Sources,
+    sources: &Sources,
     dump_stack: bool,
     with_source: bool,
 ) -> Result<Value, TraceError>

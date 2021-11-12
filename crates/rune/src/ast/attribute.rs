@@ -144,7 +144,7 @@ impl Peek for OuterAttribute {
 #[cfg(test)]
 mod tests {
     use crate::ast;
-    use crate::parsing::parse_all;
+    use crate::parse::parse_all;
     use crate::SourceId;
 
     #[test]

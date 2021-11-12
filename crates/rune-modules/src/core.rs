@@ -21,7 +21,7 @@
 //! ```
 
 use rune::ast;
-use rune::parsing::Parser;
+use rune::parse::Parser;
 use rune::{Module, ContextError};
 use rune::macros::{quote, FormatArgs, MacroContext, TokenStream};
 

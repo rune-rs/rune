@@ -56,9 +56,10 @@ pub use crate::connection::{Input, Output};
 pub use crate::server::Server;
 pub use crate::state::State;
 use anyhow::Result;
+use rune::{Context, Options};
 use tokio::sync::mpsc;
 
-pub fn run(context: rune::Context, options: rune::Options) -> Result<()> {
+pub fn run(context: Context, options: Options) -> Result<()> {
     let (mut input, output) = stdio()?;
 
     let (rebuild_tx, mut rebuild_rx) = mpsc::channel(1);

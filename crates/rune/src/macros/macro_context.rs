@@ -1,14 +1,14 @@
 //! Context for a macro.
 
 use crate::ast;
-use crate::compiling::{NoopCompileVisitor, UnitBuilder};
+use crate::compile::{NoopCompileVisitor, UnitBuilder};
 use crate::ir::IrError;
 use crate::ir::{
     IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
 use crate::meta::CompileItem;
-use crate::parsing::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
+use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
 use crate::query::{Query, Used};
 use crate::shared::Gen;
 use crate::{Source, SourceId, Sources, Span, Spanned};
@@ -74,7 +74,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     /// ```rust
     /// use rune::ast;
     /// use rune::macros::{MacroContext, quote};
-    /// use rune::parsing::{Parser};
+    /// use rune::parse::{Parser};
     ///
     /// // Note: should only be used for testing.
     /// MacroContext::test(|ctx| {
@@ -142,7 +142,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
     }
 
     /// Parse the given input as the given type that implements
-    /// [Parse][crate::parsing::Parse].
+    /// [Parse][crate::parse::Parse].
     pub fn parse_source<T>(&self, id: SourceId) -> Result<T, ParseError>
     where
         T: Parse,
@@ -154,7 +154,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
             )
         })?;
 
-        crate::parsing::parse_all(source.as_str(), id)
+        crate::parse::parse_all(source.as_str(), id)
     }
 
     /// The span of the macro call including the name of the macro.

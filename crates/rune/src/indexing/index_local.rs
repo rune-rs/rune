@@ -1,8 +1,8 @@
 /// Indexing for local declarations.
 use crate::ast;
-use crate::compiling::CompileResult;
+use crate::compile::CompileResult;
 use crate::indexing::Indexer;
-use crate::parsing::Resolve;
+use crate::parse::Resolve;
 use crate::Spanned;
 
 pub(crate) trait IndexLocal {

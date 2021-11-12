@@ -45,11 +45,11 @@
 //! [Rune Language]: https://rune-rs.github.io
 
 use anyhow::Context;
-use rune::compiling::LinkerError;
-use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use rune::compile::LinkerError;
+use rune::diagnostics::{Diagnostic, DumpInstructions, FatalDiagnosticKind};
 use rune::runtime::budget;
 use rune::runtime::Value;
-use rune::{ContextError, DumpInstructions, EmitDiagnostics, Spanned};
+use rune::{ContextError, EmitDiagnostics, Options, Spanned};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
@@ -191,7 +191,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
 
     let context = setup_context(config.experimental)?;
 
-    let mut options = rune::Options::default();
+    let mut options = Options::default();
 
     for option in &config.options {
         options.parse_option(option)?;

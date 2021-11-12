@@ -1,6 +1,6 @@
 //! AST for the Rune language.
 
-use crate::parsing::{Parse, ParseError, Parser, Peek};
+use crate::parse::{Parse, ParseError, Parser, Peek};
 use crate::{Span, Spanned};
 
 #[macro_use]
@@ -9,15 +9,13 @@ pub mod generated;
 
 macro_rules! expr_parse {
     ($ty:ident, $local:ty, $expected:literal) => {
-        impl $crate::parsing::Parse for $local {
-            fn parse(
-                p: &mut $crate::parsing::Parser<'_>,
-            ) -> Result<Self, $crate::parsing::ParseError> {
+        impl $crate::parse::Parse for $local {
+            fn parse(p: &mut $crate::parse::Parser<'_>) -> Result<Self, $crate::parse::ParseError> {
                 let t = p.tok_at(0)?;
 
                 match $crate::ast::Expr::parse(p)? {
                     $crate::ast::Expr::$ty(expr) => Ok(*expr),
-                    _ => Err($crate::parsing::ParseError::expected(&t, $expected)),
+                    _ => Err($crate::parse::ParseError::expected(&t, $expected)),
                 }
             }
         }
@@ -26,15 +24,13 @@ macro_rules! expr_parse {
 
 macro_rules! item_parse {
     ($ty:ident, $local:ty, $expected:literal) => {
-        impl $crate::parsing::Parse for $local {
-            fn parse(
-                p: &mut $crate::parsing::Parser<'_>,
-            ) -> Result<Self, $crate::parsing::ParseError> {
+        impl $crate::parse::Parse for $local {
+            fn parse(p: &mut $crate::parse::Parser<'_>) -> Result<Self, $crate::parse::ParseError> {
                 let t = p.tok_at(0)?;
 
                 match $crate::ast::Item::parse(p)? {
                     $crate::ast::Item::$ty(item) => Ok(*item),
-                    _ => Err($crate::parsing::ParseError::expected(&t, $expected)),
+                    _ => Err($crate::parse::ParseError::expected(&t, $expected)),
                 }
             }
         }
@@ -197,7 +193,7 @@ macro_rules! decl_tokens {
             }
 
             impl Peek for $parser {
-                fn peek(p: &mut $crate::parsing::Peeker<'_>) -> bool {
+                fn peek(p: &mut $crate::parse::Peeker<'_>) -> bool {
                     matches!(p.nth(0), $($kind)*)
                 }
             }

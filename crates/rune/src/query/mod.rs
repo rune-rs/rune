@@ -3,8 +3,8 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::compiling::{CompileError, CompileErrorKind, CompileVisitor};
-use crate::compiling::{ImportStep, UnitBuilder};
+use crate::compile::{CompileError, CompileErrorKind, CompileVisitor};
+use crate::compile::{ImportStep, UnitBuilder};
 use crate::ir;
 use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter};
 use crate::macros::Storage;
@@ -12,7 +12,7 @@ use crate::meta::{
     CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
     CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource,
 };
-use crate::parsing::{Opaque, Resolve};
+use crate::parse::{Opaque, Resolve};
 use crate::runtime::format;
 use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
