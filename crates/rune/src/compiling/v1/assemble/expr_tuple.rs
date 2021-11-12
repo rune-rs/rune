@@ -26,7 +26,7 @@ macro_rules! tuple {
 impl Assemble for ast::ExprTuple {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprTuple => {:?}", c.source.source(span));
+        log::trace!("ExprTuple => {:?}", c.q.sources.source(c.source_id, span));
 
         if self.items.is_empty() {
             c.asm.push(Inst::unit(), span);

@@ -3,7 +3,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprMatch {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprMatch => {:?}", c.source.source(span));
+        log::trace!("ExprMatch => {:?}", c.q.sources.source(c.source_id, span));
 
         let expected_scopes = c.scopes.push_child(span)?;
 

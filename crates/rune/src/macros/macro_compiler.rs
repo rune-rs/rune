@@ -5,13 +5,12 @@ use crate::meta::CompileItem;
 use crate::query::Query;
 use crate::{
     CompileError, CompileErrorKind, CompileResult, Context, Hash, IrError, MacroContext, Options,
-    Parse, ParseError, Parser, Sources, Spanned, SpannedError,
+    Parse, ParseError, Parser, Spanned, SpannedError,
 };
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a, 'q> {
     pub(crate) item: Arc<CompileItem>,
-    pub(crate) sources: &'a mut Sources,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
     pub(crate) query: &'a mut Query<'q>,
@@ -34,9 +33,7 @@ impl MacroCompiler<'_, '_> {
 
         // TODO: include information on the module the macro is being called
         // from.
-        let named = self
-            .query
-            .convert_path(self.context, self.sources, &macro_call.path)?;
+        let named = self.query.convert_path(self.context, &macro_call.path)?;
 
         let hash = Hash::type_hash(&named.item);
 
@@ -59,8 +56,7 @@ impl MacroCompiler<'_, '_> {
                 macro_span: macro_call.span(),
                 stream_span: macro_call.stream_span(),
                 item: self.item.clone(),
-                query: self.query,
-                sources: self.sources,
+                q: self.query,
             };
 
             handler(&mut macro_context, input_stream)

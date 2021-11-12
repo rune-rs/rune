@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::LitBool {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("LitBool => {:?}", c.source.source(span));
+        log::trace!("LitBool => {:?}", c.q.sources.source(c.source_id, span));
 
         // If the value is not needed, no need to encode it.
         if !needs.value() {

@@ -4,13 +4,13 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprBlock {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprBlock => {:?}", c.source.source(span));
+        log::trace!("ExprBlock => {:?}", c.q.sources.source(c.source_id, span));
 
         if self.async_token.is_none() && self.const_token.is_none() {
             return self.block.assemble(c, needs);
         }
 
-        let item = c.query.item_for(&self.block)?;
+        let item = c.q.item_for(&self.block)?;
         let meta = c.lookup_meta(span, &item.item)?;
 
         match &meta.kind {

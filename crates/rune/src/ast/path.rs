@@ -110,7 +110,7 @@ impl<'a> Resolve<'a> for Path {
 
     fn resolve(
         &self,
-        storage: &Storage,
+        storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<Self::Output, ResolveError> {
         let mut buf = String::new();

@@ -23,13 +23,14 @@ impl Token {
             Kind::Ident(s) => match s {
                 StringSource::Text(source_id) => {
                     let s = ctx
-                        .sources()
+                        .q()
+                        .sources
                         .source(*source_id, self.span)
                         .ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 StringSource::Synthetic(id) => {
-                    let s = ctx.storage().get_string(*id).ok_or(fmt::Error)?;
+                    let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 StringSource::BuiltIn(builtin) => {
@@ -39,13 +40,14 @@ impl Token {
             Kind::Label(s) => match s {
                 StringSource::Text(source_id) => {
                     let s = ctx
-                        .sources()
+                        .q()
+                        .sources
                         .source(*source_id, self.span)
                         .ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 StringSource::Synthetic(id) => {
-                    let s = ctx.storage().get_string(*id).ok_or(fmt::Error)?;
+                    let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
                     write!(f, "'{}", s)?;
                 }
                 StringSource::BuiltIn(builtin) => {
@@ -55,7 +57,8 @@ impl Token {
             Kind::Byte(s) => match s {
                 CopySource::Text(source_id) => {
                     let s = ctx
-                        .sources()
+                        .q()
+                        .sources
                         .source(*source_id, self.span)
                         .ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
@@ -73,21 +76,23 @@ impl Token {
                     };
 
                     let s = ctx
-                        .sources()
+                        .q()
+                        .sources
                         .source(text.source_id, span)
                         .ok_or(fmt::Error)?;
 
                     write!(f, "b\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    let b = ctx.storage().get_byte_string(*id).ok_or(fmt::Error)?;
+                    let b = ctx.q().storage.get_byte_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", FormatBytes(b))?;
                 }
             },
             Kind::Char(s) => match s {
                 CopySource::Text(source_id) => {
                     let s = ctx
-                        .sources()
+                        .q()
+                        .sources
                         .source(*source_id, self.span)
                         .ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
@@ -99,13 +104,14 @@ impl Token {
             Kind::Number(s) => match s {
                 NumberSource::Text(text) => {
                     let s = ctx
-                        .sources()
+                        .q()
+                        .sources
                         .source(text.source_id, self.span)
                         .ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 NumberSource::Synthetic(id) => {
-                    let n = ctx.storage().get_number(*id).ok_or(fmt::Error)?;
+                    let n = ctx.q().storage.get_number(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", n)?;
                 }
             },
@@ -118,13 +124,14 @@ impl Token {
                     };
 
                     let s = ctx
-                        .sources()
+                        .q()
+                        .sources
                         .source(text.source_id, span)
                         .ok_or(fmt::Error)?;
                     write!(f, "\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    let s = ctx.storage().get_string(*id).ok_or(fmt::Error)?;
+                    let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{:?}", s)?;
                 }
             },

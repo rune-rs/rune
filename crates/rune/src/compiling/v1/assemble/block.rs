@@ -8,7 +8,10 @@ impl AssembleClosure for ast::Block {
         captures: &[CompileMetaCapture],
     ) -> CompileResult<()> {
         let span = self.span();
-        log::trace!("Block (closure) => {:?}", c.source.source(span));
+        log::trace!(
+            "Block (closure) => {:?}",
+            c.q.sources.source(c.source_id, span)
+        );
 
         let guard = c.scopes.push_child(span)?;
 
@@ -26,7 +29,7 @@ impl AssembleClosure for ast::Block {
 impl Assemble for ast::Block {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("Block => {:?}", c.source.source(span));
+        log::trace!("Block => {:?}", c.q.sources.source(c.source_id, span));
 
         c.contexts.push(span);
         let scopes_count = c.scopes.push_child(span)?;

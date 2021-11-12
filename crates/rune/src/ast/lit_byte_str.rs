@@ -70,7 +70,7 @@ impl<'a> Resolve<'a> for LitByteStr {
 
     fn resolve(
         &self,
-        storage: &Storage,
+        storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<Cow<'a, [u8]>, ResolveError> {
         let span = self.token.span();
@@ -88,7 +88,7 @@ impl<'a> Resolve<'a> for LitByteStr {
                     )
                 })?;
 
-                return Ok(Cow::Owned(bytes.clone()));
+                return Ok(Cow::Borrowed(bytes));
             }
         };
 

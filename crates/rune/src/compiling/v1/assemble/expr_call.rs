@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprCall {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprCall => {:?}", c.source.source(span));
+        log::trace!("ExprCall => {:?}", c.q.sources.source(c.source_id, span));
 
         let guard = c.scopes.push_child(span)?;
         let args = self.args.len();
@@ -17,7 +17,10 @@ impl Assemble for ast::ExprCall {
 
             let use_expr = match expr {
                 ast::Expr::Path(path) => {
-                    log::trace!("ExprCall(Path) => {:?}", c.source.source(span));
+                    log::trace!(
+                        "ExprCall(Path) => {:?}",
+                        c.q.sources.source(c.source_id, span)
+                    );
                     break path;
                 }
                 ast::Expr::FieldAccess(expr_field_access) => {
@@ -28,7 +31,10 @@ impl Assemble for ast::ExprCall {
                     } = &**expr_field_access
                     {
                         if let Some(ident) = path.try_as_ident() {
-                            log::trace!("ExprCall(ExprFieldAccess) => {:?}", c.source.source(span));
+                            log::trace!(
+                                "ExprCall(ExprFieldAccess) => {:?}",
+                                c.q.sources.source(c.source_id, span)
+                            );
 
                             expr.assemble(c, Needs::Value)?.apply(c)?;
                             c.scopes.decl_anon(span)?;
@@ -38,7 +44,7 @@ impl Assemble for ast::ExprCall {
                                 c.scopes.decl_anon(span)?;
                             }
 
-                            let ident = ident.resolve(c.query.storage(), c.sources)?;
+                            let ident = ident.resolve(c.q.storage(), c.q.sources)?;
                             let hash = Hash::instance_fn_name(ident.as_ref());
                             c.asm.push(Inst::CallInstance { hash, args }, span);
                             false
@@ -53,7 +59,10 @@ impl Assemble for ast::ExprCall {
             };
 
             if use_expr {
-                log::trace!("ExprCall(Other) => {:?}", c.source.source(span));
+                log::trace!(
+                    "ExprCall(Other) => {:?}",
+                    c.q.sources.source(c.source_id, span)
+                );
 
                 for (expr, _) in &self.args {
                     expr.assemble(c, Needs::Value)?.apply(c)?;
@@ -134,8 +143,8 @@ impl Assemble for ast::ExprCall {
             }
             CompileMetaKind::Function { .. } => (),
             CompileMetaKind::ConstFn { id, .. } => {
-                let from = c.query.item_for(self)?;
-                let const_fn = c.query.const_fn_for((self.span(), *id))?;
+                let from = c.q.item_for(self)?;
+                let const_fn = c.q.const_fn_for((self.span(), *id))?;
 
                 let value =
                     c.call_const_fn(self, &meta, &from, &*const_fn, self.args.as_slice())?;

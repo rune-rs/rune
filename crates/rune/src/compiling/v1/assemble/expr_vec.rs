@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprVec {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprVec => {:?}", c.source.source(span));
+        log::trace!("ExprVec => {:?}", c.q.sources.source(c.source_id, span));
 
         let count = self.items.len();
 

@@ -5,7 +5,10 @@ use crate::query::BuiltInTemplate;
 impl Assemble for BuiltInTemplate {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span;
-        log::trace!("BuiltInTemplate => {:?}", c.source.source(span));
+        log::trace!(
+            "BuiltInTemplate => {:?}",
+            c.q.sources.source(c.source_id, span)
+        );
 
         let expected = c.scopes.push_child(span)?;
         let mut size_hint = 0;
@@ -18,10 +21,10 @@ impl Assemble for BuiltInTemplate {
                     ..
                 } = &**expr_lit
                 {
-                    let s = s.resolve_template_string(c.query.storage(), c.sources)?;
+                    let s = s.resolve_template_string(&c.q.storage, c.q.sources)?;
                     size_hint += s.len();
 
-                    let slot = c.query.unit_mut().new_static_string(span, &s)?;
+                    let slot = c.q.unit.new_static_string(span, &s)?;
                     c.asm.push(Inst::String { slot }, span);
                     c.scopes.decl_anon(span)?;
                     continue;

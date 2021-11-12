@@ -1,5 +1,4 @@
 use crate::ast::prelude::*;
-use std::borrow::Cow;
 
 /// A label, like `'foo`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
@@ -17,7 +16,7 @@ impl Label {
     ///
     /// This constructor must only be used inside of a macro.
     pub fn new(ctx: &mut MacroContext<'_, '_>, label: &str) -> Self {
-        Self::new_with(label, ctx.macro_span(), ctx.storage_mut())
+        Self::new_with(label, ctx.macro_span(), &mut ctx.q_mut().storage)
     }
 
     /// Construct a new label from the given string. The string should be
@@ -57,13 +56,9 @@ impl Peek for Label {
 }
 
 impl<'a> Resolve<'a> for Label {
-    type Output = Cow<'a, str>;
+    type Output = &'a str;
 
-    fn resolve(
-        &self,
-        storage: &Storage,
-        sources: &'a Sources,
-    ) -> Result<Cow<'a, str>, ResolveError> {
+    fn resolve(&self, storage: &'a Storage, sources: &'a Sources) -> Result<&'a str, ResolveError> {
         let span = self.token.span();
 
         match self.source {
@@ -74,16 +69,16 @@ impl<'a> Resolve<'a> for Label {
                     .source(source_id, span.trim_start(1))
                     .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
-                Ok(Cow::Borrowed(ident))
+                Ok(ident)
             }
             ast::StringSource::Synthetic(id) => {
                 let ident = storage.get_string(id).ok_or_else(|| {
                     ResolveError::new(span, ResolveErrorKind::BadSyntheticId { kind: "ident", id })
                 })?;
 
-                Ok(Cow::Owned(ident.clone()))
+                Ok(ident)
             }
-            ast::StringSource::BuiltIn(builtin) => Ok(Cow::Borrowed(builtin.as_str())),
+            ast::StringSource::BuiltIn(builtin) => Ok(builtin.as_str()),
         }
     }
 }
@@ -96,6 +91,6 @@ impl ResolveOwned for Label {
         storage: &Storage,
         sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        Ok(self.resolve(storage, sources)?.into_owned())
+        Ok(self.resolve(storage, sources)?.to_owned())
     }
 }

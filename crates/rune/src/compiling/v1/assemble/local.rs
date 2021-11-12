@@ -5,7 +5,7 @@ use crate::runtime::PanicReason;
 impl Assemble for ast::Local {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("Local => {:?}", c.source.source(span));
+        log::trace!("Local => {:?}", c.q.sources.source(c.source_id, span));
 
         let load = |c: &mut Compiler, needs: Needs| {
             // NB: assignments "move" the value being assigned.

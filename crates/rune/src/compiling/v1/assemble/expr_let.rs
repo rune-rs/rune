@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprLet {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprLet => {:?}", c.source.source(span));
+        log::trace!("ExprLet => {:?}", c.q.sources.source(c.source_id, span));
 
         let load = |c: &mut Compiler, needs: Needs| {
             // NB: assignments "move" the value being assigned.

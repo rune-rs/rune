@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprReturn {
     fn assemble(&self, c: &mut Compiler<'_, '_>, _: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprReturn => {:?}", c.source.source(span));
+        log::trace!("ExprReturn => {:?}", c.q.sources.source(c.source_id, span));
 
         // NB: drop any loop temporaries.
         for l in c.loops.iter() {

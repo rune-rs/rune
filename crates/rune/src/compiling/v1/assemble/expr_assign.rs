@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprAssign {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprAssign => {:?}", c.source.source(span));
+        log::trace!("ExprAssign => {:?}", c.q.sources.source(c.source_id, span));
 
         let supported = match &self.lhs {
             // <var> = <value>
@@ -15,7 +15,7 @@ impl Assemble for ast::ExprAssign {
                     .first
                     .try_as_ident()
                     .ok_or_else(|| CompileError::msg(path, "unsupported path"))?;
-                let ident = segment.resolve(c.query.storage(), c.sources)?;
+                let ident = segment.resolve(c.q.storage(), c.q.sources)?;
                 let var = c.scopes.get_var(&*ident, c.source_id, span)?;
                 c.asm.push(Inst::Replace { offset: var.offset }, span);
                 true
@@ -28,11 +28,8 @@ impl Assemble for ast::ExprAssign {
                 match &field_access.expr_field {
                     ast::ExprField::Path(path) => {
                         if let Some(ident) = path.try_as_ident() {
-                            let slot = ident.resolve(c.query.storage(), c.sources)?;
-                            let slot = c
-                                .query
-                                .unit_mut()
-                                .new_static_string(ident.span(), slot.as_ref())?;
+                            let slot = ident.resolve(&c.q.storage, c.q.sources)?;
+                            let slot = c.q.unit.new_static_string(ident.span(), slot.as_ref())?;
 
                             self.rhs.assemble(c, Needs::Value)?.apply(c)?;
                             c.scopes.decl_anon(self.rhs.span())?;
@@ -48,7 +45,7 @@ impl Assemble for ast::ExprAssign {
                         }
                     }
                     ast::ExprField::LitNumber(field) => {
-                        let number = field.resolve(c.query.storage(), c.sources)?;
+                        let number = field.resolve(c.q.storage(), c.q.sources)?;
                         let index = number.as_tuple_index().ok_or_else(|| {
                             CompileError::new(
                                 span,
@@ -68,7 +65,10 @@ impl Assemble for ast::ExprAssign {
             }
             ast::Expr::Index(expr_index_get) => {
                 let span = expr_index_get.span();
-                log::trace!("ExprIndexSet => {:?}", c.source.source(span));
+                log::trace!(
+                    "ExprIndexSet => {:?}",
+                    c.q.sources.source(c.source_id, span)
+                );
 
                 self.rhs.assemble(c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;

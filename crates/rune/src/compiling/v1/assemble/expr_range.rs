@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprRange {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprRange => {:?}", c.source.source(span));
+        log::trace!("ExprRange => {:?}", c.q.sources.source(c.source_id, span));
 
         let guard = c.scopes.push_child(span)?;
 

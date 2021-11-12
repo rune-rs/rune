@@ -6,7 +6,10 @@ use crate::runtime::format;
 impl Assemble for BuiltInFormat {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span;
-        log::trace!("BuiltInFormat => {:?}", c.source.source(span));
+        log::trace!(
+            "BuiltInFormat => {:?}",
+            c.q.sources.source(c.source_id, span)
+        );
 
         let fill = if let Some((_, fill)) = &self.fill {
             *fill

@@ -4,7 +4,7 @@ use crate::ir::IrValue;
 use crate::meta::{CompileMetaKind, CompileMod};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
-use crate::{IrError, IrErrorKind, Item, Sources, Span, Spanned};
+use crate::{IrError, IrErrorKind, Item, Span, Spanned};
 use std::sync::Arc;
 
 /// Ir Scopes.
@@ -21,10 +21,8 @@ pub struct IrInterpreter<'a, 'q> {
     pub(crate) item: Item,
     /// Constant scopes.
     pub(crate) scopes: IrScopes,
-    /// Sources available.
-    pub(crate) sources: &'a Sources,
     /// Query engine to look for constant expressions.
-    pub(crate) query: &'a mut Query<'q>,
+    pub(crate) q: &'a mut Query<'q>,
 }
 
 impl IrInterpreter<'_, '_> {
@@ -40,11 +38,11 @@ impl IrInterpreter<'_, '_> {
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
         log::trace!("processing constant: {}", self.item);
 
-        if let Some(const_value) = self.query.consts().get(&self.item) {
+        if let Some(const_value) = self.q.consts.get(&self.item) {
             return Ok(const_value);
         }
 
-        if !self.query.consts_mut().mark(&self.item) {
+        if !self.q.consts.mark(&self.item) {
             return Err(IrError::new(ir, IrErrorKind::ConstCycle));
         }
 
@@ -66,8 +64,8 @@ impl IrInterpreter<'_, '_> {
         let const_value = ir_value.into_const(ir)?;
 
         if self
-            .query
-            .consts_mut()
+            .q
+            .consts
             .insert(self.item.clone(), const_value.clone())
             .is_some()
         {
@@ -110,11 +108,11 @@ impl IrInterpreter<'_, '_> {
         loop {
             let item = base.extended(name);
 
-            if let Some(const_value) = self.query.consts().get(&item) {
+            if let Some(const_value) = self.q.consts.get(&item) {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            if let Some(meta) = self.query.query_meta(self.sources, spanned, &item, used)? {
+            if let Some(meta) = self.q.query_meta(spanned, &item, used)? {
                 match &meta.kind {
                     CompileMetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value.clone()));
@@ -161,7 +159,7 @@ impl IrInterpreter<'_, '_> {
         let id = loop {
             let item = base.extended(target);
 
-            if let Some(meta) = self.query.query_meta(self.sources, span, &item, used)? {
+            if let Some(meta) = self.q.query_meta(span, &item, used)? {
                 match &meta.kind {
                     CompileMetaKind::ConstFn { id, .. } => {
                         break *id;
@@ -179,7 +177,7 @@ impl IrInterpreter<'_, '_> {
             base.pop();
         };
 
-        let const_fn = self.query.const_fn_for((spanned.span(), Some(id)))?;
+        let const_fn = self.q.const_fn_for((spanned.span(), Some(id)))?;
 
         if const_fn.ir_fn.args.len() != args.len() {
             return Err(IrError::new(

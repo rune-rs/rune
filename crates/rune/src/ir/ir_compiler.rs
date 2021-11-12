@@ -2,12 +2,11 @@ use crate::ast;
 use crate::ir;
 use crate::query::{BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::{Bytes, ConstValue};
-use crate::{IrError, IrErrorKind, Resolve, Sources, Spanned};
+use crate::{IrError, IrErrorKind, Resolve, Spanned};
 
 /// A c that compiles AST into Rune IR.
 pub struct IrCompiler<'a, 'q> {
-    pub(crate) sources: &'a Sources,
-    pub(crate) query: &'a mut Query<'q>,
+    pub(crate) q: &'a mut Query<'q>,
 }
 
 impl IrCompiler<'_, '_> {
@@ -24,7 +23,7 @@ impl IrCompiler<'_, '_> {
     where
         T: Resolve<'s>,
     {
-        Ok(value.resolve(&self.query.storage(), self.sources)?)
+        Ok(value.resolve(self.q.storage(), self.q.sources)?)
     }
 
     /// Resolve an ir target from an expression.
@@ -102,7 +101,7 @@ impl IrCompile for ast::Expr {
             ast::Expr::Break(expr_break) => ir::Ir::new(expr_break, expr_break.compile(c)?),
             ast::Expr::Let(expr_let) => ir::Ir::new(expr_let, expr_let.compile(c)?),
             ast::Expr::MacroCall(macro_call) => {
-                let internal_macro = c.query.builtin_macro_for(&**macro_call)?;
+                let internal_macro = c.q.builtin_macro_for(&**macro_call)?;
 
                 match &*internal_macro {
                     BuiltInMacro::Template(template) => {
@@ -373,7 +372,7 @@ impl IrCompile for ast::ExprObject {
         let mut assignments = Vec::new();
 
         for (assign, _) in &self.assignments {
-            let key = c.resolve(&assign.key)?.into_owned();
+            let key = c.resolve(&assign.key)?.into_owned().into_boxed_str();
 
             let ir = if let Some((_, expr)) = &assign.assign {
                 expr.compile(c)?
@@ -382,12 +381,12 @@ impl IrCompile for ast::ExprObject {
                     assign,
                     ir::IrKind::Target(ir::IrTarget {
                         span: assign.span(),
-                        kind: ir::IrTargetKind::Name(key.clone().into()),
+                        kind: ir::IrTargetKind::Name(key.clone()),
                     }),
                 )
             };
 
-            assignments.push((key.into(), ir))
+            assignments.push((key, ir))
         }
 
         Ok(ir::IrObject {
@@ -493,7 +492,7 @@ impl IrCompile for BuiltInTemplate {
                     ..
                 } = &**expr_lit
                 {
-                    let s = s.resolve_template_string(&c.query.storage(), c.sources)?;
+                    let s = s.resolve_template_string(&c.q.storage(), c.q.sources)?;
 
                     components.push(ir::IrTemplateComponent::String(
                         s.into_owned().into_boxed_str(),

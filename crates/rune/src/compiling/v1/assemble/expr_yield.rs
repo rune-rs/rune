@@ -4,7 +4,7 @@ use crate::compiling::v1::assemble::prelude::*;
 impl Assemble for ast::ExprYield {
     fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
-        log::trace!("ExprYield => {:?}", c.source.source(span));
+        log::trace!("ExprYield => {:?}", c.q.sources.source(c.source_id, span));
 
         if let Some(expr) = &self.expr {
             expr.assemble(c, Needs::Value)?.apply(c)?;

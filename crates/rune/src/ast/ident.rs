@@ -1,5 +1,4 @@
 use crate::ast::prelude::*;
-use std::borrow::Cow;
 
 /// An identifier, like `foo` or `Hello`.".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
@@ -17,7 +16,7 @@ impl Ident {
     ///
     /// This constructor must only be used inside of a macro.
     pub fn new(ctx: &mut MacroContext<'_, '_>, ident: &str) -> Self {
-        Self::new_with(ident, ctx.macro_span(), ctx.storage_mut())
+        Self::new_with(ident, ctx.macro_span(), &mut ctx.q_mut().storage)
     }
 
     /// Construct a new identifier from the given string.
@@ -56,13 +55,9 @@ impl Peek for Ident {
 }
 
 impl<'a> Resolve<'a> for Ident {
-    type Output = Cow<'a, str>;
+    type Output = &'a str;
 
-    fn resolve(
-        &self,
-        storage: &Storage,
-        sources: &'a Sources,
-    ) -> Result<Cow<'a, str>, ResolveError> {
+    fn resolve(&self, storage: &'a Storage, sources: &'a Sources) -> Result<&'a str, ResolveError> {
         let span = self.token.span();
 
         match self.source {
@@ -71,16 +66,16 @@ impl<'a> Resolve<'a> for Ident {
                     .source(source_id, span)
                     .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
-                Ok(Cow::Borrowed(ident))
+                Ok(ident)
             }
             ast::StringSource::Synthetic(id) => {
                 let ident = storage.get_string(id).ok_or_else(|| {
                     ResolveError::new(span, ResolveErrorKind::BadSyntheticId { kind: "label", id })
                 })?;
 
-                Ok(Cow::Owned(ident.clone()))
+                Ok(ident)
             }
-            ast::StringSource::BuiltIn(builtin) => Ok(Cow::Borrowed(builtin.as_str())),
+            ast::StringSource::BuiltIn(builtin) => Ok(builtin.as_str()),
         }
     }
 }
@@ -93,11 +88,6 @@ impl ResolveOwned for Ident {
         storage: &Storage,
         sources: &Sources,
     ) -> Result<Self::Owned, ResolveError> {
-        let output = self.resolve(storage, sources)?;
-
-        match output {
-            Cow::Borrowed(borrowed) => Ok(borrowed.to_owned()),
-            Cow::Owned(owned) => Ok(owned),
-        }
+        Ok(self.resolve(storage, sources)?.to_owned())
     }
 }

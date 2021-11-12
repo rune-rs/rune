@@ -3,8 +3,8 @@ use crate::meta::CompileMod;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
 use crate::{
-    CompileError, CompileErrorKind, CompileResult, Context, Item, Resolve, SourceId, Sources,
-    Spanned, Visibility,
+    CompileError, CompileErrorKind, CompileResult, Context, Item, Resolve, SourceId, Spanned,
+    Visibility,
 };
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -42,8 +42,7 @@ impl Import {
     pub(crate) fn process(
         mut self,
         context: &Context,
-        sources: &Sources,
-        query: &mut Query,
+        q: &mut Query,
         add_task: &mut impl FnMut(Task),
     ) -> CompileResult<()> {
         let (name, first, initial) = match self.kind {
@@ -51,7 +50,7 @@ impl Import {
                 match self.ast.path.global {
                     Some(global) => match &self.ast.path.first {
                         ast::ItemUseSegment::PathSegment(ast::PathSegment::Ident(ident)) => {
-                            let ident = ident.resolve(query.storage(), sources)?;
+                            let ident = ident.resolve(q.storage(), q.sources)?;
                             (Item::with_crate(ident.as_ref()), None, false)
                         }
                         _ => {
@@ -94,14 +93,14 @@ impl Import {
                 match segment {
                     ast::ItemUseSegment::PathSegment(segment) => match segment {
                         ast::PathSegment::Ident(ident) => {
-                            let ident = ident.resolve(query.storage(), sources)?;
+                            let ident = ident.resolve(q.storage(), q.sources)?;
 
                             if !initial {
                                 name.push(ident);
                                 continue;
                             }
 
-                            name = self.lookup_local(context, query, &*ident);
+                            name = self.lookup_local(context, q, &*ident);
                         }
                         ast::PathSegment::SelfType(self_type) => {
                             return Err(CompileError::new(
@@ -156,7 +155,7 @@ impl Import {
                             found: false,
                         };
 
-                        wildcard_import.process_global(query, context)?;
+                        wildcard_import.process_global(q, context)?;
                         add_task(Task::ExpandWildcardImport(wildcard_import));
                         break Some(star_token.span());
                     }
@@ -193,20 +192,20 @@ impl Import {
                         ));
                     }
 
-                    Some(ident.resolve(query.storage(), sources)?)
+                    Some(*ident)
                 }
                 None => None,
             };
 
             if complete.is_none() {
-                query.insert_import(
+                q.insert_import(
                     self.source_id,
                     path.span(),
                     &self.module,
                     self.visibility,
                     self.item.clone(),
                     name,
-                    alias.as_deref(),
+                    alias,
                     false,
                 )?;
             }

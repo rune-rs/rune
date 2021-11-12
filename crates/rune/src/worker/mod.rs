@@ -22,7 +22,6 @@ pub(crate) use self::wildcard_import::WildcardImport;
 
 pub(crate) struct Worker<'a> {
     context: &'a Context,
-    pub(crate) sources: &'a mut Sources,
     options: &'a Options,
     pub(crate) diagnostics: &'a mut Diagnostics,
     pub(crate) visitor: Rc<dyn CompileVisitor>,
@@ -30,7 +29,7 @@ pub(crate) struct Worker<'a> {
     /// Worker queue.
     pub(crate) queue: VecDeque<Task>,
     /// Query engine.
-    pub(crate) query: Query<'a>,
+    pub(crate) q: Query<'a>,
     /// Id generator.
     pub(crate) gen: Gen,
     /// Files that have been loaded.
@@ -51,13 +50,12 @@ impl<'a> Worker<'a> {
     ) -> Self {
         Self {
             context,
-            sources,
             options,
             diagnostics,
             visitor: visitor.clone(),
             source_loader,
             queue: VecDeque::new(),
-            query: Query::new(unit, visitor, gen.clone()),
+            q: Query::new(unit, sources, visitor, gen.clone()),
             gen,
             loaded: HashMap::new(),
         }
@@ -78,7 +76,7 @@ impl<'a> Worker<'a> {
                 } => {
                     log::trace!("load file: {}", mod_item.item);
 
-                    let source = match self.sources.get(source_id) {
+                    let source = match self.q.sources.get(source_id) {
                         Some(source) => source,
                         None => {
                             self.diagnostics
@@ -106,9 +104,8 @@ impl<'a> Worker<'a> {
                     let mut indexer = Indexer {
                         root,
                         loaded: &mut self.loaded,
-                        query: &mut self.query,
+                        q: &mut self.q,
                         queue: &mut self.queue,
-                        sources: self.sources,
                         context: self.context,
                         options: self.options,
                         source_id,
@@ -130,10 +127,9 @@ impl<'a> Worker<'a> {
                     let source_id = import.source_id;
                     let queue = &mut self.queue;
 
-                    let result =
-                        import.process(self.context, self.sources, &mut self.query, &mut |task| {
-                            queue.push_back(task);
-                        });
+                    let result = import.process(self.context, &mut self.q, &mut |task| {
+                        queue.push_back(task);
+                    });
 
                     if let Err(error) = result {
                         self.diagnostics.error(source_id, error);
@@ -148,7 +144,7 @@ impl<'a> Worker<'a> {
         for wildcard_import in wildcard_imports {
             let source_id = wildcard_import.source_id;
 
-            if let Err(error) = wildcard_import.process_local(&mut self.query) {
+            if let Err(error) = wildcard_import.process_local(&mut self.q) {
                 self.diagnostics.error(source_id, error);
             }
         }
