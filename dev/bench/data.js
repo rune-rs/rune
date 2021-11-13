@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1636798347952,
+  "lastUpdate": 1636811379390,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -7984,6 +7984,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4770675,
             "range": "± 161359",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "50592b2270398d63b156322f8f5411cbc2c9df49",
+          "message": "Refactor build entrypoint and add sources! macro",
+          "timestamp": "2021-11-13T14:41:33+01:00",
+          "tree_id": "21d1c9f3aa37be4d747c16881ae127a6791a33b3",
+          "url": "https://github.com/rune-rs/rune/commit/50592b2270398d63b156322f8f5411cbc2c9df49"
+        },
+        "date": 1636811378374,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 425963020,
+            "range": "± 51242207",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 249799068,
+            "range": "± 30005682",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 286699,
+            "range": "± 46016",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 894338,
+            "range": "± 212517",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 73336363,
+            "range": "± 8071196",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1254615,
+            "range": "± 213715",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 12950116,
+            "range": "± 2039905",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 11725397,
+            "range": "± 1747910",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 422148,
+            "range": "± 71058",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5030583,
+            "range": "± 1247812",
             "unit": "ns/iter"
           }
         ]
