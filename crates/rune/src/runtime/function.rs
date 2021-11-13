@@ -10,14 +10,351 @@ use std::future::Future;
 use std::sync::Arc;
 
 /// A callable non-sync function.
-pub type Function = FunctionImpl<Value>;
+#[repr(transparent)]
+pub struct Function(FunctionImpl<Value>);
+
+impl Function {
+    /// Perform an asynchronous call over the function which also implements
+    /// [Send].
+    pub async fn async_send_call<A, T>(&self, args: A) -> Result<T, VmError>
+    where
+        A: Send + Args,
+        T: Send + FromValue,
+    {
+        self.0.async_send_call(args).await
+    }
+
+    /// Perform a call over the function represented by this function pointer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::Function;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         fn add(a, b) {
+    ///             a + b
+    ///         }
+    ///
+    ///         pub fn main() { add }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let value = vm.call(&["main"], ())?;
+    ///
+    /// let value = Function::from_value(value)?;
+    /// assert_eq!(value.call::<_, u32>((1, 2))?, 3);
+    /// # Ok(()) }
+    /// ```
+    pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
+    where
+        A: Args,
+        T: FromValue,
+    {
+        self.0.call(args)
+    }
+
+    /// Call with the given virtual machine. This allows for certain
+    /// optimizations, like avoiding the allocation of a new vm state in case
+    /// the call is internal.
+    ///
+    /// A stop reason will be returned in case the function call results in
+    /// a need to suspend the execution.
+    pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
+        self.0.call_with_vm(vm, args)
+    }
+
+    /// Create a function pointer from a handler.
+    pub(crate) fn from_handler(handler: Arc<FunctionHandler>, hash: Hash) -> Self {
+        Self(FunctionImpl::from_handler(handler, hash))
+    }
+
+    /// Create a function pointer from an offset.
+    pub(crate) fn from_offset(
+        context: Arc<RuntimeContext>,
+        unit: Arc<Unit>,
+        offset: usize,
+        call: Call,
+        args: usize,
+        hash: Hash,
+    ) -> Self {
+        Self(FunctionImpl::from_offset(
+            context, unit, offset, call, args, hash,
+        ))
+    }
+
+    /// Create a function pointer from an offset.
+    pub(crate) fn from_closure(
+        context: Arc<RuntimeContext>,
+        unit: Arc<Unit>,
+        offset: usize,
+        call: Call,
+        args: usize,
+        environment: Box<[Value]>,
+        hash: Hash,
+    ) -> Self {
+        Self(FunctionImpl::from_closure(
+            context,
+            unit,
+            offset,
+            call,
+            args,
+            environment,
+            hash,
+        ))
+    }
+
+    /// Create a function pointer from an offset.
+    pub(crate) fn from_unit_struct(rtti: Arc<Rtti>) -> Self {
+        Self(FunctionImpl::from_unit_struct(rtti))
+    }
+
+    /// Create a function pointer from an offset.
+    pub(crate) fn from_tuple_struct(rtti: Arc<Rtti>, args: usize) -> Self {
+        Self(FunctionImpl::from_tuple_struct(rtti, args))
+    }
+
+    /// Create a function pointer that constructs a empty variant.
+    pub(crate) fn from_unit_variant(rtti: Arc<VariantRtti>) -> Self {
+        Self(FunctionImpl::from_unit_variant(rtti))
+    }
+
+    /// Create a function pointer that constructs a tuple variant.
+    pub(crate) fn from_tuple_variant(rtti: Arc<VariantRtti>, args: usize) -> Self {
+        Self(FunctionImpl::from_tuple_variant(rtti, args))
+    }
+
+    /// Type [Hash][struct@Hash] of the underlying function.
+    ///
+    /// # Examples
+    ///
+    /// The type hash of a top-level function matches what you get out of
+    /// [Hash::type_hash].
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::Function;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         fn pony() { }
+    ///
+    ///         pub fn main() { pony }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let pony = vm.call(&["main"], ())?;
+    /// let pony = Function::from_value(pony)?;
+    ///
+    /// assert_eq!(pony.type_hash(), Hash::type_hash(&["pony"]));
+    /// # Ok(()) }
+    /// ```
+    pub fn type_hash(&self) -> Hash {
+        self.0.type_hash()
+    }
+
+    /// Try to convert into a [SyncFunction]. This might not be possible if this
+    /// function is something which is not [Sync], like a closure capturing
+    /// context which is not thread-safe.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::Function;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         fn pony() { }
+    ///
+    ///         pub fn main() { pony }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let pony = vm.call(&["main"], ())?;
+    /// let pony = Function::from_value(pony)?;
+    ///
+    /// // This is fine, since `pony` is a free function.
+    /// let pony = pony.into_sync()?;
+    ///
+    /// assert_eq!(pony.type_hash(), Hash::type_hash(&["pony"]));
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// The following *does not* work, because we return a closure which tries
+    /// to make use of a [Generator][crate::runtime::Generator] which is not a
+    /// constant value.
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::Function;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         fn generator() {
+    ///             yield 42;
+    ///         }
+    ///
+    ///         pub fn main() {
+    ///             let g = generator();
+    ///
+    ///             move || {
+    ///                 g.next()
+    ///             }
+    ///         }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let closure = vm.call(&["main"], ())?;
+    /// let closure = Function::from_value(closure)?;
+    ///
+    /// // This is *not* fine since the returned closure has captured a
+    /// // generator which is not a constant value.
+    /// assert!(closure.into_sync().is_err());
+    /// # Ok(()) }
+    /// ```
+    pub fn into_sync(self) -> Result<SyncFunction, VmError> {
+        Ok(SyncFunction(self.0.into_sync()?))
+    }
+}
 
 /// A callable sync function. This currently only supports a subset of values
 /// that are supported by the Vm.
-pub type SyncFunction = FunctionImpl<ConstValue>;
+#[derive(Clone)]
+#[repr(transparent)]
+pub struct SyncFunction(FunctionImpl<ConstValue>);
+
+impl SyncFunction {
+    /// Perform an asynchronous call over the function which also implements
+    /// [Send].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::SyncFunction;
+    /// use std::sync::Arc;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         async fn add(a, b) {
+    ///             a + b
+    ///         }
+    ///
+    ///         pub fn main() { add }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let add = vm.call(&["main"], ())?;
+    /// let add = SyncFunction::from_value(add)?;
+    ///
+    /// let value = add.async_send_call::<_, u32>((1, 2)).await?;
+    /// assert_eq!(value, 3);
+    /// # Ok(()) }
+    /// ```
+    pub async fn async_send_call<A, T>(&self, args: A) -> Result<T, VmError>
+    where
+        A: Send + Args,
+        T: Send + FromValue,
+    {
+        self.0.async_send_call(args).await
+    }
+
+    /// Perform a call over the function represented by this function pointer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::SyncFunction;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         fn add(a, b) {
+    ///             a + b
+    ///         }
+    ///
+    ///         pub fn main() { add }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let add = vm.call(&["main"], ())?;
+    /// let add = SyncFunction::from_value(add)?;
+    ///
+    /// assert_eq!(add.call::<_, u32>((1, 2))?, 3);
+    /// # Ok(()) }
+    /// ```
+    pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
+    where
+        A: Args,
+        T: FromValue,
+    {
+        self.0.call(args)
+    }
+
+    /// Type [Hash][struct@Hash] of the underlying function.
+    ///
+    /// # Examples
+    ///
+    /// The type hash of a top-level function matches what you get out of
+    /// [Hash::type_hash].
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::SyncFunction;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         fn pony() { }
+    ///
+    ///         pub fn main() { pony }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let pony = vm.call(&["main"], ())?;
+    /// let pony = SyncFunction::from_value(pony)?;
+    ///
+    /// assert_eq!(pony.type_hash(), Hash::type_hash(&["pony"]));
+    /// # Ok(()) }
+    /// ```
+    pub fn type_hash(&self) -> Hash {
+        self.0.type_hash()
+    }
+}
 
 /// A stored function, of some specific kind.
-pub struct FunctionImpl<V>
+#[derive(Clone)]
+struct FunctionImpl<V>
 where
     V: Clone,
     Tuple: From<Box<[V]>>,
@@ -30,8 +367,7 @@ where
     V: Clone,
     Tuple: From<Box<[V]>>,
 {
-    /// Perform a call over the function represented by this function pointer.
-    pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
+    fn call<A, T>(&self, args: A) -> Result<T, VmError>
     where
         A: Args,
         T: FromValue,
@@ -49,19 +385,19 @@ where
                 .fn_offset
                 .call(args, (Tuple::from(closure.environment.clone()),))?,
             Inner::FnUnitStruct(empty) => {
-                Self::check_args(args.count(), 0)?;
+                check_args(args.count(), 0)?;
                 Value::unit_struct(empty.rtti.clone())
             }
             Inner::FnTupleStruct(tuple) => {
-                Self::check_args(args.count(), tuple.args)?;
+                check_args(args.count(), tuple.args)?;
                 Value::tuple_struct(tuple.rtti.clone(), args.into_vec()?)
             }
             Inner::FnUnitVariant(unit) => {
-                Self::check_args(args.count(), 0)?;
+                check_args(args.count(), 0)?;
                 Value::unit_variant(unit.rtti.clone())
             }
             Inner::FnTupleVariant(tuple) => {
-                Self::check_args(args.count(), tuple.args)?;
+                check_args(args.count(), tuple.args)?;
                 Value::tuple_variant(tuple.rtti.clone(), args.into_vec()?)
             }
         };
@@ -69,9 +405,7 @@ where
         T::from_value(value)
     }
 
-    /// Perform an asynchronous call over the function which also implements
-    /// `Send`.
-    pub fn async_send_call<'a, A, T>(
+    fn async_send_call<'a, A, T>(
         &'a self,
         args: A,
     ) -> impl Future<Output = Result<T, VmError>> + Send + 'a
@@ -131,12 +465,12 @@ where
                 None
             }
             Inner::FnUnitStruct(empty) => {
-                Self::check_args(args, 0)?;
+                check_args(args, 0)?;
                 vm.stack_mut().push(Value::unit_struct(empty.rtti.clone()));
                 None
             }
             Inner::FnTupleStruct(tuple) => {
-                Self::check_args(args, tuple.args)?;
+                check_args(args, tuple.args)?;
 
                 let value =
                     Value::tuple_struct(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
@@ -144,14 +478,14 @@ where
                 None
             }
             Inner::FnUnitVariant(tuple) => {
-                Self::check_args(args, 0)?;
+                check_args(args, 0)?;
 
                 let value = Value::unit_variant(tuple.rtti.clone());
                 vm.stack_mut().push(value);
                 None
             }
             Inner::FnTupleVariant(tuple) => {
-                Self::check_args(args, tuple.args)?;
+                check_args(args, tuple.args)?;
 
                 let value =
                     Value::tuple_variant(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
@@ -245,19 +579,7 @@ where
     }
 
     #[inline]
-    fn check_args(actual: usize, expected: usize) -> Result<(), VmError> {
-        if actual != expected {
-            return Err(VmError::from(VmErrorKind::BadArgumentCount {
-                expected,
-                actual,
-            }));
-        }
-
-        Ok(())
-    }
-
-    #[inline]
-    pub fn type_hash(&self) -> Hash {
+    fn type_hash(&self) -> Hash {
         match &self.inner {
             Inner::FnHandler(FnHandler { hash, .. }) | Inner::FnOffset(FnOffset { hash, .. }) => {
                 *hash
@@ -273,7 +595,7 @@ where
 
 impl FunctionImpl<Value> {
     /// Try to convert into a [SyncFunction].
-    pub fn into_sync(self) -> Result<SyncFunction, VmError> {
+    fn into_sync(self) -> Result<FunctionImpl<ConstValue>, VmError> {
         let inner = match self.inner {
             Inner::FnClosureOffset(closure) => {
                 let mut env = Vec::with_capacity(closure.environment.len());
@@ -295,13 +617,13 @@ impl FunctionImpl<Value> {
             Inner::FnTupleVariant(inner) => Inner::FnTupleVariant(inner),
         };
 
-        Ok(SyncFunction { inner })
+        Ok(FunctionImpl { inner })
     }
 }
 
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.inner {
+        match &self.0.inner {
             Inner::FnHandler(handler) => {
                 write!(f, "native function ({:p})", handler.handler.as_ref())?;
             }
@@ -333,7 +655,7 @@ impl fmt::Debug for Function {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Inner<V> {
     /// A native function handler.
     /// This is wrapped as an `Arc<dyn FunctionHandler>`.
@@ -358,6 +680,7 @@ enum Inner<V> {
     FnTupleVariant(FnTupleVariant),
 }
 
+#[derive(Clone)]
 struct FnHandler {
     /// The function handler.
     handler: Arc<FunctionHandler>,
@@ -393,7 +716,7 @@ impl FnOffset {
         A: Args,
         E: Args,
     {
-        Function::check_args(args.count(), self.args)?;
+        check_args(args.count(), self.args)?;
 
         let mut vm = Vm::new(self.context.clone(), self.unit.clone());
 
@@ -412,7 +735,7 @@ impl FnOffset {
     where
         E: Args,
     {
-        Function::check_args(args, self.args)?;
+        check_args(args, self.args)?;
 
         // Fast past, just allocate a call frame and keep running.
         if let Call::Immediate = self.call {
@@ -443,7 +766,7 @@ impl fmt::Debug for FnOffset {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FnClosureOffset<V> {
     /// The offset in the associated unit that the function lives.
     fn_offset: FnOffset,
@@ -451,13 +774,13 @@ struct FnClosureOffset<V> {
     environment: Box<[V]>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FnUnitStruct {
     /// The type of the empty.
     rtti: Arc<Rtti>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FnTupleStruct {
     /// The type of the tuple.
     rtti: Arc<Rtti>,
@@ -465,13 +788,13 @@ struct FnTupleStruct {
     args: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FnUnitVariant {
     /// Runtime information fo variant.
     rtti: Arc<VariantRtti>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FnTupleVariant {
     /// Runtime information fo variant.
     rtti: Arc<VariantRtti>,
@@ -516,6 +839,17 @@ impl UnsafeFromValue for &Function {
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
         &*output
     }
+}
+
+fn check_args(actual: usize, expected: usize) -> Result<(), VmError> {
+    if actual != expected {
+        return Err(VmError::from(VmErrorKind::BadArgumentCount {
+            expected,
+            actual,
+        }));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

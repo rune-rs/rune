@@ -63,6 +63,21 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all -- --check
 
+  build_documentation:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          default: true
+      - run: cargo doc --package rune
+        env:
+          RUSTFLAGS: --cfg docsrs
+          RUSTDOCFLAGS: --cfg docsrs
+
   build_wasm:
     name: Build Wasm
     runs-on: ubuntu-latest
