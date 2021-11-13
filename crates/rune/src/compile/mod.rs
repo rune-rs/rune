@@ -56,8 +56,8 @@ pub(crate) type CompileResult<T> = ::std::result::Result<T, CompileError>;
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile(
     unit: &mut UnitBuilder,
-    context: &Context,
     sources: &mut Sources,
+    context: &Context,
     diagnostics: &mut Diagnostics,
     options: &Options,
     visitor: &mut dyn CompileVisitor,

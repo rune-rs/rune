@@ -5,6 +5,27 @@ use codespan_reporting::files;
 use std::convert::TryFrom;
 use std::path::Path;
 
+/// Helper macro to define a collection of sources populatedc with the given
+/// entries.
+///
+/// ```
+/// let sources = rune::sources! {
+///     entry => {
+///         pub fn main() {
+///             42
+///         }
+///     }
+/// };
+/// ```
+#[macro_export]
+macro_rules! sources {
+    ($($name:ident => {$($tt:tt)*}),* $(,)?) => {{
+        let mut sources = $crate::Sources::new();
+        $(sources.insert($crate::Source::new(stringify!($name), stringify!($($tt)*)));)*
+        sources
+    }};
+}
+
 /// A collection of source files, and a queue of things to compile.
 #[derive(Debug, Default)]
 pub struct Sources {

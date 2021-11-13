@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, Source, Sources, Vm};
+use rune::{Diagnostics, Vm};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -7,19 +7,18 @@ async fn main() -> rune::Result<()> {
     let context = rune_modules::default_context()?;
     let runtime = Arc::new(context.runtime());
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "entry",
-        r#"
-    async fn main(timeout) {
-        time::delay_for(time::Duration::from_secs(timeout)).await
-    }
-    "#,
-    ));
+    let mut sources = rune::sources! {
+        entry => {
+            async fn main(timeout) {
+                time::delay_for(time::Duration::from_secs(timeout)).await
+            }
+        }
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

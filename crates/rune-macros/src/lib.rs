@@ -129,7 +129,7 @@ pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream
 /// # Examples
 ///
 /// ```
-/// use rune::{Context, FromValue, Sources, Source, Vm};
+/// use rune::{FromValue, Vm};
 /// use std::sync::Arc;
 ///
 /// #[derive(FromValue)]
@@ -138,15 +138,17 @@ pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream
 /// }
 ///
 /// # fn main() -> rune::Result<()> {
-/// let context = Context::with_default_modules()?;
-/// let runtime = Arc::new(context.runtime());
+/// let mut sources = rune::sources! {
+///     entry => {
+///         pub fn main() {
+///             #{field: 42}
+///         }
+///     }
+/// };
 ///
-/// let mut sources = Sources::new();
-/// sources.insert(Source::new("entry", "pub fn main() { #{field: 42} }"));
+/// let unit = rune::prepare(&mut sources).build()?;
 ///
-/// let unit = rune::prepare(&context, &mut sources).build()?;
-///
-/// let mut vm = Vm::new(runtime, Arc::new(unit));
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(&["main"], ())?;
 /// let foo = Foo::from_value(foo)?;
 ///
@@ -167,7 +169,7 @@ pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// # Examples
 ///
 /// ```
-/// use rune::{Context, FromValue, ToValue, Sources, Source, Vm};
+/// use rune::{FromValue, ToValue, Vm};
 /// use std::sync::Arc;
 ///
 /// #[derive(ToValue)]
@@ -176,14 +178,17 @@ pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// }
 ///
 /// # fn main() -> rune::Result<()> {
-/// let context = Context::with_default_modules()?;
+/// let mut sources = rune::sources! {
+///     entry => {
+///         pub fn main(foo) {
+///             foo.field + 1
+///         }
+///     }
+/// };
 ///
-/// let mut sources = Sources::new();
-/// sources.insert(Source::new("entry", "pub fn main(foo) { foo.field + 1 }"));
+/// let unit = rune::prepare(&mut sources).build()?;
 ///
-/// let unit = rune::prepare(&context, &mut sources).build()?;
-///
-/// let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(&["main"], (Foo { field: 42 },))?;
 /// let foo = u64::from_value(foo)?;
 ///

@@ -1,27 +1,26 @@
 use rune::runtime::Object;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, FromValue, Source, Sources, Value, Vm};
+use rune::{Diagnostics, FromValue, Value, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
     let context = rune_modules::default_context()?;
     let runtime = Arc::new(context.runtime());
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "entry",
-        r#"
-        pub fn calc(input) {
-            dbg(input["key"]);
-            input["key"] = "World";
-            input
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn calc(input) {
+                dbg(input["key"]);
+                input["key"] = "World";
+                input
+            }
         }
-        "#,
-    ));
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

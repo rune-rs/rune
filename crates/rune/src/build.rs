@@ -40,7 +40,8 @@ pub struct BuildError;
 ///
 /// let mut diagnostics = rune::Diagnostics::new();
 ///
-/// let result = rune::prepare(&context, &mut sources)
+/// let result = rune::prepare(&mut sources)
+///     .with_context(&context)
 ///     .with_diagnostics(&mut diagnostics)
 ///     .build();
 ///
@@ -54,10 +55,10 @@ pub struct BuildError;
 /// let vm = Vm::new(runtime, unit);
 /// # Ok(()) }
 /// ```
-pub fn prepare<'a>(context: &'a Context, sources: &'a mut Sources) -> Build<'a> {
+pub fn prepare<'a>(sources: &'a mut Sources) -> Build<'a> {
     Build {
-        context,
         sources,
+        context: None,
         diagnostics: None,
         options: None,
         visitor: None,
@@ -67,8 +68,8 @@ pub fn prepare<'a>(context: &'a Context, sources: &'a mut Sources) -> Build<'a> 
 
 /// High level helper for setting up a build of Rune sources into a [Unit].
 pub struct Build<'a> {
-    context: &'a Context,
     sources: &'a mut Sources,
+    context: Option<&'a Context>,
     diagnostics: Option<&'a mut Diagnostics>,
     options: Option<&'a Options>,
     visitor: Option<&'a mut dyn compile::CompileVisitor>,
@@ -76,6 +77,18 @@ pub struct Build<'a> {
 }
 
 impl<'a> Build<'a> {
+    /// Modify the current [Build] to use the given [Context] while building.
+    ///
+    /// If unspecified the empty context constructed with [Context::new] will be
+    /// used. Since this counts as building without a context,
+    /// [Vm::without_context][crate::runtime::Vm] can be used when running the
+    /// produced [Unit].
+    #[inline]
+    pub fn with_context(mut self, context: &'a Context) -> Self {
+        self.context = Some(context);
+        self
+    }
+
     /// Modify the current [Build] to use the given [Diagnostics] collection.
     #[inline]
     pub fn with_diagnostics(mut self, diagnostics: &'a mut Diagnostics) -> Self {
@@ -113,7 +126,17 @@ impl<'a> Build<'a> {
 
     /// Build a [Unit] with the current configuration.
     pub fn build(mut self) -> Result<Unit, BuildError> {
-        let mut unit = if self.context.has_default_modules() {
+        let default_context;
+
+        let context = match self.context.take() {
+            Some(context) => context,
+            None => {
+                default_context = Context::new();
+                &default_context
+            }
+        };
+
+        let mut unit = if context.has_default_modules() {
             compile::UnitBuilder::with_default_prelude()
         } else {
             compile::UnitBuilder::default()
@@ -161,8 +184,8 @@ impl<'a> Build<'a> {
 
         let result = compile::compile(
             &mut unit,
-            self.context,
             self.sources,
+            context,
             diagnostics,
             options,
             visitor,
@@ -174,7 +197,7 @@ impl<'a> Build<'a> {
         }
 
         if options.link_checks {
-            unit.link(self.context, diagnostics);
+            unit.link(context, diagnostics);
 
             if diagnostics.has_error() {
                 return Err(BuildError);

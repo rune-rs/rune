@@ -470,7 +470,8 @@ fn load_path(
             let mut test_finder = visitor::FunctionVisitor::new(attribute);
             let mut source_loader = FileSourceLoader::new();
 
-            let result = rune::prepare(&context, &mut sources)
+            let result = rune::prepare(&mut sources)
+                .with_context(&context)
                 .with_diagnostics(&mut diagnostics)
                 .with_options(options)
                 .with_visitor(&mut test_finder)
@@ -533,7 +534,8 @@ async fn run_path(args: &Args, options: &Options, path: &Path) -> Result<ExitCod
             let mut test_finder = visitor::FunctionVisitor::new(visitor::Attribute::None);
             let mut source_loader = FileSourceLoader::new();
 
-            let _ = rune::prepare(&context, &mut sources)
+            let _ = rune::prepare(&mut sources)
+                .with_context(&context)
                 .with_diagnostics(&mut diagnostics)
                 .with_options(options)
                 .with_visitor(&mut test_finder)

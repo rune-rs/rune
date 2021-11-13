@@ -1,6 +1,6 @@
 use rune::runtime::{VmError, VmErrorKind};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Any, Context, ContextError, Diagnostics, Module, Source, Sources, Vm};
+use rune::{Any, ContextError, Diagnostics, Module, Vm};
 use std::sync::Arc;
 
 #[derive(Any)]
@@ -24,19 +24,22 @@ impl External {
 fn main() -> rune::Result<()> {
     let m = module()?;
 
-    let mut context = Context::default();
+    let mut context = rune_modules::default_context()?;
     context.install(&m)?;
     let runtime = Arc::new(context.runtime());
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "test",
-        r#"pub fn main(external) { external.value += 1; }"#,
-    ));
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn main(e) {
+                e.value += 1;
+            }
+        }
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

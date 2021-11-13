@@ -94,6 +94,13 @@ impl Vm {
         }
     }
 
+    /// Construct a vm with a default empty [RuntimeContext]. This is useful
+    /// when the [Unit] was constructed with an empty
+    /// [Context][crate::compile::Context].
+    pub fn without_runtime(unit: Arc<Unit>) -> Self {
+        Self::new(Default::default(), unit)
+    }
+
     /// Run the given vm to completion.
     ///
     /// If any async instructions are encountered, this will error.

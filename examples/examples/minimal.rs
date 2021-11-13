@@ -1,23 +1,22 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Context, Diagnostics, FromValue, Source, Sources, Vm};
+use rune::{Diagnostics, FromValue, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
-    let context = Context::with_default_modules()?;
-    let mut sources = Sources::new();
+    let context = rune_modules::default_context()?;
 
-    sources.insert(Source::new(
-        "test",
-        r#"
-        pub fn main(number) {
-            number + 10
+    let mut sources = rune::sources!(
+        entry => {
+            pub fn main(number) {
+                number + 10
+            }
         }
-        "#,
-    ));
+    );
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

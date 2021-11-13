@@ -22,14 +22,13 @@ pub use rune_macros::FromValue;
 /// }
 ///
 /// # fn main() -> rune::Result<()> {
-/// let context = Context::with_default_modules()?;
+/// let mut sources = rune::sources!(entry => {
+///     pub fn main() { #{field: 42} }
+/// });
 ///
-/// let mut sources = Sources::new();
-/// sources.insert(Source::new("entry", "pub fn main() { #{field: 42} }"));
+/// let unit = rune::prepare(&mut sources).build()?;
 ///
-/// let unit = rune::prepare(&context, &mut sources).build()?;
-///
-/// let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(&["main"], ())?;
 /// let foo = Foo::from_value(foo)?;
 ///

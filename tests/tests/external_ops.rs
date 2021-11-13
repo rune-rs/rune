@@ -53,10 +53,9 @@ fn test_external_ops() -> rune::Result<()> {
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
             ));
 
-            let unit = rune::prepare(
-                &context,
-                &mut sources,
-            ).build()?;
+            let unit = rune::prepare(&mut sources)
+                .with_context(&context)
+                .build()?;
 
             let unit = Arc::new(unit);
 

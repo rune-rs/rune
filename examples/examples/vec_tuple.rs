@@ -1,27 +1,26 @@
 use rune::runtime::VecTuple;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, FromValue, Source, Sources, Vm};
+use rune::{Diagnostics, FromValue, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
     let context = rune_modules::default_context()?;
     let runtime = Arc::new(context.runtime());
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "test",
-        r#"
-        pub fn calc(input) {
-            let a = input[0] + 1;
-            let b = `${input[1]} World`;
-            [a, b]
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn calc(input) {
+                let a = input[0] + 1;
+                let b = format!("{} World", input[1]);
+                [a, b]
+            }
         }
-        "#,
-    ));
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

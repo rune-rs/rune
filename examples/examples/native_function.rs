@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{ContextError, Diagnostics, FromValue, Module, Source, Sources, Vm};
+use rune::{ContextError, Diagnostics, FromValue, Module, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
@@ -10,12 +10,18 @@ fn main() -> rune::Result<()> {
 
     let runtime = Arc::new(context.runtime());
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new("test", r#"pub fn main(a) { add(a) }"#));
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn main(a) {
+                add(a)
+            }
+        }
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

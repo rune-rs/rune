@@ -42,7 +42,8 @@ fn internal_compile_source(
 ) -> Result<(Unit, Diagnostics), Diagnostics> {
     let mut diagnostics = Diagnostics::new();
 
-    let unit = match rune::prepare(context, sources)
+    let unit = match rune::prepare(sources)
+        .with_context(context)
         .with_diagnostics(&mut diagnostics)
         .build()
     {
@@ -210,7 +211,8 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

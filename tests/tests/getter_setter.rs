@@ -1,4 +1,4 @@
-use rune::{Any, Context, Module, Source, Sources, Value, Vm};
+use rune::{Any, Module, Value, Vm};
 use rune_tests::*;
 use std::sync::Arc;
 
@@ -15,21 +15,21 @@ fn test_getter_setter() -> rune::Result<()> {
     let mut module = Module::new();
     module.ty::<Foo>()?;
 
-    let mut context = Context::with_default_modules()?;
+    let mut context = rune_modules::default_context()?;
     context.install(&module)?;
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "test",
-        r#"
-        pub fn main(foo) {
-            foo.number = foo.number + 1;
-            foo.string = `${foo.string} World`;
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn main(foo) {
+                foo.number = foo.number + 1;
+                foo.string = format!("{} World", foo.string);
+            }
         }
-        "#,
-    ));
+    };
 
-    let unit = rune::prepare(&context, &mut sources).build()?;
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
