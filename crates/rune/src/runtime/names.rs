@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::{Component, ComponentRef, IntoComponent};
+use crate::compile::{Component, ComponentRef, IntoComponent};
 use std::mem;
 
 /// A tree of names.

@@ -45,11 +45,12 @@
 //! [Rune Language]: https://rune-rs.github.io
 
 use anyhow::Context;
+use rune::ast::Spanned;
 use rune::compile::LinkerError;
-use rune::diagnostics::{Diagnostic, DumpInstructions, FatalDiagnosticKind};
+use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::runtime::budget;
 use rune::runtime::Value;
-use rune::{ContextError, EmitDiagnostics, Options, Spanned};
+use rune::{ContextError, Options};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
@@ -311,7 +312,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
     let mut writer = rune::termcolor::Buffer::no_color();
 
     if !config.suppress_text_warnings {
-        d.emit_diagnostics(&mut writer, &sources)
+        d.emit(&mut writer, &sources)
             .context("emitting to buffer should never fail")?;
     }
 
@@ -329,7 +330,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
 
     let instructions = if config.instructions {
         let mut out = rune::termcolor::Buffer::no_color();
-        unit.dump_instructions(&mut out, &sources, false)
+        unit.emit_instructions(&mut out, &sources, false)
             .expect("dumping to string shouldn't fail");
         Some(diagnostics_output(out).context("converting instructions to UTF-8")?)
     } else {
@@ -342,7 +343,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
         Ok(execution) => execution,
         Err(error) => {
             error
-                .emit_diagnostics(&mut writer, &sources)
+                .emit(&mut writer, &sources)
                 .context("emitting to buffer should never fail")?;
 
             return Ok(WasmCompileResult::from_error(
@@ -389,7 +390,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
             }
 
             error
-                .emit_diagnostics(&mut writer, &sources)
+                .emit(&mut writer, &sources)
                 .context("emitting to buffer should never fail")?;
 
             return Ok(WasmCompileResult::from_error(

@@ -1,9 +1,9 @@
 /// Indexing for local declarations.
 use crate::ast;
+use crate::ast::Spanned;
 use crate::compile::CompileResult;
 use crate::indexing::Indexer;
 use crate::parse::Resolve;
-use crate::Spanned;
 
 pub(crate) trait IndexLocal {
     /// Walk the current type with the given item.

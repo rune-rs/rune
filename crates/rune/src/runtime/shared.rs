@@ -44,7 +44,8 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Shared;
+    /// use rune::runtime::Shared;
+    ///
     /// let shared = Shared::new(1u32);
     /// assert!(shared.is_readable());
     ///
@@ -64,7 +65,8 @@ impl<T> Shared<T> {
     /// # Taking inner value
     ///
     /// ```rust
-    /// use rune::Shared;
+    /// use rune::runtime::Shared;
+    ///
     /// let shared = Shared::new(1u32);
     /// let shared2 = shared.clone();
     /// assert!(shared.is_readable());
@@ -83,7 +85,8 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Shared;
+    /// use rune::runtime::Shared;
+    ///
     /// let shared = Shared::new(1u32);
     /// assert!(shared.is_writable());
     ///
@@ -108,7 +111,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Shared;
+    /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
     /// struct Foo {
@@ -160,7 +163,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Shared;
+    /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
     /// struct Foo {
@@ -220,7 +223,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Shared;
+    /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
     /// struct Foo {
@@ -278,7 +281,7 @@ impl<T: ?Sized> Shared<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Shared;
+    /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
     /// struct Foo {
@@ -321,7 +324,7 @@ impl<T: ?Sized> Shared<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Shared;
+    /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
     /// struct Foo {
@@ -365,7 +368,8 @@ impl Shared<AnyObj> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Any, Shared};
+    /// use rune::Any;
+    /// use rune::runtime::Shared;
     ///
     /// #[derive(Any)]
     /// struct Thing(u32);
@@ -400,7 +404,8 @@ impl Shared<AnyObj> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Any, Shared};
+    /// use rune::Any;
+    /// use rune::runtime::Shared;
     ///
     /// #[derive(Any)]
     /// struct Thing(u32);
@@ -887,7 +892,7 @@ impl<T: ?Sized> Ref<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Ref, Shared};
+    /// use rune::runtime::{Shared, Ref};
     ///
     /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
@@ -922,7 +927,7 @@ impl<T: ?Sized> Ref<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Ref, Shared};
+    /// use rune::runtime::{Shared, Ref};
     ///
     /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
@@ -1008,7 +1013,7 @@ impl<T: ?Sized> Mut<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Mut, Shared};
+    /// use rune::runtime::{Mut, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
@@ -1046,7 +1051,7 @@ impl<T: ?Sized> Mut<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Mut, Shared};
+    /// use rune::runtime::{Mut, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);

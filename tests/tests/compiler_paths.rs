@@ -1,6 +1,6 @@
 use rune::compile::CompileErrorKind::*;
 use rune::query::QueryErrorKind::*;
-use rune::Span;
+use rune::span;
 use rune_tests::*;
 
 #[test]
@@ -64,14 +64,14 @@ fn test_unsupported_leading_path() {
     assert_compile_error! {
         r#"use foo::crate::bar;"#,
         span, ExpectedLeadingPathSegment => {
-            assert_eq!(span, Span::new(9, 14));
+            assert_eq!(span, span!(9, 14));
         }
     };
 
     assert_compile_error! {
         r#"use foo::{bar::crate, baz};"#,
         span, ExpectedLeadingPathSegment => {
-            assert_eq!(span, Span::new(15, 20));
+            assert_eq!(span, span!(15, 20));
         }
     };
 }
@@ -81,7 +81,7 @@ fn test_import_conflict() {
     assert_errors! {
         r#"use std::{option, option};"#,
         span, QueryError(AmbiguousItem { .. }) => {
-            assert_eq!(span, Span::new(10, 16));
+            assert_eq!(span, span!(10, 16));
         }
     };
 }

@@ -1,7 +1,6 @@
 //! AST for the Rune language.
 
 use crate::parse::{Parse, ParseError, Parser, Peek};
-use crate::{Span, Spanned};
 
 #[macro_use]
 /// Generated modules.
@@ -94,6 +93,9 @@ mod macro_call;
 mod pat;
 mod path;
 mod prelude;
+mod span;
+mod spanned;
+mod spanned_error;
 mod stmt;
 mod token;
 pub(super) mod utils;
@@ -156,6 +158,10 @@ pub use self::local::Local;
 pub use self::macro_call::MacroCall;
 pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVec};
 pub use self::path::{Path, PathKind, PathSegment};
+pub use self::span::{ByteIndex, IntoByteIndex, Span};
+pub use self::spanned::{OptionSpanned, Spanned};
+pub use self::spanned_error::SpannedError;
+pub(crate) use self::spanned_error::WithSpan;
 pub use self::stmt::{ItemOrExpr, Stmt, StmtSortKey};
 pub use self::token::{
     BuiltIn, CopySource, Delimiter, Number, NumberBase, NumberSource, NumberText, StrSource,

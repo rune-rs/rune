@@ -1,7 +1,7 @@
-use crate::ast::{Kind, Token};
+use crate::ast::{Kind, OptionSpanned, Span, Token};
 use crate::macros::{TokenStream, TokenStreamIter};
 use crate::parse::{Lexer, Parse, ParseError, ParseErrorKind, Peek};
-use crate::{OptionSpanned, SourceId, Span};
+use crate::SourceId;
 use std::collections::VecDeque;
 use std::fmt;
 use std::ops;

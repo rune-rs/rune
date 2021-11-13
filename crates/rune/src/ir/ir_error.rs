@@ -1,10 +1,10 @@
+use crate::ast::{Spanned, SpannedError};
 use crate::ir::IrValue;
 use crate::meta::CompileMeta;
 use crate::parse::{ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::{ScopeError, ScopeErrorKind};
-use crate::{Spanned, SpannedError};
 use thiserror::Error;
 
 error! {

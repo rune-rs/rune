@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Context, Diagnostics, EmitDiagnostics, FromValue, Source, Sources, Vm};
+use rune::{Context, Diagnostics, FromValue, Source, Sources, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
@@ -23,7 +23,7 @@ fn main() -> rune::Result<()> {
 
     if !diagnostics.is_empty() {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+        diagnostics.emit(&mut writer, &sources)?;
     }
 
     let unit = result?;

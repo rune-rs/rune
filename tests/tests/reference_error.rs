@@ -1,6 +1,6 @@
-use rune::runtime::AnyObj;
+use rune::runtime::{AnyObj, Shared, VmError};
 use rune::Any;
-use rune::{Context, Module, Shared, Source, Sources, Vm, VmError};
+use rune::{Context, Module, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[test]

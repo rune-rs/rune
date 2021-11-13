@@ -15,8 +15,8 @@ An embeddable dynamic programming language for Rust.
 """
 
 [features]
-default = ["diagnostics"]
-diagnostics = ["codespan-reporting"]
+default = ["emit"]
+emit = ["codespan-reporting"]
 bench = []
 
 [dependencies]
@@ -50,3 +50,4 @@ checkers = "0.6.0"
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

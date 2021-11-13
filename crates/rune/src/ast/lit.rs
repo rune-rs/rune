@@ -48,7 +48,7 @@ impl Lit {
     ///
     /// ```rust
     /// use rune::ast;
-    /// use rune::Span;
+    /// use rune::ast::Span;
     /// use rune::macros::Storage;
     ///
     /// let mut storage = Storage::default();

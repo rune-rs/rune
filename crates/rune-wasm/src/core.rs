@@ -1,4 +1,5 @@
-use rune::{ContextError, Module, Panic, Stack, Value, VmError};
+use rune::runtime::VmError;
+use rune::{ContextError, Module, Panic, Stack, Value};
 use std::io::Write;
 
 /// Provide a bunch of `std` functions which does something appropriate to the

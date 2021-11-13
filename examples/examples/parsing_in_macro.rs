@@ -2,7 +2,7 @@ use rune::macros::quote;
 use rune::parse::Parser;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ast, ContextError};
-use rune::{Diagnostics, EmitDiagnostics, FromValue, Module, Source, Sources, Vm};
+use rune::{Diagnostics, FromValue, Module, Source, Sources, Vm};
 use std::sync::Arc;
 
 pub fn main() -> rune::Result<()> {
@@ -32,7 +32,7 @@ pub fn main() -> rune::Result<()> {
 
     if !diagnostics.is_empty() {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+        diagnostics.emit(&mut writer, &sources)?;
     }
 
     let unit = result?;

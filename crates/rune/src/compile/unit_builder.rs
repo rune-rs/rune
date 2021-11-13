@@ -3,8 +3,11 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
+use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::{Assembly, AssemblyInst, CompileError, CompileErrorKind};
+use crate::compile::{
+    Assembly, AssemblyInst, CompileError, CompileErrorKind, IntoComponent, Item, Location,
+};
 use crate::meta::{CompileMeta, CompileMetaKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
@@ -12,7 +15,7 @@ use crate::runtime::{
     Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Rtti, StaticString, Unit, UnitFn,
     VariantRtti,
 };
-use crate::{Context, Diagnostics, Hash, IntoComponent, Item, Location, Protocol, SourceId, Span};
+use crate::{Context, Diagnostics, Hash, Protocol, SourceId};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -731,7 +734,7 @@ impl UnitBuilder {
             label: Label,
             labels: &HashMap<Label, usize>,
         ) -> Result<isize, CompileError> {
-            use std::convert::TryFrom as _;
+            use std::convert::TryFrom;
 
             let offset = labels
                 .get(&label)

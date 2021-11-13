@@ -1,4 +1,4 @@
-use rune::VmErrorKind::*;
+use rune::runtime::VmErrorKind::*;
 use rune_tests::*;
 
 #[test]

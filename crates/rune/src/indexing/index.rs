@@ -1,7 +1,11 @@
 use crate::ast;
+use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::attrs;
 use crate::collections::HashMap;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, Options, SourceLoader};
+use crate::compile::{
+    CompileError, CompileErrorKind, CompileResult, Item, Location, Options, SourceLoader,
+    Visibility,
+};
 use crate::indexing::{IndexFnKind, IndexLocal, IndexScopes};
 use crate::macros::MacroCompiler;
 use crate::meta::{CompileMeta, CompileMetaKind, CompileMod, CompileSource};
@@ -14,9 +18,7 @@ use crate::runtime::format;
 use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
-use crate::{
-    Context, Diagnostics, Hash, Item, Location, OptionSpanned, SourceId, Span, Spanned, Visibility,
-};
+use crate::{Context, Diagnostics, Hash, SourceId};
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
@@ -36,7 +38,7 @@ pub(crate) struct Indexer<'a, 'q> {
     pub(crate) options: &'a Options,
     pub(crate) source_id: SourceId,
     pub(crate) diagnostics: &'a mut Diagnostics,
-    pub(crate) items: Items,
+    pub(crate) items: Items<'a>,
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
     pub(crate) mod_item: Arc<CompileMod>,

@@ -1,10 +1,11 @@
 use crate::ast;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult};
+use crate::ast::Spanned;
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, Visibility};
 use crate::meta::CompileMod;
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
-use crate::{Context, Item, SourceId, Spanned, Visibility};
+use crate::{Context, SourceId};
 use std::collections::VecDeque;
 use std::sync::Arc;
 

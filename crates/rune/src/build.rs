@@ -1,7 +1,8 @@
+use crate::ast::Span;
 use crate::compile;
 use crate::compile::{CompileVisitor, FileSourceLoader, NoopCompileVisitor, Options, SourceLoader};
 use crate::runtime::Unit;
-use crate::{Context, Diagnostics, SourceId, Sources, Span};
+use crate::{Context, Diagnostics, SourceId, Sources};
 use thiserror::Error;
 
 /// Error raised when we failed to load sources.
@@ -23,7 +24,7 @@ pub struct BuildError;
 ///
 /// ```rust
 /// use rune::termcolor::{ColorChoice, StandardStream};
-/// use rune::{Context, EmitDiagnostics, Options, Source, Vm};
+/// use rune::{Context, Options, Source, Vm};
 /// use std::sync::Arc;
 ///
 /// # fn main() -> rune::Result<()> {
@@ -45,7 +46,7 @@ pub struct BuildError;
 ///
 /// if !diagnostics.is_empty() {
 ///     let mut writer = StandardStream::stderr(ColorChoice::Always);
-///     diagnostics.emit_diagnostics(&mut writer, &sources)?;
+///     diagnostics.emit(&mut writer, &sources)?;
 /// }
 ///
 /// let unit = result?;

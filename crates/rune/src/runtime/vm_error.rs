@@ -1,8 +1,9 @@
+use crate::compile::Item;
 use crate::runtime::panic::BoxedPanic;
 use crate::runtime::{
     AccessError, CallFrame, Key, Panic, StackError, TypeInfo, TypeOf, Unit, Value, VmHaltInfo,
 };
-use crate::{Hash, Item, Protocol};
+use crate::{Hash, Protocol};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;

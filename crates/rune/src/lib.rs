@@ -97,8 +97,8 @@
 //! [`termcolor`]: https://docs.rs/termcolor
 //!
 //! ```rust
+//! use rune::{Context, Diagnostics, FromValue, Source, Sources, Vm};
 //! use rune::termcolor::{ColorChoice, StandardStream};
-//! use rune::{Diagnostics, EmitDiagnostics, Context, Options, Sources, Vm, FromValue, Item, Source};
 //! use std::sync::Arc;
 //!
 //! #[tokio::main]
@@ -124,7 +124,7 @@
 //!
 //!     if !diagnostics.is_empty() {
 //!         let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!         diagnostics.emit_diagnostics(&mut writer, &sources)?;
+//!         diagnostics.emit(&mut writer, &sources)?;
 //!     }
 //!
 //!     let unit = result?;
@@ -157,6 +157,7 @@
 //! [support-serde]: https://github.com/rune-rs/rune/blob/main/crates/rune-modules/src/json.rs
 
 #![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::needless_doctest_main)]
 #![allow(clippy::never_loop)]
@@ -166,36 +167,46 @@
 #![allow(clippy::result_unit_err)]
 #![allow(clippy::match_like_matches_macro)]
 #![allow(clippy::type_complexity)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
-/// A macro that can be used to construct a [Span] that can be pattern matched
-/// over.
+/// A macro that can be used to construct a [Span][crate::ast::Span] that can be
+/// pattern matched over.
 ///
 /// # Examples
 ///
 /// ```
-/// let span = rune::Span::new(42, 84);
-/// assert!(matches!(span, rune::span!(42, 84)));
+/// use rune::ast::Span;
+/// use rune::span;
+///
+/// let span = Span::new(42, 84);
+/// assert!(matches!(span, span!(42, 84)));
 /// ```
 #[macro_export]
 macro_rules! span {
     ($start:expr, $end:expr) => {
-        $crate::Span {
-            start: $crate::ByteIndex($start),
-            end: $crate::ByteIndex($end),
+        $crate::ast::Span {
+            start: $crate::ast::ByteIndex($start),
+            end: $crate::ast::ByteIndex($end),
         }
     };
 }
 
-/// Exported result type for convenience.
-pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
+/// Exported result type for convenience using [anyhow::Error] as the default
+/// error type.
+pub type Result<T, E = anyhow::Error> = ::std::result::Result<T, E>;
 
-/// Exported boxed error type for convenience.
+/// Boxed error type, which is an alias of [anyhow::Error].
 pub type Error = anyhow::Error;
 
 #[macro_use]
 mod internal_macros;
+
 #[macro_use]
 pub mod ast;
+
+cfg_emit! {
+    pub use ::codespan_reporting::term::termcolor;
+}
 
 mod any;
 pub use self::any::Any;
@@ -212,25 +223,13 @@ pub use self::compile::{Context, ContextError, InstallWith, Module, Options};
 pub mod diagnostics;
 #[doc(inline)]
 pub use self::diagnostics::Diagnostics;
-#[cfg(feature = "diagnostics")]
-#[doc(inline)]
-pub use self::diagnostics::EmitDiagnostics;
 
 mod hash;
 pub use self::hash::{Hash, InstFnNameHash, IntoTypeHash};
 
-mod id;
-pub use self::id::Id;
-
 mod indexing;
 
 pub mod ir;
-
-mod item;
-pub use self::item::{Component, ComponentRef, IntoComponent, Item};
-
-mod location;
-pub use self::location::Location;
 
 pub mod macros;
 
@@ -243,11 +242,7 @@ pub mod parse;
 pub mod query;
 
 pub mod runtime;
-pub use self::runtime::{
-    Args, BorrowMut, BorrowRef, FromValue, GuardedArgs, Mut, Panic, Protocol, RawStr, Ref,
-    RuntimeContext, Shared, Stack, StackError, ToValue, Unit, UnsafeFromValue, UnsafeToValue,
-    Value, Vm, VmError, VmErrorKind, VmExecution,
-};
+pub use self::runtime::{FromValue, Panic, Protocol, Stack, ToValue, Unit, Value, Vm};
 
 mod shared;
 
@@ -259,22 +254,6 @@ pub use self::source_id::SourceId;
 
 mod sources;
 pub use self::sources::Sources;
-
-mod span;
-pub use self::span::{ByteIndex, IntoByteIndex, Span};
-
-mod spanned;
-pub use self::spanned::{OptionSpanned, Spanned};
-
-mod spanned_error;
-pub use self::spanned_error::SpannedError;
-pub(crate) use self::spanned_error::WithSpan;
-
-#[cfg(feature = "diagnostics")]
-pub use codespan_reporting::term::termcolor;
-
-mod visibility;
-pub(crate) use self::visibility::Visibility;
 
 mod worker;
 

@@ -2,9 +2,12 @@
 //! of what's being used and not.
 
 use crate::ast;
+use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
-use crate::compile::{CompileError, CompileErrorKind, CompileVisitor};
-use crate::compile::{ImportStep, UnitBuilder};
+use crate::compile::{
+    CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ImportStep, IntoComponent, Item,
+    Location, UnitBuilder, Visibility,
+};
 use crate::ir;
 use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter};
 use crate::macros::Storage;
@@ -12,14 +15,11 @@ use crate::meta::{
     CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
     CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource,
 };
-use crate::parse::{Opaque, Resolve};
+use crate::parse::{Id, Opaque, Resolve};
 use crate::runtime::format;
 use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
-use crate::{
-    ComponentRef, Context, Hash, Id, IntoComponent, Item, Location, SourceId, Sources, Span,
-    Spanned, Visibility,
-};
+use crate::{Context, Hash, SourceId, Sources};
 use std::collections::VecDeque;
 use std::fmt;
 use std::num::NonZeroUsize;
@@ -89,14 +89,14 @@ pub(crate) struct Query<'a> {
     pub(crate) sources: &'a mut Sources,
     /// Visitor for the compiler meta.
     pub(crate) visitor: &'a mut dyn CompileVisitor,
+    /// Shared id generator.
+    gen: &'a Gen,
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<Item, CompileMeta>,
     /// Macro storage.
     pub(crate) storage: Storage,
     /// Cache of constants that have been expanded.
     pub(crate) consts: Consts,
-    /// Shared id generator.
-    gen: Gen,
     /// Build queue.
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
@@ -126,16 +126,16 @@ impl<'a> Query<'a> {
         unit: &'a mut UnitBuilder,
         sources: &'a mut Sources,
         visitor: &'a mut dyn CompileVisitor,
-        gen: Gen,
+        gen: &'a Gen,
     ) -> Self {
         Self {
             unit,
             sources,
             visitor,
+            gen,
             meta: HashMap::new(),
             storage: Storage::new(),
             consts: Consts::default(),
-            gen,
             queue: VecDeque::new(),
             indexed: HashMap::new(),
             const_fns: HashMap::new(),

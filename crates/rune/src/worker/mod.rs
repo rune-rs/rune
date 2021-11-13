@@ -1,12 +1,13 @@
 //! Worker used by compiler.
 
 use crate::ast;
+use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::{CompileVisitor, Options, SourceLoader, UnitBuilder};
+use crate::compile::{CompileVisitor, Item, Options, SourceLoader, UnitBuilder};
 use crate::indexing::{Index, IndexScopes, Indexer};
 use crate::query::Query;
 use crate::shared::{Gen, Items};
-use crate::{Context, Diagnostics, Item, SourceId, Sources, Span};
+use crate::{Context, Diagnostics, SourceId, Sources};
 use std::collections::VecDeque;
 
 mod import;
@@ -25,7 +26,7 @@ pub(crate) struct Worker<'a> {
     /// Query engine.
     pub(crate) q: Query<'a>,
     /// Id generator.
-    pub(crate) gen: Gen,
+    pub(crate) gen: &'a Gen,
     /// Files that have been loaded.
     pub(crate) loaded: HashMap<Item, (SourceId, Span)>,
     /// Worker queue.
@@ -42,14 +43,14 @@ impl<'a> Worker<'a> {
         diagnostics: &'a mut Diagnostics,
         visitor: &'a mut dyn CompileVisitor,
         source_loader: &'a mut dyn SourceLoader,
-        gen: Gen,
+        gen: &'a Gen,
     ) -> Self {
         Self {
             context,
             options,
             diagnostics,
             source_loader,
-            q: Query::new(unit, sources, visitor, gen.clone()),
+            q: Query::new(unit, sources, visitor, gen),
             gen,
             loaded: HashMap::new(),
             queue: VecDeque::new(),
@@ -95,7 +96,7 @@ impl<'a> Worker<'a> {
                     };
 
                     log::trace!("index: {}", mod_item.item);
-                    let items = Items::new(mod_item.item.clone(), self.gen.clone());
+                    let items = Items::new(mod_item.item.clone(), self.gen);
 
                     let mut indexer = Indexer {
                         root,

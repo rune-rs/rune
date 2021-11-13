@@ -1,5 +1,5 @@
 use rune::parse::ParseErrorKind::*;
-use rune::Span;
+use rune::span;
 use rune_tests::*;
 
 #[test]
@@ -7,7 +7,7 @@ fn test_binary_exprs() {
     assert_parse_error! {
         r#"pub fn main() { 0 < 10 >= 10 }"#,
         span, PrecedenceGroupRequired => {
-            assert_eq!(span, Span::new(16, 22));
+            assert_eq!(span, span!(16, 22));
         }
     };
 

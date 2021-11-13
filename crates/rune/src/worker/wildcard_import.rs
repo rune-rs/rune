@@ -1,7 +1,8 @@
-use crate::compile::{CompileError, CompileErrorKind, CompileResult};
+use crate::ast::Span;
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, Visibility};
 use crate::meta::CompileMod;
 use crate::query::Query;
-use crate::{Context, Item, SourceId, Span, Visibility};
+use crate::{Context, SourceId};
 use std::sync::Arc;
 
 #[derive(Debug)]

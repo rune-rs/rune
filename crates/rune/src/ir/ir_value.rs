@@ -1,8 +1,8 @@
+use crate::ast::Spanned;
 use crate::collections::HashMap;
 use crate::ir::{IrError, IrErrorKind};
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
-use crate::Spanned;
 use std::convert::TryFrom;
 
 /// A constant value.

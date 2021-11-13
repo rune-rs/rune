@@ -1,4 +1,5 @@
-use crate::{Hash, InstFnNameHash, IntoTypeHash, Item};
+use crate::compile::Item;
+use crate::{Hash, InstFnNameHash, IntoTypeHash};
 use std::cmp;
 use std::fmt;
 use std::hash;

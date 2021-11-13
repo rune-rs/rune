@@ -1,6 +1,6 @@
 use crate::ast;
+use crate::ast::{OptionSpanned, Span};
 use crate::macros::MacroContext;
-use crate::{OptionSpanned, Span};
 use std::fmt;
 use std::slice;
 

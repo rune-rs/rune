@@ -1,6 +1,7 @@
 //! Context for a macro.
 
 use crate::ast;
+use crate::ast::{Span, Spanned};
 use crate::compile::{NoopCompileVisitor, UnitBuilder};
 use crate::ir::IrError;
 use crate::ir::{
@@ -11,7 +12,7 @@ use crate::meta::CompileItem;
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
 use crate::query::{Query, Used};
 use crate::shared::Gen;
-use crate::{Source, SourceId, Sources, Span, Spanned};
+use crate::{Source, SourceId, Sources};
 use std::fmt;
 use std::sync::Arc;
 
@@ -47,7 +48,7 @@ impl<'a, 'q> MacroContext<'a, 'q> {
         let mut sources = Sources::default();
         let mut visitor = NoopCompileVisitor::new();
 
-        let mut query = Query::new(&mut unit, &mut sources, &mut visitor, gen);
+        let mut query = Query::new(&mut unit, &mut sources, &mut visitor, &gen);
 
         let mut ctx = MacroContext {
             macro_span: Span::empty(),

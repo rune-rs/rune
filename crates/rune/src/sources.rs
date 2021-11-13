@@ -1,4 +1,5 @@
-use crate::{Source, SourceId, Span};
+use crate::ast::Span;
+use crate::{Source, SourceId};
 #[cfg(feature = "codespan-reporting")]
 use codespan_reporting::files;
 use std::convert::TryFrom;

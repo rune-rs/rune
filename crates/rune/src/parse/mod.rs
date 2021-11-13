@@ -1,5 +1,6 @@
 //! Parsing utilities for Rune.
 
+mod id;
 mod lexer;
 mod opaque;
 mod parse;
@@ -8,6 +9,7 @@ mod parser;
 mod peek;
 mod resolve;
 
+pub(crate) use self::id::Id;
 pub use self::lexer::{Lexer, LexerMode};
 pub(crate) use self::opaque::Opaque;
 pub use self::parse::Parse;

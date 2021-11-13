@@ -1,5 +1,5 @@
+use rune::runtime::VmErrorKind::*;
 use rune::FromValue;
-use rune::VmErrorKind::*;
 use rune_tests::*;
 
 #[test]

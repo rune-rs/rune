@@ -1,5 +1,5 @@
 use rune::compile::CompileErrorKind::*;
-use rune::Span;
+use rune::span;
 use rune_tests::*;
 
 #[test]
@@ -18,8 +18,8 @@ fn test_closure_moved() {
         }
         "#,
         span, VariableMoved { moved_at } => {
-            assert_eq!(span, Span::new(161, 162));
-            assert_eq!(moved_at, Span::new(69, 138));
+            assert_eq!(span, span!(161, 162));
+            assert_eq!(moved_at, span!(69, 138));
         }
     )
 }
@@ -40,8 +40,8 @@ fn test_async_moved() {
         }
         "#,
         span, VariableMoved { moved_at } => {
-            assert_eq!(span, Span::new(162, 163));
-            assert_eq!(moved_at, Span::new(75, 147));
+            assert_eq!(span, span!(162, 163));
+            assert_eq!(moved_at, span!(75, 147));
         }
     )
 }

@@ -1,10 +1,10 @@
 use crate::ast;
+use crate::ast::Spanned;
 use crate::ir;
 use crate::ir::{IrError, IrErrorKind};
 use crate::parse::Resolve;
 use crate::query::{BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::{Bytes, ConstValue};
-use crate::Spanned;
 
 /// A c that compiles AST into Rune IR.
 pub struct IrCompiler<'a, 'q> {

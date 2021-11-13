@@ -1,10 +1,11 @@
+use crate::ast::{Span, Spanned};
+use crate::compile::Item;
 use crate::ir;
 use crate::ir::eval::{IrEval, IrEvalOutcome};
 use crate::ir::{IrError, IrErrorKind, IrValue};
 use crate::meta::{CompileMetaKind, CompileMod};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
-use crate::{Item, Span, Spanned};
 use std::sync::Arc;
 
 /// Ir Scopes.

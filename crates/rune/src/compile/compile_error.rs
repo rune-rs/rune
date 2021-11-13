@@ -1,11 +1,13 @@
 use crate::ast;
+use crate::ast::{Span, Spanned, SpannedError};
+use crate::compile::{Item, Location};
 use crate::ir::{IrError, IrErrorKind};
 use crate::meta::CompileMeta;
 use crate::parse::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::Label;
-use crate::{Error, Hash, Item, Location, SourceId, Span, Spanned, SpannedError};
+use crate::{Error, Hash, SourceId};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;

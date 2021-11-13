@@ -1,6 +1,6 @@
 use rune::compile::CompileErrorKind::QueryError;
 use rune::query::QueryErrorKind::*;
-use rune::Span;
+use rune::span;
 use rune_tests::*;
 
 #[test]
@@ -20,7 +20,7 @@ fn test_import_cycle() {
         }             
         "#,
         span, QueryError { error: ImportCycle { .. } } => {
-            assert_eq!(span, Span::new(244, 247));
+            assert_eq!(span, span!(244, 247));
         }
     };
 
@@ -39,10 +39,10 @@ fn test_import_cycle() {
         }           
         "#,
         span, QueryError { error: ImportCycle { path, .. } } => {
-            assert_eq!(span, Span::new(177, 183));
+            assert_eq!(span, span!(177, 183));
             assert_eq!(3, path.len());
-            assert_eq!(Span::new(107, 120), path[0].location.span);
-            assert_eq!(Span::new(37, 50), path[1].location.span);
+            assert_eq!(span!(107, 120), path[0].location.span);
+            assert_eq!(span!(37, 50), path[1].location.span);
         }
     };
 }

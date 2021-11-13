@@ -10,7 +10,7 @@ macro_rules! error {
     ) => {
         $(#[$meta])*
         $vis struct $error_ty {
-            span: $crate::Span,
+            span: $crate::ast::Span,
             kind: Box<$kind>,
         }
 
@@ -18,11 +18,11 @@ macro_rules! error {
             /// Construct a new scope error.
             pub fn new<S, K>(spanned: S, kind: K) -> Self
             where
-                S: $crate::Spanned,
+                S: $crate::ast::Spanned,
                 $kind: From<K>,
             {
                 Self {
-                    span: $crate::Spanned::span(&spanned),
+                    span: $crate::ast::Spanned::span(&spanned),
                     kind: Box::new($kind::from(kind)),
                 }
             }
@@ -49,8 +49,8 @@ macro_rules! error {
             }
         }
 
-        impl $crate::Spanned for $error_ty {
-            fn span(&self) -> $crate::Span {
+        impl $crate::ast::Spanned for $error_ty {
+            fn span(&self) -> $crate::ast::Span {
                 self.span
             }
         }
@@ -142,4 +142,14 @@ macro_rules! repeat_macro {
             {P, p, 1},
         }
     };
+}
+
+macro_rules! cfg_emit {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "emit")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "emit")))]
+            $item
+        )*
+    }
 }
