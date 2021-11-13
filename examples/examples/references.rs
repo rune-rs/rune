@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Any, Context, Diagnostics, Module, Protocol, Source, Sources, Vm};
+use rune::{Any, Diagnostics, Module, Protocol, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
@@ -19,24 +19,23 @@ fn main() -> rune::Result<()> {
     module.ty::<Foo>()?;
     module.inst_fn(Protocol::ADD_ASSIGN, Foo::add_assign)?;
 
-    let mut context = Context::with_default_modules()?;
+    let mut context = rune_modules::default_context()?;
     context.install(&module)?;
 
     let runtime = Arc::new(context.runtime());
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "test",
-        r#"
-        pub fn main(number) {
-            number += 1;
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn main(number) {
+                number += 1;
+            }
         }
-        "#,
-    ));
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

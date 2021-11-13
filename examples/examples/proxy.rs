@@ -1,6 +1,6 @@
 use rune::runtime::{Mut, Ref};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Any, Context, Diagnostics, FromValue, Source, Sources, Vm};
+use rune::{Any, Context, Diagnostics, FromValue, Vm};
 use std::sync::Arc;
 
 #[derive(Any, Debug, Default)]
@@ -17,20 +17,19 @@ struct Proxy {
 
 fn main() -> rune::Result<()> {
     let context = Context::with_default_modules()?;
-    let mut sources = Sources::new();
 
-    sources.insert(Source::new(
-        "test",
-        r#"
-        pub fn passthrough(my_bytes) {
-            #{field: String::from_str("hello world"), my_bytes}
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn passthrough(my_bytes) {
+                #{field: String::from_str("hello world"), my_bytes}
+            }
         }
-        "#,
-    ));
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 

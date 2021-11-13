@@ -1,7 +1,7 @@
 use rune::ast;
 use rune::macros::quote;
 use rune::parse::Parser;
-use rune::{Context, FromValue, Module, Source, Sources, Vm};
+use rune::{Context, FromValue, Module, Vm};
 use std::sync::Arc;
 
 #[test]
@@ -30,20 +30,19 @@ fn test_parse_in_macro() -> rune::Result<()> {
     let mut context = Context::with_default_modules()?;
     context.install(&m)?;
 
-    let mut sources = Sources::new();
-
-    sources.insert(Source::new(
-        "test",
-        r#"
-        pub fn main() {
-            let a = string_as_code!();
-            let b = string_as_code_from_arg!("1 + 2 + 13 * 3");
-            (a, b)
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn main() {
+                let a = string_as_code!();
+                let b = string_as_code_from_arg!("1 + 2 + 13 * 3");
+                (a, b)
+            }
         }
-        "#,
-    ));
+    };
 
-    let unit = rune::prepare(&context, &mut sources).build()?;
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let output = vm.execute(&["main"], ())?.complete()?;

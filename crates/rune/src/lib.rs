@@ -118,7 +118,8 @@
 //!
 //!     let mut diagnostics = Diagnostics::new();
 //!
-//!     let result = rune::prepare(&context, &mut sources)
+//!     let result = rune::prepare(&mut sources)
+//!         .with_context(&context)
 //!         .with_diagnostics(&mut diagnostics)
 //!         .build();
 //!
@@ -252,6 +253,7 @@ pub use self::source::Source;
 mod source_id;
 pub use self::source_id::SourceId;
 
+#[macro_use]
 mod sources;
 pub use self::sources::Sources;
 

@@ -136,7 +136,8 @@ impl State {
             let mut diagnostics = rune::Diagnostics::new();
             let mut visitor = Visitor::new(Index::default());
 
-            let result = rune::prepare(&self.inner.context, &mut sources)
+            let result = rune::prepare(&mut sources)
+                .with_context(&self.inner.context)
                 .with_diagnostics(&mut diagnostics)
                 .with_options(&self.inner.options)
                 .with_visitor(&mut visitor)

@@ -23,10 +23,8 @@ pub(crate) type MacroHandler =
 pub struct RuntimeContext {
     /// Registered native function handlers.
     pub(crate) functions: HashMap<Hash, Arc<FunctionHandler>>,
-
     /// Registered types.
     pub(crate) types: HashMap<Hash, TypeCheck>,
-
     /// Named constant values
     pub(crate) constants: HashMap<Hash, ConstValue>,
 }

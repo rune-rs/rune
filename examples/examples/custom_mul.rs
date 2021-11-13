@@ -1,7 +1,7 @@
 //! This example showcases overloading the multiplication protocol for a
 //! specific type `Foo`.
 
-use rune::{Any, Context, Diagnostics, FromValue, Module, Protocol, Source, Sources, Vm};
+use rune::{Any, ContextError, Diagnostics, FromValue, Module, Protocol, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
@@ -18,28 +18,25 @@ impl Foo {
 }
 
 fn main() -> rune::Result<()> {
-    let mut context = Context::with_default_modules()?;
+    let m = module()?;
 
-    let mut module = Module::with_item(&["module"]);
-    module.ty::<Foo>()?;
-    module.inst_fn(Protocol::MUL, Foo::mul)?;
-    context.install(&module)?;
+    let mut context = rune_modules::default_context()?;
+    context.install(&m)?;
 
     let runtime = Arc::new(context.runtime());
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "test",
-        r#"
-        pub fn main(foo) {
-            foo * 5
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn main(foo) {
+                foo * 5
+            }
         }
-        "#,
-    ));
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let unit = rune::prepare(&context, &mut sources)
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build()?;
 
@@ -49,4 +46,11 @@ fn main() -> rune::Result<()> {
 
     println!("output: {:?}", output);
     Ok(())
+}
+
+fn module() -> Result<Module, ContextError> {
+    let mut m = Module::with_item(&["module"]);
+    m.ty::<Foo>()?;
+    m.inst_fn(Protocol::MUL, Foo::mul)?;
+    Ok(m)
 }

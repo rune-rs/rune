@@ -201,7 +201,8 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
     let mut d = rune::Diagnostics::new();
     let mut diagnostics = Vec::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut d)
         .with_options(&options)
         .build();

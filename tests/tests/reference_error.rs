@@ -1,6 +1,6 @@
 use rune::runtime::{AnyObj, Shared, VmError};
 use rune::Any;
-use rune::{Context, Module, Source, Sources, Vm};
+use rune::{Context, Module, Vm};
 use std::sync::Arc;
 
 #[test]
@@ -19,16 +19,18 @@ fn test_reference_error() -> rune::Result<()> {
     let mut module = Module::new();
     module.function(&["take_it"], take_it)?;
 
-    let mut context = Context::with_default_modules()?;
+    let mut context = Context::new();
     context.install(&module)?;
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "test",
-        r#"fn main(number) { take_it(number) }"#,
-    ));
+    let mut sources = rune::sources! {
+        entry => {
+            fn main(number) { take_it(number) }
+        }
+    };
 
-    let unit = rune::prepare(&context, &mut sources).build()?;
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 

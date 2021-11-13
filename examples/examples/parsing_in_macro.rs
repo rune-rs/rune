@@ -2,7 +2,7 @@ use rune::macros::quote;
 use rune::parse::Parser;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ast, ContextError};
-use rune::{Diagnostics, FromValue, Module, Source, Sources, Vm};
+use rune::{Diagnostics, FromValue, Module, Vm};
 use std::sync::Arc;
 
 pub fn main() -> rune::Result<()> {
@@ -12,21 +12,20 @@ pub fn main() -> rune::Result<()> {
     context.install(&m)?;
     let runtime = Arc::new(context.runtime());
 
-    let mut sources = Sources::new();
-    sources.insert(Source::new(
-        "test",
-        r#"
-        pub fn main() {
-            let a = string_as_code!();
-            let b = string_as_code_from_arg!("1 + 2 + 13 * 3");
-            (a, b)
+    let mut sources = rune::sources! {
+        entry => {
+            pub fn main() {
+                let a = string_as_code!();
+                let b = string_as_code_from_arg!("1 + 2 + 13 * 3");
+                (a, b)
+            }
         }
-        "#,
-    ));
+    };
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::prepare(&context, &mut sources)
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .build();
 
