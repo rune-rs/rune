@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1636791656232,
+  "lastUpdate": 1636798317053,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -7816,6 +7816,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4754946,
             "range": "± 605415",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "d62a9d66183de6749d45e1eeaacf456451774644",
+          "message": "Hide more things from the top-level API",
+          "timestamp": "2021-11-13T11:03:33+01:00",
+          "tree_id": "ece427a71982fd375fed2cdbf199663660ff90e2",
+          "url": "https://github.com/rune-rs/rune/commit/d62a9d66183de6749d45e1eeaacf456451774644"
+        },
+        "date": 1636798316443,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 446214566,
+            "range": "± 17761309",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 261053369,
+            "range": "± 5404331",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 297118,
+            "range": "± 17053",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 926771,
+            "range": "± 64102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 79007200,
+            "range": "± 3290019",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1324505,
+            "range": "± 87719",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 14204414,
+            "range": "± 1311740",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 12528829,
+            "range": "± 813188",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 447347,
+            "range": "± 30445",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5021675,
+            "range": "± 328158",
             "unit": "ns/iter"
           }
         ]
