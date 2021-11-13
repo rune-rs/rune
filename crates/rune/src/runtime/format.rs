@@ -1,11 +1,12 @@
 //! Types for dealing with formatting specifications.
 
+use crate::compile::Named;
 use crate::runtime::{FromValue, ProtocolCaller, Value, VmError, VmErrorKind};
-use crate::{InstallWith, Named, RawStr};
+use crate::{InstallWith, RawStr};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::fmt;
-use std::fmt::Write as _;
+use std::fmt::Write;
 use std::iter;
 use std::num::NonZeroUsize;
 use thiserror::Error;

@@ -2,8 +2,8 @@
 #![allow(dead_code)]
 
 use rune::{
-    load_sources, termcolor, Args, Context, Diagnostics, EmitDiagnostics, FromValue, IntoComponent,
-    Item, Options, Source, Sources, Unit, Vm, VmError,
+    termcolor, Args, Context, Diagnostics, EmitDiagnostics, FromValue, IntoComponent, Item, Source,
+    Sources, Unit, Vm, VmError,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -41,10 +41,12 @@ fn internal_compile_source(
     context: &Context,
     sources: &mut Sources,
 ) -> Result<(Unit, Diagnostics), Diagnostics> {
-    let options = Options::default();
     let mut diagnostics = Diagnostics::new();
 
-    let unit = match rune::load_sources(context, &options, sources, &mut diagnostics) {
+    let unit = match rune::prepare(context, sources)
+        .with_diagnostics(&mut diagnostics)
+        .build()
+    {
         Ok(unit) => unit,
         Err(..) => return Err(diagnostics),
     };
@@ -207,20 +209,21 @@ where
 ///
 /// This is primarily used in examples.
 pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
-    let options = Options::default();
     let mut sources = Sources::new();
     sources.insert(Source::new("source", source));
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = load_sources(&*context, &options, &mut sources, &mut diagnostics);
+    let result = rune::prepare(context, &mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
 
     if !diagnostics.is_empty() {
         let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
         diagnostics.emit_diagnostics(&mut writer, &sources)?;
     }
 
-    Ok(std::sync::Arc::new(result?))
+    Ok(Arc::new(result?))
 }
 
 /// Construct a rune virtual machine from the given program.

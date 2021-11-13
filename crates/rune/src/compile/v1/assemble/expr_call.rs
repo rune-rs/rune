@@ -86,7 +86,7 @@ impl Assemble for ast::ExprCall {
         if let Some(name) = named.as_local() {
             let local = c
                 .scopes
-                .try_get_var(name, c.source_id, path.span())?
+                .try_get_var(c.q.visitor, name, c.source_id, path.span())?
                 .copied();
 
             if let Some(var) = local {

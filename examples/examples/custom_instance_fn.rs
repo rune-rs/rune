@@ -1,4 +1,7 @@
-use rune::{Context, Diagnostics, FromValue, Module, Options, Source, Sources, Vm};
+use rune::{
+    termcolor::{ColorChoice, StandardStream},
+    Context, Diagnostics, EmitDiagnostics, FromValue, Module, Source, Sources, Vm,
+};
 use std::sync::Arc;
 
 fn divide_by_three(value: i64) -> i64 {
@@ -12,8 +15,7 @@ async fn main() -> rune::Result<()> {
 
     let mut context = Context::with_default_modules()?;
     context.install(&my_module)?;
-
-    let options = Options::default();
+    let runtime = Arc::new(context.runtime());
 
     let mut sources = Sources::new();
     sources.insert(Source::new(
@@ -27,9 +29,18 @@ async fn main() -> rune::Result<()> {
 
     let mut diagnostics = Diagnostics::new();
 
-    let unit = rune::load_sources(&context, &options, &mut sources, &mut diagnostics)?;
+    let result = rune::prepare(&context, &mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
 
-    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+    }
+
+    let unit = result?;
+
+    let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.execute(&["main"], (33i64,))?.complete()?;
     let output = i64::from_value(output)?;
 

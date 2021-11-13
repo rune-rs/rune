@@ -1,7 +1,7 @@
+use crate::compile::{InstallWith, Named};
 use crate::runtime::{
-    FromValue, Mut, RawMut, RawRef, Ref, Shared, ToValue, UnsafeFromValue, Value, VmError,
+    FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value, VmError,
 };
-use crate::{InstallWith, Named, RawStr};
 use pin_project::pin_project;
 use std::fmt;
 /// A future which can be unsafely polled.

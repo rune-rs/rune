@@ -165,10 +165,10 @@ fn bf_loopity(b: &mut Bencher) -> rune::Result<()> {
     let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.execute(entry, (src.clone(), 5));
-        let mut execution = execution.expect("successful setup");
-        execution.complete().expect("successful execution");
+        vm.call(entry, (src.clone(), 5))
+            .expect("successful execution")
     });
+
     assert!(rune_tests::capture_output::drain_output()
         .map(|v| v.is_empty())
         .unwrap_or(false));

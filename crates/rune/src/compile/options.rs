@@ -2,13 +2,10 @@ use thiserror::Error;
 
 /// Error when parsing configuration.
 #[derive(Debug, Clone, Error)]
-pub enum ConfigurationError {
-    /// Tried to configure the compiler with an unsupported optimzation option.
-    #[error("unsupported optimization option `{option}`")]
-    UnsupportedOptimizationOption {
-        /// The unsupported option.
-        option: String,
-    },
+/// Tried to configure the compiler with an unsupported optimzation option.
+#[error("unsupported compile option `{option}`")]
+pub struct ParseOptionError {
+    option: Box<str>,
 }
 
 /// Compiler options.
@@ -38,7 +35,7 @@ impl Options {
     ///
     /// It can be used to consistenly parse a collection of options by other
     /// programs as well.
-    pub fn parse_option(&mut self, option: &str) -> Result<(), ConfigurationError> {
+    pub fn parse_option(&mut self, option: &str) -> Result<(), ParseOptionError> {
         let mut it = option.split('=');
 
         match it.next() {
@@ -64,8 +61,8 @@ impl Options {
                 self.v2 = it.next() != Some("false");
             }
             _ => {
-                return Err(ConfigurationError::UnsupportedOptimizationOption {
-                    option: option.to_owned(),
+                return Err(ParseOptionError {
+                    option: option.into(),
                 });
             }
         }

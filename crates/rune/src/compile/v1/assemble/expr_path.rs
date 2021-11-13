@@ -7,7 +7,7 @@ impl Assemble for ast::Path {
         log::trace!("Path => {:?}", c.q.sources.source(c.source_id, span));
 
         if let Some(ast::PathKind::SelfValue) = self.as_kind() {
-            let var = c.scopes.get_var("self", c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, "self", c.source_id, span)?;
 
             if needs.value() {
                 var.copy(&mut c.asm, span, "self");
@@ -20,7 +20,10 @@ impl Assemble for ast::Path {
 
         if let Needs::Value = needs {
             if let Some(local) = named.as_local() {
-                if let Some(var) = c.scopes.try_get_var(local, c.source_id, span)? {
+                if let Some(var) = c
+                    .scopes
+                    .try_get_var(c.q.visitor, local, c.source_id, span)?
+                {
                     return Ok(Asm::var(span, *var, local.into()));
                 }
             }

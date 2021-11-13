@@ -4,11 +4,11 @@ use crate::runtime::unit::UnitFn;
 use crate::runtime::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
     Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget,
-    InstValue, InstVariant, Object, Panic, Range, RangeLimits, RuntimeContext, Select, Shared,
-    Stack, Stream, Struct, Tuple, TypeCheck, Unit, UnitStruct, Value, Variant, VariantData, Vec,
-    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
+    InstValue, InstVariant, Object, Panic, Protocol, Range, RangeLimits, RuntimeContext, Select,
+    Shared, Stack, Stream, Struct, Tuple, TypeCheck, Unit, UnitStruct, Value, Variant, VariantData,
+    Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
 };
-use crate::{Hash, InstFnNameHash, IntoTypeHash, Protocol};
+use crate::{Hash, InstFnNameHash, IntoTypeHash};
 use std::fmt;
 use std::mem;
 use std::sync::Arc;

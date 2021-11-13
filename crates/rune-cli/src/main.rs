@@ -51,20 +51,19 @@
 #![allow(clippy::type_complexity)]
 
 use anyhow::{Context as _, Result};
-use rune::compile::FileSourceLoader;
+use rune::compile::{FileSourceLoader, ParseOptionError};
 use rune::diagnostics::{DumpInstructions, EmitSource};
 use rune::meta::CompileMeta;
 use rune::runtime::{Unit, Value, Vm, VmExecution};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{
-    ConfigurationError, Context, ContextError, Diagnostics, EmitDiagnostics, Hash, Options,
-    RuntimeContext, Source, Sources, VmError,
+    Context, ContextError, Diagnostics, EmitDiagnostics, Hash, Options, RuntimeContext, Source,
+    Sources, VmError,
 };
 use std::fs;
 use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -287,7 +286,7 @@ struct Args {
 
 impl Args {
     /// Construct compiler options from cli arguments.
-    fn options(&self) -> Result<Options, ConfigurationError> {
+    fn options(&self) -> Result<Options, ParseOptionError> {
         let mut options = Options::default();
 
         // Command-specific override defaults.
@@ -472,17 +471,15 @@ fn load_path(
                 Diagnostics::without_warnings()
             };
 
-            let test_finder = Rc::new(visitor::FunctionVisitor::new(attribute));
-            let source_loader = Rc::new(FileSourceLoader::new());
+            let mut test_finder = visitor::FunctionVisitor::new(attribute);
+            let mut source_loader = FileSourceLoader::new();
 
-            let result = rune::load_sources_with_visitor(
-                &context,
-                options,
-                &mut sources,
-                &mut diagnostics,
-                test_finder.clone(),
-                source_loader.clone(),
-            );
+            let result = rune::prepare(&context, &mut sources)
+                .with_diagnostics(&mut diagnostics)
+                .with_options(options)
+                .with_visitor(&mut test_finder)
+                .with_source_loader(&mut source_loader)
+                .build();
 
             diagnostics.emit_diagnostics(out, &sources)?;
             let unit = result?;
@@ -492,11 +489,6 @@ fn load_path(
                 let f = fs::File::create(&bytecode_path)?;
                 bincode::serialize_into(f, &unit)?;
             }
-
-            let test_finder = match Rc::try_unwrap(test_finder) {
-                Ok(test_finder) => test_finder,
-                Err(..) => panic!("test finder should be uniquely held"),
-            };
 
             (Arc::new(unit), test_finder.into_functions())
         }
@@ -542,17 +534,15 @@ async fn run_path(args: &Args, options: &Options, path: &Path) -> Result<ExitCod
                 Diagnostics::without_warnings()
             };
 
-            let test_finder = Rc::new(visitor::FunctionVisitor::new(visitor::Attribute::None));
-            let source_loader = Rc::new(FileSourceLoader::new());
+            let mut test_finder = visitor::FunctionVisitor::new(visitor::Attribute::None);
+            let mut source_loader = FileSourceLoader::new();
 
-            let _ = rune::load_sources_with_visitor(
-                &context,
-                options,
-                &mut sources,
-                &mut diagnostics,
-                test_finder.clone(),
-                source_loader.clone(),
-            );
+            let _ = rune::prepare(&context, &mut sources)
+                .with_diagnostics(&mut diagnostics)
+                .with_options(options)
+                .with_visitor(&mut test_finder)
+                .with_source_loader(&mut source_loader)
+                .build();
 
             diagnostics.emit_diagnostics(&mut out, &sources).unwrap();
 

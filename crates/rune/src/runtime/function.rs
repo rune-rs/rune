@@ -1,7 +1,7 @@
-use crate::context::Handler;
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, RawRef, Ref, Rtti, RuntimeContext, Shared, Stack, Tuple,
-    Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmErrorKind, VmHalt,
+    Args, Call, ConstValue, FromValue, FunctionHandler, RawRef, Ref, Rtti, RuntimeContext, Shared,
+    Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmErrorKind,
+    VmHalt,
 };
 use crate::shared::AssertSend;
 use crate::Hash;
@@ -164,7 +164,7 @@ where
     }
 
     /// Create a function pointer from a handler.
-    pub(crate) fn from_handler(handler: Arc<Handler>, hash: Hash) -> Self {
+    pub(crate) fn from_handler(handler: Arc<FunctionHandler>, hash: Hash) -> Self {
         Self {
             inner: Inner::FnHandler(FnHandler { handler, hash }),
         }
@@ -336,7 +336,7 @@ impl fmt::Debug for Function {
 #[derive(Debug)]
 enum Inner<V> {
     /// A native function handler.
-    /// This is wrapped as an `Arc<dyn Handler>`.
+    /// This is wrapped as an `Arc<dyn FunctionHandler>`.
     FnHandler(FnHandler),
     /// The offset to a free function.
     ///
@@ -360,7 +360,7 @@ enum Inner<V> {
 
 struct FnHandler {
     /// The function handler.
-    handler: Arc<Handler>,
+    handler: Arc<FunctionHandler>,
     /// Hash for the function type
     hash: Hash,
 }

@@ -42,7 +42,7 @@ pub enum EmitDiagnosticsError {
 
 /// Helper trait for emitting diagnostics.
 ///
-/// See [load_sources](crate::load_sources) for how to use.
+/// See [build](crate::build) for how to use.
 pub trait EmitDiagnostics {
     /// Emit diagnostics for the current type.
     fn emit_diagnostics<O>(
@@ -56,7 +56,7 @@ pub trait EmitDiagnostics {
 
 /// Emit collected diagnostics.
 ///
-/// See [load_sources](crate::load_sources) for how to use.
+/// See [build](crate::build) for how to use.
 impl EmitDiagnostics for Diagnostics {
     fn emit_diagnostics<O>(
         &self,

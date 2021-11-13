@@ -1,28 +1,22 @@
 use rune::runtime::Function;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{
-    ContextError, Diagnostics, EmitDiagnostics, FromValue, Module, Source, Sources, Value, Vm,
-    VmError,
-};
+use rune::{Diagnostics, EmitDiagnostics, FromValue, Source, Sources, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
-    let m = module()?;
-
-    let mut context = rune_modules::default_context()?;
-    context.install(&m)?;
+    let context = rune_modules::default_context()?;
     let runtime = Arc::new(context.runtime());
 
     let mut sources = Sources::new();
     sources.insert(Source::new(
         "test",
         r#"
-        pub fn main() {
-            mymodule::pass_along(add, [5, 9])
+        fn foo(a, b) {
+            a + b
         }
 
-        fn add(a, b) {
-            a + b
+        pub fn main() {
+            foo
         }
         "#,
     ));
@@ -42,19 +36,9 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(&["main"], ())?;
-    let output = u32::from_value(output)?;
+    let output = Function::from_value(output)?;
 
-    println!("{}", output);
+    println!("{}", output.call::<(i64, i64), i64>((1, 3))?);
+    println!("{}", output.call::<(i64, i64), i64>((2, 6))?);
     Ok(())
-}
-
-fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(&["mymodule"]);
-
-    m.function(
-        &["pass_along"],
-        |func: Function, args: Vec<Value>| -> Result<Value, VmError> { func.call(args) },
-    )?;
-
-    Ok(m)
 }

@@ -22,11 +22,7 @@ fn fib_15(b: &mut Bencher) -> rune::Result<()> {
 
     let entry = rune::Hash::type_hash(&["main"]);
 
-    b.iter(|| {
-        let execution = vm.execute(entry, (15,));
-        let mut execution = execution.expect("successful setup");
-        execution.complete().expect("successful execution")
-    });
+    b.iter(|| vm.call(entry, (15,)).expect("successful execution"));
 
     Ok(())
 }
@@ -49,11 +45,7 @@ fn fib_20(b: &mut Bencher) -> rune::Result<()> {
 
     let entry = rune::Hash::type_hash(&["main"]);
 
-    b.iter(|| {
-        let execution = vm.execute(entry, (20,));
-        let mut execution = execution.expect("successful setup");
-        execution.complete().expect("successful execution")
-    });
+    b.iter(|| vm.call(entry, (20,)).expect("successful execution"));
 
     Ok(())
 }

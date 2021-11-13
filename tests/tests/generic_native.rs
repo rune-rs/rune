@@ -1,6 +1,7 @@
 //! Tests for derive(Any) on generic types
 
-use rune::{Any, ContextError, Module, Named, ToValue, UnsafeFromValue};
+use rune::compile::Named;
+use rune::{Any, ContextError, Module, ToValue, UnsafeFromValue};
 use rune_tests::*;
 
 #[derive(Any)]

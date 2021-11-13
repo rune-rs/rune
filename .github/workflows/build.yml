@@ -28,7 +28,7 @@ jobs:
       - name: Run tests
         run: cargo test --all
       - name: Run example scripts
-        run: cargo run --bin rune -- check --recursive --experimental -O macros=true scripts
+        run: cargo run --bin rune -- check --recursive --experimental scripts
 
   build_benchmarks:
     name: Build Benchmarks

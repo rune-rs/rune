@@ -1,9 +1,16 @@
 use crate::collections::HashMap;
-use crate::context::Handler;
-use crate::runtime::{ConstValue, TypeCheck};
+use crate::macros::{MacroContext, TokenStream};
+use crate::runtime::{ConstValue, Stack, TypeCheck, VmError};
 use crate::{Hash, Item};
 use std::fmt;
 use std::sync::Arc;
+
+/// A type-reduced function handler.
+pub(crate) type FunctionHandler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync;
+
+/// A (type erased) macro handler.
+pub(crate) type MacroHandler =
+    dyn Fn(&mut MacroContext, &TokenStream) -> crate::Result<TokenStream> + Send + Sync;
 
 /// Static run context visible to the virtual machine.
 ///
@@ -14,7 +21,7 @@ use std::sync::Arc;
 #[derive(Default)]
 pub struct RuntimeContext {
     /// Registered native function handlers.
-    pub(crate) functions: HashMap<Hash, Arc<Handler>>,
+    pub(crate) functions: HashMap<Hash, Arc<FunctionHandler>>,
 
     /// Registered types.
     pub(crate) types: HashMap<Hash, TypeCheck>,
@@ -35,7 +42,7 @@ impl RuntimeContext {
     }
 
     /// Lookup the given native function handler in the context.
-    pub fn lookup(&self, hash: Hash) -> Option<&Arc<Handler>> {
+    pub fn lookup(&self, hash: Hash) -> Option<&Arc<FunctionHandler>> {
         self.functions.get(&hash)
     }
 

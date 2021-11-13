@@ -1,13 +1,14 @@
 use crate::collections::{HashMap, HashSet};
-use crate::macros::{MacroContext, TokenStream};
+use crate::compile::module::{
+    Function, Module, ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType,
+    ModuleUnitType,
+};
 use crate::meta::{CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple};
-use crate::module::{
-    ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
-};
 use crate::runtime::{
-    ConstValue, Names, RuntimeContext, Stack, StaticType, TypeCheck, TypeInfo, TypeOf, VmError,
+    ConstValue, FunctionHandler, MacroHandler, Names, RuntimeContext, StaticType, TypeCheck,
+    TypeInfo, TypeOf, VmError,
 };
-use crate::{ComponentRef, Hash, IntoComponent, Item, Module, Protocol};
+use crate::{ComponentRef, Hash, IntoComponent, Item, Protocol};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -104,13 +105,6 @@ pub enum ContextError {
         error: VmError,
     },
 }
-
-/// A function handler.
-pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync;
-
-/// A (type erased) macro handler.
-pub(crate) type Macro =
-    dyn Fn(&mut MacroContext, &TokenStream) -> crate::Result<TokenStream> + Send + Sync;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -222,9 +216,9 @@ pub struct Context {
     /// Item metadata in the context.
     meta: HashMap<Item, CompileMeta>,
     /// Registered native function handlers.
-    functions: HashMap<Hash, Arc<Handler>>,
+    functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Registered native macro handlers.
-    macros: HashMap<Hash, Arc<Macro>>,
+    macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Information on functions.
     functions_info: HashMap<Hash, ContextSignature>,
     /// Registered types.
@@ -355,12 +349,12 @@ impl Context {
     }
 
     /// Lookup the given native function handler in the context.
-    pub fn lookup(&self, hash: Hash) -> Option<&Arc<Handler>> {
+    pub fn lookup(&self, hash: Hash) -> Option<&Arc<FunctionHandler>> {
         self.functions.get(&hash)
     }
 
     /// Lookup the given macro handler.
-    pub fn lookup_macro(&self, hash: Hash) -> Option<&Arc<Macro>> {
+    pub fn lookup_macro(&self, hash: Hash) -> Option<&Arc<MacroHandler>> {
         self.macros.get(&hash)
     }
 
@@ -766,7 +760,7 @@ impl Context {
         constructor: C,
     ) -> Result<(), ContextError>
     where
-        C: crate::module::Function<Args>,
+        C: Function<Args>,
         C::Return: TypeOf,
     {
         let type_hash = <C::Return as TypeOf>::type_hash();
@@ -793,7 +787,7 @@ impl Context {
 
         self.install_meta(meta)?;
 
-        let constructor: Arc<Handler> =
+        let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
 
         self.constants.insert(

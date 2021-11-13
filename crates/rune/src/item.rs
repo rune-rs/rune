@@ -1,4 +1,4 @@
-use crate::RawStr;
+use crate::runtime::RawStr;
 use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;

@@ -1,4 +1,4 @@
-use rune::{Any, Context, Diagnostics, Module, Options, Source, Sources, Value, Vm};
+use rune::{Any, Context, Module, Source, Sources, Value, Vm};
 use rune_tests::*;
 use std::sync::Arc;
 
@@ -11,12 +11,12 @@ struct Foo {
 }
 
 #[test]
-fn test_getter_setter() {
+fn test_getter_setter() -> rune::Result<()> {
     let mut module = Module::new();
-    module.ty::<Foo>().unwrap();
+    module.ty::<Foo>()?;
 
-    let mut context = Context::with_default_modules().unwrap();
-    context.install(&module).unwrap();
+    let mut context = Context::with_default_modules()?;
+    context.install(&module)?;
 
     let mut sources = Sources::new();
     sources.insert(Source::new(
@@ -29,15 +29,7 @@ fn test_getter_setter() {
         "#,
     ));
 
-    let mut diagnostics = Diagnostics::new();
-
-    let unit = rune::load_sources(
-        &context,
-        &Options::default(),
-        &mut sources,
-        &mut diagnostics,
-    )
-    .unwrap();
+    let unit = rune::prepare(&context, &mut sources).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
@@ -46,10 +38,11 @@ fn test_getter_setter() {
         string: String::from("Hello"),
     };
 
-    let output = vm.call(&["main"], (&mut foo,)).unwrap();
+    let output = vm.call(&["main"], (&mut foo,))?;
 
     assert_eq!(foo.number, 43);
     assert_eq!(foo.string, "Hello World");
 
     assert!(matches!(output, Value::Unit));
+    Ok(())
 }

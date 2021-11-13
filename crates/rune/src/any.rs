@@ -1,4 +1,5 @@
-use crate::{Hash, Named};
+use crate::compile::Named;
+use crate::Hash;
 pub use rune_macros::Any;
 
 /// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).

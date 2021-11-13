@@ -1,4 +1,5 @@
-use rune::{Context, Diagnostics, FromValue, Options, Source, Sources, Vm};
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::{Context, Diagnostics, EmitDiagnostics, FromValue, Source, Sources, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
@@ -16,12 +17,16 @@ fn main() -> rune::Result<()> {
 
     let mut diagnostics = Diagnostics::new();
 
-    let unit = rune::load_sources(
-        &context,
-        &Options::default(),
-        &mut sources,
-        &mut diagnostics,
-    )?;
+    let result = rune::prepare(&context, &mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+    }
+
+    let unit = result?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let output = vm.execute(&["main"], (33i64,))?.complete()?;
