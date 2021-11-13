@@ -91,10 +91,14 @@ impl Assemble for ast::ExprClosure {
             // Construct a closure environment.
             for capture in captures {
                 if do_move {
-                    let var = c.scopes.take_var(&capture.ident, c.source_id, span)?;
+                    let var = c
+                        .scopes
+                        .take_var(c.q.visitor, &capture.ident, c.source_id, span)?;
                     var.do_move(&mut c.asm, span, format!("capture `{}`", capture.ident));
                 } else {
-                    let var = c.scopes.get_var(&capture.ident, c.source_id, span)?;
+                    let var = c
+                        .scopes
+                        .get_var(c.q.visitor, &capture.ident, c.source_id, span)?;
                     var.copy(&mut c.asm, span, format!("capture `{}`", capture.ident));
                 }
             }

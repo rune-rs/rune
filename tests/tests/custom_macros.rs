@@ -1,7 +1,7 @@
 use rune::ast;
 use rune::macros::quote;
 use rune::parse::Parser;
-use rune::{Context, Diagnostics, FromValue, Module, Options, Source, Sources, Vm};
+use rune::{Context, FromValue, Module, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[test]
@@ -43,14 +43,7 @@ fn test_parse_in_macro() -> rune::Result<()> {
         "#,
     ));
 
-    let mut diagnostics = Diagnostics::new();
-
-    let unit = rune::load_sources(
-        &context,
-        &Options::default(),
-        &mut sources,
-        &mut diagnostics,
-    )?;
+    let unit = rune::prepare(&context, &mut sources).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let output = vm.execute(&["main"], ())?.complete()?;

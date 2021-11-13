@@ -1,9 +1,9 @@
-use rune::{Any, Context, Diagnostics, Module, Options, Protocol, Source, Sources, Value, Vm};
+use rune::{Any, Context, Module, Protocol, Source, Sources, Value, Vm};
 use rune_tests::*;
 use std::sync::Arc;
 
 #[test]
-fn test_external_ops() {
+fn test_external_ops() -> rune::Result<()> {
     /// Test case for a single operation.
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
@@ -32,18 +32,13 @@ fn test_external_ops() {
             }
 
             let mut module = Module::new();
-            module.ty::<External>().unwrap();
+            module.ty::<External>()?;
 
-            module
-                .inst_fn(Protocol::$protocol, External::value)
-                .unwrap();
+            module.inst_fn(Protocol::$protocol, External::value)?;
+            module.field_fn(Protocol::$protocol, "field", External::field)?;
 
-            module
-                .field_fn(Protocol::$protocol, "field", External::field)
-                .unwrap();
-
-            let mut context = Context::with_default_modules().unwrap();
-            context.install(&module).unwrap();
+            let mut context = Context::with_default_modules()?;
+            context.install(&module)?;
 
             let mut sources = Sources::new();
             sources.insert(Source::new(
@@ -58,15 +53,10 @@ fn test_external_ops() {
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
             ));
 
-            let mut diagnostics = Diagnostics::new();
-
-            let unit = rune::load_sources(
+            let unit = rune::prepare(
                 &context,
-                &Options::default(),
                 &mut sources,
-                &mut diagnostics,
-            )
-            .unwrap();
+            ).build()?;
 
             let unit = Arc::new(unit);
 
@@ -79,7 +69,7 @@ fn test_external_ops() {
                 foo.derived = $initial;
                 foo.custom = $initial;
 
-                let output = vm.clone().call(&["type"], (&mut foo,)).unwrap();
+                let output = vm.clone().call(&["type"], (&mut foo,))?;
 
                 assert_eq!(foo.value, $expected, "{} != {} (value)", foo.value, $expected);
                 assert_eq!(foo.field, $expected, "{} != {} (field)", foo.value, $expected);
@@ -100,4 +90,5 @@ fn test_external_ops() {
     test_case!([<<=], SHL_ASSIGN, shl_assign, 0b1001, 0b0001, 0b10010);
     test_case!([>>=], SHR_ASSIGN, shr_assign, 0b1001, 0b0001, 0b100);
     test_case!([%=], REM_ASSIGN, rem_assign, 25, 10, 5);
+    Ok(())
 }

@@ -1,13 +1,12 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compile::{Assembly, CompileError, CompileErrorKind, CompileResult, CompileVisitor};
+use crate::compile::{Assembly, CompileError, CompileErrorKind, CompileResult, Options};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::meta::{CompileItem, CompileMeta, CompileMetaKind};
 use crate::parse::Resolve;
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst, InstAddress, InstValue, Label, PanicReason, TypeCheck};
-use crate::{Context, Diagnostics, Item, Options, SourceId, Span, Spanned};
-use std::rc::Rc;
+use crate::{Context, Diagnostics, Item, SourceId, Span, Spanned};
 
 mod assemble;
 mod loops;
@@ -35,8 +34,6 @@ impl Needs {
 }
 
 pub(crate) struct Compiler<'a, 'q> {
-    /// Compiler visitor.
-    pub(crate) visitor: Rc<dyn CompileVisitor>,
     /// The source id of the source.
     pub(crate) source_id: SourceId,
     /// The context we are compiling for.
@@ -68,13 +65,13 @@ impl<'a, 'q> Compiler<'a, 'q> {
 
         if let Some(meta) = self.q.query_meta(spanned, item, Default::default())? {
             log::trace!("found in query: {:?}", meta);
-            self.visitor.visit_meta(self.source_id, &meta, spanned);
+            self.q.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
         }
 
         if let Some(meta) = self.context.lookup_meta(item) {
             log::trace!("found in context: {:?}", meta);
-            self.visitor.visit_meta(self.source_id, &meta, spanned);
+            self.q.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
         }
 

@@ -23,7 +23,6 @@ use crate::{
 use std::collections::VecDeque;
 use std::fmt;
 use std::num::NonZeroUsize;
-use std::rc::Rc;
 use std::sync::Arc;
 
 pub use self::query_error::{QueryError, QueryErrorKind};
@@ -89,7 +88,7 @@ pub(crate) struct Query<'a> {
     /// Sources available.
     pub(crate) sources: &'a mut Sources,
     /// Visitor for the compiler meta.
-    visitor: Rc<dyn CompileVisitor>,
+    pub(crate) visitor: &'a mut dyn CompileVisitor,
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<Item, CompileMeta>,
     /// Macro storage.
@@ -126,7 +125,7 @@ impl<'a> Query<'a> {
     pub(crate) fn new(
         unit: &'a mut UnitBuilder,
         sources: &'a mut Sources,
-        visitor: Rc<dyn CompileVisitor>,
+        visitor: &'a mut dyn CompileVisitor,
         gen: Gen,
     ) -> Self {
         Self {

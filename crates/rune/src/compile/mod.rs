@@ -1,43 +1,58 @@
 //! The Rune compiler.
 //!
 //! The main entry to compiling rune source is
-//! [load_sources][crate::load_sources] which uses this compiler. In here you'll
+//! [build][crate::build] which uses this compiler. In here you'll
 //! just find compiler-specific types.
 
 use crate::ast;
+use crate::parse::Resolve;
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::Gen;
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Context, Diagnostics, Location, Options, Sources, Span, Spanned};
-use std::rc::Rc;
+use crate::{Diagnostics, Location, Sources, Span, Spanned};
 
 mod assembly;
-mod compile_error;
-mod compile_visitor;
-mod source_loader;
-mod unit_builder;
-mod v1;
-
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
+
+mod compile_error;
 pub use self::compile_error::{CompileError, CompileErrorKind, ImportStep};
+
+mod compile_visitor;
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
+
+mod source_loader;
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
+
+mod unit_builder;
 pub use self::unit_builder::LinkerError;
 pub(crate) use self::unit_builder::UnitBuilder;
-use crate::parse::Resolve;
+
+mod v1;
+
+pub(crate) mod context;
+pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
+
+mod options;
+pub use self::options::{Options, ParseOptionError};
+
+mod module;
+pub use self::module::{InstallWith, Module};
+
+mod named;
+pub use self::named::Named;
 
 /// A compile result alias.
 pub(crate) type CompileResult<T> = ::std::result::Result<T, CompileError>;
 
 /// Encode the given object into a collection of asm.
-pub(crate) fn compile_with_options<'a>(
+pub(crate) fn compile(
+    unit: &mut UnitBuilder,
     context: &Context,
     sources: &mut Sources,
-    unit: &mut UnitBuilder,
     diagnostics: &mut Diagnostics,
     options: &Options,
-    visitor: Rc<dyn CompileVisitor>,
-    source_loader: Rc<dyn SourceLoader + 'a>,
+    visitor: &mut dyn CompileVisitor,
+    source_loader: &mut dyn SourceLoader,
 ) -> Result<(), ()> {
     // Shared id generator.
     let gen = Gen::new();
@@ -49,7 +64,7 @@ pub(crate) fn compile_with_options<'a>(
         options,
         unit,
         diagnostics,
-        visitor.clone(),
+        visitor,
         source_loader,
         gen,
     );
@@ -82,7 +97,6 @@ pub(crate) fn compile_with_options<'a>(
             let source_id = entry.location.source_id;
 
             let task = CompileBuildEntry {
-                visitor: &visitor,
                 context,
                 options,
                 diagnostics: worker.diagnostics,
@@ -111,7 +125,6 @@ pub(crate) fn compile_with_options<'a>(
 }
 
 struct CompileBuildEntry<'a, 'q> {
-    visitor: &'a Rc<dyn CompileVisitor>,
     context: &'a Context,
     options: &'a Options,
     diagnostics: &'a mut Diagnostics,
@@ -126,12 +139,11 @@ impl<'q> CompileBuildEntry<'_, 'q> {
         asm: &'a mut Assembly,
     ) -> self::v1::Compiler<'a, 'q> {
         self::v1::Compiler {
-            visitor: self.visitor.clone(),
             source_id: location.source_id,
             context: self.context,
             q: self.q,
             asm,
-            scopes: self::v1::Scopes::new(self.visitor.clone()),
+            scopes: self::v1::Scopes::new(),
             contexts: vec![span],
             loops: self::v1::Loops::new(),
             options: self.options,

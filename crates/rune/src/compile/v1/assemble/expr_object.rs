@@ -40,8 +40,8 @@ impl Assemble for ast::ExprObject {
             if let Some((_, expr)) = &assign.assign {
                 expr.assemble(c, Needs::Value)?.apply(c)?;
             } else {
-                let key = assign.key.resolve(c.q.storage(), c.q.sources)?;
-                let var = c.scopes.get_var(&*key, c.source_id, span)?;
+                let key = assign.key.resolve(&c.q.storage, c.q.sources)?;
+                let var = c.scopes.get_var(c.q.visitor, &*key, c.source_id, span)?;
                 var.copy(&mut c.asm, span, format!("name `{}`", key));
             }
             c.scopes.decl_anon(span)?;

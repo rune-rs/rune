@@ -7,11 +7,9 @@ use rune::compile::{CompileError, CompileVisitor, FileSourceLoader, LinkerError}
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::meta::{CompileMeta, CompileMetaKind, CompileSource};
 use rune::{ComponentRef, Context, Item, Location, Options, SourceId, Span, Spanned};
-use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLockWriteGuard;
@@ -116,7 +114,7 @@ impl State {
         let mut builds = Vec::new();
 
         let sources = std::mem::take(&mut inner.sources);
-        let source_loader = Rc::new(SourceLoader::new(sources));
+        let mut source_loader = SourceLoader::new(sources);
 
         for (url, source) in &inner.sources {
             log::trace!("build: {}", url);
@@ -133,18 +131,16 @@ impl State {
             sources.insert(input);
 
             let mut diagnostics = rune::Diagnostics::new();
-            let visitor = Rc::new(Visitor::new(Index::default()));
+            let mut visitor = Visitor::new(Index::default());
 
-            let result = rune::load_sources_with_visitor(
-                &self.inner.context,
-                &self.inner.options,
-                &mut sources,
-                &mut diagnostics,
-                visitor.clone(),
-                source_loader.clone(),
-            );
+            let result = rune::prepare(&self.inner.context, &mut sources)
+                .with_diagnostics(&mut diagnostics)
+                .with_options(&self.inner.options)
+                .with_visitor(&mut visitor)
+                .with_source_loader(&mut source_loader)
+                .build();
 
-            if let Err(rune::LoadSourcesError) = result {
+            if let Err(rune::BuildError) = result {
                 for diagnostic in diagnostics.diagnostics() {
                     match diagnostic {
                         Diagnostic::Fatal(fatal) => {
@@ -227,18 +223,8 @@ impl State {
                 }
             }
 
-            let visitor = match Rc::try_unwrap(visitor) {
-                Ok(visitor) => visitor,
-                Err(..) => panic!("visitor should be uniquely held"),
-            };
-
             builds.push((url.clone(), sources, visitor.into_index()));
         }
-
-        let source_loader = match Rc::try_unwrap(source_loader) {
-            Ok(source_loader) => source_loader,
-            Err(..) => panic!("source loader should be uniquely held"),
-        };
 
         inner.sources = source_loader.into_sources();
 
@@ -582,25 +568,23 @@ pub enum DefinitionKind {
 }
 
 struct Visitor {
-    index: RefCell<Index>,
+    index: Index,
 }
 
 impl Visitor {
     /// Construct a new visitor.
     pub fn new(index: Index) -> Self {
-        Self {
-            index: RefCell::new(index),
-        }
+        Self { index }
     }
 
     /// Convert visitor back into an index.
     pub fn into_index(self) -> Index {
-        self.index.into_inner()
+        self.index
     }
 }
 
 impl CompileVisitor for Visitor {
-    fn visit_meta(&self, source_id: SourceId, meta: &CompileMeta, span: Span) {
+    fn visit_meta(&mut self, source_id: SourceId, meta: &CompileMeta, span: Span) {
         if source_id.into_index() != 0 {
             return;
         }
@@ -627,12 +611,12 @@ impl CompileVisitor for Visitor {
             source: DefinitionSource::CompileSource(source.clone()),
         };
 
-        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
+        if let Some(d) = self.index.definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
-    fn visit_variable_use(&self, source_id: SourceId, var_span: Span, span: Span) {
+    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: Span) {
         if source_id.into_index() != 0 {
             return;
         }
@@ -642,12 +626,12 @@ impl CompileVisitor for Visitor {
             source: DefinitionSource::Location(Location::new(source_id, var_span)),
         };
 
-        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
+        if let Some(d) = self.index.definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
-    fn visit_mod(&self, source_id: SourceId, span: Span) {
+    fn visit_mod(&mut self, source_id: SourceId, span: Span) {
         if source_id.into_index() != 0 {
             return;
         }
@@ -657,14 +641,14 @@ impl CompileVisitor for Visitor {
             source: DefinitionSource::Source(source_id),
         };
 
-        if let Some(d) = self.index.borrow_mut().definitions.insert(span, definition) {
+        if let Some(d) = self.index.definitions.insert(span, definition) {
             log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 }
 
 struct SourceLoader {
-    sources: RefCell<HashMap<Url, Source>>,
+    sources: HashMap<Url, Source>,
     base: FileSourceLoader,
 }
 
@@ -672,14 +656,14 @@ impl SourceLoader {
     /// Construct a new source loader.
     pub fn new(sources: HashMap<Url, Source>) -> Self {
         Self {
-            sources: RefCell::new(sources),
+            sources,
             base: FileSourceLoader::new(),
         }
     }
 
     /// Convert into sources.
     fn into_sources(self) -> HashMap<Url, Source> {
-        self.sources.into_inner()
+        self.sources
     }
 
     /// Generate a collection of URl candidates.
@@ -723,12 +707,12 @@ impl SourceLoader {
 }
 
 impl rune::compile::SourceLoader for SourceLoader {
-    fn load(&self, root: &Path, item: &Item, span: Span) -> Result<rune::Source, CompileError> {
+    fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<rune::Source, CompileError> {
         log::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {
             for url in candidates.iter() {
-                if let Some(s) = self.sources.borrow().get(url) {
+                if let Some(s) = self.sources.get(url) {
                     return Ok(rune::Source::new(url.to_string(), s.to_string()));
                 }
             }

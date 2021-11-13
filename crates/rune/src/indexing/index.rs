@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::attrs;
 use crate::collections::HashMap;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, CompileVisitor, SourceLoader};
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, Options, SourceLoader};
 use crate::indexing::{IndexFnKind, IndexLocal, IndexScopes};
 use crate::macros::MacroCompiler;
 use crate::meta::{CompileMeta, CompileMetaKind, CompileMod, CompileSource};
@@ -15,13 +15,11 @@ use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{
-    Context, Diagnostics, Hash, Item, Location, OptionSpanned, Options, SourceId, Span, Spanned,
-    Visibility,
+    Context, Diagnostics, Hash, Item, Location, OptionSpanned, SourceId, Span, Spanned, Visibility,
 };
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::Arc;
 
 pub(crate) struct Indexer<'a, 'q> {
@@ -44,8 +42,8 @@ pub(crate) struct Indexer<'a, 'q> {
     pub(crate) mod_item: Arc<CompileMod>,
     /// Set if we are inside of an impl self.
     pub(crate) impl_item: Option<Arc<Item>>,
-    pub(crate) visitor: Rc<dyn CompileVisitor>,
-    pub(crate) source_loader: Rc<dyn SourceLoader + 'a>,
+    /// Source loader to use.
+    pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Indicates if indexer is nested privately inside of another item, and if
     /// so, the descriptive span of its declaration.
     ///
@@ -548,7 +546,7 @@ impl<'a, 'q> Indexer<'a, 'q> {
         }
 
         let source_id = self.q.sources.insert(source);
-        self.visitor.visit_mod(source_id, span);
+        self.q.visitor.visit_mod(source_id, span);
 
         self.queue.push_back(Task::LoadFile {
             kind: LoadFileKind::Module {

@@ -1,4 +1,4 @@
-use crate::{Any, InstFnNameHash, IntoComponent, Item, Protocol};
+use crate::{Any, IntoComponent, Item, Protocol};
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
@@ -166,5 +166,35 @@ where
 
     fn into_item(self) -> Item {
         Item::with_item(self)
+    }
+}
+
+/// Trait used to determine what can be used as an instance function name.
+pub trait InstFnNameHash: Copy {
+    /// Generate a locally unique hash to check for conflicts.
+    fn inst_fn_name_hash(self) -> Hash;
+
+    /// Get a human readable name for the function.
+    fn into_name(self) -> Box<str>;
+}
+
+impl<'a> InstFnNameHash for &'a str {
+    fn inst_fn_name_hash(self) -> Hash {
+        Hash::of(self)
+    }
+
+    fn into_name(self) -> Box<str> {
+        self.into()
+    }
+}
+
+impl<'a> InstFnNameHash for Hash {
+    #[inline]
+    fn inst_fn_name_hash(self) -> Hash {
+        self
+    }
+
+    fn into_name(self) -> Box<str> {
+        Box::<str>::default()
     }
 }

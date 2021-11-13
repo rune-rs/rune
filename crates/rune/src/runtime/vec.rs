@@ -1,8 +1,8 @@
+use crate::compile::{InstallWith, Named};
 use crate::runtime::{
-    FromValue, Iterator, Mut, RawMut, RawRef, Ref, Shared, ToValue, UnsafeFromValue, Value, Vm,
-    VmError, VmErrorKind,
+    FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
+    Vm, VmError, VmErrorKind,
 };
-use crate::{InstallWith, Named, RawStr};
 use std::cmp;
 use std::fmt;
 use std::ops;

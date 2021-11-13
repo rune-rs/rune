@@ -104,14 +104,13 @@
 //! #[tokio::main]
 //! async fn main() -> rune::Result<()> {
 //!     let context = Context::with_default_modules()?;
-//!     let options = Options::default();
+//!     let runtime = Arc::new(context.runtime());
 //!
 //!     let mut sources = Sources::new();
 //!     sources.insert(Source::new(
 //!         "script",
 //!         r#"
-//!         pub fn calculate(a, b) {
-//!             println("Hello World");
+//!         pub fn add(a, b) {
 //!             a + b
 //!         }
 //!         "#,
@@ -119,7 +118,9 @@
 //!
 //!     let mut diagnostics = Diagnostics::new();
 //!
-//!     let result = rune::load_sources(&context, &options, &mut sources, &mut diagnostics);
+//!     let result = rune::prepare(&context, &mut sources)
+//!         .with_diagnostics(&mut diagnostics)
+//!         .build();
 //!
 //!     if !diagnostics.is_empty() {
 //!         let mut writer = StandardStream::stderr(ColorChoice::Always);
@@ -127,19 +128,17 @@
 //!     }
 //!
 //!     let unit = result?;
-//!     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+//!     let mut vm = Vm::new(runtime, Arc::new(unit));
 //!
-//!     let mut execution = vm.execute(&["calculate"], (10i64, 20i64))?;
-//!     let value = execution.async_complete().await?;
+//!     let output = vm.call(&["add"], (10i64, 20i64))?;
+//!     let output = i64::from_value(output)?;
 //!
-//!     let value = i64::from_value(value)?;
-//!
-//!     println!("{}", value);
+//!     println!("{}", output);
 //!     Ok(())
 //! }
 //! ```
 //!
-//! [in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/examples
+//! [in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/examples/examples
 //! [future-optimizations]: https://github.com/rune-rs/rune/blob/main/FUTURE_OPTIMIZATIONS.md
 //! [Open Issues]: https://github.com/rune-rs/rune/issues
 //! [support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
@@ -203,10 +202,12 @@ pub use self::any::Any;
 
 mod attrs;
 
-pub mod compile;
+mod build;
+pub use self::build::{prepare, Build, BuildError};
 
-mod context;
-pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
+pub mod compile;
+#[doc(inline)]
+pub use self::compile::{Context, ContextError, InstallWith, Module, Options};
 
 pub mod diagnostics;
 #[doc(inline)]
@@ -216,7 +217,7 @@ pub use self::diagnostics::Diagnostics;
 pub use self::diagnostics::EmitDiagnostics;
 
 mod hash;
-pub use self::hash::{Hash, IntoTypeHash};
+pub use self::hash::{Hash, InstFnNameHash, IntoTypeHash};
 
 mod id;
 pub use self::id::Id;
@@ -228,9 +229,6 @@ pub mod ir;
 mod item;
 pub use self::item::{Component, ComponentRef, IntoComponent, Item};
 
-mod load;
-pub use self::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
-
 mod location;
 pub use self::location::Location;
 
@@ -238,33 +236,17 @@ pub mod macros;
 
 pub mod meta;
 
-pub mod module;
-#[doc(inline)]
-pub use self::module::{InstFnNameHash, InstallWith, Module};
-
 pub mod modules;
-
-mod named;
-pub use self::named::Named;
-
-mod options;
-pub use self::options::{ConfigurationError, Options};
 
 pub mod parse;
 
-mod protocol;
-pub use self::protocol::Protocol;
-
 pub mod query;
-
-mod raw_str;
-pub use self::raw_str::RawStr;
 
 pub mod runtime;
 pub use self::runtime::{
-    Args, BorrowMut, BorrowRef, FromValue, GuardedArgs, Mut, Panic, Ref, RuntimeContext, Shared,
-    Stack, StackError, ToValue, Unit, UnsafeFromValue, UnsafeToValue, Value, Vm, VmError,
-    VmErrorKind, VmExecution,
+    Args, BorrowMut, BorrowRef, FromValue, GuardedArgs, Mut, Panic, Protocol, RawStr, Ref,
+    RuntimeContext, Shared, Stack, StackError, ToValue, Unit, UnsafeFromValue, UnsafeToValue,
+    Value, Vm, VmError, VmErrorKind, VmExecution,
 };
 
 mod shared;

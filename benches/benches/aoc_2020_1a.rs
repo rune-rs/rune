@@ -79,9 +79,8 @@ fn aoc_2020_1a(b: &mut Bencher) -> rune::Result<()> {
     let entry = rune::Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.execute(entry, (data.clone(),));
-        let mut execution = execution.expect("successful setup");
-        execution.complete().expect("successful execution")
+        vm.call(entry, (data.clone(),))
+            .expect("successful execution")
     });
 
     Ok(())

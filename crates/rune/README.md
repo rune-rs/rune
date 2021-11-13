@@ -106,14 +106,13 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> rune::Result<()> {
     let context = Context::with_default_modules()?;
-    let options = Options::default();
+    let runtime = Arc::new(context.runtime());
 
     let mut sources = Sources::new();
     sources.insert(Source::new(
         "script",
         r#"
-        pub fn calculate(a, b) {
-            println("Hello World");
+        pub fn add(a, b) {
             a + b
         }
         "#,
@@ -121,7 +120,9 @@ async fn main() -> rune::Result<()> {
 
     let mut diagnostics = Diagnostics::new();
 
-    let result = rune::load_sources(&context, &options, &mut sources, &mut diagnostics);
+    let result = rune::prepare(&context, &mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
 
     if !diagnostics.is_empty() {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
@@ -129,19 +130,17 @@ async fn main() -> rune::Result<()> {
     }
 
     let unit = result?;
-    let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
+    let mut vm = Vm::new(runtime, Arc::new(unit));
 
-    let mut execution = vm.execute(&["calculate"], (10i64, 20i64))?;
-    let value = execution.async_complete().await?;
+    let output = vm.call(&["add"], (10i64, 20i64))?;
+    let output = i64::from_value(output)?;
 
-    let value = i64::from_value(value)?;
-
-    println!("{}", value);
+    println!("{}", output);
     Ok(())
 }
 ```
 
-[in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/examples
+[in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/examples/examples
 [future-optimizations]: https://github.com/rune-rs/rune/blob/main/FUTURE_OPTIMIZATIONS.md
 [Open Issues]: https://github.com/rune-rs/rune/issues
 [support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules

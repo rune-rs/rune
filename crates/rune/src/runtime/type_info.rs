@@ -1,5 +1,4 @@
-use crate::runtime::{Rtti, StaticType, VariantRtti};
-use crate::RawStr;
+use crate::runtime::{RawStr, Rtti, StaticType, VariantRtti};
 use std::fmt;
 use std::sync::Arc;
 

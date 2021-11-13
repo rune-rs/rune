@@ -1,6 +1,7 @@
-use crate::{InstallWith, RawStr};
+use crate::compile::InstallWith;
+use crate::runtime::RawStr;
 
-/// Something that is named.
+/// The trait used for something that can be statically named.
 pub trait Named {
     /// The generic name of the named thing.
     const BASE_NAME: RawStr;

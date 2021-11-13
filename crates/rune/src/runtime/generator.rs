@@ -1,8 +1,9 @@
+use crate::compile::Named;
 use crate::runtime::{
     FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, Ref, Shared, UnsafeFromValue, Value,
     Vm, VmError, VmErrorKind, VmExecution,
 };
-use crate::{InstallWith, Named, RawStr};
+use crate::{InstallWith, RawStr};
 use std::fmt;
 use std::mem;
 

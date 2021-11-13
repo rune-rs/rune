@@ -4,13 +4,13 @@
 //! native code.
 
 use crate::collections::HashMap;
-use crate::context::{ContextError, Handler, Macro};
+use crate::compile::{ContextError, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
-    ConstValue, FromValue, Future, GeneratorState, Stack, StaticType, ToValue, TypeCheck, TypeInfo,
-    TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
+    ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Stack,
+    StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, IntoComponent, Item, Named, Protocol};
+use crate::{Hash, InstFnNameHash, IntoComponent, Item, Protocol};
 use std::future;
 use std::sync::Arc;
 
@@ -59,10 +59,10 @@ impl ModuleInternalEnum {
     /// Register a new variant.
     fn variant<C, Args>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
     where
-        C: crate::module::Function<Args>,
+        C: Function<Args>,
         C::Return: TypeOf,
     {
-        let constructor: Arc<Handler> =
+        let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
         let type_hash = C::Return::type_hash();
 
@@ -85,7 +85,7 @@ pub(crate) struct ModuleInternalVariant {
     /// Arguments for the variant.
     pub(crate) args: usize,
     /// The constructor of the variant.
-    pub(crate) constructor: Arc<Handler>,
+    pub(crate) constructor: Arc<FunctionHandler>,
     /// The value type of the variant.
     pub(crate) type_hash: Hash,
 }
@@ -114,7 +114,7 @@ impl ModuleAssociatedKind {
 }
 
 pub(crate) struct ModuleAssociatedFn {
-    pub(crate) handler: Arc<Handler>,
+    pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
     pub(crate) type_info: TypeInfo,
     pub(crate) name: Box<str>,
@@ -128,12 +128,12 @@ pub(crate) struct ModuleAssocKey {
 }
 
 pub(crate) struct ModuleFn {
-    pub(crate) handler: Arc<Handler>,
+    pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
 }
 
 pub(crate) struct ModuleMacro {
-    pub(crate) handler: Arc<Macro>,
+    pub(crate) handler: Arc<MacroHandler>,
 }
 
 /// A collection of functions that can be looked up by type.
@@ -143,7 +143,7 @@ pub struct Module {
     pub(crate) item: Item,
     /// Free functions.
     pub(crate) functions: HashMap<Item, ModuleFn>,
-    /// Macro handlers.
+    /// MacroHandler handlers.
     pub(crate) macros: HashMap<Item, ModuleMacro>,
     /// Constant values.
     pub(crate) constants: HashMap<Item, ConstValue>,
@@ -499,7 +499,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Arc<Macro> = Arc::new(f);
+        let handler: Arc<MacroHandler> = Arc::new(f);
         self.macros.insert(name, ModuleMacro { handler });
         Ok(())
     }
@@ -649,7 +649,7 @@ impl Module {
             return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
-        let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
+        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
 
         let instance_function = ModuleAssociatedFn {
             handler,
@@ -709,7 +709,7 @@ impl Module {
             return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
-        let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
+        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
 
         let instance_function = ModuleAssociatedFn {
             handler,
@@ -720,36 +720,6 @@ impl Module {
 
         self.associated_functions.insert(key, instance_function);
         Ok(())
-    }
-}
-
-/// Trait used to determine what can be used as an instance function name.
-pub trait InstFnNameHash: Copy {
-    /// Generate a locally unique hash to check for conflicts.
-    fn inst_fn_name_hash(self) -> Hash;
-
-    /// Get a human readable name for the function.
-    fn into_name(self) -> Box<str>;
-}
-
-impl<'a> InstFnNameHash for &'a str {
-    fn inst_fn_name_hash(self) -> Hash {
-        Hash::of(self)
-    }
-
-    fn into_name(self) -> Box<str> {
-        self.into()
-    }
-}
-
-impl<'a> InstFnNameHash for Hash {
-    #[inline]
-    fn inst_fn_name_hash(self) -> Hash {
-        self
-    }
-
-    fn into_name(self) -> Box<str> {
-        Box::<str>::default()
     }
 }
 

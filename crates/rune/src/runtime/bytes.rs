@@ -2,9 +2,10 @@
 //!
 //! [Value::Bytes]: crate::Value::Bytes.
 
-use crate::runtime::{FromValue, Mut, RawMut, RawRef, Ref, UnsafeFromValue, Value, VmError};
-use crate::{InstallWith, Named, RawStr};
-
+use crate::compile::{InstallWith, Named};
+use crate::runtime::{
+    FromValue, Mut, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError,
+};
 use std::cmp;
 use std::fmt;
 use std::ops;

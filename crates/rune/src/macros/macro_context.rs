@@ -13,7 +13,6 @@ use crate::query::{Query, Used};
 use crate::shared::Gen;
 use crate::{Source, SourceId, Sources, Span, Spanned};
 use std::fmt;
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// Context for a running macro.
@@ -46,12 +45,9 @@ impl<'a, 'q> MacroContext<'a, 'q> {
         let mut unit = UnitBuilder::default();
         let gen = Gen::default();
         let mut sources = Sources::default();
-        let mut query = Query::new(
-            &mut unit,
-            &mut sources,
-            Rc::new(NoopCompileVisitor::new()),
-            gen,
-        );
+        let mut visitor = NoopCompileVisitor::new();
+
+        let mut query = Query::new(&mut unit, &mut sources, &mut visitor, gen);
 
         let mut ctx = MacroContext {
             macro_span: Span::empty(),

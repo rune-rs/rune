@@ -58,7 +58,7 @@ impl NotCharBoundary {
     }
 
     fn install(m: &mut Module) -> Result<(), ContextError> {
-        m.inst_fn(crate::Protocol::STRING_DISPLAY, Self::string_display)?;
+        m.inst_fn(Protocol::STRING_DISPLAY, Self::string_display)?;
         Ok(())
     }
 }

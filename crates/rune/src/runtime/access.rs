@@ -1,5 +1,4 @@
-use crate::runtime::AnyObjError;
-use crate::RawStr;
+use crate::runtime::{AnyObjError, RawStr};
 use std::cell::Cell;
 use std::fmt;
 use std::future::Future;

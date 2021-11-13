@@ -1,7 +1,7 @@
 //! `std::collections` module.
 
 use crate::runtime::{Iterator, IteratorTrait, Key, Ref, Value, VmError, VmErrorKind};
-use crate::{Any, ContextError, Module};
+use crate::{Any, ContextError, Module, Protocol};
 use std::fmt;
 
 #[derive(Any, Clone)]
@@ -424,10 +424,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("len", HashMap::len)?;
     module.inst_fn("remove", HashMap::remove)?;
     module.inst_fn("values", HashMap::values)?;
-    module.inst_fn(crate::Protocol::INTO_ITER, HashMap::iter)?;
-    module.inst_fn(crate::Protocol::INDEX_SET, HashMap::insert)?;
-    module.inst_fn(crate::Protocol::INDEX_GET, HashMap::fallible_get)?;
-    module.inst_fn(crate::Protocol::STRING_DEBUG, HashMap::string_debug)?;
+    module.inst_fn(Protocol::INTO_ITER, HashMap::iter)?;
+    module.inst_fn(Protocol::INDEX_SET, HashMap::insert)?;
+    module.inst_fn(Protocol::INDEX_GET, HashMap::fallible_get)?;
+    module.inst_fn(Protocol::STRING_DEBUG, HashMap::string_debug)?;
 
     module.ty::<HashSet>()?;
     module.function(&["HashSet", "new"], HashSet::new)?;
@@ -444,9 +444,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("len", HashSet::len)?;
     module.inst_fn("remove", HashSet::remove)?;
     module.inst_fn("union", HashSet::union)?;
-    module.inst_fn(crate::Protocol::INTO_ITER, HashSet::iter)?;
-    module.inst_fn(crate::Protocol::STRING_DEBUG, HashSet::string_debug)?;
-    module.inst_fn(crate::Protocol::EQ, HashSet::eq)?;
+    module.inst_fn(Protocol::INTO_ITER, HashSet::iter)?;
+    module.inst_fn(Protocol::STRING_DEBUG, HashSet::string_debug)?;
+    module.inst_fn(Protocol::EQ, HashSet::eq)?;
 
     module.ty::<VecDeque>()?;
     module.function(&["VecDeque", "new"], VecDeque::new)?;
@@ -465,10 +465,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("reserve", VecDeque::reserve)?;
     module.inst_fn("rotate_left", VecDeque::rotate_left)?;
     module.inst_fn("rotate_right", VecDeque::rotate_right)?;
-    module.inst_fn(crate::Protocol::INDEX_GET, VecDeque::get)?;
-    module.inst_fn(crate::Protocol::INDEX_SET, VecDeque::set)?;
-    module.inst_fn(crate::Protocol::INTO_ITER, VecDeque::iter)?;
-    module.inst_fn(crate::Protocol::STRING_DEBUG, VecDeque::string_debug)?;
+    module.inst_fn(Protocol::INDEX_GET, VecDeque::get)?;
+    module.inst_fn(Protocol::INDEX_SET, VecDeque::set)?;
+    module.inst_fn(Protocol::INTO_ITER, VecDeque::iter)?;
+    module.inst_fn(Protocol::STRING_DEBUG, VecDeque::string_debug)?;
 
     Ok(module)
 }

@@ -1,10 +1,10 @@
 use rune::runtime::AnyObj;
 use rune::Any;
-use rune::{Context, Diagnostics, Module, Options, Shared, Source, Sources, Vm, VmError};
+use rune::{Context, Module, Shared, Source, Sources, Vm, VmError};
 use std::sync::Arc;
 
 #[test]
-fn test_reference_error() {
+fn test_reference_error() -> rune::Result<()> {
     #[derive(Debug, Default, Any)]
     struct Foo {
         value: i64,
@@ -17,10 +17,10 @@ fn test_reference_error() {
     }
 
     let mut module = Module::new();
-    module.function(&["take_it"], take_it).unwrap();
+    module.function(&["take_it"], take_it)?;
 
-    let mut context = Context::with_default_modules().unwrap();
-    context.install(&module).unwrap();
+    let mut context = Context::with_default_modules()?;
+    context.install(&module)?;
 
     let mut sources = Sources::new();
     sources.insert(Source::new(
@@ -28,15 +28,7 @@ fn test_reference_error() {
         r#"fn main(number) { take_it(number) }"#,
     ));
 
-    let mut diagnostics = Diagnostics::new();
-
-    let unit = rune::load_sources(
-        &context,
-        &Options::default(),
-        &mut sources,
-        &mut diagnostics,
-    )
-    .unwrap();
+    let unit = rune::prepare(&context, &mut sources).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 
@@ -46,4 +38,5 @@ fn test_reference_error() {
     // This should error, because we're trying to acquire an `Ref` out of a
     // passed in reference.
     assert!(vm.call(&["main"], (&mut foo,)).is_err());
+    Ok(())
 }

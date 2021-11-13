@@ -1,27 +1,45 @@
 use rune::runtime::Object;
-use rune::Value;
-use rune_tests::run;
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::{Diagnostics, EmitDiagnostics, FromValue, Source, Sources, Value, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
-    let context = Arc::new(rune_modules::default_context()?);
+    let context = rune_modules::default_context()?;
+    let runtime = Arc::new(context.runtime());
 
-    let mut object = Object::new();
-    object.insert(String::from("Hello"), Value::from(42i64));
-
-    let object: Object = run(
-        &context,
+    let mut sources = Sources::new();
+    sources.insert(Source::new(
+        "entry",
         r#"
         pub fn calc(input) {
-            dbg(input["Hello"]);
-            input["Hello"] = "World";
+            dbg(input["key"]);
+            input["key"] = "World";
             input
         }
         "#,
-        &["calc"],
-        (object,),
-    )?;
+    ));
 
-    println!("{:?}", object.get("Hello"));
+    let mut diagnostics = Diagnostics::new();
+
+    let result = rune::prepare(&context, &mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+    }
+
+    let unit = result?;
+
+    let mut vm = Vm::new(runtime, Arc::new(unit));
+
+    let mut object = Object::new();
+    object.insert(String::from("key"), Value::from(42i64));
+
+    let output = vm.call(&["calc"], (object,))?;
+    let output = Object::from_value(output)?;
+
+    println!("{:?}", output.get("key"));
     Ok(())
 }

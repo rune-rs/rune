@@ -13,7 +13,7 @@ pub use rune_macros::FromValue;
 /// # Examples
 ///
 /// ```
-/// use rune::{Context, FromValue, Sources, Source, Diagnostics, Options, Vm};
+/// use rune::{Context, FromValue, Sources, Source, Vm};
 /// use std::sync::Arc;
 ///
 /// #[derive(FromValue)]
@@ -23,14 +23,11 @@ pub use rune_macros::FromValue;
 ///
 /// # fn main() -> rune::Result<()> {
 /// let context = Context::with_default_modules()?;
-/// let options = Options::default();
 ///
 /// let mut sources = Sources::new();
 /// sources.insert(Source::new("entry", "pub fn main() { #{field: 42} }"));
 ///
-/// let mut diag = Diagnostics::new();
-///
-/// let unit = rune::load_sources(&context, &options, &mut sources, &mut diag)?;
+/// let unit = rune::prepare(&context, &mut sources).build()?;
 ///
 /// let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 /// let foo = vm.call(&["main"], ())?;

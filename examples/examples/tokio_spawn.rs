@@ -1,28 +1,44 @@
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::{Diagnostics, EmitDiagnostics, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> rune::Result<()> {
     let context = rune_modules::default_context()?;
+    let runtime = Arc::new(context.runtime());
 
-    let unit = rune_tests::build(
-        &context,
+    let mut sources = Sources::new();
+    sources.insert(Source::new(
+        "entry",
         r#"
-        async fn main(timeout) {
-            time::delay_for(time::Duration::from_secs(timeout)).await
-        }
-        "#,
-    )?;
+    async fn main(timeout) {
+        time::delay_for(time::Duration::from_secs(timeout)).await
+    }
+    "#,
+    ));
 
-    let main = rune::Hash::type_hash(&["main"]);
-    let vm = rune::Vm::new(Arc::new(context.runtime()), unit.clone());
+    let mut diagnostics = Diagnostics::new();
 
-    let execution = vm.clone().send_execute(main, (5,))?;
+    let result = rune::prepare(&context, &mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+    }
+
+    let unit = result?;
+
+    let vm = Vm::new(runtime, Arc::new(unit));
+
+    let execution = vm.clone().send_execute(&["main"], (5u32,))?;
     let t1 = tokio::spawn(async move {
         execution.async_complete().await.unwrap();
         println!("timer ticked");
     });
 
-    let execution = vm.clone().send_execute(main, (2,))?;
+    let execution = vm.clone().send_execute(&["main"], (2u32,))?;
     let t2 = tokio::spawn(async move {
         execution.async_complete().await.unwrap();
         println!("timer ticked");

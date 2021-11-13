@@ -1,7 +1,6 @@
 use rune::compile::CompileVisitor;
 use rune::meta::{CompileMeta, CompileMetaKind};
 use rune::Hash;
-use std::cell::RefCell;
 
 /// Attribute to collect.
 #[derive(Debug, Clone, Copy)]
@@ -17,7 +16,7 @@ pub(crate) enum Attribute {
 /// A compile visitor that collects functions with a specific attribute.
 pub struct FunctionVisitor {
     attribute: Attribute,
-    functions: RefCell<Vec<(Hash, CompileMeta)>>,
+    functions: Vec<(Hash, CompileMeta)>,
 }
 
 impl FunctionVisitor {
@@ -30,12 +29,12 @@ impl FunctionVisitor {
 
     /// Convert visitor into test functions.
     pub(crate) fn into_functions(self) -> Vec<(Hash, CompileMeta)> {
-        self.functions.into_inner()
+        self.functions
     }
 }
 
 impl CompileVisitor for FunctionVisitor {
-    fn register_meta(&self, meta: &CompileMeta) {
+    fn register_meta(&mut self, meta: &CompileMeta) {
         let type_hash = match (self.attribute, &meta.kind) {
             (
                 Attribute::Test,
@@ -54,6 +53,6 @@ impl CompileVisitor for FunctionVisitor {
             _ => return,
         };
 
-        self.functions.borrow_mut().push((*type_hash, meta.clone()));
+        self.functions.push((*type_hash, meta.clone()));
     }
 }

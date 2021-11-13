@@ -1,12 +1,14 @@
 use crate::collections::{btree_map, BTreeMap};
+use crate::compile::Named;
 use crate::runtime::{
     FromValue, Iterator, Mut, RawMut, RawRef, Ref, ToValue, UnsafeFromValue, Value, Vm, VmError,
 };
-use crate::{InstallWith, Item, Named, RawStr};
+use crate::{InstallWith, Item, RawStr};
 use std::borrow;
 use std::cmp;
 use std::fmt;
 use std::hash;
+
 /// An owning iterator over the entries of a `Object`.
 ///
 /// This `struct` is created by the [`into_iter`] method on [`Object`]

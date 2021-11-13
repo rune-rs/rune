@@ -1,4 +1,8 @@
-use rune::{Any, Context, Module, VmError, VmErrorKind};
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::{
+    Any, Context, ContextError, Diagnostics, EmitDiagnostics, Module, Source, Sources, Vm, VmError,
+    VmErrorKind,
+};
 use std::sync::Arc;
 
 #[derive(Any)]
@@ -20,26 +24,44 @@ impl External {
 }
 
 fn main() -> rune::Result<()> {
-    let mut module = Module::default();
-    module.ty::<External>()?;
+    let m = module()?;
 
     let mut context = Context::default();
-    context.install(&module)?;
-    let context = Arc::new(context);
+    context.install(&m)?;
+    let runtime = Arc::new(context.runtime());
 
-    let external = External {
+    let mut sources = Sources::new();
+    sources.insert(Source::new(
+        "test",
+        r#"pub fn main(external) { external.value += 1; }"#,
+    ));
+
+    let mut diagnostics = Diagnostics::new();
+
+    let result = rune::prepare(&context, &mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+    }
+
+    let unit = result?;
+
+    let mut vm = Vm::new(runtime, Arc::new(unit));
+
+    let input = External {
         value: i64::max_value(),
     };
-
-    let result = rune_tests::run::<_, _, ()>(
-        &context,
-        "pub fn main(external) { external.value += 1; }",
-        &["main"],
-        (external,),
-    );
-
-    let error = result.expect_err("expected error");
-    let error = error.expect_vm_error("expected vm error");
-    println!("Error: {}", error);
+    let err = vm.call(&["main"], (input,)).unwrap_err();
+    let (kind, _) = err.as_unwound();
+    println!("{:?}", kind);
     Ok(())
+}
+
+fn module() -> Result<Module, ContextError> {
+    let mut m = Module::new();
+    m.ty::<External>()?;
+    Ok(m)
 }

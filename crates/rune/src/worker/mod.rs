@@ -2,13 +2,12 @@
 
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compile::{CompileVisitor, SourceLoader, UnitBuilder};
+use crate::compile::{CompileVisitor, Options, SourceLoader, UnitBuilder};
 use crate::indexing::{Index, IndexScopes, Indexer};
 use crate::query::Query;
 use crate::shared::{Gen, Items};
-use crate::{Context, Diagnostics, Item, Options, SourceId, Sources, Span};
+use crate::{Context, Diagnostics, Item, SourceId, Sources, Span};
 use std::collections::VecDeque;
-use std::rc::Rc;
 
 mod import;
 mod task;
@@ -22,16 +21,15 @@ pub(crate) struct Worker<'a> {
     context: &'a Context,
     options: &'a Options,
     pub(crate) diagnostics: &'a mut Diagnostics,
-    pub(crate) visitor: Rc<dyn CompileVisitor>,
-    pub(crate) source_loader: Rc<dyn SourceLoader + 'a>,
-    /// Worker queue.
-    pub(crate) queue: VecDeque<Task>,
+    pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Query engine.
     pub(crate) q: Query<'a>,
     /// Id generator.
     pub(crate) gen: Gen,
     /// Files that have been loaded.
     pub(crate) loaded: HashMap<Item, (SourceId, Span)>,
+    /// Worker queue.
+    pub(crate) queue: VecDeque<Task>,
 }
 
 impl<'a> Worker<'a> {
@@ -42,20 +40,19 @@ impl<'a> Worker<'a> {
         options: &'a Options,
         unit: &'a mut UnitBuilder,
         diagnostics: &'a mut Diagnostics,
-        visitor: Rc<dyn CompileVisitor>,
-        source_loader: Rc<dyn SourceLoader + 'a>,
+        visitor: &'a mut dyn CompileVisitor,
+        source_loader: &'a mut dyn SourceLoader,
         gen: Gen,
     ) -> Self {
         Self {
             context,
             options,
             diagnostics,
-            visitor: visitor.clone(),
             source_loader,
-            queue: VecDeque::new(),
             q: Query::new(unit, sources, visitor, gen.clone()),
             gen,
             loaded: HashMap::new(),
+            queue: VecDeque::new(),
         }
     }
 
@@ -113,8 +110,7 @@ impl<'a> Worker<'a> {
                         scopes: IndexScopes::new(),
                         mod_item,
                         impl_item: Default::default(),
-                        visitor: self.visitor.clone(),
-                        source_loader: self.source_loader.clone(),
+                        source_loader: self.source_loader,
                         nested_item: None,
                     };
 

@@ -3,6 +3,7 @@ name = "rune-examples"
 version = "0.0.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2018"
+publish = false
 
 [features]
 full = ["rune-modules/full"]
@@ -14,4 +15,3 @@ tokio = { version = "1.13.0", features = ["macros"] }
 
 rune = {path = "../crates/rune"}
 rune-modules = {path = "../crates/rune-modules"}
-rune-tests = {path = "../tests"}

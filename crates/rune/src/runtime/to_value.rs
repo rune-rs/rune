@@ -9,7 +9,7 @@ pub use rune_macros::ToValue;
 /// # Examples
 ///
 /// ```
-/// use rune::{Context, FromValue, ToValue, Sources, Source, Diagnostics, Options, Vm};
+/// use rune::{Context, FromValue, ToValue, Sources, Source, Vm};
 /// use std::sync::Arc;
 ///
 /// #[derive(ToValue)]
@@ -19,14 +19,11 @@ pub use rune_macros::ToValue;
 ///
 /// # fn main() -> rune::Result<()> {
 /// let context = Context::with_default_modules()?;
-/// let options = Options::default();
 ///
 /// let mut sources = Sources::new();
 /// sources.insert(Source::new("entry", "pub fn main(foo) { foo.field + 1 }"));
 ///
-/// let mut diag = Diagnostics::new();
-///
-/// let unit = rune::load_sources(&context, &options, &mut sources, &mut diag)?;
+/// let unit = rune::prepare(&context, &mut sources).build()?;
 ///
 /// let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 /// let foo = vm.call(&["main"], (Foo { field: 42 },))?;

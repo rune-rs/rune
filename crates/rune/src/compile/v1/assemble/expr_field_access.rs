@@ -68,9 +68,9 @@ fn try_immediate_field_access_optimization(
         None => return Ok(false),
     };
 
-    let ident = ident.resolve(c.q.storage(), c.q.sources)?;
+    let ident = ident.resolve(&c.q.storage, c.q.sources)?;
 
-    let index = match n.resolve(c.q.storage(), c.q.sources)? {
+    let index = match n.resolve(&c.q.storage, c.q.sources)? {
         ast::Number::Integer(n) => n,
         _ => return Ok(false),
     };
@@ -82,7 +82,7 @@ fn try_immediate_field_access_optimization(
 
     let var = match c
         .scopes
-        .try_get_var(ident.as_ref(), c.source_id, path.span())?
+        .try_get_var(c.q.visitor, ident.as_ref(), c.source_id, path.span())?
     {
         Some(var) => var,
         None => return Ok(false),

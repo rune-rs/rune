@@ -1,27 +1,43 @@
-use rune_tests::*;
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::{Diagnostics, EmitDiagnostics, FromValue, Source, Sources, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
-    let context = Arc::new(rune_modules::default_context()?);
+    let context = rune_modules::default_context()?;
+    let runtime = Arc::new(context.runtime());
 
-    let input: Vec<i64> = vec![1, 2, 3, 4];
-
-    let output: Vec<i64> = run(
-        &context,
+    let mut sources = Sources::new();
+    sources.insert(Source::new(
+        "entry",
         r#"
-        pub fn calc(input) {
-            let output = 0;
+    pub fn calc(input) {
+        let output = 0;
 
-            for value in input {
-                output += value;
-            }
-
-            [output]
+        for value in input {
+            output += value;
         }
-        "#,
-        &["calc"],
-        (input,),
-    )?;
+
+        [output]
+    }"#,
+    ));
+
+    let mut diagnostics = Diagnostics::new();
+
+    let result = rune::prepare(&context, &mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+    }
+
+    let unit = result?;
+    let mut vm = Vm::new(runtime, Arc::new(unit));
+
+    let input = vec![1, 2, 3, 4];
+    let output = vm.call(&["calc"], (input,))?;
+    let output = Vec::<i64>::from_value(output)?;
 
     println!("{:?}", output);
     Ok(())

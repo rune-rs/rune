@@ -146,8 +146,8 @@ fn compile_assign_binop(
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
 
-            let ident = segment.resolve(c.q.storage(), c.q.sources)?;
-            let var = c.scopes.get_var(&*ident, c.source_id, span)?;
+            let ident = segment.resolve(&c.q.storage, c.q.sources)?;
+            let var = c.scopes.get_var(c.q.visitor, &*ident, c.source_id, span)?;
 
             Some(InstTarget::Offset(var.offset))
         }
