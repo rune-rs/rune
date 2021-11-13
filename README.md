@@ -99,8 +99,8 @@ The following is a complete example, including rich diagnostics using
 [`termcolor`]: https://docs.rs/termcolor
 
 ```rust
+use rune::{Context, Diagnostics, FromValue, Source, Sources, Vm};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, Context, Options, Sources, Vm, FromValue, Item, Source};
 use std::sync::Arc;
 
 #[tokio::main]
