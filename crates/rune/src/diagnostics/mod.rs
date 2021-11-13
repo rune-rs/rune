@@ -3,23 +3,20 @@
 //! Diagnostics collects information about a source program in order to provide
 //! good human-readable diagnostics like errors, warnings, and hints.
 
-use crate::{SourceId, Span};
+use crate::ast::Span;
+use crate::SourceId;
 
-#[cfg(feature = "diagnostics")]
-mod dump_instructions;
-#[cfg(feature = "diagnostics")]
-mod emit_diagnostics;
 mod fatal;
-mod warning;
-
-#[cfg(feature = "diagnostics")]
-#[doc(inline)]
-pub use self::dump_instructions::{DumpInstructions, EmitSource};
-#[cfg(feature = "diagnostics")]
-#[doc(inline)]
-pub use self::emit_diagnostics::{EmitDiagnostics, EmitDiagnosticsError};
 pub use self::fatal::{FatalDiagnostic, FatalDiagnosticKind};
+
+mod warning;
 pub use self::warning::{WarningDiagnostic, WarningDiagnosticKind};
+
+cfg_emit! {
+    mod emit;
+    #[doc(inline)]
+    pub use self::emit::EmitError;
+}
 
 /// A single diagnostic.
 #[derive(Debug)]
@@ -48,13 +45,13 @@ impl Mode {
 
 /// Structure to collect compilation diagnostics.
 ///
-/// If the project is compiled with the `diagnostics` feature, you can make use
-/// of the `EmitDiagnostics` trait to emit human-readable diagnostics.
+/// If the project is compiled with the `emit` feature, you can make use of
+/// [Diagnostics::emit].
 ///
 /// # Examples
 ///
 /// ```rust,no_run
-/// use rune::{Sources, Diagnostics, EmitDiagnostics};
+/// use rune::{Sources, Diagnostics};
 /// use rune::termcolor::{StandardStream, ColorChoice};
 ///
 /// # fn main() -> rune::Result<()> {
@@ -65,7 +62,7 @@ impl Mode {
 ///
 /// if !diagnostics.is_empty() {
 ///     let mut writer = StandardStream::stderr(ColorChoice::Always);
-///     diagnostics.emit_diagnostics(&mut writer, &sources)?;
+///     diagnostics.emit(&mut writer, &sources)?;
 /// }
 /// # Ok(()) }
 /// ```
@@ -96,7 +93,8 @@ impl Diagnostics {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Diagnostics, SourceId, Span};
+    /// use rune::{Diagnostics, SourceId};
+    /// use rune::ast::Span;
     ///
     /// let mut diagnostics = Diagnostics::without_warnings();
     /// assert!(diagnostics.is_empty());
@@ -116,7 +114,8 @@ impl Diagnostics {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Diagnostics, SourceId, Span};
+    /// use rune::{Diagnostics, SourceId};
+    /// use rune::ast::Span;
     /// use rune::diagnostics::Diagnostic;
     ///
     /// let mut diagnostics = Diagnostics::new();

@@ -1,9 +1,9 @@
 use crate::compile::Named;
 use crate::runtime::{
-    FromValue, Function, Mut, RawMut, RawRef, Ref, ToValue, UnsafeFromValue, Value, VmError,
-    VmErrorKind,
+    FromValue, Function, Mut, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
+    VmError, VmErrorKind,
 };
-use crate::{InstallWith, RawStr};
+use crate::InstallWith;
 use std::fmt;
 use std::iter;
 use std::vec;

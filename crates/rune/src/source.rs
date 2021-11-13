@@ -1,4 +1,4 @@
-use crate::Span;
+use crate::ast::Span;
 use std::fmt;
 use std::fs;
 use std::io;

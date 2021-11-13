@@ -1,12 +1,13 @@
 use crate::ast;
+use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
-use crate::compile::{Assembly, CompileError, CompileErrorKind, CompileResult, Options};
+use crate::compile::{Assembly, CompileError, CompileErrorKind, CompileResult, Item, Options};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::meta::{CompileItem, CompileMeta, CompileMetaKind};
 use crate::parse::Resolve;
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst, InstAddress, InstValue, Label, PanicReason, TypeCheck};
-use crate::{Context, Diagnostics, Item, SourceId, Span, Spanned};
+use crate::{Context, Diagnostics, SourceId};
 
 mod assemble;
 mod loops;

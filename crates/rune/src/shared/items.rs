@@ -1,25 +1,26 @@
+use crate::compile::{ComponentRef, Item};
+use crate::parse::Id;
 use crate::shared::Gen;
-use crate::{ComponentRef, Id, Item};
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 
 #[derive(Debug)]
-struct Inner {
+struct Inner<'a> {
     id: usize,
     item: Item,
     ids: Vec<Id>,
-    gen: Gen,
+    gen: &'a Gen,
 }
 
 /// Manage item paths.
 #[derive(Debug)]
-pub(crate) struct Items {
-    inner: Rc<RefCell<Inner>>,
+pub(crate) struct Items<'a> {
+    inner: Rc<RefCell<Inner<'a>>>,
 }
 
-impl Items {
+impl<'a> Items<'a> {
     /// Construct a new items manager.
-    pub(crate) fn new(item: Item, gen: Gen) -> Self {
+    pub(crate) fn new(item: Item, gen: &'a Gen) -> Self {
         Self {
             inner: Rc::new(RefCell::new(Inner {
                 id: item.last().and_then(ComponentRef::id).unwrap_or_default(),
@@ -41,7 +42,7 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub(crate) fn push_id(&self) -> Guard {
+    pub(crate) fn push_id(&self) -> Guard<'a> {
         let mut inner = self.inner.borrow_mut();
         let id = inner.gen.next();
 
@@ -55,7 +56,7 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub(crate) fn push_name(&self, name: &str) -> Guard {
+    pub(crate) fn push_name(&self, name: &str) -> Guard<'a> {
         let mut inner = self.inner.borrow_mut();
         let id = inner.gen.next();
 
@@ -69,11 +70,11 @@ impl Items {
     }
 }
 
-pub(crate) struct Guard {
-    inner: Rc<RefCell<Inner>>,
+pub(crate) struct Guard<'a> {
+    inner: Rc<RefCell<Inner<'a>>>,
 }
 
-impl Drop for Guard {
+impl<'a> Drop for Guard<'a> {
     fn drop(&mut self) {
         let mut inner = self.inner.borrow_mut();
 

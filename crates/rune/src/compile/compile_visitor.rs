@@ -1,5 +1,6 @@
+use crate::ast::Span;
 use crate::meta::CompileMeta;
-use crate::{SourceId, Span};
+use crate::SourceId;
 
 /// A visitor that will be called for every language item compiled.
 pub trait CompileVisitor {

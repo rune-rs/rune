@@ -1,4 +1,5 @@
-use crate::{SourceId, Span};
+use crate::ast::Span;
+use crate::SourceId;
 use std::error;
 use std::fmt;
 use thiserror::Error;

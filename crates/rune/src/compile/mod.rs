@@ -1,15 +1,15 @@
 //! The Rune compiler.
 //!
-//! The main entry to compiling rune source is
-//! [build][crate::build] which uses this compiler. In here you'll
-//! just find compiler-specific types.
+//! The main entry to compiling rune source is [prepare][crate::prepare] which
+//! uses this compiler. In here you'll just find compiler-specific types.
 
 use crate::ast;
+use crate::ast::{Span, Spanned};
 use crate::parse::Resolve;
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::Gen;
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Diagnostics, Location, Sources, Span, Spanned};
+use crate::{Diagnostics, Sources};
 
 mod assembly;
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
@@ -20,6 +20,12 @@ pub use self::compile_error::{CompileError, CompileErrorKind, ImportStep};
 mod compile_visitor;
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
 
+pub(crate) mod context;
+pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
+
+pub(crate) mod item;
+pub use self::item::{Component, ComponentRef, IntoComponent, Item};
+
 mod source_loader;
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
 
@@ -29,17 +35,20 @@ pub(crate) use self::unit_builder::UnitBuilder;
 
 mod v1;
 
-pub(crate) mod context;
-pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
-
 mod options;
 pub use self::options::{Options, ParseOptionError};
+
+mod location;
+pub use self::location::Location;
 
 mod module;
 pub use self::module::{InstallWith, Module};
 
 mod named;
 pub use self::named::Named;
+
+mod visibility;
+pub(crate) use self::visibility::Visibility;
 
 /// A compile result alias.
 pub(crate) type CompileResult<T> = ::std::result::Result<T, CompileError>;
@@ -66,7 +75,7 @@ pub(crate) fn compile(
         diagnostics,
         visitor,
         source_loader,
-        gen,
+        &gen,
     );
 
     // Queue up the initial sources to be loaded.

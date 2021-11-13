@@ -1,17 +1,16 @@
-use crate::Id;
+use crate::parse::Id;
 use std::cell::Cell;
-use std::rc::Rc;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub(crate) struct Gen {
-    id: Rc<Cell<Id>>,
+    id: Cell<Id>,
 }
 
 impl Gen {
     /// Construct a new shared generator.
     pub(crate) fn new() -> Self {
         Self {
-            id: Rc::new(Cell::new(Id::initial())),
+            id: Cell::new(Id::initial()),
         }
     }
 

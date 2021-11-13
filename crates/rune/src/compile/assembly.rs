@@ -1,9 +1,10 @@
 //! Helpers for building assembly.
 
+use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::{CompileError, CompileErrorKind};
+use crate::compile::{CompileError, CompileErrorKind, Location};
 use crate::runtime::{Inst, Label};
-use crate::{Hash, Location, SourceId, Span};
+use crate::{Hash, SourceId};
 
 #[derive(Debug, Clone)]
 pub(crate) enum AssemblyInst {

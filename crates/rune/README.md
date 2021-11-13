@@ -100,7 +100,7 @@ The following is a complete example, including rich diagnostics using
 
 ```rust
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, EmitDiagnostics, Context, Options, Sources, Vm, FromValue, Item, Source};
+use rune::{Diagnostics, Context, Options, Sources, Vm, FromValue, Item, Source};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -126,7 +126,7 @@ async fn main() -> rune::Result<()> {
 
     if !diagnostics.is_empty() {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+        diagnostics.emit(&mut writer, &sources)?;
     }
 
     let unit = result?;

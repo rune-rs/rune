@@ -1,4 +1,5 @@
-use crate::{Id, Spanned};
+use crate::ast::Spanned;
+use crate::parse::Id;
 
 pub(crate) trait Opaque {
     fn id(&self) -> Option<Id>;

@@ -1,8 +1,9 @@
 use crate::ExitCode;
+use rune::compile::Item;
 use rune::meta::CompileMeta;
 use rune::runtime::{Function, RuntimeContext, Unit, Value};
 use rune::termcolor::StandardStream;
-use rune::{Any, ContextError, EmitDiagnostics, Hash, Item, Module, Sources};
+use rune::{Any, ContextError, Hash, Module, Sources};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
@@ -46,7 +47,7 @@ pub(crate) async fn do_benches(
 
         if let Err(error) = vm.call(hash, (&mut bencher,)) {
             writeln!(out, "Error in benchmark `{}`", meta.item.item)?;
-            error.emit_diagnostics(&mut out, &sources)?;
+            error.emit(&mut out, &sources)?;
             any_error = true;
             continue;
         }

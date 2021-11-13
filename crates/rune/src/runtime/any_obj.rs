@@ -1,6 +1,7 @@
 //! Helper types for a holder of data.
 
-use crate::{Any, Hash, RawStr};
+use crate::runtime::RawStr;
+use crate::{Any, Hash};
 use std::any;
 use std::fmt;
 use std::mem::ManuallyDrop;

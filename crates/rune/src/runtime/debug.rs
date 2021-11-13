@@ -1,8 +1,10 @@
 //! Debug information for units.
 
+use crate::ast::Span;
 use crate::collections::HashMap;
+use crate::compile::Item;
 use crate::runtime::DebugLabel;
-use crate::{Hash, Item, SourceId, Span};
+use crate::{Hash, SourceId};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

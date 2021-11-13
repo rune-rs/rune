@@ -1,8 +1,10 @@
 //! Compiler metadata for Rune.
 
 use crate::collections::HashSet;
+use crate::compile::{Item, Location, Visibility};
+use crate::parse::Id;
 use crate::runtime::ConstValue;
-use crate::{Hash, Id, Item, Location, Visibility};
+use crate::Hash;
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;

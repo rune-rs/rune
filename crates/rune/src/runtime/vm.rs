@@ -185,7 +185,7 @@ impl Vm {
     /// worth noting that it can be precalculated:
     ///
     /// ```rust
-    /// use rune::{Hash, Item};
+    /// use rune::Hash;
     ///
     /// let name = Hash::type_hash(&["main"]);
     /// ```
@@ -282,8 +282,8 @@ impl Vm {
     /// this call will panic as we are trying to free the metadata relatedc to
     /// the reference.
     ///
-    /// [`Mut<T>`]: crate::Mut
-    /// [`Ref<T>`]: crate::Ref
+    /// [`Mut<T>`]: crate::runtime::Mut
+    /// [`Ref<T>`]: crate::runtime::Ref
     pub fn call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: IntoTypeHash,
@@ -318,8 +318,8 @@ impl Vm {
     /// this call will panic as we are trying to free the metadata relatedc to
     /// the reference.
     ///
-    /// [`Mut<T>`]: crate::Mut
-    /// [`Ref<T>`]: crate::Ref
+    /// [`Mut<T>`]: crate::runtime::Mut
+    /// [`Ref<T>`]: crate::runtime::Ref
     pub async fn async_call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: IntoTypeHash,

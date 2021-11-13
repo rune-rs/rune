@@ -1,7 +1,8 @@
 use crate::ast;
+use crate::ast::{Spanned, SpannedError};
 use crate::parse::{LexerMode, ResolveError, ResolveErrorKind};
 use crate::shared::Description;
-use crate::{SourceId, Spanned, SpannedError};
+use crate::SourceId;
 use thiserror::Error;
 
 error! {

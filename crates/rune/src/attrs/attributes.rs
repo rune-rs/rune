@@ -1,8 +1,9 @@
 use crate::ast;
+use crate::ast::{Span, Spanned};
 use crate::attrs::Attribute;
 use crate::macros::Storage;
 use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
-use crate::{Sources, Span, Spanned};
+use crate::Sources;
 use std::collections::BTreeSet;
 
 /// Helper for parsing internal attributes.

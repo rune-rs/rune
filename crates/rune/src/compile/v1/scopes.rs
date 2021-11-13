@@ -1,7 +1,8 @@
+use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{Assembly, CompileError, CompileErrorKind, CompileResult, CompileVisitor};
 use crate::runtime::Inst;
-use crate::{SourceId, Span};
+use crate::SourceId;
 
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.

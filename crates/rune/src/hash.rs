@@ -1,4 +1,5 @@
-use crate::{Any, IntoComponent, Item, Protocol};
+use crate::compile::{IntoComponent, Item};
+use crate::{Any, Protocol};
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
@@ -13,7 +14,8 @@ const INSTANCE_FUNCTION_HASH: u64 = 0x5ea77ffbcdf5f302;
 const FIELD_FUNCTION_HASH: u64 = 0xab53b6a7a53c757e;
 const OBJECT_KEYS: usize = 4;
 
-/// The hash of a primitive thing.
+/// The primitive hash that among other things is used to reference items,
+/// types, and native functions.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Hash(u64);

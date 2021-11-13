@@ -1,7 +1,8 @@
 #![allow(unused)]
 
+use rune::compile::Item;
 use rune::runtime::{Mut, Object, Ref, Shared, Tuple, Value};
-use rune::{Any, Context, ContextError, FromValue, Item, Module, ToValue};
+use rune::{Any, Context, ContextError, FromValue, Module, ToValue};
 
 #[derive(Any)]
 #[rune(name = "Bar")]

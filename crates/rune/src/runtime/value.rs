@@ -1,9 +1,10 @@
+use crate::compile::Item;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, Function, Future,
     Generator, GeneratorState, Iterator, Mut, Object, ProtocolCaller, Range, RawMut, RawRef, Ref,
     Shared, StaticString, Stream, ToValue, Tuple, TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind,
 };
-use crate::{Any, Hash, Item, Protocol};
+use crate::{Any, Hash, Protocol};
 use serde::{de, ser, Deserialize, Serialize};
 use std::cmp;
 use std::fmt;
@@ -144,6 +145,7 @@ impl fmt::Debug for Struct {
 
 /// Runtime information on variant.
 #[derive(Debug, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct VariantRtti {
     /// The type hash of the enum.
     pub enum_hash: Hash,
@@ -181,6 +183,7 @@ impl cmp::Ord for VariantRtti {
 
 /// Runtime information on variant.
 #[derive(Debug, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Rtti {
     /// The type hash of the type.
     pub hash: Hash,

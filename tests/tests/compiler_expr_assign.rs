@@ -1,5 +1,5 @@
 use rune::compile::CompileErrorKind::*;
-use rune::Span;
+use rune::span;
 use rune_tests::*;
 
 #[test]
@@ -9,7 +9,7 @@ fn test_assign_exprs() {
     assert_compile_error! {
         r#"pub fn main() { 1 = 42; }"#,
         span, UnsupportedAssignExpr => {
-            assert_eq!(span, Span::new(16, 22));
+            assert_eq!(span, span!(16, 22));
         }
     };
 }

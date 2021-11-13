@@ -1,5 +1,5 @@
 use rune::compile::CompileErrorKind::*;
-use rune::Span;
+use rune::span;
 use rune_tests::*;
 
 #[test]
@@ -111,7 +111,7 @@ fn test_continue_not_in_loop() {
     assert_compile_error! {
         r#"pub fn main() { continue }"#,
         span, ContinueOutsideOfLoop => {
-            assert_eq!(span, Span::new(16, 24));
+            assert_eq!(span, span!(16, 24));
         }
     };
 }
@@ -121,7 +121,7 @@ fn test_continue_missing_label() {
     assert_compile_error! {
         r#"pub fn main() { 'existing: loop { loop { continue 'missing; } } }"#,
         span, MissingLoopLabel { label } => {
-            assert_eq!(span, Span::new(50, 58));
+            assert_eq!(span, span!(50, 58));
             assert_eq!(&*label, "missing");
         }
     };

@@ -1,5 +1,5 @@
 use rune::compile::CompileErrorKind::*;
-use rune::Span;
+use rune::span;
 use rune_tests::*;
 
 #[test]
@@ -36,8 +36,8 @@ fn deny_nested_use() {
         }
         "#,
         span, NestedTest { nested_span } => {
-            assert_eq!(span, Span::new(37, 69));
-            assert_eq!(nested_span, Span::new(9, 22));
+            assert_eq!(span, span!(37, 69));
+            assert_eq!(nested_span, span!(9, 22));
         }
     }
 
@@ -51,8 +51,8 @@ fn deny_nested_use() {
         };
         "#,
         span, NestedTest { nested_span } => {
-            assert_eq!(span, Span::new(36, 68));
-            assert_eq!(nested_span, Span::new(9, 19));
+            assert_eq!(span, span!(36, 68));
+            assert_eq!(nested_span, span!(9, 19));
         }
     }
 }
@@ -70,8 +70,8 @@ fn deny_nested_bench() {
         }
         "#,
         span, NestedBench { nested_span } => {
-            assert_eq!(span, Span::new(37, 71));
-            assert_eq!(nested_span, Span::new(9, 22));
+            assert_eq!(span, span!(37, 71));
+            assert_eq!(nested_span, span!(9, 22));
         }
     }
 
@@ -85,8 +85,8 @@ fn deny_nested_bench() {
         };
         "#,
         span, NestedBench { nested_span } => {
-            assert_eq!(span, Span::new(36, 70));
-            assert_eq!(nested_span, Span::new(9, 19));
+            assert_eq!(span, span!(36, 70));
+            assert_eq!(nested_span, span!(9, 19));
         }
     }
 }

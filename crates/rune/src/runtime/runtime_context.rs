@@ -1,7 +1,8 @@
 use crate::collections::HashMap;
+use crate::compile::Item;
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{ConstValue, Stack, TypeCheck, VmError};
-use crate::{Hash, Item};
+use crate::Hash;
 use std::fmt;
 use std::sync::Arc;
 

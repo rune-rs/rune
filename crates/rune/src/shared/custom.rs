@@ -1,4 +1,4 @@
-use crate::{Span, Spanned, SpannedError};
+use crate::ast::{Span, Spanned, SpannedError};
 
 /// A custom opaque error helper.
 pub(crate) struct Custom {

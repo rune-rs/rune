@@ -52,14 +52,10 @@
 
 use anyhow::{Context as _, Result};
 use rune::compile::{FileSourceLoader, ParseOptionError};
-use rune::diagnostics::{DumpInstructions, EmitSource};
 use rune::meta::CompileMeta;
-use rune::runtime::{Unit, Value, Vm, VmExecution};
+use rune::runtime::{RuntimeContext, Unit, Value, Vm, VmError, VmExecution};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{
-    Context, ContextError, Diagnostics, EmitDiagnostics, Hash, Options, RuntimeContext, Source,
-    Sources, VmError,
-};
+use rune::{Context, ContextError, Diagnostics, Hash, Options, Source, Sources};
 use std::fs;
 use std::io;
 use std::io::Write;
@@ -110,14 +106,14 @@ impl Command {
 
                 if args.dump_unit {
                     args.dump_unit = true;
-                    args.dump_instructions = true;
+                    args.emit_instructions = true;
                 }
 
                 if args.dump_functions
                     || args.dump_native_functions
                     || args.dump_stack
                     || args.dump_types
-                    || args.dump_instructions
+                    || args.emit_instructions
                 {
                     args.dump_unit = true;
                 }
@@ -234,7 +230,7 @@ struct RunFlags {
     dump_unit: bool,
     /// Dump unit instructions.
     #[structopt(long)]
-    dump_instructions: bool,
+    emit_instructions: bool,
     /// Dump the state of the stack after completion.
     ///
     /// If compiled with `--trace` will dump it after each instruction.
@@ -481,7 +477,7 @@ fn load_path(
                 .with_source_loader(&mut source_loader)
                 .build();
 
-            diagnostics.emit_diagnostics(out, &sources)?;
+            diagnostics.emit(out, &sources)?;
             let unit = result?;
 
             if options.bytecode {
@@ -544,7 +540,7 @@ async fn run_path(args: &Args, options: &Options, path: &Path) -> Result<ExitCod
                 .with_source_loader(&mut source_loader)
                 .build();
 
-            diagnostics.emit_diagnostics(&mut out, &sources).unwrap();
+            diagnostics.emit(&mut out, &sources).unwrap();
 
             if diagnostics.has_error() || checkargs.warnings_are_errors && diagnostics.has_warning()
             {
@@ -593,10 +589,10 @@ async fn run_path(args: &Args, options: &Options, path: &Path) -> Result<ExitCod
             }
 
             if runargs.dump_unit {
-                if runargs.dump_instructions {
+                if runargs.emit_instructions {
                     writeln!(out, "# instructions")?;
                     let mut out = out.lock();
-                    unit.dump_instructions(&mut out, &sources, runargs.with_source)?;
+                    unit.emit_instructions(&mut out, &sources, runargs.with_source)?;
                 }
 
                 let mut functions = unit.iter_functions().peekable();
@@ -729,7 +725,7 @@ async fn do_run(
 
     if let Some(error) = errored {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        error.emit_diagnostics(&mut writer, &sources)?;
+        error.emit(&mut writer, &sources)?;
         Ok(ExitCode::VmError)
     } else {
         Ok(ExitCode::Success)

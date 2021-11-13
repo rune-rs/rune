@@ -14,8 +14,8 @@ pub struct Abstract {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Abstract {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Abstract {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -50,8 +50,8 @@ pub struct AlignOf {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for AlignOf {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for AlignOf {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -86,8 +86,8 @@ pub struct Amp {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Amp {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Amp {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -122,8 +122,8 @@ pub struct AmpAmp {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for AmpAmp {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for AmpAmp {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -158,8 +158,8 @@ pub struct AmpEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for AmpEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for AmpEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -194,8 +194,8 @@ pub struct Arrow {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Arrow {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Arrow {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -230,8 +230,8 @@ pub struct As {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for As {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for As {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -266,8 +266,8 @@ pub struct Async {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Async {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Async {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -302,8 +302,8 @@ pub struct At {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for At {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for At {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -338,8 +338,8 @@ pub struct Await {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Await {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Await {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -374,8 +374,8 @@ pub struct Bang {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Bang {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Bang {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -410,8 +410,8 @@ pub struct BangEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for BangEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for BangEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -446,8 +446,8 @@ pub struct Become {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Become {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Become {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -482,8 +482,8 @@ pub struct Break {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Break {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Break {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -518,8 +518,8 @@ pub struct Caret {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Caret {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Caret {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -554,8 +554,8 @@ pub struct CaretEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for CaretEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for CaretEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -590,8 +590,8 @@ pub struct Colon {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Colon {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Colon {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -626,8 +626,8 @@ pub struct ColonColon {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for ColonColon {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for ColonColon {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -662,8 +662,8 @@ pub struct Comma {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Comma {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Comma {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -698,8 +698,8 @@ pub struct Const {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Const {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Const {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -734,8 +734,8 @@ pub struct Continue {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Continue {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Continue {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -770,8 +770,8 @@ pub struct Crate {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Crate {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Crate {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -806,8 +806,8 @@ pub struct Dash {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Dash {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Dash {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -842,8 +842,8 @@ pub struct DashEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for DashEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for DashEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -878,8 +878,8 @@ pub struct Default {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Default {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Default {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -914,8 +914,8 @@ pub struct Div {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Div {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Div {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -950,8 +950,8 @@ pub struct Do {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Do {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Do {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -986,8 +986,8 @@ pub struct Dollar {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Dollar {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Dollar {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1022,8 +1022,8 @@ pub struct Dot {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Dot {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Dot {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1058,8 +1058,8 @@ pub struct DotDot {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for DotDot {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for DotDot {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1094,8 +1094,8 @@ pub struct DotDotEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for DotDotEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for DotDotEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1130,8 +1130,8 @@ pub struct Else {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Else {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Else {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1166,8 +1166,8 @@ pub struct Enum {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Enum {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Enum {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1202,8 +1202,8 @@ pub struct Eq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Eq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Eq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1238,8 +1238,8 @@ pub struct EqEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for EqEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for EqEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1274,8 +1274,8 @@ pub struct Extern {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Extern {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Extern {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1310,8 +1310,8 @@ pub struct False {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for False {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for False {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1346,8 +1346,8 @@ pub struct Final {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Final {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Final {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1382,8 +1382,8 @@ pub struct Fn {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Fn {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Fn {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1418,8 +1418,8 @@ pub struct For {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for For {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for For {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1454,8 +1454,8 @@ pub struct Gt {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Gt {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Gt {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1490,8 +1490,8 @@ pub struct GtEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for GtEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for GtEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1526,8 +1526,8 @@ pub struct GtGt {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for GtGt {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for GtGt {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1562,8 +1562,8 @@ pub struct GtGtEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for GtGtEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for GtGtEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1598,8 +1598,8 @@ pub struct If {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for If {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for If {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1634,8 +1634,8 @@ pub struct Impl {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Impl {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Impl {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1670,8 +1670,8 @@ pub struct In {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for In {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for In {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1706,8 +1706,8 @@ pub struct Is {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Is {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Is {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1742,8 +1742,8 @@ pub struct Let {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Let {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Let {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1778,8 +1778,8 @@ pub struct Loop {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Loop {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Loop {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1814,8 +1814,8 @@ pub struct Lt {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Lt {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Lt {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1850,8 +1850,8 @@ pub struct LtEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for LtEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for LtEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1886,8 +1886,8 @@ pub struct LtLt {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for LtLt {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for LtLt {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1922,8 +1922,8 @@ pub struct LtLtEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for LtLtEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for LtLtEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1958,8 +1958,8 @@ pub struct Macro {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Macro {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Macro {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -1994,8 +1994,8 @@ pub struct Match {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Match {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Match {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2030,8 +2030,8 @@ pub struct Mod {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Mod {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Mod {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2066,8 +2066,8 @@ pub struct Move {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Move {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Move {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2102,8 +2102,8 @@ pub struct Not {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Not {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Not {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2138,8 +2138,8 @@ pub struct OffsetOf {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for OffsetOf {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for OffsetOf {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2174,8 +2174,8 @@ pub struct Override {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Override {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Override {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2210,8 +2210,8 @@ pub struct Perc {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Perc {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Perc {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2246,8 +2246,8 @@ pub struct PercEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for PercEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for PercEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2282,8 +2282,8 @@ pub struct Pipe {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Pipe {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Pipe {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2318,8 +2318,8 @@ pub struct PipeEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for PipeEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for PipeEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2354,8 +2354,8 @@ pub struct PipePipe {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for PipePipe {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for PipePipe {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2390,8 +2390,8 @@ pub struct Plus {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Plus {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Plus {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2426,8 +2426,8 @@ pub struct PlusEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for PlusEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for PlusEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2462,8 +2462,8 @@ pub struct Pound {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Pound {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Pound {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2498,8 +2498,8 @@ pub struct Priv {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Priv {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Priv {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2534,8 +2534,8 @@ pub struct Proc {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Proc {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Proc {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2570,8 +2570,8 @@ pub struct Pub {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Pub {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Pub {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2606,8 +2606,8 @@ pub struct Pure {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Pure {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Pure {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2642,8 +2642,8 @@ pub struct QuestionMark {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for QuestionMark {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for QuestionMark {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2678,8 +2678,8 @@ pub struct Ref {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Ref {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Ref {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2714,8 +2714,8 @@ pub struct Return {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Return {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Return {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2750,8 +2750,8 @@ pub struct Rocket {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Rocket {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Rocket {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2786,8 +2786,8 @@ pub struct Select {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Select {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Select {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2822,8 +2822,8 @@ pub struct SelfType {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for SelfType {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for SelfType {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2858,8 +2858,8 @@ pub struct SelfValue {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for SelfValue {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for SelfValue {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2894,8 +2894,8 @@ pub struct SemiColon {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for SemiColon {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for SemiColon {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2930,8 +2930,8 @@ pub struct SizeOf {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for SizeOf {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for SizeOf {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -2966,8 +2966,8 @@ pub struct SlashEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for SlashEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for SlashEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3002,8 +3002,8 @@ pub struct Star {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Star {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Star {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3038,8 +3038,8 @@ pub struct StarEq {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for StarEq {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for StarEq {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3074,8 +3074,8 @@ pub struct Static {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Static {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Static {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3110,8 +3110,8 @@ pub struct Struct {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Struct {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Struct {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3146,8 +3146,8 @@ pub struct Super {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Super {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Super {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3182,8 +3182,8 @@ pub struct Tilde {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Tilde {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Tilde {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3218,8 +3218,8 @@ pub struct True {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for True {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for True {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3254,8 +3254,8 @@ pub struct TypeOf {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for TypeOf {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for TypeOf {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3290,8 +3290,8 @@ pub struct Underscore {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Underscore {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Underscore {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3326,8 +3326,8 @@ pub struct Unsafe {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Unsafe {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Unsafe {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3362,8 +3362,8 @@ pub struct Use {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Use {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Use {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3398,8 +3398,8 @@ pub struct Virtual {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Virtual {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Virtual {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3434,8 +3434,8 @@ pub struct While {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for While {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for While {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }
@@ -3470,8 +3470,8 @@ pub struct Yield {
     pub token: ast::Token,
 }
 
-impl crate::Spanned for Yield {
-    fn span(&self) -> crate::Span {
+impl ast::Spanned for Yield {
+    fn span(&self) -> ast::Span {
         self.token.span()
     }
 }

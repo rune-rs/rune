@@ -1,9 +1,9 @@
 //! Simplified scope implementation used for indexing.
 
+use crate::ast::Span;
 use crate::collections::{HashMap, HashSet};
 use crate::compile::{CompileError, CompileErrorKind};
 use crate::meta::CompileMetaCapture;
-use crate::Span;
 use std::cell::RefCell;
 use std::rc::Rc;
 

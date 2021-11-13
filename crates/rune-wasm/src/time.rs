@@ -1,5 +1,6 @@
 use js_sys::Promise;
-use rune::{Any, ContextError, Module, VmError};
+use rune::runtime::VmError;
+use rune::{Any, ContextError, Module};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 

@@ -1,6 +1,7 @@
+use crate::ast::{Spanned, SpannedError};
 use crate::macros::Storage;
 use crate::shared::Description;
-use crate::{Sources, Spanned, SpannedError};
+use crate::Sources;
 use thiserror::Error;
 
 error! {

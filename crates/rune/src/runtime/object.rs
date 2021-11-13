@@ -1,9 +1,10 @@
 use crate::collections::{btree_map, BTreeMap};
-use crate::compile::Named;
+use crate::compile::{Item, Named};
 use crate::runtime::{
-    FromValue, Iterator, Mut, RawMut, RawRef, Ref, ToValue, UnsafeFromValue, Value, Vm, VmError,
+    FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value, Vm,
+    VmError,
 };
-use crate::{InstallWith, Item, RawStr};
+use crate::InstallWith;
 use std::borrow;
 use std::cmp;
 use std::fmt;

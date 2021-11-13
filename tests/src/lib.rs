@@ -1,10 +1,9 @@
 //! Test cases for rune.
 #![allow(dead_code)]
 
-use rune::{
-    termcolor, Args, Context, Diagnostics, EmitDiagnostics, FromValue, IntoComponent, Item, Source,
-    Sources, Unit, Vm, VmError,
-};
+use rune::compile::{IntoComponent, Item};
+use rune::runtime::{Args, VmError};
+use rune::{termcolor, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -158,8 +157,6 @@ where
     A: Args,
     T: FromValue,
 {
-    use EmitDiagnostics as _;
-
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
 
@@ -173,12 +170,11 @@ where
     match &e {
         RunError::Diagnostics(diagnostics) => {
             diagnostics
-                .emit_diagnostics(&mut writer, &sources)
+                .emit(&mut writer, &sources)
                 .expect("emit diagnostics");
         }
         RunError::VmError(e) => {
-            e.emit_diagnostics(&mut writer, &sources)
-                .expect("emit diagnostics");
+            e.emit(&mut writer, &sources).expect("emit diagnostics");
         }
     }
 
@@ -220,7 +216,7 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 
     if !diagnostics.is_empty() {
         let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
-        diagnostics.emit_diagnostics(&mut writer, &sources)?;
+        diagnostics.emit(&mut writer, &sources)?;
     }
 
     Ok(Arc::new(result?))
@@ -438,7 +434,7 @@ macro_rules! assert_errors {
                 }
             };
 
-            let $span = rune::Spanned::span(&e);
+            let $span = rune::ast::Spanned::span(&e);
 
             match e.into_kind() {
                 $pat => $cond,

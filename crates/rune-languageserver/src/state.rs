@@ -3,10 +3,13 @@ use anyhow::{anyhow, Result};
 use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
-use rune::compile::{CompileError, CompileVisitor, FileSourceLoader, LinkerError};
+use rune::ast::{Span, Spanned};
+use rune::compile::{
+    CompileError, CompileVisitor, ComponentRef, FileSourceLoader, Item, LinkerError, Location,
+};
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::meta::{CompileMeta, CompileMetaKind, CompileSource};
-use rune::{ComponentRef, Context, Item, Location, Options, SourceId, Span, Spanned};
+use rune::{Context, Options, SourceId};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;

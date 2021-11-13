@@ -1,6 +1,6 @@
+use crate::ast::Spanned;
 use crate::collections::HashMap;
 use crate::shared::Custom;
-use crate::Spanned;
 use thiserror::Error;
 
 /// A hierarchy of constant scopes.

@@ -1,9 +1,10 @@
-use crate::compile::ImportStep;
+use crate::ast::Spanned;
+use crate::compile::{ImportStep, Item, Location, Visibility};
 use crate::ir::{IrError, IrErrorKind};
 use crate::meta::CompileMeta;
-use crate::parse::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
+use crate::parse::{Id, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
 use crate::runtime::debug::DebugSignature;
-use crate::{Hash, Id, Item, Location, Spanned, Visibility};
+use crate::Hash;
 use thiserror::Error;
 
 error! {

@@ -2,7 +2,7 @@ use crate::ExitCode;
 use rune::meta::CompileMeta;
 use rune::runtime::{RuntimeContext, Unit, UnitFn, Value, Vm, VmError, VmErrorKind};
 use rune::termcolor::StandardStream;
-use rune::{EmitDiagnostics, Hash, Sources};
+use rune::{Hash, Sources};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
@@ -113,11 +113,7 @@ impl TestCase {
         }
     }
 
-    fn emit_diagnostics(
-        &self,
-        out: &mut StandardStream,
-        sources: &Sources,
-    ) -> Result<(), std::io::Error> {
+    fn emit(&self, out: &mut StandardStream, sources: &Sources) -> Result<(), std::io::Error> {
         if self.outcome.is_none() {
             return Ok(());
         }
@@ -125,8 +121,7 @@ impl TestCase {
             FailureReason::Crash(err) => {
                 writeln!(out, "----------------------------------------")?;
                 writeln!(out, "Test: {}\n", self.meta.item.item)?;
-                err.emit_diagnostics(out, sources)
-                    .expect("failed writing diagnostics");
+                err.emit(out, sources).expect("failed writing diagnostics");
             }
             FailureReason::ReturnedNone => {}
             FailureReason::ReturnedErr(e) => {
@@ -178,7 +173,7 @@ pub(crate) async fn do_tests(
     let elapsed = start.elapsed();
 
     for case in &cases {
-        case.emit_diagnostics(&mut out, &sources)?;
+        case.emit(&mut out, &sources)?;
     }
 
     writeln!(out, "====")?;

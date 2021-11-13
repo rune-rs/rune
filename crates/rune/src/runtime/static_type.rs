@@ -1,5 +1,6 @@
 use crate::runtime as rt;
-use crate::{Hash, RawStr};
+use crate::runtime::RawStr;
+use crate::Hash;
 use std::cmp;
 use std::hash;
 use std::vec;

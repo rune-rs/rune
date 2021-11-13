@@ -40,11 +40,11 @@ mod lit_str;
 mod local;
 mod prelude;
 
+use crate::ast::Span;
 use crate::compile::v1::{Compiler, Needs, Var};
 use crate::compile::CompileResult;
 use crate::meta::CompileMetaCapture;
 use crate::runtime::InstAddress;
-use crate::Span;
 
 #[derive(Debug)]
 #[must_use = "must be consumed to make sure the value is realized"]

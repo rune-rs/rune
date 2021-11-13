@@ -319,7 +319,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{BorrowRef, Shared};
+    /// use rune::runtime::{BorrowRef, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
@@ -344,7 +344,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{BorrowRef, Shared};
+    /// use rune::runtime::{BorrowRef, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
@@ -459,7 +459,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{BorrowMut, Shared};
+    /// use rune::runtime::{BorrowMut, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
@@ -484,7 +484,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{BorrowMut, Shared};
+    /// use rune::runtime::{BorrowMut, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);

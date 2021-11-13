@@ -16,8 +16,8 @@ pub(crate) use self::ir_interpreter::IrBudget;
 pub(crate) use self::ir_interpreter::IrInterpreter;
 pub(crate) use self::ir_value::IrValue;
 
+use crate::ast::{Span, Spanned};
 use crate::runtime::ConstValue;
-use crate::{Span, Spanned};
 
 macro_rules! decl_kind {
     (

@@ -1,6 +1,7 @@
 use crate::ast;
+use crate::ast::Span;
 use crate::parse::{ParseError, ParseErrorKind};
-use crate::{SourceId, Span};
+use crate::SourceId;
 use std::collections::VecDeque;
 use std::fmt;
 

@@ -1,8 +1,8 @@
-use crate::ast::Kind;
+use crate::ast::{Kind, Span, Spanned};
 use crate::macros::{MacroContext, ToTokens, TokenStream};
 use crate::parse::{ParseError, ParseErrorKind};
 use crate::shared::Description;
-use crate::{SourceId, Span, Spanned};
+use crate::SourceId;
 use std::fmt;
 
 /// A single token encountered during parsing.

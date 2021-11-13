@@ -4,13 +4,13 @@
 //! native code.
 
 use crate::collections::HashMap;
-use crate::compile::{ContextError, Named};
+use crate::compile::{ContextError, IntoComponent, Item, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
     ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Stack,
     StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, InstFnNameHash, IntoComponent, Item, Protocol};
+use crate::{Hash, InstFnNameHash, Protocol};
 use std::future;
 use std::sync::Arc;
 

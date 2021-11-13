@@ -1,6 +1,6 @@
 use rune::compile::CompileErrorKind::QueryError;
 use rune::query::QueryErrorKind::*;
-use rune::Span;
+use rune::span;
 use rune_tests::*;
 
 #[test]
@@ -43,7 +43,7 @@ fn test_access_hidden() {
         }        
         "#,
         span, QueryError { error: NotVisibleMod { .. } } => {
-            assert_eq!(span, Span::new(219, 231));
+            assert_eq!(span, span!(219, 231));
         }
     };
 }
@@ -62,7 +62,7 @@ fn test_hidden_reexport() {
         pub fn main() { b::test() }
         "#,
         span, QueryError { error: NotVisible { .. } } => {
-            assert_eq!(span, Span::new(107, 110));
+            assert_eq!(span, span!(107, 110));
         }
     }
 }
