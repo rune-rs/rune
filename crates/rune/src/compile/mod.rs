@@ -19,7 +19,8 @@ mod compile_error;
 pub use self::compile_error::{CompileError, CompileErrorKind, ImportStep};
 
 mod compile_visitor;
-pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
+pub use self::compile_visitor::CompileVisitor;
+pub(crate) use self::compile_visitor::NoopCompileVisitor;
 
 pub(crate) mod context;
 pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};

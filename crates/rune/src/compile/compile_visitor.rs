@@ -17,12 +17,12 @@ pub trait CompileVisitor {
     fn visit_mod(&mut self, _source_id: SourceId, _span: Span) {}
 }
 
-/// A compile visitor that does nothing.
-pub struct NoopCompileVisitor(());
+/// A [CompileVisitor] which does nothing.
+pub(crate) struct NoopCompileVisitor(());
 
 impl NoopCompileVisitor {
     /// Construct a new noop compile visitor.
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self(())
     }
 }

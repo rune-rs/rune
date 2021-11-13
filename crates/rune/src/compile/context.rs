@@ -16,103 +16,49 @@ use thiserror::Error;
 
 /// An error raised when building the context.
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
 pub enum ContextError {
-    /// Conflicting `()` types.
     #[error("`()` types are already present")]
     UnitAlreadyPresent,
-    /// Conflicting internal type.
     #[error("`{name}` types are already present")]
-    InternalAlreadyPresent {
-        /// The name of the internal type already present.
-        name: &'static str,
-    },
-    /// A conflicting name.
+    InternalAlreadyPresent { name: &'static str },
     #[error("conflicting meta {existing} while trying to insert {current}")]
     ConflictingMeta {
-        /// The current meta we tried to insert.
         current: Box<CompileMeta>,
-        /// The existing meta item.
         existing: Box<CompileMeta>,
     },
-    /// Error raised when attempting to register a conflicting function.
     #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
-        /// The signature of the conflicting function.
         signature: ContextSignature,
-        /// The hash of the conflicting function.
         hash: Hash,
     },
-    /// Error raised when attempting to register a conflicting function.
     #[error("function with name `{name}` already exists")]
-    ConflictingFunctionName {
-        /// The name of the conflicting function.
-        name: Item,
-    },
-    /// Error raised when attempting to register a conflicting constant.
+    ConflictingFunctionName { name: Item },
     #[error("constant with name `{name}` already exists")]
-    ConflictingConstantName {
-        /// The name of the conflicting constant.
-        name: Item,
-    },
-    /// Error raised when attempting to register a conflicting instance function.
+    ConflictingConstantName { name: Item },
     #[error("instance function `{name}` for type `{type_info}` already exists")]
-    ConflictingInstanceFunction {
-        /// Type that we register the instance function for.
-        type_info: TypeInfo,
-        /// The name of the conflicting function.
-        name: Box<str>,
-    },
-    /// Tried to insert a module that conflicted with an already existing one.
+    ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
     #[error("module `{item}` with hash `{hash}` already exists")]
-    ConflictingModule {
-        /// The name of the module that conflicted.
-        item: Item,
-        /// The hash of the module that conflicted.
-        hash: Hash,
-    },
-    /// Raised when we try to register a conflicting type.
+    ConflictingModule { item: Item, hash: Hash },
     #[error("type `{item}` already exists `{existing}`")]
-    ConflictingType {
-        /// The name we tried to register.
-        item: Item,
-        /// The type information for the type that already existed.
-        existing: TypeInfo,
-    },
-    /// Raised when we try to register a conflicting type hash.
+    ConflictingType { item: Item, existing: TypeInfo },
     #[error("tried to insert conflicting hash `{hash}` for `{existing}`")]
-    ConflictingTypeHash {
-        /// The hash we are trying to insert.
-        hash: Hash,
-        /// The hash that already existed.
-        existing: Hash,
-    },
-    /// Error raised when attempting to register a conflicting function.
+    ConflictingTypeHash { hash: Hash, existing: Hash },
     #[error("variant with `{item}` already exists")]
-    ConflictingVariant {
-        /// The name of the conflicting variant.
-        item: Item,
-    },
-    /// Error raised when attempting to register an instance function on an
-    /// instance which does not exist.
+    ConflictingVariant { item: Item },
     #[error("instance `{instance_type}` does not exist in module")]
-    MissingInstance {
-        /// The instance type.
-        instance_type: TypeInfo,
-    },
-    /// Error raised when attempting to create a constant value.
+    MissingInstance { instance_type: TypeInfo },
     #[error("error when converting to constant value: {error}")]
-    ValueError {
-        /// The inner error.
-        error: VmError,
-    },
+    ValueError { error: VmError },
 }
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ContextTypeInfo {
-    /// The type check used for the current type.
-    ///
-    /// If absent, the type cannot be type checked for.
+    /// The type check used for the current type. If absent, the type cannot be
+    /// type checked for.
     pub type_check: TypeCheck,
     /// The name of the type.
     pub item: Item,
@@ -204,12 +150,17 @@ impl fmt::Display for ContextSignature {
     }
 }
 
-/// Static run context visible to the virtual machine.
+/// [Context] used for the Rune language.
 ///
-/// This contains:
-/// * Declared functions.
-/// * Declared instance functions.
-/// * Type definitions.
+/// See [Build::with_context][crate::Build::with_context].
+///
+/// At runtime this needs to be converted into a [RuntimeContext] when used with
+/// a [Vm][crate::runtime::Vm]. This is done through [Context::runtime].
+///
+/// A [Context] contains:
+/// * Native functions.
+/// * Native instance functions.
+/// * And native type definitions.
 #[derive(Default)]
 pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
@@ -226,8 +177,6 @@ pub struct Context {
     types: HashMap<Hash, ContextTypeInfo>,
     /// Reverse lookup for types.
     types_rev: HashMap<Hash, Hash>,
-    /// Specialized information on unit types, if available.
-    unit_type: Option<Hash>,
     /// Registered internal enums.
     internal_enums: HashSet<&'static StaticType>,
     /// All available names in the context.
@@ -239,15 +188,24 @@ pub struct Context {
 }
 
 impl Context {
-    /// Construct a new empty collection of functions.
+    /// Construct a new empty [Context].
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Construct a default set of modules with the given configuration.
+    /// Construct a [Context] containing the default set of modules with the
+    /// given configuration.
     ///
-    /// * `stdio` determines if we include I/O functions that interact with
-    ///   stdout and stderr by default, like `dbg`, `print`, and `println`.
+    /// `stdio` determines if we include I/O functions that interact with stdout
+    /// and stderr by default, like `dbg`, `print`, and `println`. If this is
+    /// `false` all the corresponding low-level I/O functions have to be
+    /// provided through a different module.
+    ///
+    /// These are:
+    ///
+    /// * `::std::io::dbg`
+    /// * `::std::io::print`
+    /// * `::std::io::println`
     pub fn with_config(stdio: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
         this.install(&crate::modules::any::module()?)?;
@@ -275,6 +233,11 @@ impl Context {
         Ok(this)
     }
 
+    /// Construct a new collection of functions with default packages installed.
+    pub fn with_default_modules() -> Result<Self, ContextError> {
+        Self::with_config(true)
+    }
+
     /// Construct a runtime context used when executing the virtual machine.
     ///
     /// ```rust
@@ -296,92 +259,6 @@ impl Context {
             types: self.types.iter().map(|(k, t)| (*k, t.type_check)).collect(),
             constants: self.constants.clone(),
         }
-    }
-
-    /// Use the specified type check.
-    pub fn type_check_for(&self, item: &Item) -> Option<TypeCheck> {
-        let ty = self.types.get(&Hash::type_hash(item))?;
-        Some(ty.type_check)
-    }
-
-    /// Construct a new collection of functions with default packages installed.
-    pub fn with_default_modules() -> Result<Self, ContextError> {
-        Self::with_config(true)
-    }
-
-    /// Check if context contains the given crate.
-    pub fn contains_crate(&self, name: &str) -> bool {
-        self.crates.contains(name)
-    }
-
-    /// Test if the context has the default modules installed.
-    ///
-    /// This determines among other things whether a prelude should be used or
-    /// not.
-    pub fn has_default_modules(&self) -> bool {
-        self.has_default_modules
-    }
-
-    /// Iterate over known child components of the given name.
-    pub fn iter_components<'a, I: 'a>(
-        &'a self,
-        iter: I,
-    ) -> impl Iterator<Item = ComponentRef<'a>> + 'a
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
-        self.names.iter_components(iter)
-    }
-
-    /// Access the currently known unit type.
-    pub fn unit_type(&self) -> Option<Hash> {
-        self.unit_type
-    }
-
-    /// Check if unit contains the given name.
-    pub fn contains_name(&self, item: &Item) -> bool {
-        self.names.contains(item)
-    }
-
-    /// Check if unit contains the given name by prefix.
-    pub fn contains_prefix(&self, item: &Item) -> bool {
-        self.names.contains_prefix(item)
-    }
-
-    /// Lookup the given native function handler in the context.
-    pub fn lookup(&self, hash: Hash) -> Option<&Arc<FunctionHandler>> {
-        self.functions.get(&hash)
-    }
-
-    /// Lookup the given macro handler.
-    pub fn lookup_macro(&self, hash: Hash) -> Option<&Arc<MacroHandler>> {
-        self.macros.get(&hash)
-    }
-
-    /// Access the meta for the given language item.
-    pub fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
-        self.meta.get(name).cloned()
-    }
-
-    /// Iterate over all available functions
-    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &ContextSignature)> {
-        let mut it = self.functions_info.iter();
-
-        std::iter::from_fn(move || {
-            let (hash, signature) = it.next()?;
-            Some((*hash, signature))
-        })
-    }
-
-    /// Iterate over all available types.
-    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &ContextTypeInfo)> {
-        let mut it = self.types.iter();
-
-        std::iter::from_fn(move || {
-            let (hash, ty) = it.next()?;
-            Some((*hash, ty))
-        })
     }
 
     /// Install the specified module.
@@ -424,6 +301,77 @@ impl Context {
         }
 
         Ok(())
+    }
+
+    /// Iterate over all available functions
+    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &ContextSignature)> {
+        let mut it = self.functions_info.iter();
+
+        std::iter::from_fn(move || {
+            let (hash, signature) = it.next()?;
+            Some((*hash, signature))
+        })
+    }
+
+    /// Iterate over all available types.
+    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &ContextTypeInfo)> {
+        let mut it = self.types.iter();
+
+        std::iter::from_fn(move || {
+            let (hash, ty) = it.next()?;
+            Some((*hash, ty))
+        })
+    }
+
+    /// Iterate over known child components of the given name.
+    pub(crate) fn iter_components<'a, I: 'a>(
+        &'a self,
+        iter: I,
+    ) -> impl Iterator<Item = ComponentRef<'a>> + 'a
+    where
+        I: IntoIterator,
+        I::Item: IntoComponent,
+    {
+        self.names.iter_components(iter)
+    }
+
+    /// Access the meta for the given item.
+    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
+        self.meta.get(name).cloned()
+    }
+
+    /// Check if unit contains the given name by prefix.
+    pub(crate) fn contains_prefix(&self, item: &Item) -> bool {
+        self.names.contains_prefix(item)
+    }
+
+    /// Lookup the given native function handler in the context.
+    pub(crate) fn lookup_function(&self, hash: Hash) -> Option<&Arc<FunctionHandler>> {
+        self.functions.get(&hash)
+    }
+
+    /// Lookup the given macro handler.
+    pub(crate) fn lookup_macro(&self, hash: Hash) -> Option<&Arc<MacroHandler>> {
+        self.macros.get(&hash)
+    }
+
+    /// Look up the type check implementation for the specified item.
+    pub(crate) fn type_check_for(&self, item: &Item) -> Option<TypeCheck> {
+        let ty = self.types.get(&Hash::type_hash(item))?;
+        Some(ty.type_check)
+    }
+
+    /// Check if context contains the given crate.
+    pub(crate) fn contains_crate(&self, name: &str) -> bool {
+        self.crates.contains(name)
+    }
+
+    /// Test if the context has the default modules installed.
+    ///
+    /// This determines among other things whether a prelude should be used or
+    /// not.
+    pub(crate) fn has_default_modules(&self) -> bool {
+        self.has_default_modules
     }
 
     /// Install the given meta.
@@ -652,13 +600,8 @@ impl Context {
         module: &Module,
         unit_type: &ModuleUnitType,
     ) -> Result<(), ContextError> {
-        if self.unit_type.is_some() {
-            return Err(ContextError::UnitAlreadyPresent);
-        }
-
         let item = module.item.extended(&*unit_type.name);
         let hash = Hash::type_hash(&item);
-        self.unit_type = Some(Hash::type_hash(&item));
         self.add_internal_tuple(None, item.clone(), 0, || ())?;
 
         self.install_type_info(

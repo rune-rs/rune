@@ -1,14 +1,15 @@
 use thiserror::Error;
 
-/// Error when parsing configuration.
+/// Error raised when trying to parse an invalid option.
 #[derive(Debug, Clone, Error)]
-/// Tried to configure the compiler with an unsupported optimzation option.
 #[error("unsupported compile option `{option}`")]
 pub struct ParseOptionError {
     option: Box<str>,
 }
 
-/// Compiler options.
+/// Options that can be provided to the compiler.
+///
+/// See [Build::with_options][crate::Build::with_options].
 #[derive(Debug, Clone, Copy)]
 pub struct Options {
     /// Perform link-time checks.

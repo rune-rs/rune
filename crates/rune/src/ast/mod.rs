@@ -1,4 +1,56 @@
-//! AST for the Rune language.
+//! Abstract syntax trees for the Rune language.
+//!
+//! These are primarily made available for use in macros, where the input to the
+//! macro needs to be parsed so that it can be processed.
+//!
+//! Below we define a macro capable of taking identifiers like `hello`, and
+//! turning them into literal strings like `"hello"`.
+//!
+//! ```
+//! use rune::{Context, FromValue, Module, Vm};
+//! use rune::ast;
+//! use rune::macros::{quote, MacroContext, TokenStream};
+//! use rune::parse::Parser;
+//! use std::sync::Arc;
+//!
+//! fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+//!     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+//!     let ident = p.parse_all::<ast::Ident>()?;
+//!     let ident = ctx.resolve(ident)?.to_owned();
+//!     let string = ast::Lit::new(ctx, &ident);
+//!     Ok(quote!(#string).into_token_stream(ctx))
+//! }
+//!
+//! # fn main() -> rune::Result<()> {
+//! let mut m = Module::new();
+//! m.macro_(&["ident_to_string"], ident_to_string)?;
+//!
+//! let mut context = Context::new();
+//! context.install(&m);
+//!
+//! let runtime = Arc::new(context.runtime());
+//!
+//! let mut sources = rune::sources! {
+//!     entry => {
+//!         pub fn main() {
+//!             ident_to_string!(hello)
+//!         }
+//!     }
+//! };
+//!
+//! let unit = rune::prepare(&mut sources)
+//!     .with_context(&context)
+//!     .build()?;
+//!
+//! let unit = Arc::new(unit);
+//!
+//! let mut vm = Vm::new(runtime, unit);
+//! let value = vm.call(&["main"], ())?;
+//! let value = String::from_value(value)?;
+//!
+//! assert_eq!(value, "hello");
+//! # Ok(()) }
+//! ```
 
 use crate::parse::{Parse, ParseError, Parser, Peek};
 

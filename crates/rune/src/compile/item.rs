@@ -23,7 +23,7 @@ const TAG_BYTES: usize = 2;
 /// Max size of data stored.
 const MAX_DATA: usize = 0b1 << (TAG_BYTES * 8 - TYPE_BITS);
 
-/// The name of an item.
+/// The name of an item in the Rune Language.
 ///
 /// This is made up of a collection of strings, like `["foo", "bar"]`.
 /// This is indicated in rune as `foo::bar`.

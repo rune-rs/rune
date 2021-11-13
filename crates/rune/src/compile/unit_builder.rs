@@ -626,7 +626,7 @@ impl UnitBuilder {
     /// This can prevent a number of runtime errors, like missing functions.
     pub(crate) fn link(&mut self, context: &Context, diagnostics: &mut Diagnostics) {
         for (hash, spans) in &self.required_functions {
-            if self.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
+            if self.functions.get(hash).is_none() && context.lookup_function(*hash).is_none() {
                 diagnostics.error(
                     SourceId::empty(),
                     LinkerError::MissingFunction {
