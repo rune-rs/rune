@@ -2,7 +2,8 @@ use crate::ast::Span;
 use crate::SourceId;
 use std::fmt;
 
-/// A source location.
+/// A fully descriptive location which is a combination of a [SourceId] and a
+/// [Span].
 #[derive(Default, Clone, Copy)]
 #[non_exhaustive]
 pub struct Location {

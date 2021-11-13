@@ -136,7 +136,10 @@ pub(crate) struct ModuleMacro {
     pub(crate) handler: Arc<MacroHandler>,
 }
 
-/// A collection of functions that can be looked up by type.
+/// A [Module] that is a collection of native functions and types.
+///
+/// Needs to be installed into a [Context][crate::compile::Context] using
+/// [Context::install][crate::compile::Context::install].
 #[derive(Default)]
 pub struct Module {
     /// The name of the module.
