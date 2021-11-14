@@ -49,6 +49,10 @@ jobs:
             ~/.cargo/bin
             target
           key: build_benchmarks-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
+      - name: Invalidate cache
+        if: "contains(github.event.head_commit.message, '[clean-build]')"
+        run: |
+          rm -rf target
       - run: cargo build --benches
 
   check_formatting:
