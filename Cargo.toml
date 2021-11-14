@@ -2,7 +2,6 @@
 members = [
     "crates/rune",
     "crates/rune-cli",
-    "crates/rune-ssa",
     "crates/rune-languageserver",
     "crates/rune-macros",
     "crates/rune-modules",

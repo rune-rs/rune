@@ -40,9 +40,6 @@ num-bigint = "0.4.3"
 
 rune-macros = {version = "0.10.0", path = "../rune-macros"}
 
-[target."cfg(compiler_v2)".dependencies]
-rune-ssa = {version = "0.10.0", path = "../rune-ssa"}
-
 [dev-dependencies]
 tokio = { version = "1.13.0", features = ["macros"] }
 static_assertions = "1.1.0"
