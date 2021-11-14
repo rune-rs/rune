@@ -17,11 +17,6 @@ pub struct Storage {
 }
 
 impl Storage {
-    /// Construct a new empty storage.
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
     /// Construct a new number.
     ///
     /// The number will be stored in this storage, and will be synthetic

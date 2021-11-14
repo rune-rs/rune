@@ -82,21 +82,10 @@ pub(crate) struct BuiltInLine {
     pub(crate) value: ast::LitNumber,
 }
 
-pub(crate) struct Query<'a> {
-    /// The current unit being built.
-    pub(crate) unit: &'a mut UnitBuilder,
-    /// Sources available.
-    pub(crate) sources: &'a mut Sources,
-    /// Visitor for the compiler meta.
-    pub(crate) visitor: &'a mut dyn CompileVisitor,
-    /// Shared id generator.
-    gen: &'a Gen,
+#[derive(Default)]
+pub(crate) struct QueryInner {
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<Item, CompileMeta>,
-    /// Macro storage.
-    pub(crate) storage: Storage,
-    /// Cache of constants that have been expanded.
-    pub(crate) consts: Consts,
     /// Build queue.
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
@@ -120,30 +109,55 @@ pub(crate) struct Query<'a> {
     modules: HashMap<Item, Arc<CompileMod>>,
 }
 
+pub(crate) struct Query<'a> {
+    /// The current unit being built.
+    pub(crate) unit: &'a mut UnitBuilder,
+    /// Cache of constants that have been expanded.
+    pub(crate) consts: &'a mut Consts,
+    /// Storage associated with the query.
+    pub(crate) storage: &'a mut Storage,
+    /// Sources available.
+    pub(crate) sources: &'a mut Sources,
+    /// Visitor for the compiler meta.
+    pub(crate) visitor: &'a mut dyn CompileVisitor,
+    /// Shared id generator.
+    gen: &'a Gen,
+    /// Inner state of the query engine.
+    inner: &'a mut QueryInner,
+}
+
 impl<'a> Query<'a> {
     /// Construct a new compilation context.
     pub(crate) fn new(
         unit: &'a mut UnitBuilder,
+        consts: &'a mut Consts,
+        storage: &'a mut Storage,
         sources: &'a mut Sources,
         visitor: &'a mut dyn CompileVisitor,
         gen: &'a Gen,
+        inner: &'a mut QueryInner,
     ) -> Self {
         Self {
             unit,
+            consts,
+            storage,
             sources,
             visitor,
             gen,
-            meta: HashMap::new(),
-            storage: Storage::new(),
-            consts: Consts::default(),
-            queue: VecDeque::new(),
-            indexed: HashMap::new(),
-            const_fns: HashMap::new(),
-            query_paths: HashMap::new(),
-            internal_macros: HashMap::new(),
-            items: HashMap::new(),
-            names: Names::default(),
-            modules: HashMap::new(),
+            inner,
+        }
+    }
+
+    /// Reborrow the query engine from a reference to `self`.
+    pub(crate) fn borrow(&mut self) -> Query<'_> {
+        Query {
+            unit: self.unit,
+            consts: self.consts,
+            storage: self.storage,
+            sources: self.sources,
+            visitor: self.visitor,
+            gen: self.gen,
+            inner: self.inner,
         }
     }
 
@@ -158,7 +172,7 @@ impl<'a> Query<'a> {
 
         self.visitor.register_meta(&meta);
 
-        if let Some(existing) = self.meta.insert(item, meta.clone()) {
+        if let Some(existing) = self.inner.meta.insert(item, meta.clone()) {
             return Err(QueryError::new(
                 span,
                 QueryErrorKind::MetaConflict {
@@ -174,12 +188,12 @@ impl<'a> Query<'a> {
     /// Get the next build entry from the build queue associated with the query
     /// engine.
     pub(crate) fn next_build_entry(&mut self) -> Option<BuildEntry> {
-        self.queue.pop_front()
+        self.inner.queue.pop_front()
     }
 
     /// Push a build entry.
     pub(crate) fn push_build_entry(&mut self, entry: BuildEntry) {
-        self.queue.push_back(entry)
+        self.inner.queue.push_back(entry)
     }
 
     /// Insert path information.
@@ -196,14 +210,14 @@ impl<'a> Query<'a> {
         });
 
         let id = self.gen.next();
-        self.query_paths.insert(id, query_path);
+        self.inner.query_paths.insert(id, query_path);
         id
     }
 
     /// Remove a reference to the given path by id.
     pub(crate) fn remove_path_by_id(&mut self, id: Option<Id>) {
         if let Some(id) = id {
-            self.query_paths.remove(&id);
+            self.inner.query_paths.remove(&id);
         }
     }
 
@@ -225,7 +239,9 @@ impl<'a> Query<'a> {
             parent: Some(parent.clone()),
         });
 
-        self.modules.insert(item.item.clone(), query_mod.clone());
+        self.inner
+            .modules
+            .insert(item.item.clone(), query_mod.clone());
         self.insert_name(&item.item);
         Ok(query_mod)
     }
@@ -243,14 +259,14 @@ impl<'a> Query<'a> {
             parent: None,
         });
 
-        self.modules.insert(Item::new(), query_mod.clone());
+        self.inner.modules.insert(Item::new(), query_mod.clone());
         self.insert_name(&Item::new());
         Ok(query_mod)
     }
 
     /// Get the compile item for the given item.
     pub(crate) fn get_item(&self, span: Span, id: Id) -> Result<Arc<CompileItem>, QueryError> {
-        if let Some(item) = self.items.get(&id) {
+        if let Some(item) = self.inner.items.get(&id) {
             return Ok(item.clone());
         }
 
@@ -281,7 +297,9 @@ impl<'a> Query<'a> {
         internal_macro: BuiltInMacro,
     ) -> Result<Id, QueryError> {
         let id = self.gen.next();
-        self.internal_macros.insert(id, Arc::new(internal_macro));
+        self.inner
+            .internal_macros
+            .insert(id, Arc::new(internal_macro));
         Ok(id)
     }
 
@@ -290,15 +308,18 @@ impl<'a> Query<'a> {
     where
         T: Spanned + Opaque,
     {
-        let item = ast.id().and_then(|n| self.items.get(&n)).ok_or_else(|| {
-            QueryError::new(
-                ast.span(),
-                QueryErrorKind::MissingId {
-                    what: "item",
-                    id: ast.id(),
-                },
-            )
-        })?;
+        let item = ast
+            .id()
+            .and_then(|n| self.inner.items.get(&n))
+            .ok_or_else(|| {
+                QueryError::new(
+                    ast.span(),
+                    QueryErrorKind::MissingId {
+                        what: "item",
+                        id: ast.id(),
+                    },
+                )
+            })?;
 
         Ok(item.clone())
     }
@@ -309,7 +330,7 @@ impl<'a> Query<'a> {
     {
         let internal_macro = ast
             .id()
-            .and_then(|n| self.internal_macros.get(&n))
+            .and_then(|n| self.inner.internal_macros.get(&n))
             .ok_or_else(|| {
                 QueryError::new(
                     ast.span(),
@@ -330,7 +351,7 @@ impl<'a> Query<'a> {
     {
         let const_fn = ast
             .id()
-            .and_then(|n| self.const_fns.get(&n))
+            .and_then(|n| self.inner.const_fns.get(&n))
             .ok_or_else(|| {
                 QueryError::new(
                     ast.span(),
@@ -349,7 +370,8 @@ impl<'a> Query<'a> {
         log::trace!("indexed: {}", entry.item.item);
 
         self.insert_name(&entry.item.item);
-        self.indexed
+        self.inner
+            .indexed
             .entry(entry.item.item.clone())
             .or_default()
             .push(entry);
@@ -366,7 +388,7 @@ impl<'a> Query<'a> {
     {
         log::trace!("new const: {:?}", item.item);
 
-        let mut ir_compiler = IrCompiler { q: self };
+        let mut ir_compiler = IrCompiler { q: self.borrow() };
 
         let ir = ir_compiler.compile(expr)?;
 
@@ -495,6 +517,7 @@ impl<'a> Query<'a> {
     /// Returns boolean indicating if any unused entries were queued up.
     pub(crate) fn queue_unused_entries(&mut self) -> Result<bool, (SourceId, QueryError)> {
         let unused = self
+            .inner
             .indexed
             .values()
             .flat_map(|entries| entries.iter())
@@ -531,7 +554,7 @@ impl<'a> Query<'a> {
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        if let Some(meta) = self.meta.get(item) {
+        if let Some(meta) = self.inner.meta.get(item) {
             return Ok(Some(meta.clone()));
         }
 
@@ -556,7 +579,7 @@ impl<'a> Query<'a> {
         let id = path.id();
 
         let qp = id
-            .and_then(|id| self.query_paths.get(&id))
+            .and_then(|id| self.inner.query_paths.get(&id))
             .ok_or_else(|| QueryError::new(path, QueryErrorKind::MissingId { what: "path", id }))?
             .clone();
 
@@ -694,7 +717,7 @@ impl<'a> Query<'a> {
 
         // toplevel public uses are re-exported.
         if item.is_public() {
-            self.queue.push_back(BuildEntry {
+            self.inner.queue.push_back(BuildEntry {
                 location,
                 item: item.clone(),
                 build: Build::ReExport,
@@ -712,7 +735,7 @@ impl<'a> Query<'a> {
 
     /// Check if unit contains the given name by prefix.
     pub(crate) fn contains_prefix(&self, item: &Item) -> bool {
-        self.names.contains_prefix(item)
+        self.inner.names.contains_prefix(item)
     }
 
     /// Iterate over known child components of the given name.
@@ -724,7 +747,7 @@ impl<'a> Query<'a> {
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        self.names.iter_components(iter)
+        self.inner.names.iter_components(iter)
     }
 
     /// Get the given import by name.
@@ -790,7 +813,7 @@ impl<'a> Query<'a> {
         path: &mut Vec<ImportStep>,
     ) -> Result<Option<QueryImportStep>, QueryError> {
         // already resolved query.
-        if let Some(meta) = self.meta.get(item) {
+        if let Some(meta) = self.inner.meta.get(item) {
             return Ok(match &meta.kind {
                 CompileMetaKind::Import {
                     module,
@@ -886,7 +909,7 @@ impl<'a> Query<'a> {
                 self.sources,
             )?,
             Indexed::Function(f) => {
-                self.queue.push_back(BuildEntry {
+                self.inner.queue.push_back(BuildEntry {
                     location: query_item.location,
                     item: query_item.clone(),
                     build: Build::Function(f),
@@ -903,7 +926,7 @@ impl<'a> Query<'a> {
                 let captures = c.captures.clone();
                 let do_move = c.do_move;
 
-                self.queue.push_back(BuildEntry {
+                self.inner.queue.push_back(BuildEntry {
                     location: query_item.location,
                     item: query_item.clone(),
                     build: Build::Closure(c),
@@ -920,7 +943,7 @@ impl<'a> Query<'a> {
                 let captures = b.captures.clone();
                 let do_move = b.do_move;
 
-                self.queue.push_back(BuildEntry {
+                self.inner.queue.push_back(BuildEntry {
                     location: query_item.location,
                     item: query_item.clone(),
                     build: Build::AsyncBlock(b),
@@ -939,13 +962,13 @@ impl<'a> Query<'a> {
                     scopes: Default::default(),
                     module: c.module.clone(),
                     item: query_item.item.clone(),
-                    q: self,
+                    q: self.borrow(),
                 };
 
                 let const_value = const_compiler.eval_const(&c.ir, used)?;
 
                 if used.is_unused() {
-                    self.queue.push_back(BuildEntry {
+                    self.inner.queue.push_back(BuildEntry {
                         location: query_item.location,
                         item: query_item.clone(),
                         build: Build::Unused,
@@ -956,14 +979,14 @@ impl<'a> Query<'a> {
                 CompileMetaKind::Const { const_value }
             }
             Indexed::ConstFn(c) => {
-                let mut ir_compiler = IrCompiler { q: self };
+                let mut ir_compiler = IrCompiler { q: self.borrow() };
 
                 let ir_fn = ir_compiler.compile(&*c.item_fn)?;
 
                 let id = self.insert_const_fn(&query_item, ir_fn);
 
                 if used.is_unused() {
-                    self.queue.push_back(BuildEntry {
+                    self.inner.queue.push_back(BuildEntry {
                         location: query_item.location,
                         item: query_item.clone(),
                         build: Build::Unused,
@@ -979,7 +1002,7 @@ impl<'a> Query<'a> {
                 let target = import.entry.target.clone();
 
                 if !import.wildcard {
-                    self.queue.push_back(BuildEntry {
+                    self.inner.queue.push_back(BuildEntry {
                         location: query_item.location,
                         item: query_item.clone(),
                         build: Build::Import(import),
@@ -1012,7 +1035,7 @@ impl<'a> Query<'a> {
 
     /// Insert the given name into the unit.
     fn insert_name(&mut self, item: &Item) {
-        self.names.insert(item);
+        self.inner.names.insert(item);
     }
 
     fn insert_new_item_with(
@@ -1032,7 +1055,7 @@ impl<'a> Query<'a> {
             visibility,
         });
 
-        self.items.insert(id, query_item.clone());
+        self.inner.items.insert(id, query_item.clone());
         Ok(query_item)
     }
 
@@ -1062,7 +1085,7 @@ impl<'a> Query<'a> {
         item: &Item,
     ) -> Result<Option<IndexedEntry>, QueryError> {
         // See if there's an index entry we can construct and insert.
-        let entries = match self.indexed.remove(item) {
+        let entries = match self.inner.indexed.remove(item) {
             Some(entries) => entries,
             None => return Ok(None),
         };
@@ -1136,7 +1159,7 @@ impl<'a> Query<'a> {
         while base.starts_with(&module.item) {
             base.push(local);
 
-            if self.names.contains(&base) {
+            if self.inner.names.contains(&base) {
                 return Ok(base);
             }
 
@@ -1163,7 +1186,7 @@ impl<'a> Query<'a> {
     fn insert_const_fn(&mut self, item: &Arc<CompileItem>, ir_fn: ir::IrFn) -> Id {
         let id = self.gen.next();
 
-        self.const_fns.insert(
+        self.inner.const_fns.insert(
             id,
             Arc::new(QueryConstFn {
                 item: item.clone(),
@@ -1192,7 +1215,7 @@ impl<'a> Query<'a> {
         for c in &tree {
             current_module.push(c);
 
-            let m = self.modules.get(&current_module).ok_or_else(|| {
+            let m = self.inner.modules.get(&current_module).ok_or_else(|| {
                 QueryError::new(
                     span,
                     QueryErrorKind::MissingMod {

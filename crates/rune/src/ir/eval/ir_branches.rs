@@ -5,7 +5,7 @@ impl IrEval for ir::IrBranches {
 
     fn eval(
         &self,
-        interp: &mut IrInterpreter<'_, '_>,
+        interp: &mut IrInterpreter<'_>,
         used: Used,
     ) -> Result<Self::Output, IrEvalOutcome> {
         for (ir_condition, branch) in &self.branches {

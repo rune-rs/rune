@@ -12,7 +12,7 @@ pub struct LitChar {
 
 impl LitChar {
     /// Construct a new literal character.
-    pub fn new(ctx: &mut MacroContext<'_, '_>, c: char) -> Self {
+    pub fn new(ctx: &mut MacroContext<'_>, c: char) -> Self {
         Self {
             token: ast::Token {
                 kind: ast::Kind::Char(ast::CopySource::Inline(c)),

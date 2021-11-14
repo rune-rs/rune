@@ -3,11 +3,7 @@ use crate::ir::eval::prelude::*;
 impl IrEval for ir::IrLoop {
     type Output = IrValue;
 
-    fn eval(
-        &self,
-        interp: &mut IrInterpreter<'_, '_>,
-        used: Used,
-    ) -> Result<IrValue, IrEvalOutcome> {
+    fn eval(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<IrValue, IrEvalOutcome> {
         let span = self.span();
         interp.budget.take(span)?;
 

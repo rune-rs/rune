@@ -15,7 +15,7 @@ impl Ident {
     /// context.
     ///
     /// This constructor must only be used inside of a macro.
-    pub fn new(ctx: &mut MacroContext<'_, '_>, ident: &str) -> Self {
+    pub fn new(ctx: &mut MacroContext<'_>, ident: &str) -> Self {
         Self::new_with(ident, ctx.macro_span(), &mut ctx.q_mut().storage)
     }
 
