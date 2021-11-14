@@ -12,8 +12,9 @@ use std::fmt;
 use std::ops;
 
 /// A vector of bytes.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub struct Bytes {
+    #[serde(with = "serde_bytes")]
     pub(crate) bytes: Vec<u8>,
 }
 
