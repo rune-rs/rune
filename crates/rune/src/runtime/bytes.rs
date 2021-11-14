@@ -6,7 +6,7 @@ use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Mut, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError,
 };
-use serde::{Serialize, Deserialize}; 
+use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::fmt;
 use std::ops;
