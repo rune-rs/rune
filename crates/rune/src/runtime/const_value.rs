@@ -3,9 +3,9 @@ use crate::runtime::{
     Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Vec, VmError,
     VmErrorKind,
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::vec;
-use serde::{Serialize, Deserialize};
 
 /// A constant value.
 #[derive(Debug, Clone, Deserialize, Serialize)]
