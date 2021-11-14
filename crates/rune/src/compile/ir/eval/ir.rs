@@ -1,4 +1,4 @@
-use crate::ir::eval::prelude::*;
+use crate::compile::ir::eval::prelude::*;
 
 /// IrEval the interior expression.
 impl IrEval for ir::Ir {

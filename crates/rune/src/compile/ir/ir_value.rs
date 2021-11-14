@@ -1,6 +1,6 @@
 use crate::ast::Spanned;
 use crate::collections::HashMap;
-use crate::ir::{IrError, IrErrorKind};
+use crate::compile::{IrError, IrErrorKind};
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 use std::convert::TryFrom;

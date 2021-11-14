@@ -2,6 +2,34 @@
 //!
 //! Diagnostics collects information about a source program in order to provide
 //! good human-readable diagnostics like errors, warnings, and hints.
+//!
+//! In order to collect diagnostics during compilation you must register a
+//! [Diagnostics] object with
+//! [Build::with_diagnostics][crate::Build::with_diagnostics].
+//!
+//! ```
+//! use rune::termcolor::{ColorChoice, StandardStream};
+//! use rune::{Sources, Diagnostics};
+//!
+//! # fn main() -> rune::Result<()> {
+//! let mut sources = Sources::new();
+//!
+//! let mut diagnostics = Diagnostics::new();
+//!
+//! let result = rune::prepare(&mut sources)
+//!     .with_diagnostics(&mut diagnostics)
+//!     .build();
+//!
+//! // We delay unwrapping result into a unit so that we can print diagnostics
+//! // even if they relate to the compilation failing.
+//! if !diagnostics.is_empty() {
+//!     let mut writer = StandardStream::stderr(ColorChoice::Always);
+//!     diagnostics.emit(&mut writer, &sources)?;
+//! }
+//!
+//! let unit = result?;
+//! # Ok(()) }
+//! ```
 
 use crate::ast::Span;
 use crate::SourceId;

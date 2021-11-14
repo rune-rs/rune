@@ -3,12 +3,11 @@ use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::attrs;
 use crate::collections::HashMap;
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, Item, Location, Options, SourceLoader,
-    Visibility,
+    CompileError, CompileErrorKind, CompileResult, Item, Location, Meta, MetaKind, ModMeta,
+    Options, SourceLoader, SourceMeta, Visibility,
 };
 use crate::indexing::{IndexFnKind, IndexLocal, IndexScopes};
 use crate::macros::MacroCompiler;
-use crate::meta::{CompileMeta, CompileMetaKind, CompileMod, CompileSource};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
 use crate::query::{
     Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
@@ -41,7 +40,7 @@ pub(crate) struct Indexer<'a, 'q> {
     pub(crate) items: Items<'a>,
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
-    pub(crate) mod_item: Arc<CompileMod>,
+    pub(crate) mod_item: Arc<ModMeta>,
     /// Set if we are inside of an impl self.
     pub(crate) impl_item: Option<Arc<Item>>,
     /// Source loader to use.
@@ -740,16 +739,16 @@ impl Index for ast::ItemFn {
                 used: Used::Used,
             });
 
-            let kind = CompileMetaKind::Function {
+            let kind = MetaKind::Function {
                 type_hash: Hash::type_hash(&item.item),
                 is_test: false,
                 is_bench: false,
             };
 
-            let meta = CompileMeta {
+            let meta = Meta {
                 item,
                 kind,
-                source: Some(CompileSource {
+                source: Some(SourceMeta {
                     location: Location::new(idx.source_id, span),
                     path: idx.q.sources.path(idx.source_id).map(Into::into),
                 }),
@@ -765,16 +764,16 @@ impl Index for ast::ItemFn {
                 used: Used::Used,
             });
 
-            let kind = CompileMetaKind::Function {
+            let kind = MetaKind::Function {
                 type_hash: Hash::type_hash(&item.item),
                 is_test,
                 is_bench,
             };
 
-            let meta = CompileMeta {
+            let meta = Meta {
                 item,
                 kind,
-                source: Some(CompileSource {
+                source: Some(SourceMeta {
                     location: Location::new(idx.source_id, span),
                     path: idx.q.sources.path(idx.source_id).map(Into::into),
                 }),

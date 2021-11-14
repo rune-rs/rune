@@ -12,14 +12,14 @@ use thiserror::Error;
 #[error("failed to load sources (see `errors` for details)")]
 pub struct BuildError;
 
-/// Shorthand for compiling the given [Sources] using [Build].
+/// Entry point to building [Sources] of Rune.
 ///
-/// Uses the [Source::name](crate::Source::name) when generating diagnostics
-/// to reference the file.
+/// Uses the [Source::name](crate::Source::name) when generating diagnostics to
+/// reference the file.
 ///
 /// # Examples
 ///
-/// Note: these must be built with the `diagnostics` feature enabled to give
+/// Note: these must be built with the `emit` feature enabled (default) to give
 /// access to `rune::termcolor`.
 ///
 /// ```rust

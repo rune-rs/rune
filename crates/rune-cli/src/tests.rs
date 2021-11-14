@@ -1,5 +1,5 @@
 use crate::ExitCode;
-use rune::meta::CompileMeta;
+use rune::compile::Meta;
 use rune::runtime::{RuntimeContext, Unit, UnitFn, Value, Vm, VmError, VmErrorKind};
 use rune::termcolor::StandardStream;
 use rune::{Hash, Sources};
@@ -17,12 +17,12 @@ enum FailureReason {
 #[derive(Debug)]
 struct TestCase {
     hash: Hash,
-    meta: CompileMeta,
+    meta: Meta,
     outcome: Option<FailureReason>,
 }
 
 impl TestCase {
-    fn from_parts(hash: Hash, meta: CompileMeta) -> Self {
+    fn from_parts(hash: Hash, meta: Meta) -> Self {
         Self {
             hash,
             meta,
@@ -140,7 +140,7 @@ pub(crate) async fn do_tests(
     runtime: Arc<RuntimeContext>,
     unit: Arc<Unit>,
     sources: Sources,
-    tests: Vec<(Hash, CompileMeta)>,
+    tests: Vec<(Hash, Meta)>,
 ) -> anyhow::Result<ExitCode> {
     let mut cases = tests
         .into_iter()

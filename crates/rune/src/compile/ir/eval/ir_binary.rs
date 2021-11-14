@@ -1,4 +1,4 @@
-use crate::ir::eval::prelude::*;
+use crate::compile::ir::eval::prelude::*;
 
 impl IrEval for ir::IrBinary {
     type Output = IrValue;

@@ -1,8 +1,6 @@
 use crate::ast;
 use crate::ast::{Span, Spanned, SpannedError};
-use crate::compile::{Item, Location};
-use crate::ir::{IrError, IrErrorKind};
-use crate::meta::CompileMeta;
+use crate::compile::{IrError, IrErrorKind, Item, Location, Meta};
 use crate::parse::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::DebugSignature;
@@ -13,7 +11,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 error! {
-    /// An error raised during compiling.
+    /// An error raised by the compiler.
     #[derive(Debug)]
     pub struct CompileError {
         kind: CompileErrorKind,
@@ -52,7 +50,7 @@ impl CompileError {
     }
 
     /// Error when we got mismatched meta.
-    pub fn expected_meta<S>(spanned: S, meta: CompileMeta, expected: &'static str) -> Self
+    pub fn expected_meta<S>(spanned: S, meta: Meta, expected: &'static str) -> Self
     where
         S: Spanned,
     {
@@ -135,7 +133,7 @@ pub enum CompileErrorKind {
     #[error("unsupported binary operator `{op}`")]
     UnsupportedBinaryOp { op: ast::BinOp },
     #[error("{meta} is not an object")]
-    UnsupportedLitObject { meta: CompileMeta },
+    UnsupportedLitObject { meta: Meta },
     #[error("missing field `{field}` in declaration of `{item}`")]
     LitObjectMissingField { field: Box<str>, item: Item },
     #[error("`{field}` is not a field in `{item}`")]
@@ -152,12 +150,12 @@ pub enum CompileErrorKind {
     BadFieldAccess,
     #[error("wrong number of arguments, expected `{expected}` but got `{actual}`")]
     UnsupportedArgumentCount {
-        meta: CompileMeta,
+        meta: Meta,
         expected: usize,
         actual: usize,
     },
     #[error("{meta} is not supported here")]
-    UnsupportedPattern { meta: CompileMeta },
+    UnsupportedPattern { meta: Meta },
     #[error("`..` is not supported in this location")]
     UnsupportedPatternRest,
     #[error("this kind of expression is not supported as a pattern")]
@@ -266,10 +264,7 @@ pub enum CompileErrorKind {
     #[error("visibility modifier not supported")]
     UnsupportedVisibility,
     #[error("expected {expected} but got `{meta}`")]
-    ExpectedMeta {
-        expected: &'static str,
-        meta: CompileMeta,
-    },
+    ExpectedMeta { expected: &'static str, meta: Meta },
     #[error("no such built-in macro `{name}`")]
     NoSuchBuiltInMacro { name: Box<str> },
     #[error("variable moved")]

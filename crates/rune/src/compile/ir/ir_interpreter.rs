@@ -1,9 +1,8 @@
 use crate::ast::{Span, Spanned};
-use crate::compile::Item;
-use crate::ir;
-use crate::ir::eval::{IrEval, IrEvalOutcome};
-use crate::ir::{IrError, IrErrorKind, IrValue};
-use crate::meta::{CompileMetaKind, CompileMod};
+use crate::compile::ir;
+use crate::compile::{
+    IrError, IrErrorKind, IrEval, IrEvalOutcome, IrValue, Item, MetaKind, ModMeta,
+};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
 use std::sync::Arc;
@@ -17,7 +16,7 @@ pub struct IrInterpreter<'a> {
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
     /// The module in which the interpreter is run.
-    pub(crate) module: Arc<CompileMod>,
+    pub(crate) module: Arc<ModMeta>,
     /// The item where the constant expression is located.
     pub(crate) item: Item,
     /// Constant scopes.
@@ -115,7 +114,7 @@ impl IrInterpreter<'_> {
 
             if let Some(meta) = self.q.query_meta(spanned, &item, used)? {
                 match &meta.kind {
-                    CompileMetaKind::Const { const_value, .. } => {
+                    MetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value.clone()));
                     }
                     _ => {
@@ -162,7 +161,7 @@ impl IrInterpreter<'_> {
 
             if let Some(meta) = self.q.query_meta(span, &item, used)? {
                 match &meta.kind {
-                    CompileMetaKind::ConstFn { id, .. } => {
+                    MetaKind::ConstFn { id, .. } => {
                         break *id;
                     }
                     _ => {

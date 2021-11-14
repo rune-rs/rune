@@ -2,13 +2,11 @@
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::compile::{NoopCompileVisitor, UnitBuilder};
-use crate::ir::IrError;
-use crate::ir::{
-    IrBudget, IrCompile, IrCompiler, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
+use crate::compile::{
+    IrBudget, IrCompile, IrCompiler, IrError, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
+    ItemMeta, NoopCompileVisitor, UnitBuilder,
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
-use crate::meta::CompileItem;
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
 use crate::query::{Query, Used};
 use crate::shared::{Consts, Gen};
@@ -23,7 +21,7 @@ pub struct MacroContext<'a> {
     /// Macro span of the stream.
     pub(crate) stream_span: Span,
     /// The item where the macro is being evaluated.
-    pub(crate) item: Arc<CompileItem>,
+    pub(crate) item: Arc<ItemMeta>,
     /// Accessible query required to run the IR interpreter and has access to
     /// storage.
     pub(crate) q: Query<'a>,

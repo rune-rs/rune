@@ -55,19 +55,19 @@ impl Assemble for ast::ExprObject {
                 let meta = c.lookup_meta(path.span(), &named.item)?;
 
                 match &meta.kind {
-                    CompileMetaKind::UnitStruct { .. } => {
+                    MetaKind::UnitStruct { .. } => {
                         check_object_fields(&HashSet::new(), check_keys, span, &meta.item.item)?;
 
                         let hash = Hash::type_hash(&meta.item.item);
                         c.asm.push(Inst::UnitStruct { hash }, span);
                     }
-                    CompileMetaKind::Struct { object, .. } => {
+                    MetaKind::Struct { object, .. } => {
                         check_object_fields(&object.fields, check_keys, span, &meta.item.item)?;
 
                         let hash = Hash::type_hash(&meta.item.item);
                         c.asm.push(Inst::Struct { hash, slot }, span);
                     }
-                    CompileMetaKind::StructVariant { object, .. } => {
+                    MetaKind::StructVariant { object, .. } => {
                         check_object_fields(&object.fields, check_keys, span, &meta.item.item)?;
 
                         let hash = Hash::type_hash(&meta.item.item);

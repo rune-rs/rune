@@ -51,8 +51,7 @@
 #![allow(clippy::type_complexity)]
 
 use anyhow::{Context as _, Result};
-use rune::compile::{FileSourceLoader, ParseOptionError};
-use rune::meta::CompileMeta;
+use rune::compile::{FileSourceLoader, Meta, ParseOptionError};
 use rune::runtime::{RuntimeContext, Unit, Value, Vm, VmError, VmExecution};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Context, ContextError, Diagnostics, Hash, Options, Source, Sources};
@@ -421,7 +420,7 @@ fn load_path(
     Context,
     Arc<RuntimeContext>,
     Sources,
-    Vec<(Hash, CompileMeta)>,
+    Vec<(Hash, Meta)>,
 )> {
     let shared = args.shared();
     let context = shared.context()?;

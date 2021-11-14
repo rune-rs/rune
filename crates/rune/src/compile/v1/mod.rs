@@ -1,9 +1,10 @@
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
-use crate::compile::{Assembly, CompileError, CompileErrorKind, CompileResult, Item, Options};
-use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
-use crate::meta::{CompileItem, CompileMeta, CompileMetaKind};
+use crate::compile::{
+    Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler, IrInterpreter,
+    Item, ItemMeta, Meta, MetaKind, Options,
+};
 use crate::parse::Resolve;
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst, InstAddress, InstValue, Label, PanicReason, TypeCheck};
@@ -57,11 +58,7 @@ pub(crate) struct Compiler<'a, 'q> {
 
 impl<'a, 'q> Compiler<'a, 'q> {
     /// Access the meta for the given language item.
-    pub fn try_lookup_meta(
-        &mut self,
-        spanned: Span,
-        item: &Item,
-    ) -> CompileResult<Option<CompileMeta>> {
+    pub fn try_lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<Option<Meta>> {
         log::trace!("lookup meta: {:?}", item);
 
         if let Some(meta) = self.q.query_meta(spanned, item, Default::default())? {
@@ -80,7 +77,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<CompileMeta> {
+    pub fn lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<Meta> {
         if let Some(meta) = self.try_lookup_meta(spanned, item)? {
             return Ok(meta);
         }
@@ -121,15 +118,15 @@ impl<'a, 'q> Compiler<'a, 'q> {
     /// Compile an item.
     pub(crate) fn compile_meta(
         &mut self,
-        meta: &CompileMeta,
+        meta: &Meta,
         span: Span,
         needs: Needs,
     ) -> CompileResult<()> {
-        log::trace!("CompileMeta => {:?} {:?}", meta, needs);
+        log::trace!("Meta => {:?} {:?}", meta, needs);
 
         if let Needs::Value = needs {
             match &meta.kind {
-                CompileMetaKind::UnitStruct { empty, .. } => {
+                MetaKind::UnitStruct { empty, .. } => {
                     self.asm.push_with_comment(
                         Inst::Call {
                             hash: empty.hash,
@@ -139,7 +136,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::TupleStruct { tuple, .. } if tuple.args == 0 => {
+                MetaKind::TupleStruct { tuple, .. } if tuple.args == 0 => {
                     self.asm.push_with_comment(
                         Inst::Call {
                             hash: tuple.hash,
@@ -149,7 +146,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::UnitVariant { empty, .. } => {
+                MetaKind::UnitVariant { empty, .. } => {
                     self.asm.push_with_comment(
                         Inst::Call {
                             hash: empty.hash,
@@ -159,7 +156,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::TupleVariant { tuple, .. } if tuple.args == 0 => {
+                MetaKind::TupleVariant { tuple, .. } if tuple.args == 0 => {
                     self.asm.push_with_comment(
                         Inst::Call {
                             hash: tuple.hash,
@@ -169,28 +166,28 @@ impl<'a, 'q> Compiler<'a, 'q> {
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::TupleStruct { tuple, .. } => {
+                MetaKind::TupleStruct { tuple, .. } => {
                     self.asm.push_with_comment(
                         Inst::LoadFn { hash: tuple.hash },
                         span,
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::TupleVariant { tuple, .. } => {
+                MetaKind::TupleVariant { tuple, .. } => {
                     self.asm.push_with_comment(
                         Inst::LoadFn { hash: tuple.hash },
                         span,
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::Function { type_hash, .. } => {
+                MetaKind::Function { type_hash, .. } => {
                     self.asm.push_with_comment(
                         Inst::LoadFn { hash: *type_hash },
                         span,
                         meta.to_string(),
                     );
                 }
-                CompileMetaKind::Const { const_value, .. } => {
+                MetaKind::Const { const_value, .. } => {
                     const_value.assemble_const(self, Needs::Value, span)?;
                 }
                 _ => {
@@ -359,21 +356,21 @@ impl<'a, 'q> Compiler<'a, 'q> {
             let meta = self.lookup_meta(path.span(), &named.item)?;
 
             let (args, type_check) = match &meta.kind {
-                CompileMetaKind::UnitStruct { type_hash, .. } => {
+                MetaKind::UnitStruct { type_hash, .. } => {
                     let type_check = TypeCheck::Type(*type_hash);
                     (0, type_check)
                 }
-                CompileMetaKind::TupleStruct {
+                MetaKind::TupleStruct {
                     tuple, type_hash, ..
                 } => {
                     let type_check = TypeCheck::Type(*type_hash);
                     (tuple.args, type_check)
                 }
-                CompileMetaKind::UnitVariant { type_hash, .. } => {
+                MetaKind::UnitVariant { type_hash, .. } => {
                     let type_check = TypeCheck::Variant(*type_hash);
                     (0, type_check)
                 }
-                CompileMetaKind::TupleVariant {
+                MetaKind::TupleVariant {
                     tuple, type_hash, ..
                 } => {
                     let type_check = TypeCheck::Variant(*type_hash);
@@ -530,13 +527,13 @@ impl<'a, 'q> Compiler<'a, 'q> {
                 let meta = self.lookup_meta(span, &named.item)?;
 
                 let (object, type_check) = match &meta.kind {
-                    CompileMetaKind::Struct {
+                    MetaKind::Struct {
                         object, type_hash, ..
                     } => {
                         let type_check = TypeCheck::Type(*type_hash);
                         (object, type_check)
                     }
-                    CompileMetaKind::StructVariant {
+                    MetaKind::StructVariant {
                         object, type_hash, ..
                     } => {
                         let type_check = TypeCheck::Variant(*type_hash);
@@ -637,17 +634,17 @@ impl<'a, 'q> Compiler<'a, 'q> {
     pub(crate) fn compile_pat_meta_binding(
         &mut self,
         span: Span,
-        meta: &CompileMeta,
+        meta: &Meta,
         false_label: Label,
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let type_check = match &meta.kind {
-            CompileMetaKind::UnitStruct { type_hash, .. } => TypeCheck::Type(*type_hash),
-            CompileMetaKind::TupleStruct {
+            MetaKind::UnitStruct { type_hash, .. } => TypeCheck::Type(*type_hash),
+            MetaKind::TupleStruct {
                 tuple, type_hash, ..
             } if tuple.args == 0 => TypeCheck::Type(*type_hash),
-            CompileMetaKind::UnitVariant { type_hash, .. } => TypeCheck::Variant(*type_hash),
-            CompileMetaKind::TupleVariant {
+            MetaKind::UnitVariant { type_hash, .. } => TypeCheck::Variant(*type_hash),
+            MetaKind::TupleVariant {
                 tuple, type_hash, ..
             } if tuple.args == 0 => TypeCheck::Variant(*type_hash),
             _ => return Ok(false),
@@ -881,8 +878,8 @@ impl<'a, 'q> Compiler<'a, 'q> {
     pub(crate) fn call_const_fn<S>(
         &mut self,
         spanned: S,
-        meta: &CompileMeta,
-        from: &CompileItem,
+        meta: &Meta,
+        from: &ItemMeta,
         query_const_fn: &QueryConstFn,
         args: &[(ast::Expr, Option<T![,]>)],
     ) -> Result<ConstValue, CompileError>

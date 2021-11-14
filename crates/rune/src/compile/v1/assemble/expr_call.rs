@@ -110,7 +110,7 @@ impl Assemble for ast::ExprCall {
         let meta = c.lookup_meta(path.span(), &named.item)?;
 
         match &meta.kind {
-            CompileMetaKind::UnitStruct { .. } | CompileMetaKind::UnitVariant { .. } => {
+            MetaKind::UnitStruct { .. } | MetaKind::UnitVariant { .. } => {
                 if !self.args.is_empty() {
                     return Err(CompileError::new(
                         span,
@@ -122,8 +122,7 @@ impl Assemble for ast::ExprCall {
                     ));
                 }
             }
-            CompileMetaKind::TupleStruct { tuple, .. }
-            | CompileMetaKind::TupleVariant { tuple, .. } => {
+            MetaKind::TupleStruct { tuple, .. } | MetaKind::TupleVariant { tuple, .. } => {
                 if tuple.args != self.args.len() {
                     return Err(CompileError::new(
                         span,
@@ -141,8 +140,8 @@ impl Assemble for ast::ExprCall {
                         .remove_tuple_call_parens(c.source_id, span, tuple, c.context());
                 }
             }
-            CompileMetaKind::Function { .. } => (),
-            CompileMetaKind::ConstFn { id, .. } => {
+            MetaKind::Function { .. } => (),
+            MetaKind::ConstFn { id, .. } => {
                 let from = c.q.item_for(self)?;
                 let const_fn = c.q.const_fn_for((self.span(), *id))?;
 

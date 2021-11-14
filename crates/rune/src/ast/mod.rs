@@ -26,7 +26,7 @@
 //! m.macro_(&["ident_to_string"], ident_to_string)?;
 //!
 //! let mut context = Context::new();
-//! context.install(&m);
+//! context.install(&m)?;
 //!
 //! let runtime = Arc::new(context.runtime());
 //!
