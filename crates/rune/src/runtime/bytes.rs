@@ -6,12 +6,13 @@ use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Mut, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError,
 };
+use serde::{Serialize, Deserialize}; 
 use std::cmp;
 use std::fmt;
 use std::ops;
 
 /// A vector of bytes.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Bytes {
     pub(crate) bytes: Vec<u8>,
 }
