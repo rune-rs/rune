@@ -4,17 +4,13 @@
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
+use crate::compile::ir;
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ImportStep, IntoComponent, Item,
-    Location, UnitBuilder, Visibility,
+    CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, EmptyMeta,
+    ImportStep, IntoComponent, IrBudget, IrCompile, IrCompiler, IrInterpreter, Item, ItemMeta,
+    Location, Meta, MetaKind, ModMeta, SourceMeta, StructMeta, TupleMeta, UnitBuilder, Visibility,
 };
-use crate::ir;
-use crate::ir::{IrBudget, IrCompile, IrCompiler, IrInterpreter};
 use crate::macros::Storage;
-use crate::meta::{
-    CompileItem, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind,
-    CompileMetaStruct, CompileMetaTuple, CompileMod, CompileSource,
-};
 use crate::parse::{Id, Opaque, Resolve};
 use crate::runtime::format;
 use crate::runtime::{Call, Names};
@@ -85,7 +81,7 @@ pub(crate) struct BuiltInLine {
 #[derive(Default)]
 pub(crate) struct QueryInner {
     /// Resolved meta about every single item during a compilation.
-    meta: HashMap<Item, CompileMeta>,
+    meta: HashMap<Item, Meta>,
     /// Build queue.
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
@@ -102,11 +98,11 @@ pub(crate) struct QueryInner {
     ///
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
-    items: HashMap<Id, Arc<CompileItem>>,
+    items: HashMap<Id, Arc<ItemMeta>>,
     /// All available names in the context.
     names: Names,
     /// Modules and associated metadata.
-    modules: HashMap<Item, Arc<CompileMod>>,
+    modules: HashMap<Item, Arc<ModMeta>>,
 }
 
 pub(crate) struct Query<'a> {
@@ -167,7 +163,7 @@ impl<'a> Query<'a> {
     }
 
     /// Insert the given compile meta.
-    pub(crate) fn insert_meta(&mut self, span: Span, meta: CompileMeta) -> Result<(), QueryError> {
+    pub(crate) fn insert_meta(&mut self, span: Span, meta: Meta) -> Result<(), QueryError> {
         let item = meta.item.item.clone();
 
         self.visitor.register_meta(&meta);
@@ -199,7 +195,7 @@ impl<'a> Query<'a> {
     /// Insert path information.
     pub(crate) fn insert_path(
         &mut self,
-        module: &Arc<CompileMod>,
+        module: &Arc<ModMeta>,
         impl_item: Option<&Arc<Item>>,
         item: &Item,
     ) -> Id {
@@ -227,12 +223,12 @@ impl<'a> Query<'a> {
         items: &Items,
         source_id: SourceId,
         span: Span,
-        parent: &Arc<CompileMod>,
+        parent: &Arc<ModMeta>,
         visibility: Visibility,
-    ) -> Result<Arc<CompileMod>, QueryError> {
+    ) -> Result<Arc<ModMeta>, QueryError> {
         let item = self.insert_new_item(items, source_id, span, parent, visibility)?;
 
-        let query_mod = Arc::new(CompileMod {
+        let query_mod = Arc::new(ModMeta {
             location: Location::new(source_id, span),
             item: item.item.clone(),
             visibility,
@@ -251,8 +247,8 @@ impl<'a> Query<'a> {
         &mut self,
         source_id: SourceId,
         spanned: Span,
-    ) -> Result<Arc<CompileMod>, QueryError> {
-        let query_mod = Arc::new(CompileMod {
+    ) -> Result<Arc<ModMeta>, QueryError> {
+        let query_mod = Arc::new(ModMeta {
             location: Location::new(source_id, spanned),
             item: Item::new(),
             visibility: Visibility::Public,
@@ -265,7 +261,7 @@ impl<'a> Query<'a> {
     }
 
     /// Get the compile item for the given item.
-    pub(crate) fn get_item(&self, span: Span, id: Id) -> Result<Arc<CompileItem>, QueryError> {
+    pub(crate) fn get_item(&self, span: Span, id: Id) -> Result<Arc<ItemMeta>, QueryError> {
         if let Some(item) = self.inner.items.get(&id) {
             return Ok(item.clone());
         }
@@ -282,9 +278,9 @@ impl<'a> Query<'a> {
         items: &Items,
         source_id: SourceId,
         spanned: Span,
-        module: &Arc<CompileMod>,
+        module: &Arc<ModMeta>,
         visibility: Visibility,
-    ) -> Result<Arc<CompileItem>, QueryError> {
+    ) -> Result<Arc<ItemMeta>, QueryError> {
         let id = items.id();
         let item = &*items.item();
 
@@ -304,7 +300,7 @@ impl<'a> Query<'a> {
     }
 
     /// Get the item for the given identifier.
-    pub(crate) fn item_for<T>(&self, ast: T) -> Result<Arc<CompileItem>, QueryError>
+    pub(crate) fn item_for<T>(&self, ast: T) -> Result<Arc<ItemMeta>, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -380,7 +376,7 @@ impl<'a> Query<'a> {
     /// Index a constant expression.
     pub(crate) fn index_const<T>(
         &mut self,
-        item: &Arc<CompileItem>,
+        item: &Arc<ItemMeta>,
         expr: &T,
     ) -> Result<(), QueryError>
     where
@@ -406,7 +402,7 @@ impl<'a> Query<'a> {
     /// Index a constant function.
     pub(crate) fn index_const_fn(
         &mut self,
-        item: &Arc<CompileItem>,
+        item: &Arc<ItemMeta>,
         item_fn: Box<ast::ItemFn>,
     ) -> Result<(), QueryError> {
         log::trace!("new const fn: {:?}", item.item);
@@ -420,7 +416,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new enum item.
-    pub(crate) fn index_enum(&mut self, item: &Arc<CompileItem>) -> Result<(), QueryError> {
+    pub(crate) fn index_enum(&mut self, item: &Arc<ItemMeta>) -> Result<(), QueryError> {
         log::trace!("new enum: {:?}", item.item);
 
         self.index(IndexedEntry {
@@ -434,7 +430,7 @@ impl<'a> Query<'a> {
     /// Add a new struct item that can be queried.
     pub(crate) fn index_struct(
         &mut self,
-        item: &Arc<CompileItem>,
+        item: &Arc<ItemMeta>,
         ast: Box<ast::ItemStruct>,
     ) -> Result<(), QueryError> {
         log::trace!("new struct: {:?}", item.item);
@@ -450,7 +446,7 @@ impl<'a> Query<'a> {
     /// Add a new variant item that can be queried.
     pub(crate) fn index_variant(
         &mut self,
-        item: &Arc<CompileItem>,
+        item: &Arc<ItemMeta>,
         enum_id: Id,
         ast: ast::ItemVariant,
     ) -> Result<(), QueryError> {
@@ -467,9 +463,9 @@ impl<'a> Query<'a> {
     /// Add a new function that can be queried for.
     pub(crate) fn index_closure(
         &mut self,
-        item: &Arc<CompileItem>,
+        item: &Arc<ItemMeta>,
         ast: Box<ast::ExprClosure>,
-        captures: Arc<[CompileMetaCapture]>,
+        captures: Arc<[CaptureMeta]>,
         call: Call,
         do_move: bool,
     ) -> Result<(), QueryError> {
@@ -491,9 +487,9 @@ impl<'a> Query<'a> {
     /// Add a new async block.
     pub(crate) fn index_async_block(
         &mut self,
-        item: &Arc<CompileItem>,
+        item: &Arc<ItemMeta>,
         ast: ast::Block,
-        captures: Arc<[CompileMetaCapture]>,
+        captures: Arc<[CaptureMeta]>,
         call: Call,
         do_move: bool,
     ) -> Result<(), QueryError> {
@@ -553,7 +549,7 @@ impl<'a> Query<'a> {
         span: Span,
         item: &Item,
         used: Used,
-    ) -> Result<Option<CompileMeta>, QueryError> {
+    ) -> Result<Option<Meta>, QueryError> {
         if let Some(meta) = self.inner.meta.get(item) {
             return Ok(Some(meta.clone()));
         }
@@ -685,7 +681,7 @@ impl<'a> Query<'a> {
         &mut self,
         source_id: SourceId,
         span: Span,
-        module: &Arc<CompileMod>,
+        module: &Arc<ModMeta>,
         visibility: Visibility,
         at: Item,
         target: Item,
@@ -754,7 +750,7 @@ impl<'a> Query<'a> {
     pub(crate) fn import(
         &mut self,
         span: Span,
-        module: &Arc<CompileMod>,
+        module: &Arc<ModMeta>,
         item: &Item,
         used: Used,
     ) -> Result<Option<Item>, QueryError> {
@@ -807,7 +803,7 @@ impl<'a> Query<'a> {
     fn import_step(
         &mut self,
         span: Span,
-        module: &Arc<CompileMod>,
+        module: &Arc<ModMeta>,
         item: &Item,
         used: Used,
         path: &mut Vec<ImportStep>,
@@ -815,7 +811,7 @@ impl<'a> Query<'a> {
         // already resolved query.
         if let Some(meta) = self.inner.meta.get(item) {
             return Ok(match &meta.kind {
-                CompileMetaKind::Import {
+                MetaKind::Import {
                     module,
                     location,
                     target,
@@ -852,9 +848,9 @@ impl<'a> Query<'a> {
             }
         };
 
-        let meta = CompileMeta {
+        let meta = Meta {
             item: entry.item.clone(),
-            kind: CompileMetaKind::Import {
+            kind: MetaKind::Import {
                 module: import.module.clone(),
                 location: import.location,
                 target: import.target.clone(),
@@ -877,14 +873,14 @@ impl<'a> Query<'a> {
         span: Span,
         entry: IndexedEntry,
         used: Used,
-    ) -> Result<CompileMeta, QueryError> {
+    ) -> Result<Meta, QueryError> {
         let IndexedEntry {
             item: query_item,
             indexed,
         } = entry;
 
         let kind = match indexed {
-            Indexed::Enum => CompileMetaKind::Enum {
+            Indexed::Enum => MetaKind::Enum {
                 type_hash: Hash::type_hash(&query_item.item),
             },
             Indexed::Variant(variant) => {
@@ -916,7 +912,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                CompileMetaKind::Function {
+                MetaKind::Function {
                     type_hash: Hash::type_hash(&query_item.item),
                     is_test: false,
                     is_bench: false,
@@ -933,7 +929,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                CompileMetaKind::Closure {
+                MetaKind::Closure {
                     type_hash: Hash::type_hash(&query_item.item),
                     captures,
                     do_move,
@@ -950,7 +946,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                CompileMetaKind::AsyncBlock {
+                MetaKind::AsyncBlock {
                     type_hash: Hash::type_hash(&query_item.item),
                     captures,
                     do_move,
@@ -976,7 +972,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                CompileMetaKind::Const { const_value }
+                MetaKind::Const { const_value }
             }
             Indexed::ConstFn(c) => {
                 let mut ir_compiler = IrCompiler { q: self.borrow() };
@@ -994,7 +990,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                CompileMetaKind::ConstFn { id, is_test: false }
+                MetaKind::ConstFn { id, is_test: false }
             }
             Indexed::Import(import) => {
                 let module = import.entry.module.clone();
@@ -1010,7 +1006,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                CompileMetaKind::Import {
+                MetaKind::Import {
                     module,
                     location,
                     target,
@@ -1018,7 +1014,7 @@ impl<'a> Query<'a> {
             }
         };
 
-        let source = CompileSource {
+        let source = SourceMeta {
             location: query_item.location,
             path: self
                 .sources
@@ -1026,7 +1022,7 @@ impl<'a> Query<'a> {
                 .map(Into::into),
         };
 
-        Ok(CompileMeta {
+        Ok(Meta {
             item: query_item,
             kind,
             source: Some(source),
@@ -1044,10 +1040,10 @@ impl<'a> Query<'a> {
         item: &Item,
         source_id: SourceId,
         spanned: Span,
-        module: &Arc<CompileMod>,
+        module: &Arc<ModMeta>,
         visibility: Visibility,
-    ) -> Result<Arc<CompileItem>, QueryError> {
-        let query_item = Arc::new(CompileItem {
+    ) -> Result<Arc<ItemMeta>, QueryError> {
+        let query_item = Arc::new(ItemMeta {
             location: Location::new(source_id, spanned),
             id,
             item: item.clone(),
@@ -1063,7 +1059,7 @@ impl<'a> Query<'a> {
     fn import_indexed(
         &mut self,
         span: Span,
-        item: Arc<CompileItem>,
+        item: Arc<ItemMeta>,
         indexed: Indexed,
         used: Used,
     ) -> Result<(), QueryError> {
@@ -1147,7 +1143,7 @@ impl<'a> Query<'a> {
     fn convert_initial_path(
         &mut self,
         context: &Context,
-        module: &Arc<CompileMod>,
+        module: &Arc<ModMeta>,
         base: &Item,
         local: &ast::Ident,
     ) -> Result<Item, CompileError> {
@@ -1183,7 +1179,7 @@ impl<'a> Query<'a> {
     }
 
     /// Insert an item and return its Id.
-    fn insert_const_fn(&mut self, item: &Arc<CompileItem>, ir_fn: ir::IrFn) -> Id {
+    fn insert_const_fn(&mut self, item: &Arc<ItemMeta>, ir_fn: ir::IrFn) -> Id {
         let id = self.gen.next();
 
         self.inner.const_fns.insert(
@@ -1201,9 +1197,9 @@ impl<'a> Query<'a> {
     fn check_access_to(
         &self,
         span: Span,
-        from: &CompileMod,
+        from: &ModMeta,
         item: &Item,
-        module: &CompileMod,
+        module: &ModMeta,
         location: Location,
         visibility: Visibility,
         chain: &mut Vec<ImportStep>,
@@ -1352,7 +1348,7 @@ pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: Box<ast::ExprClosure>,
     /// Captures.
-    pub(crate) captures: Arc<[CompileMetaCapture]>,
+    pub(crate) captures: Arc<[CaptureMeta]>,
     /// Calling convention used for closure.
     pub(crate) call: Call,
     /// If the closure moves its captures.
@@ -1364,7 +1360,7 @@ pub(crate) struct AsyncBlock {
     /// Ast for block.
     pub(crate) ast: ast::Block,
     /// Captures.
-    pub(crate) captures: Arc<[CompileMetaCapture]>,
+    pub(crate) captures: Arc<[CaptureMeta]>,
     /// Calling convention used for async block.
     pub(crate) call: Call,
     /// If the block moves its captures.
@@ -1374,7 +1370,7 @@ pub(crate) struct AsyncBlock {
 #[derive(Debug, Clone)]
 pub(crate) struct Const {
     /// The module item the constant is defined in.
-    pub(crate) module: Arc<CompileMod>,
+    pub(crate) module: Arc<ModMeta>,
     /// The intermediate representation of the constant expression.
     pub(crate) ir: ir::Ir,
 }
@@ -1404,7 +1400,7 @@ pub(crate) struct BuildEntry {
     /// The location of the build entry.
     pub(crate) location: Location,
     /// The item of the build entry.
-    pub(crate) item: Arc<CompileItem>,
+    pub(crate) item: Arc<ItemMeta>,
     /// The build entry.
     pub(crate) build: Build,
     /// If the queued up entry was unused or not.
@@ -1414,7 +1410,7 @@ pub(crate) struct BuildEntry {
 #[derive(Debug, Clone)]
 pub(crate) struct IndexedEntry {
     /// The query item this indexed entry belongs to.
-    pub(crate) item: Arc<CompileItem>,
+    pub(crate) item: Arc<ItemMeta>,
     /// The entry data.
     pub(crate) indexed: Indexed,
 }
@@ -1432,7 +1428,7 @@ impl IndexedEntry {
 /// Query information for a path.
 #[derive(Debug)]
 pub(crate) struct QueryPath {
-    pub(crate) module: Arc<CompileMod>,
+    pub(crate) module: Arc<ModMeta>,
     pub(crate) impl_item: Option<Arc<Item>>,
     pub(crate) item: Item,
 }
@@ -1441,7 +1437,7 @@ pub(crate) struct QueryPath {
 #[derive(Debug)]
 pub(crate) struct QueryConstFn {
     /// The item of the const fn.
-    pub(crate) item: Arc<CompileItem>,
+    pub(crate) item: Arc<ItemMeta>,
     /// The compiled constant function.
     pub(crate) ir_fn: ir::IrFn,
 }
@@ -1469,20 +1465,20 @@ impl fmt::Display for Named {
 }
 
 /// Construct metadata for an empty body.
-fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> CompileMetaKind {
+fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> MetaKind {
     let type_hash = Hash::type_hash(item);
 
-    let empty = CompileMetaEmpty {
+    let empty = EmptyMeta {
         hash: Hash::type_hash(item),
     };
 
     match enum_item {
-        Some(enum_item) => CompileMetaKind::UnitVariant {
+        Some(enum_item) => MetaKind::UnitVariant {
             type_hash,
             enum_item: enum_item.clone(),
             empty,
         },
-        None => CompileMetaKind::UnitStruct { type_hash, empty },
+        None => MetaKind::UnitStruct { type_hash, empty },
     }
 }
 
@@ -1491,21 +1487,21 @@ fn tuple_body_meta(
     item: &Item,
     enum_item: Option<&Item>,
     tuple: ast::Parenthesized<ast::Field, T![,]>,
-) -> CompileMetaKind {
+) -> MetaKind {
     let type_hash = Hash::type_hash(item);
 
-    let tuple = CompileMetaTuple {
+    let tuple = TupleMeta {
         args: tuple.len(),
         hash: Hash::type_hash(item),
     };
 
     match enum_item {
-        Some(enum_item) => CompileMetaKind::TupleVariant {
+        Some(enum_item) => MetaKind::TupleVariant {
             type_hash,
             enum_item: enum_item.clone(),
             tuple,
         },
-        None => CompileMetaKind::TupleStruct { type_hash, tuple },
+        None => MetaKind::TupleStruct { type_hash, tuple },
     }
 }
 
@@ -1516,7 +1512,7 @@ fn struct_body_meta(
     storage: &Storage,
     sources: &Sources,
     st: ast::Braced<ast::Field, T![,]>,
-) -> Result<CompileMetaKind, QueryError> {
+) -> Result<MetaKind, QueryError> {
     let type_hash = Hash::type_hash(item);
 
     let mut fields = HashSet::new();
@@ -1526,15 +1522,15 @@ fn struct_body_meta(
         fields.insert(name.into());
     }
 
-    let object = CompileMetaStruct { fields };
+    let object = StructMeta { fields };
 
     Ok(match enum_item {
-        Some(enum_item) => CompileMetaKind::StructVariant {
+        Some(enum_item) => MetaKind::StructVariant {
             type_hash,
             enum_item: enum_item.clone(),
             object,
         },
-        None => CompileMetaKind::Struct { type_hash, object },
+        None => MetaKind::Struct { type_hash, object },
     })
 }
 
@@ -1545,7 +1541,7 @@ fn variant_into_item_decl(
     enum_item: Option<&Item>,
     storage: &Storage,
     sources: &Sources,
-) -> Result<CompileMetaKind, QueryError> {
+) -> Result<MetaKind, QueryError> {
     Ok(match body {
         ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_item),
         ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_item, tuple),
@@ -1562,7 +1558,7 @@ fn struct_into_item_decl(
     enum_item: Option<&Item>,
     storage: &Storage,
     sources: &Sources,
-) -> Result<CompileMetaKind, QueryError> {
+) -> Result<MetaKind, QueryError> {
     Ok(match body {
         ast::ItemStructBody::UnitBody => unit_body_meta(item, enum_item),
         ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, enum_item, tuple),
@@ -1581,11 +1577,11 @@ pub(crate) struct ImportEntry {
     /// The item being imported.
     pub(crate) target: Item,
     /// The module in which the imports is located.
-    pub(crate) module: Arc<CompileMod>,
+    pub(crate) module: Arc<ModMeta>,
 }
 
 struct QueryImportStep {
-    module: Arc<CompileMod>,
+    module: Arc<ModMeta>,
     location: Location,
     target: Item,
 }

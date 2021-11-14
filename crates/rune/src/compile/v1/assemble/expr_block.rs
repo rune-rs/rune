@@ -14,7 +14,7 @@ impl Assemble for ast::ExprBlock {
         let meta = c.lookup_meta(span, &item.item)?;
 
         match &meta.kind {
-            CompileMetaKind::AsyncBlock {
+            MetaKind::AsyncBlock {
                 captures, do_move, ..
             } => {
                 let captures = &**captures;
@@ -49,7 +49,7 @@ impl Assemble for ast::ExprBlock {
                         .push_with_comment(Inst::Pop, span, "value is not needed");
                 }
             }
-            CompileMetaKind::Const { const_value } => {
+            MetaKind::Const { const_value } => {
                 const_value.assemble_const(c, needs, span)?;
             }
             _ => {

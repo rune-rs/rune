@@ -1,4 +1,4 @@
-use crate::ir::eval::prelude::*;
+use crate::compile::ir::eval::prelude::*;
 use std::fmt::Write as _;
 
 impl IrEval for &ir::IrTemplate {

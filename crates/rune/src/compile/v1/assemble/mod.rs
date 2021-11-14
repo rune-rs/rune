@@ -42,8 +42,7 @@ mod prelude;
 
 use crate::ast::Span;
 use crate::compile::v1::{Compiler, Needs, Var};
-use crate::compile::CompileResult;
-use crate::meta::CompileMetaCapture;
+use crate::compile::{CaptureMeta, CompileResult};
 use crate::runtime::InstAddress;
 
 #[derive(Debug)]
@@ -135,6 +134,6 @@ pub(crate) trait AssembleClosure {
     fn assemble_closure(
         &self,
         c: &mut Compiler<'_, '_>,
-        captures: &[CompileMetaCapture],
+        captures: &[CaptureMeta],
     ) -> CompileResult<()>;
 }

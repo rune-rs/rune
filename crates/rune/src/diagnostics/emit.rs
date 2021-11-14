@@ -1,10 +1,9 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
-use crate::compile::{CompileErrorKind, Location, LinkerError};
+use crate::compile::{IrErrorKind, CompileErrorKind, Location, LinkerError};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
-use crate::ir::IrErrorKind;
 use crate::parse::ResolveErrorKind;
 use crate::query::QueryErrorKind;
 use crate::runtime::{Unit, VmError, VmErrorKind};

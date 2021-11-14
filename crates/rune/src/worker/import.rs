@@ -1,7 +1,6 @@
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, Visibility};
-use crate::meta::CompileMod;
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, ModMeta, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
@@ -13,7 +12,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub(crate) struct Import {
     pub(crate) kind: ImportKind,
-    pub(crate) module: Arc<CompileMod>,
+    pub(crate) module: Arc<ModMeta>,
     pub(crate) visibility: Visibility,
     pub(crate) item: Item,
     pub(crate) source_id: SourceId,

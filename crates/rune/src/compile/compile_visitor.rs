@@ -1,14 +1,14 @@
 use crate::ast::Span;
-use crate::meta::CompileMeta;
+use crate::compile::Meta;
 use crate::SourceId;
 
 /// A visitor that will be called for every language item compiled.
 pub trait CompileVisitor {
     /// Called when a meta item is registered.
-    fn register_meta(&mut self, _meta: &CompileMeta) {}
+    fn register_meta(&mut self, _meta: &Meta) {}
 
     /// Mark that we've encountered a specific compile meta at the given span.
-    fn visit_meta(&mut self, _source_id: SourceId, _meta: &CompileMeta, _span: Span) {}
+    fn visit_meta(&mut self, _source_id: SourceId, _meta: &Meta, _span: Span) {}
 
     /// Visit a variable use.
     fn visit_variable_use(&mut self, _source_id: SourceId, _var_span: Span, _span: Span) {}

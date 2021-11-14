@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::ast::Spanned;
-use crate::ir;
-use crate::ir::{IrError, IrErrorKind};
+use crate::compile::ir;
+use crate::compile::{IrError, IrErrorKind};
 use crate::parse::Resolve;
 use crate::query::{BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::{Bytes, ConstValue};

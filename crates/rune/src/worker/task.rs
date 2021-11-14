@@ -1,4 +1,4 @@
-use crate::meta::CompileMod;
+use crate::compile::ModMeta;
 use crate::worker::{Import, WildcardImport};
 use crate::SourceId;
 use std::path::PathBuf;
@@ -14,7 +14,7 @@ pub(crate) enum Task {
         /// The source id of the item being loaded.
         source_id: SourceId,
         /// The item of the file to load.
-        mod_item: Arc<CompileMod>,
+        mod_item: Arc<ModMeta>,
     },
     /// Expand a single import.
     ExpandImport(Import),

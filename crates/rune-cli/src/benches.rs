@@ -1,6 +1,5 @@
 use crate::ExitCode;
-use rune::compile::Item;
-use rune::meta::CompileMeta;
+use rune::compile::{Item, Meta};
 use rune::runtime::{Function, RuntimeContext, Unit, Value};
 use rune::termcolor::StandardStream;
 use rune::{Any, ContextError, Hash, Module, Sources};
@@ -34,7 +33,7 @@ pub(crate) async fn do_benches(
     runtime: Arc<RuntimeContext>,
     unit: Arc<Unit>,
     sources: Sources,
-    found: Vec<(Hash, CompileMeta)>,
+    found: Vec<(Hash, Meta)>,
 ) -> anyhow::Result<ExitCode> {
     let mut vm = rune::Vm::new(runtime, unit.clone());
 

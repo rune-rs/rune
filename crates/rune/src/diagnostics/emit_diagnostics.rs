@@ -4,7 +4,7 @@ use crate::compile::{CompileErrorKind, LinkerError};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
-use crate::ir::IrErrorKind;
+use crate::compile::ir::IrErrorKind;
 use crate::parse::ResolveErrorKind;
 use crate::query::QueryErrorKind;
 use crate::runtime::{VmError, VmErrorKind};

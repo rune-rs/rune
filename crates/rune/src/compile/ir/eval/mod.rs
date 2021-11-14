@@ -1,5 +1,5 @@
 use crate::ast::{Span, Spanned};
-use crate::ir::{IrError, IrInterpreter, IrPat, IrValue};
+use crate::compile::ir::{IrError, IrInterpreter, IrPat, IrValue};
 use crate::query::Used;
 
 mod ir;

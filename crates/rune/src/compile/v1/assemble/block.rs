@@ -5,7 +5,7 @@ impl AssembleClosure for ast::Block {
     fn assemble_closure(
         &self,
         c: &mut Compiler<'_, '_>,
-        captures: &[CompileMetaCapture],
+        captures: &[CaptureMeta],
     ) -> CompileResult<()> {
         let span = self.span();
         log::trace!(

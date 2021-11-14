@@ -5,7 +5,7 @@ impl AssembleClosure for ast::ExprClosure {
     fn assemble_closure(
         &self,
         c: &mut Compiler<'_, '_>,
-        captures: &[CompileMetaCapture],
+        captures: &[CaptureMeta],
     ) -> CompileResult<()> {
         let span = self.span();
         log::trace!("ExprClosure => {:?}", c.q.sources.source(c.source_id, span));
@@ -69,7 +69,7 @@ impl Assemble for ast::ExprClosure {
         };
 
         let (captures, do_move) = match &meta.kind {
-            CompileMetaKind::Closure {
+            MetaKind::Closure {
                 captures, do_move, ..
             } => (&**captures, *do_move),
             _ => {

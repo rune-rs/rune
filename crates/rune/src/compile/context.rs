@@ -3,8 +3,7 @@ use crate::compile::module::{
     Function, Module, ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType,
     ModuleUnitType,
 };
-use crate::compile::{ComponentRef, IntoComponent, Item};
-use crate::meta::{CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple};
+use crate::compile::{ComponentRef, IntoComponent, Item, Meta, MetaKind, StructMeta, TupleMeta};
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Names, RuntimeContext, StaticType, TypeCheck,
     TypeInfo, TypeOf, VmError,
@@ -25,8 +24,8 @@ pub enum ContextError {
     InternalAlreadyPresent { name: &'static str },
     #[error("conflicting meta {existing} while trying to insert {current}")]
     ConflictingMeta {
-        current: Box<CompileMeta>,
-        existing: Box<CompileMeta>,
+        current: Box<Meta>,
+        existing: Box<Meta>,
     },
     #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
@@ -57,15 +56,14 @@ pub enum ContextError {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ContextTypeInfo {
-    /// The type check used for the current type. If absent, the type cannot be
-    /// type checked for.
-    pub type_check: TypeCheck,
+    /// The type check used for the current type.
+    pub(crate) type_check: TypeCheck,
+    /// Complete detailed information on the hash.
+    pub(crate) type_info: TypeInfo,
     /// The name of the type.
     pub item: Item,
-    /// The value type of the type.
+    /// The hash of the type.
     pub type_hash: Hash,
-    /// Information on the type.
-    pub type_info: TypeInfo,
 }
 
 impl fmt::Display for ContextTypeInfo {
@@ -166,7 +164,7 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
-    meta: HashMap<Item, CompileMeta>,
+    meta: HashMap<Item, Meta>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Registered native macro handlers.
@@ -336,7 +334,7 @@ impl Context {
     }
 
     /// Access the meta for the given item.
-    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
+    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<Meta> {
         self.meta.get(name).cloned()
     }
 
@@ -375,7 +373,7 @@ impl Context {
     }
 
     /// Install the given meta.
-    fn install_meta(&mut self, meta: CompileMeta) -> Result<(), ContextError> {
+    fn install_meta(&mut self, meta: Meta) -> Result<(), ContextError> {
         if let Some(existing) = self.meta.insert(meta.item.item.clone(), meta.clone()) {
             return Err(ContextError::ConflictingMeta {
                 existing: Box::new(existing),
@@ -406,11 +404,11 @@ impl Context {
             },
         )?;
 
-        self.install_meta(CompileMeta {
+        self.install_meta(Meta {
             item: Arc::new(item.into()),
-            kind: CompileMetaKind::Struct {
+            kind: MetaKind::Struct {
                 type_hash,
-                object: CompileMetaStruct {
+                object: StructMeta {
                     fields: Default::default(),
                 },
             },
@@ -476,9 +474,9 @@ impl Context {
         self.functions.insert(hash, f.handler.clone());
         self.meta.insert(
             item.clone(),
-            CompileMeta {
+            Meta {
                 item: Arc::new(item.into()),
-                kind: CompileMetaKind::Function {
+                kind: MetaKind::Function {
                     type_hash: hash,
                     is_test: false,
                     is_bench: false,
@@ -524,9 +522,9 @@ impl Context {
 
         self.meta.insert(
             item.clone(),
-            CompileMeta {
+            Meta {
                 item: Arc::new(item.into()),
-                kind: CompileMetaKind::Const {
+                kind: MetaKind::Const {
                     const_value: v.clone(),
                 },
                 source: None,
@@ -579,9 +577,9 @@ impl Context {
         }
         self.meta.insert(
             item.clone(),
-            CompileMeta {
+            Meta {
                 item: Arc::new(item.into()),
-                kind: CompileMetaKind::Function {
+                kind: MetaKind::Function {
                     type_hash: hash,
                     is_test: false,
                     is_bench: false,
@@ -632,9 +630,9 @@ impl Context {
         let enum_item = module.item.join(&internal_enum.base_type);
         let enum_hash = Hash::type_hash(&enum_item);
 
-        self.install_meta(CompileMeta {
+        self.install_meta(Meta {
             item: Arc::new(enum_item.clone().into()),
-            kind: CompileMetaKind::Enum {
+            kind: MetaKind::Enum {
                 type_hash: internal_enum.static_type.hash,
             },
             source: None,
@@ -664,12 +662,12 @@ impl Context {
                 },
             )?;
 
-            self.install_meta(CompileMeta {
+            self.install_meta(Meta {
                 item: Arc::new(item.clone().into()),
-                kind: CompileMetaKind::TupleVariant {
+                kind: MetaKind::TupleVariant {
                     type_hash: variant.type_hash,
                     enum_item: enum_item.clone(),
-                    tuple: CompileMetaTuple {
+                    tuple: TupleMeta {
                         args: variant.args,
                         hash,
                     },
@@ -710,21 +708,21 @@ impl Context {
         let type_hash = <C::Return as TypeOf>::type_hash();
         let hash = Hash::type_hash(&item);
 
-        let tuple = CompileMetaTuple { args, hash };
+        let tuple = TupleMeta { args, hash };
 
         let meta = match enum_item {
-            Some(enum_item) => CompileMeta {
+            Some(enum_item) => Meta {
                 item: Arc::new(item.clone().into()),
-                kind: CompileMetaKind::TupleVariant {
+                kind: MetaKind::TupleVariant {
                     type_hash,
                     enum_item,
                     tuple,
                 },
                 source: None,
             },
-            None => CompileMeta {
+            None => Meta {
                 item: Arc::new(item.clone().into()),
-                kind: CompileMetaKind::TupleStruct { type_hash, tuple },
+                kind: MetaKind::TupleStruct { type_hash, tuple },
                 source: None,
             },
         };

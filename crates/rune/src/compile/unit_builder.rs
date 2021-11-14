@@ -6,9 +6,9 @@
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{
-    Assembly, AssemblyInst, CompileError, CompileErrorKind, IntoComponent, Item, Location,
+    Assembly, AssemblyInst, CompileError, CompileErrorKind, IntoComponent, Item, Location, Meta,
+    MetaKind,
 };
-use crate::meta::{CompileMeta, CompileMetaKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{
@@ -302,9 +302,9 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub(crate) fn insert_meta(&mut self, span: Span, meta: &CompileMeta) -> Result<(), QueryError> {
+    pub(crate) fn insert_meta(&mut self, span: Span, meta: &Meta) -> Result<(), QueryError> {
         match &meta.kind {
-            CompileMetaKind::UnitStruct { empty, .. } => {
+            MetaKind::UnitStruct { empty, .. } => {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
 
                 let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
@@ -339,7 +339,7 @@ impl UnitBuilder {
                     .functions
                     .insert(empty.hash, signature);
             }
-            CompileMetaKind::TupleStruct { tuple, .. } => {
+            MetaKind::TupleStruct { tuple, .. } => {
                 let info = UnitFn::TupleStruct {
                     hash: tuple.hash,
                     args: tuple.args,
@@ -378,7 +378,7 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            CompileMetaKind::Struct { .. } => {
+            MetaKind::Struct { .. } => {
                 let hash = Hash::type_hash(&meta.item.item);
 
                 let rtti = Arc::new(Rtti {
@@ -398,7 +398,7 @@ impl UnitBuilder {
                     ));
                 }
             }
-            CompileMetaKind::UnitVariant {
+            MetaKind::UnitVariant {
                 enum_item, empty, ..
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
@@ -433,7 +433,7 @@ impl UnitBuilder {
                     .functions
                     .insert(empty.hash, signature);
             }
-            CompileMetaKind::TupleVariant {
+            MetaKind::TupleVariant {
                 enum_item, tuple, ..
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
@@ -472,7 +472,7 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            CompileMetaKind::StructVariant { enum_item, .. } => {
+            MetaKind::StructVariant { enum_item, .. } => {
                 let hash = Hash::type_hash(&meta.item.item);
                 let enum_hash = Hash::type_hash(enum_item);
 
@@ -489,18 +489,18 @@ impl UnitBuilder {
                     ));
                 }
             }
-            CompileMetaKind::Enum { type_hash } => {
+            MetaKind::Enum { type_hash } => {
                 self.constants.insert(
                     Hash::instance_function(*type_hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(meta.item.item.to_string()),
                 );
             }
-            CompileMetaKind::Function { .. } => (),
-            CompileMetaKind::Closure { .. } => (),
-            CompileMetaKind::AsyncBlock { .. } => (),
-            CompileMetaKind::Const { .. } => (),
-            CompileMetaKind::ConstFn { .. } => (),
-            CompileMetaKind::Import { .. } => (),
+            MetaKind::Function { .. } => (),
+            MetaKind::Closure { .. } => (),
+            MetaKind::AsyncBlock { .. } => (),
+            MetaKind::Const { .. } => (),
+            MetaKind::ConstFn { .. } => (),
+            MetaKind::Import { .. } => (),
         }
 
         Ok(())

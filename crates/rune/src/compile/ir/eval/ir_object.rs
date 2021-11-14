@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::ir::eval::prelude::*;
+use crate::compile::ir::eval::prelude::*;
 
 impl IrEval for ir::IrObject {
     type Output = IrValue;

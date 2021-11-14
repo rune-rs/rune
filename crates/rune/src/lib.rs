@@ -230,11 +230,7 @@ pub use self::hash::{Hash, InstFnNameHash, IntoTypeHash};
 
 mod indexing;
 
-pub mod ir;
-
 pub mod macros;
-
-pub mod meta;
 
 pub mod modules;
 

@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::ast::{Span, Spanned, SpannedError, WithSpan};
 use crate::collections::HashMap;
-use crate::ir::IrValue;
+use crate::compile::IrValue;
 use crate::macros::{quote, MacroContext, Quote};
 use crate::parse::{Parse, ParseError, Parser, Peek, Peeker};
 use crate::runtime::format;

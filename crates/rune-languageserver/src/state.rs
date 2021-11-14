@@ -6,9 +6,9 @@ use ropey::Rope;
 use rune::ast::{Span, Spanned};
 use rune::compile::{
     CompileError, CompileVisitor, ComponentRef, FileSourceLoader, Item, LinkerError, Location,
+    Meta, MetaKind, SourceMeta,
 };
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
-use rune::meta::{CompileMeta, CompileMetaKind, CompileSource};
 use rune::{Context, Options, SourceId};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -511,7 +511,7 @@ pub enum DefinitionSource {
     /// A location definition (source and span).
     Location(Location),
     /// A complete compile source.
-    CompileSource(CompileSource),
+    SourceMeta(SourceMeta),
 }
 
 impl DefinitionSource {
@@ -519,7 +519,7 @@ impl DefinitionSource {
         match self {
             Self::Source(..) => Span::empty(),
             Self::Location(location) => location.span,
-            Self::CompileSource(compile_source) => compile_source.location.span,
+            Self::SourceMeta(compile_source) => compile_source.location.span,
         }
     }
 
@@ -527,13 +527,13 @@ impl DefinitionSource {
         match self {
             Self::Source(source_id) => *source_id,
             Self::Location(location) => location.source_id,
-            Self::CompileSource(compile_source) => compile_source.location.source_id,
+            Self::SourceMeta(compile_source) => compile_source.location.source_id,
         }
     }
 
     fn path(&self) -> Option<&Path> {
         match self {
-            Self::CompileSource(compile_source) => compile_source.path.as_deref(),
+            Self::SourceMeta(compile_source) => compile_source.path.as_deref(),
             _ => None,
         }
     }
@@ -588,7 +588,7 @@ impl Visitor {
 }
 
 impl CompileVisitor for Visitor {
-    fn visit_meta(&mut self, source_id: SourceId, meta: &CompileMeta, span: Span) {
+    fn visit_meta(&mut self, source_id: SourceId, meta: &Meta, span: Span) {
         if source_id.into_index() != 0 {
             return;
         }
@@ -599,20 +599,20 @@ impl CompileVisitor for Visitor {
         };
 
         let kind = match &meta.kind {
-            CompileMetaKind::UnitStruct { .. } => DefinitionKind::UnitStruct,
-            CompileMetaKind::TupleStruct { .. } => DefinitionKind::TupleStruct,
-            CompileMetaKind::Struct { .. } => DefinitionKind::Struct,
-            CompileMetaKind::UnitVariant { .. } => DefinitionKind::UnitVariant,
-            CompileMetaKind::TupleVariant { .. } => DefinitionKind::TupleVariant,
-            CompileMetaKind::StructVariant { .. } => DefinitionKind::StructVariant,
-            CompileMetaKind::Enum { .. } => DefinitionKind::Enum,
-            CompileMetaKind::Function { .. } => DefinitionKind::Function,
+            MetaKind::UnitStruct { .. } => DefinitionKind::UnitStruct,
+            MetaKind::TupleStruct { .. } => DefinitionKind::TupleStruct,
+            MetaKind::Struct { .. } => DefinitionKind::Struct,
+            MetaKind::UnitVariant { .. } => DefinitionKind::UnitVariant,
+            MetaKind::TupleVariant { .. } => DefinitionKind::TupleVariant,
+            MetaKind::StructVariant { .. } => DefinitionKind::StructVariant,
+            MetaKind::Enum { .. } => DefinitionKind::Enum,
+            MetaKind::Function { .. } => DefinitionKind::Function,
             _ => return,
         };
 
         let definition = Definition {
             kind,
-            source: DefinitionSource::CompileSource(source.clone()),
+            source: DefinitionSource::SourceMeta(source.clone()),
         };
 
         if let Some(d) = self.index.definitions.insert(span, definition) {

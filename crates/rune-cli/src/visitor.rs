@@ -1,5 +1,4 @@
-use rune::compile::CompileVisitor;
-use rune::meta::{CompileMeta, CompileMetaKind};
+use rune::compile::{CompileVisitor, Meta, MetaKind};
 use rune::Hash;
 
 /// Attribute to collect.
@@ -16,7 +15,7 @@ pub(crate) enum Attribute {
 /// A compile visitor that collects functions with a specific attribute.
 pub struct FunctionVisitor {
     attribute: Attribute,
-    functions: Vec<(Hash, CompileMeta)>,
+    functions: Vec<(Hash, Meta)>,
 }
 
 impl FunctionVisitor {
@@ -28,23 +27,23 @@ impl FunctionVisitor {
     }
 
     /// Convert visitor into test functions.
-    pub(crate) fn into_functions(self) -> Vec<(Hash, CompileMeta)> {
+    pub(crate) fn into_functions(self) -> Vec<(Hash, Meta)> {
         self.functions
     }
 }
 
 impl CompileVisitor for FunctionVisitor {
-    fn register_meta(&mut self, meta: &CompileMeta) {
+    fn register_meta(&mut self, meta: &Meta) {
         let type_hash = match (self.attribute, &meta.kind) {
             (
                 Attribute::Test,
-                CompileMetaKind::Function {
+                MetaKind::Function {
                     is_test, type_hash, ..
                 },
             ) if *is_test => type_hash,
             (
                 Attribute::Bench,
-                CompileMetaKind::Function {
+                MetaKind::Function {
                     is_bench,
                     type_hash,
                     ..
