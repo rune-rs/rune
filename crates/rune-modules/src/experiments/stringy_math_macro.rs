@@ -5,7 +5,7 @@ use rune::parse::Parser;
 
 /// Implementation for the `stringy_math!` macro.
 pub(crate) fn stringy_math(
-    ctx: &mut MacroContext<'_, '_>,
+    ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> rune::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());

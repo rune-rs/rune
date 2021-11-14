@@ -5,9 +5,10 @@
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
+use crate::macros::Storage;
 use crate::parse::Resolve;
 use crate::query::{Build, BuildEntry, Query};
-use crate::shared::Gen;
+use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Diagnostics, Sources};
 
@@ -65,10 +66,15 @@ pub(crate) fn compile(
 ) -> Result<(), ()> {
     // Shared id generator.
     let gen = Gen::new();
+    let mut consts = Consts::default();
+    let mut storage = Storage::default();
+    let mut inner = Default::default();
 
     // The worker queue.
     let mut worker = Worker::new(
         context,
+        &mut consts,
+        &mut storage,
         sources,
         options,
         unit,
@@ -76,6 +82,7 @@ pub(crate) fn compile(
         visitor,
         source_loader,
         &gen,
+        &mut inner,
     );
 
     // Queue up the initial sources to be loaded.

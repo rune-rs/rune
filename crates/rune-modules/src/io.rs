@@ -32,7 +32,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 }
 
 /// Implementation for the `println!` macro.
-pub(crate) fn println_macro(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+pub(crate) fn println_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;

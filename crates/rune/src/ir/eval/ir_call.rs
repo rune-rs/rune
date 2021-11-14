@@ -5,7 +5,7 @@ impl IrEval for ir::IrCall {
 
     fn eval(
         &self,
-        interp: &mut IrInterpreter<'_, '_>,
+        interp: &mut IrInterpreter<'_>,
         used: Used,
     ) -> Result<Self::Output, IrEvalOutcome> {
         let mut args = Vec::new();

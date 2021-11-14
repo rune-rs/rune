@@ -489,7 +489,7 @@ impl Module {
         M: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_, '_>, &TokenStream) -> crate::Result<TokenStream>,
+            + Fn(&mut MacroContext<'_>, &TokenStream) -> crate::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {

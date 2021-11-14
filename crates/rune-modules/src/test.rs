@@ -35,7 +35,7 @@ pub fn module(_stdio: bool) -> Result<rune::Module, rune::ContextError> {
 }
 
 /// Implementation for the `assert!` macro.
-pub(crate) fn assert_macro(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+pub(crate) fn assert_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let expr = p.parse::<ast::Expr>()?;
 
@@ -64,7 +64,7 @@ pub(crate) fn assert_macro(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream)
 }
 
 /// Implementation for the `assert!` macro.
-pub(crate) fn assert_eq_macro(ctx: &mut MacroContext<'_, '_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+pub(crate) fn assert_eq_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let left = p.parse::<ast::Expr>()?;
     p.parse::<T![,]>()?;

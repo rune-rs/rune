@@ -35,7 +35,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 
 /// Implementation for the `stringify!` macro.
 pub(crate) fn stringify_macro(
-    ctx: &mut MacroContext<'_, '_>,
+    ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> rune::Result<TokenStream> {
     let lit = ctx.stringify(stream).to_string();
@@ -44,7 +44,7 @@ pub(crate) fn stringify_macro(
 }
 
 pub(crate) fn panic_macro(
-    ctx: &mut MacroContext<'_, '_>,
+    ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> rune::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());

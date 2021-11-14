@@ -5,7 +5,7 @@ impl IrEval for ir::IrAssign {
 
     fn eval(
         &self,
-        interp: &mut IrInterpreter<'_, '_>,
+        interp: &mut IrInterpreter<'_>,
         used: Used,
     ) -> Result<Self::Output, IrEvalOutcome> {
         interp.budget.take(self)?;

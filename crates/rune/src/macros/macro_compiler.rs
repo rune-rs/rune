@@ -58,7 +58,7 @@ impl MacroCompiler<'_, '_> {
                 macro_span: macro_call.span(),
                 stream_span: macro_call.stream_span(),
                 item: self.item.clone(),
-                q: self.query,
+                q: self.query.borrow(),
             };
 
             handler(&mut macro_context, input_stream)

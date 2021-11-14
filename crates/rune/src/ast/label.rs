@@ -15,7 +15,7 @@ impl Label {
     /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
     ///
     /// This constructor must only be used inside of a macro.
-    pub fn new(ctx: &mut MacroContext<'_, '_>, label: &str) -> Self {
+    pub fn new(ctx: &mut MacroContext<'_>, label: &str) -> Self {
         Self::new_with(label, ctx.macro_span(), &mut ctx.q_mut().storage)
     }
 

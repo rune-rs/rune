@@ -5,8 +5,9 @@ use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{CompileVisitor, Item, Options, SourceLoader, UnitBuilder};
 use crate::indexing::{Index, IndexScopes, Indexer};
-use crate::query::Query;
-use crate::shared::{Gen, Items};
+use crate::macros::Storage;
+use crate::query::{Query, QueryInner};
+use crate::shared::{Consts, Gen, Items};
 use crate::{Context, Diagnostics, SourceId, Sources};
 use std::collections::VecDeque;
 
@@ -37,6 +38,8 @@ impl<'a> Worker<'a> {
     /// Construct a new worker.
     pub(crate) fn new(
         context: &'a Context,
+        consts: &'a mut Consts,
+        storage: &'a mut Storage,
         sources: &'a mut Sources,
         options: &'a Options,
         unit: &'a mut UnitBuilder,
@@ -44,13 +47,14 @@ impl<'a> Worker<'a> {
         visitor: &'a mut dyn CompileVisitor,
         source_loader: &'a mut dyn SourceLoader,
         gen: &'a Gen,
+        inner: &'a mut QueryInner,
     ) -> Self {
         Self {
             context,
             options,
             diagnostics,
             source_loader,
-            q: Query::new(unit, sources, visitor, gen),
+            q: Query::new(unit, consts, storage, sources, visitor, gen, inner),
             gen,
             loaded: HashMap::new(),
             queue: VecDeque::new(),

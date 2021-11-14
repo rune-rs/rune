@@ -900,7 +900,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
             ));
         }
 
-        let mut compiler = IrCompiler { q: self.q };
+        let mut compiler = IrCompiler { q: self.q.borrow() };
 
         let mut compiled = Vec::new();
 
@@ -914,7 +914,7 @@ impl<'a, 'q> Compiler<'a, 'q> {
             scopes: Default::default(),
             module: from.module.clone(),
             item: from.item.clone(),
-            q: self.q,
+            q: self.q.borrow(),
         };
 
         for (ir, name) in compiled {
