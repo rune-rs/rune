@@ -7,6 +7,28 @@ on:
       - main
 
 jobs:
+  initialise:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v2
+        with:
+          # for pull_request so we can do HEAD^2
+          fetch-depth: 2
+
+      - name: Get commit message
+        id: get_commit_message
+        run: |
+          if   [[ '${{ github.event_name }}' == 'push' ]]; then
+            echo ::set-output name=commit_message::$(git log --format=%B -n 1 HEAD)
+          elif [[ '${{ github.event_name }}' == 'pull_request' ]]; then
+            echo ::set-output name=commit_message::$(git log --format=%B -n 1 HEAD^2)
+          fi
+
+    outputs:
+      commit_message:
+        echo "${{ steps.get_commit_message.outputs.commit_message }}"
+
   build:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -33,6 +55,7 @@ jobs:
   build_benchmarks:
     name: Build Benchmarks
     runs-on: ubuntu-latest
+    needs: initialise
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -49,8 +72,9 @@ jobs:
             ~/.cargo/bin
             target
           key: build_benchmarks-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
+
       - name: Invalidate cache
-        if: "contains(github.event.head_commit.message, '[clean-build]')"
+        if: "contains(needs.initialise.outputs.commit_message, '[clean-build]')"
         run: |
           rm -rf target
       - run: cargo build --benches
