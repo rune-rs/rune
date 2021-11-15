@@ -1,10 +1,10 @@
 use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::ir;
-use crate::compile::{IrError, IrErrorKind};
+use crate::compile::{IrError, IrValue};
 use crate::parse::Resolve;
 use crate::query::{BuiltInMacro, BuiltInTemplate, Query};
-use crate::runtime::{Bytes, ConstValue};
+use crate::runtime::{Bytes, Shared};
 
 /// A c that compiles AST into Rune IR.
 pub struct IrCompiler<'a> {
@@ -112,28 +112,16 @@ impl IrCompile for ast::Expr {
                     }
                     BuiltInMacro::File(file) => {
                         let s = c.resolve(&file.value)?;
-                        ir::Ir::new(file.span, ConstValue::String(s.as_ref().to_owned()))
+                        ir::Ir::new(file.span, IrValue::String(Shared::new(s.into_owned())))
                     }
                     BuiltInMacro::Line(line) => {
                         let n = c.resolve(&line.value)?;
 
                         let const_value = match n {
-                            ast::Number::Integer(n) => {
-                                use num::ToPrimitive;
-                                let n = match n.clone().to_i64() {
-                                    Some(n) => n,
-                                    None => {
-                                        return Err(IrError::new(
-                                            line.span,
-                                            IrErrorKind::NotInteger { value: n },
-                                        ))
-                                    }
-                                };
-
-                                ConstValue::Integer(n)
-                            }
-                            ast::Number::Float(n) => ConstValue::Float(n),
+                            ast::Number::Integer(n) => IrValue::Integer(n),
+                            ast::Number::Float(n) => IrValue::Float(n),
                         };
+
                         ir::Ir::new(line.span, const_value)
                     }
                     _ => {
@@ -285,34 +273,20 @@ impl IrCompile for ast::ExprLit {
     type Output = ir::Ir;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
-        use num::ToPrimitive as _;
-
         let span = self.span();
 
         Ok(match &self.lit {
-            ast::Lit::Bool(b) => ir::Ir::new(span, ConstValue::Bool(b.value)),
+            ast::Lit::Bool(b) => ir::Ir::new(span, IrValue::Bool(b.value)),
             ast::Lit::Str(s) => {
                 let s = c.resolve(s)?;
-                ir::Ir::new(span, ConstValue::String(s.as_ref().to_owned()))
+                ir::Ir::new(span, IrValue::String(Shared::new(s.into_owned())))
             }
             ast::Lit::Number(n) => {
                 let n = c.resolve(n)?;
 
                 let const_value = match n {
-                    ast::Number::Integer(n) => {
-                        let n = match n.clone().to_i64() {
-                            Some(n) => n,
-                            None => {
-                                return Err(IrError::new(
-                                    span,
-                                    IrErrorKind::NotInteger { value: n },
-                                ))
-                            }
-                        };
-
-                        ConstValue::Integer(n)
-                    }
-                    ast::Number::Float(n) => ConstValue::Float(n),
+                    ast::Number::Integer(n) => IrValue::Integer(n),
+                    ast::Number::Float(n) => IrValue::Float(n),
                 };
 
                 ir::Ir::new(span, const_value)
@@ -331,7 +305,7 @@ impl IrCompile for ast::ExprTuple {
         let span = self.span();
 
         if self.items.is_empty() {
-            return Ok(ir::Ir::new(span, ConstValue::Unit));
+            return Ok(ir::Ir::new(span, IrValue::Unit));
         }
 
         let mut items = Vec::new();
@@ -399,29 +373,31 @@ impl IrCompile for ast::ExprObject {
 }
 
 impl IrCompile for ast::LitByteStr {
-    type Output = ConstValue;
+    type Output = IrValue;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
         let byte_str = c.resolve(self)?;
-        Ok(ConstValue::Bytes(Bytes::from(byte_str.as_ref().to_vec())))
+        Ok(IrValue::Bytes(Shared::new(Bytes::from_vec(
+            byte_str.into_owned(),
+        ))))
     }
 }
 
 impl IrCompile for ast::LitByte {
-    type Output = ConstValue;
+    type Output = IrValue;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
         let b = c.resolve(self)?;
-        Ok(ConstValue::Byte(b))
+        Ok(IrValue::Byte(b))
     }
 }
 
 impl IrCompile for ast::LitChar {
-    type Output = ConstValue;
+    type Output = IrValue;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
         let c = c.resolve(self)?;
-        Ok(ConstValue::Char(c))
+        Ok(IrValue::Char(c))
     }
 }
 

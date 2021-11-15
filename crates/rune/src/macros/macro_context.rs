@@ -1,10 +1,10 @@
 //! Context for a macro.
 
 use crate::ast;
-use crate::ast::{Span, Spanned};
+use crate::ast::Span;
 use crate::compile::{
     IrBudget, IrCompile, IrCompiler, IrError, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
-    ItemMeta, NoopCompileVisitor, UnitBuilder,
+    IrValue, ItemMeta, NoopCompileVisitor, UnitBuilder,
 };
 use crate::macros::{Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
@@ -93,9 +93,9 @@ impl<'a> MacroContext<'a> {
     ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
     /// });
     /// ```
-    pub fn eval<T>(&mut self, target: &T) -> Result<<T::Output as IrEval>::Output, IrError>
+    pub fn eval<T>(&mut self, target: &T) -> Result<IrValue, IrError>
     where
-        T: Spanned + IrCompile,
+        T: IrCompile,
         T::Output: IrEval,
     {
         let mut ir_compiler = IrCompiler { q: self.q.borrow() };
@@ -110,7 +110,7 @@ impl<'a> MacroContext<'a> {
             q: self.q.borrow(),
         };
 
-        match ir_interpreter.eval(&output, Used::Used) {
+        match output.eval(&mut ir_interpreter, Used::Used) {
             Ok(value) => Ok(value),
             Err(e) => match e {
                 IrEvalOutcome::Error(error) => Err(error),

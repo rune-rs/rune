@@ -26,10 +26,8 @@ pub(crate) mod context;
 pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
 
 pub(crate) mod ir;
-pub(crate) use self::ir::{
-    IrBudget, IrCompile, IrCompiler, IrEval, IrEvalOutcome, IrInterpreter, IrValue,
-};
-pub use self::ir::{IrError, IrErrorKind};
+pub(crate) use self::ir::{IrBudget, IrCompile, IrCompiler, IrEval, IrEvalOutcome, IrInterpreter};
+pub use self::ir::{IrError, IrErrorKind, IrValue};
 
 pub(crate) mod item;
 pub use self::item::{Component, ComponentRef, IntoComponent, Item};

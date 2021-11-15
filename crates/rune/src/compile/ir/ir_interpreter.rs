@@ -26,14 +26,6 @@ pub struct IrInterpreter<'a> {
 }
 
 impl IrInterpreter<'_> {
-    /// Evaluate the given target.
-    pub(crate) fn eval<T>(&mut self, target: &T, used: Used) -> Result<T::Output, IrEvalOutcome>
-    where
-        T: IrEval,
-    {
-        target.eval(self, used)
-    }
-
     /// Outer evaluation for an expression which performs caching into `consts`.
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
         log::trace!("processing constant: {}", self.item);
@@ -46,7 +38,7 @@ impl IrInterpreter<'_> {
             return Err(IrError::new(ir, IrErrorKind::ConstCycle));
         }
 
-        let ir_value = match self.eval(ir, used) {
+        let ir_value = match ir.eval(self, used) {
             Ok(ir_value) => ir_value,
             Err(outcome) => match outcome {
                 IrEvalOutcome::Error(error) => {
@@ -77,7 +69,7 @@ impl IrInterpreter<'_> {
 
     /// Evaluate to an ir value.
     pub(crate) fn eval_value(&mut self, ir: &ir::Ir, used: Used) -> Result<IrValue, IrError> {
-        match self.eval(ir, used) {
+        match ir.eval(self, used) {
             Ok(ir_value) => Ok(ir_value),
             Err(outcome) => match outcome {
                 IrEvalOutcome::Error(error) => Err(error),

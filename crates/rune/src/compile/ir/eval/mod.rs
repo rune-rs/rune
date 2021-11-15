@@ -1,12 +1,11 @@
 use crate::ast::{Span, Spanned};
-use crate::compile::ir::{IrError, IrInterpreter, IrPat, IrValue};
+use crate::compile::ir::{IrError, IrInterpreter, IrValue};
 use crate::query::Used;
 
 mod ir;
 mod ir_assign;
 mod ir_binary;
 mod ir_branches;
-mod ir_break;
 mod ir_call;
 mod ir_condition;
 mod ir_decl;
@@ -21,41 +20,14 @@ mod prelude;
 
 /// The trait for something that can be evaluated in a constant context.
 pub trait IrEval {
-    /// The result of the evaluation.
-    type Output;
-
     /// Evaluate the given type.
-    fn eval(
-        &self,
-        interp: &mut IrInterpreter<'_>,
-        used: Used,
-    ) -> Result<Self::Output, IrEvalOutcome>;
-}
+    fn eval(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<IrValue, IrEvalOutcome>;
 
-pub(crate) trait ConstAs {
     /// Process constant value as a boolean.
-    fn as_bool(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<bool, IrEvalOutcome>;
-}
-
-pub(crate) trait Matches {
-    /// Test if the current trait matches the given value.
-    fn matches<S>(
-        &self,
-        compiler: &mut IrInterpreter<'_>,
-        value: IrValue,
-        used: Used,
-        spanned: S,
-    ) -> Result<bool, IrEvalOutcome>
+    fn eval_bool(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<bool, IrEvalOutcome>
     where
-        S: Spanned;
-}
-
-impl<T> ConstAs for T
-where
-    T: IrEval<Output = IrValue>,
-    T: Spanned,
-{
-    fn as_bool(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<bool, IrEvalOutcome> {
+        Self: Spanned,
+    {
         let span = self.span();
 
         let value = self
@@ -64,27 +36,6 @@ where
             .map_err(|actual| IrError::expected::<_, bool>(span, &actual))?;
 
         Ok(value)
-    }
-}
-
-impl Matches for IrPat {
-    fn matches<S>(
-        &self,
-        interp: &mut IrInterpreter<'_>,
-        value: IrValue,
-        _used: Used,
-        spanned: S,
-    ) -> Result<bool, IrEvalOutcome>
-    where
-        S: Spanned,
-    {
-        match self {
-            IrPat::Ignore => Ok(true),
-            IrPat::Binding(name) => {
-                interp.scopes.decl(name, value, spanned)?;
-                Ok(true)
-            }
-        }
     }
 }
 

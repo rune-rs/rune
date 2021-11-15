@@ -2,13 +2,7 @@ use crate::compile::ir::eval::prelude::*;
 
 /// IrEval the interior expression.
 impl IrEval for ir::Ir {
-    type Output = IrValue;
-
-    fn eval(
-        &self,
-        interp: &mut IrInterpreter<'_>,
-        used: Used,
-    ) -> Result<Self::Output, IrEvalOutcome> {
+    fn eval(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<IrValue, IrEvalOutcome> {
         interp.budget.take(self)?;
 
         match &self.kind {
@@ -20,13 +14,10 @@ impl IrEval for ir::Ir {
             ir::IrKind::Template(ir_template) => ir_template.eval(interp, used),
             ir::IrKind::Name(name) => Ok(interp.resolve_var(self.span(), name.as_ref(), used)?),
             ir::IrKind::Target(ir_target) => Ok(interp.scopes.get_target(ir_target)?),
-            ir::IrKind::Value(value) => Ok(IrValue::from_const(value.clone())),
+            ir::IrKind::Value(value) => Ok(value.clone()),
             ir::IrKind::Branches(branches) => branches.eval(interp, used),
             ir::IrKind::Loop(ir_loop) => ir_loop.eval(interp, used),
-            ir::IrKind::Break(ir_break) => {
-                ir_break.eval(interp, used)?;
-                Ok(IrValue::Unit)
-            }
+            ir::IrKind::Break(ir_break) => Err(ir_break.as_outcome(interp, used)),
             ir::IrKind::Vec(ir_vec) => ir_vec.eval(interp, used),
             ir::IrKind::Tuple(ir_tuple) => ir_tuple.eval(interp, used),
             ir::IrKind::Object(ir_object) => ir_object.eval(interp, used),

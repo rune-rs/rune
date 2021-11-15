@@ -25,7 +25,7 @@ pub enum IrValue {
     /// An optional value.
     Option(Shared<Option<IrValue>>),
     /// A byte string.
-    Bytes(Shared<Vec<u8>>),
+    Bytes(Shared<Bytes>),
     /// A vector of values.
     Vec(Shared<Vec<IrValue>>),
     /// An anonymous tuple.
@@ -35,8 +35,27 @@ pub enum IrValue {
 }
 
 impl IrValue {
+    /// Try to coerce into boolean.
+    pub fn into_bool(self) -> Result<bool, Self> {
+        match self {
+            Self::Bool(value) => Ok(value),
+            value => Err(value),
+        }
+    }
+
+    /// Try to coerce into an integer of the specified type.
+    pub fn into_integer<T>(self) -> Option<T>
+    where
+        T: TryFrom<num::BigInt>,
+    {
+        match self {
+            Self::Integer(n) => T::try_from(n).ok(),
+            _ => None,
+        }
+    }
+
     /// Convert a constant value into an interpreter value.
-    pub fn from_const(value: ConstValue) -> Self {
+    pub(crate) fn from_const(value: ConstValue) -> Self {
         match value {
             ConstValue::Unit => Self::Unit,
             ConstValue::Byte(b) => Self::Byte(b),
@@ -46,7 +65,7 @@ impl IrValue {
             ConstValue::Float(n) => Self::Float(n),
             ConstValue::String(s) => Self::String(Shared::new(s)),
             ConstValue::StaticString(s) => Self::String(Shared::new((**s).to_owned())),
-            ConstValue::Bytes(b) => Self::Bytes(Shared::new(b.into_vec())),
+            ConstValue::Bytes(b) => Self::Bytes(Shared::new(b)),
             ConstValue::Option(option) => {
                 Self::Option(Shared::new(option.map(|some| Self::from_const(*some))))
             }
@@ -81,7 +100,7 @@ impl IrValue {
     }
 
     /// Convert into constant value.
-    pub fn into_const<S>(self, spanned: S) -> Result<ConstValue, IrError>
+    pub(crate) fn into_const<S>(self, spanned: S) -> Result<ConstValue, IrError>
     where
         S: Copy + Spanned,
     {
@@ -150,27 +169,8 @@ impl IrValue {
         })
     }
 
-    /// Try to coerce into boolean.
-    pub fn into_bool(self) -> Result<bool, Self> {
-        match self {
-            Self::Bool(value) => Ok(value),
-            value => Err(value),
-        }
-    }
-
-    /// Try to coerce into an integer of the specified type.
-    pub fn into_integer<T>(self) -> Option<T>
-    where
-        T: TryFrom<num::BigInt>,
-    {
-        match self {
-            Self::Integer(n) => T::try_from(n).ok(),
-            _ => None,
-        }
-    }
-
     /// Get the type information of the value.
-    pub fn type_info(&self) -> TypeInfo {
+    pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
             Self::Unit => TypeInfo::StaticType(rt::UNIT_TYPE),
             Self::Byte(..) => TypeInfo::StaticType(rt::BYTE_TYPE),

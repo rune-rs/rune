@@ -2,13 +2,7 @@ use crate::collections::HashMap;
 use crate::compile::ir::eval::prelude::*;
 
 impl IrEval for ir::IrObject {
-    type Output = IrValue;
-
-    fn eval(
-        &self,
-        interp: &mut IrInterpreter<'_>,
-        used: Used,
-    ) -> Result<Self::Output, IrEvalOutcome> {
+    fn eval(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<IrValue, IrEvalOutcome> {
         let mut object = HashMap::with_capacity(self.assignments.len());
 
         for (key, value) in self.assignments.iter() {

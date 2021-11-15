@@ -14,10 +14,11 @@ pub(crate) use self::ir_compiler::{IrCompile, IrCompiler};
 pub use self::ir_error::{IrError, IrErrorKind};
 pub(crate) use self::ir_interpreter::IrBudget;
 pub(crate) use self::ir_interpreter::IrInterpreter;
-pub(crate) use self::ir_value::IrValue;
+pub use self::ir_value::IrValue;
 
+use self::eval::IrEvalBreak;
 use crate::ast::{Span, Spanned};
-use crate::runtime::ConstValue;
+use crate::query::Used;
 
 macro_rules! decl_kind {
     (
@@ -106,7 +107,7 @@ decl_kind! {
         /// something else, like another const declaration.
         Target(IrTarget),
         /// A constant value.
-        Value(ConstValue),
+        Value(IrValue),
         /// A sequence of conditional branches.
         Branches(IrBranches),
         /// A loop.
@@ -258,6 +259,26 @@ pub enum IrPat {
     Binding(Box<str>),
 }
 
+impl IrPat {
+    fn matches<S>(
+        &self,
+        interp: &mut IrInterpreter<'_>,
+        value: IrValue,
+        spanned: S,
+    ) -> Result<bool, IrEvalOutcome>
+    where
+        S: Spanned,
+    {
+        match self {
+            IrPat::Ignore => Ok(true),
+            IrPat::Binding(name) => {
+                interp.scopes.decl(name, value, spanned)?;
+                Ok(true)
+            }
+        }
+    }
+}
+
 /// A loop with an optional condition.
 #[derive(Debug, Clone, Spanned)]
 pub struct IrLoop {
@@ -280,6 +301,28 @@ pub struct IrBreak {
     pub(crate) span: Span,
     /// The kind of the break.
     pub(crate) kind: IrBreakKind,
+}
+
+impl IrBreak {
+    /// Evaluate the break into an [IrEvalOutcome].
+    fn as_outcome(&self, interp: &mut IrInterpreter<'_>, used: Used) -> IrEvalOutcome {
+        let span = self.span();
+
+        if let Err(e) = interp.budget.take(span) {
+            return e.into();
+        }
+
+        match &self.kind {
+            IrBreakKind::Ir(ir) => match ir.eval(interp, used) {
+                Ok(value) => IrEvalOutcome::Break(span, IrEvalBreak::Value(value)),
+                Err(err) => err,
+            },
+            IrBreakKind::Label(label) => {
+                IrEvalOutcome::Break(span, IrEvalBreak::Label(label.clone()))
+            }
+            IrBreakKind::Inherent => IrEvalOutcome::Break(span, IrEvalBreak::Inherent),
+        }
+    }
 }
 
 /// The kind of a break expression.
