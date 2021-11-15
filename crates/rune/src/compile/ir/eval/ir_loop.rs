@@ -1,8 +1,6 @@
 use crate::compile::ir::eval::prelude::*;
 
 impl IrEval for ir::IrLoop {
-    type Output = IrValue;
-
     fn eval(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<IrValue, IrEvalOutcome> {
         let span = self.span();
         interp.budget.take(span)?;
@@ -13,7 +11,7 @@ impl IrEval for ir::IrLoop {
             if let Some(condition) = &self.condition {
                 interp.scopes.clear_current(&*condition)?;
 
-                if !condition.eval(interp, used)? {
+                if !condition.eval_bool(interp, used)? {
                     break;
                 }
             }

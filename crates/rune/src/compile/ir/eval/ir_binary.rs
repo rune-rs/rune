@@ -1,13 +1,7 @@
 use crate::compile::ir::eval::prelude::*;
 
 impl IrEval for ir::IrBinary {
-    type Output = IrValue;
-
-    fn eval(
-        &self,
-        interp: &mut IrInterpreter<'_>,
-        used: Used,
-    ) -> Result<Self::Output, IrEvalOutcome> {
+    fn eval(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<IrValue, IrEvalOutcome> {
         use std::ops::{Add, Mul, Shl, Shr, Sub};
 
         let span = self.span();
@@ -78,19 +72,19 @@ impl IrEval for ir::IrBinary {
             _ => (),
         }
 
-        Err(IrEvalOutcome::not_const(span))
+        return Err(IrEvalOutcome::not_const(span));
+
+        fn add_strings(
+            span: Span,
+            a: &Shared<String>,
+            b: &Shared<String>,
+        ) -> Result<Shared<String>, IrError> {
+            let a = a.borrow_ref().map_err(|e| IrError::new(span, e))?;
+            let b = b.borrow_ref().map_err(|e| IrError::new(span, e))?;
+
+            let mut a = String::from(&*a);
+            a.push_str(&b);
+            Ok(Shared::new(a))
+        }
     }
-}
-
-fn add_strings(
-    span: Span,
-    a: &Shared<String>,
-    b: &Shared<String>,
-) -> Result<Shared<String>, IrError> {
-    let a = a.borrow_ref().map_err(|e| IrError::new(span, e))?;
-    let b = b.borrow_ref().map_err(|e| IrError::new(span, e))?;
-
-    let mut a = String::from(&*a);
-    a.push_str(&b);
-    Ok(Shared::new(a))
 }
