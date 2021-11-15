@@ -96,7 +96,6 @@ impl<'a> MacroContext<'a> {
     pub fn eval<T>(&mut self, target: &T) -> Result<IrValue, IrError>
     where
         T: IrCompile,
-        T::Output: IrEval,
     {
         let mut ir_compiler = IrCompiler { q: self.q.borrow() };
 

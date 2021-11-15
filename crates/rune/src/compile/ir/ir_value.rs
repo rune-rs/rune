@@ -1,6 +1,7 @@
 use crate::ast::Spanned;
 use crate::collections::HashMap;
-use crate::compile::{IrError, IrErrorKind};
+use crate::compile::{IrError, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter};
+use crate::query::Used;
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 use std::convert::TryFrom;
@@ -185,5 +186,11 @@ impl IrValue {
             Self::Tuple(..) => TypeInfo::StaticType(rt::TUPLE_TYPE),
             Self::Object(..) => TypeInfo::StaticType(rt::OBJECT_TYPE),
         }
+    }
+}
+
+impl IrEval for IrValue {
+    fn eval(&self, _: &mut IrInterpreter<'_>, _: Used) -> Result<IrValue, IrEvalOutcome> {
+        Ok(self.clone())
     }
 }

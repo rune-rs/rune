@@ -977,7 +977,7 @@ impl<'a> Query<'a> {
             Indexed::ConstFn(c) => {
                 let mut ir_compiler = IrCompiler { q: self.borrow() };
 
-                let ir_fn = ir_compiler.compile(&*c.item_fn)?;
+                let ir_fn = ir::IrFn::compile_ast(&c.item_fn, &mut ir_compiler)?;
 
                 let id = self.insert_const_fn(&query_item, ir_fn);
 

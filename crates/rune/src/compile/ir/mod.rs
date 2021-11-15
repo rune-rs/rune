@@ -3,21 +3,25 @@
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
-mod eval;
 mod ir_compiler;
-mod ir_error;
-mod ir_interpreter;
-mod ir_value;
-
-pub(crate) use self::eval::{IrEval, IrEvalOutcome};
 pub(crate) use self::ir_compiler::{IrCompile, IrCompiler};
+
+mod ir_error;
 pub use self::ir_error::{IrError, IrErrorKind};
-pub(crate) use self::ir_interpreter::IrBudget;
-pub(crate) use self::ir_interpreter::IrInterpreter;
+
+mod ir_eval;
+pub(crate) use self::ir_eval::{IrEval, IrEvalOutcome};
+
+mod ir_interpreter;
+pub(crate) use self::ir_interpreter::{IrBudget, IrInterpreter};
+
+mod ir_value;
 pub use self::ir_value::IrValue;
 
-use self::eval::IrEvalBreak;
+use self::ir_eval::IrEvalBreak;
 use crate::ast::{Span, Spanned};
+use crate::compile::ast;
+use crate::compile::ir;
 use crate::query::Used;
 
 macro_rules! decl_kind {
@@ -135,6 +139,33 @@ pub struct IrFn {
     pub(crate) args: Vec<Box<str>>,
     /// The scope for the function.
     pub(crate) ir: Ir,
+}
+
+impl IrFn {
+    pub(crate) fn compile_ast(ast: &ast::ItemFn, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
+        let mut args = Vec::new();
+
+        for (arg, _) in &ast.args {
+            if let ast::FnArg::Pat(pat) = arg {
+                if let ast::Pat::PatPath(path) = pat.as_ref() {
+                    if let Some(ident) = path.path.try_as_ident() {
+                        args.push(c.resolve(ident)?.into());
+                        continue;
+                    }
+                }
+            }
+
+            return Err(IrError::msg(arg, "unsupported argument in const fn"));
+        }
+
+        let ir_scope = ast.body.compile(c)?;
+
+        Ok(ir::IrFn {
+            span: ast.span(),
+            args,
+            ir: ir::Ir::new(ast.span(), ir_scope),
+        })
+    }
 }
 
 /// Definition of a new variable scope.
@@ -260,6 +291,21 @@ pub enum IrPat {
 }
 
 impl IrPat {
+    fn compile_ast(ast: &ast::Pat, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
+        match ast {
+            ast::Pat::PatIgnore(..) => return Ok(ir::IrPat::Ignore),
+            ast::Pat::PatPath(path) => {
+                if let Some(ident) = path.path.try_as_ident() {
+                    let name = c.resolve(ident)?;
+                    return Ok(ir::IrPat::Binding(name.into()));
+                }
+            }
+            _ => (),
+        }
+
+        Err(IrError::msg(ast, "pattern not supported yet"))
+    }
+
     fn matches<S>(
         &self,
         interp: &mut IrInterpreter<'_>,
@@ -304,6 +350,22 @@ pub struct IrBreak {
 }
 
 impl IrBreak {
+    fn compile_ast(ast: &ast::ExprBreak, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
+        let span = ast.span();
+
+        let kind = match &ast.expr {
+            Some(expr) => match expr {
+                ast::ExprBreakValue::Expr(expr) => ir::IrBreakKind::Ir(Box::new(expr.compile(c)?)),
+                ast::ExprBreakValue::Label(label) => {
+                    ir::IrBreakKind::Label(c.resolve(label)?.into())
+                }
+            },
+            None => ir::IrBreakKind::Inherent,
+        };
+
+        Ok(ir::IrBreak { span, kind })
+    }
+
     /// Evaluate the break into an [IrEvalOutcome].
     fn as_outcome(&self, interp: &mut IrInterpreter<'_>, used: Used) -> IrEvalOutcome {
         let span = self.span();
