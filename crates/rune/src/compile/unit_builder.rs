@@ -126,22 +126,41 @@ impl UnitBuilder {
         }
 
         for (from, to) in self.reexports {
-            let info = match self.functions.get(&to) {
-                Some(info) => *info,
-                None => {
-                    return Err(CompileError::new(
-                        span,
-                        CompileErrorKind::MissingFunctionHash { hash: to },
-                    ))
+            match self.functions.get(&to) {
+                Some(info) => {
+                    let info = *info;
+                    if self.functions.insert(from, info).is_some() {
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::FunctionConflictHash { hash: from },
+                        ));
+                    }
+                    continue;
                 }
+                None => {}
             };
 
-            if self.functions.insert(from, info).is_some() {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::FunctionConflictHash { hash: from },
-                ));
-            }
+            match self.constants.get(&to) {
+                Some(value) => {
+                    eprintln!("xxx");
+                    let const_value = value.clone();
+                    if self.constants.insert(from, const_value).is_some() {
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::ConstantConflict {
+                                item: Item::with_item(&["unknown"]),
+                                hash: from,
+                            },
+                        ));
+                    }
+                    continue;
+                }
+                None => {}
+            };
+            return Err(CompileError::new(
+                span,
+                CompileErrorKind::MissingFunctionHash { hash: to },
+            ));
         }
 
         Ok(Unit::new(
@@ -501,7 +520,7 @@ impl UnitBuilder {
             MetaKind::AsyncBlock { .. } => (),
             MetaKind::Const { const_value } => {
                 self.constants
-                    .insert(Hash::constant(&meta.item.item.to_string()), const_value.clone());
+                    .insert(Hash::type_hash(&meta.item.item), const_value.clone());
             }
             MetaKind::ConstFn { .. } => (),
             MetaKind::Import { .. } => (),
