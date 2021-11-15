@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::ir;
-use crate::compile::{IrError, IrValue};
+use crate::compile::{IrError, IrEval, IrValue};
 use crate::parse::Resolve;
 use crate::query::{BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::{Bytes, Shared};
@@ -74,7 +74,7 @@ impl IrCompiler<'_> {
 
 /// The trait for a type that can be compiled into intermediate representation.
 pub trait IrCompile {
-    type Output;
+    type Output: IrEval;
 
     fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError>;
 }
@@ -100,7 +100,9 @@ impl IrCompile for ast::Expr {
             ast::Expr::Block(expr_block) => expr_block.compile(c)?,
             ast::Expr::Path(path) => path.compile(c)?,
             ast::Expr::FieldAccess(..) => ir::Ir::new(self.span(), c.ir_target(self)?),
-            ast::Expr::Break(expr_break) => ir::Ir::new(expr_break, expr_break.compile(c)?),
+            ast::Expr::Break(expr_break) => {
+                ir::Ir::new(expr_break, ir::IrBreak::compile_ast(expr_break, c)?)
+            }
             ast::Expr::Let(expr_let) => ir::Ir::new(expr_let, expr_let.compile(c)?),
             ast::Expr::MacroCall(macro_call) => {
                 let internal_macro = c.q.builtin_macro_for(&**macro_call)?;
@@ -130,35 +132,6 @@ impl IrCompile for ast::Expr {
                 }
             }
             _ => return Err(IrError::msg(self, "not supported yet")),
-        })
-    }
-}
-
-impl IrCompile for ast::ItemFn {
-    type Output = ir::IrFn;
-
-    fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
-        let mut args = Vec::new();
-
-        for (arg, _) in &self.args {
-            if let ast::FnArg::Pat(pat) = arg {
-                if let ast::Pat::PatPath(path) = pat.as_ref() {
-                    if let Some(ident) = path.path.try_as_ident() {
-                        args.push(c.resolve(ident)?.into());
-                        continue;
-                    }
-                }
-            }
-
-            return Err(IrError::msg(arg, "unsupported argument in const fn"));
-        }
-
-        let ir_scope = self.body.compile(c)?;
-
-        Ok(ir::IrFn {
-            span: self.span(),
-            args,
-            ir: ir::Ir::new(self.span(), ir_scope),
         })
     }
 }
@@ -503,26 +476,6 @@ impl IrCompile for ast::Path {
     }
 }
 
-impl IrCompile for ast::ExprBreak {
-    type Output = ir::IrBreak;
-
-    fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
-        let span = self.span();
-
-        let kind = match &self.expr {
-            Some(expr) => match expr {
-                ast::ExprBreakValue::Expr(expr) => ir::IrBreakKind::Ir(Box::new(expr.compile(c)?)),
-                ast::ExprBreakValue::Label(label) => {
-                    ir::IrBreakKind::Label(c.resolve(label)?.into())
-                }
-            },
-            None => ir::IrBreakKind::Inherent,
-        };
-
-        Ok(ir::IrBreak { span, kind })
-    }
-}
-
 impl IrCompile for ast::ExprLet {
     type Output = ir::IrDecl;
 
@@ -571,7 +524,7 @@ impl IrCompile for ast::Condition {
         match self {
             ast::Condition::Expr(expr) => Ok(ir::IrCondition::Ir(expr.compile(c)?)),
             ast::Condition::ExprLet(expr_let) => {
-                let pat = expr_let.pat.compile(c)?;
+                let pat = ir::IrPat::compile_ast(&expr_let.pat, c)?;
                 let ir = expr_let.expr.compile(c)?;
 
                 Ok(ir::IrCondition::Let(ir::IrLet {
@@ -581,25 +534,6 @@ impl IrCompile for ast::Condition {
                 }))
             }
         }
-    }
-}
-
-impl IrCompile for ast::Pat {
-    type Output = ir::IrPat;
-
-    fn compile(&self, c: &mut IrCompiler<'_>) -> Result<Self::Output, IrError> {
-        match self {
-            ast::Pat::PatIgnore(..) => return Ok(ir::IrPat::Ignore),
-            ast::Pat::PatPath(path) => {
-                if let Some(ident) = path.path.try_as_ident() {
-                    let name = c.resolve(ident)?;
-                    return Ok(ir::IrPat::Binding(name.into()));
-                }
-            }
-            _ => (),
-        }
-
-        Err(IrError::msg(self, "pattern not supported yet"))
     }
 }
 
