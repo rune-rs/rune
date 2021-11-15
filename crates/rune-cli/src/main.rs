@@ -628,7 +628,7 @@ async fn run_path(args: &Args, options: &Options, path: &Path) -> Result<ExitCod
                     }
                 }
 
-                if constants.peek().is_some() {
+                if runargs.dump_constants && constants.peek().is_some() {
                     writeln!(out, "# constants")?;
 
                     for constant in constants {
