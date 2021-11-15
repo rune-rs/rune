@@ -95,6 +95,7 @@ impl Command {
             }
             Command::Run(args) => {
                 if args.dump {
+                    args.dump_constants = true;
                     args.dump_unit = true;
                     args.dump_stack = true;
                     args.dump_functions = true;
@@ -112,6 +113,7 @@ impl Command {
                     || args.dump_native_functions
                     || args.dump_stack
                     || args.dump_types
+                    || args.dump_constants
                     || args.emit_instructions
                 {
                     args.dump_unit = true;
@@ -227,6 +229,9 @@ struct RunFlags {
     /// Dump default information about unit.
     #[structopt(long)]
     dump_unit: bool,
+    /// Dump constants from the unit.
+    #[structopt(long)]
+    dump_constants: bool,
     /// Dump unit instructions.
     #[structopt(long)]
     emit_instructions: bool,
@@ -599,6 +604,7 @@ async fn run_path(args: &Args, options: &Options, path: &Path) -> Result<ExitCod
                 let mut functions = unit.iter_functions().peekable();
                 let mut strings = unit.iter_static_strings().peekable();
                 let mut keys = unit.iter_static_object_keys().peekable();
+                let mut constants = unit.iter_constants().peekable();
 
                 if runargs.dump_functions && functions.peek().is_some() {
                     writeln!(out, "# dynamic functions")?;
@@ -619,6 +625,14 @@ async fn run_path(args: &Args, options: &Options, path: &Path) -> Result<ExitCod
 
                     for string in strings {
                         writeln!(out, "{} = {:?}", string.hash(), string)?;
+                    }
+                }
+
+                if constants.peek().is_some() {
+                    writeln!(out, "# constants")?;
+
+                    for constant in constants {
+                        writeln!(out, "{} = {:?}", constant.0, constant.1)?;
                     }
                 }
 

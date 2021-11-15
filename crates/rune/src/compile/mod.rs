@@ -299,8 +299,10 @@ impl<'q> CompileBuildEntry<'_, 'q> {
                 }
             }
             Build::Unused => {
-                self.diagnostics
-                    .not_used(location.source_id, location.span, None);
+                if !item.visibility.is_public() {
+                    self.diagnostics
+                        .not_used(location.source_id, location.span, None);
+                }
             }
             Build::Import(import) => {
                 // Issue the import to check access.
