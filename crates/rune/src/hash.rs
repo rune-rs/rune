@@ -87,6 +87,11 @@ impl Hash {
         Self::of(name)
     }
 
+    /// Get the hash corresponding to a constant.
+    pub fn constant(name: &str) -> Hash {
+        Self::of(name)
+    }
+
     /// Hash the given iterator of object keys.
     pub fn object_keys<I>(keys: I) -> Self
     where

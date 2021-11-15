@@ -495,10 +495,14 @@ impl UnitBuilder {
                     ConstValue::String(meta.item.item.to_string()),
                 );
             }
+
             MetaKind::Function { .. } => (),
             MetaKind::Closure { .. } => (),
             MetaKind::AsyncBlock { .. } => (),
-            MetaKind::Const { .. } => (),
+            MetaKind::Const { const_value } => {
+                self.constants
+                    .insert(Hash::constant(&meta.item.item.to_string()), const_value.clone());
+            }
             MetaKind::ConstFn { .. } => (),
             MetaKind::Import { .. } => (),
         }

@@ -83,6 +83,11 @@ impl Unit {
         self.static_strings.iter()
     }
 
+    /// Iterate over all constants in the unit.
+    pub fn iter_constants(&self) -> impl Iterator<Item = (&Hash, &ConstValue)> + '_ {
+        self.constants.iter()
+    }
+
     /// Iterate over all static object keys in the unit.
     pub fn iter_static_object_keys(&self) -> impl Iterator<Item = (usize, &[String])> + '_ {
         let mut it = self.static_object_keys.iter().enumerate();
