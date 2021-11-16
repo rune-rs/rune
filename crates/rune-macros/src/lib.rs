@@ -48,6 +48,7 @@ extern crate proc_macro;
 mod any;
 mod context;
 mod from_value;
+mod instrument;
 mod internals;
 mod option_spanned;
 mod parse;
@@ -241,6 +242,20 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[doc(hidden)]
 pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let internal_call = syn::parse_macro_input!(input as any::InternalCall);
+    internal_call
+        .expand()
+        .unwrap_or_else(to_compile_errors)
+        .into()
+}
+
+/// Internal macro to instrument a function which is threading AST.
+#[proc_macro_attribute]
+#[doc(hidden)]
+pub fn __instrument_ast(
+    _attr: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let internal_call = syn::parse_macro_input!(item as instrument::Expander);
     internal_call
         .expand()
         .unwrap_or_else(to_compile_errors)

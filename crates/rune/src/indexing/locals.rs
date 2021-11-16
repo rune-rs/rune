@@ -4,11 +4,10 @@ use crate::ast::Spanned;
 use crate::compile::CompileResult;
 use crate::indexing::Indexer;
 use crate::parse::Resolve;
+use rune_macros::__instrument_ast as instrument;
 
+#[instrument]
 pub(crate) fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Pat => {:?}", idx.q.sources.source(idx.source_id, span));
-
     match ast {
         ast::Pat::PatPath(p) => {
             pat_path(p, idx)?;
@@ -33,17 +32,14 @@ pub(crate) fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()
     Ok(())
 }
 
+#[instrument]
 fn pat_path(ast: &mut ast::PatPath, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
     path(&mut ast.path, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
-
     let id = idx
         .q
         .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
@@ -56,23 +52,16 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
-
     let span = ast.span();
     let ident = ast.resolve(idx.q.storage(), idx.q.sources)?;
     idx.scopes.declare(ident.as_ref(), span)?;
     Ok(())
 }
 
+#[instrument]
 fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "PatObject => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     match &mut ast.ident {
         ast::ObjectIdent::Anonymous(_) => {}
         ast::ObjectIdent::Named(p) => {
@@ -87,10 +76,8 @@ fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("PatVec => {:?}", idx.q.sources.source(idx.source_id, span));
-
     for (p, _) in &mut ast.items {
         pat(p, idx)?;
     }
@@ -98,13 +85,8 @@ fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "PatTuple => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     if let Some(p) = &mut ast.path {
         path(p, idx)?;
     }
@@ -116,12 +98,8 @@ fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()
     Ok(())
 }
 
+#[instrument]
 fn pat_binding(ast: &mut ast::PatBinding, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "PatBinding => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
     pat(&mut ast.pat, idx)?;
     Ok(())
 }

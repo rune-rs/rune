@@ -43,6 +43,12 @@ pub(crate) struct BuiltInTemplate {
     pub(crate) exprs: Vec<ast::Expr>,
 }
 
+impl Spanned for BuiltInTemplate {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// An internal format specification.
 pub(crate) struct BuiltInFormat {
     pub(crate) span: Span,
@@ -62,6 +68,12 @@ pub(crate) struct BuiltInFormat {
     pub(crate) value: ast::Expr,
 }
 
+impl Spanned for BuiltInFormat {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// Macro data for `file!()`
 pub(crate) struct BuiltInFile {
     /// The span of the built-in-file
@@ -70,12 +82,24 @@ pub(crate) struct BuiltInFile {
     pub(crate) value: ast::LitStr,
 }
 
+impl Spanned for BuiltInFile {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// Macro data for `line!()`
 pub(crate) struct BuiltInLine {
     /// The span of the built-in-file
     pub(crate) span: Span,
     /// The line number
     pub(crate) value: ast::LitNumber,
+}
+
+impl Spanned for BuiltInLine {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 #[derive(Default)]
