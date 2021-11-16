@@ -1,5 +1,6 @@
 use crate::ast::Span;
 use crate::collections::HashMap;
+use crate::compile::v1::Assembler;
 use crate::compile::{Assembly, CompileError, CompileErrorKind, CompileResult, CompileVisitor};
 use crate::runtime::Inst;
 use crate::SourceId;
@@ -18,11 +19,11 @@ pub struct Var {
 
 impl Var {
     /// Copy the declared variable.
-    pub(crate) fn copy<C>(&self, asm: &mut Assembly, span: Span, comment: C)
+    pub(crate) fn copy<C>(&self, c: &mut Assembler<'_>, span: Span, comment: C)
     where
         C: AsRef<str>,
     {
-        asm.push_with_comment(
+        c.asm.push_with_comment(
             Inst::Copy {
                 offset: self.offset,
             },
@@ -147,7 +148,7 @@ impl Scope {
     }
 
     /// Access the variable with the given name.
-    fn get(&self, name: &str, span: Span) -> CompileResult<Option<&Var>> {
+    fn get(&self, name: &str, span: Span) -> CompileResult<Option<Var>> {
         if let Some(var) = self.locals.get(name) {
             if let Some(moved_at) = var.moved_at {
                 return Err(CompileError::new(
@@ -156,7 +157,7 @@ impl Scope {
                 ));
             }
 
-            return Ok(Some(var));
+            return Ok(Some(*var));
         }
 
         Ok(None)
@@ -207,7 +208,7 @@ impl Scopes {
         name: &str,
         source_id: SourceId,
         span: Span,
-    ) -> CompileResult<Option<&Var>> {
+    ) -> CompileResult<Option<Var>> {
         log::trace!("get var: {}", name);
 
         for scope in self.scopes.iter().rev() {
@@ -250,7 +251,7 @@ impl Scopes {
         name: &str,
         source_id: SourceId,
         span: Span,
-    ) -> CompileResult<&Var> {
+    ) -> CompileResult<Var> {
         match self.try_get_var(visitor, name, source_id, span)? {
             Some(var) => Ok(var),
             None => Err(CompileError::new(
