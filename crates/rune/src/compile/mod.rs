@@ -163,8 +163,8 @@ impl CompileBuildEntry<'_> {
         location: Location,
         span: Span,
         asm: &'a mut Assembly,
-    ) -> self::v1::Compiler<'a> {
-        self::v1::Compiler {
+    ) -> self::v1::Assembler<'a> {
+        self::v1::Assembler {
             source_id: location.source_id,
             context: self.context,
             q: self.q.borrow(),
@@ -189,7 +189,7 @@ impl CompileBuildEntry<'_> {
 
         match build {
             Build::Function(f) => {
-                use self::v1::AssembleFn;
+                use self::v1::assemble;
 
                 let args =
                     format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
@@ -198,7 +198,7 @@ impl CompileBuildEntry<'_> {
                 let count = f.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                f.ast.assemble_fn(&mut c, false)?;
+                assemble::assemble_fn_from_item_fn(&f.ast, &mut c, false)?;
 
                 if used.is_unused() {
                     self.diagnostics.not_used(location.source_id, span, None);
@@ -214,7 +214,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::InstanceFunction(f) => {
-                use self::v1::AssembleFn;
+                use self::v1::assemble;
 
                 let args =
                     format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
@@ -229,7 +229,7 @@ impl CompileBuildEntry<'_> {
                     .type_hash_of()
                     .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
 
-                f.ast.assemble_fn(&mut c, true)?;
+                assemble::assemble_fn_from_item_fn(&f.ast, &mut c, true)?;
 
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
@@ -249,7 +249,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Closure(closure) => {
-                use self::v1::AssembleClosure;
+                use self::v1::assemble;
 
                 let span = closure.ast.span();
                 let args = format_fn_args(
@@ -259,7 +259,11 @@ impl CompileBuildEntry<'_> {
                 )?;
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                closure.ast.assemble_closure(&mut c, &closure.captures)?;
+                assemble::assemble_closure_from_expr_closure(
+                    &closure.ast,
+                    &mut c,
+                    &closure.captures,
+                )?;
 
                 if used.is_unused() {
                     c.diagnostics
@@ -276,13 +280,13 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::AsyncBlock(b) => {
-                use self::v1::AssembleClosure;
+                use self::v1::assemble;
 
                 let args = b.captures.len();
                 let span = b.ast.span();
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                b.ast.assemble_closure(&mut c, &b.captures)?;
+                assemble::assemble_closure_from_block(&b.ast, &mut c, &b.captures)?;
 
                 if used.is_unused() {
                     self.diagnostics
