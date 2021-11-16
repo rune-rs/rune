@@ -19,6 +19,7 @@ use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{Context, Diagnostics, Hash, SourceId};
+use rune_macros::__instrument_ast as instrument;
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
@@ -586,9 +587,9 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
-    log::trace!("ItemFn => {:?}", idx.q.sources.source(idx.source_id, span));
 
     let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
     let _guard = idx.items.push_name(name.as_ref());
@@ -783,12 +784,9 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
-    log::trace!(
-        "ExprBlock => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
 
     if let Some(span) = ast.attributes.option_span() {
         return Err(CompileError::msg(
@@ -856,9 +854,9 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
-    log::trace!("Block => {:?}", idx.q.sources.source(idx.source_id, span));
 
     let _guard = idx.items.push_id();
     let _guard = idx.scopes.push_scope();
@@ -917,10 +915,8 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn local(ast: &mut ast::Local, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Local => {:?}", idx.q.sources.source(idx.source_id, span));
-
     if let Some(span) = ast.attributes.option_span() {
         return Err(CompileError::msg(span, "attributes are not supported"));
     }
@@ -930,28 +926,24 @@ fn local(ast: &mut ast::Local, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn expr_let(ast: &mut ast::ExprLet, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("ExprLet => {:?}", idx.q.sources.source(idx.source_id, span));
-
     pat(&mut ast.pat, idx)?;
     expr(&mut ast.expr, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
-    log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
 
     let ident = ast.resolve(idx.q.storage(), idx.q.sources)?;
     idx.scopes.declare(ident, span)?;
     Ok(())
 }
 
+#[instrument]
 fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Pat => {:?}", idx.q.sources.source(idx.source_id, span));
-
     match ast {
         ast::Pat::PatPath(pat) => {
             path(&mut pat.path, idx)?;
@@ -980,13 +972,8 @@ fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "PatTuple => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     if let Some(p) = &mut ast.path {
         path(p, idx)?;
     }
@@ -998,23 +985,14 @@ fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()
     Ok(())
 }
 
+#[instrument]
 fn pat_binding(ast: &mut ast::PatBinding, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "PatBinding => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
     pat(&mut ast.pat, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "PatObject => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     match &mut ast.ident {
         ast::ObjectIdent::Anonymous(..) => (),
         ast::ObjectIdent::Named(p) => {
@@ -1029,10 +1007,8 @@ fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("PatVec => {:?}", idx.q.sources.source(idx.source_id, span));
-
     for (p, _) in &mut ast.items {
         pat(p, idx)?;
     }
@@ -1040,10 +1016,8 @@ fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Expr => {:?}", idx.q.sources.source(idx.source_id, span));
-
     let mut attributes = attrs::Attributes::new(ast.attributes().to_vec());
 
     match ast {
@@ -1168,10 +1142,8 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn expr_if(ast: &mut ast::ExprIf, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("ExprIf => {:?}", idx.q.sources.source(idx.source_id, span));
-
     condition(&mut ast.condition, idx)?;
     block(&mut ast.block, idx)?;
 
@@ -1187,37 +1159,22 @@ fn expr_if(ast: &mut ast::ExprIf, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn expr_assign(ast: &mut ast::ExprAssign, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprAssign => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     expr(&mut ast.lhs, idx)?;
     expr(&mut ast.rhs, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_binary(ast: &mut ast::ExprBinary, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprBinary => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     expr(&mut ast.lhs, idx)?;
     expr(&mut ast.rhs, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_match(ast: &mut ast::ExprMatch, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprMatch => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     expr(&mut ast.expr, idx)?;
 
     for (branch, _) in &mut ast.branches {
@@ -1233,13 +1190,8 @@ fn expr_match(ast: &mut ast::ExprMatch, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn condition(ast: &mut ast::Condition, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "Condition => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     match ast {
         ast::Condition::Expr(e) => {
             expr(e, idx)?;
@@ -1252,6 +1204,7 @@ fn condition(ast: &mut ast::Condition, idx: &mut Indexer<'_>) -> CompileResult<(
     Ok(())
 }
 
+#[instrument]
 fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
 
@@ -1308,6 +1261,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
     Ok(())
 }
 
+#[instrument]
 fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
 
@@ -1345,6 +1299,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     Ok(())
 }
 
+#[instrument]
 fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()> {
     if let Some(first) = ast.attributes.first() {
         return Err(CompileError::msg(
@@ -1381,6 +1336,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
     Ok(())
 }
 
+#[instrument]
 fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> {
     if let Some(first) = ast.attributes.first() {
         return Err(CompileError::msg(
@@ -1419,6 +1375,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
     Ok(())
 }
 
+#[instrument]
 fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<()> {
     if let Some(first) = ast.attributes.first() {
         return Err(CompileError::msg(
@@ -1449,10 +1406,8 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Item => {:?}", idx.q.sources.source(idx.source_id, span));
-
     let mut attributes = attrs::Attributes::new(ast.attributes().to_vec());
 
     match ast {
@@ -1499,10 +1454,8 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("Path => {:?}", idx.q.sources.source(idx.source_id, span));
-
     let id = idx
         .q
         .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
@@ -1522,35 +1475,23 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn expr_while(ast: &mut ast::ExprWhile, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprWhile => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     let _guard = idx.scopes.push_scope();
     condition(&mut ast.condition, idx)?;
     block(&mut ast.body, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_loop(ast: &mut ast::ExprLoop, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprLoop => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     let _guard = idx.scopes.push_scope();
     block(&mut ast.body, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_for(ast: &mut ast::ExprFor, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("ExprFor => {:?}", idx.q.sources.source(idx.source_id, span));
-
     // NB: creating the iterator is evaluated in the parent scope.
     expr(&mut ast.iter, idx)?;
 
@@ -1560,13 +1501,8 @@ fn expr_for(ast: &mut ast::ExprFor, idx: &mut Indexer<'_>) -> CompileResult<()> 
     Ok(())
 }
 
+#[instrument]
 fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprClosure => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     let _guard = idx.items.push_id();
 
     let kind = match ast.async_token {
@@ -1617,47 +1553,27 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
     Ok(())
 }
 
+#[instrument]
 fn expr_field_access(ast: &mut ast::ExprFieldAccess, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprIndexSet => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     expr(&mut ast.expr, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_unary(ast: &mut ast::ExprUnary, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprUnary => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     expr(&mut ast.expr, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_index(ast: &mut ast::ExprIndex, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprIndex => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     expr(&mut ast.index, idx)?;
     expr(&mut ast.target, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_break(ast: &mut ast::ExprBreak, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprBreak => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     if let Some(e) = &mut ast.expr {
         match e {
             ast::ExprBreakValue::Expr(e) => {
@@ -1670,22 +1586,13 @@ fn expr_break(ast: &mut ast::ExprBreak, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn expr_continue(ast: &mut ast::ExprContinue, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprContinue => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
     Ok(())
 }
 
+#[instrument]
 fn expr_yield(ast: &mut ast::ExprYield, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprYield => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     let span = ast.span();
     idx.scopes.mark_yield(span)?;
 
@@ -1696,13 +1603,8 @@ fn expr_yield(ast: &mut ast::ExprYield, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn expr_return(ast: &mut ast::ExprReturn, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprReturn => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     if let Some(e) = &mut ast.expr {
         expr(e, idx)?;
     }
@@ -1710,34 +1612,22 @@ fn expr_return(ast: &mut ast::ExprReturn, idx: &mut Indexer<'_>) -> CompileResul
     Ok(())
 }
 
+#[instrument]
 fn expr_await(ast: &mut ast::ExprAwait, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprAwait => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     let span = ast.span();
     idx.scopes.mark_await(span)?;
     expr(&mut ast.expr, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_try(ast: &mut ast::ExprTry, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("ExprTry => {:?}", idx.q.sources.source(idx.source_id, span));
-
     expr(&mut ast.expr, idx)?;
     Ok(())
 }
 
+#[instrument]
 fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprSelect => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     idx.scopes.mark_await(ast.span())?;
 
     let mut default_branch = None;
@@ -1766,13 +1656,8 @@ fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResul
     Ok(())
 }
 
+#[instrument]
 fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprCall => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     ast.id = Some(idx.items.id());
 
     for (e, _) in &mut ast.args {
@@ -1783,6 +1668,7 @@ fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> CompileResult<()
     Ok(())
 }
 
+#[instrument]
 fn expr_lit(ast: &mut ast::ExprLit, _: &mut Indexer<'_>) -> CompileResult<()> {
     if let Some(first) = ast.attributes.first() {
         return Err(CompileError::msg(
@@ -1805,13 +1691,8 @@ fn expr_lit(ast: &mut ast::ExprLit, _: &mut Indexer<'_>) -> CompileResult<()> {
     Ok(())
 }
 
+#[instrument]
 fn expr_tuple(ast: &mut ast::ExprTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprTuple => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     for (e, _) in &mut ast.items {
         expr(e, idx)?;
     }
@@ -1819,10 +1700,8 @@ fn expr_tuple(ast: &mut ast::ExprTuple, idx: &mut Indexer<'_>) -> CompileResult<
     Ok(())
 }
 
+#[instrument]
 fn expr_vec(ast: &mut ast::ExprVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!("ExprVec => {:?}", idx.q.sources.source(idx.source_id, span));
-
     for (e, _) in &mut ast.items {
         expr(e, idx)?;
     }
@@ -1830,13 +1709,8 @@ fn expr_vec(ast: &mut ast::ExprVec, idx: &mut Indexer<'_>) -> CompileResult<()> 
     Ok(())
 }
 
+#[instrument]
 fn expr_object(ast: &mut ast::ExprObject, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprObject => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     match &mut ast.ident {
         ast::ObjectIdent::Named(p) => {
             path(p, idx)?;
@@ -1853,13 +1727,8 @@ fn expr_object(ast: &mut ast::ExprObject, idx: &mut Indexer<'_>) -> CompileResul
     Ok(())
 }
 
+#[instrument]
 fn expr_range(ast: &mut ast::ExprRange, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let span = ast.span();
-    log::trace!(
-        "ExprRange => {:?}",
-        idx.q.sources.source(idx.source_id, span)
-    );
-
     if let Some(from) = &mut ast.from {
         expr(from, idx)?;
     }

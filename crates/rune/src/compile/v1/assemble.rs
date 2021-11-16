@@ -12,6 +12,7 @@ use crate::runtime::{
     InstVariant, Label, PanicReason, TypeCheck,
 };
 use crate::{Hash, Protocol};
+use rune_macros::__instrument_ast as instrument;
 use std::convert::TryFrom;
 
 #[derive(Debug)]
@@ -75,9 +76,8 @@ impl Asm {
 }
 
 /// Compile an item.
-fn meta(meta: &Meta, c: &mut Assembler<'_>, span: Span, needs: Needs) -> CompileResult<()> {
-    log::trace!("Meta => {:?} {:?}", meta, needs);
-
+#[instrument]
+fn meta(span: Span, c: &mut Assembler<'_>, meta: &Meta, needs: Needs) -> CompileResult<()> {
     if let Needs::Value = needs {
         match &meta.kind {
             MetaKind::UnitStruct { empty, .. } => {
@@ -133,7 +133,7 @@ fn meta(meta: &Meta, c: &mut Assembler<'_>, span: Span, needs: Needs) -> Compile
                     .push_with_comment(Inst::LoadFn { hash: *type_hash }, span, meta.to_string());
             }
             MetaKind::Const { const_value, .. } => {
-                const_(const_value, c, Needs::Value, span)?;
+                const_(span, c, const_value, Needs::Value)?;
             }
             _ => {
                 return Err(CompileError::expected_meta(
@@ -185,6 +185,7 @@ fn return_<T>(
 }
 
 /// Compile a pattern based on the given offset.
+#[instrument]
 fn pat_with_offset(ast: &ast::Pat, c: &mut Assembler<'_>, offset: usize) -> CompileResult<()> {
     let span = ast.span();
 
@@ -224,15 +225,13 @@ fn pat_with_offset(ast: &ast::Pat, c: &mut Assembler<'_>, offset: usize) -> Comp
 /// in case the pattern does not match.
 ///
 /// Returns a boolean indicating if the label was used.
+#[instrument]
 fn pat(
     ast: &ast::Pat,
     c: &mut Assembler<'_>,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<bool> {
-    let span = ast.span();
-    log::trace!("Pat => {:?}", c.q.sources.source(c.source_id, span));
-
     match ast {
         ast::Pat::PatPath(p) => {
             let span = p.span();
@@ -240,7 +239,7 @@ fn pat(
             let named = c.convert_path(&p.path)?;
 
             if let Some(meta) = c.try_lookup_meta(span, &named.item)? {
-                if pat_meta_binding(c, span, &meta, false_label, load)? {
+                if pat_meta_binding(span, c, &meta, false_label, load)? {
                     return Ok(true);
                 }
             }
@@ -264,15 +263,15 @@ fn pat(
         }
         ast::Pat::PatLit(p) => Ok(pat_lit(p, c, false_label, load)?),
         ast::Pat::PatVec(p) => {
-            pat_vec(c, p, false_label, &load)?;
+            pat_vec(p, c, false_label, &load)?;
             Ok(true)
         }
         ast::Pat::PatTuple(p) => {
-            pat_tuple(c, p, false_label, &load)?;
+            pat_tuple(p, c, false_label, &load)?;
             Ok(true)
         }
         ast::Pat::PatObject(object) => {
-            pat_object(c, object, false_label, &load)?;
+            pat_object(object, c, false_label, &load)?;
             Ok(true)
         }
         pat => Err(CompileError::new(
@@ -283,6 +282,7 @@ fn pat(
 }
 
 /// Assemble a pattern literal.
+#[instrument]
 fn pat_lit(
     pat_lit: &ast::PatLit,
     c: &mut Assembler<'_>,
@@ -363,14 +363,12 @@ fn pat_lit(
 }
 
 /// Assemble an [ast::Condition].
+#[instrument]
 fn condition(
     condition: &ast::Condition,
     c: &mut Assembler<'_>,
     then_label: Label,
 ) -> CompileResult<Scope> {
-    let span = condition.span();
-    log::trace!("Condition => {:?}", c.q.sources.source(c.source_id, span));
-
     match condition {
         ast::Condition::Expr(e) => {
             let span = e.span();
@@ -407,14 +405,14 @@ fn condition(
 }
 
 /// Encode a vector pattern match.
+#[instrument]
 fn pat_vec(
+    ast: &ast::PatVec,
     c: &mut Assembler<'_>,
-    pat_vec: &ast::PatVec,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
-    let span = pat_vec.span();
-    log::trace!("PatVec => {:?}", c.q.sources.source(c.source_id, span));
+    let span = ast.span();
 
     // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
     // interact with it multiple times.
@@ -425,7 +423,7 @@ fn pat_vec(
     // that it is indeed a vector.
     c.asm.push(Inst::Copy { offset }, span);
 
-    let (is_open, count) = pat_items_count(&pat_vec.items)?;
+    let (is_open, count) = pat_items_count(&ast.items)?;
 
     c.asm.push(
         Inst::MatchSequence {
@@ -439,7 +437,7 @@ fn pat_vec(
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
 
-    for (index, (p, _)) in pat_vec.items.iter().take(count).enumerate() {
+    for (index, (p, _)) in ast.items.iter().take(count).enumerate() {
         let span = p.span();
 
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
@@ -457,18 +455,18 @@ fn pat_vec(
 }
 
 /// Encode a vector pattern match.
+#[instrument]
 fn pat_tuple(
+    ast: &ast::PatTuple,
     c: &mut Assembler<'_>,
-    pat_tuple: &ast::PatTuple,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
-    let span = pat_tuple.span();
-    log::trace!("PatTuple => {:?}", c.q.sources.source(c.source_id, span));
+    let span = ast.span();
 
     load(c, Needs::Value)?;
 
-    if pat_tuple.items.is_empty() {
+    if ast.items.is_empty() {
         c.asm.push(Inst::IsUnit, span);
 
         c.asm
@@ -480,9 +478,9 @@ fn pat_tuple(
     // interact with it multiple times.
     let offset = c.scopes.decl_anon(span)?;
 
-    let (is_open, count) = pat_items_count(&pat_tuple.items)?;
+    let (is_open, count) = pat_items_count(&ast.items)?;
 
-    let type_check = if let Some(path) = &pat_tuple.path {
+    let type_check = if let Some(path) = &ast.path {
         let named = c.convert_path(path)?;
         let meta = c.lookup_meta(path.span(), &named.item)?;
 
@@ -527,7 +525,7 @@ fn pat_tuple(
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
 
-    for (index, (p, _)) in pat_tuple.items.iter().take(count).enumerate() {
+    for (index, (p, _)) in ast.items.iter().take(count).enumerate() {
         let span = p.span();
 
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
@@ -545,14 +543,14 @@ fn pat_tuple(
 }
 
 /// Assemble an object pattern.
+#[instrument]
 fn pat_object(
+    ast: &ast::PatObject,
     c: &mut Assembler<'_>,
-    pat_object: &ast::PatObject,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
-    let span = pat_object.span();
-    log::trace!("PatObject => {:?}", c.q.sources.source(c.source_id, span));
+    let span = ast.span();
 
     // NB: bind the loaded variable (once) to an anonymous var.
     // We reduce the number of copy operations by having specialized
@@ -566,9 +564,9 @@ fn pat_object(
     let mut keys = Vec::new();
 
     let mut bindings = Vec::new();
-    let (has_rest, count) = pat_items_count(&pat_object.items)?;
+    let (has_rest, count) = pat_items_count(&ast.items)?;
 
-    for (pat, _) in pat_object.items.iter().take(count) {
+    for (pat, _) in ast.items.iter().take(count) {
         let span = pat.span();
         let cow_key;
 
@@ -612,7 +610,7 @@ fn pat_object(
                 span,
                 CompileErrorKind::DuplicateObjectKey {
                     existing,
-                    object: pat_object.span(),
+                    object: ast.span(),
                 },
             ));
         }
@@ -622,7 +620,7 @@ fn pat_object(
 
     let keys = c.q.unit.new_static_object_keys_iter(span, &keys[..])?;
 
-    let type_check = match &pat_object.ident {
+    let type_check = match &ast.ident {
         ast::ObjectIdent::Named(path) => {
             let span = path.span();
 
@@ -734,9 +732,10 @@ fn pat_object(
 /// Compile a binding name that matches a known meta type.
 ///
 /// Returns `true` if the binding was used.
+#[instrument]
 fn pat_meta_binding(
-    c: &mut Assembler<'_>,
     span: Span,
+    c: &mut Assembler<'_>,
     meta: &Meta,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
@@ -773,16 +772,13 @@ fn pat_meta_binding(
 }
 
 /// Assemble an async block.
+#[instrument]
 pub(crate) fn closure_from_block(
     ast: &ast::Block,
     c: &mut Assembler<'_>,
     captures: &[CaptureMeta],
 ) -> CompileResult<()> {
     let span = ast.span();
-    log::trace!(
-        "Block (closure) => {:?}",
-        c.q.sources.source(c.source_id, span)
-    );
 
     let guard = c.scopes.push_child(span)?;
 
@@ -796,9 +792,9 @@ pub(crate) fn closure_from_block(
 }
 
 /// Call a block.
+#[instrument]
 fn block(ast: &ast::Block, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("Block => {:?}", c.q.sources.source(c.source_id, span));
 
     c.contexts.push(span);
     let scopes_count = c.scopes.push_child(span)?;
@@ -859,14 +855,11 @@ fn block(ast: &ast::Block, c: &mut Assembler<'_>, needs: Needs) -> CompileResult
 }
 
 /// Assemble #[builtin] format!(...) macro.
+#[instrument]
 fn builtin_format(ast: &BuiltInFormat, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     use crate::runtime::format;
 
-    let span = ast.span;
-    log::trace!(
-        "BuiltInFormat => {:?}",
-        c.q.sources.source(c.source_id, span)
-    );
+    let span = ast.span();
 
     let fill = if let Some((_, fill)) = &ast.fill {
         *fill
@@ -917,16 +910,13 @@ fn builtin_format(ast: &BuiltInFormat, c: &mut Assembler<'_>, needs: Needs) -> C
 }
 
 /// Assemble #[builtin] template!(...) macro.
+#[instrument]
 fn builtin_template(
     ast: &BuiltInTemplate,
     c: &mut Assembler<'_>,
     needs: Needs,
 ) -> CompileResult<Asm> {
-    let span = ast.span;
-    log::trace!(
-        "BuiltInTemplate => {:?}",
-        c.q.sources.source(c.source_id, span)
-    );
+    let span = ast.span();
 
     let expected = c.scopes.push_child(span)?;
     let mut size_hint = 0;
@@ -976,11 +966,12 @@ fn builtin_template(
 }
 
 /// Assemble a constant value.
+#[instrument]
 fn const_(
-    value: &ConstValue,
-    c: &mut Assembler<'_>,
-    needs: Needs,
     span: Span,
+    c: &mut Assembler<'_>,
+    value: &ConstValue,
+    needs: Needs,
 ) -> CompileResult<()> {
     use num::ToPrimitive;
 
@@ -1032,7 +1023,7 @@ fn const_(
         }
         ConstValue::Option(option) => match option {
             Some(value) => {
-                const_(&value, c, Needs::Value, span)?;
+                const_(span, c, &value, Needs::Value)?;
                 c.asm.push(
                     Inst::Variant {
                         variant: InstVariant::Some,
@@ -1051,14 +1042,14 @@ fn const_(
         },
         ConstValue::Vec(vec) => {
             for value in vec.iter() {
-                const_(&value, c, Needs::Value, span)?;
+                const_(span, c, &value, Needs::Value)?;
             }
 
             c.asm.push(Inst::Vec { count: vec.len() }, span);
         }
         ConstValue::Tuple(tuple) => {
             for value in tuple.iter() {
-                const_(&value, c, Needs::Value, span)?;
+                const_(span, c, &value, Needs::Value)?;
             }
 
             c.asm.push(Inst::Tuple { count: tuple.len() }, span);
@@ -1068,7 +1059,7 @@ fn const_(
             entries.sort_by_key(|k| k.0);
 
             for (_, value) in entries.iter().copied() {
-                const_(&value, c, Needs::Value, span)?;
+                const_(span, c, &value, Needs::Value)?;
             }
 
             let slot =
@@ -1083,11 +1074,9 @@ fn const_(
 }
 
 /// Assemble an expression.
+#[instrument]
 fn expr(ast: &ast::Expr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     use crate::query::BuiltInMacro;
-
-    let span = ast.span();
-    log::trace!("Expr => {:?}", c.q.sources.source(c.source_id, span));
 
     let asm = match ast {
         ast::Expr::Path(p) => path(p, c, needs)?,
@@ -1147,9 +1136,9 @@ fn expr(ast: &ast::Expr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
 }
 
 /// Assemble an assign expression.
+#[instrument]
 fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprAssign => {:?}", c.q.sources.source(c.source_id, span));
 
     let supported = match &ast.lhs {
         // <var> = <value>
@@ -1207,10 +1196,6 @@ fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> Co
         }
         ast::Expr::Index(expr_index_get) => {
             let span = expr_index_get.span();
-            log::trace!(
-                "ExprIndexSet => {:?}",
-                c.q.sources.source(c.source_id, span)
-            );
 
             expr(&ast.rhs, c, Needs::Value)?.apply(c)?;
             c.scopes.decl_anon(span)?;
@@ -1243,9 +1228,9 @@ fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> Co
 }
 
 /// Assemble an `.await` expression.
+#[instrument]
 fn expr_await(ast: &ast::ExprAwait, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprAwait => {:?}", c.q.sources.source(c.source_id, span));
 
     expr(&ast.expr, c, Needs::Value)?.apply(c)?;
     c.asm.push(Inst::Await, span);
@@ -1258,18 +1243,9 @@ fn expr_await(ast: &ast::ExprAwait, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Assemble a binary expression.
+#[instrument]
 fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprBinary => {:?}", c.q.sources.source(c.source_id, span));
-    log::trace!(
-        "ExprBinary {{ lhs => {:?} }}",
-        c.q.sources.source(c.source_id, ast.lhs.span())
-    );
-    log::trace!("ExprBinary {{ op => {:?} }}", ast.op);
-    log::trace!(
-        "ExprBinary {{ rhs => {:?} }}",
-        c.q.sources.source(c.source_id, ast.rhs.span())
-    );
 
     // Special expressions which operates on the stack in special ways.
     if ast.op.is_assign() {
@@ -1478,9 +1454,9 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
 }
 
 /// Assemble a block expression.
+#[instrument]
 fn expr_block(ast: &ast::ExprBlock, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprBlock => {:?}", c.q.sources.source(c.source_id, span));
 
     if ast.async_token.is_none() && ast.const_token.is_none() {
         return block(&ast.block, c, needs);
@@ -1526,7 +1502,7 @@ fn expr_block(ast: &ast::ExprBlock, c: &mut Assembler<'_>, needs: Needs) -> Comp
             }
         }
         MetaKind::Const { const_value } => {
-            const_(const_value, c, needs, span)?;
+            const_(span, c, const_value, needs)?;
         }
         _ => {
             return Err(CompileError::expected_meta(span, meta, "async block"));
@@ -1539,9 +1515,9 @@ fn expr_block(ast: &ast::ExprBlock, c: &mut Assembler<'_>, needs: Needs) -> Comp
 /// Assemble a break expression.
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
+#[instrument]
 fn expr_break(ast: &ast::ExprBreak, c: &mut Assembler<'_>, _: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprBreak => {:?}", c.q.sources.source(c.source_id, span));
 
     let current_loop = match c.loops.last() {
         Some(current_loop) => current_loop,
@@ -1719,9 +1695,9 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
 }
 
 /// Assemble a call expression.
+#[instrument]
 fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprCall => {:?}", c.q.sources.source(c.source_id, span));
 
     let call = convert_expr_call(ast, c)?;
 
@@ -1767,11 +1743,6 @@ fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> Compil
             c.scopes.undecl_anon(span, args)?;
         }
         Call::Expr => {
-            log::trace!(
-                "ExprCall(Other) => {:?}",
-                c.q.sources.source(c.source_id, span)
-            );
-
             for (e, _) in &ast.args {
                 expr(e, c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
@@ -1788,7 +1759,7 @@ fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> Compil
             let from = c.q.item_for(ast)?;
             let const_fn = c.q.const_fn_for((ast.span(), id))?;
             let value = c.call_const_fn(ast, &meta, &from, &const_fn, ast.args.as_slice())?;
-            const_(&value, c, Needs::Value, ast.span())?;
+            const_(ast.span(), c, &value, Needs::Value)?;
         }
     }
 
@@ -1800,13 +1771,13 @@ fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> Compil
 }
 
 /// Assemble the body of a closure function.
+#[instrument]
 pub(crate) fn closure_from_expr_closure(
     ast: &ast::ExprClosure,
     c: &mut Assembler<'_>,
     captures: &[CaptureMeta],
 ) -> CompileResult<()> {
     let span = ast.span();
-    log::trace!("ExprClosure => {:?}", c.q.sources.source(c.source_id, span));
 
     let mut patterns = Vec::new();
 
@@ -1840,9 +1811,9 @@ pub(crate) fn closure_from_expr_closure(
 }
 
 /// Assemble a closure expression.
+#[instrument]
 fn expr_closure(ast: &ast::ExprClosure, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprClosure => {:?}", c.q.sources.source(c.source_id, span));
 
     if !needs.value() {
         c.diagnostics.not_used(c.source_id, span, c.context());
@@ -1913,12 +1884,9 @@ fn expr_closure(ast: &ast::ExprClosure, c: &mut Assembler<'_>, needs: Needs) -> 
 }
 
 /// Assemble a continue expression.
+#[instrument]
 fn expr_continue(ast: &ast::ExprContinue, c: &mut Assembler<'_>, _: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!(
-        "ExprContinue => {:?}",
-        c.q.sources.source(c.source_id, span)
-    );
 
     let current_loop = match c.loops.last() {
         Some(current_loop) => current_loop,
@@ -1952,6 +1920,7 @@ fn expr_continue(ast: &ast::ExprContinue, c: &mut Assembler<'_>, _: Needs) -> Co
 }
 
 /// Assemble an expr field access, like `<value>.<field>`.
+#[instrument]
 fn expr_field_access(
     ast: &ast::ExprFieldAccess,
     c: &mut Assembler<'_>,
@@ -2059,9 +2028,9 @@ fn expr_field_access(
 }
 
 /// Assemble an expression for loop.
+#[instrument]
 fn expr_for(ast: &ast::ExprFor, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprFor => {:?}", c.q.sources.source(c.source_id, span));
 
     let continue_label = c.asm.new_label("for_continue");
     let end_label = c.asm.new_label("for_end");
@@ -2222,9 +2191,9 @@ fn expr_for(ast: &ast::ExprFor, c: &mut Assembler<'_>, needs: Needs) -> CompileR
 }
 
 /// Assemble an if expression.
+#[instrument]
 fn expr_if(ast: &ast::ExprIf, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprIf => {:?}", c.q.sources.source(c.source_id, span));
 
     let then_label = c.asm.new_label("if_then");
     let end_label = c.asm.new_label("if_end");
@@ -2281,9 +2250,9 @@ fn expr_if(ast: &ast::ExprIf, c: &mut Assembler<'_>, needs: Needs) -> CompileRes
 }
 
 /// Assemble an expression.
+#[instrument]
 fn expr_index(ast: &ast::ExprIndex, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprIndex => {:?}", c.q.sources.source(c.source_id, span));
 
     let guard = c.scopes.push_child(span)?;
 
@@ -2303,9 +2272,9 @@ fn expr_index(ast: &ast::ExprIndex, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Assemble a let expression.
+#[instrument]
 fn expr_let(ast: &ast::ExprLet, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprLet => {:?}", c.q.sources.source(c.source_id, span));
 
     let load = |c: &mut Assembler, needs: Needs| {
         // NB: assignments "move" the value being assigned.
@@ -2341,9 +2310,9 @@ fn expr_let(ast: &ast::ExprLet, c: &mut Assembler<'_>, needs: Needs) -> CompileR
 }
 
 /// Compile a loop.
+#[instrument]
 fn expr_loop(ast: &ast::ExprLoop, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprLoop => {:?}", c.q.sources.source(c.source_id, span));
 
     let continue_label = c.asm.new_label("loop_continue");
     let break_label = c.asm.new_label("loop_break");
@@ -2368,9 +2337,9 @@ fn expr_loop(ast: &ast::ExprLoop, c: &mut Assembler<'_>, needs: Needs) -> Compil
     Ok(Asm::top(span))
 }
 
+#[instrument]
 fn expr_match(ast: &ast::ExprMatch, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprMatch => {:?}", c.q.sources.source(c.source_id, span));
 
     let expected_scopes = c.scopes.push_child(span)?;
 
@@ -2457,15 +2426,10 @@ fn expr_match(ast: &ast::ExprMatch, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Compile a literal object.
+#[instrument]
 fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
     let guard = c.scopes.push_child(span)?;
-
-    log::trace!(
-        "ExprObject => {:?} {:?}",
-        c.q.sources.source(c.source_id, span),
-        needs
-    );
 
     let mut keys = Vec::<Box<str>>::new();
     let mut check_keys = Vec::new();
@@ -2586,9 +2550,9 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
 }
 
 /// Assemble a path.
+#[instrument]
 fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("Path => {:?}", c.q.sources.source(c.source_id, span));
 
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
         let var = c.scopes.get_var(c.q.visitor, "ast", c.source_id, span)?;
@@ -2614,7 +2578,7 @@ fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
     }
 
     if let Some(m) = c.try_lookup_meta(span, &named.item)? {
-        meta(&m, c, span, needs)?;
+        meta(span, c, &m, needs)?;
         return Ok(Asm::top(span));
     }
 
@@ -2640,9 +2604,9 @@ fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
 }
 
 /// Assemble a range expression.
+#[instrument]
 fn expr_range(ast: &ast::ExprRange, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprRange => {:?}", c.q.sources.source(c.source_id, span));
 
     let guard = c.scopes.push_child(span)?;
 
@@ -2711,9 +2675,9 @@ fn expr_range(ast: &ast::ExprRange, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Assemble a return expression.
+#[instrument]
 fn expr_return(ast: &ast::ExprReturn, c: &mut Assembler<'_>, _: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprReturn => {:?}", c.q.sources.source(c.source_id, span));
 
     // NB: drop any loop temporaries.
     for l in c.loops.iter() {
@@ -2736,9 +2700,10 @@ fn expr_return(ast: &ast::ExprReturn, c: &mut Assembler<'_>, _: Needs) -> Compil
 }
 
 /// Assemble a select expression.
+#[instrument]
 fn expr_select(ast: &ast::ExprSelect, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprSelect => {:?}", c.q.sources.source(c.source_id, span));
+
     let len = ast.branches.len();
     c.contexts.push(span);
 
@@ -2840,9 +2805,9 @@ fn expr_select(ast: &ast::ExprSelect, c: &mut Assembler<'_>, needs: Needs) -> Co
 }
 
 /// Assemble a try expression.
+#[instrument]
 fn expr_try(ast: &ast::ExprTry, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprTry => {:?}", c.q.sources.source(c.source_id, span));
 
     let clean = c.scopes.total_var_count(span)?;
     let address = expr(&ast.expr, c, Needs::Value)?.apply_targeted(c)?;
@@ -2871,6 +2836,7 @@ fn expr_try(ast: &ast::ExprTry, c: &mut Assembler<'_>, needs: Needs) -> CompileR
 }
 
 /// Assemble a literal tuple.
+#[instrument]
 fn expr_tuple(ast: &ast::ExprTuple, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     macro_rules! tuple {
         ($variant:ident, $c:ident, $span:expr, $($var:ident),*) => {{
@@ -2895,7 +2861,6 @@ fn expr_tuple(ast: &ast::ExprTuple, c: &mut Assembler<'_>, needs: Needs) -> Comp
     }
 
     let span = ast.span();
-    log::trace!("ExprTuple => {:?}", c.q.sources.source(c.source_id, span));
 
     if ast.items.is_empty() {
         c.asm.push(Inst::unit(), span);
@@ -2932,9 +2897,9 @@ fn expr_tuple(ast: &ast::ExprTuple, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Assemble a unary expression.
+#[instrument]
 fn expr_unary(ast: &ast::ExprUnary, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprUnary => {:?}", c.q.sources.source(c.source_id, span));
 
     // NB: special unary expressions.
     if let ast::UnOp::BorrowRef { .. } = ast.op {
@@ -2996,9 +2961,9 @@ fn expr_unary(ast: &ast::ExprUnary, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Assemble a literal vector.
+#[instrument]
 fn expr_vec(ast: &ast::ExprVec, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprVec => {:?}", c.q.sources.source(c.source_id, span));
 
     let count = ast.items.len();
 
@@ -3021,9 +2986,9 @@ fn expr_vec(ast: &ast::ExprVec, c: &mut Assembler<'_>, needs: Needs) -> CompileR
 }
 
 /// Assemble a while loop.
+#[instrument]
 fn expr_while(ast: &ast::ExprWhile, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprWhile => {:?}", c.q.sources.source(c.source_id, span));
 
     let continue_label = c.asm.new_label("while_continue");
     let then_label = c.asm.new_label("whiel_then");
@@ -3066,9 +3031,9 @@ fn expr_while(ast: &ast::ExprWhile, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Assemble a `yield` expression.
+#[instrument]
 fn expr_yield(ast: &ast::ExprYield, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("ExprYield => {:?}", c.q.sources.source(c.source_id, span));
 
     if let Some(e) = &ast.expr {
         expr(e, c, Needs::Value)?.apply(c)?;
@@ -3085,13 +3050,13 @@ fn expr_yield(ast: &ast::ExprYield, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Assemble a function from an [ast::ItemFn].
+#[instrument]
 pub(crate) fn fn_from_item_fn(
     ast: &ast::ItemFn,
     c: &mut Assembler<'_>,
     instance_fn: bool,
 ) -> CompileResult<()> {
     let span = ast.span();
-    log::trace!("ItemFn => {:?}", c.q.sources.source(c.source_id, span));
 
     let mut patterns = Vec::new();
     let mut first = true;
@@ -3143,9 +3108,9 @@ pub(crate) fn fn_from_item_fn(
 }
 
 /// Assemble a literal value.
+#[instrument]
 fn lit(ast: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("Lit => {:?}", c.q.sources.source(c.source_id, span));
 
     // Elide the entire literal if it's not needed.
     if !needs.value() {
@@ -3181,6 +3146,7 @@ fn lit(ast: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm
     Ok(Asm::top(span))
 }
 
+#[instrument]
 fn lit_str(ast: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
 
@@ -3197,6 +3163,7 @@ fn lit_str(ast: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileRes
 }
 
 /// Assemble a literal number.
+#[instrument]
 fn lit_number(ast: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     use num::ToPrimitive;
 
@@ -3234,9 +3201,9 @@ fn lit_number(ast: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> Comp
 }
 
 /// Assemble a local expression.
+#[instrument]
 fn local(ast: &ast::Local, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
-    log::trace!("Local => {:?}", c.q.sources.source(c.source_id, span));
 
     let load = |c: &mut Assembler, needs: Needs| {
         // NB: assignments "move" the value being assigned.
