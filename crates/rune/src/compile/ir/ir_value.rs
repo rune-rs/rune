@@ -56,20 +56,20 @@ impl IrValue {
     }
 
     /// Convert a constant value into an interpreter value.
-    pub(crate) fn from_const(value: ConstValue) -> Self {
+    pub(crate) fn from_const(value: &ConstValue) -> Self {
         match value {
             ConstValue::Unit => Self::Unit,
-            ConstValue::Byte(b) => Self::Byte(b),
-            ConstValue::Char(c) => Self::Char(c),
-            ConstValue::Bool(b) => Self::Bool(b),
-            ConstValue::Integer(n) => Self::Integer(n.into()),
-            ConstValue::Float(n) => Self::Float(n),
-            ConstValue::String(s) => Self::String(Shared::new(s)),
-            ConstValue::StaticString(s) => Self::String(Shared::new((**s).to_owned())),
-            ConstValue::Bytes(b) => Self::Bytes(Shared::new(b)),
-            ConstValue::Option(option) => {
-                Self::Option(Shared::new(option.map(|some| Self::from_const(*some))))
-            }
+            ConstValue::Byte(b) => Self::Byte(*b),
+            ConstValue::Char(c) => Self::Char(*c),
+            ConstValue::Bool(b) => Self::Bool(*b),
+            ConstValue::Integer(n) => Self::Integer((*n).into()),
+            ConstValue::Float(n) => Self::Float(*n),
+            ConstValue::String(s) => Self::String(Shared::new(s.clone())),
+            ConstValue::StaticString(s) => Self::String(Shared::new((***s).to_owned())),
+            ConstValue::Bytes(b) => Self::Bytes(Shared::new(b.clone())),
+            ConstValue::Option(option) => Self::Option(Shared::new(
+                option.as_ref().map(|some| Self::from_const(some)),
+            )),
             ConstValue::Vec(vec) => {
                 let mut ir_vec = Vec::with_capacity(vec.len());
 
@@ -82,7 +82,7 @@ impl IrValue {
             ConstValue::Tuple(tuple) => {
                 let mut ir_tuple = Vec::with_capacity(tuple.len());
 
-                for value in Vec::from(tuple) {
+                for value in tuple.iter() {
                     ir_tuple.push(Self::from_const(value));
                 }
 
@@ -92,7 +92,7 @@ impl IrValue {
                 let mut ir_object = HashMap::with_capacity(object.len());
 
                 for (key, value) in object {
-                    ir_object.insert(key, Self::from_const(value));
+                    ir_object.insert(key.clone(), Self::from_const(value));
                 }
 
                 Self::Object(Shared::new(ir_object))

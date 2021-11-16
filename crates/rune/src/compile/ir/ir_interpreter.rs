@@ -31,7 +31,7 @@ impl IrInterpreter<'_> {
         log::trace!("processing constant: {}", self.item);
 
         if let Some(const_value) = self.q.consts.get(&self.item) {
-            return Ok(const_value);
+            return Ok(const_value.clone());
         }
 
         if !self.q.consts.mark(&self.item) {
@@ -107,7 +107,7 @@ impl IrInterpreter<'_> {
             if let Some(meta) = self.q.query_meta(spanned, &item, used)? {
                 match &meta.kind {
                     MetaKind::Const { const_value, .. } => {
-                        return Ok(IrValue::from_const(const_value.clone()));
+                        return Ok(IrValue::from_const(const_value));
                     }
                     _ => {
                         return Err(IrError::new(spanned, IrErrorKind::UnsupportedMeta { meta }));

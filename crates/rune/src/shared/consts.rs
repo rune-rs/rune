@@ -26,8 +26,8 @@ impl Consts {
     }
 
     /// Get the value for the constant at the given item, if present.
-    pub(crate) fn get(&self, item: &Item) -> Option<ConstValue> {
-        self.resolved.get(item).cloned()
+    pub(crate) fn get(&self, item: &Item) -> Option<&ConstValue> {
+        self.resolved.get(item)
     }
 
     /// Insert a constant value at the given item.
