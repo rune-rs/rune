@@ -2,6 +2,7 @@ use crate::ast::Spanned;
 use crate::parse::Id;
 
 pub(crate) trait Opaque {
+    /// Get an existing [Id] of an opaque element.
     fn id(&self) -> Option<Id>;
 }
 

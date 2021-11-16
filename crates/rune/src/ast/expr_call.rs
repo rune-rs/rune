@@ -23,6 +23,17 @@ pub struct ExprCall {
     pub args: ast::Parenthesized<ast::Expr, T![,]>,
 }
 
+impl ExprCall {
+    /// Get the target of the call expression.
+    pub(crate) fn target(&self) -> &ast::Expr {
+        if let ast::Expr::FieldAccess(access) = &self.expr {
+            return &access.expr;
+        }
+
+        &self.expr
+    }
+}
+
 expr_parse!(Call, ExprCall, "call expression");
 
 impl Opaque for ExprCall {

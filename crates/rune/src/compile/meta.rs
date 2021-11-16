@@ -3,7 +3,7 @@
 use crate::collections::HashSet;
 use crate::compile::{Item, Location, Visibility};
 use crate::parse::Id;
-use crate::runtime::ConstValue;
+use crate::runtime::{ConstValue, TypeCheck};
 use crate::Hash;
 use std::fmt;
 use std::path::Path;
@@ -60,6 +60,34 @@ impl Meta {
             MetaKind::Const { .. } => None,
             MetaKind::ConstFn { .. } => None,
             MetaKind::Import { .. } => None,
+        }
+    }
+
+    /// Treat the current meta as a tuple and get the number of arguments it
+    /// should receive and the type check that applies to it.
+    pub(crate) fn as_tuple(&self) -> Option<(usize, TypeCheck)> {
+        match &self.kind {
+            MetaKind::UnitStruct { type_hash, .. } => {
+                let type_check = TypeCheck::Type(*type_hash);
+                Some((0, type_check))
+            }
+            MetaKind::TupleStruct {
+                tuple, type_hash, ..
+            } => {
+                let type_check = TypeCheck::Type(*type_hash);
+                Some((tuple.args, type_check))
+            }
+            MetaKind::UnitVariant { type_hash, .. } => {
+                let type_check = TypeCheck::Variant(*type_hash);
+                Some((0, type_check))
+            }
+            MetaKind::TupleVariant {
+                tuple, type_hash, ..
+            } => {
+                let type_check = TypeCheck::Variant(*type_hash);
+                Some((tuple.args, type_check))
+            }
+            _ => None,
         }
     }
 }

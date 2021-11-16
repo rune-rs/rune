@@ -112,11 +112,9 @@ impl<'a> Assembler<'a> {
         }
     }
 
-    /// Convert a path to an item.
-    pub(crate) fn convert_path_to_named(&mut self, path: &ast::Path) -> CompileResult<Named> {
-        let named = self.q.convert_path(self.context, path)?;
-
-        Ok(named)
+    /// Convert an [ast::Path] into a [Named] item.
+    pub(crate) fn convert_path(&mut self, path: &ast::Path) -> CompileResult<Named> {
+        self.q.convert_path(self.context, path)
     }
 
     /// Clean the last scope.
