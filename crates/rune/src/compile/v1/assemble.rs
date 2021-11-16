@@ -53,7 +53,7 @@ impl Asm {
         match self.kind {
             AsmKind::Top => (),
             AsmKind::Var(var, local) => {
-                var.copy(&mut c.asm, self.span, format!("var `{}`", local));
+                var.copy(c, self.span, format!("var `{}`", local));
             }
         }
 
@@ -1506,7 +1506,7 @@ fn expr_block(ast: &ast::ExprBlock, c: &mut Assembler<'_>, needs: Needs) -> Comp
                     let var = c
                         .scopes
                         .get_var(c.q.visitor, &ident.ident, c.source_id, span)?;
-                    var.copy(&mut c.asm, span, format!("captures `{}`", ident.ident));
+                    var.copy(c, span, format!("captures `{}`", ident.ident));
                 }
             }
 
@@ -1635,8 +1635,7 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
             if let Some(name) = named.as_local() {
                 let local = c
                     .scopes
-                    .try_get_var(c.q.visitor, name, c.source_id, path.span())?
-                    .copied();
+                    .try_get_var(c.q.visitor, name, c.source_id, path.span())?;
 
                 if let Some(var) = local {
                     return Ok(Call::Var {
@@ -1735,7 +1734,7 @@ fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> Compil
                 c.scopes.decl_anon(span)?;
             }
 
-            var.copy(&mut c.asm, span, format!("var `{}`", name));
+            var.copy(c, span, format!("var `{}`", name));
             c.scopes.decl_anon(span)?;
 
             c.asm.push(Inst::CallFn { args }, span);
@@ -1896,7 +1895,7 @@ fn expr_closure(ast: &ast::ExprClosure, c: &mut Assembler<'_>, needs: Needs) -> 
                 let var = c
                     .scopes
                     .get_var(c.q.visitor, &capture.ident, c.source_id, span)?;
-                var.copy(&mut c.asm, span, format!("capture `{}`", capture.ident));
+                var.copy(c, span, format!("capture `{}`", capture.ident));
             }
         }
 
@@ -2497,7 +2496,8 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
         } else {
             let key = assign.key.resolve(&c.q.storage, c.q.sources)?;
             let var = c.scopes.get_var(c.q.visitor, &*key, c.source_id, span)?;
-            var.copy(&mut c.asm, span, format!("name `{}`", key));
+            let comment = format!("name `{}`", key);
+            var.copy(c, span, comment);
         }
 
         c.scopes.decl_anon(span)?;
@@ -2594,7 +2594,7 @@ fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
         let var = c.scopes.get_var(c.q.visitor, "ast", c.source_id, span)?;
 
         if needs.value() {
-            var.copy(&mut c.asm, span, "ast");
+            var.copy(c, span, "ast");
         }
 
         return Ok(Asm::top(span));
@@ -2608,7 +2608,7 @@ fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
                 .scopes
                 .try_get_var(c.q.visitor, local, c.source_id, span)?
             {
-                return Ok(Asm::var(span, *var, local.into()));
+                return Ok(Asm::var(span, var, local.into()));
             }
         }
     }
