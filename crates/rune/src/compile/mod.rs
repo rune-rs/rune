@@ -198,7 +198,7 @@ impl CompileBuildEntry<'_> {
                 let count = f.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::assemble_fn_from_item_fn(&f.ast, &mut c, false)?;
+                assemble::fn_from_item_fn(&f.ast, &mut c, false)?;
 
                 if used.is_unused() {
                     self.diagnostics.not_used(location.source_id, span, None);
@@ -229,7 +229,7 @@ impl CompileBuildEntry<'_> {
                     .type_hash_of()
                     .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
 
-                assemble::assemble_fn_from_item_fn(&f.ast, &mut c, true)?;
+                assemble::fn_from_item_fn(&f.ast, &mut c, true)?;
 
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
@@ -259,11 +259,7 @@ impl CompileBuildEntry<'_> {
                 )?;
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::assemble_closure_from_expr_closure(
-                    &closure.ast,
-                    &mut c,
-                    &closure.captures,
-                )?;
+                assemble::closure_from_expr_closure(&closure.ast, &mut c, &closure.captures)?;
 
                 if used.is_unused() {
                     c.diagnostics
@@ -286,7 +282,7 @@ impl CompileBuildEntry<'_> {
                 let span = b.ast.span();
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::assemble_closure_from_block(&b.ast, &mut c, &b.captures)?;
+                assemble::closure_from_block(&b.ast, &mut c, &b.captures)?;
 
                 if used.is_unused() {
                     self.diagnostics
