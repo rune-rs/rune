@@ -142,7 +142,6 @@ impl UnitBuilder {
 
             match self.constants.get(&to) {
                 Some(value) => {
-                    eprintln!("xxx");
                     let const_value = value.clone();
                     if self.constants.insert(from, const_value).is_some() {
                         return Err(CompileError::new(
