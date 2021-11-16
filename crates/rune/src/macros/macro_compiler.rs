@@ -9,14 +9,14 @@ use crate::query::Query;
 use crate::{Context, Hash};
 use std::sync::Arc;
 
-pub(crate) struct MacroCompiler<'a, 'q> {
+pub(crate) struct MacroCompiler<'a> {
     pub(crate) item: Arc<ItemMeta>,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
-    pub(crate) query: &'a mut Query<'q>,
+    pub(crate) query: Query<'a>,
 }
 
-impl MacroCompiler<'_, '_> {
+impl MacroCompiler<'_> {
     /// Compile the given macro into the given output type.
     pub(crate) fn eval_macro<T>(&mut self, macro_call: &ast::MacroCall) -> CompileResult<T>
     where

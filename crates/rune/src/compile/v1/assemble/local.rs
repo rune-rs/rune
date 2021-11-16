@@ -3,7 +3,7 @@ use crate::runtime::PanicReason;
 
 /// Compile a let expression.
 impl Assemble for ast::Local {
-    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("Local => {:?}", c.q.sources.source(c.source_id, span));
 

@@ -2,7 +2,7 @@ use crate::compile::v1::assemble::prelude::*;
 
 /// Compile a continue expression.
 impl Assemble for ast::ExprContinue {
-    fn assemble(&self, c: &mut Compiler<'_, '_>, _: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!(
             "ExprContinue => {:?}",

@@ -2,7 +2,7 @@ use crate::compile::v1::assemble::prelude::*;
 
 /// Compile `self`.
 impl Assemble for ast::Path {
-    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("Path => {:?}", c.q.sources.source(c.source_id, span));
 

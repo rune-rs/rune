@@ -1,7 +1,7 @@
 use crate::compile::v1::assemble::prelude::*;
 
 impl AssembleFn for ast::ItemFn {
-    fn assemble_fn(&self, c: &mut Compiler<'_, '_>, instance_fn: bool) -> CompileResult<()> {
+    fn assemble_fn(&self, c: &mut Compiler<'_>, instance_fn: bool) -> CompileResult<()> {
         let span = self.span();
         log::trace!("ItemFn => {:?}", c.q.sources.source(c.source_id, span));
 

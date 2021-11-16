@@ -2,12 +2,7 @@ use crate::compile::v1::assemble::prelude::*;
 
 /// Assemble a constant value.
 impl AssembleConst for ConstValue {
-    fn assemble_const(
-        &self,
-        c: &mut Compiler<'_, '_>,
-        needs: Needs,
-        span: Span,
-    ) -> CompileResult<()> {
+    fn assemble_const(&self, c: &mut Compiler<'_>, needs: Needs, span: Span) -> CompileResult<()> {
         use num::ToPrimitive as _;
 
         if !needs.value() {

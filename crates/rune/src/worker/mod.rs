@@ -105,7 +105,7 @@ impl<'a> Worker<'a> {
                     let mut indexer = Indexer {
                         root,
                         loaded: &mut self.loaded,
-                        q: &mut self.q,
+                        q: self.q.borrow(),
                         queue: &mut self.queue,
                         context: self.context,
                         options: self.options,

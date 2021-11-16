@@ -3,7 +3,7 @@ use crate::compile::v1::assemble::prelude::*;
 
 /// Compile a literal object.
 impl Assemble for ast::ExprObject {
-    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         let guard = c.scopes.push_child(span)?;
 
