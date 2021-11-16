@@ -340,6 +340,21 @@ impl<'a> Query<'a> {
         Ok(internal_macro.clone())
     }
 
+    /// Insert an item and return its Id.
+    fn insert_const_fn(&mut self, item: &Arc<ItemMeta>, ir_fn: ir::IrFn) -> Id {
+        let id = self.gen.next();
+
+        self.inner.const_fns.insert(
+            id,
+            Arc::new(QueryConstFn {
+                item: item.clone(),
+                ir_fn,
+            }),
+        );
+
+        id
+    }
+
     /// Get the constant function associated with the opaque.
     pub(crate) fn const_fn_for<T>(&self, ast: T) -> Result<Arc<QueryConstFn>, QueryError>
     where
@@ -1176,21 +1191,6 @@ impl<'a> Query<'a> {
         }
 
         Ok(module.item.extended(local))
-    }
-
-    /// Insert an item and return its Id.
-    fn insert_const_fn(&mut self, item: &Arc<ItemMeta>, ir_fn: ir::IrFn) -> Id {
-        let id = self.gen.next();
-
-        self.inner.const_fns.insert(
-            id,
-            Arc::new(QueryConstFn {
-                item: item.clone(),
-                ir_fn,
-            }),
-        );
-
-        id
     }
 
     /// Check that the given item is accessible from the given module.

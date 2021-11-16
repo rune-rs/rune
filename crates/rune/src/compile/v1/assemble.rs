@@ -5,7 +5,7 @@ use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
 use crate::compile::{
     CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, Meta, MetaKind,
 };
-use crate::parse::{ParseErrorKind, Resolve};
+use crate::parse::{Id, ParseErrorKind, Resolve};
 use crate::query::{BuiltInFormat, BuiltInTemplate};
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
@@ -16,7 +16,7 @@ use std::convert::TryFrom;
 
 #[derive(Debug)]
 #[must_use = "must be consumed to make sure the value is realized"]
-pub(crate) struct Asm {
+struct Asm {
     span: Span,
     kind: AsmKind,
 }
@@ -237,7 +237,7 @@ fn pat(
         ast::Pat::PatPath(p) => {
             let span = p.span();
 
-            let named = c.convert_path_to_named(&p.path)?;
+            let named = c.convert_path(&p.path)?;
 
             if let Some(meta) = c.try_lookup_meta(span, &named.item)? {
                 if pat_meta_binding(c, span, &meta, false_label, load)? {
@@ -480,32 +480,15 @@ fn pat_tuple(
     // interact with it multiple times.
     let offset = c.scopes.decl_anon(span)?;
 
+    let (is_open, count) = pat_items_count(&pat_tuple.items)?;
+
     let type_check = if let Some(path) = &pat_tuple.path {
-        let named = c.convert_path_to_named(path)?;
+        let named = c.convert_path(path)?;
         let meta = c.lookup_meta(path.span(), &named.item)?;
 
-        let (args, type_check) = match &meta.kind {
-            MetaKind::UnitStruct { type_hash, .. } => {
-                let type_check = TypeCheck::Type(*type_hash);
-                (0, type_check)
-            }
-            MetaKind::TupleStruct {
-                tuple, type_hash, ..
-            } => {
-                let type_check = TypeCheck::Type(*type_hash);
-                (tuple.args, type_check)
-            }
-            MetaKind::UnitVariant { type_hash, .. } => {
-                let type_check = TypeCheck::Variant(*type_hash);
-                (0, type_check)
-            }
-            MetaKind::TupleVariant {
-                tuple, type_hash, ..
-            } => {
-                let type_check = TypeCheck::Variant(*type_hash);
-                (tuple.args, type_check)
-            }
-            _ => {
+        let (args, type_check) = match meta.as_tuple() {
+            Some((args, type_check)) => (args, type_check),
+            None => {
                 return Err(CompileError::expected_meta(
                     span,
                     meta,
@@ -514,9 +497,7 @@ fn pat_tuple(
             }
         };
 
-        let (has_rest, count) = pat_items_count(&pat_tuple.items)?;
-
-        if !(args == count || count < args && has_rest) {
+        if !(args == count || count < args && is_open) {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
@@ -527,15 +508,12 @@ fn pat_tuple(
             ));
         }
 
-        match c.context.type_check_for(&meta.item.item) {
-            Some(type_check) => type_check,
-            None => type_check,
-        }
+        c.context
+            .type_check_for(&meta.item.item)
+            .unwrap_or(type_check)
     } else {
         TypeCheck::Tuple
     };
-
-    let (is_open, count) = pat_items_count(&pat_tuple.items)?;
 
     c.asm.push(Inst::Copy { offset }, span);
     c.asm.push(
@@ -648,8 +626,7 @@ fn pat_object(
         ast::ObjectIdent::Named(path) => {
             let span = path.span();
 
-            let named = c.convert_path_to_named(path)?;
-
+            let named = c.convert_path(path)?;
             let meta = c.lookup_meta(span, &named.item)?;
 
             let (object, type_check) = match &meta.kind {
@@ -1619,64 +1596,178 @@ fn expr_break(ast: &ast::ExprBreak, c: &mut Assembler<'_>, _: Needs) -> CompileR
     Ok(Asm::top(span))
 }
 
+enum Call {
+    Var {
+        /// The variable slot being called.
+        var: Var,
+        /// The name of the variable being called.
+        name: Box<str>,
+    },
+    Instance {
+        /// Hash of the fn being called.
+        hash: Hash,
+    },
+    Meta {
+        /// Meta being called.
+        meta: Meta,
+        /// The hash of the meta thing being called.
+        hash: Hash,
+    },
+    /// An expression being called.
+    Expr,
+    /// A constant function call.
+    ConstFn {
+        /// Meta of the constand function.
+        meta: Meta,
+        /// The identifier of the constant function.
+        id: Id,
+    },
+}
+
+/// Convert into a call expression.
+fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResult<Call> {
+    let span = ast.span();
+
+    match &ast.expr {
+        ast::Expr::Path(path) => {
+            let named = c.convert_path(path)?;
+
+            if let Some(name) = named.as_local() {
+                let local = c
+                    .scopes
+                    .try_get_var(c.q.visitor, name, c.source_id, path.span())?
+                    .copied();
+
+                if let Some(var) = local {
+                    return Ok(Call::Var {
+                        var,
+                        name: name.into(),
+                    });
+                }
+            }
+
+            let meta = c.lookup_meta(path.span(), &named.item)?;
+
+            match &meta.kind {
+                MetaKind::UnitStruct { .. } | MetaKind::UnitVariant { .. } => {
+                    if !ast.args.is_empty() {
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::UnsupportedArgumentCount {
+                                meta: meta.clone(),
+                                expected: 0,
+                                actual: ast.args.len(),
+                            },
+                        ));
+                    }
+                }
+                MetaKind::TupleStruct { tuple, .. } | MetaKind::TupleVariant { tuple, .. } => {
+                    if tuple.args != ast.args.len() {
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::UnsupportedArgumentCount {
+                                meta: meta.clone(),
+                                expected: tuple.args,
+                                actual: ast.args.len(),
+                            },
+                        ));
+                    }
+
+                    if tuple.args == 0 {
+                        let tuple = path.span();
+                        c.diagnostics.remove_tuple_call_parens(
+                            c.source_id,
+                            span,
+                            tuple,
+                            c.context(),
+                        );
+                    }
+                }
+                MetaKind::Function { .. } => (),
+                MetaKind::ConstFn { id, .. } => {
+                    let id = *id;
+                    return Ok(Call::ConstFn { meta, id });
+                }
+                _ => {
+                    return Err(CompileError::expected_meta(
+                        span,
+                        meta,
+                        "something that can be called as a function",
+                    ));
+                }
+            };
+
+            let hash = Hash::type_hash(&meta.item.item);
+            return Ok(Call::Meta { meta, hash });
+        }
+        ast::Expr::FieldAccess(access) => {
+            if let ast::ExprFieldAccess {
+                expr_field: ast::ExprField::Path(path),
+                ..
+            } = &**access
+            {
+                if let Some(ident) = path.try_as_ident() {
+                    let ident = ident.resolve(c.q.storage(), c.q.sources)?;
+                    let hash = Hash::instance_fn_name(ident);
+                    return Ok(Call::Instance { hash });
+                }
+            }
+        }
+        _ => {}
+    };
+
+    Ok(Call::Expr)
+}
+
 /// Assemble a call expression.
 fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
     log::trace!("ExprCall => {:?}", c.q.sources.source(c.source_id, span));
 
-    let guard = c.scopes.push_child(span)?;
+    let call = convert_expr_call(ast, c)?;
+
     let args = ast.args.len();
 
-    // NB: either handle a proper function call by resolving it's meta hash,
-    // or expand the expression.
-    #[allow(clippy::never_loop)]
-    let path = loop {
-        let e = &ast.expr;
-
-        let use_expr = match e {
-            ast::Expr::Path(path) => {
-                log::trace!(
-                    "ExprCall(Path) => {:?}",
-                    c.q.sources.source(c.source_id, span)
-                );
-                break path;
+    match call {
+        Call::Var { var, name } => {
+            for (e, _) in &ast.args {
+                expr(e, c, Needs::Value)?.apply(c)?;
+                c.scopes.decl_anon(span)?;
             }
-            ast::Expr::FieldAccess(expr_field_access) => {
-                if let ast::ExprFieldAccess {
-                    expr: e,
-                    expr_field: ast::ExprField::Path(path),
-                    ..
-                } = &**expr_field_access
-                {
-                    if let Some(ident) = path.try_as_ident() {
-                        log::trace!(
-                            "ExprCall(ExprFieldAccess) => {:?}",
-                            c.q.sources.source(c.source_id, span)
-                        );
 
-                        expr(e, c, Needs::Value)?.apply(c)?;
-                        c.scopes.decl_anon(e.span())?;
+            var.copy(&mut c.asm, span, format!("var `{}`", name));
+            c.scopes.decl_anon(span)?;
 
-                        for (e, _) in &ast.args {
-                            expr(e, c, Needs::Value)?.apply(c)?;
-                            c.scopes.decl_anon(span)?;
-                        }
+            c.asm.push(Inst::CallFn { args }, span);
 
-                        let ident = ident.resolve(c.q.storage(), c.q.sources)?;
-                        let hash = Hash::instance_fn_name(ident.as_ref());
-                        c.asm.push(Inst::CallInstance { hash, args }, span);
-                        false
-                    } else {
-                        true
-                    }
-                } else {
-                    true
-                }
+            c.scopes.undecl_anon(span, ast.args.len() + 1)?;
+        }
+        Call::Instance { hash } => {
+            let target = ast.target();
+
+            expr(target, c, Needs::Value)?.apply(c)?;
+            c.scopes.decl_anon(target.span())?;
+
+            for (e, _) in &ast.args {
+                expr(e, c, Needs::Value)?.apply(c)?;
+                c.scopes.decl_anon(span)?;
             }
-            _ => true,
-        };
 
-        if use_expr {
+            c.asm.push(Inst::CallInstance { hash, args }, span);
+            c.scopes.undecl_anon(span, ast.args.len() + 1)?;
+        }
+        Call::Meta { meta, hash } => {
+            for (e, _) in &ast.args {
+                expr(e, c, Needs::Value)?.apply(c)?;
+                c.scopes.decl_anon(span)?;
+            }
+
+            c.asm
+                .push_with_comment(Inst::Call { hash, args }, span, meta.to_string());
+
+            c.scopes.undecl_anon(span, args)?;
+        }
+        Call::Expr => {
             log::trace!(
                 "ExprCall(Other) => {:?}",
                 c.q.sources.source(c.source_id, span)
@@ -1687,113 +1778,25 @@ fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> Compil
                 c.scopes.decl_anon(span)?;
             }
 
-            expr(e, c, Needs::Value)?.apply(c)?;
-            c.asm.push(Inst::CallFn { args }, span);
-        }
+            expr(&ast.expr, c, Needs::Value)?.apply(c)?;
+            c.scopes.decl_anon(span)?;
 
-        if !needs.value() {
-            c.asm.push(Inst::Pop, span);
-        }
-
-        c.scopes.pop(guard, span)?;
-        return Ok(Asm::top(span));
-    };
-
-    let named = c.convert_path_to_named(path)?;
-
-    if let Some(name) = named.as_local() {
-        let local = c
-            .scopes
-            .try_get_var(c.q.visitor, name, c.source_id, path.span())?
-            .copied();
-
-        if let Some(var) = local {
-            for (e, _) in &ast.args {
-                expr(e, c, Needs::Value)?.apply(c)?;
-                c.scopes.decl_anon(e.span())?;
-            }
-
-            var.copy(&mut c.asm, span, format!("var `{}`", name));
             c.asm.push(Inst::CallFn { args }, span);
 
-            if !needs.value() {
-                c.asm.push(Inst::Pop, span);
-            }
-
-            c.scopes.pop(guard, span)?;
-            return Ok(Asm::top(span));
+            c.scopes.undecl_anon(span, args + 1)?;
         }
-    }
-
-    let meta = c.lookup_meta(path.span(), &named.item)?;
-
-    match &meta.kind {
-        MetaKind::UnitStruct { .. } | MetaKind::UnitVariant { .. } => {
-            if !ast.args.is_empty() {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::UnsupportedArgumentCount {
-                        meta: meta.clone(),
-                        expected: 0,
-                        actual: ast.args.len(),
-                    },
-                ));
-            }
-        }
-        MetaKind::TupleStruct { tuple, .. } | MetaKind::TupleVariant { tuple, .. } => {
-            if tuple.args != ast.args.len() {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::UnsupportedArgumentCount {
-                        meta: meta.clone(),
-                        expected: tuple.args,
-                        actual: ast.args.len(),
-                    },
-                ));
-            }
-
-            if tuple.args == 0 {
-                let tuple = path.span();
-                c.diagnostics
-                    .remove_tuple_call_parens(c.source_id, span, tuple, c.context());
-            }
-        }
-        MetaKind::Function { .. } => (),
-        MetaKind::ConstFn { id, .. } => {
+        Call::ConstFn { meta, id } => {
             let from = c.q.item_for(ast)?;
-            let const_fn = c.q.const_fn_for((ast.span(), *id))?;
-
-            let value = c.call_const_fn(ast, &meta, &from, &*const_fn, ast.args.as_slice())?;
-
+            let const_fn = c.q.const_fn_for((ast.span(), id))?;
+            let value = c.call_const_fn(ast, &meta, &from, &const_fn, ast.args.as_slice())?;
             const_(&value, c, Needs::Value, ast.span())?;
-            c.scopes.pop(guard, span)?;
-            return Ok(Asm::top(span));
         }
-        _ => {
-            return Err(CompileError::expected_meta(
-                span,
-                meta,
-                "something that can be called as a function",
-            ));
-        }
-    };
-
-    for (e, _) in &ast.args {
-        expr(e, c, Needs::Value)?.apply(c)?;
-        c.scopes.decl_anon(span)?;
     }
 
-    let hash = Hash::type_hash(&meta.item.item);
-    c.asm
-        .push_with_comment(Inst::Call { hash, args }, span, meta.to_string());
-
-    // NB: we put it here to preserve the call in case it has side effects.
-    // But if we don't need the value, then pop it from the stack.
     if !needs.value() {
         c.asm.push(Inst::Pop, span);
     }
 
-    c.scopes.pop(guard, span)?;
     Ok(Asm::top(span))
 }
 
@@ -2504,7 +2507,7 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
 
     match &ast.ident {
         ast::ObjectIdent::Named(path) => {
-            let named = c.convert_path_to_named(path)?;
+            let named = c.convert_path(path)?;
             let meta = c.lookup_meta(path.span(), &named.item)?;
 
             match &meta.kind {
@@ -2597,7 +2600,7 @@ fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
         return Ok(Asm::top(span));
     }
 
-    let named = c.convert_path_to_named(ast)?;
+    let named = c.convert_path(ast)?;
 
     if let Needs::Value = needs {
         if let Some(local) = named.as_local() {
@@ -2796,7 +2799,7 @@ fn expr_select(ast: &ast::ExprSelect, c: &mut Assembler<'_>, needs: Needs) -> Co
         loop {
             match &branch.pat {
                 ast::Pat::PatPath(path) => {
-                    let named = c.convert_path_to_named(&path.path)?;
+                    let named = c.convert_path(&path.path)?;
 
                     if let Some(local) = named.as_local() {
                         c.scopes.decl_var(local, path.span())?;
