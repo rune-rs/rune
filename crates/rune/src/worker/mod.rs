@@ -4,7 +4,8 @@ use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{CompileVisitor, Item, Options, SourceLoader, UnitBuilder};
-use crate::indexing::{Index, IndexScopes, Indexer};
+use crate::indexing::index;
+use crate::indexing::{IndexScopes, Indexer};
 use crate::macros::Storage;
 use crate::query::{Query, QueryInner};
 use crate::shared::{Consts, Gen, Items};
@@ -119,7 +120,7 @@ impl<'a> Worker<'a> {
                         nested_item: None,
                     };
 
-                    if let Err(error) = file.index(&mut indexer) {
+                    if let Err(error) = index::file(&mut file, &mut indexer) {
                         indexer.diagnostics.error(source_id, error);
                     }
                 }
