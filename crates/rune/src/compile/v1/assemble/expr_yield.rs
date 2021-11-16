@@ -2,7 +2,7 @@ use crate::compile::v1::assemble::prelude::*;
 
 /// Compile a `yield` expression.
 impl Assemble for ast::ExprYield {
-    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprYield => {:?}", c.q.sources.source(c.source_id, span));
 

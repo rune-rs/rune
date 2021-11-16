@@ -2,7 +2,7 @@ use crate::compile::v1::assemble::prelude::*;
 
 /// Compile a binary expression.
 impl Assemble for ast::ExprBinary {
-    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprBinary => {:?}", c.q.sources.source(c.source_id, span));
         log::trace!(
@@ -89,7 +89,7 @@ fn rhs_needs_of(op: ast::BinOp) -> Needs {
 }
 
 fn compile_conditional_binop(
-    c: &mut Compiler<'_, '_>,
+    c: &mut Compiler<'_>,
     lhs: &ast::Expr,
     rhs: &ast::Expr,
     bin_op: ast::BinOp,
@@ -128,7 +128,7 @@ fn compile_conditional_binop(
 }
 
 fn compile_assign_binop(
-    c: &mut Compiler<'_, '_>,
+    c: &mut Compiler<'_>,
     lhs: &ast::Expr,
     rhs: &ast::Expr,
     bin_op: ast::BinOp,

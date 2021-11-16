@@ -4,7 +4,7 @@ use crate::compile::v1::assemble::prelude::*;
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
 impl Assemble for ast::ExprBreak {
-    fn assemble(&self, c: &mut Compiler<'_, '_>, _: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("ExprBreak => {:?}", c.q.sources.source(c.source_id, span));
 

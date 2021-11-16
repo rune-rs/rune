@@ -35,13 +35,13 @@ impl Needs {
     }
 }
 
-pub(crate) struct Compiler<'a, 'q> {
+pub(crate) struct Compiler<'a> {
     /// The source id of the source.
     pub(crate) source_id: SourceId,
     /// The context we are compiling for.
     pub(crate) context: &'a Context,
     /// Query system to compile required items.
-    pub(crate) q: &'a mut Query<'q>,
+    pub(crate) q: Query<'a>,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// Scopes defined in the compiler.
@@ -56,7 +56,7 @@ pub(crate) struct Compiler<'a, 'q> {
     pub(crate) diagnostics: &'a mut Diagnostics,
 }
 
-impl<'a, 'q> Compiler<'a, 'q> {
+impl<'a> Compiler<'a> {
     /// Access the meta for the given language item.
     pub fn try_lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<Option<Meta>> {
         log::trace!("lookup meta: {:?}", item);

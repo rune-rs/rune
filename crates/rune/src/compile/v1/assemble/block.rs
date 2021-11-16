@@ -4,7 +4,7 @@ use crate::compile::v1::assemble::prelude::*;
 impl AssembleClosure for ast::Block {
     fn assemble_closure(
         &self,
-        c: &mut Compiler<'_, '_>,
+        c: &mut Compiler<'_>,
         captures: &[CaptureMeta],
     ) -> CompileResult<()> {
         let span = self.span();
@@ -27,7 +27,7 @@ impl AssembleClosure for ast::Block {
 
 /// Call a block.
 impl Assemble for ast::Block {
-    fn assemble(&self, c: &mut Compiler<'_, '_>, needs: Needs) -> CompileResult<Asm> {
+    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<Asm> {
         let span = self.span();
         log::trace!("Block => {:?}", c.q.sources.source(c.source_id, span));
 

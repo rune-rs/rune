@@ -126,7 +126,7 @@ pub(crate) fn compile(
                 context,
                 options,
                 diagnostics: worker.diagnostics,
-                q: &mut worker.q,
+                q: worker.q.borrow(),
             };
 
             if let Err(error) = task.compile(entry) {
@@ -150,24 +150,24 @@ pub(crate) fn compile(
     Ok(())
 }
 
-struct CompileBuildEntry<'a, 'q> {
+struct CompileBuildEntry<'a> {
     context: &'a Context,
     options: &'a Options,
     diagnostics: &'a mut Diagnostics,
-    q: &'a mut Query<'q>,
+    q: Query<'a>,
 }
 
-impl<'q> CompileBuildEntry<'_, 'q> {
+impl CompileBuildEntry<'_> {
     fn compiler1<'a>(
         &'a mut self,
         location: Location,
         span: Span,
         asm: &'a mut Assembly,
-    ) -> self::v1::Compiler<'a, 'q> {
+    ) -> self::v1::Compiler<'a> {
         self::v1::Compiler {
             source_id: location.source_id,
             context: self.context,
-            q: self.q,
+            q: self.q.borrow(),
             asm,
             scopes: self::v1::Scopes::new(),
             contexts: vec![span],
