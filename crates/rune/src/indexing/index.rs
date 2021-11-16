@@ -6,7 +6,8 @@ use crate::compile::{
     CompileError, CompileErrorKind, CompileResult, Item, Location, Meta, MetaKind, ModMeta,
     Options, SourceLoader, SourceMeta, Visibility,
 };
-use crate::indexing::{IndexFnKind, IndexLocal, IndexScopes};
+use crate::indexing::locals;
+use crate::indexing::{IndexFnKind, IndexScopes};
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
 use crate::query::{
@@ -109,12 +110,12 @@ impl<'a> Indexer<'a> {
 
         match &mut internal_macro {
             BuiltInMacro::Template(template) => {
-                for expr in &mut template.exprs {
-                    expr.index(self)?;
+                for e in &mut template.exprs {
+                    expr(e, self)?;
                 }
             }
             BuiltInMacro::Format(format) => {
-                format.value.index(self)?;
+                expr(&mut format.value, self)?;
             }
 
             BuiltInMacro::Line(_) | BuiltInMacro::File(_) => { /* Nothing to index */ }
@@ -482,9 +483,9 @@ impl<'a> Indexer<'a> {
                 ast::Stmt::Local(expr) => {
                     stmts.push(ast::Stmt::Local(expr));
                 }
-                ast::Stmt::Item(mut item, semi) => {
-                    item.index(self)?;
-                    stmts.push(ast::Stmt::Item(item, semi));
+                ast::Stmt::Item(mut i, semi) => {
+                    item(&mut i, self)?;
+                    stmts.push(ast::Stmt::Item(i, semi));
                 }
             }
         }
@@ -561,923 +562,735 @@ impl<'a> Indexer<'a> {
     }
 }
 
-pub(crate) trait Index {
-    /// Walk the current type with the given item.
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()>;
-}
-
-impl Index for ast::File {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        if let Some(first) = self.attributes.first() {
-            return Err(CompileError::msg(
-                first,
-                "file attributes are not supported",
-            ));
-        }
-
-        idx.preprocess_items(&mut self.items)?;
-
-        for (item, semi_colon) in &mut self.items {
-            if let Some(semi_colon) = semi_colon {
-                if !item.needs_semi_colon() {
-                    idx.diagnostics
-                        .uneccessary_semi_colon(idx.source_id, semi_colon.span());
-                }
-            }
-
-            item.index(idx)?;
-        }
-
-        Ok(())
+pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    if let Some(first) = ast.attributes.first() {
+        return Err(CompileError::msg(
+            first,
+            "file attributes are not supported",
+        ));
     }
+
+    idx.preprocess_items(&mut ast.items)?;
+
+    for (i, semi_colon) in &mut ast.items {
+        if let Some(semi_colon) = semi_colon {
+            if !i.needs_semi_colon() {
+                idx.diagnostics
+                    .uneccessary_semi_colon(idx.source_id, semi_colon.span());
+            }
+        }
+
+        item(i, idx)?;
+    }
+
+    Ok(())
 }
 
-impl Index for ast::ItemFn {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("ItemFn => {:?}", idx.q.sources.source(idx.source_id, span));
+fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("ItemFn => {:?}", idx.q.sources.source(idx.source_id, span));
 
-        let name = self.name.resolve(idx.q.storage(), idx.q.sources)?;
-        let _guard = idx.items.push_name(name.as_ref());
+    let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
+    let _guard = idx.items.push_name(name.as_ref());
 
-        let visibility = ast_to_visibility(&self.visibility)?;
-        let item =
-            idx.q
-                .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
+    let visibility = ast_to_visibility(&ast.visibility)?;
+    let item = idx
+        .q
+        .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
 
-        let kind = match (self.const_token, self.async_token) {
-            (Some(const_token), Some(async_token)) => {
-                return Err(CompileError::new(
-                    const_token.span().join(async_token.span()),
-                    CompileErrorKind::FnConstAsyncConflict,
-                ));
-            }
-            (Some(..), _) => IndexFnKind::Const,
-            (_, Some(..)) => IndexFnKind::Async,
-            _ => IndexFnKind::None,
-        };
-
-        if let (Some(const_token), Some(async_token)) = (self.const_token, self.async_token) {
+    let kind = match (ast.const_token, ast.async_token) {
+        (Some(const_token), Some(async_token)) => {
             return Err(CompileError::new(
                 const_token.span().join(async_token.span()),
                 CompileErrorKind::FnConstAsyncConflict,
             ));
         }
+        (Some(..), _) => IndexFnKind::Const,
+        (_, Some(..)) => IndexFnKind::Async,
+        _ => IndexFnKind::None,
+    };
 
-        let guard = idx.scopes.push_function(kind);
+    if let (Some(const_token), Some(async_token)) = (ast.const_token, ast.async_token) {
+        return Err(CompileError::new(
+            const_token.span().join(async_token.span()),
+            CompileErrorKind::FnConstAsyncConflict,
+        ));
+    }
 
-        for (arg, _) in &mut self.args {
-            match arg {
-                ast::FnArg::SelfValue(s) => {
-                    let span = s.span();
-                    idx.scopes.declare("self", span)?;
-                }
-                ast::FnArg::Pat(pat) => {
-                    pat.index_local(idx)?;
-                }
+    let guard = idx.scopes.push_function(kind);
+
+    for (arg, _) in &mut ast.args {
+        match arg {
+            ast::FnArg::SelfValue(s) => {
+                let span = s.span();
+                idx.scopes.declare("ast", span)?;
+            }
+            ast::FnArg::Pat(p) => {
+                locals::pat(p, idx)?;
             }
         }
+    }
 
-        // Take and restore item nesting.
-        let last = idx.nested_item.replace(self.descriptive_span());
-        self.body.index(idx)?;
-        idx.nested_item = last;
+    // Take and restore item nesting.
+    let last = idx.nested_item.replace(ast.descriptive_span());
+    block(&mut ast.body, idx)?;
+    idx.nested_item = last;
 
-        let f = guard.into_function(span)?;
-        self.id = Some(item.id);
+    let f = guard.into_function(span)?;
+    ast.id = Some(item.id);
 
-        let call = match Indexer::call(f.generator, f.kind) {
-            Some(call) => call,
-            // const function.
-            None => {
-                if f.generator {
-                    return Err(CompileError::new(
-                        span,
-                        CompileErrorKind::FnConstNotGenerator,
-                    ));
-                }
-
-                idx.q.index_const_fn(&item, Box::new(self.clone()))?;
-
-                return Ok(());
-            }
-        };
-
-        let fun = Function {
-            ast: Box::new(self.clone()),
-            call,
-        };
-
-        // NB: it's only a public item in the sense of exporting it if it's not
-        // inside of a nested item.
-        let is_public = item.is_public() && idx.nested_item.is_none();
-
-        let mut attributes = attrs::Attributes::new(self.attributes.clone());
-
-        let is_test = match attributes.try_parse::<attrs::Test>(idx.q.storage(), idx.q.sources)? {
-            Some((span, _)) => {
-                if let Some(nested_span) = idx.nested_item {
-                    let span = span.join(self.descriptive_span());
-
-                    return Err(CompileError::new(
-                        span,
-                        CompileErrorKind::NestedTest { nested_span },
-                    ));
-                }
-
-                true
-            }
-            _ => false,
-        };
-
-        let is_bench = match attributes.try_parse::<attrs::Bench>(idx.q.storage(), idx.q.sources)? {
-            Some((span, _)) => {
-                if let Some(nested_span) = idx.nested_item {
-                    let span = span.join(self.descriptive_span());
-
-                    return Err(CompileError::new(
-                        span,
-                        CompileErrorKind::NestedBench { nested_span },
-                    ));
-                }
-
-                true
-            }
-            _ => false,
-        };
-
-        if let Some(attrs) = attributes.remaining() {
-            return Err(CompileError::msg(attrs, "unrecognized function attribute"));
-        }
-
-        if self.is_instance() {
-            if is_test {
-                return Err(CompileError::msg(
+    let call = match Indexer::call(f.generator, f.kind) {
+        Some(call) => call,
+        // const function.
+        None => {
+            if f.generator {
+                return Err(CompileError::new(
                     span,
-                    "#[test] is not supported on member functions",
+                    CompileErrorKind::FnConstNotGenerator,
                 ));
             }
 
-            let impl_item = idx.impl_item.as_ref().ok_or_else(|| {
-                CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
-            })?;
+            idx.q.index_const_fn(&item, Box::new(ast.clone()))?;
 
-            let f = InstanceFunction {
-                ast: fun.ast,
-                impl_item: impl_item.clone(),
-                instance_span: span,
-                call: fun.call,
-            };
-
-            // NB: all instance functions must be pre-emptively built,
-            // because statically we don't know if they will be used or
-            // not.
-            idx.q.push_build_entry(BuildEntry {
-                location: Location::new(idx.source_id, f.ast.span()),
-                item: item.clone(),
-                build: Build::InstanceFunction(f),
-                used: Used::Used,
-            });
-
-            let kind = MetaKind::Function {
-                type_hash: Hash::type_hash(&item.item),
-                is_test: false,
-                is_bench: false,
-            };
-
-            let meta = Meta {
-                item,
-                kind,
-                source: Some(SourceMeta {
-                    location: Location::new(idx.source_id, span),
-                    path: idx.q.sources.path(idx.source_id).map(Into::into),
-                }),
-            };
-
-            idx.q.insert_meta(span, meta)?;
-        } else if is_public || is_test || is_bench {
-            // NB: immediately compile all toplevel functions.
-            idx.q.push_build_entry(BuildEntry {
-                location: Location::new(idx.source_id, fun.ast.descriptive_span()),
-                item: item.clone(),
-                build: Build::Function(fun),
-                used: Used::Used,
-            });
-
-            let kind = MetaKind::Function {
-                type_hash: Hash::type_hash(&item.item),
-                is_test,
-                is_bench,
-            };
-
-            let meta = Meta {
-                item,
-                kind,
-                source: Some(SourceMeta {
-                    location: Location::new(idx.source_id, span),
-                    path: idx.q.sources.path(idx.source_id).map(Into::into),
-                }),
-            };
-
-            idx.q.insert_meta(span, meta)?;
-        } else {
-            idx.q.index(IndexedEntry {
-                item,
-                indexed: Indexed::Function(fun),
-            });
+            return Ok(());
         }
+    };
 
-        Ok(())
+    let fun = Function {
+        ast: Box::new(ast.clone()),
+        call,
+    };
+
+    // NB: it's only a public item in the sense of exporting it if it's not
+    // inside of a nested item.
+    let is_public = item.is_public() && idx.nested_item.is_none();
+
+    let mut attributes = attrs::Attributes::new(ast.attributes.clone());
+
+    let is_test = match attributes.try_parse::<attrs::Test>(idx.q.storage(), idx.q.sources)? {
+        Some((span, _)) => {
+            if let Some(nested_span) = idx.nested_item {
+                let span = span.join(ast.descriptive_span());
+
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::NestedTest { nested_span },
+                ));
+            }
+
+            true
+        }
+        _ => false,
+    };
+
+    let is_bench = match attributes.try_parse::<attrs::Bench>(idx.q.storage(), idx.q.sources)? {
+        Some((span, _)) => {
+            if let Some(nested_span) = idx.nested_item {
+                let span = span.join(ast.descriptive_span());
+
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::NestedBench { nested_span },
+                ));
+            }
+
+            true
+        }
+        _ => false,
+    };
+
+    if let Some(attrs) = attributes.remaining() {
+        return Err(CompileError::msg(attrs, "unrecognized function attribute"));
     }
-}
 
-impl Index for ast::ExprBlock {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprBlock => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        if let Some(span) = self.attributes.option_span() {
+    if ast.is_instance() {
+        if is_test {
             return Err(CompileError::msg(
                 span,
-                "block attributes are not supported yet",
+                "#[test] is not supported on member functions",
             ));
         }
 
-        if self.async_token.is_none() && self.const_token.is_none() {
-            if let Some(span) = self.move_token.option_span() {
-                return Err(CompileError::msg(
-                    span,
-                    "move modifier not support on blocks",
-                ));
-            }
+        let impl_item = idx.impl_item.as_ref().ok_or_else(|| {
+            CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
+        })?;
 
-            return self.block.index(idx);
-        }
-
-        let _guard = idx.items.push_id();
-
-        let item = idx.q.insert_new_item(
-            &idx.items,
-            idx.source_id,
-            span,
-            &idx.mod_item,
-            Visibility::default(),
-        )?;
-
-        self.block.id = Some(item.id);
-
-        if self.const_token.is_some() {
-            if let Some(async_token) = self.async_token {
-                return Err(CompileError::new(
-                    async_token.span(),
-                    CompileErrorKind::BlockConstAsyncConflict,
-                ));
-            }
-
-            self.block.index(idx)?;
-            idx.q.index_const(&item, self)?;
-            return Ok(());
-        }
-
-        let guard = idx
-            .scopes
-            .push_closure(IndexFnKind::Async, self.move_token.is_some());
-
-        self.block.index(idx)?;
-
-        let c = guard.into_closure(span)?;
-
-        let captures = Arc::from(c.captures);
-
-        let call = match Indexer::call(c.generator, c.kind) {
-            Some(call) => call,
-            None => {
-                return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
-            }
+        let f = InstanceFunction {
+            ast: fun.ast,
+            impl_item: impl_item.clone(),
+            instance_span: span,
+            call: fun.call,
         };
 
-        idx.q
-            .index_async_block(&item, self.block.clone(), captures, call, c.do_move)?;
+        // NB: all instance functions must be pre-emptively built,
+        // because statically we don't know if they will be used or
+        // not.
+        idx.q.push_build_entry(BuildEntry {
+            location: Location::new(idx.source_id, f.ast.span()),
+            item: item.clone(),
+            build: Build::InstanceFunction(f),
+            used: Used::Used,
+        });
 
-        Ok(())
+        let kind = MetaKind::Function {
+            type_hash: Hash::type_hash(&item.item),
+            is_test: false,
+            is_bench: false,
+        };
+
+        let meta = Meta {
+            item,
+            kind,
+            source: Some(SourceMeta {
+                location: Location::new(idx.source_id, span),
+                path: idx.q.sources.path(idx.source_id).map(Into::into),
+            }),
+        };
+
+        idx.q.insert_meta(span, meta)?;
+    } else if is_public || is_test || is_bench {
+        // NB: immediately compile all toplevel functions.
+        idx.q.push_build_entry(BuildEntry {
+            location: Location::new(idx.source_id, fun.ast.descriptive_span()),
+            item: item.clone(),
+            build: Build::Function(fun),
+            used: Used::Used,
+        });
+
+        let kind = MetaKind::Function {
+            type_hash: Hash::type_hash(&item.item),
+            is_test,
+            is_bench,
+        };
+
+        let meta = Meta {
+            item,
+            kind,
+            source: Some(SourceMeta {
+                location: Location::new(idx.source_id, span),
+                path: idx.q.sources.path(idx.source_id).map(Into::into),
+            }),
+        };
+
+        idx.q.insert_meta(span, meta)?;
+    } else {
+        idx.q.index(IndexedEntry {
+            item,
+            indexed: Indexed::Function(fun),
+        });
     }
+
+    Ok(())
 }
 
-impl Index for ast::Block {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("Block => {:?}", idx.q.sources.source(idx.source_id, span));
+fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprBlock => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
 
-        let _guard = idx.items.push_id();
-        let _guard = idx.scopes.push_scope();
-
-        idx.q.insert_new_item(
-            &idx.items,
-            idx.source_id,
+    if let Some(span) = ast.attributes.option_span() {
+        return Err(CompileError::msg(
             span,
-            &idx.mod_item,
-            Visibility::Inherited,
-        )?;
+            "block attributes are not supported yet",
+        ));
+    }
 
-        idx.preprocess_stmts(&mut self.statements)?;
-        let mut must_be_last = None;
+    if ast.async_token.is_none() && ast.const_token.is_none() {
+        if let Some(span) = ast.move_token.option_span() {
+            return Err(CompileError::msg(
+                span,
+                "move modifier not support on blocks",
+            ));
+        }
 
-        for stmt in &mut self.statements {
-            if let Some(span) = must_be_last {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::ExpectedBlockSemiColon {
-                        followed_span: stmt.span(),
-                    },
-                ));
+        return block(&mut ast.block, idx);
+    }
+
+    let _guard = idx.items.push_id();
+
+    let item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        Visibility::default(),
+    )?;
+
+    ast.block.id = Some(item.id);
+
+    if ast.const_token.is_some() {
+        if let Some(async_token) = ast.async_token {
+            return Err(CompileError::new(
+                async_token.span(),
+                CompileErrorKind::BlockConstAsyncConflict,
+            ));
+        }
+
+        block(&mut ast.block, idx)?;
+        idx.q.index_const(&item, ast)?;
+        return Ok(());
+    }
+
+    let guard = idx
+        .scopes
+        .push_closure(IndexFnKind::Async, ast.move_token.is_some());
+
+    block(&mut ast.block, idx)?;
+
+    let c = guard.into_closure(span)?;
+
+    let captures = Arc::from(c.captures);
+
+    let call = match Indexer::call(c.generator, c.kind) {
+        Some(call) => call,
+        None => {
+            return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
+        }
+    };
+
+    idx.q
+        .index_async_block(&item, ast.block.clone(), captures, call, c.do_move)?;
+
+    Ok(())
+}
+
+fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("Block => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    let _guard = idx.items.push_id();
+    let _guard = idx.scopes.push_scope();
+
+    idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        Visibility::Inherited,
+    )?;
+
+    idx.preprocess_stmts(&mut ast.statements)?;
+    let mut must_be_last = None;
+
+    for stmt in &mut ast.statements {
+        if let Some(span) = must_be_last {
+            return Err(CompileError::new(
+                span,
+                CompileErrorKind::ExpectedBlockSemiColon {
+                    followed_span: stmt.span(),
+                },
+            ));
+        }
+
+        match stmt {
+            ast::Stmt::Local(l) => {
+                local(l, idx)?;
             }
-
-            match stmt {
-                ast::Stmt::Local(local) => {
-                    local.index(idx)?;
+            ast::Stmt::Expr(e, None) => {
+                if e.needs_semi() {
+                    must_be_last = Some(e.span());
                 }
-                ast::Stmt::Expr(expr, None) => {
-                    if expr.needs_semi() {
-                        must_be_last = Some(expr.span());
-                    }
 
-                    expr.index(idx)?;
+                expr(e, idx)?;
+            }
+            ast::Stmt::Expr(e, Some(semi)) => {
+                if !e.needs_semi() {
+                    idx.diagnostics
+                        .uneccessary_semi_colon(idx.source_id, semi.span());
                 }
-                ast::Stmt::Expr(expr, Some(semi)) => {
-                    if !expr.needs_semi() {
+
+                expr(e, idx)?;
+            }
+            ast::Stmt::Item(item, semi) => {
+                if let Some(semi) = semi {
+                    if !item.needs_semi_colon() {
                         idx.diagnostics
                             .uneccessary_semi_colon(idx.source_id, semi.span());
                     }
-
-                    expr.index(idx)?;
-                }
-                ast::Stmt::Item(item, semi) => {
-                    if let Some(semi) = semi {
-                        if !item.needs_semi_colon() {
-                            idx.diagnostics
-                                .uneccessary_semi_colon(idx.source_id, semi.span());
-                        }
-                    }
                 }
             }
         }
-
-        Ok(())
     }
+
+    Ok(())
 }
 
-impl Index for ast::Local {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("Local => {:?}", idx.q.sources.source(idx.source_id, span));
+fn local(ast: &mut ast::Local, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("Local => {:?}", idx.q.sources.source(idx.source_id, span));
 
-        if let Some(span) = self.attributes.option_span() {
-            return Err(CompileError::msg(span, "attributes are not supported"));
+    if let Some(span) = ast.attributes.option_span() {
+        return Err(CompileError::msg(span, "attributes are not supported"));
+    }
+
+    pat(&mut ast.pat, idx)?;
+    expr(&mut ast.expr, idx)?;
+    Ok(())
+}
+
+fn expr_let(ast: &mut ast::ExprLet, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("ExprLet => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    pat(&mut ast.pat, idx)?;
+    expr(&mut ast.expr, idx)?;
+    Ok(())
+}
+
+fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    let ident = ast.resolve(idx.q.storage(), idx.q.sources)?;
+    idx.scopes.declare(ident, span)?;
+    Ok(())
+}
+
+fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("Pat => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    match ast {
+        ast::Pat::PatPath(pat) => {
+            path(&mut pat.path, idx)?;
+
+            if let Some(i) = pat.path.try_as_ident_mut() {
+                ident(i, idx)?;
+            }
         }
-
-        self.pat.index(idx)?;
-        self.expr.index(idx)?;
-        Ok(())
+        ast::Pat::PatObject(pat) => {
+            pat_object(pat, idx)?;
+        }
+        ast::Pat::PatVec(pat) => {
+            pat_vec(pat, idx)?;
+        }
+        ast::Pat::PatTuple(pat) => {
+            pat_tuple(pat, idx)?;
+        }
+        ast::Pat::PatBinding(pat) => {
+            pat_binding(pat, idx)?;
+        }
+        ast::Pat::PatIgnore(..) => (),
+        ast::Pat::PatLit(..) => (),
+        ast::Pat::PatRest(..) => (),
     }
+
+    Ok(())
 }
 
-impl Index for ast::ExprLet {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("ExprLet => {:?}", idx.q.sources.source(idx.source_id, span));
+fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "PatTuple => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
 
-        self.pat.index(idx)?;
-        self.expr.index(idx)?;
-        Ok(())
+    if let Some(p) = &mut ast.path {
+        path(p, idx)?;
     }
+
+    for (p, _) in &mut ast.items {
+        pat(p, idx)?;
+    }
+
+    Ok(())
 }
 
-impl Index for ast::Ident {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("Ident => {:?}", idx.q.sources.source(idx.source_id, span));
-
-        let ident = self.resolve(idx.q.storage(), idx.q.sources)?;
-        idx.scopes.declare(ident.as_ref(), span)?;
-        Ok(())
-    }
+fn pat_binding(ast: &mut ast::PatBinding, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "PatBinding => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+    pat(&mut ast.pat, idx)?;
+    Ok(())
 }
 
-impl Index for ast::Pat {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("Pat => {:?}", idx.q.sources.source(idx.source_id, span));
+fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "PatObject => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
 
-        match self {
-            ast::Pat::PatPath(pat_path) => {
-                pat_path.path.index(idx)?;
+    match &mut ast.ident {
+        ast::ObjectIdent::Anonymous(..) => (),
+        ast::ObjectIdent::Named(p) => {
+            path(p, idx)?;
+        }
+    }
 
-                if let Some(ident) = pat_path.path.try_as_ident_mut() {
-                    ident.index(idx)?;
+    for (p, _) in &mut ast.items {
+        pat(p, idx)?;
+    }
+
+    Ok(())
+}
+
+fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("PatVec => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    for (p, _) in &mut ast.items {
+        pat(p, idx)?;
+    }
+
+    Ok(())
+}
+
+fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("Expr => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    let mut attributes = attrs::Attributes::new(ast.attributes().to_vec());
+
+    match ast {
+        ast::Expr::Path(e) => {
+            path(e, idx)?;
+        }
+        ast::Expr::Let(e) => {
+            expr_let(e, idx)?;
+        }
+        ast::Expr::Block(e) => {
+            expr_block(e, idx)?;
+        }
+        ast::Expr::Group(e) => {
+            expr(&mut e.expr, idx)?;
+        }
+        ast::Expr::If(e) => {
+            expr_if(e, idx)?;
+        }
+        ast::Expr::Assign(e) => {
+            expr_assign(e, idx)?;
+        }
+        ast::Expr::Binary(e) => {
+            expr_binary(e, idx)?;
+        }
+        ast::Expr::Match(e) => {
+            expr_match(e, idx)?;
+        }
+        ast::Expr::Item(e) => {
+            item(e, idx)?;
+        }
+        ast::Expr::Closure(e) => {
+            expr_closure(e, idx)?;
+        }
+        ast::Expr::While(e) => {
+            expr_while(e, idx)?;
+        }
+        ast::Expr::Loop(e) => {
+            expr_loop(e, idx)?;
+        }
+        ast::Expr::For(e) => {
+            expr_for(e, idx)?;
+        }
+        ast::Expr::FieldAccess(e) => {
+            expr_field_access(e, idx)?;
+        }
+        ast::Expr::Unary(e) => {
+            expr_unary(e, idx)?;
+        }
+        ast::Expr::Index(e) => {
+            expr_index(e, idx)?;
+        }
+        ast::Expr::Break(e) => {
+            expr_break(e, idx)?;
+        }
+        ast::Expr::Continue(e) => {
+            expr_continue(e, idx)?;
+        }
+        ast::Expr::Yield(e) => {
+            expr_yield(e, idx)?;
+        }
+        ast::Expr::Return(e) => {
+            expr_return(e, idx)?;
+        }
+        ast::Expr::Await(e) => {
+            expr_await(e, idx)?;
+        }
+        ast::Expr::Try(e) => {
+            expr_try(e, idx)?;
+        }
+        ast::Expr::Select(e) => {
+            expr_select(e, idx)?;
+        }
+        // ignored because they have no effect on indexing.
+        ast::Expr::Call(e) => {
+            expr_call(e, idx)?;
+        }
+        ast::Expr::Lit(e) => {
+            expr_lit(e, idx)?;
+        }
+        ast::Expr::ForceSemi(e) => {
+            expr(&mut e.expr, idx)?;
+        }
+        ast::Expr::Tuple(e) => {
+            expr_tuple(e, idx)?;
+        }
+        ast::Expr::Vec(e) => {
+            expr_vec(e, idx)?;
+        }
+        ast::Expr::Object(e) => {
+            expr_object(e, idx)?;
+        }
+        ast::Expr::Range(e) => {
+            expr_range(e, idx)?;
+        }
+        // NB: macros have nothing to index, they don't export language
+        // items.
+        ast::Expr::MacroCall(macro_call) => {
+            // Note: There is a preprocessing step involved with statemetns
+            // for which the macro **might** have been expanded to a
+            // built-in macro if we end up here. So instead of expanding if
+            // the id is set, we just assert that the builtin macro has been
+            // added to the query engine.
+
+            if macro_call.id.is_none() {
+                if !idx.try_expand_internal_macro(&mut attributes, macro_call)? {
+                    let out = idx.expand_macro::<ast::Expr>(macro_call)?;
+                    *ast = out;
+                    expr(ast, idx)?;
                 }
+            } else {
+                // Assert that the built-in macro has been expanded.
+                idx.q.builtin_macro_for(&**macro_call)?;
+                attributes.drain();
             }
-            ast::Pat::PatObject(pat_object) => {
-                pat_object.index(idx)?;
-            }
-            ast::Pat::PatVec(pat_vec) => {
-                pat_vec.index(idx)?;
-            }
-            ast::Pat::PatTuple(pat_tuple) => {
-                pat_tuple.index(idx)?;
-            }
-            ast::Pat::PatBinding(pat_binding) => {
-                pat_binding.index(idx)?;
-            }
-            ast::Pat::PatIgnore(..) => (),
-            ast::Pat::PatLit(..) => (),
-            ast::Pat::PatRest(..) => (),
         }
-
-        Ok(())
     }
+
+    if let Some(span) = attributes.remaining() {
+        return Err(CompileError::msg(span, "unsupported expression attribute"));
+    }
+
+    Ok(())
 }
 
-impl Index for ast::PatTuple {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "PatTuple => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
+fn expr_if(ast: &mut ast::ExprIf, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("ExprIf => {:?}", idx.q.sources.source(idx.source_id, span));
 
-        if let Some(path) = &mut self.path {
-            path.index(idx)?;
-        }
+    condition(&mut ast.condition, idx)?;
+    block(&mut ast.block, idx)?;
 
-        for (pat, _) in &mut self.items {
-            pat.index(idx)?;
-        }
-
-        Ok(())
+    for expr_else_if in &mut ast.expr_else_ifs {
+        condition(&mut expr_else_if.condition, idx)?;
+        block(&mut expr_else_if.block, idx)?;
     }
+
+    if let Some(expr_else) = &mut ast.expr_else {
+        block(&mut expr_else.block, idx)?;
+    }
+
+    Ok(())
 }
 
-impl Index for ast::PatBinding {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "PatBinding => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-        self.pat.index(idx)?;
-        Ok(())
-    }
+fn expr_assign(ast: &mut ast::ExprAssign, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprAssign => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    expr(&mut ast.lhs, idx)?;
+    expr(&mut ast.rhs, idx)?;
+    Ok(())
 }
 
-impl Index for ast::PatObject {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "PatObject => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
+fn expr_binary(ast: &mut ast::ExprBinary, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprBinary => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
 
-        match &mut self.ident {
-            ast::ObjectIdent::Anonymous(..) => (),
-            ast::ObjectIdent::Named(path) => {
-                path.index(idx)?;
-            }
-        }
-
-        for (pat, _) in &mut self.items {
-            pat.index(idx)?;
-        }
-
-        Ok(())
-    }
+    expr(&mut ast.lhs, idx)?;
+    expr(&mut ast.rhs, idx)?;
+    Ok(())
 }
 
-impl Index for ast::PatVec {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("PatVec => {:?}", idx.q.sources.source(idx.source_id, span));
+fn expr_match(ast: &mut ast::ExprMatch, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprMatch => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
 
-        for (pat, _) in &mut self.items {
-            pat.index(idx)?;
+    expr(&mut ast.expr, idx)?;
+
+    for (branch, _) in &mut ast.branches {
+        if let Some((_, condition)) = &mut branch.condition {
+            expr(condition, idx)?;
         }
 
-        Ok(())
+        let _guard = idx.scopes.push_scope();
+        pat(&mut branch.pat, idx)?;
+        expr(&mut branch.body, idx)?;
     }
+
+    Ok(())
 }
 
-impl Index for ast::Expr {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("Expr => {:?}", idx.q.sources.source(idx.source_id, span));
+fn condition(ast: &mut ast::Condition, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "Condition => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
 
-        let mut attributes = attrs::Attributes::new(self.attributes().to_vec());
-
-        match self {
-            ast::Expr::Path(path) => {
-                path.index(idx)?;
-            }
-            ast::Expr::Let(expr_let) => {
-                expr_let.index(idx)?;
-            }
-            ast::Expr::Block(block) => {
-                block.index(idx)?;
-            }
-            ast::Expr::Group(expr) => {
-                expr.expr.index(idx)?;
-            }
-            ast::Expr::If(expr_if) => {
-                expr_if.index(idx)?;
-            }
-            ast::Expr::Assign(expr_assign) => {
-                expr_assign.index(idx)?;
-            }
-            ast::Expr::Binary(expr_binary) => {
-                expr_binary.index(idx)?;
-            }
-            ast::Expr::Match(expr_if) => {
-                expr_if.index(idx)?;
-            }
-            ast::Expr::Item(decl) => {
-                decl.index(idx)?;
-            }
-            ast::Expr::Closure(expr_closure) => {
-                expr_closure.index(idx)?;
-            }
-            ast::Expr::While(expr_while) => {
-                expr_while.index(idx)?;
-            }
-            ast::Expr::Loop(expr_loop) => {
-                expr_loop.index(idx)?;
-            }
-            ast::Expr::For(expr_for) => {
-                expr_for.index(idx)?;
-            }
-            ast::Expr::FieldAccess(expr_field_access) => {
-                expr_field_access.index(idx)?;
-            }
-            ast::Expr::Unary(expr_unary) => {
-                expr_unary.index(idx)?;
-            }
-            ast::Expr::Index(expr_index_get) => {
-                expr_index_get.index(idx)?;
-            }
-            ast::Expr::Break(expr_break) => {
-                expr_break.index(idx)?;
-            }
-            ast::Expr::Continue(expr_continue) => {
-                expr_continue.index(idx)?;
-            }
-            ast::Expr::Yield(expr_yield) => {
-                expr_yield.index(idx)?;
-            }
-            ast::Expr::Return(expr_return) => {
-                expr_return.index(idx)?;
-            }
-            ast::Expr::Await(expr_await) => {
-                expr_await.index(idx)?;
-            }
-            ast::Expr::Try(expr_try) => {
-                expr_try.index(idx)?;
-            }
-            ast::Expr::Select(expr_select) => {
-                expr_select.index(idx)?;
-            }
-            // ignored because they have no effect on indexing.
-            ast::Expr::Call(expr_call) => {
-                expr_call.index(idx)?;
-            }
-            ast::Expr::Lit(expr_lit) => {
-                expr_lit.index(idx)?;
-            }
-            ast::Expr::ForceSemi(force_semi) => {
-                force_semi.expr.index(idx)?;
-            }
-            ast::Expr::Tuple(expr_tuple) => {
-                expr_tuple.index(idx)?;
-            }
-            ast::Expr::Vec(expr_vec) => {
-                expr_vec.index(idx)?;
-            }
-            ast::Expr::Object(expr_object) => {
-                expr_object.index(idx)?;
-            }
-            ast::Expr::Range(expr_range) => {
-                expr_range.index(idx)?;
-            }
-            // NB: macros have nothing to index, they don't export language
-            // items.
-            ast::Expr::MacroCall(macro_call) => {
-                // Note: There is a preprocessing step involved with statemetns
-                // for which the macro **might** have been expanded to a
-                // built-in macro if we end up here. So instead of expanding if
-                // the id is set, we just assert that the builtin macro has been
-                // added to the query engine.
-
-                if macro_call.id.is_none() {
-                    if !idx.try_expand_internal_macro(&mut attributes, macro_call)? {
-                        let out = idx.expand_macro::<ast::Expr>(macro_call)?;
-                        *self = out;
-                        self.index(idx)?;
-                    }
-                } else {
-                    // Assert that the built-in macro has been expanded.
-                    idx.q.builtin_macro_for(&**macro_call)?;
-                    attributes.drain();
-                }
-            }
+    match ast {
+        ast::Condition::Expr(e) => {
+            expr(e, idx)?;
         }
-
-        if let Some(span) = attributes.remaining() {
-            return Err(CompileError::msg(span, "unsupported expression attribute"));
+        ast::Condition::ExprLet(e) => {
+            expr_let(e, idx)?;
         }
-
-        Ok(())
     }
+
+    Ok(())
 }
 
-impl Index for ast::ExprIf {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("ExprIf => {:?}", idx.q.sources.source(idx.source_id, span));
+fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
 
-        self.condition.index(idx)?;
-        self.block.index(idx)?;
-
-        for expr_else_if in &mut self.expr_else_ifs {
-            expr_else_if.condition.index(idx)?;
-            expr_else_if.block.index(idx)?;
-        }
-
-        if let Some(expr_else) = &mut self.expr_else {
-            expr_else.block.index(idx)?;
-        }
-
-        Ok(())
+    if let Some(first) = ast.attributes.first() {
+        return Err(CompileError::msg(
+            first,
+            "enum attributes are not supported",
+        ));
     }
-}
 
-impl Index for ast::ExprAssign {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprAssign => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
+    let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
+    let _guard = idx.items.push_name(name.as_ref());
 
-        self.lhs.index(idx)?;
-        self.rhs.index(idx)?;
-        Ok(())
-    }
-}
+    let visibility = ast_to_visibility(&ast.visibility)?;
+    let enum_item =
+        idx.q
+            .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
 
-impl Index for ast::ExprBinary {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprBinary => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
+    idx.q.index_enum(&enum_item)?;
 
-        self.lhs.index(idx)?;
-        self.rhs.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprMatch {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprMatch => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        self.expr.index(idx)?;
-
-        for (branch, _) in &mut self.branches {
-            if let Some((_, condition)) = &mut branch.condition {
-                condition.index(idx)?;
-            }
-
-            let _guard = idx.scopes.push_scope();
-            branch.pat.index(idx)?;
-            branch.body.index(idx)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for ast::Condition {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "Condition => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        match self {
-            ast::Condition::Expr(expr) => {
-                expr.index(idx)?;
-            }
-            ast::Condition::ExprLet(expr_let) => {
-                expr_let.index(idx)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for ast::ItemEnum {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-
-        if let Some(first) = self.attributes.first() {
+    for (variant, _) in &mut ast.variants {
+        if let Some(first) = variant.attributes.first() {
             return Err(CompileError::msg(
                 first,
-                "enum attributes are not supported",
+                "variant attributes are not supported yet",
             ));
         }
 
-        let name = self.name.resolve(idx.q.storage(), idx.q.sources)?;
-        let _guard = idx.items.push_name(name.as_ref());
-
-        let visibility = ast_to_visibility(&self.visibility)?;
-        let enum_item =
-            idx.q
-                .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
-
-        idx.q.index_enum(&enum_item)?;
-
-        for (variant, _) in &mut self.variants {
-            if let Some(first) = variant.attributes.first() {
-                return Err(CompileError::msg(
-                    first,
-                    "variant attributes are not supported yet",
-                ));
-            }
-
-            for (field, _) in variant.body.fields() {
-                if let Some(first) = field.attributes.first() {
-                    return Err(CompileError::msg(
-                        first,
-                        "field attributes are not supported",
-                    ));
-                }
-            }
-
-            let span = variant.name.span();
-            let name = variant.name.resolve(idx.q.storage(), idx.q.sources)?;
-            let _guard = idx.items.push_name(name.as_ref());
-
-            let item = idx.q.insert_new_item(
-                &idx.items,
-                idx.source_id,
-                span,
-                &idx.mod_item,
-                Visibility::Public,
-            )?;
-            variant.id = Some(item.id);
-
-            idx.q.index_variant(&item, enum_item.id, variant.clone())?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for Box<ast::ItemStruct> {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-
-        if let Some(first) = self.attributes.first() {
-            return Err(CompileError::msg(
-                first,
-                "struct attributes are not supported",
-            ));
-        }
-
-        for (field, _) in self.body.fields() {
+        for (field, _) in variant.body.fields() {
             if let Some(first) = field.attributes.first() {
                 return Err(CompileError::msg(
                     first,
                     "field attributes are not supported",
                 ));
-            } else if !field.visibility.is_inherited() {
-                return Err(CompileError::msg(
-                    &field,
-                    "field visibility levels are not supported",
-                ));
             }
         }
 
-        let ident = self.ident.resolve(idx.q.storage(), idx.q.sources)?;
-        let _guard = idx.items.push_name(ident.as_ref());
-
-        let visibility = ast_to_visibility(&self.visibility)?;
-        let item =
-            idx.q
-                .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
-        self.id = Some(item.id);
-
-        idx.q.index_struct(&item, self.clone())?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ItemImpl {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        if let Some(first) = self.attributes.first() {
-            return Err(CompileError::msg(
-                first,
-                "impl attributes are not supported",
-            ));
-        }
-
-        let mut guards = Vec::new();
-
-        if let Some(global) = &self.path.global {
-            return Err(CompileError::msg(
-                global,
-                "global scopes are not supported yet",
-            ));
-        }
-
-        for path_segment in self.path.as_components() {
-            let ident_segment = path_segment
-                .try_as_ident()
-                .ok_or_else(|| CompileError::msg(path_segment, "unsupported path segment"))?;
-            let ident = ident_segment.resolve(idx.q.storage(), idx.q.sources)?;
-            guards.push(idx.items.push_name(ident.as_ref()));
-        }
-
-        let new = Arc::new(idx.items.item().clone());
-        let old = std::mem::replace(&mut idx.impl_item, Some(new));
-
-        for item_fn in &mut self.functions {
-            item_fn.index(idx)?;
-        }
-
-        idx.impl_item = old;
-        Ok(())
-    }
-}
-
-impl Index for ast::ItemMod {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        if let Some(first) = self.attributes.first() {
-            return Err(CompileError::msg(
-                first,
-                "module attributes are not supported",
-            ));
-        }
-
-        let name_span = self.name_span();
-
-        match &mut self.body {
-            ast::ItemModBody::EmptyBody(..) => {
-                idx.handle_file_mod(self)?;
-            }
-            ast::ItemModBody::InlineBody(body) => {
-                let name = self.name.resolve(idx.q.storage(), idx.q.sources)?;
-                let _guard = idx.items.push_name(name.as_ref());
-
-                let visibility = ast_to_visibility(&self.visibility)?;
-                let mod_item = idx.q.insert_mod(
-                    &idx.items,
-                    idx.source_id,
-                    name_span,
-                    &idx.mod_item,
-                    visibility,
-                )?;
-
-                self.id = Some(idx.items.id());
-
-                let replaced = std::mem::replace(&mut idx.mod_item, mod_item);
-                body.file.index(idx)?;
-                idx.mod_item = replaced;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for Box<ast::ItemConst> {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        if let Some(first) = self.attributes.first() {
-            return Err(CompileError::msg(
-                first,
-                "attributes on constants are not supported",
-            ));
-        }
-
-        let span = self.span();
-        let name = self.name.resolve(idx.q.storage(), idx.q.sources)?;
+        let span = variant.name.span();
+        let name = variant.name.resolve(idx.q.storage(), idx.q.sources)?;
         let _guard = idx.items.push_name(name.as_ref());
 
         let item = idx.q.insert_new_item(
@@ -1485,488 +1298,581 @@ impl Index for Box<ast::ItemConst> {
             idx.source_id,
             span,
             &idx.mod_item,
-            ast_to_visibility(&self.visibility)?,
+            Visibility::Public,
         )?;
+        variant.id = Some(item.id);
 
-        self.id = Some(item.id);
-
-        let last = idx.nested_item.replace(self.descriptive_span());
-        self.expr.index(idx)?;
-        idx.nested_item = last;
-
-        idx.q.index_const(&item, &self.expr)?;
-        Ok(())
+        idx.q.index_variant(&item, enum_item.id, variant.clone())?;
     }
+
+    Ok(())
 }
 
-impl Index for ast::Item {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("Item => {:?}", idx.q.sources.source(idx.source_id, span));
+fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
 
-        let mut attributes = attrs::Attributes::new(self.attributes().to_vec());
-
-        match self {
-            ast::Item::Enum(item_enum) => {
-                item_enum.index(idx)?;
-            }
-            ast::Item::Struct(item_struct) => {
-                item_struct.index(idx)?;
-            }
-            ast::Item::Fn(item_fn) => {
-                item_fn.index(idx)?;
-                attributes.drain();
-            }
-            ast::Item::Impl(item_impl) => {
-                item_impl.index(idx)?;
-            }
-            ast::Item::Mod(item_mod) => {
-                item_mod.index(idx)?;
-            }
-            ast::Item::Const(item_const) => {
-                item_const.index(idx)?;
-            }
-            ast::Item::MacroCall(macro_call) => {
-                // Note: There is a preprocessing step involved with items for
-                // which the macro must have been expanded to a built-in macro
-                // if we end up here. So instead of expanding here, we just
-                // assert that the builtin macro has been added to the query
-                // engine.
-
-                // Assert that the built-in macro has been expanded.
-                idx.q.builtin_macro_for(&**macro_call)?;
-
-                // NB: macros are handled during pre-processing.
-                attributes.drain();
-            }
-            // NB: imports are ignored during indexing.
-            ast::Item::Use(..) => {}
-        }
-
-        if let Some(span) = attributes.remaining() {
-            return Err(CompileError::msg(span, "unsupported item attribute"));
-        }
-
-        Ok(())
+    if let Some(first) = ast.attributes.first() {
+        return Err(CompileError::msg(
+            first,
+            "struct attributes are not supported",
+        ));
     }
-}
 
-impl Index for ast::Path {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("Path => {:?}", idx.q.sources.source(idx.source_id, span));
-
-        let id = idx
-            .q
-            .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
-        self.id = Some(id);
-
-        match self.as_kind() {
-            Some(ast::PathKind::SelfValue) => {
-                idx.scopes.mark_use("self");
-            }
-            Some(ast::PathKind::Ident(ident)) => {
-                let ident = ident.resolve(idx.q.storage(), idx.q.sources)?;
-                idx.scopes.mark_use(ident.as_ref());
-            }
-            None => (),
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprWhile {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprWhile => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        let _guard = idx.scopes.push_scope();
-        self.condition.index(idx)?;
-        self.body.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprLoop {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprLoop => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        let _guard = idx.scopes.push_scope();
-        self.body.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprFor {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("ExprFor => {:?}", idx.q.sources.source(idx.source_id, span));
-
-        // NB: creating the iterator is evaluated in the parent scope.
-        self.iter.index(idx)?;
-
-        let _guard = idx.scopes.push_scope();
-        self.binding.index(idx)?;
-        self.body.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for Box<ast::ExprClosure> {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprClosure => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        let _guard = idx.items.push_id();
-
-        let kind = match self.async_token {
-            Some(..) => IndexFnKind::Async,
-            _ => IndexFnKind::None,
-        };
-
-        let guard = idx.scopes.push_closure(kind, self.move_token.is_some());
-        let span = self.span();
-
-        let item = idx.q.insert_new_item(
-            &idx.items,
-            idx.source_id,
-            span,
-            &idx.mod_item,
-            Visibility::Inherited,
-        )?;
-
-        self.id = Some(idx.items.id());
-
-        for (arg, _) in self.args.as_slice_mut() {
-            match arg {
-                ast::FnArg::SelfValue(s) => {
-                    return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
-                }
-                ast::FnArg::Pat(pat) => {
-                    pat.index_local(idx)?;
-                }
-            }
-        }
-
-        self.body.index(idx)?;
-
-        let c = guard.into_closure(span)?;
-
-        let captures = Arc::from(c.captures);
-
-        let call = match Indexer::call(c.generator, c.kind) {
-            Some(call) => call,
-            None => {
-                return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
-            }
-        };
-
-        idx.q
-            .index_closure(&item, self.clone(), captures, call, c.do_move)?;
-
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprFieldAccess {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprIndexSet => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        self.expr.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprUnary {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprUnary => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        self.expr.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprIndex {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprIndex => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        self.index.index(idx)?;
-        self.target.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprBreak {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprBreak => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        if let Some(expr) = &mut self.expr {
-            match expr {
-                ast::ExprBreakValue::Expr(expr) => {
-                    expr.index(idx)?;
-                }
-                ast::ExprBreakValue::Label(..) => (),
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprContinue {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprContinue => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprYield {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprYield => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        let span = self.span();
-        idx.scopes.mark_yield(span)?;
-
-        if let Some(expr) = &mut self.expr {
-            expr.index(idx)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprReturn {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprReturn => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        if let Some(expr) = &mut self.expr {
-            expr.index(idx)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprAwait {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprAwait => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        let span = self.span();
-        idx.scopes.mark_await(span)?;
-        self.expr.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprTry {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("ExprTry => {:?}", idx.q.sources.source(idx.source_id, span));
-
-        self.expr.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprSelect {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprSelect => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        idx.scopes.mark_await(self.span())?;
-
-        let mut default_branch = None;
-
-        for (branch, _) in &mut self.branches {
-            match branch {
-                ast::ExprSelectBranch::Pat(pat) => {
-                    // NB: expression to evaluate future is evaled in parent scope.
-                    pat.expr.index(idx)?;
-
-                    let _guard = idx.scopes.push_scope();
-                    pat.pat.index(idx)?;
-                    pat.body.index(idx)?;
-                }
-                ast::ExprSelectBranch::Default(def) => {
-                    default_branch = Some(def);
-                }
-            }
-        }
-
-        if let Some(def) = default_branch {
-            let _guard = idx.scopes.push_scope();
-            def.body.index(idx)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprCall {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprCall => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        self.id = Some(idx.items.id());
-
-        for (expr, _) in &mut self.args {
-            expr.index(idx)?;
-        }
-
-        self.expr.index(idx)?;
-        Ok(())
-    }
-}
-
-impl Index for ast::ExprLit {
-    fn index(&mut self, _: &mut Indexer<'_>) -> CompileResult<()> {
-        if let Some(first) = self.attributes.first() {
+    for (field, _) in ast.body.fields() {
+        if let Some(first) = field.attributes.first() {
             return Err(CompileError::msg(
                 first,
-                "literal attributes are not supported",
+                "field attributes are not supported",
+            ));
+        } else if !field.visibility.is_inherited() {
+            return Err(CompileError::msg(
+                &field,
+                "field visibility levels are not supported",
             ));
         }
-
-        match &mut self.lit {
-            // NB: literals have nothing to index, they don't export language
-            // items.
-            ast::Lit::Bool(..) => (),
-            ast::Lit::Byte(..) => (),
-            ast::Lit::Char(..) => (),
-            ast::Lit::Number(..) => (),
-            ast::Lit::Str(..) => (),
-            ast::Lit::ByteStr(..) => (),
-        }
-
-        Ok(())
     }
+
+    let ident = ast.ident.resolve(idx.q.storage(), idx.q.sources)?;
+    let _guard = idx.items.push_name(ident.as_ref());
+
+    let visibility = ast_to_visibility(&ast.visibility)?;
+    let item = idx
+        .q
+        .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
+    ast.id = Some(item.id);
+
+    idx.q.index_struct(&item, Box::new(ast.clone()))?;
+    Ok(())
 }
 
-impl Index for ast::ExprTuple {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprTuple => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
-
-        for (expr, _) in &mut self.items {
-            expr.index(idx)?;
-        }
-
-        Ok(())
+fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    if let Some(first) = ast.attributes.first() {
+        return Err(CompileError::msg(
+            first,
+            "impl attributes are not supported",
+        ));
     }
+
+    let mut guards = Vec::new();
+
+    if let Some(global) = &ast.path.global {
+        return Err(CompileError::msg(
+            global,
+            "global scopes are not supported yet",
+        ));
+    }
+
+    for path_segment in ast.path.as_components() {
+        let ident_segment = path_segment
+            .try_as_ident()
+            .ok_or_else(|| CompileError::msg(path_segment, "unsupported path segment"))?;
+        let ident = ident_segment.resolve(idx.q.storage(), idx.q.sources)?;
+        guards.push(idx.items.push_name(ident.as_ref()));
+    }
+
+    let new = Arc::new(idx.items.item().clone());
+    let old = std::mem::replace(&mut idx.impl_item, Some(new));
+
+    for i in &mut ast.functions {
+        item_fn(i, idx)?;
+    }
+
+    idx.impl_item = old;
+    Ok(())
 }
 
-impl Index for ast::ExprVec {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!("ExprVec => {:?}", idx.q.sources.source(idx.source_id, span));
-
-        for (expr, _) in &mut self.items {
-            expr.index(idx)?;
-        }
-
-        Ok(())
+fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    if let Some(first) = ast.attributes.first() {
+        return Err(CompileError::msg(
+            first,
+            "module attributes are not supported",
+        ));
     }
+
+    let name_span = ast.name_span();
+
+    match &mut ast.body {
+        ast::ItemModBody::EmptyBody(..) => {
+            idx.handle_file_mod(ast)?;
+        }
+        ast::ItemModBody::InlineBody(body) => {
+            let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
+            let _guard = idx.items.push_name(name.as_ref());
+
+            let visibility = ast_to_visibility(&ast.visibility)?;
+            let mod_item = idx.q.insert_mod(
+                &idx.items,
+                idx.source_id,
+                name_span,
+                &idx.mod_item,
+                visibility,
+            )?;
+
+            ast.id = Some(idx.items.id());
+
+            let replaced = std::mem::replace(&mut idx.mod_item, mod_item);
+            file(&mut body.file, idx)?;
+            idx.mod_item = replaced;
+        }
+    }
+
+    Ok(())
 }
 
-impl Index for ast::ExprObject {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprObject => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
+fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    if let Some(first) = ast.attributes.first() {
+        return Err(CompileError::msg(
+            first,
+            "attributes on constants are not supported",
+        ));
+    }
 
-        match &mut self.ident {
-            ast::ObjectIdent::Named(path) => {
-                path.index(idx)?;
+    let span = ast.span();
+    let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
+    let _guard = idx.items.push_name(name.as_ref());
+
+    let item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        ast_to_visibility(&ast.visibility)?,
+    )?;
+
+    ast.id = Some(item.id);
+
+    let last = idx.nested_item.replace(ast.descriptive_span());
+    expr(&mut ast.expr, idx)?;
+    idx.nested_item = last;
+
+    idx.q.index_const(&item, &ast.expr)?;
+    Ok(())
+}
+
+fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("Item => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    let mut attributes = attrs::Attributes::new(ast.attributes().to_vec());
+
+    match ast {
+        ast::Item::Enum(item) => {
+            item_enum(item, idx)?;
+        }
+        ast::Item::Struct(item) => {
+            item_struct(item, idx)?;
+        }
+        ast::Item::Fn(item) => {
+            item_fn(item, idx)?;
+            attributes.drain();
+        }
+        ast::Item::Impl(item) => {
+            item_impl(item, idx)?;
+        }
+        ast::Item::Mod(item) => {
+            item_mod(item, idx)?;
+        }
+        ast::Item::Const(item) => {
+            item_const(item, idx)?;
+        }
+        ast::Item::MacroCall(macro_call) => {
+            // Note: There is a preprocessing step involved with items for
+            // which the macro must have been expanded to a built-in macro
+            // if we end up here. So instead of expanding here, we just
+            // assert that the builtin macro has been added to the query
+            // engine.
+
+            // Assert that the built-in macro has been expanded.
+            idx.q.builtin_macro_for(&**macro_call)?;
+
+            // NB: macros are handled during pre-processing.
+            attributes.drain();
+        }
+        // NB: imports are ignored during indexing.
+        ast::Item::Use(..) => {}
+    }
+
+    if let Some(span) = attributes.remaining() {
+        return Err(CompileError::msg(span, "unsupported item attribute"));
+    }
+
+    Ok(())
+}
+
+fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("Path => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    let id = idx
+        .q
+        .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
+    ast.id = Some(id);
+
+    match ast.as_kind() {
+        Some(ast::PathKind::SelfValue) => {
+            idx.scopes.mark_use("ast");
+        }
+        Some(ast::PathKind::Ident(ident)) => {
+            let ident = ident.resolve(idx.q.storage(), idx.q.sources)?;
+            idx.scopes.mark_use(ident.as_ref());
+        }
+        None => (),
+    }
+
+    Ok(())
+}
+
+fn expr_while(ast: &mut ast::ExprWhile, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprWhile => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    let _guard = idx.scopes.push_scope();
+    condition(&mut ast.condition, idx)?;
+    block(&mut ast.body, idx)?;
+    Ok(())
+}
+
+fn expr_loop(ast: &mut ast::ExprLoop, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprLoop => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    let _guard = idx.scopes.push_scope();
+    block(&mut ast.body, idx)?;
+    Ok(())
+}
+
+fn expr_for(ast: &mut ast::ExprFor, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("ExprFor => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    // NB: creating the iterator is evaluated in the parent scope.
+    expr(&mut ast.iter, idx)?;
+
+    let _guard = idx.scopes.push_scope();
+    pat(&mut ast.binding, idx)?;
+    block(&mut ast.body, idx)?;
+    Ok(())
+}
+
+fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprClosure => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    let _guard = idx.items.push_id();
+
+    let kind = match ast.async_token {
+        Some(..) => IndexFnKind::Async,
+        _ => IndexFnKind::None,
+    };
+
+    let guard = idx.scopes.push_closure(kind, ast.move_token.is_some());
+    let span = ast.span();
+
+    let item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        Visibility::Inherited,
+    )?;
+
+    ast.id = Some(idx.items.id());
+
+    for (arg, _) in ast.args.as_slice_mut() {
+        match arg {
+            ast::FnArg::SelfValue(s) => {
+                return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
             }
-            ast::ObjectIdent::Anonymous(..) => (),
-        }
-
-        for (assign, _) in &mut self.assignments {
-            if let Some((_, expr)) = &mut assign.assign {
-                expr.index(idx)?;
+            ast::FnArg::Pat(p) => {
+                locals::pat(p, idx)?;
             }
         }
-
-        Ok(())
     }
+
+    expr(&mut ast.body, idx)?;
+
+    let c = guard.into_closure(span)?;
+
+    let captures = Arc::from(c.captures);
+
+    let call = match Indexer::call(c.generator, c.kind) {
+        Some(call) => call,
+        None => {
+            return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
+        }
+    };
+
+    idx.q
+        .index_closure(&item, Box::new(ast.clone()), captures, call, c.do_move)?;
+
+    Ok(())
 }
 
-impl Index for ast::ExprRange {
-    fn index(&mut self, idx: &mut Indexer<'_>) -> CompileResult<()> {
-        let span = self.span();
-        log::trace!(
-            "ExprRange => {:?}",
-            idx.q.sources.source(idx.source_id, span)
-        );
+fn expr_field_access(ast: &mut ast::ExprFieldAccess, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprIndexSet => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
 
-        if let Some(from) = &mut self.from {
-            from.index(idx)?;
+    expr(&mut ast.expr, idx)?;
+    Ok(())
+}
+
+fn expr_unary(ast: &mut ast::ExprUnary, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprUnary => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    expr(&mut ast.expr, idx)?;
+    Ok(())
+}
+
+fn expr_index(ast: &mut ast::ExprIndex, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprIndex => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    expr(&mut ast.index, idx)?;
+    expr(&mut ast.target, idx)?;
+    Ok(())
+}
+
+fn expr_break(ast: &mut ast::ExprBreak, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprBreak => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    if let Some(e) = &mut ast.expr {
+        match e {
+            ast::ExprBreakValue::Expr(e) => {
+                expr(e, idx)?;
+            }
+            ast::ExprBreakValue::Label(..) => (),
         }
-
-        if let Some(to) = &mut self.to {
-            to.index(idx)?;
-        }
-
-        Ok(())
     }
+
+    Ok(())
+}
+
+fn expr_continue(ast: &mut ast::ExprContinue, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprContinue => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+    Ok(())
+}
+
+fn expr_yield(ast: &mut ast::ExprYield, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprYield => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    let span = ast.span();
+    idx.scopes.mark_yield(span)?;
+
+    if let Some(e) = &mut ast.expr {
+        expr(e, idx)?;
+    }
+
+    Ok(())
+}
+
+fn expr_return(ast: &mut ast::ExprReturn, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprReturn => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    if let Some(e) = &mut ast.expr {
+        expr(e, idx)?;
+    }
+
+    Ok(())
+}
+
+fn expr_await(ast: &mut ast::ExprAwait, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprAwait => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    let span = ast.span();
+    idx.scopes.mark_await(span)?;
+    expr(&mut ast.expr, idx)?;
+    Ok(())
+}
+
+fn expr_try(ast: &mut ast::ExprTry, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("ExprTry => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    expr(&mut ast.expr, idx)?;
+    Ok(())
+}
+
+fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprSelect => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    idx.scopes.mark_await(ast.span())?;
+
+    let mut default_branch = None;
+
+    for (branch, _) in &mut ast.branches {
+        match branch {
+            ast::ExprSelectBranch::Pat(p) => {
+                // NB: expression to evaluate future is evaled in parent scope.
+                expr(&mut p.expr, idx)?;
+
+                let _guard = idx.scopes.push_scope();
+                pat(&mut p.pat, idx)?;
+                expr(&mut p.body, idx)?;
+            }
+            ast::ExprSelectBranch::Default(def) => {
+                default_branch = Some(def);
+            }
+        }
+    }
+
+    if let Some(def) = default_branch {
+        let _guard = idx.scopes.push_scope();
+        expr(&mut def.body, idx)?;
+    }
+
+    Ok(())
+}
+
+fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprCall => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    ast.id = Some(idx.items.id());
+
+    for (e, _) in &mut ast.args {
+        expr(e, idx)?;
+    }
+
+    expr(&mut ast.expr, idx)?;
+    Ok(())
+}
+
+fn expr_lit(ast: &mut ast::ExprLit, _: &mut Indexer<'_>) -> CompileResult<()> {
+    if let Some(first) = ast.attributes.first() {
+        return Err(CompileError::msg(
+            first,
+            "literal attributes are not supported",
+        ));
+    }
+
+    match &mut ast.lit {
+        // NB: literals have nothing to index, they don't export language
+        // items.
+        ast::Lit::Bool(..) => (),
+        ast::Lit::Byte(..) => (),
+        ast::Lit::Char(..) => (),
+        ast::Lit::Number(..) => (),
+        ast::Lit::Str(..) => (),
+        ast::Lit::ByteStr(..) => (),
+    }
+
+    Ok(())
+}
+
+fn expr_tuple(ast: &mut ast::ExprTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprTuple => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    for (e, _) in &mut ast.items {
+        expr(e, idx)?;
+    }
+
+    Ok(())
+}
+
+fn expr_vec(ast: &mut ast::ExprVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!("ExprVec => {:?}", idx.q.sources.source(idx.source_id, span));
+
+    for (e, _) in &mut ast.items {
+        expr(e, idx)?;
+    }
+
+    Ok(())
+}
+
+fn expr_object(ast: &mut ast::ExprObject, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprObject => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    match &mut ast.ident {
+        ast::ObjectIdent::Named(p) => {
+            path(p, idx)?;
+        }
+        ast::ObjectIdent::Anonymous(..) => (),
+    }
+
+    for (assign, _) in &mut ast.assignments {
+        if let Some((_, e)) = &mut assign.assign {
+            expr(e, idx)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn expr_range(ast: &mut ast::ExprRange, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    let span = ast.span();
+    log::trace!(
+        "ExprRange => {:?}",
+        idx.q.sources.source(idx.source_id, span)
+    );
+
+    if let Some(from) = &mut ast.from {
+        expr(from, idx)?;
+    }
+
+    if let Some(to) = &mut ast.to {
+        expr(to, idx)?;
+    }
+
+    Ok(())
 }
 
 /// Construct visibility from ast.
-pub(crate) fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility, CompileError> {
+fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility, CompileError> {
     let span = match vis {
         ast::Visibility::Inherited => return Ok(Visibility::Inherited),
         ast::Visibility::Public(..) => return Ok(Visibility::Public),
