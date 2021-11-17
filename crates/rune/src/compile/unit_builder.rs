@@ -126,36 +126,31 @@ impl UnitBuilder {
         }
 
         for (from, to) in self.reexports {
-            match self.functions.get(&to) {
-                Some(info) => {
-                    let info = *info;
-                    if self.functions.insert(from, info).is_some() {
-                        return Err(CompileError::new(
-                            span,
-                            CompileErrorKind::FunctionConflictHash { hash: from },
-                        ));
-                    }
-                    continue;
+            if let Some(info) = self.functions.get(&to) {
+                let info = *info;
+                if self.functions.insert(from, info).is_some() {
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::FunctionConflictHash { hash: from },
+                    ));
                 }
-                None => {}
-            };
+                continue;
+            }
 
-            match self.constants.get(&to) {
-                Some(value) => {
-                    let const_value = value.clone();
-                    if self.constants.insert(from, const_value).is_some() {
-                        return Err(CompileError::new(
-                            span,
-                            CompileErrorKind::ConstantConflict {
-                                item: Item::with_item(&["unknown"]),
-                                hash: from,
-                            },
-                        ));
-                    }
-                    continue;
+            if let Some(value) = self.constants.get(&to) {
+                let const_value = value.clone();
+                if self.constants.insert(from, const_value).is_some() {
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::ConstantConflict {
+                            item: Item::with_item(&["unknown"]),
+                            hash: from,
+                        },
+                    ));
                 }
-                None => {}
-            };
+                continue;
+            }
+
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::MissingFunctionHash { hash: to },
