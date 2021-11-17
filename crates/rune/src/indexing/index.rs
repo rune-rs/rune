@@ -25,6 +25,9 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+/// `self` variable.
+const SELF: &str = "self";
+
 pub(crate) struct Indexer<'a> {
     /// The root URL that the indexed file originated from.
     pub(crate) root: Option<PathBuf>,
@@ -624,7 +627,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
         match arg {
             ast::FnArg::SelfValue(s) => {
                 let span = s.span();
-                idx.scopes.declare("ast", span)?;
+                idx.scopes.declare(SELF, span)?;
             }
             ast::FnArg::Pat(p) => {
                 locals::pat(p, idx)?;
@@ -1463,7 +1466,7 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
 
     match ast.as_kind() {
         Some(ast::PathKind::SelfValue) => {
-            idx.scopes.mark_use("ast");
+            idx.scopes.mark_use(SELF);
         }
         Some(ast::PathKind::Ident(ident)) => {
             let ident = ident.resolve(idx.q.storage(), idx.q.sources)?;
