@@ -31,11 +31,11 @@ fn test_get_const_re_export() -> rune::Result<()> {
     let mut sources = rune::sources! {
         entry => {
             mod inner {
-		pub const LEET = 1337;
+                pub const LEET = 1337;
             }
 
             pub use inner::LEET;
-	},
+        },
     };
 
     let unit = rune::prepare(&mut sources).with_context(&context).build()?;
@@ -59,9 +59,9 @@ fn test_get_const_nested() -> rune::Result<()> {
     let mut sources = rune::sources! {
         entry => {
             pub mod inner {
-		pub const LEET = 1337;
+                pub const LEET = 1337;
             }
-	},
+        },
     };
 
     let unit = rune::prepare(&mut sources).with_context(&context).build()?;
