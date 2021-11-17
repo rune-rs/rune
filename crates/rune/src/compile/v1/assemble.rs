@@ -15,6 +15,9 @@ use crate::{Hash, Protocol};
 use rune_macros::__instrument_ast as instrument;
 use std::convert::TryFrom;
 
+/// `self` variable.
+const SELF: &str = "self";
+
 #[derive(Debug)]
 #[must_use = "must be consumed to make sure the value is realized"]
 struct Asm {
@@ -2555,10 +2558,10 @@ fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
     let span = ast.span();
 
     if let Some(ast::PathKind::SelfValue) = ast.as_kind() {
-        let var = c.scopes.get_var(c.q.visitor, "ast", c.source_id, span)?;
+        let var = c.scopes.get_var(c.q.visitor, SELF, c.source_id, span)?;
 
         if needs.value() {
-            var.copy(c, span, "ast");
+            var.copy(c, span, SELF);
         }
 
         return Ok(Asm::top(span));
@@ -3071,7 +3074,7 @@ pub(crate) fn fn_from_item_fn(
                 }
 
                 let span = s.span();
-                c.scopes.new_var("ast", span)?;
+                c.scopes.new_var(SELF, span)?;
             }
             ast::FnArg::Pat(pat) => {
                 let offset = c.scopes.decl_anon(pat.span())?;
