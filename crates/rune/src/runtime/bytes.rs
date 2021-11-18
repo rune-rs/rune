@@ -13,6 +13,7 @@ use std::ops;
 
 /// A vector of bytes.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(transparent)]
 pub struct Bytes {
     #[serde(with = "serde_bytes")]
     pub(crate) bytes: Vec<u8>,
