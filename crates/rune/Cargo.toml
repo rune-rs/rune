@@ -30,6 +30,7 @@ itoa = "0.4.8"
 ryu = "1.0.5"
 smallvec = { version = "1.7.0", features = ["write", "serde", "const_new"] }
 serde = { version = "1.0.130", features = ["derive", "rc"] }
+serde_bytes = "0.11"
 byteorder = "1.4.3"
 pin-project = "1.0.8"
 futures-core = "0.3.17"
