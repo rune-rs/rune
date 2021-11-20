@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1637142744123,
+  "lastUpdate": 1637407990038,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -8908,6 +8908,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4377802,
             "range": "± 618792",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mail@tomolsson.se",
+            "name": "Tom Solberg",
+            "username": "tgolsson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "551a671daaa8a33b7c71efec7bd7e86ea43daaf4",
+          "message": "replace manual de/ser with derive (#313)\n\n* replace manual de/ser with derive \r\n* use serde_bytes for Bytes\r\n\r\nCo-authored-by: John-John Tedro <udoprog@tedro.se>",
+          "timestamp": "2021-11-20T12:26:10+01:00",
+          "tree_id": "7252b2ed83fa6f07a03053dcf7af4ac6b89e201a",
+          "url": "https://github.com/rune-rs/rune/commit/551a671daaa8a33b7c71efec7bd7e86ea43daaf4"
+        },
+        "date": 1637407989046,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 359750885,
+            "range": "± 28277949",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 216343609,
+            "range": "± 11063812",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 263518,
+            "range": "± 58433",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 769722,
+            "range": "± 102294",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_fib",
+            "value": 66419426,
+            "range": "± 6500460",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world",
+            "value": 1125359,
+            "range": "± 190461",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_hello_world2",
+            "value": 12868534,
+            "range": "± 1777154",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "bf_loopity",
+            "value": 10392556,
+            "range": "± 1351807",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 345315,
+            "range": "± 96827",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 3830105,
+            "range": "± 338652",
             "unit": "ns/iter"
           }
         ]
