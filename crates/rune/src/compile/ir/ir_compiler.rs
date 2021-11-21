@@ -90,6 +90,7 @@ impl IrCompile for ast::Expr {
                 ir::Ir::new(expr_object.span(), expr_object.compile(c)?)
             }
             ast::Expr::Group(expr_group) => expr_group.expr.compile(c)?,
+            ast::Expr::Empty(expr_empty) => expr_empty.expr.compile(c)?,
             ast::Expr::Binary(expr_binary) => expr_binary.compile(c)?,
             ast::Expr::Assign(expr_assign) => expr_assign.compile(c)?,
             ast::Expr::Call(expr_call) => ir::Ir::new(self.span(), expr_call.compile(c)?),

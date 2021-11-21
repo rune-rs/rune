@@ -439,6 +439,11 @@ impl<'a> Lexer<'a> {
                         span: self.iter.span_from(start),
                     });
 
+                    self.buffer.push_back(ast::Token {
+                        kind: ast::Kind::Close(ast::Delimiter::Empty),
+                        span: self.iter.span_from(start),
+                    });
+
                     let expressions = *expressions;
                     self.modes
                         .pop(&self.iter, LexerMode::Template(expressions))?;
@@ -674,6 +679,11 @@ impl<'a> Lexer<'a> {
                     }
                     '`' => {
                         let span = self.iter.span_from(start);
+
+                        self.buffer.push_back(ast::Token {
+                            kind: ast::Kind::Open(ast::Delimiter::Empty),
+                            span,
+                        });
 
                         self.emit_builtin_attribute(span);
 
@@ -1067,6 +1077,10 @@ mod tests {
         test_lexer! {
             "`foo ${bar} \\` baz`",
             ast::Token {
+                kind: ast::Kind::Open(ast::Delimiter::Empty),
+                span: span!(0, 1),
+            },
+            ast::Token {
                 kind: K![#],
                 span: span!(0, 1),
             },
@@ -1138,6 +1152,10 @@ mod tests {
                 kind: K![')'],
                 span: span!(18, 19),
             },
+            ast::Token {
+                kind: ast::Kind::Close(ast::Delimiter::Empty),
+                span: span!(18, 19),
+            },
         };
     }
 
@@ -1145,6 +1163,10 @@ mod tests {
     fn test_template_literals_multi() {
         test_lexer! {
             "`foo ${bar} ${baz}`",
+            ast::Token {
+                kind: ast::Kind::Open(ast::Delimiter::Empty),
+                span: span!(0, 1),
+            },
             ast::Token {
                 kind: K![#],
                 span: span!(0, 1),
@@ -1223,6 +1245,10 @@ mod tests {
             },
             ast::Token {
                 kind: K![')'],
+                span: span!(18, 19),
+            },
+            ast::Token {
+                kind: ast::Kind::Close(ast::Delimiter::Empty),
                 span: span!(18, 19),
             },
         };

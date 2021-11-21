@@ -431,6 +431,8 @@ pub enum Delimiter {
     Brace,
     /// A bracket delimiter `[` and `]`.
     Bracket,
+    /// An empty group delimiter.
+    Empty,
 }
 
 impl Delimiter {
@@ -440,6 +442,7 @@ impl Delimiter {
             Self::Parenthesis => "(",
             Self::Brace => "{",
             Self::Bracket => "[",
+            Self::Empty => "",
         }
     }
 
@@ -449,6 +452,7 @@ impl Delimiter {
             Self::Parenthesis => ")",
             Self::Brace => "}",
             Self::Bracket => "]",
+            Self::Empty => "",
         }
     }
 }

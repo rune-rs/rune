@@ -1036,6 +1036,9 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
         ast::Expr::Group(e) => {
             expr(&mut e.expr, idx)?;
         }
+        ast::Expr::Empty(e) => {
+            expr(&mut e.expr, idx)?;
+        }
         ast::Expr::If(e) => {
             expr_if(e, idx)?;
         }

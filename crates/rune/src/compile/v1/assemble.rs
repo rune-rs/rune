@@ -1088,6 +1088,7 @@ fn expr(ast: &ast::Expr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
         ast::Expr::Loop(e) => expr_loop(e, c, needs)?,
         ast::Expr::Let(e) => expr_let(e, c, needs)?,
         ast::Expr::Group(e) => expr(&e.expr, c, needs)?,
+        ast::Expr::Empty(e) => expr(&e.expr, c, needs)?,
         ast::Expr::Unary(e) => expr_unary(e, c, needs)?,
         ast::Expr::Assign(e) => expr_assign(e, c, needs)?,
         ast::Expr::Binary(e) => expr_binary(e, c, needs)?,

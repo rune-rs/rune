@@ -73,6 +73,8 @@ pub enum Expr {
     FieldAccess(Box<ast::ExprFieldAccess>),
     /// A grouped expression.
     Group(Box<ast::ExprGroup>),
+    /// A grouped empty expression.
+    Empty(Box<ast::ExprEmpty>),
     /// A binary expression.
     Binary(Box<ast::ExprBinary>),
     /// A unary expression.
@@ -169,6 +171,7 @@ impl Expr {
             Self::Call(expr) => take(&mut expr.attributes),
             Self::FieldAccess(expr) => take(&mut expr.attributes),
             Self::Group(expr) => take(&mut expr.attributes),
+            Self::Empty(expr) => take(&mut expr.attributes),
             Self::Unary(expr) => take(&mut expr.attributes),
             Self::Index(expr) => take(&mut expr.attributes),
             Self::Await(expr) => take(&mut expr.attributes),
@@ -206,6 +209,7 @@ impl Expr {
             Self::Call(expr) => &expr.attributes,
             Self::FieldAccess(expr) => &expr.attributes,
             Self::Group(expr) => &expr.attributes,
+            Self::Empty(expr) => &expr.attributes,
             Self::Unary(expr) => &expr.attributes,
             Self::Index(expr) => &expr.attributes,
             Self::Await(expr) => &expr.attributes,
@@ -302,6 +306,23 @@ impl Expr {
         }
 
         Ok(Self::Path(Box::new(path)))
+    }
+
+    /// Parsing something that opens with an empty group marker.
+    pub fn parse_open_empty(
+        p: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        let open = p.parse::<ast::OpenEmpty>()?;
+        let expr = p.parse::<Self>()?;
+        let close = p.parse::<ast::CloseEmpty>()?;
+
+        Ok(Self::Empty(Box::new(ast::ExprEmpty {
+            attributes,
+            open,
+            expr,
+            close,
+        })))
     }
 
     /// Parsing something that opens with a parenthesis.
@@ -430,6 +451,7 @@ impl Expr {
                 p,
                 take(attributes),
             )?)),
+            ast::Kind::Open(ast::Delimiter::Empty) => Self::parse_open_empty(p, take(attributes))?,
             K!['('] => Self::parse_open_paren(p, take(attributes))?,
             K!['{'] => Self::Block(Box::new(ast::ExprBlock::parse_with_meta(
                 p,
