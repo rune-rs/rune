@@ -100,6 +100,7 @@ mod expr_break;
 mod expr_call;
 mod expr_closure;
 mod expr_continue;
+mod expr_empty;
 mod expr_field_access;
 mod expr_for;
 mod expr_group;
@@ -165,6 +166,7 @@ pub use self::expr_break::{ExprBreak, ExprBreakValue};
 pub use self::expr_call::ExprCall;
 pub use self::expr_closure::ExprClosure;
 pub use self::expr_continue::ExprContinue;
+pub use self::expr_empty::ExprEmpty;
 pub use self::expr_field_access::{ExprField, ExprFieldAccess};
 pub use self::expr_for::ExprFor;
 pub use self::expr_group::ExprGroup;
@@ -269,7 +271,9 @@ decl_tokens! {
     (CloseBrace, "An closing brace `}`.", "closing brace", Kind::Close(Delimiter::Brace)),
     (CloseBracket, "An open bracket `]`.", "closing bracket", Kind::Close(Delimiter::Bracket)),
     (CloseParen, "An closing parenthesis `)`.", "closing parenthesis", Kind::Close(Delimiter::Parenthesis)),
+    (CloseEmpty, "An empty closing marker.", "closing marker", Kind::Close(Delimiter::Empty)),
     (OpenBrace, "An opening brace `{`.", "opening brace", Kind::Open(Delimiter::Brace)),
     (OpenBracket, "An open bracket `[`.", "opening bracket", Kind::Open(Delimiter::Bracket)),
     (OpenParen, "An opening parenthesis `(`.", "opening parenthesis", Kind::Open(Delimiter::Parenthesis)),
+    (OpenEmpty, "An empty opening marker.", "opening marker", Kind::Open(Delimiter::Empty)),
 }
