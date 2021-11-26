@@ -212,8 +212,6 @@ cfg_emit! {
 mod any;
 pub use self::any::Any;
 
-mod attrs;
-
 mod build;
 pub use self::build::{prepare, Build, BuildError};
 
