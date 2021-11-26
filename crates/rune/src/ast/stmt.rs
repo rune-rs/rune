@@ -75,7 +75,7 @@ impl Parse for Stmt {
             let local = Box::new(ast::Local::parse_with_meta(p, take(&mut attributes))?);
             Self::Local(local)
         } else {
-            let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::Callable(true))?;
+            let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::CALLABLE)?;
 
             // Parsed an expression which can be treated directly as an item.
             match expr.into_item() {
@@ -135,7 +135,7 @@ impl Parse for ItemOrExpr {
             return Err(ParseError::unsupported(span, "visibility modifier"));
         }
 
-        let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::Callable(true))?;
+        let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::CALLABLE)?;
 
         if let Some(span) = attributes.option_span() {
             return Err(ParseError::unsupported(span, "attributes"));

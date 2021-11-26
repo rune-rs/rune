@@ -185,7 +185,6 @@ pub enum PathKind {
 }
 
 /// Part of a `::` separated path.
-///
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum PathSegment {
@@ -200,7 +199,7 @@ pub enum PathSegment {
     /// The `super` keyword use as a path segment.
     Super(T![super]),
     /// A path segment that is a generic argument.
-    Generics(ast::AngleBracketed<ast::ExprWithoutBinary, T![,]>),
+    Generics(ast::AngleBracketed<PathSegmentExpr, T![,]>),
 }
 
 impl PathSegment {
@@ -259,5 +258,32 @@ impl Peek for PathSegment {
             p.nth(0),
             K![<] | K![Self] | K![self] | K![crate] | K![super] | K![ident]
         )
+    }
+}
+
+/// Used to parse an expression without supporting an immediate binary expression.
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
+pub struct PathSegmentExpr {
+    /// The expression that makes up the path segment.
+    pub expr: ast::Expr,
+}
+
+impl Parse for PathSegmentExpr {
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let expr = ast::Expr::parse_with(
+            p,
+            ast::expr::NOT_EAGER_BRACE,
+            ast::expr::NOT_EAGER_BINARY,
+            ast::expr::NOT_CALLABLE,
+        )?;
+
+        Ok(Self { expr })
+    }
+}
+
+impl Peek for PathSegmentExpr {
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        ast::Expr::peek(p)
     }
 }

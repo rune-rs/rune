@@ -5,7 +5,7 @@ use crate::SourceId;
 use std::fmt;
 
 /// A single token encountered during parsing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Token {
     /// The span of the token.

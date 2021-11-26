@@ -7,7 +7,7 @@ use std::fmt;
 /// DO NOT modify by hand!
 
 /// The `abstract` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Abstract {
     /// Associated token.
@@ -44,7 +44,7 @@ impl macros::ToTokens for Abstract {
 }
 
 /// The `alignof` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct AlignOf {
     /// Associated token.
@@ -81,7 +81,7 @@ impl macros::ToTokens for AlignOf {
 }
 
 /// `&`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Amp {
     /// Associated token.
@@ -118,7 +118,7 @@ impl macros::ToTokens for Amp {
 }
 
 /// `&&`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct AmpAmp {
     /// Associated token.
@@ -155,7 +155,7 @@ impl macros::ToTokens for AmpAmp {
 }
 
 /// `&=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct AmpEq {
     /// Associated token.
@@ -192,7 +192,7 @@ impl macros::ToTokens for AmpEq {
 }
 
 /// `->`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Arrow {
     /// Associated token.
@@ -229,7 +229,7 @@ impl macros::ToTokens for Arrow {
 }
 
 /// The `as` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct As {
     /// Associated token.
@@ -266,7 +266,7 @@ impl macros::ToTokens for As {
 }
 
 /// The `async` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Async {
     /// Associated token.
@@ -303,7 +303,7 @@ impl macros::ToTokens for Async {
 }
 
 /// `@`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct At {
     /// Associated token.
@@ -340,7 +340,7 @@ impl macros::ToTokens for At {
 }
 
 /// The `await` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Await {
     /// Associated token.
@@ -377,7 +377,7 @@ impl macros::ToTokens for Await {
 }
 
 /// `!`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Bang {
     /// Associated token.
@@ -414,7 +414,7 @@ impl macros::ToTokens for Bang {
 }
 
 /// `!=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct BangEq {
     /// Associated token.
@@ -451,7 +451,7 @@ impl macros::ToTokens for BangEq {
 }
 
 /// The `become` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Become {
     /// Associated token.
@@ -488,7 +488,7 @@ impl macros::ToTokens for Become {
 }
 
 /// The `break` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Break {
     /// Associated token.
@@ -525,7 +525,7 @@ impl macros::ToTokens for Break {
 }
 
 /// `^`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Caret {
     /// Associated token.
@@ -562,7 +562,7 @@ impl macros::ToTokens for Caret {
 }
 
 /// `^=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CaretEq {
     /// Associated token.
@@ -599,7 +599,7 @@ impl macros::ToTokens for CaretEq {
 }
 
 /// `:`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Colon {
     /// Associated token.
@@ -636,7 +636,7 @@ impl macros::ToTokens for Colon {
 }
 
 /// `::`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ColonColon {
     /// Associated token.
@@ -673,7 +673,7 @@ impl macros::ToTokens for ColonColon {
 }
 
 /// `,`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Comma {
     /// Associated token.
@@ -710,7 +710,7 @@ impl macros::ToTokens for Comma {
 }
 
 /// The `const` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Const {
     /// Associated token.
@@ -747,7 +747,7 @@ impl macros::ToTokens for Const {
 }
 
 /// The `continue` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Continue {
     /// Associated token.
@@ -784,7 +784,7 @@ impl macros::ToTokens for Continue {
 }
 
 /// The `crate` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Crate {
     /// Associated token.
@@ -821,7 +821,7 @@ impl macros::ToTokens for Crate {
 }
 
 /// `-`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Dash {
     /// Associated token.
@@ -858,7 +858,7 @@ impl macros::ToTokens for Dash {
 }
 
 /// `-=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct DashEq {
     /// Associated token.
@@ -895,7 +895,7 @@ impl macros::ToTokens for DashEq {
 }
 
 /// The `default` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Default {
     /// Associated token.
@@ -932,7 +932,7 @@ impl macros::ToTokens for Default {
 }
 
 /// `/`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Div {
     /// Associated token.
@@ -969,7 +969,7 @@ impl macros::ToTokens for Div {
 }
 
 /// The `do` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Do {
     /// Associated token.
@@ -1006,7 +1006,7 @@ impl macros::ToTokens for Do {
 }
 
 /// `$`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Dollar {
     /// Associated token.
@@ -1043,7 +1043,7 @@ impl macros::ToTokens for Dollar {
 }
 
 /// `.`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Dot {
     /// Associated token.
@@ -1080,7 +1080,7 @@ impl macros::ToTokens for Dot {
 }
 
 /// `..`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct DotDot {
     /// Associated token.
@@ -1117,7 +1117,7 @@ impl macros::ToTokens for DotDot {
 }
 
 /// `..=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct DotDotEq {
     /// Associated token.
@@ -1154,7 +1154,7 @@ impl macros::ToTokens for DotDotEq {
 }
 
 /// The `else` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Else {
     /// Associated token.
@@ -1191,7 +1191,7 @@ impl macros::ToTokens for Else {
 }
 
 /// The `enum` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Enum {
     /// Associated token.
@@ -1228,7 +1228,7 @@ impl macros::ToTokens for Enum {
 }
 
 /// `=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Eq {
     /// Associated token.
@@ -1265,7 +1265,7 @@ impl macros::ToTokens for Eq {
 }
 
 /// `==`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct EqEq {
     /// Associated token.
@@ -1302,7 +1302,7 @@ impl macros::ToTokens for EqEq {
 }
 
 /// The `extern` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Extern {
     /// Associated token.
@@ -1339,7 +1339,7 @@ impl macros::ToTokens for Extern {
 }
 
 /// The `false` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct False {
     /// Associated token.
@@ -1376,7 +1376,7 @@ impl macros::ToTokens for False {
 }
 
 /// The `final` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Final {
     /// Associated token.
@@ -1413,7 +1413,7 @@ impl macros::ToTokens for Final {
 }
 
 /// The `fn` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Fn {
     /// Associated token.
@@ -1450,7 +1450,7 @@ impl macros::ToTokens for Fn {
 }
 
 /// The `for` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct For {
     /// Associated token.
@@ -1487,7 +1487,7 @@ impl macros::ToTokens for For {
 }
 
 /// `>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Gt {
     /// Associated token.
@@ -1524,7 +1524,7 @@ impl macros::ToTokens for Gt {
 }
 
 /// `>=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct GtEq {
     /// Associated token.
@@ -1561,7 +1561,7 @@ impl macros::ToTokens for GtEq {
 }
 
 /// `>>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct GtGt {
     /// Associated token.
@@ -1598,7 +1598,7 @@ impl macros::ToTokens for GtGt {
 }
 
 /// `>>=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct GtGtEq {
     /// Associated token.
@@ -1635,7 +1635,7 @@ impl macros::ToTokens for GtGtEq {
 }
 
 /// The `if` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct If {
     /// Associated token.
@@ -1672,7 +1672,7 @@ impl macros::ToTokens for If {
 }
 
 /// The `impl` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Impl {
     /// Associated token.
@@ -1709,7 +1709,7 @@ impl macros::ToTokens for Impl {
 }
 
 /// The `in` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct In {
     /// Associated token.
@@ -1746,7 +1746,7 @@ impl macros::ToTokens for In {
 }
 
 /// The `is` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Is {
     /// Associated token.
@@ -1783,7 +1783,7 @@ impl macros::ToTokens for Is {
 }
 
 /// The `let` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Let {
     /// Associated token.
@@ -1820,7 +1820,7 @@ impl macros::ToTokens for Let {
 }
 
 /// The `loop` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Loop {
     /// Associated token.
@@ -1857,7 +1857,7 @@ impl macros::ToTokens for Loop {
 }
 
 /// `<`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Lt {
     /// Associated token.
@@ -1894,7 +1894,7 @@ impl macros::ToTokens for Lt {
 }
 
 /// `<=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct LtEq {
     /// Associated token.
@@ -1931,7 +1931,7 @@ impl macros::ToTokens for LtEq {
 }
 
 /// `<<`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct LtLt {
     /// Associated token.
@@ -1968,7 +1968,7 @@ impl macros::ToTokens for LtLt {
 }
 
 /// `<<=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct LtLtEq {
     /// Associated token.
@@ -2005,7 +2005,7 @@ impl macros::ToTokens for LtLtEq {
 }
 
 /// The `macro` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Macro {
     /// Associated token.
@@ -2042,7 +2042,7 @@ impl macros::ToTokens for Macro {
 }
 
 /// The `match` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Match {
     /// Associated token.
@@ -2079,7 +2079,7 @@ impl macros::ToTokens for Match {
 }
 
 /// The `mod` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Mod {
     /// Associated token.
@@ -2116,7 +2116,7 @@ impl macros::ToTokens for Mod {
 }
 
 /// The `move` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Move {
     /// Associated token.
@@ -2153,7 +2153,7 @@ impl macros::ToTokens for Move {
 }
 
 /// The `not` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Not {
     /// Associated token.
@@ -2190,7 +2190,7 @@ impl macros::ToTokens for Not {
 }
 
 /// The `offsetof` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OffsetOf {
     /// Associated token.
@@ -2227,7 +2227,7 @@ impl macros::ToTokens for OffsetOf {
 }
 
 /// The `override` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Override {
     /// Associated token.
@@ -2264,7 +2264,7 @@ impl macros::ToTokens for Override {
 }
 
 /// `%`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Perc {
     /// Associated token.
@@ -2301,7 +2301,7 @@ impl macros::ToTokens for Perc {
 }
 
 /// `%=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PercEq {
     /// Associated token.
@@ -2338,7 +2338,7 @@ impl macros::ToTokens for PercEq {
 }
 
 /// `|`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Pipe {
     /// Associated token.
@@ -2375,7 +2375,7 @@ impl macros::ToTokens for Pipe {
 }
 
 /// |=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PipeEq {
     /// Associated token.
@@ -2412,7 +2412,7 @@ impl macros::ToTokens for PipeEq {
 }
 
 /// `||`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PipePipe {
     /// Associated token.
@@ -2449,7 +2449,7 @@ impl macros::ToTokens for PipePipe {
 }
 
 /// `+`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Plus {
     /// Associated token.
@@ -2486,7 +2486,7 @@ impl macros::ToTokens for Plus {
 }
 
 /// `+=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PlusEq {
     /// Associated token.
@@ -2523,7 +2523,7 @@ impl macros::ToTokens for PlusEq {
 }
 
 /// `#`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Pound {
     /// Associated token.
@@ -2560,7 +2560,7 @@ impl macros::ToTokens for Pound {
 }
 
 /// The `priv` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Priv {
     /// Associated token.
@@ -2597,7 +2597,7 @@ impl macros::ToTokens for Priv {
 }
 
 /// The `proc` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Proc {
     /// Associated token.
@@ -2634,7 +2634,7 @@ impl macros::ToTokens for Proc {
 }
 
 /// The `pub` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Pub {
     /// Associated token.
@@ -2671,7 +2671,7 @@ impl macros::ToTokens for Pub {
 }
 
 /// The `pure` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Pure {
     /// Associated token.
@@ -2708,7 +2708,7 @@ impl macros::ToTokens for Pure {
 }
 
 /// `?`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuestionMark {
     /// Associated token.
@@ -2745,7 +2745,7 @@ impl macros::ToTokens for QuestionMark {
 }
 
 /// The `ref` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Ref {
     /// Associated token.
@@ -2782,7 +2782,7 @@ impl macros::ToTokens for Ref {
 }
 
 /// The `return` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Return {
     /// Associated token.
@@ -2819,7 +2819,7 @@ impl macros::ToTokens for Return {
 }
 
 /// `=>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Rocket {
     /// Associated token.
@@ -2856,7 +2856,7 @@ impl macros::ToTokens for Rocket {
 }
 
 /// The `select` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Select {
     /// Associated token.
@@ -2893,7 +2893,7 @@ impl macros::ToTokens for Select {
 }
 
 /// The `Self` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SelfType {
     /// Associated token.
@@ -2930,7 +2930,7 @@ impl macros::ToTokens for SelfType {
 }
 
 /// The `self` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SelfValue {
     /// Associated token.
@@ -2967,7 +2967,7 @@ impl macros::ToTokens for SelfValue {
 }
 
 /// `;`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SemiColon {
     /// Associated token.
@@ -3004,7 +3004,7 @@ impl macros::ToTokens for SemiColon {
 }
 
 /// The `sizeof` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SizeOf {
     /// Associated token.
@@ -3041,7 +3041,7 @@ impl macros::ToTokens for SizeOf {
 }
 
 /// `/=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SlashEq {
     /// Associated token.
@@ -3078,7 +3078,7 @@ impl macros::ToTokens for SlashEq {
 }
 
 /// `*`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Star {
     /// Associated token.
@@ -3115,7 +3115,7 @@ impl macros::ToTokens for Star {
 }
 
 /// `*=`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct StarEq {
     /// Associated token.
@@ -3152,7 +3152,7 @@ impl macros::ToTokens for StarEq {
 }
 
 /// The `static` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Static {
     /// Associated token.
@@ -3189,7 +3189,7 @@ impl macros::ToTokens for Static {
 }
 
 /// The `struct` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Struct {
     /// Associated token.
@@ -3226,7 +3226,7 @@ impl macros::ToTokens for Struct {
 }
 
 /// The `super` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Super {
     /// Associated token.
@@ -3263,7 +3263,7 @@ impl macros::ToTokens for Super {
 }
 
 /// `~`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Tilde {
     /// Associated token.
@@ -3300,7 +3300,7 @@ impl macros::ToTokens for Tilde {
 }
 
 /// The `true` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct True {
     /// Associated token.
@@ -3337,7 +3337,7 @@ impl macros::ToTokens for True {
 }
 
 /// The `typeof` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct TypeOf {
     /// Associated token.
@@ -3374,7 +3374,7 @@ impl macros::ToTokens for TypeOf {
 }
 
 /// `_`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Underscore {
     /// Associated token.
@@ -3411,7 +3411,7 @@ impl macros::ToTokens for Underscore {
 }
 
 /// The `unsafe` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Unsafe {
     /// Associated token.
@@ -3448,7 +3448,7 @@ impl macros::ToTokens for Unsafe {
 }
 
 /// The `use` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Use {
     /// Associated token.
@@ -3485,7 +3485,7 @@ impl macros::ToTokens for Use {
 }
 
 /// The `virtual` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Virtual {
     /// Associated token.
@@ -3522,7 +3522,7 @@ impl macros::ToTokens for Virtual {
 }
 
 /// The `while` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct While {
     /// Associated token.
@@ -3559,7 +3559,7 @@ impl macros::ToTokens for While {
 }
 
 /// The `yield` keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Yield {
     /// Associated token.
@@ -3617,295 +3617,295 @@ macro_rules! T {
         $crate::ast::CloseBrace
     };
     (abstract) => {
-        $crate::ast::generated::Abstract
+        $crate::ast::Abstract
     };
     (alignof) => {
-        $crate::ast::generated::AlignOf
+        $crate::ast::AlignOf
     };
     (as) => {
-        $crate::ast::generated::As
+        $crate::ast::As
     };
     (async) => {
-        $crate::ast::generated::Async
+        $crate::ast::Async
     };
     (await) => {
-        $crate::ast::generated::Await
+        $crate::ast::Await
     };
     (become) => {
-        $crate::ast::generated::Become
+        $crate::ast::Become
     };
     (break) => {
-        $crate::ast::generated::Break
+        $crate::ast::Break
     };
     (const) => {
-        $crate::ast::generated::Const
+        $crate::ast::Const
     };
     (continue) => {
-        $crate::ast::generated::Continue
+        $crate::ast::Continue
     };
     (crate) => {
-        $crate::ast::generated::Crate
+        $crate::ast::Crate
     };
     (default) => {
-        $crate::ast::generated::Default
+        $crate::ast::Default
     };
     (do) => {
-        $crate::ast::generated::Do
+        $crate::ast::Do
     };
     (else) => {
-        $crate::ast::generated::Else
+        $crate::ast::Else
     };
     (enum) => {
-        $crate::ast::generated::Enum
+        $crate::ast::Enum
     };
     (extern) => {
-        $crate::ast::generated::Extern
+        $crate::ast::Extern
     };
     (false) => {
-        $crate::ast::generated::False
+        $crate::ast::False
     };
     (final) => {
-        $crate::ast::generated::Final
+        $crate::ast::Final
     };
     (fn) => {
-        $crate::ast::generated::Fn
+        $crate::ast::Fn
     };
     (for) => {
-        $crate::ast::generated::For
+        $crate::ast::For
     };
     (if) => {
-        $crate::ast::generated::If
+        $crate::ast::If
     };
     (impl) => {
-        $crate::ast::generated::Impl
+        $crate::ast::Impl
     };
     (in) => {
-        $crate::ast::generated::In
+        $crate::ast::In
     };
     (is) => {
-        $crate::ast::generated::Is
+        $crate::ast::Is
     };
     (let) => {
-        $crate::ast::generated::Let
+        $crate::ast::Let
     };
     (loop) => {
-        $crate::ast::generated::Loop
+        $crate::ast::Loop
     };
     (macro) => {
-        $crate::ast::generated::Macro
+        $crate::ast::Macro
     };
     (match) => {
-        $crate::ast::generated::Match
+        $crate::ast::Match
     };
     (mod) => {
-        $crate::ast::generated::Mod
+        $crate::ast::Mod
     };
     (move) => {
-        $crate::ast::generated::Move
+        $crate::ast::Move
     };
     (not) => {
-        $crate::ast::generated::Not
+        $crate::ast::Not
     };
     (offsetof) => {
-        $crate::ast::generated::OffsetOf
+        $crate::ast::OffsetOf
     };
     (override) => {
-        $crate::ast::generated::Override
+        $crate::ast::Override
     };
     (priv) => {
-        $crate::ast::generated::Priv
+        $crate::ast::Priv
     };
     (proc) => {
-        $crate::ast::generated::Proc
+        $crate::ast::Proc
     };
     (pub) => {
-        $crate::ast::generated::Pub
+        $crate::ast::Pub
     };
     (pure) => {
-        $crate::ast::generated::Pure
+        $crate::ast::Pure
     };
     (ref) => {
-        $crate::ast::generated::Ref
+        $crate::ast::Ref
     };
     (return) => {
-        $crate::ast::generated::Return
+        $crate::ast::Return
     };
     (select) => {
-        $crate::ast::generated::Select
+        $crate::ast::Select
     };
     (Self) => {
-        $crate::ast::generated::SelfType
+        $crate::ast::SelfType
     };
     (self) => {
-        $crate::ast::generated::SelfValue
+        $crate::ast::SelfValue
     };
     (sizeof) => {
-        $crate::ast::generated::SizeOf
+        $crate::ast::SizeOf
     };
     (static) => {
-        $crate::ast::generated::Static
+        $crate::ast::Static
     };
     (struct) => {
-        $crate::ast::generated::Struct
+        $crate::ast::Struct
     };
     (super) => {
-        $crate::ast::generated::Super
+        $crate::ast::Super
     };
     (true) => {
-        $crate::ast::generated::True
+        $crate::ast::True
     };
     (typeof) => {
-        $crate::ast::generated::TypeOf
+        $crate::ast::TypeOf
     };
     (unsafe) => {
-        $crate::ast::generated::Unsafe
+        $crate::ast::Unsafe
     };
     (use) => {
-        $crate::ast::generated::Use
+        $crate::ast::Use
     };
     (virtual) => {
-        $crate::ast::generated::Virtual
+        $crate::ast::Virtual
     };
     (while) => {
-        $crate::ast::generated::While
+        $crate::ast::While
     };
     (yield) => {
-        $crate::ast::generated::Yield
+        $crate::ast::Yield
     };
     (&) => {
-        $crate::ast::generated::Amp
+        $crate::ast::Amp
     };
     (&&) => {
-        $crate::ast::generated::AmpAmp
+        $crate::ast::AmpAmp
     };
     (&=) => {
-        $crate::ast::generated::AmpEq
+        $crate::ast::AmpEq
     };
     (->) => {
-        $crate::ast::generated::Arrow
+        $crate::ast::Arrow
     };
     (@) => {
-        $crate::ast::generated::At
+        $crate::ast::At
     };
     (!) => {
-        $crate::ast::generated::Bang
+        $crate::ast::Bang
     };
     (!=) => {
-        $crate::ast::generated::BangEq
+        $crate::ast::BangEq
     };
     (^) => {
-        $crate::ast::generated::Caret
+        $crate::ast::Caret
     };
     (^=) => {
-        $crate::ast::generated::CaretEq
+        $crate::ast::CaretEq
     };
     (:) => {
-        $crate::ast::generated::Colon
+        $crate::ast::Colon
     };
     (::) => {
-        $crate::ast::generated::ColonColon
+        $crate::ast::ColonColon
     };
     (,) => {
-        $crate::ast::generated::Comma
+        $crate::ast::Comma
     };
     (-) => {
-        $crate::ast::generated::Dash
+        $crate::ast::Dash
     };
     (-=) => {
-        $crate::ast::generated::DashEq
+        $crate::ast::DashEq
     };
     (/) => {
-        $crate::ast::generated::Div
+        $crate::ast::Div
     };
     ($) => {
-        $crate::ast::generated::Dollar
+        $crate::ast::Dollar
     };
     (.) => {
-        $crate::ast::generated::Dot
+        $crate::ast::Dot
     };
     (..) => {
-        $crate::ast::generated::DotDot
+        $crate::ast::DotDot
     };
     (..=) => {
-        $crate::ast::generated::DotDotEq
+        $crate::ast::DotDotEq
     };
     (=) => {
-        $crate::ast::generated::Eq
+        $crate::ast::Eq
     };
     (==) => {
-        $crate::ast::generated::EqEq
+        $crate::ast::EqEq
     };
     (>) => {
-        $crate::ast::generated::Gt
+        $crate::ast::Gt
     };
     (>=) => {
-        $crate::ast::generated::GtEq
+        $crate::ast::GtEq
     };
     (>>) => {
-        $crate::ast::generated::GtGt
+        $crate::ast::GtGt
     };
     (>>=) => {
-        $crate::ast::generated::GtGtEq
+        $crate::ast::GtGtEq
     };
     (<) => {
-        $crate::ast::generated::Lt
+        $crate::ast::Lt
     };
     (<=) => {
-        $crate::ast::generated::LtEq
+        $crate::ast::LtEq
     };
     (<<) => {
-        $crate::ast::generated::LtLt
+        $crate::ast::LtLt
     };
     (<<=) => {
-        $crate::ast::generated::LtLtEq
+        $crate::ast::LtLtEq
     };
     (%) => {
-        $crate::ast::generated::Perc
+        $crate::ast::Perc
     };
     (%=) => {
-        $crate::ast::generated::PercEq
+        $crate::ast::PercEq
     };
     (|) => {
-        $crate::ast::generated::Pipe
+        $crate::ast::Pipe
     };
     (|=) => {
-        $crate::ast::generated::PipeEq
+        $crate::ast::PipeEq
     };
     (||) => {
-        $crate::ast::generated::PipePipe
+        $crate::ast::PipePipe
     };
     (+) => {
-        $crate::ast::generated::Plus
+        $crate::ast::Plus
     };
     (+=) => {
-        $crate::ast::generated::PlusEq
+        $crate::ast::PlusEq
     };
     (#) => {
-        $crate::ast::generated::Pound
+        $crate::ast::Pound
     };
     (?) => {
-        $crate::ast::generated::QuestionMark
+        $crate::ast::QuestionMark
     };
     (=>) => {
-        $crate::ast::generated::Rocket
+        $crate::ast::Rocket
     };
     (;) => {
-        $crate::ast::generated::SemiColon
+        $crate::ast::SemiColon
     };
     (/=) => {
-        $crate::ast::generated::SlashEq
+        $crate::ast::SlashEq
     };
     (*) => {
-        $crate::ast::generated::Star
+        $crate::ast::Star
     };
     (*=) => {
-        $crate::ast::generated::StarEq
+        $crate::ast::StarEq
     };
     (~) => {
-        $crate::ast::generated::Tilde
+        $crate::ast::Tilde
     };
     (_) => {
-        $crate::ast::generated::Underscore
+        $crate::ast::Underscore
     };
 }
 

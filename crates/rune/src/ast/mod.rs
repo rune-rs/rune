@@ -56,7 +56,8 @@ use crate::parse::{Parse, ParseError, Parser, Peek};
 
 #[macro_use]
 /// Generated modules.
-pub mod generated;
+mod generated;
+pub use self::generated::*;
 
 macro_rules! expr_parse {
     ($ty:ident, $local:ty, $expected:literal) => {
@@ -157,7 +158,7 @@ mod vis;
 pub use self::attribute::Attribute;
 pub use self::block::Block;
 pub use self::condition::Condition;
-pub use self::expr::{Expr, ExprWithoutBinary};
+pub use self::expr::Expr;
 pub use self::expr_assign::ExprAssign;
 pub use self::expr_await::ExprAwait;
 pub use self::expr_binary::{BinOp, ExprBinary};
@@ -189,7 +190,6 @@ pub use self::expr_yield::ExprYield;
 pub use self::file::File;
 pub use self::fn_arg::FnArg;
 pub use self::force_semi::ForceSemi;
-pub use self::generated::Kind;
 pub use self::grouped::{AngleBracketed, Braced, Bracketed, Parenthesized};
 pub use self::ident::Ident;
 pub use self::item::Item;
@@ -211,7 +211,7 @@ pub use self::lit_str::LitStr;
 pub use self::local::Local;
 pub use self::macro_call::MacroCall;
 pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVec};
-pub use self::path::{Path, PathKind, PathSegment};
+pub use self::path::{Path, PathKind, PathSegment, PathSegmentExpr};
 pub use self::span::{ByteIndex, IntoByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::spanned_error::SpannedError;
