@@ -119,7 +119,7 @@ impl BuiltIn {
 
         if let Some(args) = &self.args {
             for (ident, _) in args {
-                match ident.resolve(storage, sources)?.as_ref() {
+                match ident.resolve(storage, sources)? {
                     "literal" => {
                         out.literal = true;
                     }

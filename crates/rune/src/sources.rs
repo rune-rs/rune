@@ -85,17 +85,17 @@ impl<'a> files::Files<'a> for Sources {
     type Source = &'a str;
 
     fn name(&'a self, file_id: SourceId) -> Result<Self::Name, files::Error> {
-        let source = self.get(file_id).ok_or_else(|| files::Error::FileMissing)?;
+        let source = self.get(file_id).ok_or(files::Error::FileMissing)?;
         Ok(source.name())
     }
 
     fn source(&'a self, file_id: SourceId) -> Result<Self::Source, files::Error> {
-        let source = self.get(file_id).ok_or_else(|| files::Error::FileMissing)?;
+        let source = self.get(file_id).ok_or(files::Error::FileMissing)?;
         Ok(source.as_str())
     }
 
     fn line_index(&self, file_id: SourceId, byte_index: usize) -> Result<usize, files::Error> {
-        let source = self.get(file_id).ok_or_else(|| files::Error::FileMissing)?;
+        let source = self.get(file_id).ok_or(files::Error::FileMissing)?;
         Ok(source.line_index(byte_index))
     }
 
@@ -104,7 +104,7 @@ impl<'a> files::Files<'a> for Sources {
         file_id: SourceId,
         line_index: usize,
     ) -> Result<std::ops::Range<usize>, files::Error> {
-        let source = self.get(file_id).ok_or_else(|| files::Error::FileMissing)?;
+        let source = self.get(file_id).ok_or(files::Error::FileMissing)?;
         let range = source
             .line_range(line_index)
             .ok_or_else(|| files::Error::LineTooLarge {

@@ -399,7 +399,7 @@ impl Vm {
     {
         let count = args.count() + 1;
         let type_hash = target.type_hash()?;
-        self.stack.push(target.clone());
+        self.stack.push(target);
 
         // Safety: We hold onto the guard for the duration of this call.
         let _guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
@@ -2296,10 +2296,7 @@ impl Vm {
                 Result::Ok(value) => Some(value.clone()),
                 Result::Err(..) => None,
             },
-            Value::Option(option) => match &*option.borrow_ref()? {
-                Option::Some(value) => Some(value.clone()),
-                Option::None => None,
-            },
+            Value::Option(option) => (*option.borrow_ref()?).clone(),
             other => {
                 return Err(VmError::from(VmErrorKind::UnsupportedTryOperand {
                     actual: other.type_info()?,

@@ -35,7 +35,7 @@ pub(crate) async fn do_benches(
     sources: Sources,
     found: Vec<(Hash, Meta)>,
 ) -> anyhow::Result<ExitCode> {
-    let mut vm = rune::Vm::new(runtime, unit.clone());
+    let mut vm = rune::Vm::new(runtime, unit);
 
     writeln!(out, "Found {} benches...", found.len())?;
 
@@ -88,7 +88,7 @@ fn bench_fn(
         drop(value);
     }
 
-    collected.sort();
+    collected.sort_unstable();
 
     let len = collected.len() as f64;
     let average = collected.iter().copied().sum::<i128>() as f64 / len;

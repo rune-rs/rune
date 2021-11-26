@@ -444,7 +444,7 @@ impl IrCompile for BuiltInTemplate {
                     ..
                 } = &**expr_lit
                 {
-                    let s = s.resolve_template_string(&c.q.storage(), c.q.sources)?;
+                    let s = s.resolve_template_string(c.q.storage(), c.q.sources)?;
 
                     components.push(ir::IrTemplateComponent::String(
                         s.into_owned().into_boxed_str(),

@@ -50,7 +50,7 @@ impl Import {
                     Some(global) => match &self.ast.path.first {
                         ast::ItemUseSegment::PathSegment(ast::PathSegment::Ident(ident)) => {
                             let ident = ident.resolve(q.storage(), q.sources)?;
-                            (Item::with_crate(ident.as_ref()), None, false)
+                            (Item::with_crate(ident), None, false)
                         }
                         _ => {
                             return Err(CompileError::new(
