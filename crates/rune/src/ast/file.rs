@@ -97,7 +97,7 @@ impl Parse for File {
         let mut item_visibility = p.parse()?;
         let mut path = p.parse::<Option<ast::Path>>()?;
 
-        while path.is_some() || ast::Item::peek_as_item(p.peeker(), path.as_ref()) {
+        while path.is_some() || ast::Item::peek_as_item(p.peeker()) {
             let item: ast::Item =
                 ast::Item::parse_with_meta_path(p, item_attributes, item_visibility, path.take())?;
 

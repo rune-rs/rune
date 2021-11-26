@@ -64,12 +64,7 @@ impl Item {
     }
 
     /// Test if declaration is suitable inside of a file.
-    pub fn peek_as_item(p: &mut Peeker<'_>, path: Option<&ast::Path>) -> bool {
-        if path.is_some() {
-            // Macro call.
-            return matches!(p.nth(0), K![!]);
-        }
-
+    pub fn peek_as_item(p: &mut Peeker<'_>) -> bool {
         match p.nth(0) {
             K![use] => true,
             K![enum] => true,

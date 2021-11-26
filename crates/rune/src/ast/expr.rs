@@ -248,6 +248,14 @@ impl Expr {
         false
     }
 
+    /// Try to coerce into item if applicable.
+    pub(crate) fn into_item(self) -> Result<ast::Item, Self> {
+        match self {
+            Self::MacroCall(e) => Ok(ast::Item::MacroCall(e)),
+            e => Err(e),
+        }
+    }
+
     /// Parse an expression without an eager brace.
     ///
     /// This is used to solve a syntax ambiguity when parsing expressions that
@@ -357,15 +365,9 @@ impl Expr {
     pub(crate) fn parse_with_meta(
         p: &mut Parser<'_>,
         attributes: &mut Vec<ast::Attribute>,
-        path: Option<ast::Path>,
         callable: Callable,
     ) -> Result<Self, ParseError> {
-        let lhs = if let Some(path) = path {
-            Self::parse_with_meta_path(p, attributes, path, EagerBrace(true))?
-        } else {
-            Self::parse_base(p, attributes, EagerBrace(true))?
-        };
-
+        let lhs = Self::parse_base(p, attributes, EagerBrace(true))?;
         let lhs = Self::parse_chain(p, lhs, callable)?;
         Self::parse_binary(p, lhs, 0, EagerBrace(true))
     }
@@ -901,5 +903,10 @@ mod tests {
         roundtrip::<ast::Expr>("foo[0][1][2]");
         roundtrip::<ast::Expr>("foo.bar()[0].baz()[1]");
         roundtrip::<ast::Expr>("42 is int::int");
+    }
+
+    #[test]
+    fn test_macro_call_chain() {
+        roundtrip::<ast::Expr>("format!(\"{}\", a).bar()");
     }
 }

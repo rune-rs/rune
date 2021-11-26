@@ -52,9 +52,9 @@ impl Parse for Stmt {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         let mut attributes = p.parse()?;
         let visibility = p.parse()?;
-        let path = p.parse::<Option<ast::Path>>()?;
 
-        if ast::Item::peek_as_item(p.peeker(), path.as_ref()) {
+        if ast::Item::peek_as_item(p.peeker()) {
+            let path = p.parse::<Option<ast::Path>>()?;
             let item: ast::Item = ast::Item::parse_with_meta_path(p, attributes, visibility, path)?;
 
             let semi = if item.needs_semi_colon() {
@@ -71,17 +71,16 @@ impl Parse for Stmt {
         }
 
         let stmt = if let K![let] = p.nth(0)? {
-            if let Some(path) = path {
-                return Err(ParseError::expected(&path.first, "expected let statement"));
-            }
-
             let local = Box::new(ast::Local::parse_with_meta(p, take(&mut attributes))?);
             Self::Local(local)
         } else {
-            let expr =
-                ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(true))?;
+            let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::Callable(true))?;
 
-            Self::Expr(expr, p.parse()?)
+            // Parsed an expression which can be treated directly as an item.
+            match expr.into_item() {
+                Ok(item) => Self::Item(item, p.parse()?),
+                Err(expr) => Self::Expr(expr, p.parse()?),
+            }
         };
 
         if let Some(span) = attributes.option_span() {
@@ -122,9 +121,9 @@ impl Parse for ItemOrExpr {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         let mut attributes = p.parse()?;
         let visibility = p.parse()?;
-        let path = p.parse::<Option<ast::Path>>()?;
 
-        if ast::Item::peek_as_item(p.peeker(), path.as_ref()) {
+        if ast::Item::peek_as_item(p.peeker()) {
+            let path = p.parse()?;
             let item: ast::Item = ast::Item::parse_with_meta_path(p, attributes, visibility, path)?;
             return Ok(Self::Item(item));
         }
@@ -133,7 +132,7 @@ impl Parse for ItemOrExpr {
             return Err(ParseError::unsupported(span, "visibility modifier"));
         }
 
-        let expr = ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(true))?;
+        let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::Callable(true))?;
 
         if let Some(span) = attributes.option_span() {
             return Err(ParseError::unsupported(span, "attributes"));
@@ -156,11 +155,17 @@ pub enum StmtSortKey {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ast, testing};
+    use crate::ast;
+    use crate::testing::roundtrip;
 
     #[test]
     fn test_stmt_local() {
-        testing::roundtrip::<ast::Stmt>("let x = 1;");
-        testing::roundtrip::<ast::Stmt>("#[attr] let a = f();");
+        roundtrip::<ast::Stmt>("let x = 1;");
+        roundtrip::<ast::Stmt>("#[attr] let a = f();");
+    }
+
+    #[test]
+    fn test_macro_call_chain() {
+        roundtrip::<ast::Stmt>("line!().bar()");
     }
 }
