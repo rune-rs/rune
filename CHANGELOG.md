@@ -7,7 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/rune-rs/rune/compare/0.9.1...main
+[Unreleased]: https://github.com/rune-rs/rune/compare/0.10.0...main
+
+## [0.10.0]
+
+For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 0.10.x][9-to-10].
+
+## Changed
+* Rune is now a single `rune` crate instead of being divided between `runestick`
+  and `rune`. 
+* Completely overhauled how rune is compiled.
+* Changed how diagnostics is emitted.
+* Macros now take an explicit `ctx` macro rather than relying on `TLS` ([#304]).
+* Native functions no longer has to be `Copy` ([#329]).
+
+## Added
+* We can now compile rune source inside of macros ([#302]).
+* Basic benchmarking tool to `rune-cli` through `rune bench` ([#296]).
+
+## Fixed
+* Fixed issue when expanding template literals which prevents properly using
+  them as expressions ([#326]) (thanks [Steven0351]!).
+* Constant values are not exported so they can be looked up in the unit ([#316],
+  [#317]) (thanks [pkolaczk] and [tgolsson]!).
+* Make `SyncFunction` documentation visible ([#279]).
+
+[0.10.0]: https://github.com/rune-rs/rune/compare/0.9.1...main
+[9-to-10]: https://github.com/rune-rs/rune/blob/main/UPGRADING.md
+
+[#279]: https://github.com/rune-rs/rune/issues/279
+[#296]: https://github.com/rune-rs/rune/pull/296
+[#302]: https://github.com/rune-rs/rune/issues/302
+[#304]: https://github.com/rune-rs/rune/pull/304
+[#316]: https://github.com/rune-rs/rune/issues/316
+[#317]: https://github.com/rune-rs/rune/pull/317
+[#326]: https://github.com/rune-rs/rune/issues/326
+
+[pkolaczk]: https://github.com/pkolaczk
+[Steven0351]: https://github.com/Steven0351
+[tgolsson]: https://github.com/tgolsson
 
 ## [0.9.1]
 
