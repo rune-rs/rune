@@ -52,6 +52,7 @@
 //! # Ok(()) }
 //! ```
 
+use crate::macros::{MacroContext, ToTokens, TokenStream};
 use crate::parse::{Parse, ParseError, Parser, Peek};
 
 #[macro_use]
@@ -256,8 +257,8 @@ macro_rules! decl_tokens {
                 }
             }
 
-            impl $crate::macros::ToTokens for $parser {
-                fn to_tokens(&self, _: &mut $crate::macros::MacroContext, stream: &mut $crate::macros::TokenStream) {
+            impl ToTokens for $parser {
+                fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
                     stream.push(self.token);
                 }
             }
@@ -274,4 +275,14 @@ decl_tokens! {
     (OpenBracket, "an open bracket `[`", "opening bracket", Kind::Open(Delimiter::Bracket)),
     (OpenParen, "an opening parenthesis `(`", "opening parenthesis", Kind::Open(Delimiter::Parenthesis)),
     (OpenEmpty, "an empty opening marker", "opening marker", Kind::Open(Delimiter::Empty)),
+}
+
+/// The composite `is not` operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToTokens, Spanned)]
+#[non_exhaustive]
+pub struct IsNot {
+    /// The `is` token.
+    pub is: Is,
+    /// The `not` token.
+    pub not: Not,
 }

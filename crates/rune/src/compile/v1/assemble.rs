@@ -2910,7 +2910,7 @@ fn expr_unary(ast: &ast::ExprUnary, c: &mut Assembler<'_>, needs: Needs) -> Comp
         return Err(CompileError::new(ast, CompileErrorKind::UnsupportedRef));
     }
 
-    if let (ast::UnOp::Neg, ast::Expr::Lit(expr_lit)) = (ast.op, &ast.expr) {
+    if let (ast::UnOp::Neg(..), ast::Expr::Lit(expr_lit)) = (ast.op, &ast.expr) {
         if let ast::Lit::Number(n) = &expr_lit.lit {
             match n.resolve(c.q.storage(), c.q.sources)? {
                 ast::Number::Float(n) => {
@@ -2941,10 +2941,10 @@ fn expr_unary(ast: &ast::ExprUnary, c: &mut Assembler<'_>, needs: Needs) -> Comp
     expr(&ast.expr, c, Needs::Value)?.apply(c)?;
 
     match ast.op {
-        ast::UnOp::Not { .. } => {
+        ast::UnOp::Not(..) => {
             c.asm.push(Inst::Not, span);
         }
-        ast::UnOp::Neg { .. } => {
+        ast::UnOp::Neg(..) => {
             c.asm.push(Inst::Neg, span);
         }
         op => {

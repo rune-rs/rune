@@ -21,40 +21,28 @@ pub struct ExprUnary {
     /// Attributes associated with expression.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
-    /// Token associated with operator.
-    pub op_token: ast::Token,
+    /// The operation to apply.
+    pub op: UnOp,
     /// The expression of the operation.
     pub expr: ast::Expr,
-    /// The operation to apply.
-    #[rune(skip)]
-    pub op: UnOp,
 }
 
 impl ExprUnary {
-    /// Get the span of the op.
-    pub fn op_span(&self) -> Span {
-        self.op_token.span()
-    }
-
     /// Parse the uniary expression with the given meta and configuration.
     pub(crate) fn parse_with_meta(
-        parser: &mut Parser,
+        p: &mut Parser,
         attributes: Vec<ast::Attribute>,
         eager_brace: ast::expr::EagerBrace,
     ) -> Result<Self, ParseError> {
-        let op_token = parser.next()?;
-        let op = UnOp::from_token(op_token)?;
-
         Ok(Self {
             attributes,
-            op_token,
+            op: p.parse()?,
             expr: ast::Expr::parse_with(
-                parser,
+                p,
                 eager_brace,
                 ast::expr::NOT_EAGER_BINARY,
                 ast::expr::CALLABLE,
             )?,
-            op,
         })
     }
 }
@@ -62,38 +50,54 @@ impl ExprUnary {
 expr_parse!(Unary, ExprUnary, "try expression");
 
 /// A unary operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
 pub enum UnOp {
     /// Not `!<thing>`.
-    Not,
+    Not(ast::Bang),
     /// Negation `-<thing>`.
-    Neg,
+    Neg(ast::Dash),
     /// Reference `&<thing>`.
-    BorrowRef,
+    BorrowRef(ast::Amp),
     /// Dereference `*<thing>`.
-    Deref,
+    Deref(ast::Star),
 }
 
-impl UnOp {
-    /// Convert a unary operator from a token.
-    pub(crate) fn from_token(t: ast::Token) -> Result<Self, ParseError> {
-        match t.kind {
-            K![!] => Ok(Self::Not),
-            K![-] => Ok(Self::Neg),
-            K![&] => Ok(Self::BorrowRef),
-            K![*] => Ok(Self::Deref),
-            _ => Err(ParseError::expected(t, "unary operator, like `!` or `-`")),
+/// A unary operator.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::UnOp>("!");
+/// testing::roundtrip::<ast::UnOp>("-");
+/// testing::roundtrip::<ast::UnOp>("&");
+/// testing::roundtrip::<ast::UnOp>("*");
+/// ```
+impl Parse for UnOp {
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let token = p.next()?;
+
+        match token.kind {
+            K![!] => Ok(Self::Not(ast::Bang { token })),
+            K![-] => Ok(Self::Neg(ast::Dash { token })),
+            K![&] => Ok(Self::BorrowRef(ast::Amp { token })),
+            K![*] => Ok(Self::Deref(ast::Star { token })),
+            _ => Err(ParseError::expected(
+                token,
+                "unary operator, like `!` or `-`",
+            )),
         }
     }
 }
 
 impl fmt::Display for UnOp {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Not => write!(fmt, "!")?,
-            Self::Neg => write!(fmt, "-")?,
-            Self::BorrowRef => write!(fmt, "&")?,
-            Self::Deref => write!(fmt, "*")?,
+            Self::Not(..) => write!(f, "!")?,
+            Self::Neg(..) => write!(f, "-")?,
+            Self::BorrowRef(..) => write!(f, "&")?,
+            Self::Deref(..) => write!(f, "*")?,
         }
 
         Ok(())

@@ -178,6 +178,9 @@ fn main() -> Result<()> {
                 ('}') => {
                     $crate::ast::CloseBrace
                 };
+                (is not) => {
+                    $crate::ast::IsNot
+                };
                 #(for k in &keywords join(#<push>) =>
                     (#(&k.keyword)) => {
                         $crate::ast::#(&k.variant)
