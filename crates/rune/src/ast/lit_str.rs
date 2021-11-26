@@ -2,11 +2,11 @@ use crate::ast::prelude::*;
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitStr {
-    /// The token corresponding to the literal.
-    pub token: ast::Token,
+    /// The span corresponding to the literal.
+    pub span: Span,
     /// The source of the literal string.
     #[rune(skip)]
     pub source: ast::StrSource,
@@ -29,7 +29,7 @@ impl LitStr {
         sources: &'a Sources,
         with_template: ast::utils::WithTemplate,
     ) -> Result<Cow<'a, str>, ResolveError> {
-        let span = self.token.span();
+        let span = self.span;
 
         let text = match self.source {
             ast::StrSource::Text(text) => text,
@@ -111,11 +111,14 @@ impl LitStr {
 /// ```
 impl Parse for LitStr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.next()?;
+        let t = parser.next()?;
 
-        match token.kind {
-            K![str(source)] => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(token, "string literal")),
+        match t.kind {
+            K![str(source)] => Ok(Self {
+                span: t.span,
+                source,
+            }),
+            _ => Err(ParseError::expected(t, "string literal")),
         }
     }
 }
@@ -129,5 +132,14 @@ impl<'a> Resolve<'a> for LitStr {
         sources: &'a Sources,
     ) -> Result<Cow<'a, str>, ResolveError> {
         self.resolve_string(storage, sources, ast::utils::WithTemplate(false))
+    }
+}
+
+impl ToTokens for LitStr {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Str(self.source),
+        });
     }
 }

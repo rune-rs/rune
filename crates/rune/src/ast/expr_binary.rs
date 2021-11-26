@@ -161,51 +161,51 @@ impl BinOp {
 
     /// Convert from a token.
     pub(super) fn from_peeker(p: &mut Peeker<'_>) -> Option<BinOp> {
-        let token = p.tok_at(0);
+        let ast::Token { kind, span } = p.tok_at(0);
 
-        let out = match token.kind {
-            K![+] => Self::Add(ast::Plus { token }),
-            K![-] => Self::Sub(ast::Dash { token }),
-            K![*] => Self::Mul(ast::Star { token }),
-            K![/] => Self::Div(ast::Div { token }),
-            K![%] => Self::Rem(ast::Perc { token }),
-            K![==] => Self::Eq(ast::EqEq { token }),
-            K![!=] => Self::Neq(ast::BangEq { token }),
-            K![<] => Self::Lt(ast::Lt { token }),
-            K![>] => Self::Gt(ast::Gt { token }),
-            K![<=] => Self::Lte(ast::LtEq { token }),
-            K![>=] => Self::Gte(ast::GtEq { token }),
+        let out = match kind {
+            K![+] => Self::Add(ast::Plus { span }),
+            K![-] => Self::Sub(ast::Dash { span }),
+            K![*] => Self::Mul(ast::Star { span }),
+            K![/] => Self::Div(ast::Div { span }),
+            K![%] => Self::Rem(ast::Perc { span }),
+            K![==] => Self::Eq(ast::EqEq { span }),
+            K![!=] => Self::Neq(ast::BangEq { span }),
+            K![<] => Self::Lt(ast::Lt { span }),
+            K![>] => Self::Gt(ast::Gt { span }),
+            K![<=] => Self::Lte(ast::LtEq { span }),
+            K![>=] => Self::Gte(ast::GtEq { span }),
             K![is] => {
-                let is = ast::Is { token };
-                let token = p.tok_at(1);
+                let is = ast::Is { span };
+                let ast::Token { kind, span } = p.tok_at(1);
 
-                match token.kind {
+                match kind {
                     K![not] => Self::IsNot(ast::IsNot {
                         is,
-                        not: ast::Not { token },
+                        not: ast::Not { span },
                     }),
                     _ => Self::Is(is),
                 }
             }
-            K![&&] => Self::And(ast::AmpAmp { token }),
-            K![||] => Self::Or(ast::PipePipe { token }),
-            K![<<] => Self::Shl(ast::LtLt { token }),
-            K![>>] => Self::Shr(ast::GtGt { token }),
-            K![&] => Self::BitAnd(ast::Amp { token }),
-            K![^] => Self::BitXor(ast::Caret { token }),
-            K![|] => Self::BitOr(ast::Pipe { token }),
-            K![+=] => Self::AddAssign(ast::PlusEq { token }),
-            K![-=] => Self::SubAssign(ast::DashEq { token }),
-            K![*=] => Self::MulAssign(ast::StarEq { token }),
-            K![/=] => Self::DivAssign(ast::SlashEq { token }),
-            K![%=] => Self::RemAssign(ast::PercEq { token }),
-            K![&=] => Self::BitAndAssign(ast::AmpEq { token }),
-            K![^=] => Self::BitXorAssign(ast::CaretEq { token }),
-            K![|=] => Self::BitOrAssign(ast::PipeEq { token }),
-            K![<<=] => Self::ShlAssign(ast::LtLtEq { token }),
-            K![>>=] => Self::ShrAssign(ast::GtGtEq { token }),
-            K![..] => Self::DotDot(ast::DotDot { token }),
-            K![..=] => Self::DotDotEq(ast::DotDotEq { token }),
+            K![&&] => Self::And(ast::AmpAmp { span }),
+            K![||] => Self::Or(ast::PipePipe { span }),
+            K![<<] => Self::Shl(ast::LtLt { span }),
+            K![>>] => Self::Shr(ast::GtGt { span }),
+            K![&] => Self::BitAnd(ast::Amp { span }),
+            K![^] => Self::BitXor(ast::Caret { span }),
+            K![|] => Self::BitOr(ast::Pipe { span }),
+            K![+=] => Self::AddAssign(ast::PlusEq { span }),
+            K![-=] => Self::SubAssign(ast::DashEq { span }),
+            K![*=] => Self::MulAssign(ast::StarEq { span }),
+            K![/=] => Self::DivAssign(ast::SlashEq { span }),
+            K![%=] => Self::RemAssign(ast::PercEq { span }),
+            K![&=] => Self::BitAndAssign(ast::AmpEq { span }),
+            K![^=] => Self::BitXorAssign(ast::CaretEq { span }),
+            K![|=] => Self::BitOrAssign(ast::PipeEq { span }),
+            K![<<=] => Self::ShlAssign(ast::LtLtEq { span }),
+            K![>>=] => Self::ShrAssign(ast::GtGtEq { span }),
+            K![..] => Self::DotDot(ast::DotDot { span }),
+            K![..=] => Self::DotDotEq(ast::DotDotEq { span }),
             _ => return None,
         };
 

@@ -201,42 +201,21 @@ where
     fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
         let id = storage.insert_number(self);
         let source = ast::NumberSource::Synthetic(id);
-
-        ast::Lit::Number(ast::LitNumber {
-            token: ast::Token {
-                kind: ast::Kind::Number(source),
-                span,
-            },
-            source,
-        })
+        ast::Lit::Number(ast::LitNumber { span, source })
     }
 }
 
 impl IntoLit for char {
     fn into_lit(self, span: Span, _: &mut Storage) -> ast::Lit {
         let source = ast::CopySource::Inline(self);
-
-        ast::Lit::Char(ast::LitChar {
-            token: ast::Token {
-                kind: ast::Kind::Char(source),
-                span,
-            },
-            source,
-        })
+        ast::Lit::Char(ast::LitChar { span, source })
     }
 }
 
 impl IntoLit for u8 {
     fn into_lit(self, span: Span, _: &mut Storage) -> ast::Lit {
         let source = ast::CopySource::Inline(self);
-
-        ast::Lit::Byte(ast::LitByte {
-            token: ast::Token {
-                kind: ast::Kind::Byte(source),
-                span,
-            },
-            source,
-        })
+        ast::Lit::Byte(ast::LitByte { span, source })
     }
 }
 
@@ -244,14 +223,7 @@ impl IntoLit for &str {
     fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
         let id = storage.insert_str(self);
         let source = ast::StrSource::Synthetic(id);
-
-        ast::Lit::Str(ast::LitStr {
-            token: ast::Token {
-                kind: ast::Kind::Str(ast::StrSource::Synthetic(id)),
-                span,
-            },
-            source,
-        })
+        ast::Lit::Str(ast::LitStr { span, source })
     }
 }
 
@@ -265,14 +237,7 @@ impl IntoLit for String {
     fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
         let id = storage.insert_string(self);
         let source = ast::StrSource::Synthetic(id);
-
-        ast::Lit::Str(ast::LitStr {
-            token: ast::Token {
-                kind: ast::Kind::Str(source),
-                span,
-            },
-            source,
-        })
+        ast::Lit::Str(ast::LitStr { span, source })
     }
 }
 
@@ -281,13 +246,7 @@ impl IntoLit for &[u8] {
         let id = storage.insert_byte_string(self);
         let source = ast::StrSource::Synthetic(id);
 
-        ast::Lit::ByteStr(ast::LitByteStr {
-            token: ast::Token {
-                kind: ast::Kind::ByteStr(source),
-                span,
-            },
-            source,
-        })
+        ast::Lit::ByteStr(ast::LitByteStr { span, source })
     }
 }
 

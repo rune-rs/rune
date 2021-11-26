@@ -123,13 +123,13 @@ fn main() -> Result<()> {
                 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
                 #[non_exhaustive]
                 pub struct #(t.variant()) {
-                    #("/// Associated token.")
-                    pub token: #token,
+                    #("/// Associated span.")
+                    pub span: #span,
                 }
 
                 impl #spanned for #(t.variant()) {
                     fn span(&self) -> #span {
-                        self.token.span()
+                        self.span
                     }
                 }
 
@@ -138,7 +138,7 @@ fn main() -> Result<()> {
                         let token = p.next()?;
 
                         match token.kind {
-                            #kind::#(t.variant()) => Ok(Self { token }),
+                            #kind::#(t.variant()) => Ok(Self { span: token.span }),
                             _ => Err(#parse_error::expected(token, #kind::#(t.variant()))),
                         }
                     }
@@ -152,7 +152,10 @@ fn main() -> Result<()> {
 
                 impl #to_tokens for #(t.variant()) {
                     fn to_tokens(&self, _: &mut #macro_context<'_>, stream: &mut #token_stream) {
-                        stream.push(self.token);
+                        stream.push(#token {
+                            span: self.span,
+                            kind: #kind::#(t.variant()),
+                        });
                     }
                 }
             )

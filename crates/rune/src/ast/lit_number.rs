@@ -1,11 +1,13 @@
 use crate::ast::prelude::*;
+use num::Num;
+use std::str::FromStr;
 
 /// A number literal.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitNumber {
-    /// The token corresponding to the literal.
-    pub token: ast::Token,
+    /// The span corresponding to the literal.
+    pub span: Span,
     /// The source of the number.
     #[rune(skip)]
     pub source: ast::NumberSource,
@@ -25,11 +27,14 @@ pub struct LitNumber {
 /// ```
 impl Parse for LitNumber {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.next()?;
+        let t = parser.next()?;
 
-        match token.kind {
-            K![number(source)] => Ok(LitNumber { source, token }),
-            _ => Err(ParseError::expected(token, "number")),
+        match t.kind {
+            K![number(source)] => Ok(LitNumber {
+                source,
+                span: t.span,
+            }),
+            _ => Err(ParseError::expected(t, "number")),
         }
     }
 }
@@ -42,10 +47,7 @@ impl<'a> Resolve<'a> for LitNumber {
         storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<ast::Number, ResolveError> {
-        use num::Num as _;
-        use std::str::FromStr as _;
-
-        let span = self.token.span();
+        let span = self.span;
 
         let text = match self.source {
             ast::NumberSource::Synthetic(id) => match storage.get_number(id) {
@@ -85,5 +87,14 @@ impl<'a> Resolve<'a> for LitNumber {
         fn err_span<E>(span: Span) -> impl Fn(E) -> ResolveError {
             move |_| ResolveError::new(span, ResolveErrorKind::BadNumberLiteral)
         }
+    }
+}
+
+impl ToTokens for LitNumber {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Number(self.source),
+        });
     }
 }
