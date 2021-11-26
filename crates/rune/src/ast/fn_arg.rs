@@ -12,6 +12,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::FnArg>("abc");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum FnArg {
     /// The `self` parameter.
     SelfValue(T![self]),

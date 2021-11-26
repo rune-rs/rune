@@ -10,6 +10,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ExprContinue {
     /// The attributes of the `break` expression
     #[rune(iter, meta)]

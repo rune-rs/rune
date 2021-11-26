@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// A character literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct LitChar {
     /// The token corresponding to the literal.
     pub token: ast::Token,
@@ -42,7 +43,7 @@ impl Parse for LitChar {
 
         match token.kind {
             K![char(source)] => Ok(LitChar { token, source }),
-            _ => Err(ParseError::expected(&token, "char")),
+            _ => Err(ParseError::expected(token, "char")),
         }
     }
 }

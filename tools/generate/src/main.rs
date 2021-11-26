@@ -29,13 +29,6 @@ enum Token {
 }
 
 impl Token {
-    fn name(&self) -> &str {
-        match self {
-            Self::Keyword(k) => &k.keyword,
-            Self::Punct(p) => &p.punct,
-        }
-    }
-
     fn doc(&self) -> &str {
         match self {
             Self::Keyword(k) => &k.doc,
@@ -47,13 +40,6 @@ impl Token {
         match self {
             Self::Keyword(k) => &k.variant,
             Self::Punct(p) => &p.variant,
-        }
-    }
-
-    fn desc(&self) -> &str {
-        match self {
-            Self::Keyword(k) => &k.keyword,
-            Self::Punct(p) => &p.punct,
         }
     }
 }
@@ -105,7 +91,8 @@ fn main() -> Result<()> {
 
     let copy_source = &rust::import("crate::ast", "CopySource");
     let delimiter = &rust::import("crate::ast", "Delimiter");
-    let description = &rust::import("crate::shared", "Description");
+    let into_expectation = &rust::import("crate::parse", "IntoExpectation");
+    let expectation = &rust::import("crate::parse", "Expectation");
     let display = &rust::import("std::fmt", "Display");
     let fmt_result = &rust::import("std::fmt", "Result");
     let formatter = &rust::import("std::fmt", "Formatter");
@@ -120,7 +107,7 @@ fn main() -> Result<()> {
     let peek = &rust::import("crate::parse", "Peek");
     let span = &rust::import("crate::ast", "Span");
     let spanned = &rust::import("crate::ast", "Spanned");
-    let string_source = &rust::import("crate::ast", "StringSource");
+    let lit_source = &rust::import("crate::ast", "LitSource");
     let to_tokens= &rust::import("crate::macros", "ToTokens");
     let token = &rust::import("crate::ast", "Token");
     let token_stream = &rust::import("crate::macros", "TokenStream");
@@ -134,6 +121,7 @@ fn main() -> Result<()> {
             #(for t in &tokens join(#<line>) =>
                 #(format!("/// {}", t.doc()))
                 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+                #[non_exhaustive]
                 pub struct #(t.variant()) {
                     #("/// Associated token.")
                     pub token: #token,
@@ -151,7 +139,7 @@ fn main() -> Result<()> {
 
                         match token.kind {
                             #kind::#(t.variant()) => Ok(Self { token }),
-                            _ => Err(#parse_error::expected(&token, #(quoted(t.name())))),
+                            _ => Err(#parse_error::expected(token, #kind::#(t.variant()))),
                         }
                     }
                 }
@@ -163,7 +151,7 @@ fn main() -> Result<()> {
                 }
 
                 impl #to_tokens for #(t.variant()) {
-                    fn to_tokens(&self, _: &mut #macro_context, stream: &mut #token_stream) {
+                    fn to_tokens(&self, _: &mut #macro_context<'_>, stream: &mut #token_stream) {
                         stream.push(self.token);
                     }
                 }
@@ -245,9 +233,9 @@ fn main() -> Result<()> {
                 #("/// An open delimiter: `(`, `{`, or `[`.")
                 Open(#delimiter),
                 #("/// An identifier.")
-                Ident(#string_source),
+                Ident(#lit_source),
                 #("/// A label, like `'loop`.")
-                Label(#string_source),
+                Label(#lit_source),
                 #("/// A byte literal.")
                 Byte(#copy_source<u8>),
                 #("/// A byte string literal, including escape sequences. Like `b\"hello\\nworld\"`.")
@@ -279,33 +267,26 @@ fn main() -> Result<()> {
                     }
                 }
 
-                #("/// Get the kind as a descriptive string.")
-                fn as_str(self) -> &'static str {
+                #("/// If applicable, convert this into a literal.")
+                pub fn as_literal_str(&self) -> Option<&'static str> {
                     match self {
-                        Self::Eof => "eof",
-                        Self::Error => "error",
-                        Self::Close(delimiter) => delimiter.close(),
-                        Self::Open(delimiter) => delimiter.open(),
-                        Self::Ident(..) => "ident",
-                        Self::Label(..) => "label",
-                        Self::Byte { .. } => "byte",
-                        Self::ByteStr { .. } => "byte string",
-                        Self::Char { .. } => "char",
-                        Self::Number { .. } => "number",
-                        Self::Str { .. } => "string",
-                        #(for t in &tokens join (#<push>) => Self::#(t.variant()) => #(quoted(t.desc())),)
+                        Self::Close(d) => Some(d.close()),
+                        Self::Open(d) => Some(d.open()),
+                        #(for k in &keywords join (#<push>) => Self::#(&k.variant) => Some(#(quoted(&k.keyword))),)
+                        #(for p in &punctuations join (#<push>) => Self::#(&p.variant) => Some(#(quoted(&p.punct))),)
+                        _ => None,
                     }
                 }
             }
 
             impl #display for Kind {
                 fn fmt(&self, f: &mut #formatter<'_>) -> #fmt_result {
-                    f.write_str(self.as_str())
+                    #into_expectation::into_expectation(*self).fmt(f)
                 }
             }
 
             impl #to_tokens for Kind {
-                fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
+                fn to_tokens(&self, context: &mut #macro_context<'_>, stream: &mut #token_stream) {
                     stream.push(#token {
                         kind: *self,
                         span: context.macro_span(),
@@ -313,9 +294,23 @@ fn main() -> Result<()> {
                 }
             }
 
-            impl #description for &Kind {
-                fn description(self) -> &'static str {
-                    self.as_str()
+            impl #into_expectation for Kind {
+                fn into_expectation(self) -> #expectation {
+                    match self {
+                        Self::Eof => #expectation::Description("eof"),
+                        Self::Error => #expectation::Description("error"),
+                        Self::Ident(..) => #expectation::Description("ident"),
+                        Self::Label(..) => #expectation::Description("label"),
+                        Self::Byte { .. } => #expectation::Description("byte"),
+                        Self::ByteStr { .. } => #expectation::Description("byte string"),
+                        Self::Char { .. } => #expectation::Description("char"),
+                        Self::Number { .. } => #expectation::Description("number"),
+                        Self::Str { .. } => #expectation::Description("string"),
+                        Self::Close(delimiter) => #expectation::Delimiter(delimiter.close()),
+                        Self::Open(delimiter) => #expectation::Delimiter(delimiter.open()),
+                        #(for k in &keywords join (#<push>) => Self::#(&k.variant) => #expectation::Keyword(#(quoted(&k.keyword))),)
+                        #(for p in &punctuations join (#<push>) => Self::#(&p.variant) => #expectation::Punctuation(#(quoted(&p.punct))),)
+                    }
                 }
             }
         },

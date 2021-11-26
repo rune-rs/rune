@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// The unit literal `()`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct LitBool {
     /// The token of the literal.
     pub token: ast::Token,
@@ -28,10 +29,7 @@ impl Parse for LitBool {
             K![true] => true,
             K![false] => false,
             _ => {
-                return Err(ParseError::expected(
-                    &token,
-                    "boolean literal `true` or `false`",
-                ));
+                return Err(ParseError::expected(token, Expectation::Boolean));
             }
         };
 

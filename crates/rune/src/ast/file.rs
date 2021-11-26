@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// A parsed file.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
+#[non_exhaustive]
 pub struct File {
     /// Top level "Outer" `#![...]` attributes for the file
     #[rune(iter)]

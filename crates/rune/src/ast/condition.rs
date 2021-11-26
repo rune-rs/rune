@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// An if condition.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum Condition {
     /// A regular expression.
     Expr(ast::Expr),

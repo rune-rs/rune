@@ -10,6 +10,7 @@ use std::mem::take;
 /// testing::roundtrip::<ast::Stmt>("#[attr] let a = f();");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum Stmt {
     /// A local declaration.
     Local(Box<ast::Local>),
@@ -30,7 +31,7 @@ impl Stmt {
     ///
     /// Note that the sort implementation must be stable, to make sure that
     /// intermediate items are not affected.
-    pub fn sort_key(&self) -> StmtSortKey {
+    pub(crate) fn sort_key(&self) -> StmtSortKey {
         match self {
             Stmt::Item(item, _) => match item {
                 ast::Item::Use(_) => StmtSortKey::Use,
@@ -92,6 +93,8 @@ impl Parse for Stmt {
 }
 
 /// Parsing an item or an expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ItemOrExpr {
     /// An item.
     Item(ast::Item),
@@ -144,6 +147,7 @@ impl Parse for ItemOrExpr {
 
 /// Key used to stort a statement into its processing order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum StmtSortKey {
     /// USe statements, that should be processed first.
     Use,

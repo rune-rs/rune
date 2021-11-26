@@ -11,6 +11,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ExprGroup>("(1 + 2)");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprGroup {
     /// Attributes associated with expression.
     #[rune(iter)]

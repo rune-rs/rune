@@ -5,6 +5,7 @@ use crate::ast::prelude::*;
 /// These groups are only produced during internal desugaring. Most notably
 /// through the use of template literals.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprEmpty {
     /// Attributes associated with expression.
     #[rune(iter)]

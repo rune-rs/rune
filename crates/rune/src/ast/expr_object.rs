@@ -13,6 +13,7 @@ use std::borrow::Cow;
 /// testing::roundtrip::<ast::ExprObject>("#{\"foo\": 42,}");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprObject {
     /// Attributes associated with object.
     #[rune(iter, meta)]
@@ -36,6 +37,7 @@ impl Peek for ExprObject {
 
 /// A literal object identifier.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum ObjectIdent {
     /// An anonymous object.
     Anonymous(T![#]),
@@ -54,6 +56,7 @@ impl Parse for ObjectIdent {
 
 /// A literal object field.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct FieldAssign {
     /// The key of the field.
     pub key: ObjectKey,
@@ -62,7 +65,7 @@ pub struct FieldAssign {
     pub assign: Option<(T![:], ast::Expr)>,
 }
 
-/// Parse an object literal.
+/// Parse an object field assignment.
 ///
 /// # Examples
 ///
@@ -91,6 +94,7 @@ impl Parse for FieldAssign {
 
 /// Possible literal object keys.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum ObjectKey {
     /// A literal string (with escapes).
     LitStr(ast::LitStr),
@@ -114,7 +118,7 @@ impl Parse for ObjectKey {
             K![str] => Self::LitStr(p.parse()?),
             K![ident] => Self::Path(p.parse()?),
             _ => {
-                return Err(ParseError::expected(&p.tok_at(0)?, "literal object key"));
+                return Err(ParseError::expected(p.tok_at(0)?, "literal object key"));
             }
         })
     }
@@ -123,7 +127,8 @@ impl Parse for ObjectKey {
 /// A tag object to help peeking for anonymous object case to help
 /// differentiate anonymous objects and attributes when parsing block
 /// expressions.
-pub struct AnonExprObject;
+#[non_exhaustive]
+pub(crate) struct AnonExprObject;
 
 impl Peek for AnonExprObject {
     fn peek(p: &mut Peeker<'_>) -> bool {

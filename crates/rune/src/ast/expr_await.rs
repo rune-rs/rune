@@ -12,6 +12,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::Expr>("test.await");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprAwait {
     /// Attributes associated with expression.
     #[rune(iter)]

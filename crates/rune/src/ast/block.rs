@@ -16,6 +16,7 @@ use crate::ast::prelude::*;
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct Block {
     /// The unique identifier for the block expression.
     #[rune(id)]

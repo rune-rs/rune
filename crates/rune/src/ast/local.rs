@@ -12,6 +12,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::Local>("let a = b{}().foo[0].await;");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[non_exhaustive]
 pub struct Local {
     /// The attributes for the let expression
     #[rune(iter, meta)]

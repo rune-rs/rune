@@ -28,19 +28,25 @@ impl<'a> Lexer<'a> {
     /// use rune::ast;
     /// use rune::parse::Lexer;
     ///
-    /// assert_eq! {
-    ///     Lexer::new("fn", SourceId::empty()).next().unwrap().unwrap(),
-    ///     ast::Token {
-    ///         kind: ast::Kind::Fn,
-    ///         span: span!(0, 2),
+    /// assert! {
+    ///     matches! {
+    ///         Lexer::new("fn", SourceId::EMPTY).next().unwrap().unwrap(),
+    ///         ast::Token {
+    ///             kind: ast::Kind::Fn,
+    ///             span: span!(0, 2),
+    ///             ..
+    ///         }
     ///     }
     /// };
     ///
-    /// assert_eq! {
-    ///     Lexer::new("name", SourceId::empty()).next().unwrap().unwrap(),
-    ///     ast::Token {
-    ///         kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
-    ///         span: span!(0, 4),
+    /// assert! {
+    ///     matches! {
+    ///         Lexer::new("name", SourceId::EMPTY).next().unwrap().unwrap(),
+    ///         ast::Token {
+    ///             kind: ast::Kind::Ident(ast::LitSource::Text(SourceId::EMPTY)),
+    ///             span: span!(0, 4),
+    ///             ..
+    ///         }
     ///     }
     /// };
     /// ```
@@ -67,7 +73,7 @@ impl<'a> Lexer<'a> {
         });
 
         self.buffer.push_back(ast::Token {
-            kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::BuiltIn)),
+            kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::BuiltIn)),
             span,
         });
 
@@ -77,7 +83,7 @@ impl<'a> Lexer<'a> {
         });
 
         self.buffer.push_back(ast::Token {
-            kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Literal)),
+            kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Literal)),
             span,
         });
 
@@ -103,7 +109,7 @@ impl<'a> Lexer<'a> {
 
         let (ident, span) = self.iter.source_from(start);
         let kind = ast::Kind::from_keyword(ident)
-            .unwrap_or(ast::Kind::Ident(ast::StringSource::Text(self.source_id)));
+            .unwrap_or(ast::Kind::Ident(ast::LitSource::Text(self.source_id)));
         Ok(Some(ast::Token { kind, span }))
     }
 
@@ -234,7 +240,7 @@ impl<'a> Lexer<'a> {
 
         if is_label {
             Ok(Some(ast::Token {
-                kind: ast::Kind::Label(ast::StringSource::Text(self.source_id)),
+                kind: ast::Kind::Label(ast::LitSource::Text(self.source_id)),
                 span: self.iter.span_from(start),
             }))
         } else {
@@ -688,9 +694,7 @@ impl<'a> Lexer<'a> {
                         self.emit_builtin_attribute(span);
 
                         self.buffer.push_back(ast::Token {
-                            kind: ast::Kind::Ident(ast::StringSource::BuiltIn(
-                                ast::BuiltIn::Template,
-                            )),
+                            kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Template)),
                             span,
                         });
 
@@ -985,7 +989,7 @@ mod tests {
             "'asdf 'a' \"foo bar\"",
             ast::Token {
                 span: span!(0, 5),
-                kind: ast::Kind::Label(ast::StringSource::Text(SourceId::EMPTY)),
+                kind: ast::Kind::Label(ast::LitSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(6, 9),
@@ -1043,7 +1047,7 @@ mod tests {
             "a.checked_div(10)",
             ast::Token {
                 span: span!(0, 1),
-                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
+                kind: ast::Kind::Ident(ast::LitSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(1, 2),
@@ -1051,7 +1055,7 @@ mod tests {
             },
             ast::Token {
                 span: span!(2, 13),
-                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
+                kind: ast::Kind::Ident(ast::LitSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(13, 14),
@@ -1089,7 +1093,7 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::BuiltIn)),
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::BuiltIn)),
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1097,7 +1101,7 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Literal)),
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Literal)),
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1109,7 +1113,7 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Template)),
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Template)),
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1133,7 +1137,7 @@ mod tests {
                 span: span!(5, 7),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
+                kind: ast::Kind::Ident(ast::LitSource::Text(SourceId::EMPTY)),
                 span: span!(7, 10),
             },
             ast::Token {
@@ -1176,7 +1180,7 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::BuiltIn)),
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::BuiltIn)),
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1184,7 +1188,7 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Literal)),
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Literal)),
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1196,7 +1200,7 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Template)),
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Template)),
                 span: span!(0, 1),
             },
             ast::Token {
@@ -1220,7 +1224,7 @@ mod tests {
                 span: span!(5, 7),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
+                kind: ast::Kind::Ident(ast::LitSource::Text(SourceId::EMPTY)),
                 span: span!(7, 10),
             },
             ast::Token {
@@ -1240,7 +1244,7 @@ mod tests {
                 span: span!(12, 14),
             },
             ast::Token {
-                kind: ast::Kind::Ident(ast::StringSource::Text(SourceId::EMPTY)),
+                kind: ast::Kind::Ident(ast::LitSource::Text(SourceId::EMPTY)),
                 span: span!(14, 17),
             },
             ast::Token {
@@ -1292,7 +1296,7 @@ mod tests {
             "'label 'a' b'a'",
             ast::Token {
                 span: span!(0, 6),
-                kind: ast::Kind::Label(ast::StringSource::Text(SourceId::EMPTY)),
+                kind: ast::Kind::Label(ast::LitSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
                 span: span!(7, 10),

@@ -9,6 +9,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ExprRange>("0..=42");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprRange {
     /// Attributes associated with the assign expression.
     #[rune(iter)]
@@ -25,6 +26,7 @@ pub struct ExprRange {
 
 /// The limits of the specified range.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum ExprRangeLimits {
     /// Half-open range expression.
     HalfOpen(T![..]),
@@ -37,7 +39,7 @@ impl Parse for ExprRangeLimits {
         Ok(match p.nth(0)? {
             K![..] => Self::HalfOpen(p.parse()?),
             K![..=] => Self::Closed(p.parse()?),
-            _ => return Err(ParseError::expected(&p.tok_at(0)?, "range limits")),
+            _ => return Err(ParseError::expected(p.tok_at(0)?, "range limits")),
         })
     }
 }

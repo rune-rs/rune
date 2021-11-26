@@ -11,6 +11,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ExprLet>("#[attr] let a = f()");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprLet {
     /// The attributes for the let expression
     #[rune(iter)]

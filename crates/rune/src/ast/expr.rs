@@ -48,6 +48,7 @@ impl Default for Callable {
 
 /// A rune expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum Expr {
     /// An path expression.
     Path(Box<ast::Path>),
@@ -479,7 +480,7 @@ impl Expr {
                 take(attributes),
             )?)),
             _ => {
-                return Err(ParseError::expected(&p.tok_at(0)?, "expression"));
+                return Err(ParseError::expected(p.tok_at(0)?, Expectation::Expression));
             }
         };
 

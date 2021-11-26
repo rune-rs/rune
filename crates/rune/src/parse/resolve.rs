@@ -1,6 +1,6 @@
 use crate::ast::{Spanned, SpannedError};
-use crate::macros::Storage;
-use crate::shared::Description;
+use crate::macros::{Storage, SyntheticId, SyntheticKind};
+use crate::parse::{Expectation, IntoExpectation};
 use crate::Sources;
 use thiserror::Error;
 
@@ -16,14 +16,14 @@ impl ResolveError {
     /// Construct an expectation error.
     pub(crate) fn expected<A, E>(actual: A, expected: E) -> Self
     where
-        A: Description + Spanned,
-        E: Description,
+        A: IntoExpectation + Spanned,
+        E: IntoExpectation,
     {
         Self::new(
             actual.span(),
             ResolveErrorKind::Expected {
-                actual: actual.description(),
-                expected: expected.description(),
+                actual: actual.into_expectation(),
+                expected: expected.into_expectation(),
             },
         )
     }
@@ -42,15 +42,18 @@ impl From<ResolveError> for SpannedError {
 pub enum ResolveErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },
-    #[error("expected {expected}, but got `{actual}`")]
+    #[error("expected {expected}, but got {actual}")]
     Expected {
-        actual: &'static str,
-        expected: &'static str,
+        actual: Expectation,
+        expected: Expectation,
     },
     #[error("tried to read bad slice from source")]
     BadSlice,
     #[error("tried to get bad synthetic identifier `{id}` for {kind}")]
-    BadSyntheticId { kind: &'static str, id: usize },
+    BadSyntheticId {
+        kind: SyntheticKind,
+        id: SyntheticId,
+    },
     #[error("bad escape sequence")]
     BadEscapeSequence,
     #[error("bad unicode escape")]

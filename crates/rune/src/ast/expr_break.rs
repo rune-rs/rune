@@ -11,6 +11,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ExprBreak {
     /// The attributes of the `break` expression
     #[rune(iter, meta)]
@@ -26,6 +27,7 @@ expr_parse!(Break, ExprBreak, "break expression");
 
 /// Things that we can break on.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum ExprBreakValue {
     /// Breaking a value out of a loop.
     Expr(ast::Expr),

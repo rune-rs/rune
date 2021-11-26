@@ -3,6 +3,7 @@ use std::fmt;
 
 /// A binary expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprBinary {
     /// Attributes associated with the binary expression.
     #[rune(iter)]
@@ -35,6 +36,7 @@ expr_parse!(Binary, ExprBinary, "binary expression");
 
 /// A binary operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum BinOp {
     /// Addition `a + b`.
     Add,

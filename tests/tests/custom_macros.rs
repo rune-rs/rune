@@ -40,9 +40,7 @@ fn test_parse_in_macro() -> rune::Result<()> {
         }
     };
 
-    let unit = rune::prepare(&mut sources)
-        .with_context(&context)
-        .build()?;
+    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let output = vm.execute(&["main"], ())?.complete()?;

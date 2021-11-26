@@ -15,6 +15,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ItemUse {
     /// The attributes on use item
     #[rune(iter, meta)]
@@ -44,6 +45,7 @@ item_parse!(Use, ItemUse, "use item");
 /// testing::roundtrip::<ast::ItemUsePath>("::{*, bar::*}");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ItemUsePath {
     /// Global prefix.
     #[rune(iter)]
@@ -60,6 +62,7 @@ pub struct ItemUsePath {
 
 /// A use component.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum ItemUseSegment {
     /// A path segment.
     PathSegment(ast::PathSegment),

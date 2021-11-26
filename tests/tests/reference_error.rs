@@ -28,9 +28,7 @@ fn test_reference_error() -> rune::Result<()> {
         }
     };
 
-    let unit = rune::prepare(&mut sources)
-        .with_context(&context)
-        .build()?;
+    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 

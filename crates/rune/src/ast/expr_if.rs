@@ -15,6 +15,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ExprIf {
     /// The `attributes` of the if statement
     #[rune(iter, meta)]
@@ -37,6 +38,7 @@ expr_parse!(If, ExprIf, "if expression");
 
 /// An else branch of an if expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[non_exhaustive]
 pub struct ExprElseIf {
     /// The `else` token.
     pub else_: T![else],
@@ -56,6 +58,7 @@ impl Peek for ExprElseIf {
 
 /// An else branch of an if expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[non_exhaustive]
 pub struct ExprElse {
     /// The `else` token.
     pub else_: T![else],

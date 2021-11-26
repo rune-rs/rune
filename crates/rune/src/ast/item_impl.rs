@@ -13,6 +13,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ItemImpl>("#[xyz] impl Foo { #[jit] fn test(self) { } }");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ItemImpl {
     /// The attributes of the `impl` block
     #[rune(iter)]

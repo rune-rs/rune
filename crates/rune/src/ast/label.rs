@@ -2,12 +2,13 @@ use crate::ast::prelude::*;
 
 /// A label, like `'foo`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct Label {
     /// The token of the label.
     pub token: ast::Token,
     /// The kind of the label.
     #[rune(skip)]
-    pub source: ast::StringSource,
+    pub source: ast::LitSource,
 }
 
 impl Label {
@@ -26,7 +27,7 @@ impl Label {
     /// but requires access to a `span` and `storage`.
     pub fn new_with(label: &str, span: Span, storage: &mut Storage) -> Self {
         let id = storage.insert_str(label);
-        let source = ast::StringSource::Synthetic(id);
+        let source = ast::LitSource::Synthetic(id);
 
         ast::Label {
             token: ast::Token {
@@ -44,7 +45,7 @@ impl Parse for Label {
 
         match token.kind {
             K!['label(source)] => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(&token, "label")),
+            _ => Err(ParseError::expected(token, "label")),
         }
     }
 }
@@ -62,7 +63,7 @@ impl<'a> Resolve<'a> for Label {
         let span = self.token.span();
 
         match self.source {
-            ast::StringSource::Text(source_id) => {
+            ast::LitSource::Text(source_id) => {
                 let span = self.token.span();
 
                 let ident = sources
@@ -71,14 +72,20 @@ impl<'a> Resolve<'a> for Label {
 
                 Ok(ident)
             }
-            ast::StringSource::Synthetic(id) => {
+            ast::LitSource::Synthetic(id) => {
                 let ident = storage.get_string(id).ok_or_else(|| {
-                    ResolveError::new(span, ResolveErrorKind::BadSyntheticId { kind: "ident", id })
+                    ResolveError::new(
+                        span,
+                        ResolveErrorKind::BadSyntheticId {
+                            kind: SyntheticKind::Ident,
+                            id,
+                        },
+                    )
                 })?;
 
                 Ok(ident)
             }
-            ast::StringSource::BuiltIn(builtin) => Ok(builtin.as_str()),
+            ast::LitSource::BuiltIn(builtin) => Ok(builtin.as_str()),
         }
     }
 }

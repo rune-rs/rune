@@ -21,6 +21,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ExprClosure {
     /// Opaque identifier for the closure.
     #[rune(id)]
@@ -60,6 +61,7 @@ impl Opaque for ExprClosure {
 expr_parse!(Closure, ExprClosure, "closure expression");
 
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
+#[non_exhaustive]
 pub enum ExprClosureArgs {
     Empty {
         /// The `||` token.

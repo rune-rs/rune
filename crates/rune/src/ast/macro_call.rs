@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// A function call `<expr>!(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct MacroCall {
     /// Opaque identifier for macro call. Use to store reference to internally
     /// expanded macros.
@@ -66,10 +67,7 @@ impl MacroCall {
         let delim = match open.kind {
             ast::Kind::Open(delim) => delim,
             _ => {
-                return Err(ParseError::expected(
-                    &open,
-                    "macro call delimiter `(`, `[`, or `{`",
-                ));
+                return Err(ParseError::expected(open, Expectation::OpenDelimiter));
             }
         };
 

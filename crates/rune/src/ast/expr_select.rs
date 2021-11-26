@@ -22,6 +22,7 @@ use crate::ast::prelude::*;
 /// assert!(matches!(select.branches.get(3), Some(&(ast::ExprSelectBranch::Default(..), None))));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprSelect {
     /// The attributes of the `select`
     #[rune(iter)]
@@ -74,6 +75,7 @@ expr_parse!(Select, ExprSelect, "select expression");
 
 /// A single selection branch.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum ExprSelectBranch {
     /// A patterned branch.
     Pat(ExprSelectPatBranch),
@@ -103,6 +105,7 @@ impl Parse for ExprSelectBranch {
 
 /// A single selection branch.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[non_exhaustive]
 pub struct ExprSelectPatBranch {
     /// The identifier to bind the result to.
     pub pat: ast::Pat,
@@ -118,6 +121,7 @@ pub struct ExprSelectPatBranch {
 
 /// A single selection branch.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[non_exhaustive]
 pub struct ExprDefaultBranch {
     /// The `default` keyword.
     pub default: T![default],
