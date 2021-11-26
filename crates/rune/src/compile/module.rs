@@ -548,7 +548,7 @@ impl Module {
     /// machine.
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
     where
-        F: 'static + Copy + Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync,
+        F: 'static + Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -727,7 +727,7 @@ impl Module {
 }
 
 /// Trait used to provide the [function][Module::function] function.
-pub trait Function<Args>: 'static + Copy + Send + Sync {
+pub trait Function<Args>: 'static + Send + Sync {
     /// The return type of the function.
     type Return;
 
@@ -735,11 +735,11 @@ pub trait Function<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_function][Module::async_function] function.
-pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
+pub trait AsyncFunction<Args>: 'static + Send + Sync {
     /// The return type of the function.
     type Return;
 
@@ -747,11 +747,11 @@ pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [inst_fn][Module::inst_fn] function.
-pub trait InstFn<Args>: 'static + Copy + Send + Sync {
+pub trait InstFn<Args>: 'static + Send + Sync {
     /// The type of the instance.
     type Instance;
     /// The return type of the function.
@@ -767,11 +767,11 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     fn instance_type_info() -> TypeInfo;
 
     /// Perform the vm call.
-    fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_inst_fn][Module::async_inst_fn] function.
-pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
+pub trait AsyncInstFn<Args>: 'static + Send + Sync {
     /// The type of the instance.
     type Instance;
     /// The return type of the function.
@@ -787,7 +787,7 @@ pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
     fn instance_type_info() -> TypeInfo;
 
     /// Perform the vm call.
-    fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
 macro_rules! impl_register {
@@ -803,7 +803,7 @@ macro_rules! impl_register {
     (@impl $count:expr, $({$ty:ident, $var:ident, $num:expr},)*) => {
         impl<Func, Return, $($ty,)*> Function<($($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Return,
+            Func: 'static + Send + Sync + Fn($($ty,)*) -> Return,
             Return: ToValue,
             $($ty: UnsafeFromValue,)*
         {
@@ -813,11 +813,7 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn fn_call(
-                self,
-                stack: &mut Stack,
-                args: usize
-            ) -> Result<(), VmError> {
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
 
                 #[allow(unused_mut)]
@@ -844,8 +840,8 @@ macro_rules! impl_register {
 
         impl<Func, Return, $($ty,)*> AsyncFunction<($($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Return,
-            Return: future::Future,
+            Func: 'static + Send + Sync + Fn($($ty,)*) -> Return,
+            Return: 'static + future::Future,
             Return::Output: ToValue,
             $($ty: 'static + UnsafeFromValue,)*
         {
@@ -855,11 +851,7 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn fn_call(
-                self,
-                stack: &mut Stack,
-                args: usize
-            ) -> Result<(), VmError> {
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
 
                 #[allow(unused_mut)]
@@ -875,8 +867,10 @@ macro_rules! impl_register {
                 let ret = unsafe {
                     impl_register!{@unsafe-vars $count, $($ty, $var, $num,)*}
 
+                    let fut = self($(<$ty>::unsafe_coerce($var.0),)*);
+
                     Future::new(async move {
-                        let output = self($(<$ty>::unsafe_coerce($var.0),)*).await;
+                        let output = fut.await;
                         let value = output.to_value()?;
                         Ok(value)
                     })
@@ -889,7 +883,7 @@ macro_rules! impl_register {
 
         impl<Func, Return, Instance, $($ty,)*> InstFn<(Instance, $($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + Fn(Instance $(, $ty)*) -> Return,
+            Func: 'static + Send + Sync + Fn(Instance $(, $ty)*) -> Return,
             Return: ToValue,
             Instance: UnsafeFromValue + TypeOf,
             $($ty: UnsafeFromValue,)*
@@ -909,7 +903,7 @@ macro_rules! impl_register {
                 Instance::type_info()
             }
 
-            fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args ($count + 1), args}
 
                 #[allow(unused_mut)]
@@ -936,8 +930,8 @@ macro_rules! impl_register {
 
         impl<Func, Return, Instance, $($ty,)*> AsyncInstFn<(Instance, $($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + Fn(Instance $(, $ty)*) -> Return,
-            Return: future::Future,
+            Func: 'static + Send + Sync + Fn(Instance $(, $ty)*) -> Return,
+            Return: 'static + future::Future,
             Return::Output: ToValue,
             Instance: UnsafeFromValue + TypeOf,
             $($ty: UnsafeFromValue,)*
@@ -957,7 +951,7 @@ macro_rules! impl_register {
                 Instance::type_info()
             }
 
-            fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args ($count + 1), args}
 
                 #[allow(unused_mut)]
@@ -974,8 +968,10 @@ macro_rules! impl_register {
                 let ret = unsafe {
                     impl_register!{@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*}
 
+                    let fut = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
+
                     Future::new(async move {
-                        let output = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*).await;
+                        let output = fut.await;
                         let value = output.to_value()?;
                         Ok(value)
                     })

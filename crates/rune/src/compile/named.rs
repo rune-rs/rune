@@ -16,6 +16,10 @@ impl Named for String {
     const BASE_NAME: RawStr = RawStr::from_str("String");
 }
 
+impl Named for &str {
+    const BASE_NAME: RawStr = RawStr::from_str("String");
+}
+
 impl InstallWith for String {}
 
 impl Named for i64 {
