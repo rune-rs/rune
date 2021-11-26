@@ -79,10 +79,10 @@ impl Parse for UnOp {
         let token = p.next()?;
 
         match token.kind {
-            K![!] => Ok(Self::Not(ast::Bang { token })),
-            K![-] => Ok(Self::Neg(ast::Dash { token })),
-            K![&] => Ok(Self::BorrowRef(ast::Amp { token })),
-            K![*] => Ok(Self::Deref(ast::Star { token })),
+            K![!] => Ok(Self::Not(ast::Bang { span: token.span })),
+            K![-] => Ok(Self::Neg(ast::Dash { span: token.span })),
+            K![&] => Ok(Self::BorrowRef(ast::Amp { span: token.span })),
+            K![*] => Ok(Self::Deref(ast::Star { span: token.span })),
             _ => Err(ParseError::expected(
                 token,
                 "unary operator, like `!` or `-`",

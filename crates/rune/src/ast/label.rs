@@ -1,11 +1,11 @@
 use crate::ast::prelude::*;
 
 /// A label, like `'foo`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct Label {
     /// The token of the label.
-    pub token: ast::Token,
+    pub span: Span,
     /// The kind of the label.
     #[rune(skip)]
     pub source: ast::LitSource,
@@ -29,23 +29,20 @@ impl Label {
         let id = storage.insert_str(label);
         let source = ast::LitSource::Synthetic(id);
 
-        ast::Label {
-            token: ast::Token {
-                span,
-                kind: ast::Kind::Label(source),
-            },
-            source,
-        }
+        ast::Label { span, source }
     }
 }
 
 impl Parse for Label {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = p.next()?;
+        let t = p.next()?;
 
-        match token.kind {
-            K!['label(source)] => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(token, "label")),
+        match t.kind {
+            K!['label(source)] => Ok(Self {
+                span: t.span,
+                source,
+            }),
+            _ => Err(ParseError::expected(t, "label")),
         }
     }
 }
@@ -60,12 +57,10 @@ impl<'a> Resolve<'a> for Label {
     type Output = &'a str;
 
     fn resolve(&self, storage: &'a Storage, sources: &'a Sources) -> Result<&'a str, ResolveError> {
-        let span = self.token.span();
+        let span = self.span;
 
         match self.source {
             ast::LitSource::Text(source_id) => {
-                let span = self.token.span();
-
                 let ident = sources
                     .source(source_id, span.trim_start(1))
                     .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
@@ -87,5 +82,14 @@ impl<'a> Resolve<'a> for Label {
             }
             ast::LitSource::BuiltIn(builtin) => Ok(builtin.as_str()),
         }
+    }
+}
+
+impl ToTokens for Label {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Label(self.source),
+        });
     }
 }

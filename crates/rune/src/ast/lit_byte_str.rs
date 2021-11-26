@@ -2,11 +2,11 @@ use crate::ast::prelude::*;
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitByteStr {
-    /// The token corresponding to the literal.
-    pub token: ast::Token,
+    /// The span corresponding to the literal.
+    pub span: Span,
     /// If the string literal is escaped.
     #[rune(skip)]
     pub source: ast::StrSource,
@@ -57,11 +57,14 @@ impl LitByteStr {
 /// ```
 impl Parse for LitByteStr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.next()?;
+        let t = parser.next()?;
 
-        match token.kind {
-            K![bytestr(source)] => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(token, "byte string")),
+        match t.kind {
+            K![bytestr(source)] => Ok(Self {
+                span: t.span,
+                source,
+            }),
+            _ => Err(ParseError::expected(t, "byte string")),
         }
     }
 }
@@ -74,7 +77,7 @@ impl<'a> Resolve<'a> for LitByteStr {
         storage: &'a Storage,
         sources: &'a Sources,
     ) -> Result<Cow<'a, [u8]>, ResolveError> {
-        let span = self.token.span();
+        let span = self.span;
 
         let text = match self.source {
             ast::StrSource::Text(text) => text,
@@ -103,5 +106,14 @@ impl<'a> Resolve<'a> for LitByteStr {
         } else {
             Cow::Borrowed(string.as_bytes())
         })
+    }
+}
+
+impl ToTokens for LitByteStr {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::ByteStr(self.source),
+        });
     }
 }

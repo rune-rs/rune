@@ -1,11 +1,11 @@
 use crate::ast::prelude::*;
 
 /// An identifier, like `foo` or `Hello`.".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct Ident {
     /// The kind of the identifier.
-    pub token: ast::Token,
+    pub span: Span,
     /// The kind of the identifier.
     #[rune(skip)]
     pub source: ast::LitSource,
@@ -27,24 +27,20 @@ impl Ident {
     pub(crate) fn new_with(ident: &str, span: Span, storage: &mut Storage) -> ast::Ident {
         let id = storage.insert_str(ident);
         let source = ast::LitSource::Synthetic(id);
-
-        ast::Ident {
-            token: ast::Token {
-                span,
-                kind: ast::Kind::Ident(source),
-            },
-            source,
-        }
+        ast::Ident { span, source }
     }
 }
 
 impl Parse for Ident {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.next()?;
+        let t = parser.next()?;
 
-        match token.kind {
-            ast::Kind::Ident(source) => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(token, "ident")),
+        match t.kind {
+            ast::Kind::Ident(source) => Ok(Self {
+                span: t.span,
+                source,
+            }),
+            _ => Err(ParseError::expected(t, "ident")),
         }
     }
 }
@@ -59,7 +55,7 @@ impl<'a> Resolve<'a> for Ident {
     type Output = &'a str;
 
     fn resolve(&self, storage: &'a Storage, sources: &'a Sources) -> Result<&'a str, ResolveError> {
-        let span = self.token.span();
+        let span = self.span;
 
         match self.source {
             ast::LitSource::Text(source_id) => {
@@ -84,5 +80,14 @@ impl<'a> Resolve<'a> for Ident {
             }
             ast::LitSource::BuiltIn(builtin) => Ok(builtin.as_str()),
         }
+    }
+}
+
+impl ToTokens for Ident {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Ident(self.source),
+        });
     }
 }

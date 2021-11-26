@@ -1,11 +1,11 @@
 use crate::ast::prelude::*;
 
 /// A character literal.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitChar {
-    /// The token corresponding to the literal.
-    pub token: ast::Token,
+    /// The span corresponding to the literal.
+    pub span: Span,
     /// The source of the literal character.
     #[rune(skip)]
     pub source: ast::CopySource<char>,
@@ -15,10 +15,7 @@ impl LitChar {
     /// Construct a new literal character.
     pub fn new(ctx: &mut MacroContext<'_>, c: char) -> Self {
         Self {
-            token: ast::Token {
-                kind: ast::Kind::Char(ast::CopySource::Inline(c)),
-                span: ctx.macro_span(),
-            },
+            span: ctx.macro_span(),
             source: ast::CopySource::Inline(c),
         }
     }
@@ -39,11 +36,14 @@ impl LitChar {
 /// ```
 impl Parse for LitChar {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.next()?;
+        let t = parser.next()?;
 
-        match token.kind {
-            K![char(source)] => Ok(LitChar { token, source }),
-            _ => Err(ParseError::expected(token, "char")),
+        match t.kind {
+            K![char(source)] => Ok(LitChar {
+                span: t.span,
+                source,
+            }),
+            _ => Err(ParseError::expected(t, "char")),
         }
     }
 }
@@ -57,7 +57,7 @@ impl<'a> Resolve<'a> for LitChar {
             ast::CopySource::Text(source_id) => source_id,
         };
 
-        let span = self.token.span();
+        let span = self.span;
 
         let string = sources
             .source(source_id, span.narrow(1))
@@ -117,5 +117,14 @@ impl<'a> Resolve<'a> for LitChar {
         }
 
         Ok(c)
+    }
+}
+
+impl ToTokens for LitChar {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Char(self.source),
+        });
     }
 }

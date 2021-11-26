@@ -10,13 +10,13 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Abstract {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Abstract {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -25,7 +25,7 @@ impl parse::Parse for Abstract {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Abstract => Ok(Self { token }),
+            ast::Kind::Abstract => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Abstract)),
         }
     }
@@ -39,7 +39,10 @@ impl parse::Peek for Abstract {
 
 impl macros::ToTokens for Abstract {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Abstract,
+        });
     }
 }
 
@@ -47,13 +50,13 @@ impl macros::ToTokens for Abstract {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct AlignOf {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for AlignOf {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -62,7 +65,7 @@ impl parse::Parse for AlignOf {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::AlignOf => Ok(Self { token }),
+            ast::Kind::AlignOf => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::AlignOf)),
         }
     }
@@ -76,7 +79,10 @@ impl parse::Peek for AlignOf {
 
 impl macros::ToTokens for AlignOf {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::AlignOf,
+        });
     }
 }
 
@@ -84,13 +90,13 @@ impl macros::ToTokens for AlignOf {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Amp {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Amp {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -99,7 +105,7 @@ impl parse::Parse for Amp {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Amp => Ok(Self { token }),
+            ast::Kind::Amp => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Amp)),
         }
     }
@@ -113,7 +119,10 @@ impl parse::Peek for Amp {
 
 impl macros::ToTokens for Amp {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Amp,
+        });
     }
 }
 
@@ -121,13 +130,13 @@ impl macros::ToTokens for Amp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct AmpAmp {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for AmpAmp {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -136,7 +145,7 @@ impl parse::Parse for AmpAmp {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::AmpAmp => Ok(Self { token }),
+            ast::Kind::AmpAmp => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::AmpAmp)),
         }
     }
@@ -150,7 +159,10 @@ impl parse::Peek for AmpAmp {
 
 impl macros::ToTokens for AmpAmp {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::AmpAmp,
+        });
     }
 }
 
@@ -158,13 +170,13 @@ impl macros::ToTokens for AmpAmp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct AmpEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for AmpEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -173,7 +185,7 @@ impl parse::Parse for AmpEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::AmpEq => Ok(Self { token }),
+            ast::Kind::AmpEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::AmpEq)),
         }
     }
@@ -187,7 +199,10 @@ impl parse::Peek for AmpEq {
 
 impl macros::ToTokens for AmpEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::AmpEq,
+        });
     }
 }
 
@@ -195,13 +210,13 @@ impl macros::ToTokens for AmpEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Arrow {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Arrow {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -210,7 +225,7 @@ impl parse::Parse for Arrow {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Arrow => Ok(Self { token }),
+            ast::Kind::Arrow => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Arrow)),
         }
     }
@@ -224,7 +239,10 @@ impl parse::Peek for Arrow {
 
 impl macros::ToTokens for Arrow {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Arrow,
+        });
     }
 }
 
@@ -232,13 +250,13 @@ impl macros::ToTokens for Arrow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct As {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for As {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -247,7 +265,7 @@ impl parse::Parse for As {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::As => Ok(Self { token }),
+            ast::Kind::As => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::As)),
         }
     }
@@ -261,7 +279,10 @@ impl parse::Peek for As {
 
 impl macros::ToTokens for As {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::As,
+        });
     }
 }
 
@@ -269,13 +290,13 @@ impl macros::ToTokens for As {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Async {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Async {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -284,7 +305,7 @@ impl parse::Parse for Async {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Async => Ok(Self { token }),
+            ast::Kind::Async => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Async)),
         }
     }
@@ -298,7 +319,10 @@ impl parse::Peek for Async {
 
 impl macros::ToTokens for Async {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Async,
+        });
     }
 }
 
@@ -306,13 +330,13 @@ impl macros::ToTokens for Async {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct At {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for At {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -321,7 +345,7 @@ impl parse::Parse for At {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::At => Ok(Self { token }),
+            ast::Kind::At => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::At)),
         }
     }
@@ -335,7 +359,10 @@ impl parse::Peek for At {
 
 impl macros::ToTokens for At {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::At,
+        });
     }
 }
 
@@ -343,13 +370,13 @@ impl macros::ToTokens for At {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Await {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Await {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -358,7 +385,7 @@ impl parse::Parse for Await {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Await => Ok(Self { token }),
+            ast::Kind::Await => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Await)),
         }
     }
@@ -372,7 +399,10 @@ impl parse::Peek for Await {
 
 impl macros::ToTokens for Await {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Await,
+        });
     }
 }
 
@@ -380,13 +410,13 @@ impl macros::ToTokens for Await {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Bang {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Bang {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -395,7 +425,7 @@ impl parse::Parse for Bang {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Bang => Ok(Self { token }),
+            ast::Kind::Bang => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Bang)),
         }
     }
@@ -409,7 +439,10 @@ impl parse::Peek for Bang {
 
 impl macros::ToTokens for Bang {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Bang,
+        });
     }
 }
 
@@ -417,13 +450,13 @@ impl macros::ToTokens for Bang {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct BangEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for BangEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -432,7 +465,7 @@ impl parse::Parse for BangEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::BangEq => Ok(Self { token }),
+            ast::Kind::BangEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::BangEq)),
         }
     }
@@ -446,7 +479,10 @@ impl parse::Peek for BangEq {
 
 impl macros::ToTokens for BangEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::BangEq,
+        });
     }
 }
 
@@ -454,13 +490,13 @@ impl macros::ToTokens for BangEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Become {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Become {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -469,7 +505,7 @@ impl parse::Parse for Become {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Become => Ok(Self { token }),
+            ast::Kind::Become => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Become)),
         }
     }
@@ -483,7 +519,10 @@ impl parse::Peek for Become {
 
 impl macros::ToTokens for Become {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Become,
+        });
     }
 }
 
@@ -491,13 +530,13 @@ impl macros::ToTokens for Become {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Break {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Break {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -506,7 +545,7 @@ impl parse::Parse for Break {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Break => Ok(Self { token }),
+            ast::Kind::Break => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Break)),
         }
     }
@@ -520,7 +559,10 @@ impl parse::Peek for Break {
 
 impl macros::ToTokens for Break {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Break,
+        });
     }
 }
 
@@ -528,13 +570,13 @@ impl macros::ToTokens for Break {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Caret {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Caret {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -543,7 +585,7 @@ impl parse::Parse for Caret {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Caret => Ok(Self { token }),
+            ast::Kind::Caret => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Caret)),
         }
     }
@@ -557,7 +599,10 @@ impl parse::Peek for Caret {
 
 impl macros::ToTokens for Caret {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Caret,
+        });
     }
 }
 
@@ -565,13 +610,13 @@ impl macros::ToTokens for Caret {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CaretEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for CaretEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -580,7 +625,7 @@ impl parse::Parse for CaretEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::CaretEq => Ok(Self { token }),
+            ast::Kind::CaretEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::CaretEq)),
         }
     }
@@ -594,7 +639,10 @@ impl parse::Peek for CaretEq {
 
 impl macros::ToTokens for CaretEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::CaretEq,
+        });
     }
 }
 
@@ -602,13 +650,13 @@ impl macros::ToTokens for CaretEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Colon {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Colon {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -617,7 +665,7 @@ impl parse::Parse for Colon {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Colon => Ok(Self { token }),
+            ast::Kind::Colon => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Colon)),
         }
     }
@@ -631,7 +679,10 @@ impl parse::Peek for Colon {
 
 impl macros::ToTokens for Colon {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Colon,
+        });
     }
 }
 
@@ -639,13 +690,13 @@ impl macros::ToTokens for Colon {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ColonColon {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for ColonColon {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -654,7 +705,7 @@ impl parse::Parse for ColonColon {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::ColonColon => Ok(Self { token }),
+            ast::Kind::ColonColon => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::ColonColon)),
         }
     }
@@ -668,7 +719,10 @@ impl parse::Peek for ColonColon {
 
 impl macros::ToTokens for ColonColon {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::ColonColon,
+        });
     }
 }
 
@@ -676,13 +730,13 @@ impl macros::ToTokens for ColonColon {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Comma {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Comma {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -691,7 +745,7 @@ impl parse::Parse for Comma {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Comma => Ok(Self { token }),
+            ast::Kind::Comma => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Comma)),
         }
     }
@@ -705,7 +759,10 @@ impl parse::Peek for Comma {
 
 impl macros::ToTokens for Comma {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Comma,
+        });
     }
 }
 
@@ -713,13 +770,13 @@ impl macros::ToTokens for Comma {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Const {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Const {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -728,7 +785,7 @@ impl parse::Parse for Const {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Const => Ok(Self { token }),
+            ast::Kind::Const => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Const)),
         }
     }
@@ -742,7 +799,10 @@ impl parse::Peek for Const {
 
 impl macros::ToTokens for Const {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Const,
+        });
     }
 }
 
@@ -750,13 +810,13 @@ impl macros::ToTokens for Const {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Continue {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Continue {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -765,7 +825,7 @@ impl parse::Parse for Continue {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Continue => Ok(Self { token }),
+            ast::Kind::Continue => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Continue)),
         }
     }
@@ -779,7 +839,10 @@ impl parse::Peek for Continue {
 
 impl macros::ToTokens for Continue {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Continue,
+        });
     }
 }
 
@@ -787,13 +850,13 @@ impl macros::ToTokens for Continue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Crate {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Crate {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -802,7 +865,7 @@ impl parse::Parse for Crate {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Crate => Ok(Self { token }),
+            ast::Kind::Crate => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Crate)),
         }
     }
@@ -816,7 +879,10 @@ impl parse::Peek for Crate {
 
 impl macros::ToTokens for Crate {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Crate,
+        });
     }
 }
 
@@ -824,13 +890,13 @@ impl macros::ToTokens for Crate {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Dash {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Dash {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -839,7 +905,7 @@ impl parse::Parse for Dash {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Dash => Ok(Self { token }),
+            ast::Kind::Dash => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Dash)),
         }
     }
@@ -853,7 +919,10 @@ impl parse::Peek for Dash {
 
 impl macros::ToTokens for Dash {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Dash,
+        });
     }
 }
 
@@ -861,13 +930,13 @@ impl macros::ToTokens for Dash {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct DashEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for DashEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -876,7 +945,7 @@ impl parse::Parse for DashEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::DashEq => Ok(Self { token }),
+            ast::Kind::DashEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::DashEq)),
         }
     }
@@ -890,7 +959,10 @@ impl parse::Peek for DashEq {
 
 impl macros::ToTokens for DashEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::DashEq,
+        });
     }
 }
 
@@ -898,13 +970,13 @@ impl macros::ToTokens for DashEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Default {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Default {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -913,7 +985,7 @@ impl parse::Parse for Default {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Default => Ok(Self { token }),
+            ast::Kind::Default => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Default)),
         }
     }
@@ -927,7 +999,10 @@ impl parse::Peek for Default {
 
 impl macros::ToTokens for Default {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Default,
+        });
     }
 }
 
@@ -935,13 +1010,13 @@ impl macros::ToTokens for Default {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Div {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Div {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -950,7 +1025,7 @@ impl parse::Parse for Div {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Div => Ok(Self { token }),
+            ast::Kind::Div => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Div)),
         }
     }
@@ -964,7 +1039,10 @@ impl parse::Peek for Div {
 
 impl macros::ToTokens for Div {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Div,
+        });
     }
 }
 
@@ -972,13 +1050,13 @@ impl macros::ToTokens for Div {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Do {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Do {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -987,7 +1065,7 @@ impl parse::Parse for Do {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Do => Ok(Self { token }),
+            ast::Kind::Do => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Do)),
         }
     }
@@ -1001,7 +1079,10 @@ impl parse::Peek for Do {
 
 impl macros::ToTokens for Do {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Do,
+        });
     }
 }
 
@@ -1009,13 +1090,13 @@ impl macros::ToTokens for Do {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Dollar {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Dollar {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1024,7 +1105,7 @@ impl parse::Parse for Dollar {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Dollar => Ok(Self { token }),
+            ast::Kind::Dollar => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Dollar)),
         }
     }
@@ -1038,7 +1119,10 @@ impl parse::Peek for Dollar {
 
 impl macros::ToTokens for Dollar {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Dollar,
+        });
     }
 }
 
@@ -1046,13 +1130,13 @@ impl macros::ToTokens for Dollar {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Dot {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Dot {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1061,7 +1145,7 @@ impl parse::Parse for Dot {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Dot => Ok(Self { token }),
+            ast::Kind::Dot => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Dot)),
         }
     }
@@ -1075,7 +1159,10 @@ impl parse::Peek for Dot {
 
 impl macros::ToTokens for Dot {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Dot,
+        });
     }
 }
 
@@ -1083,13 +1170,13 @@ impl macros::ToTokens for Dot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct DotDot {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for DotDot {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1098,7 +1185,7 @@ impl parse::Parse for DotDot {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::DotDot => Ok(Self { token }),
+            ast::Kind::DotDot => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::DotDot)),
         }
     }
@@ -1112,7 +1199,10 @@ impl parse::Peek for DotDot {
 
 impl macros::ToTokens for DotDot {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::DotDot,
+        });
     }
 }
 
@@ -1120,13 +1210,13 @@ impl macros::ToTokens for DotDot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct DotDotEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for DotDotEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1135,7 +1225,7 @@ impl parse::Parse for DotDotEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::DotDotEq => Ok(Self { token }),
+            ast::Kind::DotDotEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::DotDotEq)),
         }
     }
@@ -1149,7 +1239,10 @@ impl parse::Peek for DotDotEq {
 
 impl macros::ToTokens for DotDotEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::DotDotEq,
+        });
     }
 }
 
@@ -1157,13 +1250,13 @@ impl macros::ToTokens for DotDotEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Else {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Else {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1172,7 +1265,7 @@ impl parse::Parse for Else {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Else => Ok(Self { token }),
+            ast::Kind::Else => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Else)),
         }
     }
@@ -1186,7 +1279,10 @@ impl parse::Peek for Else {
 
 impl macros::ToTokens for Else {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Else,
+        });
     }
 }
 
@@ -1194,13 +1290,13 @@ impl macros::ToTokens for Else {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Enum {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Enum {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1209,7 +1305,7 @@ impl parse::Parse for Enum {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Enum => Ok(Self { token }),
+            ast::Kind::Enum => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Enum)),
         }
     }
@@ -1223,7 +1319,10 @@ impl parse::Peek for Enum {
 
 impl macros::ToTokens for Enum {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Enum,
+        });
     }
 }
 
@@ -1231,13 +1330,13 @@ impl macros::ToTokens for Enum {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Eq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Eq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1246,7 +1345,7 @@ impl parse::Parse for Eq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Eq => Ok(Self { token }),
+            ast::Kind::Eq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Eq)),
         }
     }
@@ -1260,7 +1359,10 @@ impl parse::Peek for Eq {
 
 impl macros::ToTokens for Eq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Eq,
+        });
     }
 }
 
@@ -1268,13 +1370,13 @@ impl macros::ToTokens for Eq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct EqEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for EqEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1283,7 +1385,7 @@ impl parse::Parse for EqEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::EqEq => Ok(Self { token }),
+            ast::Kind::EqEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::EqEq)),
         }
     }
@@ -1297,7 +1399,10 @@ impl parse::Peek for EqEq {
 
 impl macros::ToTokens for EqEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::EqEq,
+        });
     }
 }
 
@@ -1305,13 +1410,13 @@ impl macros::ToTokens for EqEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Extern {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Extern {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1320,7 +1425,7 @@ impl parse::Parse for Extern {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Extern => Ok(Self { token }),
+            ast::Kind::Extern => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Extern)),
         }
     }
@@ -1334,7 +1439,10 @@ impl parse::Peek for Extern {
 
 impl macros::ToTokens for Extern {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Extern,
+        });
     }
 }
 
@@ -1342,13 +1450,13 @@ impl macros::ToTokens for Extern {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct False {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for False {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1357,7 +1465,7 @@ impl parse::Parse for False {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::False => Ok(Self { token }),
+            ast::Kind::False => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::False)),
         }
     }
@@ -1371,7 +1479,10 @@ impl parse::Peek for False {
 
 impl macros::ToTokens for False {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::False,
+        });
     }
 }
 
@@ -1379,13 +1490,13 @@ impl macros::ToTokens for False {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Final {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Final {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1394,7 +1505,7 @@ impl parse::Parse for Final {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Final => Ok(Self { token }),
+            ast::Kind::Final => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Final)),
         }
     }
@@ -1408,7 +1519,10 @@ impl parse::Peek for Final {
 
 impl macros::ToTokens for Final {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Final,
+        });
     }
 }
 
@@ -1416,13 +1530,13 @@ impl macros::ToTokens for Final {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Fn {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Fn {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1431,7 +1545,7 @@ impl parse::Parse for Fn {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Fn => Ok(Self { token }),
+            ast::Kind::Fn => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Fn)),
         }
     }
@@ -1445,7 +1559,10 @@ impl parse::Peek for Fn {
 
 impl macros::ToTokens for Fn {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Fn,
+        });
     }
 }
 
@@ -1453,13 +1570,13 @@ impl macros::ToTokens for Fn {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct For {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for For {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1468,7 +1585,7 @@ impl parse::Parse for For {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::For => Ok(Self { token }),
+            ast::Kind::For => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::For)),
         }
     }
@@ -1482,7 +1599,10 @@ impl parse::Peek for For {
 
 impl macros::ToTokens for For {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::For,
+        });
     }
 }
 
@@ -1490,13 +1610,13 @@ impl macros::ToTokens for For {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Gt {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Gt {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1505,7 +1625,7 @@ impl parse::Parse for Gt {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Gt => Ok(Self { token }),
+            ast::Kind::Gt => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Gt)),
         }
     }
@@ -1519,7 +1639,10 @@ impl parse::Peek for Gt {
 
 impl macros::ToTokens for Gt {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Gt,
+        });
     }
 }
 
@@ -1527,13 +1650,13 @@ impl macros::ToTokens for Gt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct GtEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for GtEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1542,7 +1665,7 @@ impl parse::Parse for GtEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::GtEq => Ok(Self { token }),
+            ast::Kind::GtEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::GtEq)),
         }
     }
@@ -1556,7 +1679,10 @@ impl parse::Peek for GtEq {
 
 impl macros::ToTokens for GtEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::GtEq,
+        });
     }
 }
 
@@ -1564,13 +1690,13 @@ impl macros::ToTokens for GtEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct GtGt {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for GtGt {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1579,7 +1705,7 @@ impl parse::Parse for GtGt {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::GtGt => Ok(Self { token }),
+            ast::Kind::GtGt => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::GtGt)),
         }
     }
@@ -1593,7 +1719,10 @@ impl parse::Peek for GtGt {
 
 impl macros::ToTokens for GtGt {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::GtGt,
+        });
     }
 }
 
@@ -1601,13 +1730,13 @@ impl macros::ToTokens for GtGt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct GtGtEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for GtGtEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1616,7 +1745,7 @@ impl parse::Parse for GtGtEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::GtGtEq => Ok(Self { token }),
+            ast::Kind::GtGtEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::GtGtEq)),
         }
     }
@@ -1630,7 +1759,10 @@ impl parse::Peek for GtGtEq {
 
 impl macros::ToTokens for GtGtEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::GtGtEq,
+        });
     }
 }
 
@@ -1638,13 +1770,13 @@ impl macros::ToTokens for GtGtEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct If {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for If {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1653,7 +1785,7 @@ impl parse::Parse for If {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::If => Ok(Self { token }),
+            ast::Kind::If => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::If)),
         }
     }
@@ -1667,7 +1799,10 @@ impl parse::Peek for If {
 
 impl macros::ToTokens for If {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::If,
+        });
     }
 }
 
@@ -1675,13 +1810,13 @@ impl macros::ToTokens for If {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Impl {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Impl {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1690,7 +1825,7 @@ impl parse::Parse for Impl {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Impl => Ok(Self { token }),
+            ast::Kind::Impl => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Impl)),
         }
     }
@@ -1704,7 +1839,10 @@ impl parse::Peek for Impl {
 
 impl macros::ToTokens for Impl {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Impl,
+        });
     }
 }
 
@@ -1712,13 +1850,13 @@ impl macros::ToTokens for Impl {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct In {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for In {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1727,7 +1865,7 @@ impl parse::Parse for In {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::In => Ok(Self { token }),
+            ast::Kind::In => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::In)),
         }
     }
@@ -1741,7 +1879,10 @@ impl parse::Peek for In {
 
 impl macros::ToTokens for In {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::In,
+        });
     }
 }
 
@@ -1749,13 +1890,13 @@ impl macros::ToTokens for In {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Is {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Is {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1764,7 +1905,7 @@ impl parse::Parse for Is {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Is => Ok(Self { token }),
+            ast::Kind::Is => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Is)),
         }
     }
@@ -1778,7 +1919,10 @@ impl parse::Peek for Is {
 
 impl macros::ToTokens for Is {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Is,
+        });
     }
 }
 
@@ -1786,13 +1930,13 @@ impl macros::ToTokens for Is {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Let {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Let {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1801,7 +1945,7 @@ impl parse::Parse for Let {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Let => Ok(Self { token }),
+            ast::Kind::Let => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Let)),
         }
     }
@@ -1815,7 +1959,10 @@ impl parse::Peek for Let {
 
 impl macros::ToTokens for Let {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Let,
+        });
     }
 }
 
@@ -1823,13 +1970,13 @@ impl macros::ToTokens for Let {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Loop {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Loop {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1838,7 +1985,7 @@ impl parse::Parse for Loop {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Loop => Ok(Self { token }),
+            ast::Kind::Loop => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Loop)),
         }
     }
@@ -1852,7 +1999,10 @@ impl parse::Peek for Loop {
 
 impl macros::ToTokens for Loop {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Loop,
+        });
     }
 }
 
@@ -1860,13 +2010,13 @@ impl macros::ToTokens for Loop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Lt {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Lt {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1875,7 +2025,7 @@ impl parse::Parse for Lt {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Lt => Ok(Self { token }),
+            ast::Kind::Lt => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Lt)),
         }
     }
@@ -1889,7 +2039,10 @@ impl parse::Peek for Lt {
 
 impl macros::ToTokens for Lt {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Lt,
+        });
     }
 }
 
@@ -1897,13 +2050,13 @@ impl macros::ToTokens for Lt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct LtEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for LtEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1912,7 +2065,7 @@ impl parse::Parse for LtEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::LtEq => Ok(Self { token }),
+            ast::Kind::LtEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::LtEq)),
         }
     }
@@ -1926,7 +2079,10 @@ impl parse::Peek for LtEq {
 
 impl macros::ToTokens for LtEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::LtEq,
+        });
     }
 }
 
@@ -1934,13 +2090,13 @@ impl macros::ToTokens for LtEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct LtLt {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for LtLt {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1949,7 +2105,7 @@ impl parse::Parse for LtLt {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::LtLt => Ok(Self { token }),
+            ast::Kind::LtLt => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::LtLt)),
         }
     }
@@ -1963,7 +2119,10 @@ impl parse::Peek for LtLt {
 
 impl macros::ToTokens for LtLt {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::LtLt,
+        });
     }
 }
 
@@ -1971,13 +2130,13 @@ impl macros::ToTokens for LtLt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct LtLtEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for LtLtEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -1986,7 +2145,7 @@ impl parse::Parse for LtLtEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::LtLtEq => Ok(Self { token }),
+            ast::Kind::LtLtEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::LtLtEq)),
         }
     }
@@ -2000,7 +2159,10 @@ impl parse::Peek for LtLtEq {
 
 impl macros::ToTokens for LtLtEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::LtLtEq,
+        });
     }
 }
 
@@ -2008,13 +2170,13 @@ impl macros::ToTokens for LtLtEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Macro {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Macro {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2023,7 +2185,7 @@ impl parse::Parse for Macro {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Macro => Ok(Self { token }),
+            ast::Kind::Macro => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Macro)),
         }
     }
@@ -2037,7 +2199,10 @@ impl parse::Peek for Macro {
 
 impl macros::ToTokens for Macro {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Macro,
+        });
     }
 }
 
@@ -2045,13 +2210,13 @@ impl macros::ToTokens for Macro {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Match {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Match {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2060,7 +2225,7 @@ impl parse::Parse for Match {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Match => Ok(Self { token }),
+            ast::Kind::Match => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Match)),
         }
     }
@@ -2074,7 +2239,10 @@ impl parse::Peek for Match {
 
 impl macros::ToTokens for Match {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Match,
+        });
     }
 }
 
@@ -2082,13 +2250,13 @@ impl macros::ToTokens for Match {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Mod {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Mod {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2097,7 +2265,7 @@ impl parse::Parse for Mod {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Mod => Ok(Self { token }),
+            ast::Kind::Mod => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Mod)),
         }
     }
@@ -2111,7 +2279,10 @@ impl parse::Peek for Mod {
 
 impl macros::ToTokens for Mod {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Mod,
+        });
     }
 }
 
@@ -2119,13 +2290,13 @@ impl macros::ToTokens for Mod {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Move {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Move {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2134,7 +2305,7 @@ impl parse::Parse for Move {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Move => Ok(Self { token }),
+            ast::Kind::Move => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Move)),
         }
     }
@@ -2148,7 +2319,10 @@ impl parse::Peek for Move {
 
 impl macros::ToTokens for Move {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Move,
+        });
     }
 }
 
@@ -2156,13 +2330,13 @@ impl macros::ToTokens for Move {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Not {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Not {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2171,7 +2345,7 @@ impl parse::Parse for Not {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Not => Ok(Self { token }),
+            ast::Kind::Not => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Not)),
         }
     }
@@ -2185,7 +2359,10 @@ impl parse::Peek for Not {
 
 impl macros::ToTokens for Not {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Not,
+        });
     }
 }
 
@@ -2193,13 +2370,13 @@ impl macros::ToTokens for Not {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OffsetOf {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for OffsetOf {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2208,7 +2385,7 @@ impl parse::Parse for OffsetOf {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::OffsetOf => Ok(Self { token }),
+            ast::Kind::OffsetOf => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::OffsetOf)),
         }
     }
@@ -2222,7 +2399,10 @@ impl parse::Peek for OffsetOf {
 
 impl macros::ToTokens for OffsetOf {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::OffsetOf,
+        });
     }
 }
 
@@ -2230,13 +2410,13 @@ impl macros::ToTokens for OffsetOf {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Override {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Override {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2245,7 +2425,7 @@ impl parse::Parse for Override {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Override => Ok(Self { token }),
+            ast::Kind::Override => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Override)),
         }
     }
@@ -2259,7 +2439,10 @@ impl parse::Peek for Override {
 
 impl macros::ToTokens for Override {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Override,
+        });
     }
 }
 
@@ -2267,13 +2450,13 @@ impl macros::ToTokens for Override {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Perc {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Perc {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2282,7 +2465,7 @@ impl parse::Parse for Perc {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Perc => Ok(Self { token }),
+            ast::Kind::Perc => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Perc)),
         }
     }
@@ -2296,7 +2479,10 @@ impl parse::Peek for Perc {
 
 impl macros::ToTokens for Perc {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Perc,
+        });
     }
 }
 
@@ -2304,13 +2490,13 @@ impl macros::ToTokens for Perc {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PercEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for PercEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2319,7 +2505,7 @@ impl parse::Parse for PercEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::PercEq => Ok(Self { token }),
+            ast::Kind::PercEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::PercEq)),
         }
     }
@@ -2333,7 +2519,10 @@ impl parse::Peek for PercEq {
 
 impl macros::ToTokens for PercEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::PercEq,
+        });
     }
 }
 
@@ -2341,13 +2530,13 @@ impl macros::ToTokens for PercEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Pipe {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Pipe {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2356,7 +2545,7 @@ impl parse::Parse for Pipe {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Pipe => Ok(Self { token }),
+            ast::Kind::Pipe => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Pipe)),
         }
     }
@@ -2370,7 +2559,10 @@ impl parse::Peek for Pipe {
 
 impl macros::ToTokens for Pipe {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Pipe,
+        });
     }
 }
 
@@ -2378,13 +2570,13 @@ impl macros::ToTokens for Pipe {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PipeEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for PipeEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2393,7 +2585,7 @@ impl parse::Parse for PipeEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::PipeEq => Ok(Self { token }),
+            ast::Kind::PipeEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::PipeEq)),
         }
     }
@@ -2407,7 +2599,10 @@ impl parse::Peek for PipeEq {
 
 impl macros::ToTokens for PipeEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::PipeEq,
+        });
     }
 }
 
@@ -2415,13 +2610,13 @@ impl macros::ToTokens for PipeEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PipePipe {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for PipePipe {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2430,7 +2625,7 @@ impl parse::Parse for PipePipe {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::PipePipe => Ok(Self { token }),
+            ast::Kind::PipePipe => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::PipePipe)),
         }
     }
@@ -2444,7 +2639,10 @@ impl parse::Peek for PipePipe {
 
 impl macros::ToTokens for PipePipe {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::PipePipe,
+        });
     }
 }
 
@@ -2452,13 +2650,13 @@ impl macros::ToTokens for PipePipe {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Plus {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Plus {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2467,7 +2665,7 @@ impl parse::Parse for Plus {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Plus => Ok(Self { token }),
+            ast::Kind::Plus => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Plus)),
         }
     }
@@ -2481,7 +2679,10 @@ impl parse::Peek for Plus {
 
 impl macros::ToTokens for Plus {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Plus,
+        });
     }
 }
 
@@ -2489,13 +2690,13 @@ impl macros::ToTokens for Plus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PlusEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for PlusEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2504,7 +2705,7 @@ impl parse::Parse for PlusEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::PlusEq => Ok(Self { token }),
+            ast::Kind::PlusEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::PlusEq)),
         }
     }
@@ -2518,7 +2719,10 @@ impl parse::Peek for PlusEq {
 
 impl macros::ToTokens for PlusEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::PlusEq,
+        });
     }
 }
 
@@ -2526,13 +2730,13 @@ impl macros::ToTokens for PlusEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Pound {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Pound {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2541,7 +2745,7 @@ impl parse::Parse for Pound {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Pound => Ok(Self { token }),
+            ast::Kind::Pound => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Pound)),
         }
     }
@@ -2555,7 +2759,10 @@ impl parse::Peek for Pound {
 
 impl macros::ToTokens for Pound {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Pound,
+        });
     }
 }
 
@@ -2563,13 +2770,13 @@ impl macros::ToTokens for Pound {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Priv {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Priv {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2578,7 +2785,7 @@ impl parse::Parse for Priv {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Priv => Ok(Self { token }),
+            ast::Kind::Priv => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Priv)),
         }
     }
@@ -2592,7 +2799,10 @@ impl parse::Peek for Priv {
 
 impl macros::ToTokens for Priv {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Priv,
+        });
     }
 }
 
@@ -2600,13 +2810,13 @@ impl macros::ToTokens for Priv {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Proc {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Proc {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2615,7 +2825,7 @@ impl parse::Parse for Proc {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Proc => Ok(Self { token }),
+            ast::Kind::Proc => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Proc)),
         }
     }
@@ -2629,7 +2839,10 @@ impl parse::Peek for Proc {
 
 impl macros::ToTokens for Proc {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Proc,
+        });
     }
 }
 
@@ -2637,13 +2850,13 @@ impl macros::ToTokens for Proc {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Pub {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Pub {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2652,7 +2865,7 @@ impl parse::Parse for Pub {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Pub => Ok(Self { token }),
+            ast::Kind::Pub => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Pub)),
         }
     }
@@ -2666,7 +2879,10 @@ impl parse::Peek for Pub {
 
 impl macros::ToTokens for Pub {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Pub,
+        });
     }
 }
 
@@ -2674,13 +2890,13 @@ impl macros::ToTokens for Pub {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Pure {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Pure {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2689,7 +2905,7 @@ impl parse::Parse for Pure {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Pure => Ok(Self { token }),
+            ast::Kind::Pure => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Pure)),
         }
     }
@@ -2703,7 +2919,10 @@ impl parse::Peek for Pure {
 
 impl macros::ToTokens for Pure {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Pure,
+        });
     }
 }
 
@@ -2711,13 +2930,13 @@ impl macros::ToTokens for Pure {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuestionMark {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for QuestionMark {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2726,7 +2945,7 @@ impl parse::Parse for QuestionMark {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::QuestionMark => Ok(Self { token }),
+            ast::Kind::QuestionMark => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::QuestionMark)),
         }
     }
@@ -2740,7 +2959,10 @@ impl parse::Peek for QuestionMark {
 
 impl macros::ToTokens for QuestionMark {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::QuestionMark,
+        });
     }
 }
 
@@ -2748,13 +2970,13 @@ impl macros::ToTokens for QuestionMark {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Ref {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Ref {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2763,7 +2985,7 @@ impl parse::Parse for Ref {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Ref => Ok(Self { token }),
+            ast::Kind::Ref => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Ref)),
         }
     }
@@ -2777,7 +2999,10 @@ impl parse::Peek for Ref {
 
 impl macros::ToTokens for Ref {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Ref,
+        });
     }
 }
 
@@ -2785,13 +3010,13 @@ impl macros::ToTokens for Ref {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Return {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Return {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2800,7 +3025,7 @@ impl parse::Parse for Return {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Return => Ok(Self { token }),
+            ast::Kind::Return => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Return)),
         }
     }
@@ -2814,7 +3039,10 @@ impl parse::Peek for Return {
 
 impl macros::ToTokens for Return {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Return,
+        });
     }
 }
 
@@ -2822,13 +3050,13 @@ impl macros::ToTokens for Return {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Rocket {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Rocket {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2837,7 +3065,7 @@ impl parse::Parse for Rocket {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Rocket => Ok(Self { token }),
+            ast::Kind::Rocket => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Rocket)),
         }
     }
@@ -2851,7 +3079,10 @@ impl parse::Peek for Rocket {
 
 impl macros::ToTokens for Rocket {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Rocket,
+        });
     }
 }
 
@@ -2859,13 +3090,13 @@ impl macros::ToTokens for Rocket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Select {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Select {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2874,7 +3105,7 @@ impl parse::Parse for Select {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Select => Ok(Self { token }),
+            ast::Kind::Select => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Select)),
         }
     }
@@ -2888,7 +3119,10 @@ impl parse::Peek for Select {
 
 impl macros::ToTokens for Select {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Select,
+        });
     }
 }
 
@@ -2896,13 +3130,13 @@ impl macros::ToTokens for Select {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SelfType {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for SelfType {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2911,7 +3145,7 @@ impl parse::Parse for SelfType {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::SelfType => Ok(Self { token }),
+            ast::Kind::SelfType => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::SelfType)),
         }
     }
@@ -2925,7 +3159,10 @@ impl parse::Peek for SelfType {
 
 impl macros::ToTokens for SelfType {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::SelfType,
+        });
     }
 }
 
@@ -2933,13 +3170,13 @@ impl macros::ToTokens for SelfType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SelfValue {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for SelfValue {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2948,7 +3185,7 @@ impl parse::Parse for SelfValue {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::SelfValue => Ok(Self { token }),
+            ast::Kind::SelfValue => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::SelfValue)),
         }
     }
@@ -2962,7 +3199,10 @@ impl parse::Peek for SelfValue {
 
 impl macros::ToTokens for SelfValue {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::SelfValue,
+        });
     }
 }
 
@@ -2970,13 +3210,13 @@ impl macros::ToTokens for SelfValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SemiColon {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for SemiColon {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -2985,7 +3225,7 @@ impl parse::Parse for SemiColon {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::SemiColon => Ok(Self { token }),
+            ast::Kind::SemiColon => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::SemiColon)),
         }
     }
@@ -2999,7 +3239,10 @@ impl parse::Peek for SemiColon {
 
 impl macros::ToTokens for SemiColon {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::SemiColon,
+        });
     }
 }
 
@@ -3007,13 +3250,13 @@ impl macros::ToTokens for SemiColon {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SizeOf {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for SizeOf {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3022,7 +3265,7 @@ impl parse::Parse for SizeOf {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::SizeOf => Ok(Self { token }),
+            ast::Kind::SizeOf => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::SizeOf)),
         }
     }
@@ -3036,7 +3279,10 @@ impl parse::Peek for SizeOf {
 
 impl macros::ToTokens for SizeOf {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::SizeOf,
+        });
     }
 }
 
@@ -3044,13 +3290,13 @@ impl macros::ToTokens for SizeOf {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SlashEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for SlashEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3059,7 +3305,7 @@ impl parse::Parse for SlashEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::SlashEq => Ok(Self { token }),
+            ast::Kind::SlashEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::SlashEq)),
         }
     }
@@ -3073,7 +3319,10 @@ impl parse::Peek for SlashEq {
 
 impl macros::ToTokens for SlashEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::SlashEq,
+        });
     }
 }
 
@@ -3081,13 +3330,13 @@ impl macros::ToTokens for SlashEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Star {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Star {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3096,7 +3345,7 @@ impl parse::Parse for Star {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Star => Ok(Self { token }),
+            ast::Kind::Star => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Star)),
         }
     }
@@ -3110,7 +3359,10 @@ impl parse::Peek for Star {
 
 impl macros::ToTokens for Star {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Star,
+        });
     }
 }
 
@@ -3118,13 +3370,13 @@ impl macros::ToTokens for Star {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct StarEq {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for StarEq {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3133,7 +3385,7 @@ impl parse::Parse for StarEq {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::StarEq => Ok(Self { token }),
+            ast::Kind::StarEq => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::StarEq)),
         }
     }
@@ -3147,7 +3399,10 @@ impl parse::Peek for StarEq {
 
 impl macros::ToTokens for StarEq {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::StarEq,
+        });
     }
 }
 
@@ -3155,13 +3410,13 @@ impl macros::ToTokens for StarEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Static {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Static {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3170,7 +3425,7 @@ impl parse::Parse for Static {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Static => Ok(Self { token }),
+            ast::Kind::Static => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Static)),
         }
     }
@@ -3184,7 +3439,10 @@ impl parse::Peek for Static {
 
 impl macros::ToTokens for Static {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Static,
+        });
     }
 }
 
@@ -3192,13 +3450,13 @@ impl macros::ToTokens for Static {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Struct {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Struct {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3207,7 +3465,7 @@ impl parse::Parse for Struct {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Struct => Ok(Self { token }),
+            ast::Kind::Struct => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Struct)),
         }
     }
@@ -3221,7 +3479,10 @@ impl parse::Peek for Struct {
 
 impl macros::ToTokens for Struct {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Struct,
+        });
     }
 }
 
@@ -3229,13 +3490,13 @@ impl macros::ToTokens for Struct {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Super {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Super {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3244,7 +3505,7 @@ impl parse::Parse for Super {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Super => Ok(Self { token }),
+            ast::Kind::Super => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Super)),
         }
     }
@@ -3258,7 +3519,10 @@ impl parse::Peek for Super {
 
 impl macros::ToTokens for Super {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Super,
+        });
     }
 }
 
@@ -3266,13 +3530,13 @@ impl macros::ToTokens for Super {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Tilde {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Tilde {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3281,7 +3545,7 @@ impl parse::Parse for Tilde {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Tilde => Ok(Self { token }),
+            ast::Kind::Tilde => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Tilde)),
         }
     }
@@ -3295,7 +3559,10 @@ impl parse::Peek for Tilde {
 
 impl macros::ToTokens for Tilde {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Tilde,
+        });
     }
 }
 
@@ -3303,13 +3570,13 @@ impl macros::ToTokens for Tilde {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct True {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for True {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3318,7 +3585,7 @@ impl parse::Parse for True {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::True => Ok(Self { token }),
+            ast::Kind::True => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::True)),
         }
     }
@@ -3332,7 +3599,10 @@ impl parse::Peek for True {
 
 impl macros::ToTokens for True {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::True,
+        });
     }
 }
 
@@ -3340,13 +3610,13 @@ impl macros::ToTokens for True {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct TypeOf {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for TypeOf {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3355,7 +3625,7 @@ impl parse::Parse for TypeOf {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::TypeOf => Ok(Self { token }),
+            ast::Kind::TypeOf => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::TypeOf)),
         }
     }
@@ -3369,7 +3639,10 @@ impl parse::Peek for TypeOf {
 
 impl macros::ToTokens for TypeOf {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::TypeOf,
+        });
     }
 }
 
@@ -3377,13 +3650,13 @@ impl macros::ToTokens for TypeOf {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Underscore {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Underscore {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3392,7 +3665,7 @@ impl parse::Parse for Underscore {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Underscore => Ok(Self { token }),
+            ast::Kind::Underscore => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Underscore)),
         }
     }
@@ -3406,7 +3679,10 @@ impl parse::Peek for Underscore {
 
 impl macros::ToTokens for Underscore {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Underscore,
+        });
     }
 }
 
@@ -3414,13 +3690,13 @@ impl macros::ToTokens for Underscore {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Unsafe {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Unsafe {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3429,7 +3705,7 @@ impl parse::Parse for Unsafe {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Unsafe => Ok(Self { token }),
+            ast::Kind::Unsafe => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Unsafe)),
         }
     }
@@ -3443,7 +3719,10 @@ impl parse::Peek for Unsafe {
 
 impl macros::ToTokens for Unsafe {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Unsafe,
+        });
     }
 }
 
@@ -3451,13 +3730,13 @@ impl macros::ToTokens for Unsafe {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Use {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Use {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3466,7 +3745,7 @@ impl parse::Parse for Use {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Use => Ok(Self { token }),
+            ast::Kind::Use => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Use)),
         }
     }
@@ -3480,7 +3759,10 @@ impl parse::Peek for Use {
 
 impl macros::ToTokens for Use {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Use,
+        });
     }
 }
 
@@ -3488,13 +3770,13 @@ impl macros::ToTokens for Use {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Virtual {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Virtual {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3503,7 +3785,7 @@ impl parse::Parse for Virtual {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Virtual => Ok(Self { token }),
+            ast::Kind::Virtual => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Virtual)),
         }
     }
@@ -3517,7 +3799,10 @@ impl parse::Peek for Virtual {
 
 impl macros::ToTokens for Virtual {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Virtual,
+        });
     }
 }
 
@@ -3525,13 +3810,13 @@ impl macros::ToTokens for Virtual {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct While {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for While {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3540,7 +3825,7 @@ impl parse::Parse for While {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::While => Ok(Self { token }),
+            ast::Kind::While => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::While)),
         }
     }
@@ -3554,7 +3839,10 @@ impl parse::Peek for While {
 
 impl macros::ToTokens for While {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::While,
+        });
     }
 }
 
@@ -3562,13 +3850,13 @@ impl macros::ToTokens for While {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Yield {
-    /// Associated token.
-    pub token: ast::Token,
+    /// Associated span.
+    pub span: ast::Span,
 }
 
 impl ast::Spanned for Yield {
     fn span(&self) -> ast::Span {
-        self.token.span()
+        self.span
     }
 }
 
@@ -3577,7 +3865,7 @@ impl parse::Parse for Yield {
         let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Yield => Ok(Self { token }),
+            ast::Kind::Yield => Ok(Self { span: token.span }),
             _ => Err(parse::ParseError::expected(token, ast::Kind::Yield)),
         }
     }
@@ -3591,7 +3879,10 @@ impl parse::Peek for Yield {
 
 impl macros::ToTokens for Yield {
     fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
-        stream.push(self.token);
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Yield,
+        });
     }
 }
 

@@ -56,7 +56,7 @@ impl Parse for Attribute {
             }
 
             if level == 0 {
-                close = ast::CloseBracket { token };
+                close = ast::CloseBracket { span: token.span };
                 break;
             }
 

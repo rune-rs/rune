@@ -231,22 +231,22 @@ macro_rules! decl_tokens {
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub struct $parser {
                 /// Associated token.
-                pub token: Token,
+                pub span: Span,
             }
 
             impl Spanned for $parser {
                 fn span(&self) -> Span {
-                    self.token.span()
+                    self.span
                 }
             }
 
             impl Parse for $parser {
                 fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-                    let token = parser.next()?;
+                    let t = parser.next()?;
 
-                    match token.kind {
-                        $($kind)* => Ok(Self { token }),
-                        _ => Err(ParseError::expected(token, $name)),
+                    match t.kind {
+                        $($kind)* => Ok(Self { span: t.span }),
+                        _ => Err(ParseError::expected(t, $name)),
                     }
                 }
             }
@@ -259,7 +259,7 @@ macro_rules! decl_tokens {
 
             impl ToTokens for $parser {
                 fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
-                    stream.push(self.token);
+                    stream.push(Token { span: self.span, kind: $($kind)* });
                 }
             }
         )*

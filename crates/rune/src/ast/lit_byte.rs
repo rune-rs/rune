@@ -1,11 +1,11 @@
 use crate::ast::prelude::*;
 
 /// A byte literal.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitByte {
-    /// The token corresponding to the literal.
-    pub token: ast::Token,
+    /// The span corresponding to the literal.
+    pub span: Span,
     /// The source of the byte.
     #[rune(skip)]
     pub source: ast::CopySource<u8>,
@@ -26,11 +26,14 @@ pub struct LitByte {
 /// ```
 impl Parse for LitByte {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.next()?;
+        let t = parser.next()?;
 
-        match token.kind {
-            K![byte(source)] => Ok(LitByte { token, source }),
-            _ => Err(ParseError::expected(token, "byte")),
+        match t.kind {
+            K![byte(source)] => Ok(LitByte {
+                span: t.span,
+                source,
+            }),
+            _ => Err(ParseError::expected(t, "byte")),
         }
     }
 }
@@ -44,7 +47,7 @@ impl<'a> Resolve<'a> for LitByte {
             ast::CopySource::Text(source_id) => source_id,
         };
 
-        let span = self.token.span();
+        let span = self.span;
 
         let string = sources
             .source(source_id, span.trim_start(2).trim_end(1))
@@ -104,5 +107,14 @@ impl<'a> Resolve<'a> for LitByte {
         }
 
         Ok(c)
+    }
+}
+
+impl ToTokens for LitByte {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Byte(self.source),
+        });
     }
 }
