@@ -1253,12 +1253,12 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
 
     // Special expressions which operates on the stack in special ways.
     if ast.op.is_assign() {
-        compile_assign_binop(c, &ast.lhs, &ast.rhs, ast.op, needs)?;
+        compile_assign_binop(c, &ast.lhs, &ast.rhs, &ast.op, needs)?;
         return Ok(Asm::top(span));
     }
 
     if ast.op.is_conditional() {
-        compile_conditional_binop(c, &ast.lhs, &ast.rhs, ast.op, needs)?;
+        compile_conditional_binop(c, &ast.lhs, &ast.rhs, &ast.op, needs)?;
         return Ok(Asm::top(span));
     }
 
@@ -1266,31 +1266,31 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
 
     // NB: need to declare these as anonymous local variables so that they
     // get cleaned up in case there is an early break (return, try, ...).
-    let rhs_needs = rhs_needs_of(ast.op);
+    let rhs_needs = rhs_needs_of(&ast.op);
     let a = expr(&ast.lhs, c, Needs::Value)?.apply_targeted(c)?;
     let b = expr(&ast.rhs, c, rhs_needs)?.apply_targeted(c)?;
 
     let op = match ast.op {
-        ast::BinOp::Eq => InstOp::Eq,
-        ast::BinOp::Neq => InstOp::Neq,
-        ast::BinOp::Lt => InstOp::Lt,
-        ast::BinOp::Gt => InstOp::Gt,
-        ast::BinOp::Lte => InstOp::Lte,
-        ast::BinOp::Gte => InstOp::Gte,
-        ast::BinOp::Is => InstOp::Is,
-        ast::BinOp::IsNot => InstOp::IsNot,
-        ast::BinOp::And => InstOp::And,
-        ast::BinOp::Or => InstOp::Or,
-        ast::BinOp::Add => InstOp::Add,
-        ast::BinOp::Sub => InstOp::Sub,
-        ast::BinOp::Div => InstOp::Div,
-        ast::BinOp::Mul => InstOp::Mul,
-        ast::BinOp::Rem => InstOp::Rem,
-        ast::BinOp::BitAnd => InstOp::BitAnd,
-        ast::BinOp::BitXor => InstOp::BitXor,
-        ast::BinOp::BitOr => InstOp::BitOr,
-        ast::BinOp::Shl => InstOp::Shl,
-        ast::BinOp::Shr => InstOp::Shr,
+        ast::BinOp::Eq(..) => InstOp::Eq,
+        ast::BinOp::Neq(..) => InstOp::Neq,
+        ast::BinOp::Lt(..) => InstOp::Lt,
+        ast::BinOp::Gt(..) => InstOp::Gt,
+        ast::BinOp::Lte(..) => InstOp::Lte,
+        ast::BinOp::Gte(..) => InstOp::Gte,
+        ast::BinOp::Is(..) => InstOp::Is,
+        ast::BinOp::IsNot(..) => InstOp::IsNot,
+        ast::BinOp::And(..) => InstOp::And,
+        ast::BinOp::Or(..) => InstOp::Or,
+        ast::BinOp::Add(..) => InstOp::Add,
+        ast::BinOp::Sub(..) => InstOp::Sub,
+        ast::BinOp::Div(..) => InstOp::Div,
+        ast::BinOp::Mul(..) => InstOp::Mul,
+        ast::BinOp::Rem(..) => InstOp::Rem,
+        ast::BinOp::BitAnd(..) => InstOp::BitAnd,
+        ast::BinOp::BitXor(..) => InstOp::BitXor,
+        ast::BinOp::BitOr(..) => InstOp::BitOr,
+        ast::BinOp::Shl(..) => InstOp::Shl,
+        ast::BinOp::Shr(..) => InstOp::Shr,
 
         op => {
             return Err(CompileError::new(
@@ -1313,9 +1313,9 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
 
     /// Get the need of the right-hand side operator from the type of the
     /// operator.
-    fn rhs_needs_of(op: ast::BinOp) -> Needs {
+    fn rhs_needs_of(op: &ast::BinOp) -> Needs {
         match op {
-            ast::BinOp::Is | ast::BinOp::IsNot => Needs::Type,
+            ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
             _ => Needs::Value,
         }
     }
@@ -1324,7 +1324,7 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
         c: &mut Assembler<'_>,
         lhs: &ast::Expr,
         rhs: &ast::Expr,
-        bin_op: ast::BinOp,
+        bin_op: &ast::BinOp,
         needs: Needs,
     ) -> CompileResult<()> {
         let span = lhs.span().join(rhs.span());
@@ -1334,16 +1334,16 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
         expr(lhs, c, Needs::Value)?.apply(c)?;
 
         match bin_op {
-            ast::BinOp::And => {
+            ast::BinOp::And(..) => {
                 c.asm.jump_if_not_or_pop(end_label, lhs.span());
             }
-            ast::BinOp::Or => {
+            ast::BinOp::Or(..) => {
                 c.asm.jump_if_or_pop(end_label, lhs.span());
             }
             op => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::UnsupportedBinaryOp { op },
+                    CompileErrorKind::UnsupportedBinaryOp { op: *op },
                 ));
             }
         }
@@ -1363,7 +1363,7 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
         c: &mut Assembler<'_>,
         lhs: &ast::Expr,
         rhs: &ast::Expr,
-        bin_op: ast::BinOp,
+        bin_op: &ast::BinOp,
         needs: Needs,
     ) -> CompileResult<()> {
         let span = lhs.span().join(rhs.span());
@@ -1429,16 +1429,16 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
         };
 
         let op = match bin_op {
-            ast::BinOp::AddAssign => InstAssignOp::Add,
-            ast::BinOp::SubAssign => InstAssignOp::Sub,
-            ast::BinOp::MulAssign => InstAssignOp::Mul,
-            ast::BinOp::DivAssign => InstAssignOp::Div,
-            ast::BinOp::RemAssign => InstAssignOp::Rem,
-            ast::BinOp::BitAndAssign => InstAssignOp::BitAnd,
-            ast::BinOp::BitXorAssign => InstAssignOp::BitXor,
-            ast::BinOp::BitOrAssign => InstAssignOp::BitOr,
-            ast::BinOp::ShlAssign => InstAssignOp::Shl,
-            ast::BinOp::ShrAssign => InstAssignOp::Shr,
+            ast::BinOp::AddAssign(..) => InstAssignOp::Add,
+            ast::BinOp::SubAssign(..) => InstAssignOp::Sub,
+            ast::BinOp::MulAssign(..) => InstAssignOp::Mul,
+            ast::BinOp::DivAssign(..) => InstAssignOp::Div,
+            ast::BinOp::RemAssign(..) => InstAssignOp::Rem,
+            ast::BinOp::BitAndAssign(..) => InstAssignOp::BitAnd,
+            ast::BinOp::BitXorAssign(..) => InstAssignOp::BitXor,
+            ast::BinOp::BitOrAssign(..) => InstAssignOp::BitOr,
+            ast::BinOp::ShlAssign(..) => InstAssignOp::Shl,
+            ast::BinOp::ShrAssign(..) => InstAssignOp::Shr,
             _ => {
                 return Err(CompileError::new(
                     span,

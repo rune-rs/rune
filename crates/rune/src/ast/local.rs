@@ -33,8 +33,8 @@ pub struct Local {
 fn parse_expr(p: &mut Parser<'_>) -> Result<ast::Expr, ParseError> {
     ast::Expr::parse_with(
         p,
-        ast::expr::EagerBrace(true),
-        ast::expr::EagerBinary(true),
-        ast::expr::Callable(true),
+        ast::expr::EAGER_BRACE,
+        ast::expr::EAGER_BINARY,
+        ast::expr::CALLABLE,
     )
 }

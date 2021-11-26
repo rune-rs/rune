@@ -51,8 +51,8 @@ impl ExprUnary {
             expr: ast::Expr::parse_with(
                 parser,
                 eager_brace,
-                ast::expr::EagerBinary(false),
-                ast::expr::Callable(true),
+                ast::expr::NOT_EAGER_BINARY,
+                ast::expr::CALLABLE,
             )?,
             op,
         })
@@ -63,7 +63,6 @@ expr_parse!(Unary, ExprUnary, "try expression");
 
 /// A unary operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum UnOp {
     /// Not `!<thing>`.
     Not,
@@ -77,7 +76,7 @@ pub enum UnOp {
 
 impl UnOp {
     /// Convert a unary operator from a token.
-    pub fn from_token(t: ast::Token) -> Result<Self, ParseError> {
+    pub(crate) fn from_token(t: ast::Token) -> Result<Self, ParseError> {
         match t.kind {
             K![!] => Ok(Self::Not),
             K![-] => Ok(Self::Neg),

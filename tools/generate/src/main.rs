@@ -120,7 +120,7 @@ fn main() -> Result<()> {
 
             #(for t in &tokens join(#<line>) =>
                 #(format!("/// {}", t.doc()))
-                #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+                #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
                 #[non_exhaustive]
                 pub struct #(t.variant()) {
                     #("/// Associated token.")
@@ -180,12 +180,12 @@ fn main() -> Result<()> {
                 };
                 #(for k in &keywords join(#<push>) =>
                     (#(&k.keyword)) => {
-                        $crate::ast::generated::#(&k.variant)
+                        $crate::ast::#(&k.variant)
                     };
                 )
                 #(for k in &punctuations join(#<push>) =>
                     (#(&k.punct)) => {
-                        $crate::ast::generated::#(&k.variant)
+                        $crate::ast::#(&k.variant)
                     };
                 )
             }

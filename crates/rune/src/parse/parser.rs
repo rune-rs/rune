@@ -21,8 +21,6 @@ use std::ops;
 #[derive(Debug)]
 pub struct Parser<'a> {
     peeker: Peeker<'a>,
-    /// The default span to use in case no better one is available.
-    default_span: Span,
 }
 
 impl<'a> Parser<'a> {
@@ -87,8 +85,8 @@ impl<'a> Parser<'a> {
                 buf: VecDeque::new(),
                 error: None,
                 last: None,
+                default_span,
             },
-            default_span,
         }
     }
 
@@ -194,7 +192,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Get the span at the given position.
+    /// Get the token at the given offset.
     pub fn tok_at(&mut self, n: usize) -> Result<Token, ParseError> {
         Ok(if let Some(t) = self.peeker.at(n)? {
             t
@@ -208,7 +206,7 @@ impl<'a> Parser<'a> {
 
     /// The last known span in this parser.
     pub fn last_span(&self) -> Span {
-        self.peeker.last.unwrap_or(self.default_span)
+        self.peeker.last_span()
     }
 }
 
@@ -221,6 +219,8 @@ pub struct Peeker<'a> {
     error: Option<ParseError>,
     /// The last span we encountered. Used to provide better EOF diagnostics.
     last: Option<Span>,
+    /// The default span to use in case no better one is available.
+    default_span: Span,
 }
 
 impl<'a> Peeker<'a> {
@@ -240,6 +240,39 @@ impl<'a> Peeker<'a> {
             Err(error) => {
                 self.error = Some(error);
                 Kind::Error
+            }
+        }
+    }
+
+    /// Get the span at the given position.
+    pub fn tok_at(&mut self, n: usize) -> Token {
+        let kind = match self.at(n) {
+            Ok(t) => {
+                if let Some(t) = t {
+                    return t;
+                } else {
+                    Kind::Eof
+                }
+            }
+            Err(e) => {
+                self.error = Some(e);
+                Kind::Error
+            }
+        };
+
+        Token {
+            kind,
+            span: self.last_span().end(),
+        }
+    }
+
+    /// Test if we are at end of file.
+    pub fn is_eof(&mut self) -> bool {
+        match self.at(0) {
+            Ok(t) => t.is_none(),
+            Err(error) => {
+                self.error = Some(error);
+                false
             }
         }
     }
@@ -264,15 +297,9 @@ impl<'a> Peeker<'a> {
         Ok(self.buf.get(n).copied())
     }
 
-    /// Test if we are at end of file.
-    pub fn is_eof(&mut self) -> bool {
-        match self.at(0) {
-            Ok(t) => t.is_none(),
-            Err(error) => {
-                self.error = Some(error);
-                false
-            }
-        }
+    /// The last known span in this parser.
+    fn last_span(&self) -> Span {
+        self.last.unwrap_or(self.default_span)
     }
 }
 

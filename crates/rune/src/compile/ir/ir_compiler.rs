@@ -190,14 +190,14 @@ impl IrCompile for ast::ExprBinary {
         let span = self.span();
 
         if self.op.is_assign() {
-            let op = match self.op {
-                ast::BinOp::AddAssign => ir::IrAssignOp::Add,
-                ast::BinOp::SubAssign => ir::IrAssignOp::Sub,
-                ast::BinOp::MulAssign => ir::IrAssignOp::Mul,
-                ast::BinOp::DivAssign => ir::IrAssignOp::Div,
-                ast::BinOp::ShlAssign => ir::IrAssignOp::Shl,
-                ast::BinOp::ShrAssign => ir::IrAssignOp::Shr,
-                _ => return Err(IrError::msg(self.op_span(), "op not supported yet")),
+            let op = match &self.op {
+                ast::BinOp::AddAssign(..) => ir::IrAssignOp::Add,
+                ast::BinOp::SubAssign(..) => ir::IrAssignOp::Sub,
+                ast::BinOp::MulAssign(..) => ir::IrAssignOp::Mul,
+                ast::BinOp::DivAssign(..) => ir::IrAssignOp::Div,
+                ast::BinOp::ShlAssign(..) => ir::IrAssignOp::Shl,
+                ast::BinOp::ShrAssign(..) => ir::IrAssignOp::Shr,
+                _ => return Err(IrError::msg(&self.op, "op not supported yet")),
             };
 
             let target = c.ir_target(&self.lhs)?;
@@ -216,19 +216,19 @@ impl IrCompile for ast::ExprBinary {
         let lhs = self.lhs.compile(c)?;
         let rhs = self.rhs.compile(c)?;
 
-        let op = match self.op {
-            ast::BinOp::Add => ir::IrBinaryOp::Add,
-            ast::BinOp::Sub => ir::IrBinaryOp::Sub,
-            ast::BinOp::Mul => ir::IrBinaryOp::Mul,
-            ast::BinOp::Div => ir::IrBinaryOp::Div,
-            ast::BinOp::Shl => ir::IrBinaryOp::Shl,
-            ast::BinOp::Shr => ir::IrBinaryOp::Shr,
-            ast::BinOp::Lt => ir::IrBinaryOp::Lt,
-            ast::BinOp::Lte => ir::IrBinaryOp::Lte,
-            ast::BinOp::Eq => ir::IrBinaryOp::Eq,
-            ast::BinOp::Gt => ir::IrBinaryOp::Gt,
-            ast::BinOp::Gte => ir::IrBinaryOp::Gte,
-            _ => return Err(IrError::msg(self.op_span(), "op not supported yet")),
+        let op = match &self.op {
+            ast::BinOp::Add(..) => ir::IrBinaryOp::Add,
+            ast::BinOp::Sub(..) => ir::IrBinaryOp::Sub,
+            ast::BinOp::Mul(..) => ir::IrBinaryOp::Mul,
+            ast::BinOp::Div(..) => ir::IrBinaryOp::Div,
+            ast::BinOp::Shl(..) => ir::IrBinaryOp::Shl,
+            ast::BinOp::Shr(..) => ir::IrBinaryOp::Shr,
+            ast::BinOp::Lt(..) => ir::IrBinaryOp::Lt,
+            ast::BinOp::Lte(..) => ir::IrBinaryOp::Lte,
+            ast::BinOp::Eq(..) => ir::IrBinaryOp::Eq,
+            ast::BinOp::Gt(..) => ir::IrBinaryOp::Gt,
+            ast::BinOp::Gte(..) => ir::IrBinaryOp::Gte,
+            _ => return Err(IrError::msg(&self.op, "op not supported yet")),
         };
 
         Ok(ir::Ir::new(
