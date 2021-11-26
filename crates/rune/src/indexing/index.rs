@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::ast::{OptionSpanned, Span, Spanned};
-use crate::attrs;
 use crate::collections::HashMap;
+use crate::compile::attrs;
 use crate::compile::{
     CompileError, CompileErrorKind, CompileResult, Item, Location, Meta, MetaKind, ModMeta,
     Options, SourceLoader, SourceMeta, Visibility,

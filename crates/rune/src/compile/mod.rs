@@ -15,6 +15,8 @@ use crate::{Diagnostics, Sources};
 mod assembly;
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
 
+pub(crate) mod attrs;
+
 mod compile_error;
 pub use self::compile_error::{CompileError, CompileErrorKind, ImportStep};
 
