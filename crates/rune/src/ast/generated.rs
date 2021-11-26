@@ -3616,6 +3616,9 @@ macro_rules! T {
     ('}') => {
         $crate::ast::CloseBrace
     };
+    (is not) => {
+        $crate::ast::IsNot
+    };
     (abstract) => {
         $crate::ast::Abstract
     };

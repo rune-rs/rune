@@ -16,15 +16,6 @@ pub struct ExprBinary {
     pub rhs: ast::Expr,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToTokens, Spanned)]
-#[non_exhaustive]
-pub struct IsNot {
-    /// The `is` token.
-    pub is: ast::Is,
-    /// The `not` token.
-    pub not: ast::Not,
-}
-
 expr_parse!(Binary, ExprBinary, "binary expression");
 
 /// A binary operation.
@@ -56,7 +47,7 @@ pub enum BinOp {
     /// Instance of test `a is b`.
     Is(T![is]),
     /// Negated instance of test `a is not b`.
-    IsNot(IsNot),
+    IsNot(T![is not]),
     /// Lazy and operator `&&`.
     And(T![&&]),
     /// Lazy or operator `||`.
@@ -189,7 +180,7 @@ impl BinOp {
                 let token = p.tok_at(1);
 
                 match token.kind {
-                    K![not] => Self::IsNot(IsNot {
+                    K![not] => Self::IsNot(ast::IsNot {
                         is,
                         not: ast::Not { token },
                     }),

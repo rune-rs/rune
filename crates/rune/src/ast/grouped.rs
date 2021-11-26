@@ -206,9 +206,9 @@ grouped! {
     /// use rune::{T, testing, ast};
     ///
     /// testing::roundtrip::<ast::AngleBracketed<ast::Path, T![,]>>("<Foo, Bar>");
-    /// testing::roundtrip::<ast::AngleBracketed<ast::ExprWithoutBinary, T![,]>>("<1, \"two\">");
-    /// testing::roundtrip::<ast::AngleBracketed<ast::ExprWithoutBinary, T![,]>>("<1, 2,>");
-    /// testing::roundtrip::<ast::AngleBracketed<ast::ExprWithoutBinary, T![,]>>("<1, 2, foo()>");
+    /// testing::roundtrip::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, \"two\">");
+    /// testing::roundtrip::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, 2,>");
+    /// testing::roundtrip::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, 2, foo()>");
     /// ```
     AngleBracketed { angle_bracketed, ast::generated::Lt, ast::generated::Gt }
 }
