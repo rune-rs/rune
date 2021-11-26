@@ -193,7 +193,7 @@ fn aoc_2020_11a(b: &mut Bencher) -> rune::Result<()> {
             })
         }
 
-        pub async fn main(lines) {
+        pub fn main(lines) {
             let waiting_hall = lines
                 .iter()
                 .map(scan_line)

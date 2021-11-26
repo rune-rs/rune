@@ -73,7 +73,8 @@ fn test_range_into_iter() {
         }
     };
 
-    rune! { () =>
+    rune! {
+        () =>
         pub fn main() {
             fn end() {
                 4
@@ -88,4 +89,25 @@ fn test_range_into_iter() {
             assert_eq!(d, [1, 2, 3, 4]);
         }
     }
+}
+
+/// Ensures that the end of the range is parsed without an eager brace to ensure
+/// it can be used in a loop.
+#[test]
+fn test_range_non_eager_brace() {
+    let out = rune! {
+        i64 =>
+        pub fn main() {
+            let out = 0;
+
+            for n in 0..10 {
+                out += n;
+            }
+
+            out
+        }
+    };
+
+    let expected = (0i64..10i64).sum::<i64>();
+    assert_eq!(out, expected);
 }

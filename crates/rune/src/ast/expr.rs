@@ -278,7 +278,7 @@ impl Expr {
     /// are arguments to statements immediately followed by blocks. Like `if`,
     /// `while`, and `match`.
     pub(crate) fn parse_without_eager_brace(p: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_with(p, EagerBrace(false), EagerBinary(true), Callable(true))
+        Self::parse_with(p, NOT_EAGER_BRACE, EAGER_BINARY, CALLABLE)
     }
 
     /// ull, configurable parsing of an expression.F
@@ -294,8 +294,8 @@ impl Expr {
         let expr = parse_chain(p, expr, callable)?;
 
         let expr = if *eager_binary {
-            let op = ast::BinOp::from_peeker(p.peeker());
-            parse_binary(p, expr, op, eager_brace)?
+            let lookeahead = ast::BinOp::from_peeker(p.peeker());
+            parse_binary(p, expr, lookeahead, 0, eager_brace)?
         } else {
             expr
         };
@@ -386,8 +386,8 @@ impl Expr {
     ) -> Result<Self, ParseError> {
         let lhs = parse_base(p, attributes, EagerBrace(true))?;
         let lhs = parse_chain(p, lhs, callable)?;
-        let op = ast::BinOp::from_peeker(p.peeker());
-        parse_binary(p, lhs, op, EagerBrace(true))
+        let lookahead = ast::BinOp::from_peeker(p.peeker());
+        parse_binary(p, lhs, lookahead, 0, EagerBrace(true))
     }
 
     /// Internal function to construct a literal expression.
@@ -443,7 +443,7 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_with(p, EagerBrace(true), EagerBinary(true), Callable(true))
+        Self::parse_with(p, EagerBrace(true), EAGER_BINARY, CALLABLE)
     }
 }
 
@@ -511,11 +511,11 @@ fn parse_base(
         match p.nth(0)? {
             K![..] => {
                 let limits = ast::ExprRangeLimits::HalfOpen(p.parse()?);
-                parse_range(p, take(attributes), None, limits)?
+                parse_range(p, take(attributes), None, limits, eager_brace)?
             }
             K![..=] => {
                 let limits = ast::ExprRangeLimits::Closed(p.parse()?);
-                parse_range(p, take(attributes), None, limits)?
+                parse_range(p, take(attributes), None, limits, eager_brace)?
             }
             K![#] => {
                 let ident = ast::ObjectIdent::Anonymous(p.parse()?);
@@ -651,7 +651,7 @@ fn parse_chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result
             }
             K![=] => {
                 let eq = p.parse()?;
-                let rhs = Expr::parse_with(p, EagerBrace(true), EagerBinary(true), Callable(true))?;
+                let rhs = Expr::parse_with(p, EagerBrace(true), EAGER_BINARY, CALLABLE)?;
 
                 expr = Expr::Assign(Box::new(ast::ExprAssign {
                     attributes: expr.take_attributes(),
@@ -707,74 +707,81 @@ fn parse_chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result
 /// Parse a binary expression.
 fn parse_binary(
     p: &mut Parser<'_>,
-    mut cur: Expr,
-    mut op: Option<ast::BinOp>,
+    mut lhs: Expr,
+    mut lookahead: Option<ast::BinOp>,
+    min_precedence: usize,
     eager_brace: EagerBrace,
 ) -> Result<Expr, ParseError> {
-    while let Some(o) = op.take() {
-        o.advance(p)?;
+    while let Some(op) = lookahead {
+        let precedence = op.precedence();
 
-        match o {
+        if precedence < min_precedence {
+            break;
+        }
+
+        op.advance(p)?;
+
+        match op {
             ast::BinOp::DotDot(token) => {
-                cur = parse_range(
+                lhs = parse_range(
                     p,
-                    cur.take_attributes(),
-                    Some(cur),
+                    lhs.take_attributes(),
+                    Some(lhs),
                     ast::ExprRangeLimits::HalfOpen(token),
+                    eager_brace,
                 )?;
-                op = ast::BinOp::from_peeker(p.peeker());
+                lookahead = ast::BinOp::from_peeker(p.peeker());
                 continue;
             }
             ast::BinOp::DotDotEq(token) => {
-                cur = parse_range(
+                lhs = parse_range(
                     p,
-                    cur.take_attributes(),
-                    Some(cur),
+                    lhs.take_attributes(),
+                    Some(lhs),
                     ast::ExprRangeLimits::Closed(token),
+                    eager_brace,
                 )?;
-                op = ast::BinOp::from_peeker(p.peeker());
+                lookahead = ast::BinOp::from_peeker(p.peeker());
                 continue;
             }
             _ => (),
         }
 
         let rhs = parse_base(p, &mut vec![], eager_brace)?;
-        let mut rhs = parse_chain(p, rhs, Callable(true))?;
+        let mut rhs = parse_chain(p, rhs, CALLABLE)?;
+        lookahead = ast::BinOp::from_peeker(p.peeker());
 
-        if let Some(next) = ast::BinOp::from_peeker(p.peeker()) {
-            match (o.precedence(), next.precedence()) {
+        while let Some(next) = lookahead {
+            match (precedence, next.precedence()) {
                 (lh, rh) if lh < rh => {
                     // Higher precedence elements require us to recurse.
-                    rhs = parse_binary(p, rhs, Some(next), eager_brace)?;
-                    op = ast::BinOp::from_peeker(p.peeker());
+                    rhs = parse_binary(p, rhs, Some(next), lh + 1, eager_brace)?;
+                    lookahead = ast::BinOp::from_peeker(p.peeker());
+                    continue;
                 }
                 (lh, rh) if lh == rh => {
                     if !next.is_assoc() {
                         return Err(ParseError::new(
-                            cur.span().join(rhs.span()),
+                            lhs.span().join(rhs.span()),
                             ParseErrorKind::PrecedenceGroupRequired,
                         ));
                     }
-
-                    op = Some(next);
                 }
-                // lh > rh
-                _ => {
-                    // Just smoothly accept a downgrade in precedence.
-                    op = Some(next);
-                }
+                _ => {}
             };
+
+            break;
         }
 
-        cur = Expr::Binary(Box::new(ast::ExprBinary {
-            attributes: cur.take_attributes(),
-            lhs: cur,
-            op: o,
+        lhs = Expr::Binary(Box::new(ast::ExprBinary {
+            attributes: lhs.take_attributes(),
+            lhs,
+            op,
             rhs,
         }));
     }
 
-    Ok(cur)
+    Ok(lhs)
 }
 
 /// Parse the tail-end of a range.
@@ -783,14 +790,10 @@ fn parse_range(
     attributes: Vec<ast::Attribute>,
     from: Option<Expr>,
     limits: ast::ExprRangeLimits,
+    eager_brace: EagerBrace,
 ) -> Result<Expr, ParseError> {
     let to = if Expr::peek(p.peeker()) {
-        Some(Expr::parse_with(
-            p,
-            EagerBrace(true),
-            EagerBinary(true),
-            Callable(true),
-        )?)
+        Some(Expr::parse_with(p, eager_brace, EAGER_BINARY, CALLABLE)?)
     } else {
         None
     };
