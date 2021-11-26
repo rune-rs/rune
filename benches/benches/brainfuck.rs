@@ -2,9 +2,11 @@
 
 extern crate test;
 
+use rune::{Hash, Result, Vm};
+use rune_tests::CaptureIo;
 use test::Bencher;
 
-fn make_vm() -> rune::Result<rune::Vm> {
+fn make_vm() -> Result<(Vm, CaptureIo)> {
     Ok(rune_tests::rune_vm_capture! {
     enum Op {
         Inc(v),
@@ -82,7 +84,6 @@ fn make_vm() -> rune::Result<rune::Vm> {
     struct Program {
         ops,
         inputs
-
     }
 
     impl Program {
@@ -102,75 +103,78 @@ fn make_vm() -> rune::Result<rune::Vm> {
 }
 
 #[bench]
-fn bf_hello_world(b: &mut Bencher) -> rune::Result<()> {
-    let mut vm = make_vm()?;
-    let hello_world = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.".to_owned();
+fn brainfuck_hello_world(b: &mut Bencher) -> Result<()> {
+    let (mut vm, io) = make_vm()?;
 
-    let entry = rune::Hash::type_hash(&["main"]);
+    let program = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
+
+    let entry = Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.execute(entry, (hello_world.clone(), 00));
-        let mut execution = execution.expect("successful setup");
-        execution.complete().expect("successful execution")
+        let value = vm.call(entry, (program, 0)).expect("successful execution");
+        let out = io.drain_utf8();
+        assert_eq!(out.as_deref(), Ok("Hello World!\n"));
+        value
     });
-    assert!(rune_tests::capture_output::drain_output()
-        .map(|v| v.starts_with("Hello World!"))
-        .unwrap_or(false));
+
     Ok(())
 }
 
 #[bench]
-fn bf_hello_world2(b: &mut Bencher) -> rune::Result<()> {
-    let mut vm = make_vm()?;
+fn brainfuck_hello_world2(b: &mut Bencher) -> Result<()> {
+    let (mut vm, io) = make_vm()?;
+
     // interesting hello world which wraps cells on the negative side
-    let hello_world = "+[-[<<[+[--->]-[<<<]]]>>>-]>-.---.>..>.<<<<-.<+.>>>>>.>.<<.<-.".to_owned();
+    let program = "+[-[<<[+[--->]-[<<<]]]>>>-]>-.---.>..>.<<<<-.<+.>>>>>.>.<<.<-.";
 
-    let entry = rune::Hash::type_hash(&["main"]);
+    let entry = Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.execute(entry, (hello_world.clone(), 0));
-        let mut execution = execution.expect("successful setup");
-        execution.complete().expect("successful execution")
+        let value = vm.call(entry, (program, 0)).expect("successful execution");
+        let out = io.drain_utf8();
+        assert_eq!(out.as_deref(), Ok("hello world"));
+        value
     });
-    assert!(rune_tests::capture_output::drain_output()
-        .map(|v| v.starts_with("hello world"))
-        .unwrap_or(false));
+
     Ok(())
 }
 
 #[bench]
-fn bf_fib(b: &mut Bencher) -> rune::Result<()> {
-    let mut vm = make_vm()?;
+fn brainfuck_fib(b: &mut Bencher) -> Result<()> {
+    let (mut vm, io) = make_vm()?;
+
     // Computes the first 16 fib numbers
-    let src = "++++++++++++++++++++++++++++++++++++++++++++>++++++++++++++++++++++++++++++++>++ ++++++++++++++>>+<<[>>>>++++++++++<<[->+>-[>+>>]>[+[-<+>]>+>>]<<<<<<]>[<+>-]>[-] >>>++++++++++<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>>[+++++++++++++++++++++++++++++ +++++++++++++++++++.[-]]<[++++++++++++++++++++++++++++++++++++++++++++++++.[-]]< <<++++++++++++++++++++++++++++++++++++++++++++++++.[-]<<<<<<<.>.>>[>>+<<-]>[>+<< +>-]>[<+>-]<<<-]<<++..."
-        .to_owned();
-    let entry = rune::Hash::type_hash(&["main"]);
+    let program = "++++++++++++++++++++++++++++++++++++++++++++>++++++++++++++++++++++++++++++++>++ ++++++++++++++>>+<<[>>>>++++++++++<<[->+>-[>+>>]>[+[-<+>]>+>>]<<<<<<]>[<+>-]>[-] >>>++++++++++<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>>[+++++++++++++++++++++++++++++ +++++++++++++++++++.[-]]<[++++++++++++++++++++++++++++++++++++++++++++++++.[-]]< <<++++++++++++++++++++++++++++++++++++++++++++++++.[-]<<<<<<<.>.>>[>>+<<-]>[>+<< +>-]>[<+>-]<<<-]<<++...";
+    let entry = Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        let execution = vm.execute(entry, (src.clone(), 0));
-        let mut execution = execution.expect("successful setup");
-        execution.complete().expect("successful execution");
+        let value = vm.call(entry, (program, 0)).expect("successful execution");
+        let out = io.drain_utf8();
+        assert_eq!(
+            out.as_deref(),
+            Ok("1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 121, 98, 219, ...")
+        );
+        value
     });
-    assert!(rune_tests::capture_output::drain_output()
-        .map(|v| v.starts_with("1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 121, 98, 219, ..."))
-        .unwrap_or(false));
+
     Ok(())
 }
 
 #[bench]
-fn bf_loopity(b: &mut Bencher) -> rune::Result<()> {
-    let mut vm = make_vm()?;
+fn brainfuck_loopity(b: &mut Bencher) -> Result<()> {
+    let (mut vm, io) = make_vm()?;
+
     // Just a program that runs a lot of instructions
-    let src = ">+[>++>+++[-<]>>]+".to_owned();
-    let entry = rune::Hash::type_hash(&["main"]);
+    let program = ">+[>++>+++[-<]>>]+";
+
+    let entry = Hash::type_hash(&["main"]);
 
     b.iter(|| {
-        vm.call(entry, (src.clone(), 5))
-            .expect("successful execution")
+        let value = vm.call(entry, (program, 5)).expect("successful execution");
+        let out = io.drain_utf8();
+        assert_eq!(out.as_deref(), Ok(""));
+        value
     });
 
-    assert!(rune_tests::capture_output::drain_output()
-        .map(|v| v.is_empty())
-        .unwrap_or(false));
     Ok(())
 }

@@ -105,6 +105,12 @@ impl ToValue for Box<str> {
     }
 }
 
+impl ToValue for &str {
+    fn to_value(self) -> Result<Value, VmError> {
+        Ok(Value::from(Shared::new(self.to_string())))
+    }
+}
+
 // Result impls
 
 impl<T> ToValue for Result<T, Panic>

@@ -7,7 +7,8 @@ use rune::{termcolor, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm
 use std::sync::Arc;
 use thiserror::Error;
 
-pub mod capture_output;
+mod capture_io;
+pub use self::capture_io::{capture_io, CaptureIo};
 
 /// Macro internals.
 #[doc(hidden)]
@@ -104,7 +105,6 @@ where
 }
 
 /// Call the specified function in the given script sources.
-#[cfg(feature = "futures-executor")]
 fn internal_run<N, A, T>(
     context: &Arc<Context>,
     sources: &mut Sources,
@@ -118,31 +118,6 @@ where
     T: FromValue,
 {
     ::futures_executor::block_on(internal_run_async(context, sources, function, args))
-}
-
-/// Call the specified function in the given script sources.
-#[cfg(not(feature = "futures-executor"))]
-fn internal_run<N, A, T>(
-    context: &Arc<Context>,
-    sources: &mut Sources,
-    function: N,
-    args: A,
-) -> Result<T, RunError>
-where
-    N: IntoIterator,
-    N::Item: IntoComponent,
-    A: Args,
-    T: FromValue,
-{
-    let mut vm = vm(context, sources)?;
-
-    let output = vm
-        .execute(&Item::with_item(function), args)
-        .map_err(RunError::VmError)?
-        .complete()
-        .map_err(RunError::VmError)?;
-
-    T::from_value(output).map_err(RunError::VmError)
 }
 
 /// Run the given source with diagnostics being printed to stderr.
@@ -264,10 +239,12 @@ macro_rules! rune_vm {
 #[macro_export]
 macro_rules! rune_vm_capture {
     ($($tt:tt)*) => {{
-        let mut context = $crate::macros::rune_modules::with_config(false).expect("failed to build context");
-        context.install(&$crate::capture_output::output_redirect_module()?)?;
-        let context = std::sync::Arc::new(context);
-        $crate::vm_with_source(&context, stringify!($($tt)*)).expect("program to compile successfully")
+        let mut context = $crate::macros::rune_modules::with_config(false)?;
+        let (m, io) = $crate::capture_io()?;
+        context.install(&m)?;
+        let context = ::std::sync::Arc::new(context);
+        let vm = $crate::vm_with_source(&context, stringify!($($tt)*))?;
+        (vm, io)
     }};
 }
 
