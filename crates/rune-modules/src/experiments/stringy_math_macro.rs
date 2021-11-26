@@ -16,7 +16,7 @@ pub(crate) fn stringy_math(
         let op = parser.parse::<ast::Ident>()?;
         let arg = parser.parse::<ast::Expr>()?;
 
-        output = match ctx.resolve(op)?.as_ref() {
+        output = match ctx.resolve(op)? {
             "add" => quote!((#output) + #arg),
             "sub" => quote!((#output) - #arg),
             "div" => quote!((#output) / #arg),

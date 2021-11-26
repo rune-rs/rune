@@ -55,7 +55,7 @@ pub struct BuildError;
 /// let vm = Vm::new(runtime, unit);
 /// # Ok(()) }
 /// ```
-pub fn prepare<'a>(sources: &'a mut Sources) -> Build<'a> {
+pub fn prepare(sources: &mut Sources) -> Build<'_> {
     Build {
         sources,
         context: None,

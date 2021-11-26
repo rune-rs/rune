@@ -236,13 +236,13 @@ impl CompileBuildEntry<'_> {
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
                 } else {
-                    let name = f.ast.name.resolve(&self.q.storage, self.q.sources)?;
+                    let name = f.ast.name.resolve(self.q.storage, self.q.sources)?;
 
                     self.q.unit.new_instance_function(
                         location,
                         item.item.clone(),
                         type_hash,
-                        name.as_ref(),
+                        name,
                         count,
                         asm,
                         f.call,

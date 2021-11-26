@@ -180,9 +180,8 @@ impl Iterator {
     /// Find the first matching value in the iterator using the given function.
     pub fn find(mut self, find: Function) -> Result<Option<Value>, VmError> {
         while let Some(value) = self.next()? {
-            let result = find.call::<_, bool>((value.clone(),))?;
-            if result {
-                return Ok(Some(value.clone()));
+            if find.call::<_, bool>((value.clone(),))? {
+                return Ok(Some(value));
             }
         }
 

@@ -136,7 +136,7 @@ impl<'a> MacroContext<'a> {
     where
         T: Resolve<'r>,
     {
-        item.resolve(&self.q.storage, self.q.sources)
+        item.resolve(self.q.storage, self.q.sources)
     }
 
     /// Insert the given source so that it has a [SourceId] that can be used in

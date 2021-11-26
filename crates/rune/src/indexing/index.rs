@@ -97,7 +97,7 @@ impl<'a> Indexer<'a> {
 
         let ident = ident.resolve(self.q.storage(), self.q.sources)?;
 
-        let mut internal_macro = match ident.as_ref() {
+        let mut internal_macro = match ident {
             "template" => self.expand_template_macro(ast, &args)?,
             "format" => self.expand_format_macro(ast, &args)?,
             "file" => self.expand_file_macro(ast)?,
@@ -180,7 +180,7 @@ impl<'a> Indexer<'a> {
 
             let k = key.resolve(self.q.storage(), self.q.sources)?;
 
-            match k.as_ref() {
+            match k {
                 "fill" => {
                     if fill.is_some() {
                         return Err(ParseError::unsupported(
@@ -205,7 +205,7 @@ impl<'a> Indexer<'a> {
                     let arg = p.parse::<ast::Ident>()?;
                     let a = arg.resolve(self.q.storage(), self.q.sources)?;
 
-                    align = Some(match str::parse::<format::Alignment>(a.as_ref()) {
+                    align = Some(match str::parse::<format::Alignment>(a) {
                         Ok(a) => (arg, a),
                         _ => {
                             return Err(ParseError::unsupported(
@@ -272,7 +272,7 @@ impl<'a> Indexer<'a> {
                     let arg = p.parse::<ast::Ident>()?;
                     let a = arg.resolve(self.q.storage(), self.q.sources)?;
 
-                    format_type = Some(match str::parse::<format::Type>(a.as_ref()) {
+                    format_type = Some(match str::parse::<format::Type>(a) {
                         Ok(format_type) => (arg, format_type),
                         _ => {
                             return Err(ParseError::unsupported(
@@ -1293,7 +1293,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     }
 
     let ident = ast.ident.resolve(idx.q.storage(), idx.q.sources)?;
-    let _guard = idx.items.push_name(ident.as_ref());
+    let _guard = idx.items.push_name(ident);
 
     let visibility = ast_to_visibility(&ast.visibility)?;
     let item = idx
@@ -1328,7 +1328,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
             .try_as_ident()
             .ok_or_else(|| CompileError::msg(path_segment, "unsupported path segment"))?;
         let ident = ident_segment.resolve(idx.q.storage(), idx.q.sources)?;
-        guards.push(idx.items.push_name(ident.as_ref()));
+        guards.push(idx.items.push_name(ident));
     }
 
     let new = Arc::new(idx.items.item().clone());
@@ -1473,7 +1473,7 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
         }
         Some(ast::PathKind::Ident(ident)) => {
             let ident = ident.resolve(idx.q.storage(), idx.q.sources)?;
-            idx.scopes.mark_use(ident.as_ref());
+            idx.scopes.mark_use(ident);
         }
         None => (),
     }

@@ -326,7 +326,7 @@ fn pat_lit(
                 }
                 ast::Lit::Str(pat_string) => {
                     let span = pat_string.span();
-                    let string = pat_string.resolve(&c.q.storage, c.q.sources)?;
+                    let string = pat_string.resolve(c.q.storage, c.q.sources)?;
                     let slot = c.q.unit.new_static_string(span, &*string)?;
                     load(c, Needs::Value)?;
                     c.asm.push(Inst::EqStaticString { slot }, span);
@@ -575,7 +575,7 @@ fn pat_object(
 
         let key = match pat {
             ast::Pat::PatBinding(binding) => {
-                cow_key = binding.key.resolve(&c.q.storage, c.q.sources)?;
+                cow_key = binding.key.resolve(c.q.storage, c.q.sources)?;
                 bindings.push(Binding::Binding(
                     binding.span(),
                     cow_key.as_ref().into(),
@@ -594,7 +594,7 @@ fn pat_object(
                     }
                 };
 
-                let key = ident.resolve(&c.q.storage, c.q.sources)?;
+                let key = ident.resolve(c.q.storage, c.q.sources)?;
                 bindings.push(Binding::Ident(path.span(), key.into()));
                 key
             }
@@ -932,7 +932,7 @@ fn builtin_template(
                 ..
             } = &**expr_lit
             {
-                let s = s.resolve_template_string(&c.q.storage, c.q.sources)?;
+                let s = s.resolve_template_string(c.q.storage, c.q.sources)?;
                 size_hint += s.len();
 
                 let slot = c.q.unit.new_static_string(span, &s)?;
@@ -1026,7 +1026,7 @@ fn const_(
         }
         ConstValue::Option(option) => match option {
             Some(value) => {
-                const_(span, c, &value, Needs::Value)?;
+                const_(span, c, value, Needs::Value)?;
                 c.asm.push(
                     Inst::Variant {
                         variant: InstVariant::Some,
@@ -1045,14 +1045,14 @@ fn const_(
         },
         ConstValue::Vec(vec) => {
             for value in vec.iter() {
-                const_(span, c, &value, Needs::Value)?;
+                const_(span, c, value, Needs::Value)?;
             }
 
             c.asm.push(Inst::Vec { count: vec.len() }, span);
         }
         ConstValue::Tuple(tuple) => {
             for value in tuple.iter() {
-                const_(span, c, &value, Needs::Value)?;
+                const_(span, c, value, Needs::Value)?;
             }
 
             c.asm.push(Inst::Tuple { count: tuple.len() }, span);
@@ -1062,7 +1062,7 @@ fn const_(
             entries.sort_by_key(|k| k.0);
 
             for (_, value) in entries.iter().copied() {
-                const_(span, c, &value, Needs::Value)?;
+                const_(span, c, value, Needs::Value)?;
             }
 
             let slot =
@@ -1153,7 +1153,7 @@ fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> Co
                 .first
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path, "unsupported path"))?;
-            let ident = segment.resolve(&c.q.storage, c.q.sources)?;
+            let ident = segment.resolve(c.q.storage, c.q.sources)?;
             let var = c.scopes.get_var(c.q.visitor, &*ident, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
             true
@@ -1166,7 +1166,7 @@ fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> Co
             match &field_access.expr_field {
                 ast::ExprField::Path(path) => {
                     if let Some(ident) = path.try_as_ident() {
-                        let slot = ident.resolve(&c.q.storage, c.q.sources)?;
+                        let slot = ident.resolve(c.q.storage, c.q.sources)?;
                         let slot = c.q.unit.new_static_string(ident.span(), slot.as_ref())?;
 
                         expr(&ast.rhs, c, Needs::Value)?.apply(c)?;
@@ -1378,7 +1378,7 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
                     .try_as_ident()
                     .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
 
-                let ident = segment.resolve(&c.q.storage, c.q.sources)?;
+                let ident = segment.resolve(c.q.storage, c.q.sources)?;
                 let var = c.scopes.get_var(c.q.visitor, &*ident, c.source_id, span)?;
 
                 Some(InstTarget::Offset(var.offset))
@@ -1392,7 +1392,7 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
                 match &field_access.expr_field {
                     ast::ExprField::Path(path) => {
                         if let Some(ident) = path.try_as_ident() {
-                            let n = ident.resolve(&c.q.storage, c.q.sources)?;
+                            let n = ident.resolve(c.q.storage, c.q.sources)?;
                             let n = c.q.unit.new_static_string(path.span(), n.as_ref())?;
 
                             Some(InstTarget::Field(n))
@@ -1964,7 +1964,7 @@ fn expr_field_access(
         }
         ast::ExprField::Path(path) => {
             if let Some(ident) = path.try_as_ident() {
-                let field = ident.resolve(&c.q.storage, c.q.sources)?;
+                let field = ident.resolve(c.q.storage, c.q.sources)?;
                 let slot = c.q.unit.new_static_string(span, field.as_ref())?;
 
                 c.asm.push(Inst::ObjectIndexGet { slot }, span);
@@ -1993,9 +1993,9 @@ fn expr_field_access(
             None => return Ok(false),
         };
 
-        let ident = ident.resolve(&c.q.storage, c.q.sources)?;
+        let ident = ident.resolve(c.q.storage, c.q.sources)?;
 
-        let index = match n.resolve(&c.q.storage, c.q.sources)? {
+        let index = match n.resolve(c.q.storage, c.q.sources)? {
             ast::Number::Integer(n) => n,
             _ => return Ok(false),
         };
@@ -2462,7 +2462,7 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
         if let Some((_, e)) = &assign.assign {
             expr(e, c, Needs::Value)?.apply(c)?;
         } else {
-            let key = assign.key.resolve(&c.q.storage, c.q.sources)?;
+            let key = assign.key.resolve(c.q.storage, c.q.sources)?;
             let var = c.scopes.get_var(c.q.visitor, &*key, c.source_id, span)?;
             let comment = format!("name `{}`", key);
             var.copy(c, span, comment);
@@ -3141,7 +3141,7 @@ fn lit(ast: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm
             c.asm.push(Inst::byte(b), span);
         }
         ast::Lit::ByteStr(lit) => {
-            let bytes = lit.resolve(&c.q.storage, c.q.sources)?;
+            let bytes = lit.resolve(c.q.storage, c.q.sources)?;
             let slot = c.q.unit.new_static_bytes(span, &*bytes)?;
             c.asm.push(Inst::Bytes { slot }, span);
         }
@@ -3160,7 +3160,7 @@ fn lit_str(ast: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileRes
         return Ok(Asm::top(span));
     }
 
-    let string = ast.resolve(&c.q.storage, c.q.sources)?;
+    let string = ast.resolve(c.q.storage, c.q.sources)?;
     let slot = c.q.unit.new_static_string(span, &*string)?;
     c.asm.push(Inst::String { slot }, span);
     Ok(Asm::top(span))

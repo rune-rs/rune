@@ -44,6 +44,9 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
+#![allow(clippy::collapsible_match)]
+#![allow(clippy::single_match)]
+
 use anyhow::Context;
 use rune::ast::Spanned;
 use rune::compile::LinkerError;

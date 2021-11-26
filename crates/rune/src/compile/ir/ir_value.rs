@@ -129,7 +129,7 @@ impl IrValue {
             }
             IrValue::Bytes(b) => {
                 let b = b.take().map_err(IrError::access(spanned))?;
-                ConstValue::Bytes(Bytes::from(b))
+                ConstValue::Bytes(b)
             }
             Self::Option(option) => {
                 ConstValue::Option(match option.take().map_err(IrError::access(spanned))? {

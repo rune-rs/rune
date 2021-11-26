@@ -183,7 +183,7 @@ impl<'a> Query<'a> {
 
     /// Access reference to storage.
     pub(crate) fn storage(&self) -> &Storage {
-        &self.storage
+        self.storage
     }
 
     /// Insert the given compile meta.
@@ -623,8 +623,7 @@ impl<'a> Query<'a> {
 
         let mut item = match (&path.global, &path.first) {
             (Some(..), ast::PathSegment::Ident(ident)) => {
-                let ident = ident.resolve(&self.storage, self.sources)?;
-                Item::with_crate(ident.as_ref())
+                Item::with_crate(ident.resolve(self.storage, self.sources)?)
             }
             (Some(global), _) => {
                 return Err(CompileError::new(
@@ -672,7 +671,7 @@ impl<'a> Query<'a> {
 
             match segment {
                 ast::PathSegment::Ident(ident) => {
-                    let ident = ident.resolve(&self.storage, self.sources)?;
+                    let ident = ident.resolve(self.storage, self.sources)?;
                     item.push(ident);
                 }
                 ast::PathSegment::Super(super_token) => {
@@ -704,7 +703,7 @@ impl<'a> Query<'a> {
         let span = path.span();
 
         let local = match local {
-            Some(local) => Some(local.resolve(&self.storage, self.sources)?.into()),
+            Some(local) => Some(local.resolve(self.storage, self.sources)?.into()),
             None => None,
         };
 
@@ -728,7 +727,7 @@ impl<'a> Query<'a> {
         wildcard: bool,
     ) -> Result<(), QueryError> {
         let alias = match alias {
-            Some(alias) => Some(alias.resolve(&self.storage, self.sources)?),
+            Some(alias) => Some(alias.resolve(self.storage, self.sources)?),
             None => None,
         };
 
@@ -932,7 +931,7 @@ impl<'a> Query<'a> {
                     &query_item.item,
                     variant.ast.body,
                     Some(&enum_item.item),
-                    &self.storage,
+                    self.storage,
                     self.sources,
                 )?
             }
@@ -940,7 +939,7 @@ impl<'a> Query<'a> {
                 &query_item.item,
                 st.ast.body,
                 None,
-                &self.storage,
+                self.storage,
                 self.sources,
             )?,
             Indexed::Function(f) => {
@@ -1189,7 +1188,7 @@ impl<'a> Query<'a> {
         debug_assert!(base.starts_with(&module.item));
         let mut base = base.clone();
 
-        let local = local.resolve(&self.storage, self.sources)?;
+        let local = local.resolve(self.storage, self.sources)?;
 
         while base.starts_with(&module.item) {
             base.push(local);
