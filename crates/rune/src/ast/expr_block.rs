@@ -19,6 +19,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ExprBlock {
     /// The attributes for the block.
     #[rune(iter, meta)]

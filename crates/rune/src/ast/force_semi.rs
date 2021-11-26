@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// Helper to force an expression to have a specific semi-colon policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ForceSemi {
     /// The span of the whole wrapping expression.
     pub span: Span,

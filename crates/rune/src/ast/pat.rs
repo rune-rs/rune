@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// A pattern match.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum Pat {
     /// An ignored binding `_`.
     PatIgnore(PatIgnore),
@@ -159,7 +160,7 @@ impl Parse for Pat {
             _ => (),
         }
 
-        Err(ParseError::expected(&p.tok_at(0)?, "pattern"))
+        Err(ParseError::expected(p.tok_at(0)?, "pattern"))
     }
 }
 
@@ -181,6 +182,7 @@ impl Peek for Pat {
 
 /// A literal pattern.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct PatLit {
     /// Attributes associated with the pattern.
     #[rune(iter)]
@@ -191,6 +193,7 @@ pub struct PatLit {
 
 /// The rest pattern `..` and associated attributes.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct PatRest {
     /// Attribute associated with the rest pattern.
     #[rune(iter)]
@@ -201,6 +204,7 @@ pub struct PatRest {
 
 /// An array pattern.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct PatVec {
     /// Attributes associated with the vector pattern.
     #[rune(iter)]
@@ -211,6 +215,7 @@ pub struct PatVec {
 
 /// A tuple pattern.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct PatTuple {
     /// Attributes associated with the object pattern.
     #[rune(iter)]
@@ -224,6 +229,7 @@ pub struct PatTuple {
 
 /// An object pattern.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct PatObject {
     /// Attributes associated with the object pattern.
     #[rune(iter)]
@@ -236,6 +242,7 @@ pub struct PatObject {
 
 /// An object item.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Parse)]
+#[non_exhaustive]
 pub struct PatBinding {
     /// Attributes associate with the binding.
     #[rune(iter)]
@@ -250,6 +257,7 @@ pub struct PatBinding {
 
 /// A tuple pattern.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct PatPath {
     /// Attributes associate with the path.
     #[rune(iter)]
@@ -260,6 +268,7 @@ pub struct PatPath {
 
 /// A ignore pattern.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct PatIgnore {
     /// Attributes associate with the path.
     #[rune(iter)]

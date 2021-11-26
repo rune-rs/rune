@@ -12,6 +12,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ExprTuple>("(1, 2, foo())");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprTuple {
     /// Attributes associated with tuple.
     #[rune(iter, meta)]

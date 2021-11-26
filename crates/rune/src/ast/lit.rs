@@ -3,6 +3,7 @@ use crate::macros::IntoLit;
 
 /// A literal value
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum Lit {
     /// A boolean literal
     Bool(ast::LitBool),
@@ -110,9 +111,6 @@ impl Parse for Lit {
             _ => (),
         }
 
-        Err(ParseError::expected(
-            &p.next()?,
-            r#"expected literal like `"Hello World"` or 42"#,
-        ))
+        Err(ParseError::expected(p.next()?, Expectation::Literal))
     }
 }

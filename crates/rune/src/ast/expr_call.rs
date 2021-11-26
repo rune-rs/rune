@@ -10,6 +10,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ExprCall>("test()");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprCall {
     /// Opaque identifier related with call.
     #[rune(id)]

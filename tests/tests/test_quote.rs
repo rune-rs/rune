@@ -1,17 +1,19 @@
 use rune::ast::Kind::*;
-use rune::ast::{CopySource, Delimiter, Kind, NumberSource, Span, StrSource, StringSource, Token};
+use rune::ast::{CopySource, Delimiter, LitSource, NumberSource, StrSource};
 use rune::macros::{quote, MacroContext};
+use rune_tests::assert_matches;
 
 macro_rules! assert_quote {
-    ($ctx:expr, [$($expected:expr),* $(,)?], $quote:expr) => {
-        assert_eq!(vec![$(token($expected),)*], $quote.into_token_stream($ctx));
-    }
-}
+    ($ctx:expr, [$($expected:pat),* $(,)?], $quote:expr) => {
+        let ts = $quote.into_token_stream($ctx);
+        let mut it = ts.into_iter();
 
-fn token(kind: Kind) -> Token {
-    Token {
-        span: Span::default(),
-        kind,
+        $(
+            let tok = it.next().expect("expected produced token");
+            assert_matches!(tok.kind, $expected);
+        )*
+
+        assert!(it.next().is_none(), "got extra tokens");
     }
 }
 
@@ -120,11 +122,11 @@ fn test_tokens() {
 #[test]
 fn test_synthetic() {
     MacroContext::test(|ctx| {
-        assert_quote!(ctx, [Ident(StringSource::Synthetic(0))], quote!(hello));
-        assert_quote!(ctx, [ByteStr(StrSource::Synthetic(0))], quote!(b"hello"));
-        assert_quote!(ctx, [Str(StrSource::Synthetic(0))], quote!("hello"));
-        assert_quote!(ctx, [Number(NumberSource::Synthetic(0))], quote!(0));
-        assert_quote!(ctx, [Number(NumberSource::Synthetic(1))], quote!(42.0));
+        assert_quote!(ctx, [Ident(LitSource::Synthetic(..))], quote!(hello));
+        assert_quote!(ctx, [ByteStr(StrSource::Synthetic(..))], quote!(b"hello"));
+        assert_quote!(ctx, [Str(StrSource::Synthetic(..))], quote!("hello"));
+        assert_quote!(ctx, [Number(NumberSource::Synthetic(..))], quote!(0));
+        assert_quote!(ctx, [Number(NumberSource::Synthetic(..))], quote!(42.0));
         assert_quote!(ctx, [Char(CopySource::Inline('a'))], quote!('a'));
         assert_quote!(ctx, [Byte(CopySource::Inline(b'a'))], quote!(b'a'));
     });
@@ -146,7 +148,7 @@ fn test_attribute() {
             [
                 Pound,
                 Open(Delimiter::Bracket),
-                Ident(StringSource::Synthetic(0)),
+                Ident(LitSource::Synthetic(..)),
                 Close(Delimiter::Bracket),
             ],
             quote!(#[test])
@@ -162,9 +164,9 @@ fn test_object() {
             [
                 Pound,
                 Open(Delimiter::Brace),
-                Ident(StringSource::Synthetic(0)),
+                Ident(LitSource::Synthetic(..)),
                 Colon,
-                Number(NumberSource::Synthetic(0)),
+                Number(NumberSource::Synthetic(..)),
                 Close(Delimiter::Brace),
             ],
             quote!(#{test: 42})

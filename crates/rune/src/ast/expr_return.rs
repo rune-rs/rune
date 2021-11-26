@@ -11,6 +11,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, Parse, PartialEq, Eq, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ExprReturn {
     /// The attributes of the `return` statement.
     #[rune(iter, meta)]

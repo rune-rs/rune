@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// A number literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct LitNumber {
     /// The token corresponding to the literal.
     pub token: ast::Token,
@@ -28,7 +29,7 @@ impl Parse for LitNumber {
 
         match token.kind {
             K![number(source)] => Ok(LitNumber { source, token }),
-            _ => Err(ParseError::expected(&token, "number")),
+            _ => Err(ParseError::expected(token, "number")),
         }
     }
 }
@@ -52,7 +53,10 @@ impl<'a> Resolve<'a> for LitNumber {
                 None => {
                     return Err(ResolveError::new(
                         span,
-                        ResolveErrorKind::BadSyntheticId { kind: "number", id },
+                        ResolveErrorKind::BadSyntheticId {
+                            kind: SyntheticKind::Number,
+                            id,
+                        },
                     ));
                 }
             },

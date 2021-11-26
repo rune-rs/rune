@@ -3,6 +3,7 @@ use std::borrow::Cow;
 
 /// A string literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct LitByteStr {
     /// The token corresponding to the literal.
     pub token: ast::Token,
@@ -60,7 +61,7 @@ impl Parse for LitByteStr {
 
         match token.kind {
             K![bytestr(source)] => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(&token, "literal byte string")),
+            _ => Err(ParseError::expected(token, "byte string")),
         }
     }
 }
@@ -82,7 +83,7 @@ impl<'a> Resolve<'a> for LitByteStr {
                     ResolveError::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
-                            kind: "byte string",
+                            kind: SyntheticKind::ByteString,
                             id,
                         },
                     )

@@ -1,5 +1,6 @@
 //! Parsing utilities for Rune.
 
+mod expectation;
 mod id;
 mod lexer;
 mod opaque;
@@ -9,6 +10,8 @@ mod parser;
 mod peek;
 mod resolve;
 
+pub use self::expectation::Expectation;
+pub(crate) use self::expectation::IntoExpectation;
 pub(crate) use self::id::Id;
 pub use self::lexer::{Lexer, LexerMode};
 pub(crate) use self::opaque::Opaque;

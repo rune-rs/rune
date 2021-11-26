@@ -14,6 +14,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ItemEnum {
     /// The attributes for the enum block
     #[rune(iter, meta)]
@@ -33,6 +34,7 @@ item_parse!(Enum, ItemEnum, "enum item");
 
 /// An enum variant.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ItemVariant {
     /// Opaque identifier of variant.
     #[rune(id)]
@@ -49,6 +51,7 @@ pub struct ItemVariant {
 
 /// An item body declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
+#[non_exhaustive]
 pub enum ItemVariantBody {
     /// An empty enum body.
     UnitBody,

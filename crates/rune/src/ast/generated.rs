@@ -1,7 +1,6 @@
 use crate::ast;
 use crate::macros;
 use crate::parse;
-use crate::shared;
 use std::fmt;
 
 /// This file has been generated from `assets\tokens.yaml`
@@ -9,6 +8,7 @@ use std::fmt;
 
 /// The `abstract` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Abstract {
     /// Associated token.
     pub token: ast::Token,
@@ -26,7 +26,7 @@ impl parse::Parse for Abstract {
 
         match token.kind {
             ast::Kind::Abstract => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "abstract")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Abstract)),
         }
     }
 }
@@ -38,13 +38,14 @@ impl parse::Peek for Abstract {
 }
 
 impl macros::ToTokens for Abstract {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `alignof` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct AlignOf {
     /// Associated token.
     pub token: ast::Token,
@@ -62,7 +63,7 @@ impl parse::Parse for AlignOf {
 
         match token.kind {
             ast::Kind::AlignOf => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "alignof")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::AlignOf)),
         }
     }
 }
@@ -74,13 +75,14 @@ impl parse::Peek for AlignOf {
 }
 
 impl macros::ToTokens for AlignOf {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `&`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Amp {
     /// Associated token.
     pub token: ast::Token,
@@ -98,7 +100,7 @@ impl parse::Parse for Amp {
 
         match token.kind {
             ast::Kind::Amp => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "&")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Amp)),
         }
     }
 }
@@ -110,13 +112,14 @@ impl parse::Peek for Amp {
 }
 
 impl macros::ToTokens for Amp {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `&&`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct AmpAmp {
     /// Associated token.
     pub token: ast::Token,
@@ -134,7 +137,7 @@ impl parse::Parse for AmpAmp {
 
         match token.kind {
             ast::Kind::AmpAmp => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "&&")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::AmpAmp)),
         }
     }
 }
@@ -146,13 +149,14 @@ impl parse::Peek for AmpAmp {
 }
 
 impl macros::ToTokens for AmpAmp {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `&=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct AmpEq {
     /// Associated token.
     pub token: ast::Token,
@@ -170,7 +174,7 @@ impl parse::Parse for AmpEq {
 
         match token.kind {
             ast::Kind::AmpEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "&=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::AmpEq)),
         }
     }
 }
@@ -182,13 +186,14 @@ impl parse::Peek for AmpEq {
 }
 
 impl macros::ToTokens for AmpEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `->`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Arrow {
     /// Associated token.
     pub token: ast::Token,
@@ -206,7 +211,7 @@ impl parse::Parse for Arrow {
 
         match token.kind {
             ast::Kind::Arrow => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "->")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Arrow)),
         }
     }
 }
@@ -218,13 +223,14 @@ impl parse::Peek for Arrow {
 }
 
 impl macros::ToTokens for Arrow {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `as` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct As {
     /// Associated token.
     pub token: ast::Token,
@@ -242,7 +248,7 @@ impl parse::Parse for As {
 
         match token.kind {
             ast::Kind::As => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "as")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::As)),
         }
     }
 }
@@ -254,13 +260,14 @@ impl parse::Peek for As {
 }
 
 impl macros::ToTokens for As {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `async` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Async {
     /// Associated token.
     pub token: ast::Token,
@@ -278,7 +285,7 @@ impl parse::Parse for Async {
 
         match token.kind {
             ast::Kind::Async => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "async")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Async)),
         }
     }
 }
@@ -290,13 +297,14 @@ impl parse::Peek for Async {
 }
 
 impl macros::ToTokens for Async {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `@`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct At {
     /// Associated token.
     pub token: ast::Token,
@@ -314,7 +322,7 @@ impl parse::Parse for At {
 
         match token.kind {
             ast::Kind::At => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "@")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::At)),
         }
     }
 }
@@ -326,13 +334,14 @@ impl parse::Peek for At {
 }
 
 impl macros::ToTokens for At {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `await` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Await {
     /// Associated token.
     pub token: ast::Token,
@@ -350,7 +359,7 @@ impl parse::Parse for Await {
 
         match token.kind {
             ast::Kind::Await => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "await")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Await)),
         }
     }
 }
@@ -362,13 +371,14 @@ impl parse::Peek for Await {
 }
 
 impl macros::ToTokens for Await {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `!`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Bang {
     /// Associated token.
     pub token: ast::Token,
@@ -386,7 +396,7 @@ impl parse::Parse for Bang {
 
         match token.kind {
             ast::Kind::Bang => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "!")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Bang)),
         }
     }
 }
@@ -398,13 +408,14 @@ impl parse::Peek for Bang {
 }
 
 impl macros::ToTokens for Bang {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `!=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct BangEq {
     /// Associated token.
     pub token: ast::Token,
@@ -422,7 +433,7 @@ impl parse::Parse for BangEq {
 
         match token.kind {
             ast::Kind::BangEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "!=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::BangEq)),
         }
     }
 }
@@ -434,13 +445,14 @@ impl parse::Peek for BangEq {
 }
 
 impl macros::ToTokens for BangEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `become` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Become {
     /// Associated token.
     pub token: ast::Token,
@@ -458,7 +470,7 @@ impl parse::Parse for Become {
 
         match token.kind {
             ast::Kind::Become => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "become")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Become)),
         }
     }
 }
@@ -470,13 +482,14 @@ impl parse::Peek for Become {
 }
 
 impl macros::ToTokens for Become {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `break` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Break {
     /// Associated token.
     pub token: ast::Token,
@@ -494,7 +507,7 @@ impl parse::Parse for Break {
 
         match token.kind {
             ast::Kind::Break => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "break")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Break)),
         }
     }
 }
@@ -506,13 +519,14 @@ impl parse::Peek for Break {
 }
 
 impl macros::ToTokens for Break {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `^`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Caret {
     /// Associated token.
     pub token: ast::Token,
@@ -530,7 +544,7 @@ impl parse::Parse for Caret {
 
         match token.kind {
             ast::Kind::Caret => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "^")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Caret)),
         }
     }
 }
@@ -542,13 +556,14 @@ impl parse::Peek for Caret {
 }
 
 impl macros::ToTokens for Caret {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `^=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CaretEq {
     /// Associated token.
     pub token: ast::Token,
@@ -566,7 +581,7 @@ impl parse::Parse for CaretEq {
 
         match token.kind {
             ast::Kind::CaretEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "^=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::CaretEq)),
         }
     }
 }
@@ -578,13 +593,14 @@ impl parse::Peek for CaretEq {
 }
 
 impl macros::ToTokens for CaretEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `:`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Colon {
     /// Associated token.
     pub token: ast::Token,
@@ -602,7 +618,7 @@ impl parse::Parse for Colon {
 
         match token.kind {
             ast::Kind::Colon => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, ":")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Colon)),
         }
     }
 }
@@ -614,13 +630,14 @@ impl parse::Peek for Colon {
 }
 
 impl macros::ToTokens for Colon {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `::`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ColonColon {
     /// Associated token.
     pub token: ast::Token,
@@ -638,7 +655,7 @@ impl parse::Parse for ColonColon {
 
         match token.kind {
             ast::Kind::ColonColon => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "::")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::ColonColon)),
         }
     }
 }
@@ -650,13 +667,14 @@ impl parse::Peek for ColonColon {
 }
 
 impl macros::ToTokens for ColonColon {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `,`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Comma {
     /// Associated token.
     pub token: ast::Token,
@@ -674,7 +692,7 @@ impl parse::Parse for Comma {
 
         match token.kind {
             ast::Kind::Comma => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, ",")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Comma)),
         }
     }
 }
@@ -686,13 +704,14 @@ impl parse::Peek for Comma {
 }
 
 impl macros::ToTokens for Comma {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `const` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Const {
     /// Associated token.
     pub token: ast::Token,
@@ -710,7 +729,7 @@ impl parse::Parse for Const {
 
         match token.kind {
             ast::Kind::Const => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "const")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Const)),
         }
     }
 }
@@ -722,13 +741,14 @@ impl parse::Peek for Const {
 }
 
 impl macros::ToTokens for Const {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `continue` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Continue {
     /// Associated token.
     pub token: ast::Token,
@@ -746,7 +766,7 @@ impl parse::Parse for Continue {
 
         match token.kind {
             ast::Kind::Continue => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "continue")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Continue)),
         }
     }
 }
@@ -758,13 +778,14 @@ impl parse::Peek for Continue {
 }
 
 impl macros::ToTokens for Continue {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `crate` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Crate {
     /// Associated token.
     pub token: ast::Token,
@@ -782,7 +803,7 @@ impl parse::Parse for Crate {
 
         match token.kind {
             ast::Kind::Crate => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "crate")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Crate)),
         }
     }
 }
@@ -794,13 +815,14 @@ impl parse::Peek for Crate {
 }
 
 impl macros::ToTokens for Crate {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `-`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Dash {
     /// Associated token.
     pub token: ast::Token,
@@ -818,7 +840,7 @@ impl parse::Parse for Dash {
 
         match token.kind {
             ast::Kind::Dash => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "-")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Dash)),
         }
     }
 }
@@ -830,13 +852,14 @@ impl parse::Peek for Dash {
 }
 
 impl macros::ToTokens for Dash {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `-=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DashEq {
     /// Associated token.
     pub token: ast::Token,
@@ -854,7 +877,7 @@ impl parse::Parse for DashEq {
 
         match token.kind {
             ast::Kind::DashEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "-=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::DashEq)),
         }
     }
 }
@@ -866,13 +889,14 @@ impl parse::Peek for DashEq {
 }
 
 impl macros::ToTokens for DashEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `default` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Default {
     /// Associated token.
     pub token: ast::Token,
@@ -890,7 +914,7 @@ impl parse::Parse for Default {
 
         match token.kind {
             ast::Kind::Default => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "default")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Default)),
         }
     }
 }
@@ -902,13 +926,14 @@ impl parse::Peek for Default {
 }
 
 impl macros::ToTokens for Default {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `/`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Div {
     /// Associated token.
     pub token: ast::Token,
@@ -926,7 +951,7 @@ impl parse::Parse for Div {
 
         match token.kind {
             ast::Kind::Div => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "/")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Div)),
         }
     }
 }
@@ -938,13 +963,14 @@ impl parse::Peek for Div {
 }
 
 impl macros::ToTokens for Div {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `do` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Do {
     /// Associated token.
     pub token: ast::Token,
@@ -962,7 +988,7 @@ impl parse::Parse for Do {
 
         match token.kind {
             ast::Kind::Do => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "do")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Do)),
         }
     }
 }
@@ -974,13 +1000,14 @@ impl parse::Peek for Do {
 }
 
 impl macros::ToTokens for Do {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `$`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Dollar {
     /// Associated token.
     pub token: ast::Token,
@@ -998,7 +1025,7 @@ impl parse::Parse for Dollar {
 
         match token.kind {
             ast::Kind::Dollar => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "$")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Dollar)),
         }
     }
 }
@@ -1010,13 +1037,14 @@ impl parse::Peek for Dollar {
 }
 
 impl macros::ToTokens for Dollar {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `.`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Dot {
     /// Associated token.
     pub token: ast::Token,
@@ -1034,7 +1062,7 @@ impl parse::Parse for Dot {
 
         match token.kind {
             ast::Kind::Dot => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, ".")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Dot)),
         }
     }
 }
@@ -1046,13 +1074,14 @@ impl parse::Peek for Dot {
 }
 
 impl macros::ToTokens for Dot {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `..`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DotDot {
     /// Associated token.
     pub token: ast::Token,
@@ -1070,7 +1099,7 @@ impl parse::Parse for DotDot {
 
         match token.kind {
             ast::Kind::DotDot => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "..")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::DotDot)),
         }
     }
 }
@@ -1082,13 +1111,14 @@ impl parse::Peek for DotDot {
 }
 
 impl macros::ToTokens for DotDot {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `..=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DotDotEq {
     /// Associated token.
     pub token: ast::Token,
@@ -1106,7 +1136,7 @@ impl parse::Parse for DotDotEq {
 
         match token.kind {
             ast::Kind::DotDotEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "..=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::DotDotEq)),
         }
     }
 }
@@ -1118,13 +1148,14 @@ impl parse::Peek for DotDotEq {
 }
 
 impl macros::ToTokens for DotDotEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `else` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Else {
     /// Associated token.
     pub token: ast::Token,
@@ -1142,7 +1173,7 @@ impl parse::Parse for Else {
 
         match token.kind {
             ast::Kind::Else => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "else")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Else)),
         }
     }
 }
@@ -1154,13 +1185,14 @@ impl parse::Peek for Else {
 }
 
 impl macros::ToTokens for Else {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `enum` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Enum {
     /// Associated token.
     pub token: ast::Token,
@@ -1178,7 +1210,7 @@ impl parse::Parse for Enum {
 
         match token.kind {
             ast::Kind::Enum => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "enum")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Enum)),
         }
     }
 }
@@ -1190,13 +1222,14 @@ impl parse::Peek for Enum {
 }
 
 impl macros::ToTokens for Enum {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Eq {
     /// Associated token.
     pub token: ast::Token,
@@ -1214,7 +1247,7 @@ impl parse::Parse for Eq {
 
         match token.kind {
             ast::Kind::Eq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Eq)),
         }
     }
 }
@@ -1226,13 +1259,14 @@ impl parse::Peek for Eq {
 }
 
 impl macros::ToTokens for Eq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `==`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct EqEq {
     /// Associated token.
     pub token: ast::Token,
@@ -1250,7 +1284,7 @@ impl parse::Parse for EqEq {
 
         match token.kind {
             ast::Kind::EqEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "==")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::EqEq)),
         }
     }
 }
@@ -1262,13 +1296,14 @@ impl parse::Peek for EqEq {
 }
 
 impl macros::ToTokens for EqEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `extern` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Extern {
     /// Associated token.
     pub token: ast::Token,
@@ -1286,7 +1321,7 @@ impl parse::Parse for Extern {
 
         match token.kind {
             ast::Kind::Extern => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "extern")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Extern)),
         }
     }
 }
@@ -1298,13 +1333,14 @@ impl parse::Peek for Extern {
 }
 
 impl macros::ToTokens for Extern {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `false` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct False {
     /// Associated token.
     pub token: ast::Token,
@@ -1322,7 +1358,7 @@ impl parse::Parse for False {
 
         match token.kind {
             ast::Kind::False => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "false")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::False)),
         }
     }
 }
@@ -1334,13 +1370,14 @@ impl parse::Peek for False {
 }
 
 impl macros::ToTokens for False {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `final` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Final {
     /// Associated token.
     pub token: ast::Token,
@@ -1358,7 +1395,7 @@ impl parse::Parse for Final {
 
         match token.kind {
             ast::Kind::Final => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "final")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Final)),
         }
     }
 }
@@ -1370,13 +1407,14 @@ impl parse::Peek for Final {
 }
 
 impl macros::ToTokens for Final {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `fn` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Fn {
     /// Associated token.
     pub token: ast::Token,
@@ -1394,7 +1432,7 @@ impl parse::Parse for Fn {
 
         match token.kind {
             ast::Kind::Fn => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "fn")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Fn)),
         }
     }
 }
@@ -1406,13 +1444,14 @@ impl parse::Peek for Fn {
 }
 
 impl macros::ToTokens for Fn {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `for` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct For {
     /// Associated token.
     pub token: ast::Token,
@@ -1430,7 +1469,7 @@ impl parse::Parse for For {
 
         match token.kind {
             ast::Kind::For => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "for")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::For)),
         }
     }
 }
@@ -1442,13 +1481,14 @@ impl parse::Peek for For {
 }
 
 impl macros::ToTokens for For {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `>`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Gt {
     /// Associated token.
     pub token: ast::Token,
@@ -1466,7 +1506,7 @@ impl parse::Parse for Gt {
 
         match token.kind {
             ast::Kind::Gt => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, ">")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Gt)),
         }
     }
 }
@@ -1478,13 +1518,14 @@ impl parse::Peek for Gt {
 }
 
 impl macros::ToTokens for Gt {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `>=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct GtEq {
     /// Associated token.
     pub token: ast::Token,
@@ -1502,7 +1543,7 @@ impl parse::Parse for GtEq {
 
         match token.kind {
             ast::Kind::GtEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, ">=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::GtEq)),
         }
     }
 }
@@ -1514,13 +1555,14 @@ impl parse::Peek for GtEq {
 }
 
 impl macros::ToTokens for GtEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `>>`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct GtGt {
     /// Associated token.
     pub token: ast::Token,
@@ -1538,7 +1580,7 @@ impl parse::Parse for GtGt {
 
         match token.kind {
             ast::Kind::GtGt => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, ">>")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::GtGt)),
         }
     }
 }
@@ -1550,13 +1592,14 @@ impl parse::Peek for GtGt {
 }
 
 impl macros::ToTokens for GtGt {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `>>=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct GtGtEq {
     /// Associated token.
     pub token: ast::Token,
@@ -1574,7 +1617,7 @@ impl parse::Parse for GtGtEq {
 
         match token.kind {
             ast::Kind::GtGtEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, ">>=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::GtGtEq)),
         }
     }
 }
@@ -1586,13 +1629,14 @@ impl parse::Peek for GtGtEq {
 }
 
 impl macros::ToTokens for GtGtEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `if` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct If {
     /// Associated token.
     pub token: ast::Token,
@@ -1610,7 +1654,7 @@ impl parse::Parse for If {
 
         match token.kind {
             ast::Kind::If => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "if")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::If)),
         }
     }
 }
@@ -1622,13 +1666,14 @@ impl parse::Peek for If {
 }
 
 impl macros::ToTokens for If {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `impl` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Impl {
     /// Associated token.
     pub token: ast::Token,
@@ -1646,7 +1691,7 @@ impl parse::Parse for Impl {
 
         match token.kind {
             ast::Kind::Impl => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "impl")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Impl)),
         }
     }
 }
@@ -1658,13 +1703,14 @@ impl parse::Peek for Impl {
 }
 
 impl macros::ToTokens for Impl {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `in` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct In {
     /// Associated token.
     pub token: ast::Token,
@@ -1682,7 +1728,7 @@ impl parse::Parse for In {
 
         match token.kind {
             ast::Kind::In => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "in")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::In)),
         }
     }
 }
@@ -1694,13 +1740,14 @@ impl parse::Peek for In {
 }
 
 impl macros::ToTokens for In {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `is` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Is {
     /// Associated token.
     pub token: ast::Token,
@@ -1718,7 +1765,7 @@ impl parse::Parse for Is {
 
         match token.kind {
             ast::Kind::Is => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "is")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Is)),
         }
     }
 }
@@ -1730,13 +1777,14 @@ impl parse::Peek for Is {
 }
 
 impl macros::ToTokens for Is {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `let` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Let {
     /// Associated token.
     pub token: ast::Token,
@@ -1754,7 +1802,7 @@ impl parse::Parse for Let {
 
         match token.kind {
             ast::Kind::Let => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "let")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Let)),
         }
     }
 }
@@ -1766,13 +1814,14 @@ impl parse::Peek for Let {
 }
 
 impl macros::ToTokens for Let {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `loop` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Loop {
     /// Associated token.
     pub token: ast::Token,
@@ -1790,7 +1839,7 @@ impl parse::Parse for Loop {
 
         match token.kind {
             ast::Kind::Loop => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "loop")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Loop)),
         }
     }
 }
@@ -1802,13 +1851,14 @@ impl parse::Peek for Loop {
 }
 
 impl macros::ToTokens for Loop {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `<`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Lt {
     /// Associated token.
     pub token: ast::Token,
@@ -1826,7 +1876,7 @@ impl parse::Parse for Lt {
 
         match token.kind {
             ast::Kind::Lt => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "<")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Lt)),
         }
     }
 }
@@ -1838,13 +1888,14 @@ impl parse::Peek for Lt {
 }
 
 impl macros::ToTokens for Lt {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `<=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LtEq {
     /// Associated token.
     pub token: ast::Token,
@@ -1862,7 +1913,7 @@ impl parse::Parse for LtEq {
 
         match token.kind {
             ast::Kind::LtEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "<=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::LtEq)),
         }
     }
 }
@@ -1874,13 +1925,14 @@ impl parse::Peek for LtEq {
 }
 
 impl macros::ToTokens for LtEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `<<`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LtLt {
     /// Associated token.
     pub token: ast::Token,
@@ -1898,7 +1950,7 @@ impl parse::Parse for LtLt {
 
         match token.kind {
             ast::Kind::LtLt => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "<<")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::LtLt)),
         }
     }
 }
@@ -1910,13 +1962,14 @@ impl parse::Peek for LtLt {
 }
 
 impl macros::ToTokens for LtLt {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `<<=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LtLtEq {
     /// Associated token.
     pub token: ast::Token,
@@ -1934,7 +1987,7 @@ impl parse::Parse for LtLtEq {
 
         match token.kind {
             ast::Kind::LtLtEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "<<=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::LtLtEq)),
         }
     }
 }
@@ -1946,13 +1999,14 @@ impl parse::Peek for LtLtEq {
 }
 
 impl macros::ToTokens for LtLtEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `macro` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Macro {
     /// Associated token.
     pub token: ast::Token,
@@ -1970,7 +2024,7 @@ impl parse::Parse for Macro {
 
         match token.kind {
             ast::Kind::Macro => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "macro")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Macro)),
         }
     }
 }
@@ -1982,13 +2036,14 @@ impl parse::Peek for Macro {
 }
 
 impl macros::ToTokens for Macro {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `match` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Match {
     /// Associated token.
     pub token: ast::Token,
@@ -2006,7 +2061,7 @@ impl parse::Parse for Match {
 
         match token.kind {
             ast::Kind::Match => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "match")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Match)),
         }
     }
 }
@@ -2018,13 +2073,14 @@ impl parse::Peek for Match {
 }
 
 impl macros::ToTokens for Match {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `mod` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Mod {
     /// Associated token.
     pub token: ast::Token,
@@ -2042,7 +2098,7 @@ impl parse::Parse for Mod {
 
         match token.kind {
             ast::Kind::Mod => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "mod")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Mod)),
         }
     }
 }
@@ -2054,13 +2110,14 @@ impl parse::Peek for Mod {
 }
 
 impl macros::ToTokens for Mod {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `move` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Move {
     /// Associated token.
     pub token: ast::Token,
@@ -2078,7 +2135,7 @@ impl parse::Parse for Move {
 
         match token.kind {
             ast::Kind::Move => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "move")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Move)),
         }
     }
 }
@@ -2090,13 +2147,14 @@ impl parse::Peek for Move {
 }
 
 impl macros::ToTokens for Move {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `not` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Not {
     /// Associated token.
     pub token: ast::Token,
@@ -2114,7 +2172,7 @@ impl parse::Parse for Not {
 
         match token.kind {
             ast::Kind::Not => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "not")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Not)),
         }
     }
 }
@@ -2126,13 +2184,14 @@ impl parse::Peek for Not {
 }
 
 impl macros::ToTokens for Not {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `offsetof` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct OffsetOf {
     /// Associated token.
     pub token: ast::Token,
@@ -2150,7 +2209,7 @@ impl parse::Parse for OffsetOf {
 
         match token.kind {
             ast::Kind::OffsetOf => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "offsetof")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::OffsetOf)),
         }
     }
 }
@@ -2162,13 +2221,14 @@ impl parse::Peek for OffsetOf {
 }
 
 impl macros::ToTokens for OffsetOf {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `override` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Override {
     /// Associated token.
     pub token: ast::Token,
@@ -2186,7 +2246,7 @@ impl parse::Parse for Override {
 
         match token.kind {
             ast::Kind::Override => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "override")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Override)),
         }
     }
 }
@@ -2198,13 +2258,14 @@ impl parse::Peek for Override {
 }
 
 impl macros::ToTokens for Override {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `%`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Perc {
     /// Associated token.
     pub token: ast::Token,
@@ -2222,7 +2283,7 @@ impl parse::Parse for Perc {
 
         match token.kind {
             ast::Kind::Perc => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "%")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Perc)),
         }
     }
 }
@@ -2234,13 +2295,14 @@ impl parse::Peek for Perc {
 }
 
 impl macros::ToTokens for Perc {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `%=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct PercEq {
     /// Associated token.
     pub token: ast::Token,
@@ -2258,7 +2320,7 @@ impl parse::Parse for PercEq {
 
         match token.kind {
             ast::Kind::PercEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "%=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::PercEq)),
         }
     }
 }
@@ -2270,13 +2332,14 @@ impl parse::Peek for PercEq {
 }
 
 impl macros::ToTokens for PercEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `|`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Pipe {
     /// Associated token.
     pub token: ast::Token,
@@ -2294,7 +2357,7 @@ impl parse::Parse for Pipe {
 
         match token.kind {
             ast::Kind::Pipe => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "|")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Pipe)),
         }
     }
 }
@@ -2306,13 +2369,14 @@ impl parse::Peek for Pipe {
 }
 
 impl macros::ToTokens for Pipe {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// |=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct PipeEq {
     /// Associated token.
     pub token: ast::Token,
@@ -2330,7 +2394,7 @@ impl parse::Parse for PipeEq {
 
         match token.kind {
             ast::Kind::PipeEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "|=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::PipeEq)),
         }
     }
 }
@@ -2342,13 +2406,14 @@ impl parse::Peek for PipeEq {
 }
 
 impl macros::ToTokens for PipeEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `||`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct PipePipe {
     /// Associated token.
     pub token: ast::Token,
@@ -2366,7 +2431,7 @@ impl parse::Parse for PipePipe {
 
         match token.kind {
             ast::Kind::PipePipe => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "||")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::PipePipe)),
         }
     }
 }
@@ -2378,13 +2443,14 @@ impl parse::Peek for PipePipe {
 }
 
 impl macros::ToTokens for PipePipe {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `+`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Plus {
     /// Associated token.
     pub token: ast::Token,
@@ -2402,7 +2468,7 @@ impl parse::Parse for Plus {
 
         match token.kind {
             ast::Kind::Plus => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "+")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Plus)),
         }
     }
 }
@@ -2414,13 +2480,14 @@ impl parse::Peek for Plus {
 }
 
 impl macros::ToTokens for Plus {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `+=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct PlusEq {
     /// Associated token.
     pub token: ast::Token,
@@ -2438,7 +2505,7 @@ impl parse::Parse for PlusEq {
 
         match token.kind {
             ast::Kind::PlusEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "+=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::PlusEq)),
         }
     }
 }
@@ -2450,13 +2517,14 @@ impl parse::Peek for PlusEq {
 }
 
 impl macros::ToTokens for PlusEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `#`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Pound {
     /// Associated token.
     pub token: ast::Token,
@@ -2474,7 +2542,7 @@ impl parse::Parse for Pound {
 
         match token.kind {
             ast::Kind::Pound => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "#")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Pound)),
         }
     }
 }
@@ -2486,13 +2554,14 @@ impl parse::Peek for Pound {
 }
 
 impl macros::ToTokens for Pound {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `priv` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Priv {
     /// Associated token.
     pub token: ast::Token,
@@ -2510,7 +2579,7 @@ impl parse::Parse for Priv {
 
         match token.kind {
             ast::Kind::Priv => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "priv")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Priv)),
         }
     }
 }
@@ -2522,13 +2591,14 @@ impl parse::Peek for Priv {
 }
 
 impl macros::ToTokens for Priv {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `proc` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Proc {
     /// Associated token.
     pub token: ast::Token,
@@ -2546,7 +2616,7 @@ impl parse::Parse for Proc {
 
         match token.kind {
             ast::Kind::Proc => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "proc")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Proc)),
         }
     }
 }
@@ -2558,13 +2628,14 @@ impl parse::Peek for Proc {
 }
 
 impl macros::ToTokens for Proc {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `pub` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Pub {
     /// Associated token.
     pub token: ast::Token,
@@ -2582,7 +2653,7 @@ impl parse::Parse for Pub {
 
         match token.kind {
             ast::Kind::Pub => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "pub")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Pub)),
         }
     }
 }
@@ -2594,13 +2665,14 @@ impl parse::Peek for Pub {
 }
 
 impl macros::ToTokens for Pub {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `pure` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Pure {
     /// Associated token.
     pub token: ast::Token,
@@ -2618,7 +2690,7 @@ impl parse::Parse for Pure {
 
         match token.kind {
             ast::Kind::Pure => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "pure")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Pure)),
         }
     }
 }
@@ -2630,13 +2702,14 @@ impl parse::Peek for Pure {
 }
 
 impl macros::ToTokens for Pure {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `?`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct QuestionMark {
     /// Associated token.
     pub token: ast::Token,
@@ -2654,7 +2727,7 @@ impl parse::Parse for QuestionMark {
 
         match token.kind {
             ast::Kind::QuestionMark => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "?")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::QuestionMark)),
         }
     }
 }
@@ -2666,13 +2739,14 @@ impl parse::Peek for QuestionMark {
 }
 
 impl macros::ToTokens for QuestionMark {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `ref` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Ref {
     /// Associated token.
     pub token: ast::Token,
@@ -2690,7 +2764,7 @@ impl parse::Parse for Ref {
 
         match token.kind {
             ast::Kind::Ref => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "ref")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Ref)),
         }
     }
 }
@@ -2702,13 +2776,14 @@ impl parse::Peek for Ref {
 }
 
 impl macros::ToTokens for Ref {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `return` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Return {
     /// Associated token.
     pub token: ast::Token,
@@ -2726,7 +2801,7 @@ impl parse::Parse for Return {
 
         match token.kind {
             ast::Kind::Return => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "return")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Return)),
         }
     }
 }
@@ -2738,13 +2813,14 @@ impl parse::Peek for Return {
 }
 
 impl macros::ToTokens for Return {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `=>`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Rocket {
     /// Associated token.
     pub token: ast::Token,
@@ -2762,7 +2838,7 @@ impl parse::Parse for Rocket {
 
         match token.kind {
             ast::Kind::Rocket => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "=>")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Rocket)),
         }
     }
 }
@@ -2774,13 +2850,14 @@ impl parse::Peek for Rocket {
 }
 
 impl macros::ToTokens for Rocket {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `select` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Select {
     /// Associated token.
     pub token: ast::Token,
@@ -2798,7 +2875,7 @@ impl parse::Parse for Select {
 
         match token.kind {
             ast::Kind::Select => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "select")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Select)),
         }
     }
 }
@@ -2810,13 +2887,14 @@ impl parse::Peek for Select {
 }
 
 impl macros::ToTokens for Select {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `Self` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SelfType {
     /// Associated token.
     pub token: ast::Token,
@@ -2834,7 +2912,7 @@ impl parse::Parse for SelfType {
 
         match token.kind {
             ast::Kind::SelfType => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "Self")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::SelfType)),
         }
     }
 }
@@ -2846,13 +2924,14 @@ impl parse::Peek for SelfType {
 }
 
 impl macros::ToTokens for SelfType {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `self` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SelfValue {
     /// Associated token.
     pub token: ast::Token,
@@ -2870,7 +2949,7 @@ impl parse::Parse for SelfValue {
 
         match token.kind {
             ast::Kind::SelfValue => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "self")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::SelfValue)),
         }
     }
 }
@@ -2882,13 +2961,14 @@ impl parse::Peek for SelfValue {
 }
 
 impl macros::ToTokens for SelfValue {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `;`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SemiColon {
     /// Associated token.
     pub token: ast::Token,
@@ -2906,7 +2986,7 @@ impl parse::Parse for SemiColon {
 
         match token.kind {
             ast::Kind::SemiColon => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, ";")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::SemiColon)),
         }
     }
 }
@@ -2918,13 +2998,14 @@ impl parse::Peek for SemiColon {
 }
 
 impl macros::ToTokens for SemiColon {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `sizeof` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SizeOf {
     /// Associated token.
     pub token: ast::Token,
@@ -2942,7 +3023,7 @@ impl parse::Parse for SizeOf {
 
         match token.kind {
             ast::Kind::SizeOf => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "sizeof")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::SizeOf)),
         }
     }
 }
@@ -2954,13 +3035,14 @@ impl parse::Peek for SizeOf {
 }
 
 impl macros::ToTokens for SizeOf {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `/=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SlashEq {
     /// Associated token.
     pub token: ast::Token,
@@ -2978,7 +3060,7 @@ impl parse::Parse for SlashEq {
 
         match token.kind {
             ast::Kind::SlashEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "/=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::SlashEq)),
         }
     }
 }
@@ -2990,13 +3072,14 @@ impl parse::Peek for SlashEq {
 }
 
 impl macros::ToTokens for SlashEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `*`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Star {
     /// Associated token.
     pub token: ast::Token,
@@ -3014,7 +3097,7 @@ impl parse::Parse for Star {
 
         match token.kind {
             ast::Kind::Star => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "*")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Star)),
         }
     }
 }
@@ -3026,13 +3109,14 @@ impl parse::Peek for Star {
 }
 
 impl macros::ToTokens for Star {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `*=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct StarEq {
     /// Associated token.
     pub token: ast::Token,
@@ -3050,7 +3134,7 @@ impl parse::Parse for StarEq {
 
         match token.kind {
             ast::Kind::StarEq => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "*=")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::StarEq)),
         }
     }
 }
@@ -3062,13 +3146,14 @@ impl parse::Peek for StarEq {
 }
 
 impl macros::ToTokens for StarEq {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `static` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Static {
     /// Associated token.
     pub token: ast::Token,
@@ -3086,7 +3171,7 @@ impl parse::Parse for Static {
 
         match token.kind {
             ast::Kind::Static => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "static")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Static)),
         }
     }
 }
@@ -3098,13 +3183,14 @@ impl parse::Peek for Static {
 }
 
 impl macros::ToTokens for Static {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `struct` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Struct {
     /// Associated token.
     pub token: ast::Token,
@@ -3122,7 +3208,7 @@ impl parse::Parse for Struct {
 
         match token.kind {
             ast::Kind::Struct => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "struct")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Struct)),
         }
     }
 }
@@ -3134,13 +3220,14 @@ impl parse::Peek for Struct {
 }
 
 impl macros::ToTokens for Struct {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `super` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Super {
     /// Associated token.
     pub token: ast::Token,
@@ -3158,7 +3245,7 @@ impl parse::Parse for Super {
 
         match token.kind {
             ast::Kind::Super => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "super")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Super)),
         }
     }
 }
@@ -3170,13 +3257,14 @@ impl parse::Peek for Super {
 }
 
 impl macros::ToTokens for Super {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `~`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Tilde {
     /// Associated token.
     pub token: ast::Token,
@@ -3194,7 +3282,7 @@ impl parse::Parse for Tilde {
 
         match token.kind {
             ast::Kind::Tilde => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "~")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Tilde)),
         }
     }
 }
@@ -3206,13 +3294,14 @@ impl parse::Peek for Tilde {
 }
 
 impl macros::ToTokens for Tilde {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `true` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct True {
     /// Associated token.
     pub token: ast::Token,
@@ -3230,7 +3319,7 @@ impl parse::Parse for True {
 
         match token.kind {
             ast::Kind::True => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "true")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::True)),
         }
     }
 }
@@ -3242,13 +3331,14 @@ impl parse::Peek for True {
 }
 
 impl macros::ToTokens for True {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `typeof` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TypeOf {
     /// Associated token.
     pub token: ast::Token,
@@ -3266,7 +3356,7 @@ impl parse::Parse for TypeOf {
 
         match token.kind {
             ast::Kind::TypeOf => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "typeof")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::TypeOf)),
         }
     }
 }
@@ -3278,13 +3368,14 @@ impl parse::Peek for TypeOf {
 }
 
 impl macros::ToTokens for TypeOf {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// `_`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Underscore {
     /// Associated token.
     pub token: ast::Token,
@@ -3302,7 +3393,7 @@ impl parse::Parse for Underscore {
 
         match token.kind {
             ast::Kind::Underscore => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "_")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Underscore)),
         }
     }
 }
@@ -3314,13 +3405,14 @@ impl parse::Peek for Underscore {
 }
 
 impl macros::ToTokens for Underscore {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `unsafe` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Unsafe {
     /// Associated token.
     pub token: ast::Token,
@@ -3338,7 +3430,7 @@ impl parse::Parse for Unsafe {
 
         match token.kind {
             ast::Kind::Unsafe => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "unsafe")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Unsafe)),
         }
     }
 }
@@ -3350,13 +3442,14 @@ impl parse::Peek for Unsafe {
 }
 
 impl macros::ToTokens for Unsafe {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `use` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Use {
     /// Associated token.
     pub token: ast::Token,
@@ -3374,7 +3467,7 @@ impl parse::Parse for Use {
 
         match token.kind {
             ast::Kind::Use => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "use")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Use)),
         }
     }
 }
@@ -3386,13 +3479,14 @@ impl parse::Peek for Use {
 }
 
 impl macros::ToTokens for Use {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `virtual` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Virtual {
     /// Associated token.
     pub token: ast::Token,
@@ -3410,7 +3504,7 @@ impl parse::Parse for Virtual {
 
         match token.kind {
             ast::Kind::Virtual => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "virtual")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Virtual)),
         }
     }
 }
@@ -3422,13 +3516,14 @@ impl parse::Peek for Virtual {
 }
 
 impl macros::ToTokens for Virtual {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `while` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct While {
     /// Associated token.
     pub token: ast::Token,
@@ -3446,7 +3541,7 @@ impl parse::Parse for While {
 
         match token.kind {
             ast::Kind::While => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "while")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::While)),
         }
     }
 }
@@ -3458,13 +3553,14 @@ impl parse::Peek for While {
 }
 
 impl macros::ToTokens for While {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
 
 /// The `yield` keyword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Yield {
     /// Associated token.
     pub token: ast::Token,
@@ -3482,7 +3578,7 @@ impl parse::Parse for Yield {
 
         match token.kind {
             ast::Kind::Yield => Ok(Self { token }),
-            _ => Err(parse::ParseError::expected(&token, "yield")),
+            _ => Err(parse::ParseError::expected(token, ast::Kind::Yield)),
         }
     }
 }
@@ -3494,7 +3590,7 @@ impl parse::Peek for Yield {
 }
 
 impl macros::ToTokens for Yield {
-    fn to_tokens(&self, _: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, _: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(self.token);
     }
 }
@@ -3947,9 +4043,9 @@ pub enum Kind {
     /// An open delimiter: `(`, `{`, or `[`.
     Open(ast::Delimiter),
     /// An identifier.
-    Ident(ast::StringSource),
+    Ident(ast::LitSource),
     /// A label, like `'loop`.
-    Label(ast::StringSource),
+    Label(ast::LitSource),
     /// A byte literal.
     Byte(ast::CopySource<u8>),
     /// A byte string literal, including escape sequences. Like `b"hello\nworld"`.
@@ -4222,129 +4318,121 @@ impl Kind {
         }
     }
 
-    /// Get the kind as a descriptive string.
-    fn as_str(self) -> &'static str {
+    /// If applicable, convert this into a literal.
+    pub fn as_literal_str(&self) -> Option<&'static str> {
         match self {
-            Self::Eof => "eof",
-            Self::Error => "error",
-            Self::Close(delimiter) => delimiter.close(),
-            Self::Open(delimiter) => delimiter.open(),
-            Self::Ident(..) => "ident",
-            Self::Label(..) => "label",
-            Self::Byte { .. } => "byte",
-            Self::ByteStr { .. } => "byte string",
-            Self::Char { .. } => "char",
-            Self::Number { .. } => "number",
-            Self::Str { .. } => "string",
-            Self::Abstract => "abstract",
-            Self::AlignOf => "alignof",
-            Self::Amp => "&",
-            Self::AmpAmp => "&&",
-            Self::AmpEq => "&=",
-            Self::Arrow => "->",
-            Self::As => "as",
-            Self::Async => "async",
-            Self::At => "@",
-            Self::Await => "await",
-            Self::Bang => "!",
-            Self::BangEq => "!=",
-            Self::Become => "become",
-            Self::Break => "break",
-            Self::Caret => "^",
-            Self::CaretEq => "^=",
-            Self::Colon => ":",
-            Self::ColonColon => "::",
-            Self::Comma => ",",
-            Self::Const => "const",
-            Self::Continue => "continue",
-            Self::Crate => "crate",
-            Self::Dash => "-",
-            Self::DashEq => "-=",
-            Self::Default => "default",
-            Self::Div => "/",
-            Self::Do => "do",
-            Self::Dollar => "$",
-            Self::Dot => ".",
-            Self::DotDot => "..",
-            Self::DotDotEq => "..=",
-            Self::Else => "else",
-            Self::Enum => "enum",
-            Self::Eq => "=",
-            Self::EqEq => "==",
-            Self::Extern => "extern",
-            Self::False => "false",
-            Self::Final => "final",
-            Self::Fn => "fn",
-            Self::For => "for",
-            Self::Gt => ">",
-            Self::GtEq => ">=",
-            Self::GtGt => ">>",
-            Self::GtGtEq => ">>=",
-            Self::If => "if",
-            Self::Impl => "impl",
-            Self::In => "in",
-            Self::Is => "is",
-            Self::Let => "let",
-            Self::Loop => "loop",
-            Self::Lt => "<",
-            Self::LtEq => "<=",
-            Self::LtLt => "<<",
-            Self::LtLtEq => "<<=",
-            Self::Macro => "macro",
-            Self::Match => "match",
-            Self::Mod => "mod",
-            Self::Move => "move",
-            Self::Not => "not",
-            Self::OffsetOf => "offsetof",
-            Self::Override => "override",
-            Self::Perc => "%",
-            Self::PercEq => "%=",
-            Self::Pipe => "|",
-            Self::PipeEq => "|=",
-            Self::PipePipe => "||",
-            Self::Plus => "+",
-            Self::PlusEq => "+=",
-            Self::Pound => "#",
-            Self::Priv => "priv",
-            Self::Proc => "proc",
-            Self::Pub => "pub",
-            Self::Pure => "pure",
-            Self::QuestionMark => "?",
-            Self::Ref => "ref",
-            Self::Return => "return",
-            Self::Rocket => "=>",
-            Self::Select => "select",
-            Self::SelfType => "Self",
-            Self::SelfValue => "self",
-            Self::SemiColon => ";",
-            Self::SizeOf => "sizeof",
-            Self::SlashEq => "/=",
-            Self::Star => "*",
-            Self::StarEq => "*=",
-            Self::Static => "static",
-            Self::Struct => "struct",
-            Self::Super => "super",
-            Self::Tilde => "~",
-            Self::True => "true",
-            Self::TypeOf => "typeof",
-            Self::Underscore => "_",
-            Self::Unsafe => "unsafe",
-            Self::Use => "use",
-            Self::Virtual => "virtual",
-            Self::While => "while",
-            Self::Yield => "yield",
+            Self::Close(d) => Some(d.close()),
+            Self::Open(d) => Some(d.open()),
+            Self::Abstract => Some("abstract"),
+            Self::AlignOf => Some("alignof"),
+            Self::As => Some("as"),
+            Self::Async => Some("async"),
+            Self::Await => Some("await"),
+            Self::Become => Some("become"),
+            Self::Break => Some("break"),
+            Self::Const => Some("const"),
+            Self::Continue => Some("continue"),
+            Self::Crate => Some("crate"),
+            Self::Default => Some("default"),
+            Self::Do => Some("do"),
+            Self::Else => Some("else"),
+            Self::Enum => Some("enum"),
+            Self::Extern => Some("extern"),
+            Self::False => Some("false"),
+            Self::Final => Some("final"),
+            Self::Fn => Some("fn"),
+            Self::For => Some("for"),
+            Self::If => Some("if"),
+            Self::Impl => Some("impl"),
+            Self::In => Some("in"),
+            Self::Is => Some("is"),
+            Self::Let => Some("let"),
+            Self::Loop => Some("loop"),
+            Self::Macro => Some("macro"),
+            Self::Match => Some("match"),
+            Self::Mod => Some("mod"),
+            Self::Move => Some("move"),
+            Self::Not => Some("not"),
+            Self::OffsetOf => Some("offsetof"),
+            Self::Override => Some("override"),
+            Self::Priv => Some("priv"),
+            Self::Proc => Some("proc"),
+            Self::Pub => Some("pub"),
+            Self::Pure => Some("pure"),
+            Self::Ref => Some("ref"),
+            Self::Return => Some("return"),
+            Self::Select => Some("select"),
+            Self::SelfType => Some("Self"),
+            Self::SelfValue => Some("self"),
+            Self::SizeOf => Some("sizeof"),
+            Self::Static => Some("static"),
+            Self::Struct => Some("struct"),
+            Self::Super => Some("super"),
+            Self::True => Some("true"),
+            Self::TypeOf => Some("typeof"),
+            Self::Unsafe => Some("unsafe"),
+            Self::Use => Some("use"),
+            Self::Virtual => Some("virtual"),
+            Self::While => Some("while"),
+            Self::Yield => Some("yield"),
+            Self::Amp => Some("&"),
+            Self::AmpAmp => Some("&&"),
+            Self::AmpEq => Some("&="),
+            Self::Arrow => Some("->"),
+            Self::At => Some("@"),
+            Self::Bang => Some("!"),
+            Self::BangEq => Some("!="),
+            Self::Caret => Some("^"),
+            Self::CaretEq => Some("^="),
+            Self::Colon => Some(":"),
+            Self::ColonColon => Some("::"),
+            Self::Comma => Some(","),
+            Self::Dash => Some("-"),
+            Self::DashEq => Some("-="),
+            Self::Div => Some("/"),
+            Self::Dollar => Some("$"),
+            Self::Dot => Some("."),
+            Self::DotDot => Some(".."),
+            Self::DotDotEq => Some("..="),
+            Self::Eq => Some("="),
+            Self::EqEq => Some("=="),
+            Self::Gt => Some(">"),
+            Self::GtEq => Some(">="),
+            Self::GtGt => Some(">>"),
+            Self::GtGtEq => Some(">>="),
+            Self::Lt => Some("<"),
+            Self::LtEq => Some("<="),
+            Self::LtLt => Some("<<"),
+            Self::LtLtEq => Some("<<="),
+            Self::Perc => Some("%"),
+            Self::PercEq => Some("%="),
+            Self::Pipe => Some("|"),
+            Self::PipeEq => Some("|="),
+            Self::PipePipe => Some("||"),
+            Self::Plus => Some("+"),
+            Self::PlusEq => Some("+="),
+            Self::Pound => Some("#"),
+            Self::QuestionMark => Some("?"),
+            Self::Rocket => Some("=>"),
+            Self::SemiColon => Some(";"),
+            Self::SlashEq => Some("/="),
+            Self::Star => Some("*"),
+            Self::StarEq => Some("*="),
+            Self::Tilde => Some("~"),
+            Self::Underscore => Some("_"),
+            _ => None,
         }
     }
 }
 
 impl fmt::Display for Kind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        parse::IntoExpectation::into_expectation(*self).fmt(f)
     }
 }
 
 impl macros::ToTokens for Kind {
-    fn to_tokens(&self, context: &mut macros::MacroContext, stream: &mut macros::TokenStream) {
+    fn to_tokens(&self, context: &mut macros::MacroContext<'_>, stream: &mut macros::TokenStream) {
         stream.push(ast::Token {
             kind: *self,
             span: context.macro_span(),
@@ -4352,8 +4440,117 @@ impl macros::ToTokens for Kind {
     }
 }
 
-impl shared::Description for &Kind {
-    fn description(self) -> &'static str {
-        self.as_str()
+impl parse::IntoExpectation for Kind {
+    fn into_expectation(self) -> parse::Expectation {
+        match self {
+            Self::Eof => parse::Expectation::Description("eof"),
+            Self::Error => parse::Expectation::Description("error"),
+            Self::Ident(..) => parse::Expectation::Description("ident"),
+            Self::Label(..) => parse::Expectation::Description("label"),
+            Self::Byte { .. } => parse::Expectation::Description("byte"),
+            Self::ByteStr { .. } => parse::Expectation::Description("byte string"),
+            Self::Char { .. } => parse::Expectation::Description("char"),
+            Self::Number { .. } => parse::Expectation::Description("number"),
+            Self::Str { .. } => parse::Expectation::Description("string"),
+            Self::Close(delimiter) => parse::Expectation::Delimiter(delimiter.close()),
+            Self::Open(delimiter) => parse::Expectation::Delimiter(delimiter.open()),
+            Self::Abstract => parse::Expectation::Keyword("abstract"),
+            Self::AlignOf => parse::Expectation::Keyword("alignof"),
+            Self::As => parse::Expectation::Keyword("as"),
+            Self::Async => parse::Expectation::Keyword("async"),
+            Self::Await => parse::Expectation::Keyword("await"),
+            Self::Become => parse::Expectation::Keyword("become"),
+            Self::Break => parse::Expectation::Keyword("break"),
+            Self::Const => parse::Expectation::Keyword("const"),
+            Self::Continue => parse::Expectation::Keyword("continue"),
+            Self::Crate => parse::Expectation::Keyword("crate"),
+            Self::Default => parse::Expectation::Keyword("default"),
+            Self::Do => parse::Expectation::Keyword("do"),
+            Self::Else => parse::Expectation::Keyword("else"),
+            Self::Enum => parse::Expectation::Keyword("enum"),
+            Self::Extern => parse::Expectation::Keyword("extern"),
+            Self::False => parse::Expectation::Keyword("false"),
+            Self::Final => parse::Expectation::Keyword("final"),
+            Self::Fn => parse::Expectation::Keyword("fn"),
+            Self::For => parse::Expectation::Keyword("for"),
+            Self::If => parse::Expectation::Keyword("if"),
+            Self::Impl => parse::Expectation::Keyword("impl"),
+            Self::In => parse::Expectation::Keyword("in"),
+            Self::Is => parse::Expectation::Keyword("is"),
+            Self::Let => parse::Expectation::Keyword("let"),
+            Self::Loop => parse::Expectation::Keyword("loop"),
+            Self::Macro => parse::Expectation::Keyword("macro"),
+            Self::Match => parse::Expectation::Keyword("match"),
+            Self::Mod => parse::Expectation::Keyword("mod"),
+            Self::Move => parse::Expectation::Keyword("move"),
+            Self::Not => parse::Expectation::Keyword("not"),
+            Self::OffsetOf => parse::Expectation::Keyword("offsetof"),
+            Self::Override => parse::Expectation::Keyword("override"),
+            Self::Priv => parse::Expectation::Keyword("priv"),
+            Self::Proc => parse::Expectation::Keyword("proc"),
+            Self::Pub => parse::Expectation::Keyword("pub"),
+            Self::Pure => parse::Expectation::Keyword("pure"),
+            Self::Ref => parse::Expectation::Keyword("ref"),
+            Self::Return => parse::Expectation::Keyword("return"),
+            Self::Select => parse::Expectation::Keyword("select"),
+            Self::SelfType => parse::Expectation::Keyword("Self"),
+            Self::SelfValue => parse::Expectation::Keyword("self"),
+            Self::SizeOf => parse::Expectation::Keyword("sizeof"),
+            Self::Static => parse::Expectation::Keyword("static"),
+            Self::Struct => parse::Expectation::Keyword("struct"),
+            Self::Super => parse::Expectation::Keyword("super"),
+            Self::True => parse::Expectation::Keyword("true"),
+            Self::TypeOf => parse::Expectation::Keyword("typeof"),
+            Self::Unsafe => parse::Expectation::Keyword("unsafe"),
+            Self::Use => parse::Expectation::Keyword("use"),
+            Self::Virtual => parse::Expectation::Keyword("virtual"),
+            Self::While => parse::Expectation::Keyword("while"),
+            Self::Yield => parse::Expectation::Keyword("yield"),
+            Self::Amp => parse::Expectation::Punctuation("&"),
+            Self::AmpAmp => parse::Expectation::Punctuation("&&"),
+            Self::AmpEq => parse::Expectation::Punctuation("&="),
+            Self::Arrow => parse::Expectation::Punctuation("->"),
+            Self::At => parse::Expectation::Punctuation("@"),
+            Self::Bang => parse::Expectation::Punctuation("!"),
+            Self::BangEq => parse::Expectation::Punctuation("!="),
+            Self::Caret => parse::Expectation::Punctuation("^"),
+            Self::CaretEq => parse::Expectation::Punctuation("^="),
+            Self::Colon => parse::Expectation::Punctuation(":"),
+            Self::ColonColon => parse::Expectation::Punctuation("::"),
+            Self::Comma => parse::Expectation::Punctuation(","),
+            Self::Dash => parse::Expectation::Punctuation("-"),
+            Self::DashEq => parse::Expectation::Punctuation("-="),
+            Self::Div => parse::Expectation::Punctuation("/"),
+            Self::Dollar => parse::Expectation::Punctuation("$"),
+            Self::Dot => parse::Expectation::Punctuation("."),
+            Self::DotDot => parse::Expectation::Punctuation(".."),
+            Self::DotDotEq => parse::Expectation::Punctuation("..="),
+            Self::Eq => parse::Expectation::Punctuation("="),
+            Self::EqEq => parse::Expectation::Punctuation("=="),
+            Self::Gt => parse::Expectation::Punctuation(">"),
+            Self::GtEq => parse::Expectation::Punctuation(">="),
+            Self::GtGt => parse::Expectation::Punctuation(">>"),
+            Self::GtGtEq => parse::Expectation::Punctuation(">>="),
+            Self::Lt => parse::Expectation::Punctuation("<"),
+            Self::LtEq => parse::Expectation::Punctuation("<="),
+            Self::LtLt => parse::Expectation::Punctuation("<<"),
+            Self::LtLtEq => parse::Expectation::Punctuation("<<="),
+            Self::Perc => parse::Expectation::Punctuation("%"),
+            Self::PercEq => parse::Expectation::Punctuation("%="),
+            Self::Pipe => parse::Expectation::Punctuation("|"),
+            Self::PipeEq => parse::Expectation::Punctuation("|="),
+            Self::PipePipe => parse::Expectation::Punctuation("||"),
+            Self::Plus => parse::Expectation::Punctuation("+"),
+            Self::PlusEq => parse::Expectation::Punctuation("+="),
+            Self::Pound => parse::Expectation::Punctuation("#"),
+            Self::QuestionMark => parse::Expectation::Punctuation("?"),
+            Self::Rocket => parse::Expectation::Punctuation("=>"),
+            Self::SemiColon => parse::Expectation::Punctuation(";"),
+            Self::SlashEq => parse::Expectation::Punctuation("/="),
+            Self::Star => parse::Expectation::Punctuation("*"),
+            Self::StarEq => parse::Expectation::Punctuation("*="),
+            Self::Tilde => parse::Expectation::Punctuation("~"),
+            Self::Underscore => parse::Expectation::Punctuation("_"),
+        }
     }
 }

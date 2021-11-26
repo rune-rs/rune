@@ -15,6 +15,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ItemStruct {
     /// Opaque identifier of the struct.
     #[rune(id)]
@@ -45,6 +46,7 @@ item_parse!(Struct, ItemStruct, "struct item");
 
 /// AST for a struct body.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
+#[non_exhaustive]
 pub enum ItemStructBody {
     /// An empty struct declaration.
     UnitBody,
@@ -110,6 +112,7 @@ impl Parse for ItemStructBody {
 /// testing::roundtrip::<ast::Field>("#[x] a");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[non_exhaustive]
 pub struct Field {
     /// Attributes associated with field.
     #[rune(iter)]

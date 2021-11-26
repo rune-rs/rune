@@ -13,6 +13,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ExprWhile {
     /// The attributes for the `while` loop
     #[rune(iter, meta)]

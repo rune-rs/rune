@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// Visibility level restricted to some path: pub(self) or pub(super) or pub(crate) or pub(in some::module).
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
+#[non_exhaustive]
 pub enum Visibility {
     /// An inherited visibility level, this usually means private.
     Inherited,
@@ -118,6 +119,7 @@ impl Parse for Visibility {
 
 /// A `in path` restriction to visibility.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct VisibilityIn {
     /// The `in` keyword.
     pub in_token: T![in],
@@ -127,6 +129,7 @@ pub struct VisibilityIn {
 
 /// A restriction to visibility.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct VisibilityRestrict<T> {
     /// `pub` keyword.
     pub pub_token: ast::generated::Pub,
@@ -134,6 +137,6 @@ pub struct VisibilityRestrict<T> {
     pub open: ast::OpenParen,
     /// The restriction.
     pub restriction: T,
-    /// Closing paren `(`.
+    /// Closing paren `)`.
     pub close: ast::CloseParen,
 }

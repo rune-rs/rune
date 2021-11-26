@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// Attribute like `#[derive(Debug)]`
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct Attribute {
     /// The `#` character
     pub hash: T![#],
@@ -83,17 +84,18 @@ impl Peek for Attribute {
     }
 }
 
-impl Description for &Attribute {
-    fn description(self) -> &'static str {
-        match &self.style {
+impl IntoExpectation for Attribute {
+    fn into_expectation(self) -> Expectation {
+        Expectation::Description(match &self.style {
             AttrStyle::Inner => "inner attribute",
             AttrStyle::Outer(_) => "outer attribute",
-        }
+        })
     }
 }
 
 /// Whether or not the attribute is an outer `#!` or inner `#` attribute
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens)]
+#[non_exhaustive]
 pub enum AttrStyle {
     /// `#`
     Inner,
@@ -121,7 +123,7 @@ impl Parse for InnerAttribute {
         match attribute.style {
             AttrStyle::Inner => Ok(Self(attribute)),
             _ => Err(ParseError::expected(
-                &attribute,
+                attribute,
                 "inner attribute like `#![allow(unused)]`",
             )),
         }
@@ -130,7 +132,8 @@ impl Parse for InnerAttribute {
 
 /// Tag struct to assist peeking for an outer `#![...]` attributes at the top of
 /// a module/file
-pub struct OuterAttribute;
+#[non_exhaustive]
+pub(crate) struct OuterAttribute;
 
 impl Peek for OuterAttribute {
     fn peek(p: &mut Peeker<'_>) -> bool {

@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// A byte literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct LitByte {
     /// The token corresponding to the literal.
     pub token: ast::Token,
@@ -27,12 +28,10 @@ impl Parse for LitByte {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.next()?;
 
-        Ok(match token.kind {
-            K![byte(source)] => LitByte { token, source },
-            _ => {
-                return Err(ParseError::expected(&token, "byte"));
-            }
-        })
+        match token.kind {
+            K![byte(source)] => Ok(LitByte { token, source }),
+            _ => Err(ParseError::expected(token, "byte")),
+        }
     }
 }
 

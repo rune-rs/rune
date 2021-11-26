@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// A declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum Item {
     /// A use declaration.
     Use(Box<ast::ItemUse>),
@@ -143,7 +144,7 @@ impl Item {
                 }
                 _ => {
                     return Err(ParseError::expected(
-                        &p.tok_at(0)?,
+                        p.tok_at(0)?,
                         "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
                     ))
                 }

@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// A try expression `<expr>?`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprTry {
     /// Attributes associated with expression.
     #[rune(iter)]

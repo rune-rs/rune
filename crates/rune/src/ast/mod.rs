@@ -66,7 +66,7 @@ macro_rules! expr_parse {
 
                 match $crate::ast::Expr::parse(p)? {
                     $crate::ast::Expr::$ty(expr) => Ok(*expr),
-                    _ => Err($crate::parse::ParseError::expected(&t, $expected)),
+                    _ => Err($crate::parse::ParseError::expected(t, $expected)),
                 }
             }
         }
@@ -81,7 +81,7 @@ macro_rules! item_parse {
 
                 match $crate::ast::Item::parse(p)? {
                     $crate::ast::Item::$ty(item) => Ok(*item),
-                    _ => Err($crate::parse::ParseError::expected(&t, $expected)),
+                    _ => Err($crate::parse::ParseError::expected(t, $expected)),
                 }
             }
         }
@@ -176,7 +176,7 @@ pub use self::expr_let::ExprLet;
 pub use self::expr_lit::ExprLit;
 pub use self::expr_loop::ExprLoop;
 pub use self::expr_match::{ExprMatch, ExprMatchBranch};
-pub use self::expr_object::{AnonExprObject, ExprObject, FieldAssign, ObjectIdent, ObjectKey};
+pub use self::expr_object::{ExprObject, FieldAssign, ObjectIdent, ObjectKey};
 pub use self::expr_range::{ExprRange, ExprRangeLimits};
 pub use self::expr_return::ExprReturn;
 pub use self::expr_select::{ExprSelect, ExprSelectBranch};
@@ -218,13 +218,13 @@ pub use self::spanned_error::SpannedError;
 pub(crate) use self::spanned_error::WithSpan;
 pub use self::stmt::{ItemOrExpr, Stmt, StmtSortKey};
 pub use self::token::{
-    BuiltIn, CopySource, Delimiter, Number, NumberBase, NumberSource, NumberText, StrSource,
-    StrText, StringSource, Token,
+    BuiltIn, CopySource, Delimiter, LitSource, Number, NumberBase, NumberSource, NumberText,
+    StrSource, StrText, Token,
 };
 pub use self::vis::Visibility;
 
 macro_rules! decl_tokens {
-    ($(($parser:ident, $name:literal, $doc:expr, $($kind:tt)*),)*) => {
+    ($(($parser:ident, $name:expr, $doc:expr, $($kind:tt)*),)*) => {
         $(
             #[doc = $doc]
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -244,10 +244,8 @@ macro_rules! decl_tokens {
                     let token = parser.next()?;
 
                     match token.kind {
-                        $($kind)* => Ok(Self {
-                            token,
-                        }),
-                        _ => Err(ParseError::expected(&token, $name)),
+                        $($kind)* => Ok(Self { token }),
+                        _ => Err(ParseError::expected(token, $name)),
                     }
                 }
             }
@@ -268,12 +266,12 @@ macro_rules! decl_tokens {
 }
 
 decl_tokens! {
-    (CloseBrace, "An closing brace `}`.", "closing brace", Kind::Close(Delimiter::Brace)),
-    (CloseBracket, "An open bracket `]`.", "closing bracket", Kind::Close(Delimiter::Bracket)),
-    (CloseParen, "An closing parenthesis `)`.", "closing parenthesis", Kind::Close(Delimiter::Parenthesis)),
-    (CloseEmpty, "An empty closing marker.", "closing marker", Kind::Close(Delimiter::Empty)),
-    (OpenBrace, "An opening brace `{`.", "opening brace", Kind::Open(Delimiter::Brace)),
-    (OpenBracket, "An open bracket `[`.", "opening bracket", Kind::Open(Delimiter::Bracket)),
-    (OpenParen, "An opening parenthesis `(`.", "opening parenthesis", Kind::Open(Delimiter::Parenthesis)),
-    (OpenEmpty, "An empty opening marker.", "opening marker", Kind::Open(Delimiter::Empty)),
+    (CloseBrace, "a closing brace `}`", "closing brace", Kind::Close(Delimiter::Brace)),
+    (CloseBracket, "a closing bracket `]`", "closing bracket", Kind::Close(Delimiter::Bracket)),
+    (CloseParen, "a closing parenthesis `)`", "closing parenthesis", Kind::Close(Delimiter::Parenthesis)),
+    (CloseEmpty, "an empty closing marker", "closing marker", Kind::Close(Delimiter::Empty)),
+    (OpenBrace, "an opening brace `{`", "opening brace", Kind::Open(Delimiter::Brace)),
+    (OpenBracket, "an open bracket `[`", "opening bracket", Kind::Open(Delimiter::Bracket)),
+    (OpenParen, "an opening parenthesis `(`", "opening parenthesis", Kind::Open(Delimiter::Parenthesis)),
+    (OpenEmpty, "an empty opening marker", "opening marker", Kind::Open(Delimiter::Empty)),
 }

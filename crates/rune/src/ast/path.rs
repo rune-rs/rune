@@ -16,6 +16,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::Path>("super::HashMap::<Foo, Bar>");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct Path {
     /// Opaque id associated with path.
     #[rune(id)]
@@ -98,9 +99,9 @@ impl Peek for Path {
     }
 }
 
-impl Description for &Path {
-    fn description(self) -> &'static str {
-        "path"
+impl IntoExpectation for &Path {
+    fn into_expectation(self) -> Expectation {
+        Expectation::Description("path")
     }
 }
 
@@ -174,6 +175,8 @@ impl<'a> Resolve<'a> for Path {
 }
 
 /// An identified path kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PathKind {
     /// A path that is the `self` value.
     SelfValue,
@@ -184,6 +187,7 @@ pub enum PathKind {
 /// Part of a `::` separated path.
 ///
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum PathSegment {
     /// A path segment that contains `Self`.
     SelfType(T![Self]),
@@ -225,9 +229,9 @@ impl PathSegment {
     }
 }
 
-impl Description for &PathSegment {
-    fn description(self) -> &'static str {
-        "path segment"
+impl IntoExpectation for PathSegment {
+    fn into_expectation(self) -> Expectation {
+        Expectation::Description("path segment")
     }
 }
 
@@ -241,7 +245,7 @@ impl Parse for PathSegment {
             K![super] => Self::Super(p.parse()?),
             K![<] => Self::Generics(p.parse()?),
             _ => {
-                return Err(ParseError::expected(&p.tok_at(0)?, "path segment"));
+                return Err(ParseError::expected(p.tok_at(0)?, "path segment"));
             }
         };
 

@@ -3,6 +3,7 @@ use crate::ast::prelude::*;
 /// A literal expression.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ExprLit {
     /// Attributes associated with the literal expression.
     #[rune(iter, meta)]

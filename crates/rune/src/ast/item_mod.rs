@@ -18,6 +18,7 @@ use crate::ast::prelude::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
+#[non_exhaustive]
 pub struct ItemMod {
     /// The id of the module item.
     #[rune(id)]
@@ -51,6 +52,7 @@ item_parse!(Mod, ItemMod, "mod item");
 
 /// An item body.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum ItemModBody {
     /// An empty body terminated by a semicolon.
     EmptyBody(T![;]),
@@ -69,6 +71,7 @@ impl Parse for ItemModBody {
 
 /// A module declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[non_exhaustive]
 pub struct ItemInlineBody {
     /// The open brace.
     pub open: T!['{'],

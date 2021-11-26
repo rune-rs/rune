@@ -4,6 +4,7 @@ macro_rules! grouped {
     ($(#[$meta:meta])* $name:ident { $field:ident, $open:ty, $close:ty }) => {
         $(#[$meta])*
         #[derive(Debug, Clone, PartialEq, Eq, Spanned, ToTokens)]
+        #[non_exhaustive]
         pub struct $name<T, S> {
             /// The open parenthesis.
             pub open: $open,

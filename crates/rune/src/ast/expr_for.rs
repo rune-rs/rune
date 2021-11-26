@@ -13,6 +13,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ExprFor>("#[attr] 'label: for i in x {}");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprFor {
     /// The attributes of the `for` loop
     #[rune(iter)]

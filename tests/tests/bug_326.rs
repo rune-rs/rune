@@ -26,9 +26,7 @@ fn bug_326() -> rune::Result<()> {
         "#,
     ));
 
-    let result = rune::prepare(&mut sources)
-        .with_context(&context)
-        .build();
+    let result = rune::prepare(&mut sources).with_context(&context).build();
 
     let unit = result?;
     let mut vm = Vm::new(runtime, Arc::new(unit));

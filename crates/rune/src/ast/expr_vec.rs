@@ -12,6 +12,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ExprVec>("[1, 2, foo()]");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprVec {
     /// Attributes associated with vector.
     #[rune(iter, meta)]

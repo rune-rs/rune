@@ -16,6 +16,7 @@ use std::fmt;
 /// }");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprUnary {
     /// Attributes associated with expression.
     #[rune(iter)]
@@ -62,6 +63,7 @@ expr_parse!(Unary, ExprUnary, "try expression");
 
 /// A unary operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum UnOp {
     /// Not `!<thing>`.
     Not,
@@ -81,7 +83,7 @@ impl UnOp {
             K![-] => Ok(Self::Neg),
             K![&] => Ok(Self::BorrowRef),
             K![*] => Ok(Self::Deref),
-            _ => Err(ParseError::expected(&t, "unary operator, like `!` or `-`")),
+            _ => Err(ParseError::expected(t, "unary operator, like `!` or `-`")),
         }
     }
 }

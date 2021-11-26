@@ -2,6 +2,7 @@ use crate::ast::prelude::*;
 
 /// An index get operation `<target>[<index>]`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprIndex {
     /// Attributes associated with expression.
     #[rune(iter)]

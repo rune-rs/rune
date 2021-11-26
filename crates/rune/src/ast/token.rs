@@ -1,12 +1,12 @@
 use crate::ast::{Kind, Span, Spanned};
-use crate::macros::{MacroContext, ToTokens, TokenStream};
-use crate::parse::{ParseError, ParseErrorKind};
-use crate::shared::Description;
+use crate::macros::{MacroContext, SyntheticId, ToTokens, TokenStream};
+use crate::parse::{Expectation, IntoExpectation, ParseError, ParseErrorKind};
 use crate::SourceId;
 use std::fmt;
 
 /// A single token encountered during parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Token {
     /// The span of the token.
     pub span: Span,
@@ -23,7 +23,7 @@ impl Token {
                 return Err(fmt::Error);
             }
             Kind::Ident(s) => match s {
-                StringSource::Text(source_id) => {
+                LitSource::Text(source_id) => {
                     let s = ctx
                         .q()
                         .sources
@@ -31,16 +31,16 @@ impl Token {
                         .ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
-                StringSource::Synthetic(id) => {
+                LitSource::Synthetic(id) => {
                     let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
-                StringSource::BuiltIn(builtin) => {
+                LitSource::BuiltIn(builtin) => {
                     write!(f, "{}", builtin)?;
                 }
             },
             Kind::Label(s) => match s {
-                StringSource::Text(source_id) => {
+                LitSource::Text(source_id) => {
                     let s = ctx
                         .q()
                         .sources
@@ -48,11 +48,11 @@ impl Token {
                         .ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
-                StringSource::Synthetic(id) => {
+                LitSource::Synthetic(id) => {
                     let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
                     write!(f, "'{}", s)?;
                 }
-                StringSource::BuiltIn(builtin) => {
+                LitSource::BuiltIn(builtin) => {
                     write!(f, "'{}", builtin)?;
                 }
             },
@@ -138,7 +138,8 @@ impl Token {
                 }
             },
             other => {
-                write!(f, "{}", other)?;
+                let s = other.as_literal_str().ok_or(fmt::Error)?;
+                write!(f, "{}", s)?;
             }
         }
 
@@ -177,14 +178,15 @@ impl Spanned for Token {
     }
 }
 
-impl Description for &Token {
-    fn description(self) -> &'static str {
-        self.kind.description()
+impl IntoExpectation for Token {
+    fn into_expectation(self) -> Expectation {
+        self.kind.into_expectation()
     }
 }
 
 /// A resolved number literal.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Number {
     /// A float literal number.
     Float(f64),
@@ -301,6 +303,7 @@ impl fmt::Display for Number {
 
 /// The kind of a number literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum NumberBase {
     /// A decimal number literal, like `3.14`.
     Decimal,
@@ -328,6 +331,7 @@ impl fmt::Display for NumberBase {
 /// This is necessary to synthesize identifiers in the lexer since there's not
 /// storage available, nor is the identifier reflected in the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum BuiltIn {
     /// `template`.
     Template,
@@ -359,26 +363,31 @@ impl fmt::Display for BuiltIn {
 
 /// The kind of the identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StringSource {
+#[non_exhaustive]
+pub enum LitSource {
     /// The identifier is from the source text.
     Text(SourceId),
     /// The identifier is synthetic (generated in a macro).
-    Synthetic(usize),
+    Synthetic(SyntheticId),
     /// Built-in strings.
     BuiltIn(BuiltIn),
 }
 
-/// The source of the literal string.
+/// The source of the literal string. This need to be treated separately from
+/// [LitSource] because it might encompass special things like quoting and
+/// escaping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum StrSource {
     /// The literal string source is from the source text.
     Text(StrText),
     /// The string source is synthetic (generated in a macro).
-    Synthetic(usize),
+    Synthetic(SyntheticId),
 }
 
 /// Configuration for a literal string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub struct StrText {
     /// The source of the text.
     pub source_id: SourceId,
@@ -390,16 +399,18 @@ pub struct StrText {
 
 /// The source of a number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum NumberSource {
     /// The number is from the source text (and need to be parsed while it's
     /// being resolved).
     Text(NumberText),
     /// The number is synthetic, and stored in the specified slot.
-    Synthetic(usize),
+    Synthetic(SyntheticId),
 }
 
 /// The source of an item that implements Copy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum CopySource<T>
 where
     T: Copy,
@@ -413,6 +424,7 @@ where
 
 /// Configuration of a text number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub struct NumberText {
     /// The source of the text.
     pub source_id: SourceId,
@@ -424,6 +436,7 @@ pub struct NumberText {
 
 /// A delimiter, `{`, `{`, or `[`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum Delimiter {
     /// A parenthesis delimiter `(` and `)`.
     Parenthesis,

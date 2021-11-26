@@ -1,7 +1,6 @@
 use crate::ast;
 use crate::ast::{Spanned, SpannedError};
-use crate::parse::{LexerMode, ResolveError, ResolveErrorKind};
-use crate::shared::Description;
+use crate::parse::{Expectation, IntoExpectation, LexerMode, ResolveError, ResolveErrorKind};
 use crate::SourceId;
 use thiserror::Error;
 
@@ -19,14 +18,14 @@ impl ParseError {
     /// Construct an expectation error.
     pub(crate) fn expected<A, E>(actual: A, expected: E) -> Self
     where
-        A: Description + Spanned,
-        E: Description,
+        A: IntoExpectation + Spanned,
+        E: IntoExpectation,
     {
         Self::new(
             actual.span(),
             ParseErrorKind::Expected {
-                actual: actual.description(),
-                expected: expected.description(),
+                actual: actual.into_expectation(),
+                expected: expected.into_expectation(),
             },
         )
     }
@@ -35,12 +34,12 @@ impl ParseError {
     pub(crate) fn unsupported<T, E>(actual: T, what: E) -> Self
     where
         T: Spanned,
-        E: Description,
+        E: IntoExpectation,
     {
         Self::new(
             actual.span(),
             ParseErrorKind::Unsupported {
-                what: what.description(),
+                what: what.into_expectation(),
             },
         )
     }
@@ -70,13 +69,13 @@ pub enum ParseErrorKind {
         actual: LexerMode,
         expected: LexerMode,
     },
-    #[error("expected {expected}, but got `{actual}`")]
+    #[error("expected {expected}, but got {actual}")]
     Expected {
-        actual: &'static str,
-        expected: &'static str,
+        actual: Expectation,
+        expected: Expectation,
     },
     #[error("{what} is not supported")]
-    Unsupported { what: &'static str },
+    Unsupported { what: Expectation },
     #[error("expected escape sequence")]
     ExpectedEscape,
     #[error("unterminated string literal")]

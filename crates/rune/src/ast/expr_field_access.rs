@@ -12,6 +12,7 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ExprFieldAccess>("(foo.0).1");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprFieldAccess {
     /// Attributes associated with expression.
     #[rune(iter)]
@@ -28,6 +29,7 @@ expr_parse!(FieldAccess, ExprFieldAccess, "field access expression");
 
 /// The field being accessed.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub enum ExprField {
     /// An identifier.
     Path(ast::Path),

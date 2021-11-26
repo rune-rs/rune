@@ -12,6 +12,7 @@ use crate::ast::prelude::*;
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
 pub struct ExprMatch {
     /// The attributes for the match expression
     #[rune(iter)]
@@ -77,6 +78,7 @@ expr_parse!(Match, ExprMatch, "match expression");
 /// testing::roundtrip::<ast::ExprMatchBranch>("1 => { foo }");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[non_exhaustive]
 pub struct ExprMatchBranch {
     /// The pattern to match.
     pub pat: ast::Pat,
