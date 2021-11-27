@@ -67,7 +67,7 @@ macro_rules! expr_parse {
                 let t = p.tok_at(0)?;
 
                 match $crate::ast::Expr::parse(p)? {
-                    $crate::ast::Expr::$ty(expr) => Ok(*expr),
+                    $crate::ast::Expr::$ty(expr) => Ok(expr),
                     _ => Err($crate::parse::ParseError::expected(t, $expected)),
                 }
             }
@@ -82,7 +82,7 @@ macro_rules! item_parse {
                 let t = p.tok_at(0)?;
 
                 match $crate::ast::Item::parse(p)? {
-                    $crate::ast::Item::$ty(item) => Ok(*item),
+                    $crate::ast::Item::$ty(item) => Ok(item),
                     _ => Err($crate::parse::ParseError::expected(t, $expected)),
                 }
             }

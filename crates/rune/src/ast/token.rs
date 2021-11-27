@@ -195,41 +195,41 @@ pub enum Number {
 }
 
 impl Number {
-    /// Negate the inner number.
-    pub fn neg(self) -> Self {
-        use std::ops::Neg as _;
-
-        match self {
-            Self::Float(n) => Self::Float(-n),
-            Self::Integer(n) => Self::Integer(n.neg()),
-        }
-    }
-
     /// Convert into a 32-bit unsigned number.
-    pub fn as_u32(&self, spanned: Span, neg: bool) -> Result<u32, ParseError> {
+    pub(crate) fn as_u32(&self, spanned: Span, neg: bool) -> Result<u32, ParseError> {
         self.as_primitive(spanned, neg, num::ToPrimitive::to_u32)
     }
 
     /// Convert into a 64-bit signed number.
-    pub fn as_i64(&self, spanned: Span, neg: bool) -> Result<i64, ParseError> {
+    pub(crate) fn as_i64(&self, spanned: Span, neg: bool) -> Result<i64, ParseError> {
         self.as_primitive(spanned, neg, num::ToPrimitive::to_i64)
     }
 
     /// Convert into usize.
-    pub fn as_usize(&self, spanned: Span, neg: bool) -> Result<usize, ParseError> {
+    pub(crate) fn as_usize(&self, spanned: Span, neg: bool) -> Result<usize, ParseError> {
         self.as_primitive(spanned, neg, num::ToPrimitive::to_usize)
+    }
+
+    /// Try to convert number into a tuple index.
+    pub(crate) fn as_tuple_index(&self) -> Option<usize> {
+        use num::ToPrimitive;
+
+        match self {
+            Self::Integer(n) => n.to_usize(),
+            _ => None,
+        }
     }
 
     fn as_primitive<T>(
         &self,
-        spanned: Span,
+        span: Span,
         neg: bool,
         to: impl FnOnce(&num::BigInt) -> Option<T>,
     ) -> Result<T, ParseError> {
-        use std::ops::Neg as _;
+        use std::ops::Neg;
 
         let number = match self {
-            Number::Float(_) => return Err(ParseError::new(spanned, ParseErrorKind::BadNumber)),
+            Number::Float(_) => return Err(ParseError::new(span, ParseErrorKind::BadNumber)),
             Number::Integer(n) => {
                 if neg {
                     to(&n.clone().neg())
@@ -241,20 +241,7 @@ impl Number {
 
         match number {
             Some(n) => Ok(n),
-            None => Err(ParseError::new(
-                spanned,
-                ParseErrorKind::BadNumberOutOfBounds,
-            )),
-        }
-    }
-
-    /// Try to convert number into a tuple index.
-    pub fn as_tuple_index(&self) -> Option<usize> {
-        use num::ToPrimitive as _;
-
-        match self {
-            Self::Integer(n) => n.to_usize(),
-            _ => None,
+            None => Err(ParseError::new(span, ParseErrorKind::BadNumberOutOfBounds)),
         }
     }
 }

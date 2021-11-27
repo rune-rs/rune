@@ -19,7 +19,7 @@ pub struct ExprCall {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The name of the function being called.
-    pub expr: ast::Expr,
+    pub expr: Box<ast::Expr>,
     /// The arguments of the function call.
     pub args: ast::Parenthesized<ast::Expr, T![,]>,
 }
@@ -27,7 +27,7 @@ pub struct ExprCall {
 impl ExprCall {
     /// Get the target of the call expression.
     pub(crate) fn target(&self) -> &ast::Expr {
-        if let ast::Expr::FieldAccess(access) = &self.expr {
+        if let ast::Expr::FieldAccess(access) = &*self.expr {
             return &access.expr;
         }
 

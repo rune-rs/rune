@@ -9,11 +9,11 @@ pub struct ExprBinary {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The left-hand side of a binary operation.
-    pub lhs: ast::Expr,
+    pub lhs: Box<ast::Expr>,
     /// The operator.
     pub op: BinOp,
     /// The right-hand side of a binary operation.
-    pub rhs: ast::Expr,
+    pub rhs: Box<ast::Expr>,
 }
 
 expr_parse!(Binary, ExprBinary, "binary expression");

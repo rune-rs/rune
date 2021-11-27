@@ -293,22 +293,24 @@ fn pat_lit(
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<bool> {
     loop {
-        match &pat_lit.expr {
-            ast::Expr::Unary(expr_unary) => {
-                if let ast::Expr::Lit(expr_lit) = &expr_unary.expr {
-                    if let ast::ExprLit {
-                        lit: ast::Lit::Number(lit_number),
-                        ..
-                    } = &**expr_lit
-                    {
-                        let span = lit_number.span();
-                        let integer = lit_number
-                            .resolve(c.q.storage(), c.q.sources)?
-                            .as_i64(pat_lit.span(), true)?;
-                        load(c, Needs::Value)?;
-                        c.asm.push(Inst::EqInteger { integer }, span);
-                        break;
-                    }
+        match &*pat_lit.expr {
+            ast::Expr::Unary(ast::ExprUnary {
+                op: ast::UnOp::Neg(..),
+                expr,
+                ..
+            }) => {
+                if let ast::Expr::Lit(ast::ExprLit {
+                    lit: ast::Lit::Number(lit_number),
+                    ..
+                }) = &**expr
+                {
+                    let span = lit_number.span();
+                    let integer = lit_number
+                        .resolve(c.q.storage(), c.q.sources)?
+                        .as_i64(pat_lit.span(), true)?;
+                    load(c, Needs::Value)?;
+                    c.asm.push(Inst::EqInteger { integer }, span);
+                    break;
                 }
             }
             ast::Expr::Lit(expr_lit) => match &expr_lit.lit {
@@ -926,20 +928,18 @@ fn builtin_template(
     let mut expansions = 0;
 
     for e in &ast.exprs {
-        if let ast::Expr::Lit(expr_lit) = e {
-            if let ast::ExprLit {
-                lit: ast::Lit::Str(s),
-                ..
-            } = &**expr_lit
-            {
-                let s = s.resolve_template_string(c.q.storage, c.q.sources)?;
-                size_hint += s.len();
+        if let ast::Expr::Lit(ast::ExprLit {
+            lit: ast::Lit::Str(s),
+            ..
+        }) = e
+        {
+            let s = s.resolve_template_string(c.q.storage, c.q.sources)?;
+            size_hint += s.len();
 
-                let slot = c.q.unit.new_static_string(span, &s)?;
-                c.asm.push(Inst::String { slot }, span);
-                c.scopes.decl_anon(span)?;
-                continue;
-            }
+            let slot = c.q.unit.new_static_string(span, &s)?;
+            c.asm.push(Inst::String { slot }, span);
+            c.scopes.decl_anon(span)?;
+            continue;
         }
 
         expansions += 1;
@@ -1113,7 +1113,7 @@ fn expr(ast: &ast::Expr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
         ast::Expr::Object(e) => expr_object(e, c, needs)?,
         ast::Expr::Range(e) => expr_range(e, c, needs)?,
         ast::Expr::MacroCall(expr_call_macro) => {
-            let internal_macro = c.q.builtin_macro_for(&**expr_call_macro)?;
+            let internal_macro = c.q.builtin_macro_for(expr_call_macro)?;
 
             match &*internal_macro {
                 BuiltInMacro::Template(template) => builtin_template(template, c, needs)?,
@@ -1132,7 +1132,7 @@ fn expr(ast: &ast::Expr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
 fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = ast.span();
 
-    let supported = match &ast.lhs {
+    let supported = match &*ast.lhs {
         // <var> = <value>
         ast::Expr::Path(path) if path.rest.is_empty() => {
             expr(&ast.rhs, c, Needs::Value)?.apply(c)?;
@@ -1521,7 +1521,7 @@ fn expr_break(ast: &ast::ExprBreak, c: &mut Assembler<'_>, _: Needs) -> CompileR
         }
     };
 
-    let (last_loop, to_drop, has_value) = if let Some(e) = &ast.expr {
+    let (last_loop, to_drop, has_value) = if let Some(e) = ast.expr.as_deref() {
         match e {
             ast::ExprBreakValue::Expr(e) => {
                 expr(e, c, current_loop.needs)?.apply(c)?;
@@ -1530,7 +1530,7 @@ fn expr_break(ast: &ast::ExprBreak, c: &mut Assembler<'_>, _: Needs) -> CompileR
             ast::ExprBreakValue::Label(label) => {
                 let (last_loop, to_drop) =
                     c.loops
-                        .walk_until_label(c.q.storage(), c.q.sources, *label)?;
+                        .walk_until_label(c.q.storage(), c.q.sources, label)?;
                 (last_loop, to_drop, false)
             }
         }
@@ -1596,7 +1596,7 @@ enum Call {
 fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResult<Call> {
     let span = ast.span();
 
-    match &ast.expr {
+    match &*ast.expr {
         ast::Expr::Path(path) => {
             let named = c.convert_path(path)?;
 
@@ -1667,17 +1667,14 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
             let hash = Hash::type_hash(&meta.item.item);
             return Ok(Call::Meta { meta, hash });
         }
-        ast::Expr::FieldAccess(access) => {
-            if let ast::ExprFieldAccess {
-                expr_field: ast::ExprField::Path(path),
-                ..
-            } = &**access
-            {
-                if let Some(ident) = path.try_as_ident() {
-                    let ident = ident.resolve(c.q.storage(), c.q.sources)?;
-                    let hash = Hash::instance_fn_name(ident);
-                    return Ok(Call::Instance { hash });
-                }
+        ast::Expr::FieldAccess(ast::ExprFieldAccess {
+            expr_field: ast::ExprField::Path(path),
+            ..
+        }) => {
+            if let Some(ident) = path.try_as_ident() {
+                let ident = ident.resolve(c.q.storage(), c.q.sources)?;
+                let hash = Hash::instance_fn_name(ident);
+                return Ok(Call::Instance { hash });
             }
         }
         _ => {}
@@ -1797,7 +1794,7 @@ pub(crate) fn closure_from_expr_closure(
         pat_with_offset(pat, c, offset)?;
     }
 
-    return_(c, span, &ast.body, expr)?;
+    return_(c, span, &*ast.body, expr)?;
     c.scopes.pop_last(span)?;
     Ok(())
 }
@@ -1893,7 +1890,7 @@ fn expr_continue(ast: &ast::ExprContinue, c: &mut Assembler<'_>, _: Needs) -> Co
     let last_loop = if let Some(label) = &ast.label {
         let (last_loop, _) = c
             .loops
-            .walk_until_label(c.q.storage(), c.q.sources, *label)?;
+            .walk_until_label(c.q.storage(), c.q.sources, label)?;
         last_loop
     } else {
         current_loop
@@ -1926,7 +1923,7 @@ fn expr_field_access(
     // e.g. inspect if it compiles down to a local access instead of
     // climbing the ast like we do here.
     #[allow(clippy::single_match)]
-    match (&ast.expr, &ast.expr_field) {
+    match (&*ast.expr, &ast.expr_field) {
         (ast::Expr::Path(path), ast::ExprField::LitNumber(n)) => {
             if try_immediate_field_access_optimization(c, span, path, n, needs)? {
                 return Ok(Asm::top(span));
@@ -2678,7 +2675,7 @@ fn expr_return(ast: &ast::ExprReturn, c: &mut Assembler<'_>, _: Needs) -> Compil
         }
     }
 
-    if let Some(e) = &ast.expr {
+    if let Some(e) = ast.expr.as_deref() {
         return_(c, span, e, expr)?;
     } else {
         // NB: we actually want total_var_count here since we need to clean up
@@ -2898,7 +2895,7 @@ fn expr_unary(ast: &ast::ExprUnary, c: &mut Assembler<'_>, needs: Needs) -> Comp
         return Err(CompileError::new(ast, CompileErrorKind::UnsupportedRef));
     }
 
-    if let (ast::UnOp::Neg(..), ast::Expr::Lit(expr_lit)) = (ast.op, &ast.expr) {
+    if let (ast::UnOp::Neg(..), ast::Expr::Lit(expr_lit)) = (ast.op, &*ast.expr) {
         if let ast::Lit::Number(n) = &expr_lit.lit {
             match n.resolve(c.q.storage(), c.q.sources)? {
                 ast::Number::Float(n) => {

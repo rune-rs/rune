@@ -390,7 +390,7 @@ impl<'a> Indexer<'a> {
                         module: self.mod_item.clone(),
                         item: self.items.item().clone(),
                         source_id: self.source_id,
-                        ast: item_use,
+                        ast: Box::new(item_use),
                     };
 
                     let queue = &mut self.queue;
@@ -442,7 +442,7 @@ impl<'a> Indexer<'a> {
                         module: self.mod_item.clone(),
                         item: self.items.item().clone(),
                         source_id: self.source_id,
-                        ast: item_use,
+                        ast: Box::new(item_use),
                     };
 
                     let queue = &mut self.queue;
@@ -1125,7 +1125,7 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
                 }
             } else {
                 // Assert that the built-in macro has been expanded.
-                idx.q.builtin_macro_for(&**macro_call)?;
+                idx.q.builtin_macro_for(&*macro_call)?;
                 attributes.drain();
             }
         }
@@ -1434,7 +1434,7 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
             // engine.
 
             // Assert that the built-in macro has been expanded.
-            idx.q.builtin_macro_for(&**macro_call)?;
+            idx.q.builtin_macro_for(&*macro_call)?;
 
             // NB: macros are handled during pre-processing.
             attributes.drain();
@@ -1570,7 +1570,7 @@ fn expr_index(ast: &mut ast::ExprIndex, idx: &mut Indexer<'_>) -> CompileResult<
 
 #[instrument]
 fn expr_break(ast: &mut ast::ExprBreak, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    if let Some(e) = &mut ast.expr {
+    if let Some(e) = ast.expr.as_deref_mut() {
         match e {
             ast::ExprBreakValue::Expr(e) => {
                 expr(e, idx)?;

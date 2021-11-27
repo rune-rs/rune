@@ -69,7 +69,7 @@ impl Loops {
         &self,
         storage: &Storage,
         sources: &Sources,
-        expected: ast::Label,
+        expected: &ast::Label,
     ) -> CompileResult<(Loop, Vec<usize>)> {
         use crate::parse::Resolve;
 

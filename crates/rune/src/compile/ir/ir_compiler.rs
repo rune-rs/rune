@@ -106,7 +106,7 @@ impl IrCompile for ast::Expr {
             }
             ast::Expr::Let(expr_let) => ir::Ir::new(expr_let, expr_let.compile(c)?),
             ast::Expr::MacroCall(macro_call) => {
-                let internal_macro = c.q.builtin_macro_for(&**macro_call)?;
+                let internal_macro = c.q.builtin_macro_for(&*macro_call)?;
 
                 match &*internal_macro {
                     BuiltInMacro::Template(template) => {
@@ -167,7 +167,7 @@ impl IrCompile for ast::ExprCall {
             args.push(expr.compile(c)?);
         }
 
-        if let ast::Expr::Path(path) = &self.expr {
+        if let ast::Expr::Path(path) = &*self.expr {
             if let Some(ident) = path.try_as_ident() {
                 let target = c.resolve(ident)?;
 
@@ -438,20 +438,18 @@ impl IrCompile for BuiltInTemplate {
         let mut components = Vec::new();
 
         for expr in &self.exprs {
-            if let ast::Expr::Lit(expr_lit) = expr {
-                if let ast::ExprLit {
-                    lit: ast::Lit::Str(s),
-                    ..
-                } = &**expr_lit
-                {
-                    let s = s.resolve_template_string(c.q.storage(), c.q.sources)?;
+            if let ast::Expr::Lit(ast::ExprLit {
+                lit: ast::Lit::Str(s),
+                ..
+            }) = expr
+            {
+                let s = s.resolve_template_string(c.q.storage(), c.q.sources)?;
 
-                    components.push(ir::IrTemplateComponent::String(
-                        s.into_owned().into_boxed_str(),
-                    ));
+                components.push(ir::IrTemplateComponent::String(
+                    s.into_owned().into_boxed_str(),
+                ));
 
-                    continue;
-                }
+                continue;
             }
 
             let ir = expr.compile(c)?;
