@@ -40,8 +40,8 @@ impl Default for Visibility {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// assert!(matches!{
 ///     testing::roundtrip::<ast::Visibility>("pub"),

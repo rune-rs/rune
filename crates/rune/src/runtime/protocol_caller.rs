@@ -1,5 +1,5 @@
-use crate::runtime::{GuardedArgs, Stack, UnitFn, Value, Vm, VmError, VmErrorKind};
-use crate::{Hash, Protocol};
+use crate::runtime::{GuardedArgs, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind};
+use crate::Hash;
 
 /// Trait used for integrating an instance function call.
 pub(crate) trait ProtocolCaller {

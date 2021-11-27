@@ -285,7 +285,7 @@ impl AnyObj {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Any;
     /// use rune::runtime::AnyObj;
     ///
@@ -313,7 +313,7 @@ impl AnyObj {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Any;
     /// use rune::runtime::AnyObj;
     ///
@@ -340,7 +340,7 @@ impl AnyObj {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Any;
     /// use rune::runtime::AnyObj;
     ///

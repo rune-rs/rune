@@ -1,6 +1,18 @@
 use crate::ast::prelude::*;
 
 /// Attribute like `#[derive(Debug)]`
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::Attribute>("#[foo = \"foo\"]");
+/// testing::roundtrip::<ast::Attribute>("#[foo()]");
+/// testing::roundtrip::<ast::Attribute>("#![foo]");
+/// testing::roundtrip::<ast::Attribute>("#![cfg(all(feature = \"potato\"))]");
+/// testing::roundtrip::<ast::Attribute>("#[x+1]");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct Attribute {
@@ -19,19 +31,6 @@ pub struct Attribute {
     pub close: T![']'],
 }
 
-/// Parsing an Attribute
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::Attribute>("#[foo = \"foo\"]");
-/// testing::roundtrip::<ast::Attribute>("#[foo()]");
-/// testing::roundtrip::<ast::Attribute>("#![foo]");
-/// testing::roundtrip::<ast::Attribute>("#![cfg(all(feature = \"potato\"))]");
-/// testing::roundtrip::<ast::Attribute>("#[x+1]");
-/// ```
 impl Parse for Attribute {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
         let hash = p.parse()?;

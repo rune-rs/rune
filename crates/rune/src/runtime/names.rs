@@ -26,7 +26,7 @@ impl Names {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Names;
     ///
     /// let mut names = Names::new();
@@ -53,7 +53,7 @@ impl Names {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Names;
     ///
     /// let mut names = Names::new();

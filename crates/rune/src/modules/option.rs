@@ -1,7 +1,7 @@
 //! The `std::option` module.
 
-use crate::runtime::{Function, Iterator, Shared, Value, VmError};
-use crate::{ContextError, Module, Protocol};
+use crate::runtime::{Function, Iterator, Protocol, Shared, Value, VmError};
+use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
 pub fn module() -> Result<Module, ContextError> {

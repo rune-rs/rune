@@ -2,8 +2,8 @@ use crate::ast::prelude::*;
 
 /// A `continue` statement: `continue [label]`.
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprContinue>("continue");
 /// testing::roundtrip::<ast::ExprContinue>("continue 'foo");

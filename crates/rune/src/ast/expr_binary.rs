@@ -2,6 +2,15 @@ use crate::ast::prelude::*;
 use std::fmt;
 
 /// A binary expression.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::ExprBinary>("42 + b");
+/// testing::roundtrip::<ast::ExprBinary>("b << 10");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprBinary {

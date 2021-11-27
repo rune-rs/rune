@@ -17,8 +17,8 @@ pub struct LitNumber {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::LitNumber>("42");
 /// testing::roundtrip::<ast::LitNumber>("42.42");
@@ -42,15 +42,11 @@ impl Parse for LitNumber {
 impl<'a> Resolve<'a> for LitNumber {
     type Output = ast::Number;
 
-    fn resolve(
-        &self,
-        storage: &'a Storage,
-        sources: &'a Sources,
-    ) -> Result<ast::Number, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<ast::Number, ResolveError> {
         let span = self.span;
 
         let text = match self.source {
-            ast::NumberSource::Synthetic(id) => match storage.get_number(id) {
+            ast::NumberSource::Synthetic(id) => match ctx.storage.get_number(id) {
                 Some(number) => return Ok(number.clone()),
                 None => {
                     return Err(ResolveError::new(
@@ -65,7 +61,8 @@ impl<'a> Resolve<'a> for LitNumber {
             ast::NumberSource::Text(text) => text,
         };
 
-        let string = sources
+        let string = ctx
+            .sources
             .source(text.source_id, span)
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 

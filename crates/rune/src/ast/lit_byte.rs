@@ -15,8 +15,8 @@ pub struct LitByte {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::LitByte>("b'a'");
 /// testing::roundtrip::<ast::LitByte>("b'\\0'");
@@ -41,7 +41,7 @@ impl Parse for LitByte {
 impl<'a> Resolve<'a> for LitByte {
     type Output = u8;
 
-    fn resolve(&self, _: &'a Storage, sources: &'a Sources) -> Result<u8, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<u8, ResolveError> {
         let source_id = match self.source {
             ast::CopySource::Inline(b) => return Ok(b),
             ast::CopySource::Text(source_id) => source_id,
@@ -49,7 +49,8 @@ impl<'a> Resolve<'a> for LitByte {
 
         let span = self.span;
 
-        let string = sources
+        let string = ctx
+            .sources
             .source(source_id, span.trim_start(2u32).trim_end(1u32))
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 

@@ -5,8 +5,8 @@ use std::borrow::Cow;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprObject>("Foo {\"foo\": 42}");
 /// testing::roundtrip::<ast::ExprObject>("#{\"foo\": 42}");
@@ -55,6 +55,16 @@ impl Parse for ObjectIdent {
 }
 
 /// A literal object field.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
+/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
+/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct FieldAssign {
@@ -65,17 +75,6 @@ pub struct FieldAssign {
     pub assign: Option<(T![:], ast::Expr)>,
 }
 
-/// Parse an object field assignment.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
-/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
-/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
-/// ```
 impl Parse for FieldAssign {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         let key = p.parse()?;
@@ -106,8 +105,8 @@ pub enum ObjectKey {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ObjectKey>("foo");
 /// testing::roundtrip::<ast::ObjectKey>("\"foo \\n bar\"");
@@ -139,13 +138,9 @@ impl Peek for AnonExprObject {
 impl<'a> Resolve<'a> for ObjectKey {
     type Output = Cow<'a, str>;
 
-    fn resolve(
-        &self,
-        storage: &'a Storage,
-        sources: &'a Sources,
-    ) -> Result<Self::Output, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Self::Output, ResolveError> {
         Ok(match self {
-            Self::LitStr(lit_str) => lit_str.resolve(storage, sources)?,
+            Self::LitStr(lit_str) => lit_str.resolve(ctx)?,
             Self::Path(path) => {
                 let ident = match path.try_as_ident() {
                     Some(ident) => ident,
@@ -154,7 +149,7 @@ impl<'a> Resolve<'a> for ObjectKey {
                     }
                 };
 
-                Cow::Borrowed(ident.resolve(storage, sources)?)
+                Cow::Borrowed(ident.resolve(ctx)?)
             }
         })
     }

@@ -16,17 +16,15 @@ impl LitStr {
     /// Resolve a template string.
     pub(crate) fn resolve_template_string<'a>(
         &self,
-        storage: &'a Storage,
-        sources: &'a Sources,
+        ctx: ResolveContext<'a>,
     ) -> Result<Cow<'a, str>, ResolveError> {
-        self.resolve_string(storage, sources, ast::utils::WithTemplate(true))
+        self.resolve_string(ctx, ast::utils::WithTemplate(true))
     }
 
     /// Resolve the given string with the specified configuration.
     pub(crate) fn resolve_string<'a>(
         &self,
-        storage: &'a Storage,
-        sources: &'a Sources,
+        ctx: ResolveContext<'a>,
         with_template: ast::utils::WithTemplate,
     ) -> Result<Cow<'a, str>, ResolveError> {
         let span = self.span;
@@ -34,7 +32,7 @@ impl LitStr {
         let text = match self.source {
             ast::StrSource::Text(text) => text,
             ast::StrSource::Synthetic(id) => {
-                let bytes = storage.get_string(id).ok_or_else(|| {
+                let bytes = ctx.storage.get_string(id).ok_or_else(|| {
                     ResolveError::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
@@ -54,7 +52,8 @@ impl LitStr {
             span
         };
 
-        let string = sources
+        let string = ctx
+            .sources
             .source(text.source_id, span)
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
@@ -107,8 +106,8 @@ impl LitStr {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::LitStr>("\"hello world\"");
 /// testing::roundtrip::<ast::LitStr>("\"hello\\nworld\"");
@@ -130,12 +129,8 @@ impl Parse for LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(
-        &self,
-        storage: &'a Storage,
-        sources: &'a Sources,
-    ) -> Result<Cow<'a, str>, ResolveError> {
-        self.resolve_string(storage, sources, ast::utils::WithTemplate(false))
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, str>, ResolveError> {
+        self.resolve_string(ctx, ast::utils::WithTemplate(false))
     }
 }
 

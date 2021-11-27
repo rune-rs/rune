@@ -42,7 +42,7 @@ impl fmt::Display for SyntheticKind {
 
 /// Storage for synthetic language items.
 #[derive(Default)]
-pub struct Storage {
+pub(crate) struct Storage {
     /// Stored strings.
     strings: Vec<String>,
     /// Reverse lookup for existing strings.

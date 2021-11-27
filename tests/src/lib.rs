@@ -203,7 +203,7 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use rune_tests::*;
 /// use rune::Value;
 ///
@@ -227,7 +227,7 @@ macro_rules! rune_vm {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use rune_tests::*;
 /// use rune::Value;
 ///
@@ -253,7 +253,7 @@ macro_rules! rune_vm_capture {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use rune_tests::*;
 ///
 /// # fn main() {
@@ -277,7 +277,7 @@ macro_rules! rune {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use rune_tests::*;
 ///
 /// # fn main() {
@@ -305,7 +305,7 @@ macro_rules! rune_s {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use rune_tests::*;
 /// use rune::Module;
 /// fn get_native_module() -> Module {

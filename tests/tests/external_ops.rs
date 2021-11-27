@@ -1,4 +1,5 @@
-use rune::{Any, Context, Module, Protocol, Source, Sources, Value, Vm};
+use rune::runtime::Protocol;
+use rune::{Any, Context, Module, Source, Sources, Value, Vm};
 use rune_tests::*;
 use std::sync::Arc;
 

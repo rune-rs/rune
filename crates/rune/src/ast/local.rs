@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::Local>("let x = 1;");
 /// testing::roundtrip::<ast::Local>("#[attr] let a = f();");

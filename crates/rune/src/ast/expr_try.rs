@@ -1,6 +1,13 @@
 use crate::ast::prelude::*;
 
 /// A try expression `<expr>?`.
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::ExprTry>("42?");
+/// testing::roundtrip::<ast::ExprTry>("foo()?");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprTry {

@@ -22,7 +22,7 @@ pub struct BuildError;
 /// Note: these must be built with the `emit` feature enabled (default) to give
 /// access to `rune::termcolor`.
 ///
-/// ```rust
+/// ```
 /// use rune::termcolor::{ColorChoice, StandardStream};
 /// use rune::{Context, Options, Source, Vm};
 /// use std::sync::Arc;

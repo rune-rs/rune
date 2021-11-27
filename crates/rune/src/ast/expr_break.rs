@@ -2,8 +2,8 @@ use crate::ast::prelude::*;
 
 /// A `break` statement: `break [expr]`.
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprBreak>("break");
 /// testing::roundtrip::<ast::ExprBreak>("break 42");

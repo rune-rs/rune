@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// let select = testing::roundtrip::<ast::ExprSelect>(r#"
 /// select {
@@ -39,7 +39,7 @@ pub struct ExprSelect {
 
 impl ExprSelect {
     /// Parse the `select` expression and attach the given attributes
-    pub fn parse_with_attributes(
+    pub(crate) fn parse_with_attributes(
         p: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
@@ -85,7 +85,7 @@ pub enum ExprSelectBranch {
 
 impl ExprSelectBranch {
     /// Access the expression body.
-    pub fn expr(&self) -> &ast::Expr {
+    pub(crate) fn expr(&self) -> &ast::Expr {
         match self {
             ExprSelectBranch::Pat(pat) => &pat.body,
             ExprSelectBranch::Default(def) => &def.body,

@@ -15,39 +15,44 @@ macro_rules! grouped {
         }
 
         impl<T, S> $name<T, S> {
-            /// Test if empty.
+            /// Test if group is empty.
             pub fn is_empty(&self) -> bool {
                 self.$field.is_empty()
             }
 
-            /// Get the length of the parsed elements.
+            /// Get the length of elements in the group.
             pub fn len(&self) -> usize {
                 self.$field.len()
             }
 
-            /// Get the first element.
+            /// Get the first element in the group.
             pub fn first(&self) -> Option<&(T, Option<S>)> {
                 self.$field.first()
             }
 
-            /// Get the last element.
+            /// Get the last element in the group.
             pub fn last(&self) -> Option<&(T, Option<S>)> {
                 self.$field.last()
             }
 
-            /// Iterate over elements.
+            /// Iterate over elements in the group.
             pub fn iter(&self) -> std::slice::Iter<'_, (T, Option<S>)> {
                 self.$field.iter()
             }
 
-            /// Iterate mutably over elements.
+            /// Iterate mutably over elements in the group.
             pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, (T, Option<S>)> {
                 self.$field.iter_mut()
             }
 
-            /// Get the values as a slice.
+            /// Get the group values as a slice.
             pub fn as_slice(&self) -> &[(T, Option<S>)] {
                 &*self.$field
+            }
+
+            /// Get the group values as a mutable slice.
+            pub fn as_mut(&mut self) -> &mut [(T, Option<S>)] {
+                &mut *self.$field
             }
         }
 
@@ -157,7 +162,7 @@ grouped! {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{T, testing, ast};
     ///
     /// testing::roundtrip::<ast::Parenthesized<ast::Expr, T![,]>>("(1, \"two\")");
@@ -172,7 +177,7 @@ grouped! {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{T, testing, ast};
     ///
     /// testing::roundtrip::<ast::Bracketed<ast::Expr, T![,]>>("[1, \"two\"]");
@@ -187,7 +192,7 @@ grouped! {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{T, testing, ast};
     ///
     /// testing::roundtrip::<ast::Braced<ast::Expr, T![,]>>("{1, \"two\"}");
@@ -202,7 +207,7 @@ grouped! {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{T, testing, ast};
     ///
     /// testing::roundtrip::<ast::AngleBracketed<ast::Path, T![,]>>("<Foo, Bar>");

@@ -1,6 +1,7 @@
 //! Tests for `std::any::type_name_of_val(v)` for native types
 
-use rune::{Any, ContextError, Module, Protocol};
+use rune::runtime::Protocol;
+use rune::{Any, ContextError, Module};
 use rune_tests::*;
 
 #[derive(Any)]

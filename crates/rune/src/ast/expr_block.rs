@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// let expr = testing::roundtrip::<ast::ExprBlock>("async {}");
 /// assert_eq!(expr.block.statements.len(), 0);

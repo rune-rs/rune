@@ -746,7 +746,7 @@ impl FnOffset {
             }
         }
 
-        let mut new_stack = vm.stack_mut().drain_stack_top(args)?.collect::<Stack>();
+        let mut new_stack = vm.stack_mut().drain(args)?.collect::<Stack>();
         extra.into_stack(&mut new_stack)?;
         let mut vm = Vm::new_with_stack(self.context.clone(), self.unit.clone(), new_stack);
         vm.set_ip(self.offset);

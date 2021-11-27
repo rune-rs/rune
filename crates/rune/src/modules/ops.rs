@@ -1,7 +1,7 @@
 //! The `std::ops` module.
 
-use crate::runtime::{Range, Value};
-use crate::{ContextError, Module, Protocol};
+use crate::runtime::{Protocol, Range, Value};
+use crate::{ContextError, Module};
 
 /// Construct the `std::ops` module.
 pub fn module() -> Result<Module, ContextError> {

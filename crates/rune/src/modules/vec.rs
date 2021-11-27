@@ -1,7 +1,7 @@
 //! The `std::vec` module.
 
-use crate::runtime::{Function, Value, Vec};
-use crate::{ContextError, Module, Protocol};
+use crate::runtime::{Function, Protocol, Value, Vec};
+use crate::{ContextError, Module};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {

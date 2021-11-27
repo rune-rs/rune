@@ -15,8 +15,8 @@ pub struct LitBool {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::LitBool>("true");
 /// testing::roundtrip::<ast::LitBool>("false");

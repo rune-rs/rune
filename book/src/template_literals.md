@@ -30,6 +30,8 @@ The `STRING_DISPLAY` protocol is a function that can be implemented by any
 It expects a function with the signature `fn(&self, buf: &mut String) -> fmt::Result`.
 
 ```rust,noplaypen
+use rune::{ContextError, Module};
+use rune::runtime::Protocol;
 use std::fmt::Write as _;
 use std::fmt;
 
@@ -44,9 +46,9 @@ impl StatusCode {
     }
 }
 
-pub fn module() -> Result<rune::Module, rune::ContextError> {
-    let mut module = rune::Module::new(&["http"]);
-    module.inst_fn(rune::Protocol::STRING_DISPLAY, StatusCode::display)?;
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::new(&["http"]);
+    module.inst_fn(Protocol::STRING_DISPLAY, StatusCode::display)?;
     Ok(module)
 }
 ```

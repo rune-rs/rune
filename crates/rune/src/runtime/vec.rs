@@ -13,7 +13,7 @@ use std::vec;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// # fn main() -> rune::Result<()> {
 /// let mut vec = rune::runtime::Vec::new();
 /// assert!(vec.is_empty());

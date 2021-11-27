@@ -31,8 +31,8 @@
 //! }
 //! ```
 
-use rune::{Any, Protocol, Module, ContextError};
-use rune::runtime::{Bytes, Shared, Value, VmError};
+use rune::{Any, Module, ContextError};
+use rune::runtime::{Bytes, Shared, Value, VmError, Protocol};
 use std::fmt;
 use std::io;
 use tokio::process;

@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprMatch>("match 0 { _ => 1, }");
 /// let expr = testing::roundtrip::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }");
@@ -31,7 +31,7 @@ pub struct ExprMatch {
 
 impl ExprMatch {
     /// Parse the `match` expression attaching the given attributes
-    pub fn parse_with_attributes(
+    pub(crate) fn parse_with_attributes(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
@@ -72,8 +72,8 @@ expr_parse!(Match, ExprMatch, "match expression");
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprMatchBranch>("1 => { foo }");
 /// ```

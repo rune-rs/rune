@@ -49,8 +49,8 @@ impl LitByteStr {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::LitByteStr>("b\"hello world\"");
 /// testing::roundtrip::<ast::LitByteStr>("b\"hello\\nworld\"");
@@ -72,17 +72,13 @@ impl Parse for LitByteStr {
 impl<'a> Resolve<'a> for LitByteStr {
     type Output = Cow<'a, [u8]>;
 
-    fn resolve(
-        &self,
-        storage: &'a Storage,
-        sources: &'a Sources,
-    ) -> Result<Cow<'a, [u8]>, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, [u8]>, ResolveError> {
         let span = self.span;
 
         let text = match self.source {
             ast::StrSource::Text(text) => text,
             ast::StrSource::Synthetic(id) => {
-                let bytes = storage.get_byte_string(id).ok_or_else(|| {
+                let bytes = ctx.storage.get_byte_string(id).ok_or_else(|| {
                     ResolveError::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
@@ -97,7 +93,8 @@ impl<'a> Resolve<'a> for LitByteStr {
         };
 
         let span = span.trim_start(2u32).trim_end(1u32);
-        let string = sources
+        let string = ctx
+            .sources
             .source(text.source_id, span)
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 

@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::FnArg>("self");
 /// testing::roundtrip::<ast::FnArg>("_");
@@ -17,7 +17,7 @@ pub enum FnArg {
     /// The `self` parameter.
     SelfValue(T![self]),
     /// Function argument is a pattern binding.
-    Pat(Box<ast::Pat>),
+    Pat(ast::Pat),
 }
 
 impl Parse for FnArg {

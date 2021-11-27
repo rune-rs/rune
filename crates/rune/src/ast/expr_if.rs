@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprIf>("if 0 {  }");
 /// testing::roundtrip::<ast::ExprIf>("if 0 {  } else {  }");

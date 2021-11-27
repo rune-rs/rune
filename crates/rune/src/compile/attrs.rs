@@ -1,8 +1,6 @@
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::macros::Storage;
-use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
-use crate::Sources;
+use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveContext};
 use std::collections::BTreeSet;
 
 /// Helper for parsing internal attributes.
@@ -34,8 +32,7 @@ impl Attributes {
     /// successful.
     pub(crate) fn try_parse<T>(
         &mut self,
-        storage: &Storage,
-        sources: &Sources,
+        ctx: ResolveContext<'_>,
     ) -> Result<Option<(Span, T)>, ParseError>
     where
         T: Attribute + Parse,
@@ -53,7 +50,7 @@ impl Attributes {
                 None => continue,
             };
 
-            let ident = ident.resolve(storage, sources)?;
+            let ident = ident.resolve(ctx)?;
 
             if ident != T::PATH {
                 continue;
@@ -110,16 +107,12 @@ pub(crate) struct BuiltIn {
 
 impl BuiltIn {
     /// Parse built-in arguments.
-    pub(crate) fn args(
-        &self,
-        storage: &Storage,
-        sources: &Sources,
-    ) -> Result<BuiltInArgs, ParseError> {
+    pub(crate) fn args(&self, ctx: ResolveContext<'_>) -> Result<BuiltInArgs, ParseError> {
         let mut out = BuiltInArgs::default();
 
         if let Some(args) = &self.args {
             for (ident, _) in args {
-                match ident.resolve(storage, sources)? {
+                match ident.resolve(ctx)? {
                     "literal" => {
                         out.literal = true;
                     }

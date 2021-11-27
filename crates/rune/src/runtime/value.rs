@@ -1,10 +1,11 @@
 use crate::compile::Item;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, Function, Future,
-    Generator, GeneratorState, Iterator, Mut, Object, ProtocolCaller, Range, RawMut, RawRef, Ref,
-    Shared, StaticString, Stream, ToValue, Tuple, TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind,
+    Generator, GeneratorState, Iterator, Mut, Object, Protocol, ProtocolCaller, Range, RawMut,
+    RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, TypeInfo, Variant, Vec, Vm, VmError,
+    VmErrorKind,
 };
-use crate::{Any, Hash, Protocol};
+use crate::{Any, Hash};
 use serde::{de, ser, Deserialize, Serialize};
 use std::cmp;
 use std::fmt;

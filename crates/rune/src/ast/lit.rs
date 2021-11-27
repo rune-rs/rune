@@ -44,8 +44,8 @@ impl Lit {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::Lit>("true");
 /// testing::roundtrip::<ast::Lit>("false");

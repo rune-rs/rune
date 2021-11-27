@@ -5,10 +5,10 @@ use crate::compile::module::{
 };
 use crate::compile::{ComponentRef, IntoComponent, Item, Meta, MetaKind, StructMeta, TupleMeta};
 use crate::runtime::{
-    ConstValue, FunctionHandler, MacroHandler, Names, RuntimeContext, StaticType, TypeCheck,
-    TypeInfo, TypeOf, VmError,
+    ConstValue, FunctionHandler, MacroHandler, Names, Protocol, RuntimeContext, StaticType,
+    TypeCheck, TypeInfo, TypeOf, VmError,
 };
-use crate::{Hash, Protocol};
+use crate::Hash;
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -238,7 +238,7 @@ impl Context {
 
     /// Construct a runtime context used when executing the virtual machine.
     ///
-    /// ```rust
+    /// ```
     /// use rune::{Context, Vm, Unit};
     /// use std::sync::Arc;
     ///

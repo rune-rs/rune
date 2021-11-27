@@ -1,5 +1,5 @@
-use rune::runtime::VmError;
-use rune::{ContextError, Module, Panic, Stack, Value};
+use rune::runtime::{Panic, Stack, VmError};
+use rune::{ContextError, Module, Value};
 use std::io::Write;
 
 /// Provide a bunch of `std` functions which does something appropriate to the
@@ -35,7 +35,7 @@ fn println_impl(m: &str) -> Result<(), Panic> {
 fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {
     let mut o = OUT.lock();
 
-    for value in stack.drain_stack_top(args)? {
+    for value in stack.drain(args)? {
         writeln!(o, "{:?}", value).map_err(VmError::panic)?;
     }
 

@@ -2,9 +2,8 @@ use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::v1::Needs;
 use crate::compile::{CompileError, CompileErrorKind, CompileResult};
-use crate::macros::Storage;
+use crate::parse::ResolveContext;
 use crate::runtime::Label;
-use crate::Sources;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -67,14 +66,13 @@ impl Loops {
     /// Find the loop with the matching label.
     pub(crate) fn walk_until_label(
         &self,
-        storage: &Storage,
-        sources: &Sources,
+        ctx: ResolveContext<'_>,
         expected: &ast::Label,
     ) -> CompileResult<(Loop, Vec<usize>)> {
         use crate::parse::Resolve;
 
         let span = expected.span();
-        let expected = expected.resolve(storage, sources)?;
+        let expected = expected.resolve(ctx)?;
         let mut to_drop = Vec::new();
 
         for l in self.loops.borrow().iter().rev() {
@@ -87,7 +85,7 @@ impl Loops {
                 }
             };
 
-            let label = label.resolve(storage, sources)?;
+            let label = label.resolve(ctx)?;
 
             if expected == label {
                 return Ok((*l, to_drop));

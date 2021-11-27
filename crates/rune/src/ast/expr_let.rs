@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprLet>("let x = 1");
 /// testing::roundtrip::<ast::ExprLet>("#[attr] let a = f()");
@@ -28,7 +28,7 @@ pub struct ExprLet {
 
 impl ExprLet {
     /// Parse with the given meta.
-    pub fn parse_with_meta(
+    pub(crate) fn parse_with_meta(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
@@ -42,7 +42,7 @@ impl ExprLet {
     }
 
     /// Parse a let expression without eager bracing.
-    pub fn parse_without_eager_brace(parser: &mut Parser) -> Result<Self, ParseError> {
+    pub(crate) fn parse_without_eager_brace(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
             attributes: vec![],
             let_token: parser.parse()?,

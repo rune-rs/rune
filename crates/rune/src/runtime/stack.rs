@@ -23,6 +23,18 @@ pub struct Stack {
 
 impl Stack {
     /// Construct a new stack.
+    ///
+    /// ```
+    /// use rune::runtime::Stack;
+    /// use rune::Value;
+    ///
+    /// # fn main() -> Result<(), rune::runtime::StackError> {
+    /// let mut stack = Stack::new();
+    /// assert!(stack.pop().is_err());
+    /// stack.push(String::from("Hello World"));
+    /// assert!(matches!(stack.pop()?, Value::String(..)));
+    /// # Ok(()) }
+    /// ```
     pub const fn new() -> Self {
         Self {
             stack: Vec::new(),
@@ -30,25 +42,172 @@ impl Stack {
         }
     }
 
-    /// Extend the current stack.
-    pub fn extend<I>(&mut self, iter: I)
-    where
-        I: IntoIterator<Item = Value>,
-    {
-        self.stack.extend(iter);
-    }
-
-    /// Get the offset that corresponds to the top of the stack right now.
-    pub fn stack_bottom(&self) -> usize {
-        self.stack_bottom
-    }
-
-    /// Construct a new stack with the given capacity.
+    /// Construct a new stack with the given capacity pre-allocated.
+    ///
+    /// ```
+    /// use rune::runtime::Stack;
+    /// use rune::Value;
+    ///
+    /// # fn main() -> Result<(), rune::runtime::StackError> {
+    /// let mut stack = Stack::with_capacity(16);
+    /// assert!(stack.pop().is_err());
+    /// stack.push(String::from("Hello World"));
+    /// assert!(matches!(stack.pop()?, Value::String(..)));
+    /// # Ok(()) }
+    /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             stack: Vec::with_capacity(capacity),
             stack_bottom: 0,
         }
+    }
+
+    /// Check if the stack is empty.
+    ///
+    /// This ignores [stack_bottom] and will just check if the full stack is
+    /// empty.
+    ///
+    /// ```
+    /// use rune::runtime::Stack;
+    ///
+    /// let mut stack = Stack::new();
+    /// assert!(stack.is_empty());
+    /// stack.push(String::from("Hello World"));
+    /// assert!(!stack.is_empty());
+    /// ```
+    ///
+    /// [stack_bottom]: Self::stack_bottom()
+    pub fn is_empty(&self) -> bool {
+        self.stack.is_empty()
+    }
+
+    /// Get the length of the stack.
+    ///
+    /// This ignores [stack_bottom] and will just return the total length of
+    /// the stack.
+    ///
+    /// ```
+    /// use rune::runtime::Stack;
+    ///
+    /// let mut stack = Stack::new();
+    /// assert_eq!(stack.len(), 0);
+    /// stack.push(String::from("Hello World"));
+    /// assert_eq!(stack.len(), 1);
+    /// ```
+    ///
+    /// [stack_bottom]: Self::stack_bottom()
+    pub fn len(&self) -> usize {
+        self.stack.len()
+    }
+
+    /// Perform a raw access over the stack.
+    ///
+    /// This ignores [stack_bottom] and will just check that the given slice
+    /// index is within range.
+    ///
+    /// [stack_bottom]: Self::stack_bottom()
+    pub fn get<I>(&self, index: I) -> Option<&<I as slice::SliceIndex<[Value]>>::Output>
+    where
+        I: slice::SliceIndex<[Value]>,
+    {
+        self.stack.get(index)
+    }
+
+    /// Push a value onto the stack.
+    ///
+    /// ```
+    /// use rune::runtime::Stack;
+    /// use rune::Value;
+    ///
+    /// # fn main() -> Result<(), rune::runtime::StackError> {
+    /// let mut stack = Stack::new();
+    /// assert!(stack.pop().is_err());
+    /// stack.push(String::from("Hello World"));
+    /// assert!(matches!(stack.pop()?, Value::String(..)));
+    /// # Ok(()) }
+    /// ```
+    pub fn push<T>(&mut self, value: T)
+    where
+        Value: From<T>,
+    {
+        self.stack.push(Value::from(value));
+    }
+
+    /// Pop a value from the stack.
+    ///
+    /// ```
+    /// use rune::runtime::Stack;
+    /// use rune::Value;
+    ///
+    /// # fn main() -> Result<(), rune::runtime::StackError> {
+    /// let mut stack = Stack::new();
+    /// assert!(stack.pop().is_err());
+    /// stack.push(String::from("Hello World"));
+    /// assert!(matches!(stack.pop()?, Value::String(..)));
+    /// # Ok(()) }
+    /// ```
+    pub fn pop(&mut self) -> Result<Value, StackError> {
+        if self.stack.len() == self.stack_bottom {
+            return Err(StackError(()));
+        }
+
+        self.stack.pop().ok_or(StackError(()))
+    }
+
+    /// Drain the top `count` elements of the stack in the order that they were
+    /// pushed, from bottom to top.
+    ///
+    /// ```
+    /// use rune::runtime::Stack;
+    /// use rune::Value;
+    ///
+    /// # fn main() -> Result<(), rune::runtime::StackError> {
+    /// let mut stack = Stack::new();
+    ///
+    /// stack.push(42i64);
+    /// stack.push(String::from("foo"));
+    /// stack.push(());
+    ///
+    /// let mut it = stack.drain(2)?;
+    ///
+    /// assert!(matches!(it.next(), Some(Value::String(..))));
+    /// assert!(matches!(it.next(), Some(Value::Unit)));
+    /// assert!(matches!(it.next(), None));
+    /// # Ok(()) }
+    /// ```
+    pub fn drain(
+        &mut self,
+        count: usize,
+    ) -> Result<impl DoubleEndedIterator<Item = Value> + '_, StackError> {
+        match self.stack.len().checked_sub(count) {
+            Some(start) if start >= self.stack_bottom => Ok(self.stack.drain(start..)),
+            _ => Err(StackError(())),
+        }
+    }
+
+    /// Extend the current stack with an iterator.
+    ///
+    /// ```
+    /// use rune::runtime::Stack;
+    /// use rune::Value;
+    ///
+    /// # fn main() -> Result<(), rune::runtime::StackError> {
+    /// let mut stack = Stack::new();
+    ///
+    /// stack.extend([Value::from(42i64), Value::from(String::from("foo")), Value::Unit]);
+    ///
+    /// let mut it = stack.drain(2)?;
+    ///
+    /// assert!(matches!(it.next(), Some(Value::String(..))));
+    /// assert!(matches!(it.next(), Some(Value::Unit)));
+    /// assert!(matches!(it.next(), None));
+    /// # Ok(()) }
+    /// ```
+    pub fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        self.stack.extend(iter);
     }
 
     /// Clear the current stack.
@@ -57,28 +216,34 @@ impl Stack {
         self.stack_bottom = 0;
     }
 
-    /// Get the given slice of the stack, if it isn't out of range.
-    pub fn get<I>(&self, index: I) -> Option<&<I as slice::SliceIndex<[Value]>>::Output>
-    where
-        I: slice::SliceIndex<[Value]>,
-    {
-        self.stack.get(index)
-    }
-
-    /// Peek the top of the stack.
-    #[inline]
-    pub fn peek(&mut self) -> Option<&Value> {
-        self.stack.last()
-    }
-
     /// Get the last position on the stack.
     #[inline]
     pub fn last(&self) -> Result<&Value, StackError> {
         self.stack.last().ok_or(StackError(()))
     }
 
+    /// Get the last position on the stack.
+    #[inline]
+    pub(crate) fn peek(&self) -> Option<&Value> {
+        self.stack.last()
+    }
+
+    /// Iterate over the stack.
+    pub fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
+        self.stack.iter()
+    }
+
+    /// Get the offset that corresponds to the bottom of the stack right now.
+    ///
+    /// The stack is partitioned into call frames, and once we enter a call
+    /// frame the bottom of the stack corresponds to the bottom of the current
+    /// call frame.
+    pub fn stack_bottom(&self) -> usize {
+        self.stack_bottom
+    }
+
     /// Access the value at the given frame offset.
-    pub fn at_offset(&self, offset: usize) -> Result<&Value, StackError> {
+    pub(crate) fn at_offset(&self, offset: usize) -> Result<&Value, StackError> {
         self.stack_bottom
             .checked_add(offset)
             .and_then(|n| self.stack.get(n))
@@ -86,7 +251,7 @@ impl Stack {
     }
 
     /// Peek the value at the given offset from the top.
-    pub fn at_offset_from_top(&self, offset: usize) -> Result<&Value, StackError> {
+    pub(crate) fn at_offset_from_top(&self, offset: usize) -> Result<&Value, StackError> {
         match self
             .stack
             .len()
@@ -100,7 +265,7 @@ impl Stack {
     }
 
     /// Get the offset at the given location.
-    pub fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
+    pub(crate) fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
         let n = match self.stack_bottom.checked_add(offset) {
             Some(n) => n,
             None => return Err(StackError(())),
@@ -112,25 +277,8 @@ impl Stack {
         }
     }
 
-    /// Push a value onto the stack.
-    pub fn push<T>(&mut self, value: T)
-    where
-        Value: From<T>,
-    {
-        self.stack.push(Value::from(value));
-    }
-
-    /// Pop a reference to a value from the stack.
-    pub fn pop(&mut self) -> Result<Value, StackError> {
-        if self.stack.len() == self.stack_bottom {
-            return Err(StackError(()));
-        }
-
-        self.stack.pop().ok_or(StackError(()))
-    }
-
     /// Address a value on the stack.
-    pub fn address(&mut self, address: InstAddress) -> Result<Value, StackError> {
+    pub(crate) fn address(&mut self, address: InstAddress) -> Result<Value, StackError> {
         Ok(match address {
             InstAddress::Top => self.pop()?,
             InstAddress::Offset(offset) => self.at_offset(offset)?.clone(),
@@ -138,7 +286,10 @@ impl Stack {
     }
 
     /// Address a value on the stack.
-    pub fn address_ref(&mut self, address: InstAddress) -> Result<Cow<'_, Value>, StackError> {
+    pub(crate) fn address_ref(
+        &mut self,
+        address: InstAddress,
+    ) -> Result<Cow<'_, Value>, StackError> {
         Ok(match address {
             InstAddress::Top => Cow::Owned(self.pop()?),
             InstAddress::Offset(offset) => Cow::Borrowed(self.at_offset(offset)?),
@@ -146,41 +297,14 @@ impl Stack {
     }
 
     /// Pop the given number of elements from the stack.
-    pub fn popn(&mut self, count: usize) -> Result<(), StackError> {
-        drop(self.drain_stack_top(count)?);
+    pub(crate) fn popn(&mut self, count: usize) -> Result<(), StackError> {
+        drop(self.drain(count)?);
         Ok(())
     }
 
-    /// Test if the stack is empty.
-    pub fn is_empty(&self) -> bool {
-        self.stack.is_empty()
-    }
-
-    /// Get the length of the stack.
-    pub fn len(&self) -> usize {
-        self.stack.len()
-    }
-
-    /// Iterate over the stack.
-    pub fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
-        self.stack.iter()
-    }
-
     /// Pop a sequence of values from the stack.
-    pub fn pop_sequence(&mut self, count: usize) -> Result<Vec<Value>, StackError> {
-        Ok(self.drain_stack_top(count)?.collect::<Vec<_>>())
-    }
-
-    /// Drain the top `count` elements of the stack in the order that they were
-    /// pushed, from bottom to top.
-    pub fn drain_stack_top(
-        &mut self,
-        count: usize,
-    ) -> Result<impl DoubleEndedIterator<Item = Value> + '_, StackError> {
-        match self.stack.len().checked_sub(count) {
-            Some(start) if start >= self.stack_bottom => Ok(self.stack.drain(start..)),
-            _ => Err(StackError(())),
-        }
+    pub(crate) fn pop_sequence(&mut self, count: usize) -> Result<Vec<Value>, StackError> {
+        Ok(self.drain(count)?.collect::<Vec<_>>())
     }
 
     /// Modify stack top by subtracting the given count from it while checking

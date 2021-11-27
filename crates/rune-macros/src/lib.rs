@@ -65,7 +65,7 @@ mod to_value;
 /// * Dynamic quoted strings and other literals, which must be created using
 ///   `Lit::new`.
 ///
-/// ```rust
+/// ```
 /// use rune::macros::quote;
 ///
 /// quote!(hello self);
@@ -226,7 +226,7 @@ pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///
 /// This can be overrided with the `#[rune(name = "...")]` attribute:
 ///
-/// ```rust
+/// ```
 /// use rune::Any;
 ///
 /// #[derive(Any)]

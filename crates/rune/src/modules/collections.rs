@@ -1,7 +1,7 @@
 //! `std::collections` module.
 
-use crate::runtime::{Iterator, IteratorTrait, Key, Ref, Value, VmError, VmErrorKind};
-use crate::{Any, ContextError, Module, Protocol};
+use crate::runtime::{Iterator, IteratorTrait, Key, Protocol, Ref, Value, VmError, VmErrorKind};
+use crate::{Any, ContextError, Module};
 use std::fmt;
 
 #[derive(Any, Clone)]

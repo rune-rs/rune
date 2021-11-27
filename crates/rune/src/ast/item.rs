@@ -25,7 +25,7 @@ pub enum Item {
 
 impl Item {
     /// Test if the item has any attributes
-    pub fn attributes(&self) -> &[ast::Attribute] {
+    pub(crate) fn attributes(&self) -> &[ast::Attribute] {
         match self {
             Self::Use(item) => &item.attributes,
             Self::Fn(item) => &item.attributes,

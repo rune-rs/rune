@@ -12,10 +12,10 @@ use crate::compile::{
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{
-    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Rtti, StaticString, Unit, UnitFn,
-    VariantRtti,
+    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit,
+    UnitFn, VariantRtti,
 };
-use crate::{Context, Diagnostics, Hash, Protocol, SourceId};
+use crate::{Context, Diagnostics, Hash, SourceId};
 use std::sync::Arc;
 use thiserror::Error;
 

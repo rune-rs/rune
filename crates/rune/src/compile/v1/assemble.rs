@@ -9,9 +9,9 @@ use crate::parse::{Id, ParseErrorKind, Resolve};
 use crate::query::{BuiltInFormat, BuiltInTemplate};
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
-    InstVariant, Label, PanicReason, TypeCheck,
+    InstVariant, Label, PanicReason, Protocol, TypeCheck,
 };
-use crate::{Hash, Protocol};
+use crate::Hash;
 use rune_macros::__instrument_ast as instrument;
 use std::convert::TryFrom;
 
@@ -306,7 +306,7 @@ fn pat_lit(
                 {
                     let span = lit_number.span();
                     let integer = lit_number
-                        .resolve(c.q.storage(), c.q.sources)?
+                        .resolve(resolve_context!(c.q))?
                         .as_i64(pat_lit.span(), true)?;
                     load(c, Needs::Value)?;
                     c.asm.push(Inst::EqInteger { integer }, span);
@@ -315,20 +315,20 @@ fn pat_lit(
             }
             ast::Expr::Lit(expr_lit) => match &expr_lit.lit {
                 ast::Lit::Byte(lit_byte) => {
-                    let byte = lit_byte.resolve(c.q.storage(), c.q.sources)?;
+                    let byte = lit_byte.resolve(resolve_context!(c.q))?;
                     load(c, Needs::Value)?;
                     c.asm.push(Inst::EqByte { byte }, lit_byte.span());
                     break;
                 }
                 ast::Lit::Char(lit_char) => {
-                    let character = lit_char.resolve(c.q.storage(), c.q.sources)?;
+                    let character = lit_char.resolve(resolve_context!(c.q))?;
                     load(c, Needs::Value)?;
                     c.asm.push(Inst::EqCharacter { character }, lit_char.span());
                     break;
                 }
                 ast::Lit::Str(pat_string) => {
                     let span = pat_string.span();
-                    let string = pat_string.resolve(c.q.storage, c.q.sources)?;
+                    let string = pat_string.resolve(resolve_context!(c.q))?;
                     let slot = c.q.unit.new_static_string(span, &*string)?;
                     load(c, Needs::Value)?;
                     c.asm.push(Inst::EqStaticString { slot }, span);
@@ -337,7 +337,7 @@ fn pat_lit(
                 ast::Lit::Number(lit_number) => {
                     let span = lit_number.span();
                     let integer = lit_number
-                        .resolve(c.q.storage(), c.q.sources)?
+                        .resolve(resolve_context!(c.q))?
                         .as_i64(pat_lit.span(), false)?;
                     load(c, Needs::Value)?;
                     c.asm.push(Inst::EqInteger { integer }, span);
@@ -577,7 +577,7 @@ fn pat_object(
 
         let key = match pat {
             ast::Pat::PatBinding(binding) => {
-                cow_key = binding.key.resolve(c.q.storage, c.q.sources)?;
+                cow_key = binding.key.resolve(resolve_context!(c.q))?;
                 bindings.push(Binding::Binding(
                     binding.span(),
                     cow_key.as_ref().into(),
@@ -596,7 +596,7 @@ fn pat_object(
                     }
                 };
 
-                let key = ident.resolve(c.q.storage, c.q.sources)?;
+                let key = ident.resolve(resolve_context!(c.q))?;
                 bindings.push(Binding::Ident(path.span(), key.into()));
                 key
             }
@@ -933,7 +933,7 @@ fn builtin_template(
             ..
         }) = e
         {
-            let s = s.resolve_template_string(c.q.storage, c.q.sources)?;
+            let s = s.resolve_template_string(resolve_context!(c.q))?;
             size_hint += s.len();
 
             let slot = c.q.unit.new_static_string(span, &s)?;
@@ -1141,7 +1141,7 @@ fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> Co
                 .first
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path, "unsupported path"))?;
-            let ident = segment.resolve(c.q.storage, c.q.sources)?;
+            let ident = segment.resolve(resolve_context!(c.q))?;
             let var = c.scopes.get_var(c.q.visitor, &*ident, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
             true
@@ -1154,7 +1154,7 @@ fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> Co
             match &field_access.expr_field {
                 ast::ExprField::Path(path) => {
                     if let Some(ident) = path.try_as_ident() {
-                        let slot = ident.resolve(c.q.storage, c.q.sources)?;
+                        let slot = ident.resolve(resolve_context!(c.q))?;
                         let slot = c.q.unit.new_static_string(ident.span(), slot.as_ref())?;
 
                         expr(&ast.rhs, c, Needs::Value)?.apply(c)?;
@@ -1171,7 +1171,7 @@ fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> Co
                     }
                 }
                 ast::ExprField::LitNumber(field) => {
-                    let number = field.resolve(c.q.storage(), c.q.sources)?;
+                    let number = field.resolve(resolve_context!(c.q))?;
                     let index = number.as_tuple_index().ok_or_else(|| {
                         CompileError::new(span, CompileErrorKind::UnsupportedTupleIndex { number })
                     })?;
@@ -1366,7 +1366,7 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
                     .try_as_ident()
                     .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
 
-                let ident = segment.resolve(c.q.storage, c.q.sources)?;
+                let ident = segment.resolve(resolve_context!(c.q))?;
                 let var = c.scopes.get_var(c.q.visitor, &*ident, c.source_id, span)?;
 
                 Some(InstTarget::Offset(var.offset))
@@ -1380,7 +1380,7 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
                 match &field_access.expr_field {
                     ast::ExprField::Path(path) => {
                         if let Some(ident) = path.try_as_ident() {
-                            let n = ident.resolve(c.q.storage, c.q.sources)?;
+                            let n = ident.resolve(resolve_context!(c.q))?;
                             let n = c.q.unit.new_static_string(path.span(), n.as_ref())?;
 
                             Some(InstTarget::Field(n))
@@ -1391,7 +1391,7 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
                     ast::ExprField::LitNumber(field) => {
                         let span = field.span();
 
-                        let number = field.resolve(c.q.storage(), c.q.sources)?;
+                        let number = field.resolve(resolve_context!(c.q))?;
                         let index = number.as_tuple_index().ok_or_else(|| {
                             CompileError::new(
                                 span,
@@ -1529,8 +1529,7 @@ fn expr_break(ast: &ast::ExprBreak, c: &mut Assembler<'_>, _: Needs) -> CompileR
             }
             ast::ExprBreakValue::Label(label) => {
                 let (last_loop, to_drop) =
-                    c.loops
-                        .walk_until_label(c.q.storage(), c.q.sources, label)?;
+                    c.loops.walk_until_label(resolve_context!(c.q), label)?;
                 (last_loop, to_drop, false)
             }
         }
@@ -1672,7 +1671,7 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
             ..
         }) => {
             if let Some(ident) = path.try_as_ident() {
-                let ident = ident.resolve(c.q.storage(), c.q.sources)?;
+                let ident = ident.resolve(resolve_context!(c.q))?;
                 let hash = Hash::instance_fn_name(ident);
                 return Ok(Call::Instance { hash });
             }
@@ -1888,9 +1887,7 @@ fn expr_continue(ast: &ast::ExprContinue, c: &mut Assembler<'_>, _: Needs) -> Co
     };
 
     let last_loop = if let Some(label) = &ast.label {
-        let (last_loop, _) = c
-            .loops
-            .walk_until_label(c.q.storage(), c.q.sources, label)?;
+        let (last_loop, _) = c.loops.walk_until_label(resolve_context!(c.q), label)?;
         last_loop
     } else {
         current_loop
@@ -1936,7 +1933,7 @@ fn expr_field_access(
 
     match &ast.expr_field {
         ast::ExprField::LitNumber(n) => {
-            if let Some(index) = n.resolve(c.q.storage(), c.q.sources)?.as_tuple_index() {
+            if let Some(index) = n.resolve(resolve_context!(c.q))?.as_tuple_index() {
                 c.asm.push(Inst::TupleIndexGet { index }, span);
 
                 if !needs.value() {
@@ -1949,7 +1946,7 @@ fn expr_field_access(
         }
         ast::ExprField::Path(path) => {
             if let Some(ident) = path.try_as_ident() {
-                let field = ident.resolve(c.q.storage, c.q.sources)?;
+                let field = ident.resolve(resolve_context!(c.q))?;
                 let slot = c.q.unit.new_static_string(span, field.as_ref())?;
 
                 c.asm.push(Inst::ObjectIndexGet { slot }, span);
@@ -1978,9 +1975,9 @@ fn expr_field_access(
             None => return Ok(false),
         };
 
-        let ident = ident.resolve(c.q.storage, c.q.sources)?;
+        let ident = ident.resolve(resolve_context!(c.q))?;
 
-        let index = match n.resolve(c.q.storage, c.q.sources)? {
+        let index = match n.resolve(resolve_context!(c.q))? {
             ast::Number::Integer(n) => n,
             _ => return Ok(false),
         };
@@ -1990,14 +1987,13 @@ fn expr_field_access(
             Err(..) => return Ok(false),
         };
 
-        let var =
-            match c
-                .scopes
-                .try_get_var(c.q.visitor, ident.as_ref(), c.source_id, path.span())?
-            {
-                Some(var) => var,
-                None => return Ok(false),
-            };
+        let var = match c
+            .scopes
+            .try_get_var(c.q.visitor, ident, c.source_id, path.span())?
+        {
+            Some(var) => var,
+            None => return Ok(false),
+        };
 
         c.asm.push(
             Inst::TupleIndexGetAt {
@@ -2426,7 +2422,7 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
 
     for (assign, _) in &ast.assignments {
         let span = assign.span();
-        let key = assign.key.resolve(c.q.storage(), c.q.sources)?;
+        let key = assign.key.resolve(resolve_context!(c.q))?;
         keys.push(key.as_ref().into());
         check_keys.push((key.as_ref().into(), assign.key.span()));
 
@@ -2447,7 +2443,7 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
         if let Some((_, e)) = &assign.assign {
             expr(e, c, Needs::Value)?.apply(c)?;
         } else {
-            let key = assign.key.resolve(c.q.storage, c.q.sources)?;
+            let key = assign.key.resolve(resolve_context!(c.q))?;
             let var = c.scopes.get_var(c.q.visitor, &*key, c.source_id, span)?;
             let comment = format!("name `{}`", key);
             var.copy(c, span, comment);
@@ -2897,7 +2893,7 @@ fn expr_unary(ast: &ast::ExprUnary, c: &mut Assembler<'_>, needs: Needs) -> Comp
 
     if let (ast::UnOp::Neg(..), ast::Expr::Lit(expr_lit)) = (ast.op, &*ast.expr) {
         if let ast::Lit::Number(n) = &expr_lit.lit {
-            match n.resolve(c.q.storage(), c.q.sources)? {
+            match n.resolve(resolve_context!(c.q))? {
                 ast::Number::Float(n) => {
                     c.asm.push(Inst::float(-n), span);
                 }
@@ -3115,18 +3111,18 @@ fn lit(ast: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm
             return lit_number(lit, c, needs);
         }
         ast::Lit::Char(lit) => {
-            let ch = lit.resolve(c.q.storage(), c.q.sources)?;
+            let ch = lit.resolve(resolve_context!(c.q))?;
             c.asm.push(Inst::char(ch), span);
         }
         ast::Lit::Str(lit) => {
             return lit_str(lit, c, needs);
         }
         ast::Lit::Byte(lit) => {
-            let b = lit.resolve(c.q.storage(), c.q.sources)?;
+            let b = lit.resolve(resolve_context!(c.q))?;
             c.asm.push(Inst::byte(b), span);
         }
         ast::Lit::ByteStr(lit) => {
-            let bytes = lit.resolve(c.q.storage, c.q.sources)?;
+            let bytes = lit.resolve(resolve_context!(c.q))?;
             let slot = c.q.unit.new_static_bytes(span, &*bytes)?;
             c.asm.push(Inst::Bytes { slot }, span);
         }
@@ -3145,7 +3141,7 @@ fn lit_str(ast: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileRes
         return Ok(Asm::top(span));
     }
 
-    let string = ast.resolve(c.q.storage, c.q.sources)?;
+    let string = ast.resolve(resolve_context!(c.q))?;
     let slot = c.q.unit.new_static_string(span, &*string)?;
     c.asm.push(Inst::String { slot }, span);
     Ok(Asm::top(span))
@@ -3165,7 +3161,7 @@ fn lit_number(ast: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> Comp
     }
 
     // NB: don't encode unecessary literal.
-    let number = ast.resolve(c.q.storage(), c.q.sources)?;
+    let number = ast.resolve(resolve_context!(c.q))?;
 
     match number {
         ast::Number::Float(number) => {

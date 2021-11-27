@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemStruct>("struct Foo");
 /// testing::roundtrip::<ast::ItemStruct>("struct Foo ( a, b, c )");
@@ -37,7 +37,7 @@ pub struct ItemStruct {
 
 impl ItemStruct {
     /// If the struct declaration needs to be terminated with a semicolon.
-    pub fn needs_semi_colon(&self) -> bool {
+    pub(crate) fn needs_semi_colon(&self) -> bool {
         self.body.needs_semi_colon()
     }
 }
@@ -63,7 +63,7 @@ impl ItemStructBody {
     }
 
     /// Iterate over the fields of the body.
-    pub fn fields(&self) -> impl Iterator<Item = &'_ (Field, Option<T![,]>)> {
+    pub(crate) fn fields(&self) -> impl Iterator<Item = &'_ (Field, Option<T![,]>)> {
         match self {
             ItemStructBody::UnitBody => IntoIterator::into_iter(&[]),
             ItemStructBody::TupleBody(body) => body.iter(),
@@ -76,8 +76,8 @@ impl ItemStructBody {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemStructBody>("");
 ///
@@ -105,8 +105,8 @@ impl Parse for ItemStructBody {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::Field>("a");
 /// testing::roundtrip::<ast::Field>("#[x] a");

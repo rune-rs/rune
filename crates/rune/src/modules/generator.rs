@@ -1,7 +1,7 @@
 //! The `std::generator` module.
 
-use crate::runtime::Generator;
-use crate::{ContextError, Module, Protocol};
+use crate::runtime::{Generator, Protocol};
+use crate::{ContextError, Module};
 
 /// Construct the `std::generator` module.
 pub fn module() -> Result<Module, ContextError> {

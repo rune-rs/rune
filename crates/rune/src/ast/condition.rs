@@ -1,6 +1,15 @@
 use crate::ast::prelude::*;
 
 /// An if condition.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::Condition>("true");
+/// testing::roundtrip::<ast::Condition>("let [a, ..] = v");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Condition {
@@ -10,16 +19,6 @@ pub enum Condition {
     ExprLet(ast::ExprLet),
 }
 
-/// Parse a condition.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::Condition>("true");
-/// testing::roundtrip::<ast::Condition>("let [a, ..] = v");
-/// ```
 impl Parse for Condition {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         Ok(match p.nth(0)? {

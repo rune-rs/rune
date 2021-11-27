@@ -55,7 +55,7 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
 #[instrument]
 fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
-    let ident = ast.resolve(idx.q.storage(), idx.q.sources)?;
+    let ident = ast.resolve(resolve_context!(idx.q))?;
     idx.scopes.declare(ident.as_ref(), span)?;
     Ok(())
 }

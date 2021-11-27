@@ -266,7 +266,7 @@ fn main() -> Result<()> {
 
             impl Kind {
                 #("/// Try to convert an identifier into a keyword.")
-                pub fn from_keyword(ident: &str) -> Option<Self> {
+                pub(crate) fn from_keyword(ident: &str) -> Option<Self> {
                     match ident {
                         #(for k in &keywords join (#<push>) => #(quoted(&k.keyword)) => Some(Self::#(&k.variant)),)
                         _ => None,
@@ -274,7 +274,7 @@ fn main() -> Result<()> {
                 }
 
                 #("/// If applicable, convert this into a literal.")
-                pub fn as_literal_str(&self) -> Option<&'static str> {
+                pub(crate) fn as_literal_str(&self) -> Option<&'static str> {
                     match self {
                         Self::Close(d) => Some(d.close()),
                         Self::Open(d) => Some(d.open()),

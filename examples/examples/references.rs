@@ -1,5 +1,6 @@
+use rune::runtime::Protocol;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Any, Diagnostics, Module, Protocol, Vm};
+use rune::{Any, Diagnostics, Module, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]

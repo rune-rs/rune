@@ -1,7 +1,7 @@
 //! The `std::string` module.
 
-use crate::runtime::{Bytes, Iterator, Value, VmError, VmErrorKind};
-use crate::{Any, ContextError, Module, Protocol};
+use crate::runtime::{Bytes, Iterator, Protocol, Value, VmError, VmErrorKind};
+use crate::{Any, ContextError, Module};
 
 /// Construct the `std::string` module.
 pub fn module() -> Result<Module, ContextError> {

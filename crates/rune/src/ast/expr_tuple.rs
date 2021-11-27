@@ -4,9 +4,11 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
+/// testing::roundtrip::<ast::ExprTuple>("()");
+/// testing::roundtrip::<ast::ExprTuple>("(1,)");
 /// testing::roundtrip::<ast::ExprTuple>("(1, \"two\")");
 /// testing::roundtrip::<ast::ExprTuple>("(1, 2,)");
 /// testing::roundtrip::<ast::ExprTuple>("(1, 2, foo())");
@@ -23,7 +25,7 @@ pub struct ExprTuple {
 
 impl ExprTuple {
     /// Start parsing literal tuple from the middle of an expression.
-    pub fn parse_from_first_expr(
+    pub(crate) fn parse_from_first_expr(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
         open: ast::OpenParen,

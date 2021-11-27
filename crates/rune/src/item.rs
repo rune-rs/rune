@@ -375,7 +375,7 @@ impl Item {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use rune::{Item, ComponentRef::*};
 ///
 /// assert_eq!("{root}", Item::new().to_string());

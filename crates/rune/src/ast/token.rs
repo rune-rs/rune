@@ -33,7 +33,7 @@ impl Token {
             Kind::Byte(s) => match s {
                 CopySource::Text(source_id) => {
                     let s = ctx
-                        .q()
+                        .q
                         .sources
                         .source(*source_id, self.span)
                         .ok_or(fmt::Error)?;
@@ -52,7 +52,7 @@ impl Token {
                     };
 
                     let s = ctx
-                        .q()
+                        .q
                         .sources
                         .source(text.source_id, span)
                         .ok_or(fmt::Error)?;
@@ -60,7 +60,7 @@ impl Token {
                     write!(f, "b\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    let b = ctx.q().storage.get_byte_string(*id).ok_or(fmt::Error)?;
+                    let b = ctx.q.storage.get_byte_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", FormatBytes(b))?;
                 }
             },
@@ -73,21 +73,21 @@ impl Token {
                     };
 
                     let s = ctx
-                        .q()
+                        .q
                         .sources
                         .source(text.source_id, span)
                         .ok_or(fmt::Error)?;
                     write!(f, "\"{}\"", s)?;
                 }
                 StrSource::Synthetic(id) => {
-                    let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
+                    let s = ctx.q.storage.get_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{:?}", s)?;
                 }
             },
             Kind::Char(s) => match s {
                 CopySource::Text(source_id) => {
                     let s = ctx
-                        .q()
+                        .q
                         .sources
                         .source(*source_id, self.span)
                         .ok_or(fmt::Error)?;
@@ -100,14 +100,14 @@ impl Token {
             Kind::Number(s) => match s {
                 NumberSource::Text(text) => {
                     let s = ctx
-                        .q()
+                        .q
                         .sources
                         .source(text.source_id, self.span)
                         .ok_or(fmt::Error)?;
                     write!(f, "{}", s)?;
                 }
                 NumberSource::Synthetic(id) => {
-                    let n = ctx.q().storage.get_number(*id).ok_or(fmt::Error)?;
+                    let n = ctx.q.storage.get_number(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", n)?;
                 }
             },

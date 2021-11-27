@@ -2,8 +2,8 @@ use crate::ast::prelude::*;
 
 /// A field access `<expr>.<field>`.
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprFieldAccess>("foo.bar");
 /// testing::roundtrip::<ast::ExprFieldAccess>("foo.bar::<A, B>");
