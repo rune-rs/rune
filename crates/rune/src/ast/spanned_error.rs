@@ -1,4 +1,4 @@
-use crate::ast::Span;
+use crate::ast::{Span, Spanned};
 use std::error;
 use std::fmt;
 
@@ -52,12 +52,13 @@ impl SpannedError {
     }
 
     /// Convert into inner.
-    pub fn into_inner(self) -> anyhow::Error {
+    pub(crate) fn into_inner(self) -> anyhow::Error {
         self.inner
     }
+}
 
-    /// Get the span of the error.
-    pub fn span(&self) -> Span {
+impl Spanned for SpannedError {
+    fn span(&self) -> Span {
         self.span
     }
 }

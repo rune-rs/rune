@@ -48,7 +48,11 @@ impl LitStr {
             }
         };
 
-        let span = if text.wrapped { span.narrow(1) } else { span };
+        let span = if text.wrapped {
+            span.narrow(1u32)
+        } else {
+            span
+        };
 
         let string = sources
             .source(text.source_id, span)

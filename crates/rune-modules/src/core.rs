@@ -20,7 +20,6 @@
 //! # }
 //! ```
 
-use rune::ast;
 use rune::parse::Parser;
 use rune::{Module, ContextError};
 use rune::macros::{quote, FormatArgs, MacroContext, TokenStream};
@@ -39,7 +38,7 @@ pub(crate) fn stringify_macro(
     stream: &TokenStream,
 ) -> rune::Result<TokenStream> {
     let lit = ctx.stringify(stream).to_string();
-    let lit = ast::Lit::new(ctx, lit);
+    let lit = ctx.lit(lit);
     Ok(quote!(#lit).into_token_stream(ctx))
 }
 

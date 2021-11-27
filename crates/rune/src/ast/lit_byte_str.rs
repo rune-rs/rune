@@ -96,7 +96,7 @@ impl<'a> Resolve<'a> for LitByteStr {
             }
         };
 
-        let span = span.trim_start(2).trim_end(1);
+        let span = span.trim_start(2u32).trim_end(1u32);
         let string = sources
             .source(text.source_id, span)
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;

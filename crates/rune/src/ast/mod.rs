@@ -17,7 +17,7 @@
 //!     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
 //!     let ident = p.parse_all::<ast::Ident>()?;
 //!     let ident = ctx.resolve(ident)?.to_owned();
-//!     let string = ast::Lit::new(ctx, &ident);
+//!     let string = ctx.lit(&ident);
 //!     Ok(quote!(#string).into_token_stream(ctx))
 //! }
 //!
@@ -213,7 +213,7 @@ pub use self::local::Local;
 pub use self::macro_call::MacroCall;
 pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVec};
 pub use self::path::{Path, PathKind, PathSegment, PathSegmentExpr};
-pub use self::span::{ByteIndex, IntoByteIndex, Span};
+pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::spanned_error::SpannedError;
 pub(crate) use self::spanned_error::WithSpan;

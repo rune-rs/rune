@@ -62,7 +62,7 @@ impl<'a> Resolve<'a> for Label {
         match self.source {
             ast::LitSource::Text(source_id) => {
                 let ident = sources
-                    .source(source_id, span.trim_start(1))
+                    .source(source_id, span.trim_start(1u32))
                     .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
                 Ok(ident)

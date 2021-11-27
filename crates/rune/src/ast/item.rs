@@ -24,32 +24,6 @@ pub enum Item {
 }
 
 impl Item {
-    /// Indicates if the declaration needs a semi-colon or not.
-    pub fn needs_semi_colon(&self) -> bool {
-        match self {
-            Self::Use(..) => true,
-            Self::Struct(st) => st.needs_semi_colon(),
-            Self::Const(..) => true,
-            _ => false,
-        }
-    }
-
-    /// Take the attributes associated with the item.
-    pub fn take_attributes(&mut self) -> Vec<ast::Attribute> {
-        use std::mem::take;
-
-        match self {
-            Self::Use(item) => take(&mut item.attributes),
-            Self::Fn(item) => take(&mut item.attributes),
-            Self::Enum(item) => take(&mut item.attributes),
-            Self::Struct(item) => take(&mut item.attributes),
-            Self::Impl(item) => take(&mut item.attributes),
-            Self::Mod(item) => take(&mut item.attributes),
-            Self::Const(item) => take(&mut item.attributes),
-            Self::MacroCall(item) => take(&mut item.attributes),
-        }
-    }
-
     /// Test if the item has any attributes
     pub fn attributes(&self) -> &[ast::Attribute] {
         match self {
@@ -64,8 +38,18 @@ impl Item {
         }
     }
 
+    /// Indicates if the declaration needs a semi-colon or not.
+    pub(crate) fn needs_semi_colon(&self) -> bool {
+        match self {
+            Self::Use(..) => true,
+            Self::Struct(st) => st.needs_semi_colon(),
+            Self::Const(..) => true,
+            _ => false,
+        }
+    }
+
     /// Test if declaration is suitable inside of a file.
-    pub fn peek_as_item(p: &mut Peeker<'_>) -> bool {
+    pub(crate) fn peek_as_item(p: &mut Peeker<'_>) -> bool {
         match p.nth(0) {
             K![use] => true,
             K![enum] => true,
@@ -80,7 +64,7 @@ impl Item {
     }
 
     /// Parse an Item attaching the given meta and optional path.
-    pub fn parse_with_meta_path(
+    pub(crate) fn parse_with_meta_path(
         p: &mut Parser<'_>,
         mut attributes: Vec<ast::Attribute>,
         mut visibility: ast::Visibility,

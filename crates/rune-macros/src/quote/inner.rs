@@ -195,6 +195,6 @@ pub(crate) struct NewLit(pub(crate) &'static str, pub(crate) p::Literal);
 
 impl ToTokens for NewLit {
     fn to_tokens(self, stream: &mut p::TokenStream, span: p::Span) {
-        (AST, S, "Lit", S, "new", p((self.0, ',', self.1))).to_tokens(stream, span);
+        (self.0, '.', "lit", p(self.1)).to_tokens(stream, span);
     }
 }

@@ -60,7 +60,7 @@ impl<'a> Resolve<'a> for LitChar {
         let span = self.span;
 
         let string = sources
-            .source(source_id, span.narrow(1))
+            .source(source_id, span.narrow(1u32))
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();

@@ -16,46 +16,20 @@ pub struct Token {
 
 impl Token {
     /// Format the current token to a formatter.
-    pub fn token_fmt(&self, ctx: &MacroContext, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    pub(crate) fn token_fmt(&self, ctx: &MacroContext, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             Kind::Eof | Kind::Error => {
                 // NB: marker tokens can't be formatted.
                 return Err(fmt::Error);
             }
-            Kind::Ident(s) => match s {
-                LitSource::Text(source_id) => {
-                    let s = ctx
-                        .q()
-                        .sources
-                        .source(*source_id, self.span)
-                        .ok_or(fmt::Error)?;
-                    write!(f, "{}", s)?;
-                }
-                LitSource::Synthetic(id) => {
-                    let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
-                    write!(f, "{}", s)?;
-                }
-                LitSource::BuiltIn(builtin) => {
-                    write!(f, "{}", builtin)?;
-                }
-            },
-            Kind::Label(s) => match s {
-                LitSource::Text(source_id) => {
-                    let s = ctx
-                        .q()
-                        .sources
-                        .source(*source_id, self.span)
-                        .ok_or(fmt::Error)?;
-                    write!(f, "{}", s)?;
-                }
-                LitSource::Synthetic(id) => {
-                    let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
-                    write!(f, "'{}", s)?;
-                }
-                LitSource::BuiltIn(builtin) => {
-                    write!(f, "'{}", builtin)?;
-                }
-            },
+            Kind::Ident(s) => {
+                let literal = ctx.literal_source(*s, self.span).ok_or(fmt::Error)?;
+                write!(f, "{}", literal)?;
+            }
+            Kind::Label(s) => {
+                let literal = ctx.literal_source(*s, self.span).ok_or(fmt::Error)?;
+                write!(f, "'{}", literal)?;
+            }
             Kind::Byte(s) => match s {
                 CopySource::Text(source_id) => {
                     let s = ctx
@@ -72,7 +46,7 @@ impl Token {
             Kind::ByteStr(s) => match s {
                 StrSource::Text(text) => {
                     let span = if text.wrapped {
-                        self.span.narrow(1)
+                        self.span.narrow(1u32)
                     } else {
                         self.span
                     };
@@ -88,6 +62,26 @@ impl Token {
                 StrSource::Synthetic(id) => {
                     let b = ctx.q().storage.get_byte_string(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", FormatBytes(b))?;
+                }
+            },
+            Kind::Str(s) => match s {
+                StrSource::Text(text) => {
+                    let span = if text.wrapped {
+                        self.span.narrow(1u32)
+                    } else {
+                        self.span
+                    };
+
+                    let s = ctx
+                        .q()
+                        .sources
+                        .source(text.source_id, span)
+                        .ok_or(fmt::Error)?;
+                    write!(f, "\"{}\"", s)?;
+                }
+                StrSource::Synthetic(id) => {
+                    let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
+                    write!(f, "{:?}", s)?;
                 }
             },
             Kind::Char(s) => match s {
@@ -115,26 +109,6 @@ impl Token {
                 NumberSource::Synthetic(id) => {
                     let n = ctx.q().storage.get_number(*id).ok_or(fmt::Error)?;
                     write!(f, "{}", n)?;
-                }
-            },
-            Kind::Str(s) => match s {
-                StrSource::Text(text) => {
-                    let span = if text.wrapped {
-                        self.span.narrow(1)
-                    } else {
-                        self.span
-                    };
-
-                    let s = ctx
-                        .q()
-                        .sources
-                        .source(text.source_id, span)
-                        .ok_or(fmt::Error)?;
-                    write!(f, "\"{}\"", s)?;
-                }
-                StrSource::Synthetic(id) => {
-                    let s = ctx.q().storage.get_string(*id).ok_or(fmt::Error)?;
-                    write!(f, "{:?}", s)?;
                 }
             },
             other => {
@@ -332,7 +306,7 @@ pub enum BuiltIn {
 
 impl BuiltIn {
     /// Coerce into static string.
-    pub fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Template => "template",
             Self::Format => "formatspec",
@@ -437,7 +411,7 @@ pub enum Delimiter {
 
 impl Delimiter {
     /// The character used as an open delimiter.
-    pub fn open(self) -> &'static str {
+    pub(crate) fn open(self) -> &'static str {
         match self {
             Self::Parenthesis => "(",
             Self::Brace => "{",
@@ -447,7 +421,7 @@ impl Delimiter {
     }
 
     /// The character used as a close delimiter.
-    pub fn close(self) -> &'static str {
+    pub(crate) fn close(self) -> &'static str {
         match self {
             Self::Parenthesis => ")",
             Self::Brace => "}",
