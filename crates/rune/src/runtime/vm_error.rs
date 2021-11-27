@@ -65,7 +65,7 @@ impl VmError {
     }
 
     /// Convert into an unwinded vm error.
-    pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize, frames: Vec<CallFrame>) -> Self {
+    pub(crate) fn into_unwinded(self, unit: &Arc<Unit>, ip: usize, frames: Vec<CallFrame>) -> Self {
         if let VmErrorKind::Unwound { .. } = &*self.kind {
             return self;
         }
@@ -79,14 +79,14 @@ impl VmError {
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn as_unwound(&self) -> (&VmErrorKind, Option<(&Arc<Unit>, usize, Vec<CallFrame>)>) {
+    pub fn as_unwound(&self) -> (&VmErrorKind, Option<(&Arc<Unit>, usize, &[CallFrame])>) {
         match &*self.kind {
             VmErrorKind::Unwound {
                 kind,
                 unit,
                 ip,
                 frames,
-            } => (&*kind, Some((unit, *ip, frames.clone()))),
+            } => (&*kind, Some((unit, *ip, frames))),
             kind => (kind, None),
         }
     }
@@ -109,7 +109,7 @@ impl VmError {
 
     /// Unsmuggles the vm error, returning Ok(Self) in case the error is
     /// critical and should be propagated unaltered.
-    pub fn unpack_critical(self) -> Result<Self, Self> {
+    pub(crate) fn unpack_critical(self) -> Result<Self, Self> {
         if self.is_critical() {
             Err(self)
         } else {
