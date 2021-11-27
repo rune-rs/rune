@@ -67,8 +67,6 @@ impl ops::Deref for Callable {
 pub enum Expr {
     /// An path expression.
     Path(Box<ast::Path>),
-    /// A declaration.
-    Item(Box<ast::Item>),
     /// An assign expression.
     Assign(Box<ast::ExprAssign>),
     /// A while loop.
@@ -132,80 +130,10 @@ pub enum Expr {
 }
 
 impl Expr {
-    /// Indicates if an expression needs a semicolon or must be last in a block.
-    pub fn needs_semi(&self) -> bool {
-        match self {
-            Self::While(_) => false,
-            Self::Loop(_) => false,
-            Self::For(_) => false,
-            Self::If(_) => false,
-            Self::Match(_) => false,
-            Self::Block(_) => false,
-            Self::Select(_) => false,
-            Self::MacroCall(macro_call) => macro_call.needs_semi(),
-            Self::ForceSemi(force_semi) => force_semi.needs_semi,
-            _ => true,
-        }
-    }
-
-    /// Indicates if an expression is callable unless it's permitted by an
-    /// override.
-    pub fn is_callable(&self, callable: bool) -> bool {
-        match self {
-            Self::While(_) => false,
-            Self::Loop(_) => callable,
-            Self::For(_) => false,
-            Self::If(_) => callable,
-            Self::Match(_) => callable,
-            Self::Select(_) => callable,
-            Self::ForceSemi(expr) => expr.expr.is_callable(callable),
-            _ => true,
-        }
-    }
-
-    /// Take the attributes from the expression.
-    pub fn take_attributes(&mut self) -> Vec<ast::Attribute> {
-        match self {
-            Self::Path(_) => Vec::new(),
-            Self::Item(item) => item.take_attributes(),
-            Self::Break(expr) => take(&mut expr.attributes),
-            Self::Continue(expr) => take(&mut expr.attributes),
-            Self::Yield(expr) => take(&mut expr.attributes),
-            Self::Block(expr) => take(&mut expr.attributes),
-            Self::Return(expr) => take(&mut expr.attributes),
-            Self::Closure(expr) => take(&mut expr.attributes),
-            Self::Match(expr) => take(&mut expr.attributes),
-            Self::While(expr) => take(&mut expr.attributes),
-            Self::Loop(expr) => take(&mut expr.attributes),
-            Self::For(expr) => take(&mut expr.attributes),
-            Self::Let(expr) => take(&mut expr.attributes),
-            Self::If(expr) => take(&mut expr.attributes),
-            Self::Select(expr) => take(&mut expr.attributes),
-            Self::Lit(expr) => take(&mut expr.attributes),
-            Self::Assign(expr) => take(&mut expr.attributes),
-            Self::Binary(expr) => take(&mut expr.attributes),
-            Self::Call(expr) => take(&mut expr.attributes),
-            Self::FieldAccess(expr) => take(&mut expr.attributes),
-            Self::Group(expr) => take(&mut expr.attributes),
-            Self::Empty(expr) => take(&mut expr.attributes),
-            Self::Unary(expr) => take(&mut expr.attributes),
-            Self::Index(expr) => take(&mut expr.attributes),
-            Self::Await(expr) => take(&mut expr.attributes),
-            Self::Try(expr) => take(&mut expr.attributes),
-            Self::ForceSemi(expr) => expr.expr.take_attributes(),
-            Self::Object(expr) => take(&mut expr.attributes),
-            Self::Range(expr) => take(&mut expr.attributes),
-            Self::Vec(expr) => take(&mut expr.attributes),
-            Self::Tuple(expr) => take(&mut expr.attributes),
-            Self::MacroCall(expr) => take(&mut expr.attributes),
-        }
-    }
-
     /// Access the attributes of the expression.
     pub fn attributes(&self) -> &[ast::Attribute] {
         match self {
             Self::Path(_) => &[],
-            Self::Item(expr) => expr.attributes(),
             Self::Break(expr) => &expr.attributes,
             Self::Continue(expr) => &expr.attributes,
             Self::Yield(expr) => &expr.attributes,
@@ -239,12 +167,80 @@ impl Expr {
         }
     }
 
+    /// Indicates if an expression needs a semicolon or must be last in a block.
+    pub(crate) fn needs_semi(&self) -> bool {
+        match self {
+            Self::While(_) => false,
+            Self::Loop(_) => false,
+            Self::For(_) => false,
+            Self::If(_) => false,
+            Self::Match(_) => false,
+            Self::Block(_) => false,
+            Self::Select(_) => false,
+            Self::MacroCall(macro_call) => macro_call.needs_semi(),
+            Self::ForceSemi(force_semi) => force_semi.needs_semi,
+            _ => true,
+        }
+    }
+
+    /// Indicates if an expression is callable unless it's permitted by an
+    /// override.
+    pub(crate) fn is_callable(&self, callable: bool) -> bool {
+        match self {
+            Self::While(_) => false,
+            Self::Loop(_) => callable,
+            Self::For(_) => false,
+            Self::If(_) => callable,
+            Self::Match(_) => callable,
+            Self::Select(_) => callable,
+            Self::ForceSemi(expr) => expr.expr.is_callable(callable),
+            _ => true,
+        }
+    }
+
+    /// Take the attributes from the expression.
+    pub(crate) fn take_attributes(&mut self) -> Vec<ast::Attribute> {
+        match self {
+            Self::Path(_) => Vec::new(),
+            Self::Break(expr) => take(&mut expr.attributes),
+            Self::Continue(expr) => take(&mut expr.attributes),
+            Self::Yield(expr) => take(&mut expr.attributes),
+            Self::Block(expr) => take(&mut expr.attributes),
+            Self::Return(expr) => take(&mut expr.attributes),
+            Self::Closure(expr) => take(&mut expr.attributes),
+            Self::Match(expr) => take(&mut expr.attributes),
+            Self::While(expr) => take(&mut expr.attributes),
+            Self::Loop(expr) => take(&mut expr.attributes),
+            Self::For(expr) => take(&mut expr.attributes),
+            Self::Let(expr) => take(&mut expr.attributes),
+            Self::If(expr) => take(&mut expr.attributes),
+            Self::Select(expr) => take(&mut expr.attributes),
+            Self::Lit(expr) => take(&mut expr.attributes),
+            Self::Assign(expr) => take(&mut expr.attributes),
+            Self::Binary(expr) => take(&mut expr.attributes),
+            Self::Call(expr) => take(&mut expr.attributes),
+            Self::FieldAccess(expr) => take(&mut expr.attributes),
+            Self::Group(expr) => take(&mut expr.attributes),
+            Self::Empty(expr) => take(&mut expr.attributes),
+            Self::Unary(expr) => take(&mut expr.attributes),
+            Self::Index(expr) => take(&mut expr.attributes),
+            Self::Await(expr) => take(&mut expr.attributes),
+            Self::Try(expr) => take(&mut expr.attributes),
+            Self::ForceSemi(expr) => expr.expr.take_attributes(),
+            Self::Object(expr) => take(&mut expr.attributes),
+            Self::Range(expr) => take(&mut expr.attributes),
+            Self::Vec(expr) => take(&mut expr.attributes),
+            Self::Tuple(expr) => take(&mut expr.attributes),
+            Self::MacroCall(expr) => take(&mut expr.attributes),
+        }
+    }
+
     /// Check if this expression is a literal expression.
     ///
     /// There are exactly two kinds of literal expressions:
     /// * Ones that are ExprLit
     /// * Unary expressions which are the negate operation.
-    pub fn is_lit(&self) -> bool {
+    pub(crate) fn is_lit(&self) -> bool {
         match self {
             Self::Lit(..) => return true,
             Self::Unary(expr_unary) => {
@@ -262,6 +258,14 @@ impl Expr {
         }
 
         false
+    }
+
+    /// Internal function to construct a literal expression.
+    pub(crate) fn from_lit(lit: ast::Lit) -> Self {
+        Self::Lit(Box::new(ast::ExprLit {
+            attributes: Vec::new(),
+            lit,
+        }))
     }
 
     /// Try to coerce into item if applicable.
@@ -388,14 +392,6 @@ impl Expr {
         let lhs = parse_chain(p, lhs, callable)?;
         let lookahead = ast::BinOp::from_peeker(p.peeker());
         parse_binary(p, lhs, lookahead, 0, EagerBrace(true))
-    }
-
-    /// Internal function to construct a literal expression.
-    pub(crate) fn from_lit(lit: ast::Lit) -> Self {
-        Self::Lit(Box::new(ast::ExprLit {
-            attributes: Vec::new(),
-            lit,
-        }))
     }
 }
 

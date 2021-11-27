@@ -1044,9 +1044,6 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
         ast::Expr::Match(e) => {
             expr_match(e, idx)?;
         }
-        ast::Expr::Item(e) => {
-            item(e, idx)?;
-        }
         ast::Expr::Closure(e) => {
             expr_closure(e, idx)?;
         }

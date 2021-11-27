@@ -369,7 +369,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
 
             let (unit, ip, _frames) = match unwound {
                 Some((unit, ip, frames)) => (unit, ip, frames),
-                None => (vm.unit(), vm.ip(), vm.call_frames().to_owned()),
+                None => (vm.unit(), vm.ip(), vm.call_frames()),
             };
 
             // NB: emit diagnostics if debug info is available.

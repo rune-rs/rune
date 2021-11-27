@@ -1122,18 +1122,6 @@ fn expr(ast: &ast::Expr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
                 BuiltInMacro::File(file) => lit_str(&file.value, c, needs)?,
             }
         }
-        // NB: declarations are not used in this compilation stage.
-        // They have been separately indexed and will be built when queried
-        // for.
-        ast::Expr::Item(decl) => {
-            let span = decl.span();
-
-            if needs.value() {
-                c.asm.push(Inst::unit(), span);
-            }
-
-            Asm::top(span)
-        }
     };
 
     Ok(asm)
