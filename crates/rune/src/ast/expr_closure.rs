@@ -38,7 +38,7 @@ pub struct ExprClosure {
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
     /// The body of the closure.
-    pub body: ast::Expr,
+    pub body: Box<ast::Expr>,
 }
 
 impl ExprClosure {

@@ -5,22 +5,22 @@ use crate::ast::prelude::*;
 #[non_exhaustive]
 pub enum Item {
     /// A use declaration.
-    Use(Box<ast::ItemUse>),
+    Use(ast::ItemUse),
     /// A function declaration.
     // large variant, so boxed
-    Fn(Box<ast::ItemFn>),
+    Fn(ast::ItemFn),
     /// An enum declaration.
-    Enum(Box<ast::ItemEnum>),
+    Enum(ast::ItemEnum),
     /// A struct declaration.
-    Struct(Box<ast::ItemStruct>),
+    Struct(ast::ItemStruct),
     /// An impl declaration.
-    Impl(Box<ast::ItemImpl>),
+    Impl(ast::ItemImpl),
     /// A module declaration.
-    Mod(Box<ast::ItemMod>),
+    Mod(ast::ItemMod),
     /// A const declaration.
-    Const(Box<ast::ItemConst>),
+    Const(ast::ItemConst),
     /// A macro call expanding into an item.
-    MacroCall(Box<ast::MacroCall>),
+    MacroCall(ast::MacroCall),
 }
 
 impl Item {
@@ -89,55 +89,55 @@ impl Item {
         use std::mem::take;
 
         let item = if let Some(path) = path {
-            Self::MacroCall(Box::new(ast::MacroCall::parse_with_meta_path(
+            Self::MacroCall(ast::MacroCall::parse_with_meta_path(
                 p,
                 take(&mut attributes),
                 path,
-            )?))
+            )?)
         } else {
             let mut const_token = p.parse::<Option<T![const]>>()?;
             let mut async_token = p.parse::<Option<T![async]>>()?;
 
             let item = match p.nth(0)? {
-                K![use] => Self::Use(Box::new(ast::ItemUse::parse_with_meta(
+                K![use] => Self::Use(ast::ItemUse::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
-                )?)),
-                K![enum] => Self::Enum(Box::new(ast::ItemEnum::parse_with_meta(
+                )?),
+                K![enum] => Self::Enum(ast::ItemEnum::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
-                )?)),
-                K![struct] => Self::Struct(Box::new(ast::ItemStruct::parse_with_meta(
+                )?),
+                K![struct] => Self::Struct(ast::ItemStruct::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
-                )?)),
-                K![impl] => Self::Impl(Box::new(ast::ItemImpl::parse_with_attributes(
+                )?),
+                K![impl] => Self::Impl(ast::ItemImpl::parse_with_attributes(
                     p,
                     take(&mut attributes),
-                )?)),
-                K![fn] => Self::Fn(Box::new(ast::ItemFn::parse_with_meta(
+                )?),
+                K![fn] => Self::Fn(ast::ItemFn::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
                     take(&mut const_token),
                     take(&mut async_token),
-                )?)),
-                K![mod] => Self::Mod(Box::new(ast::ItemMod::parse_with_meta(
+                )?),
+                K![mod] => Self::Mod(ast::ItemMod::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
-                )?)),
+                )?),
                 K![ident] => {
                     if let Some(const_token) = const_token.take() {
-                        Self::Const(Box::new(ast::ItemConst::parse_with_meta(
+                        Self::Const(ast::ItemConst::parse_with_meta(
                             p,
                             take(&mut attributes),
                             take(&mut visibility),
                             const_token,
-                        )?))
+                        )?)
                     } else {
                         Self::MacroCall(p.parse()?)
                     }

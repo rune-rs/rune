@@ -11,6 +11,7 @@ use std::mem::take;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 pub enum Stmt {
     /// A local declaration.
     Local(Box<ast::Local>),

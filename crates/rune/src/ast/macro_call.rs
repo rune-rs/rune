@@ -34,11 +34,11 @@ impl MacroCall {
     /// of the macro call.
     pub fn adjust_expr_semi(&self, expr: ast::Expr) -> ast::Expr {
         if self.needs_semi() != expr.needs_semi() {
-            ast::Expr::ForceSemi(Box::new(ast::ForceSemi {
+            ast::Expr::ForceSemi(ast::ForceSemi {
                 needs_semi: self.needs_semi(),
                 span: self.span(),
-                expr,
-            }))
+                expr: Box::new(expr),
+            })
         } else {
             expr
         }

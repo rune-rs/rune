@@ -22,7 +22,7 @@ pub struct ExprYield {
     pub yield_token: T![yield],
     /// An optional expression to yield.
     #[rune(iter)]
-    pub expr: Option<ast::Expr>,
+    pub expr: Option<Box<ast::Expr>>,
 }
 
 expr_parse!(Yield, ExprYield, "yield expression");

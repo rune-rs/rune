@@ -24,7 +24,7 @@ pub struct ExprUnary {
     /// The operation to apply.
     pub op: UnOp,
     /// The expression of the operation.
-    pub expr: ast::Expr,
+    pub expr: Box<ast::Expr>,
 }
 
 impl ExprUnary {
@@ -37,12 +37,12 @@ impl ExprUnary {
         Ok(Self {
             attributes,
             op: p.parse()?,
-            expr: ast::Expr::parse_with(
+            expr: Box::new(ast::Expr::parse_with(
                 p,
                 eager_brace,
                 ast::expr::NOT_EAGER_BINARY,
                 ast::expr::CALLABLE,
-            )?,
+            )?),
         })
     }
 }

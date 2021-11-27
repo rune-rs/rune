@@ -20,7 +20,7 @@ pub struct ExprBreak {
     pub break_token: T![break],
     /// An optional expression to break with.
     #[rune(iter)]
-    pub expr: Option<ExprBreakValue>,
+    pub expr: Option<Box<ExprBreakValue>>,
 }
 
 expr_parse!(Break, ExprBreak, "break expression");

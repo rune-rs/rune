@@ -20,7 +20,7 @@ pub struct ExprMatch {
     /// The `match` token.
     pub match_: T![match],
     /// The expression who's result we match over.
-    pub expr: ast::Expr,
+    pub expr: Box<ast::Expr>,
     /// The open brace of the match.
     pub open: T!['{'],
     /// Branches.
@@ -58,7 +58,7 @@ impl ExprMatch {
         Ok(ExprMatch {
             attributes,
             match_,
-            expr,
+            expr: Box::new(expr),
             open,
             branches,
             close,

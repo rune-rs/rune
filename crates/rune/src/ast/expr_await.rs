@@ -18,7 +18,7 @@ pub struct ExprAwait {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The expression being awaited.
-    pub expr: ast::Expr,
+    pub expr: Box<ast::Expr>,
     /// The dot separating the expression.
     pub dot: T![.],
     /// The await token.

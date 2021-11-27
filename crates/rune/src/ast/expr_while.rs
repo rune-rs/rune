@@ -24,7 +24,7 @@ pub struct ExprWhile {
     /// The `while` keyword.
     pub while_token: T![while],
     /// The name of the binding.
-    pub condition: ast::Condition,
+    pub condition: Box<ast::Condition>,
     /// The body of the while loop.
     pub body: Box<ast::Block>,
 }

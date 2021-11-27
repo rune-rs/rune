@@ -23,7 +23,7 @@ pub struct ExprLet {
     /// The equality keyword.
     pub eq: T![=],
     /// The expression the binding is assigned to.
-    pub expr: ast::Expr,
+    pub expr: Box<ast::Expr>,
 }
 
 impl ExprLet {
@@ -37,7 +37,7 @@ impl ExprLet {
             let_token: parser.parse()?,
             pat: parser.parse()?,
             eq: parser.parse()?,
-            expr: ast::Expr::parse_without_eager_brace(parser)?,
+            expr: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
         })
     }
 
@@ -48,7 +48,7 @@ impl ExprLet {
             let_token: parser.parse()?,
             pat: parser.parse()?,
             eq: parser.parse()?,
-            expr: ast::Expr::parse_without_eager_brace(parser)?,
+            expr: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
         })
     }
 }

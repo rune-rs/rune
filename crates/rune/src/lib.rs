@@ -165,7 +165,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::should_implement_trait)]
 #![allow(clippy::branches_sharing_code)]
-#![allow(clippy::result_unit_err)]
 #![allow(clippy::match_like_matches_macro)]
 #![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]

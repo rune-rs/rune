@@ -7,7 +7,7 @@ pub enum Condition {
     /// A regular expression.
     Expr(ast::Expr),
     /// A pattern match.
-    ExprLet(Box<ast::ExprLet>),
+    ExprLet(ast::ExprLet),
 }
 
 /// Parse a condition.
@@ -23,7 +23,7 @@ pub enum Condition {
 impl Parse for Condition {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         Ok(match p.nth(0)? {
-            K![let] => Self::ExprLet(Box::new(ast::ExprLet::parse_without_eager_brace(p)?)),
+            K![let] => Self::ExprLet(ast::ExprLet::parse_without_eager_brace(p)?),
             _ => Self::Expr(ast::Expr::parse_without_eager_brace(p)?),
         })
     }

@@ -23,7 +23,7 @@ pub struct ExprIf {
     /// The `if` token.
     pub if_: T![if],
     /// The condition to the if statement.
-    pub condition: ast::Condition,
+    pub condition: Box<ast::Condition>,
     /// The body of the if statement.
     pub block: Box<ast::Block>,
     /// Else if branches.
@@ -45,7 +45,7 @@ pub struct ExprElseIf {
     /// The `if` token.
     pub if_: T![if],
     /// The condition for the branch.
-    pub condition: ast::Condition,
+    pub condition: Box<ast::Condition>,
     /// The body of the else statement.
     pub block: Box<ast::Block>,
 }

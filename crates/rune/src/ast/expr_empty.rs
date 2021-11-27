@@ -13,7 +13,7 @@ pub struct ExprEmpty {
     /// The open parenthesis.
     pub open: ast::OpenEmpty,
     /// The grouped expression.
-    pub expr: ast::Expr,
+    pub expr: Box<ast::Expr>,
     /// The close parenthesis.
     pub close: ast::CloseEmpty,
 }

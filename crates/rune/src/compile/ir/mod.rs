@@ -353,7 +353,7 @@ impl IrBreak {
     fn compile_ast(ast: &ast::ExprBreak, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
         let span = ast.span();
 
-        let kind = match &ast.expr {
+        let kind = match ast.expr.as_deref() {
             Some(expr) => match expr {
                 ast::ExprBreakValue::Expr(expr) => ir::IrBreakKind::Ir(Box::new(expr.compile(c)?)),
                 ast::ExprBreakValue::Label(label) => {

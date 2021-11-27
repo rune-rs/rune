@@ -16,12 +16,12 @@ pub struct ExprRange {
     pub attributes: Vec<ast::Attribute>,
     /// Start of range.
     #[rune(iter)]
-    pub from: Option<ast::Expr>,
+    pub from: Option<Box<ast::Expr>>,
     /// `..`.
     pub limits: ExprRangeLimits,
     /// End of range.
     #[rune(iter)]
-    pub to: Option<ast::Expr>,
+    pub to: Option<Box<ast::Expr>>,
 }
 
 /// The limits of the specified range.

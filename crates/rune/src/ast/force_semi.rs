@@ -9,7 +9,7 @@ pub struct ForceSemi {
     /// Whether or not the expressions needs a semi.
     pub needs_semi: bool,
     /// The expression to override the policy for.
-    pub expr: ast::Expr,
+    pub expr: Box<ast::Expr>,
 }
 
 impl Spanned for ForceSemi {
