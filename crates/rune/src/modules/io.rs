@@ -1,7 +1,7 @@
 //! The `std::io` module.
 
-use crate::runtime::{Panic, Stack, Value, VmError};
-use crate::{ContextError, Module, Protocol};
+use crate::runtime::{Panic, Protocol, Stack, Value, VmError};
+use crate::{ContextError, Module};
 use std::fmt;
 use std::fmt::Write as _;
 use std::io;
@@ -31,7 +31,7 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
-    for value in stack.drain_stack_top(args)? {
+    for value in stack.drain(args)? {
         writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
     }
 

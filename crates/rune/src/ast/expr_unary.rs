@@ -5,8 +5,8 @@ use std::fmt;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprUnary>("!0");
 /// testing::roundtrip::<ast::ExprUnary>("*foo");
@@ -66,8 +66,8 @@ pub enum UnOp {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::UnOp>("!");
 /// testing::roundtrip::<ast::UnOp>("-");

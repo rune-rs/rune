@@ -10,7 +10,7 @@ use std::ops;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use rune::ast;
 /// use rune::SourceId;
 /// use rune::parse::Parser;

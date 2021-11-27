@@ -1,7 +1,8 @@
 //! This example showcases overloading the multiplication protocol for a
 //! specific type `Foo`.
 
-use rune::{Any, ContextError, Diagnostics, FromValue, Module, Protocol, Vm};
+use rune::runtime::Protocol;
+use rune::{Any, ContextError, Diagnostics, FromValue, Module, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]

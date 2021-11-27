@@ -33,7 +33,7 @@
 //!
 //!     p.eof()?;
 //!
-//!     let output = ast::Ident::new(ctx, &output);
+//!     let output = ctx.ident(&output);
 //!     Ok(quote!(#output).into_token_stream(ctx))
 //! }
 //!
@@ -82,7 +82,8 @@ pub use self::into_lit::IntoLit;
 pub(crate) use self::macro_compiler::MacroCompiler;
 pub use self::macro_context::MacroContext;
 pub use self::quote_fn::{quote_fn, Quote};
-pub use self::storage::{Storage, SyntheticId, SyntheticKind};
+pub(crate) use self::storage::Storage;
+pub use self::storage::{SyntheticId, SyntheticKind};
 pub use self::token_stream::{ToTokens, TokenStream, TokenStreamIter};
 pub use rune_macros::quote;
 pub use rune_macros::ToTokens;

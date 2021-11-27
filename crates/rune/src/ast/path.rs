@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::Path>("foo::bar");
 /// testing::roundtrip::<ast::Path>("Self::bar");
@@ -36,7 +36,7 @@ pub struct Path {
 
 impl Path {
     /// Identify the kind of the path.
-    pub fn as_kind(&self) -> Option<PathKind> {
+    pub(crate) fn as_kind(&self) -> Option<PathKind> {
         if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
             match self.first {
                 PathSegment::SelfValue(..) => Some(PathKind::SelfValue),
@@ -52,7 +52,7 @@ impl Path {
     ///
     /// This is only allowed if there are no other path components
     /// and the path segment is not `Crate` or `Super`.
-    pub fn try_as_ident(&self) -> Option<&ast::Ident> {
+    pub(crate) fn try_as_ident(&self) -> Option<&ast::Ident> {
         if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
             self.first.try_as_ident()
         } else {
@@ -64,7 +64,7 @@ impl Path {
     ///
     /// This is only allowed if there are no other path components
     /// and the path segment is not `Crate` or `Super`.
-    pub fn try_as_ident_mut(&mut self) -> Option<&mut ast::Ident> {
+    pub(crate) fn try_as_ident_mut(&mut self) -> Option<&mut ast::Ident> {
         if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
             self.first.try_as_ident_mut()
         } else {
@@ -73,7 +73,7 @@ impl Path {
     }
 
     /// Iterate over all components in path.
-    pub fn as_components(&self) -> impl Iterator<Item = &'_ PathSegment> + '_ {
+    pub(crate) fn as_components(&self) -> impl Iterator<Item = &'_ PathSegment> + '_ {
         let mut first = Some(&self.first);
         let mut it = self.rest.iter();
 
@@ -103,11 +103,7 @@ impl IntoExpectation for &Path {
 impl<'a> Resolve<'a> for Path {
     type Output = Box<str>;
 
-    fn resolve(
-        &self,
-        storage: &'a Storage,
-        sources: &'a Sources,
-    ) -> Result<Self::Output, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'_>) -> Result<Self::Output, ResolveError> {
         let mut buf = String::new();
 
         if self.global.is_some() {
@@ -122,7 +118,7 @@ impl<'a> Resolve<'a> for Path {
                 buf.push_str("self");
             }
             PathSegment::Ident(ident) => {
-                buf.push_str(ident.resolve(storage, sources)?.as_ref());
+                buf.push_str(ident.resolve(ctx)?);
             }
             PathSegment::Crate(_) => {
                 buf.push_str("crate");
@@ -146,7 +142,7 @@ impl<'a> Resolve<'a> for Path {
                     buf.push_str("self");
                 }
                 PathSegment::Ident(ident) => {
-                    buf.push_str(ident.resolve(storage, sources)?.as_ref());
+                    buf.push_str(ident.resolve(ctx)?);
                 }
                 PathSegment::Crate(_) => {
                     buf.push_str("crate");
@@ -201,7 +197,7 @@ impl PathSegment {
     ///
     /// This is only allowed if the PathSegment is `Ident(_)`
     /// and not `Crate` or `Super`.
-    pub fn try_as_ident(&self) -> Option<&ast::Ident> {
+    pub(crate) fn try_as_ident(&self) -> Option<&ast::Ident> {
         if let PathSegment::Ident(ident) = self {
             Some(ident)
         } else {
@@ -213,7 +209,7 @@ impl PathSegment {
     ///
     /// This is only allowed if the PathSegment is `Ident(_)`
     /// and not `Crate` or `Super`.
-    pub fn try_as_ident_mut(&mut self) -> Option<&mut ast::Ident> {
+    pub(crate) fn try_as_ident_mut(&mut self) -> Option<&mut ast::Ident> {
         if let PathSegment::Ident(ident) = self {
             Some(ident)
         } else {

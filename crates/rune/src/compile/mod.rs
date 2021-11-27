@@ -236,7 +236,7 @@ impl CompileBuildEntry<'_> {
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
                 } else {
-                    let name = f.ast.name.resolve(self.q.storage, self.q.sources)?;
+                    let name = f.ast.name.resolve(resolve_context!(self.q))?;
 
                     self.q.unit.new_instance_function(
                         location,

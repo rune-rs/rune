@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemUse>("use foo");
 /// testing::roundtrip::<ast::ItemUse>("use foo::bar");
@@ -35,8 +35,8 @@ item_parse!(Use, ItemUse, "use item");
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemUsePath>("crate::foo");
 /// testing::roundtrip::<ast::ItemUsePath>("foo::bar");

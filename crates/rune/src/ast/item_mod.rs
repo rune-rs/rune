@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemMod>("mod ruins {}");
 ///
@@ -39,7 +39,7 @@ pub struct ItemMod {
 
 impl ItemMod {
     /// Get the span of the mod name.
-    pub fn name_span(&self) -> Span {
+    pub(crate) fn name_span(&self) -> Span {
         if let Some(span) = self.visibility.option_span() {
             span.join(self.name.span())
         } else {

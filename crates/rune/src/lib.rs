@@ -236,7 +236,7 @@ pub mod parse;
 pub mod query;
 
 pub mod runtime;
-pub use self::runtime::{FromValue, Panic, Protocol, Stack, ToValue, Unit, Value, Vm};
+pub use self::runtime::{FromValue, ToValue, Unit, Value, Vm};
 
 mod shared;
 

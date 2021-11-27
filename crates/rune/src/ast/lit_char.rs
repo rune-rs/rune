@@ -11,22 +11,12 @@ pub struct LitChar {
     pub source: ast::CopySource<char>,
 }
 
-impl LitChar {
-    /// Construct a new literal character.
-    pub fn new(ctx: &mut MacroContext<'_>, c: char) -> Self {
-        Self {
-            span: ctx.macro_span(),
-            source: ast::CopySource::Inline(c),
-        }
-    }
-}
-
 /// Parse a character literal.
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::LitChar>("'a'");
 /// testing::roundtrip::<ast::LitChar>("'\\0'");
@@ -51,7 +41,7 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, _: &'a Storage, sources: &'a Sources) -> Result<char, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<char, ResolveError> {
         let source_id = match self.source {
             ast::CopySource::Inline(c) => return Ok(c),
             ast::CopySource::Text(source_id) => source_id,
@@ -59,7 +49,8 @@ impl<'a> Resolve<'a> for LitChar {
 
         let span = self.span;
 
-        let string = sources
+        let string = ctx
+            .sources
             .source(source_id, span.narrow(1u32))
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 

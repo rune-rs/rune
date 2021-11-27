@@ -2,11 +2,12 @@ use crate::ast::prelude::*;
 
 /// A range expression `a .. b` or `a ..= b`.
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprRange>("0..42");
 /// testing::roundtrip::<ast::ExprRange>("0..=42");
+/// testing::roundtrip::<ast::ExprRange>("0..=a + 2");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]

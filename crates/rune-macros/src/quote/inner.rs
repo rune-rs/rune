@@ -178,15 +178,7 @@ pub(crate) struct NewIdent<'a>(pub(crate) &'static str, pub(crate) &'a str);
 
 impl ToTokens for NewIdent<'_> {
     fn to_tokens(self, stream: &mut p::TokenStream, span: p::Span) {
-        (
-            AST,
-            S,
-            "Ident",
-            S,
-            "new",
-            p((self.0, ',', p::Literal::string(self.1))),
-        )
-            .to_tokens(stream, span);
+        (self.0, '.', "ident", p(p::Literal::string(self.1))).to_tokens(stream, span);
     }
 }
 

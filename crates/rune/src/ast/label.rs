@@ -1,6 +1,18 @@
 use crate::ast::prelude::*;
 
 /// A label, like `'foo`
+///
+/// Custom labels are constructed in macros using
+/// [MacroContext::label][crate::macros::MacroContext::label].
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::Label>("'foo");
+/// testing::roundtrip::<ast::Label>("'barify42");
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct Label {
@@ -9,28 +21,6 @@ pub struct Label {
     /// The kind of the label.
     #[rune(skip)]
     pub source: ast::LitSource,
-}
-
-impl Label {
-    /// Construct a new label from the given string. The string should be
-    /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
-    ///
-    /// This constructor must only be used inside of a macro.
-    pub fn new(ctx: &mut MacroContext<'_>, label: &str) -> Self {
-        Self::new_with(label, ctx.macro_span(), &mut ctx.q_mut().storage)
-    }
-
-    /// Construct a new label from the given string. The string should be
-    /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
-    ///
-    /// This constructor does not panic when called outside of a macro context
-    /// but requires access to a `span` and `storage`.
-    pub fn new_with(label: &str, span: Span, storage: &mut Storage) -> Self {
-        let id = storage.insert_str(label);
-        let source = ast::LitSource::Synthetic(id);
-
-        ast::Label { span, source }
-    }
 }
 
 impl Parse for Label {
@@ -56,19 +46,20 @@ impl Peek for Label {
 impl<'a> Resolve<'a> for Label {
     type Output = &'a str;
 
-    fn resolve(&self, storage: &'a Storage, sources: &'a Sources) -> Result<&'a str, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<&'a str, ResolveError> {
         let span = self.span;
 
         match self.source {
             ast::LitSource::Text(source_id) => {
-                let ident = sources
+                let ident = ctx
+                    .sources
                     .source(source_id, span.trim_start(1u32))
                     .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
                 Ok(ident)
             }
             ast::LitSource::Synthetic(id) => {
-                let ident = storage.get_string(id).ok_or_else(|| {
+                let ident = ctx.storage.get_string(id).ok_or_else(|| {
                     ResolveError::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {

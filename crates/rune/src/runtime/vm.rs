@@ -191,7 +191,7 @@ impl Vm {
     /// Computing the function hash from the name can be a bit costly, so it's
     /// worth noting that it can be precalculated:
     ///
-    /// ```rust
+    /// ```
     /// use rune::Hash;
     ///
     /// let name = Hash::type_hash(&["main"]);
@@ -199,7 +199,7 @@ impl Vm {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```,no_run
     /// use rune::{Context, Unit, FromValue, Source};
     /// use std::sync::Arc;
     ///
@@ -223,7 +223,7 @@ impl Vm {
     /// You can use a `Vec<Value>` to provide a variadic collection of
     /// arguments.
     ///
-    /// ```rust,no_run
+    /// ```,no_run
     /// use rune::{Context, Unit, FromValue, Source, ToValue};
     /// use std::sync::Arc;
     ///
@@ -1069,7 +1069,7 @@ impl Vm {
 
     /// Construct a future from calling an async function.
     fn call_generator_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
-        let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
+        let stack = self.stack.drain(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
         self.stack.push(Generator::new(vm));
@@ -1078,7 +1078,7 @@ impl Vm {
 
     /// Construct a stream from calling a function.
     fn call_stream_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
-        let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
+        let stack = self.stack.drain(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
         self.stack.push(Stream::new(vm));
@@ -1087,7 +1087,7 @@ impl Vm {
 
     /// Construct a future from calling a function.
     fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
-        let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
+        let stack = self.stack.drain(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
         self.stack.push(Future::new(vm.async_complete()));
@@ -1390,7 +1390,7 @@ impl Vm {
     fn op_select(&mut self, len: usize) -> Result<Option<Select>, VmError> {
         let futures = futures_util::stream::FuturesUnordered::new();
 
-        for (branch, value) in self.stack.drain_stack_top(len)?.enumerate() {
+        for (branch, value) in self.stack.drain(len)?.enumerate() {
             let future = value.into_shared_future()?.into_mut()?;
 
             if !future.is_completed() {
@@ -2132,7 +2132,7 @@ impl Vm {
             .ok_or(VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         let mut object = Object::with_capacity(keys.len());
-        let values = self.stack.drain_stack_top(keys.len())?;
+        let values = self.stack.drain(keys.len())?;
 
         for (key, value) in keys.iter().zip(values) {
             object.insert(key.clone(), value);
@@ -2183,7 +2183,7 @@ impl Vm {
             .lookup_rtti(hash)
             .ok_or(VmErrorKind::MissingRtti { hash })?;
 
-        let values = self.stack.drain_stack_top(keys.len())?;
+        let values = self.stack.drain(keys.len())?;
         let mut data = Object::with_capacity(keys.len());
 
         for (key, value) in keys.iter().zip(values) {
@@ -2224,7 +2224,7 @@ impl Vm {
             .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
 
         let mut data = Object::with_capacity(keys.len());
-        let values = self.stack.drain_stack_top(keys.len())?;
+        let values = self.stack.drain(keys.len())?;
 
         for (key, value) in keys.iter().zip(values) {
             data.insert(key.clone(), value);
@@ -2251,7 +2251,7 @@ impl Vm {
     /// Optimize operation to perform string concatenation.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
-        let values = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
+        let values = self.stack.drain(len)?.collect::<vec::Vec<_>>();
 
         let mut out = String::with_capacity(size_hint);
         let mut buf = String::with_capacity(16);
@@ -2717,7 +2717,7 @@ impl Vm {
     /// This allows for calling protocol function helpers like
     /// [Value::string_display] which requires access to a virtual machine.
     ///
-    /// ```rust,no_run
+    /// ```,no_run
     /// use rune::{Context, Unit, FromValue, Source};
     /// use std::sync::Arc;
     ///

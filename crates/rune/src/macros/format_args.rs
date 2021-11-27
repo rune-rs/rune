@@ -244,7 +244,7 @@ fn expand_format_spec<'a>(
                 let mut specs = Vec::new();
 
                 specs.extend(fill.map(|fill| {
-                    let fill = ast::LitChar::new(ctx, fill);
+                    let fill = ctx.lit(fill);
                     quote!(fill = #fill)
                 }));
 
@@ -259,7 +259,7 @@ fn expand_format_spec<'a>(
                 }));
 
                 specs.extend(align.map(|align| {
-                    let align = ast::Ident::new(ctx, &align.to_string());
+                    let align = ctx.ident(&align.to_string());
                     quote!(align = #align)
                 }));
 
@@ -269,7 +269,7 @@ fn expand_format_spec<'a>(
                 }
 
                 specs.extend(format_type.map(|format_type| {
-                    let format_type = ast::Ident::new(ctx, &format_type.to_string());
+                    let format_type = ctx.ident(&format_type.to_string());
                     quote!(type = #format_type)
                 }));
 

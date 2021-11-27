@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprClosure>("async || 42");
 /// testing::roundtrip::<ast::ExprClosure>("|| 42");
@@ -73,7 +73,7 @@ pub enum ExprClosureArgs {
 
 impl ExprClosureArgs {
     /// The number of arguments the closure takes.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         match self {
             Self::Empty { .. } => 0,
             Self::List { args, .. } => args.len(),
@@ -81,7 +81,7 @@ impl ExprClosureArgs {
     }
 
     /// Get a slice over all arguments.
-    pub fn as_slice(&self) -> &[(ast::FnArg, Option<T![,]>)] {
+    pub(crate) fn as_slice(&self) -> &[(ast::FnArg, Option<T![,]>)] {
         match self {
             Self::Empty { .. } => &[],
             Self::List { args, .. } => &args[..],
@@ -89,7 +89,7 @@ impl ExprClosureArgs {
     }
 
     /// Get a mutable slice over all arguments.
-    pub fn as_slice_mut(&mut self) -> &mut [(ast::FnArg, Option<T![,]>)] {
+    pub(crate) fn as_slice_mut(&mut self) -> &mut [(ast::FnArg, Option<T![,]>)] {
         match self {
             Self::Empty { .. } => &mut [],
             Self::List { args, .. } => &mut args[..],

@@ -1,7 +1,7 @@
 //! The `std::iter` module.
 
-use crate::runtime::{FromValue, Iterator, Object, Tuple, Value, Vec, VmError};
-use crate::{ContextError, Module, Protocol};
+use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, Value, Vec, VmError};
+use crate::{ContextError, Module};
 
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {

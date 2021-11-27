@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), Empty() }");
 /// testing::roundtrip::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }");
@@ -63,7 +63,7 @@ pub enum ItemVariantBody {
 
 impl ItemVariantBody {
     /// Iterate over the fields of the body.
-    pub fn fields(&self) -> impl Iterator<Item = &'_ (ast::Field, Option<T![,]>)> {
+    pub(crate) fn fields(&self) -> impl Iterator<Item = &'_ (ast::Field, Option<T![,]>)> {
         match self {
             ItemVariantBody::UnitBody => IntoIterator::into_iter(&[]),
             ItemVariantBody::TupleBody(body) => body.iter(),
@@ -76,8 +76,8 @@ impl ItemVariantBody {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemVariantBody>("( a, b, c )");
 /// testing::roundtrip::<ast::ItemVariantBody>("{ a, b, c }");

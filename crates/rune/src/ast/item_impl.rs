@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemImpl>("impl Foo {}");
 /// testing::roundtrip::<ast::ItemImpl>("impl Foo { fn test(self) { } }");
@@ -32,7 +32,7 @@ pub struct ItemImpl {
 
 impl ItemImpl {
     /// Parse an `impl` item with the given attributes.
-    pub fn parse_with_attributes(
+    pub(crate) fn parse_with_attributes(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {

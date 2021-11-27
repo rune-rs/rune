@@ -131,7 +131,7 @@ pub enum Expr {
 
 impl Expr {
     /// Access the attributes of the expression.
-    pub fn attributes(&self) -> &[ast::Attribute] {
+    pub(crate) fn attributes(&self) -> &[ast::Attribute] {
         match self {
             Self::Path(_) => &[],
             Self::Break(expr) => &expr.attributes,
@@ -356,8 +356,8 @@ impl Expr {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::Expr>("()");
 /// testing::roundtrip::<ast::Expr>("foo[\"foo\"]");

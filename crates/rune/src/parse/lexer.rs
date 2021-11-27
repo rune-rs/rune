@@ -23,7 +23,7 @@ impl<'a> Lexer<'a> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{span, SourceId};
     /// use rune::ast;
     /// use rune::parse::Lexer;

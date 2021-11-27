@@ -11,7 +11,7 @@ use crate::compile::{
     Location, Meta, MetaKind, ModMeta, SourceMeta, StructMeta, TupleMeta, UnitBuilder, Visibility,
 };
 use crate::macros::Storage;
-use crate::parse::{Id, NonZeroId, Opaque, Resolve};
+use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::runtime::format;
 use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
@@ -179,11 +179,6 @@ impl<'a> Query<'a> {
             gen: self.gen,
             inner: self.inner,
         }
-    }
-
-    /// Access reference to storage.
-    pub(crate) fn storage(&self) -> &Storage {
-        self.storage
     }
 
     /// Insert the given compile meta.
@@ -630,7 +625,7 @@ impl<'a> Query<'a> {
 
         let mut item = match (&path.global, &path.first) {
             (Some(..), ast::PathSegment::Ident(ident)) => {
-                Item::with_crate(ident.resolve(self.storage, self.sources)?)
+                Item::with_crate(ident.resolve(resolve_context!(self))?)
             }
             (Some(global), _) => {
                 return Err(CompileError::new(
@@ -678,7 +673,7 @@ impl<'a> Query<'a> {
 
             match segment {
                 ast::PathSegment::Ident(ident) => {
-                    let ident = ident.resolve(self.storage, self.sources)?;
+                    let ident = ident.resolve(resolve_context!(self))?;
                     item.push(ident);
                 }
                 ast::PathSegment::Super(super_token) => {
@@ -710,7 +705,7 @@ impl<'a> Query<'a> {
         let span = path.span();
 
         let local = match local {
-            Some(local) => Some(local.resolve(self.storage, self.sources)?.into()),
+            Some(local) => Some(local.resolve(resolve_context!(self))?.into()),
             None => None,
         };
 
@@ -734,7 +729,7 @@ impl<'a> Query<'a> {
         wildcard: bool,
     ) -> Result<(), QueryError> {
         let alias = match alias {
-            Some(alias) => Some(alias.resolve(self.storage, self.sources)?),
+            Some(alias) => Some(alias.resolve(resolve_context!(self))?),
             None => None,
         };
 
@@ -938,17 +933,12 @@ impl<'a> Query<'a> {
                     &query_item.item,
                     variant.ast.body,
                     Some(&enum_item.item),
-                    self.storage,
-                    self.sources,
+                    resolve_context!(self),
                 )?
             }
-            Indexed::Struct(st) => struct_into_item_decl(
-                &query_item.item,
-                st.ast.body,
-                None,
-                self.storage,
-                self.sources,
-            )?,
+            Indexed::Struct(st) => {
+                struct_into_item_decl(&query_item.item, st.ast.body, None, resolve_context!(self))?
+            }
             Indexed::Function(f) => {
                 self.inner.queue.push_back(BuildEntry {
                     location: query_item.location,
@@ -1198,7 +1188,7 @@ impl<'a> Query<'a> {
         debug_assert!(base.starts_with(&module.item));
         let mut base = base.clone();
 
-        let local = local.resolve(self.storage, self.sources)?;
+        let local = local.resolve(resolve_context!(self))?;
 
         while base.starts_with(&module.item) {
             base.push(local);
@@ -1542,8 +1532,7 @@ fn tuple_body_meta(
 fn struct_body_meta(
     item: &Item,
     enum_item: Option<&Item>,
-    storage: &Storage,
-    sources: &Sources,
+    ctx: ResolveContext<'_>,
     st: ast::Braced<ast::Field, T![,]>,
 ) -> Result<MetaKind, QueryError> {
     let type_hash = Hash::type_hash(item);
@@ -1551,7 +1540,7 @@ fn struct_body_meta(
     let mut fields = HashSet::new();
 
     for (ast::Field { name, .. }, _) in st {
-        let name = name.resolve(storage, sources)?;
+        let name = name.resolve(ctx)?;
         fields.insert(name.into());
     }
 
@@ -1572,15 +1561,12 @@ fn variant_into_item_decl(
     item: &Item,
     body: ast::ItemVariantBody,
     enum_item: Option<&Item>,
-    storage: &Storage,
-    sources: &Sources,
+    ctx: ResolveContext<'_>,
 ) -> Result<MetaKind, QueryError> {
     Ok(match body {
         ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_item),
         ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_item, tuple),
-        ast::ItemVariantBody::StructBody(st) => {
-            struct_body_meta(item, enum_item, storage, sources, st)?
-        }
+        ast::ItemVariantBody::StructBody(st) => struct_body_meta(item, enum_item, ctx, st)?,
     })
 }
 
@@ -1589,15 +1575,12 @@ fn struct_into_item_decl(
     item: &Item,
     body: ast::ItemStructBody,
     enum_item: Option<&Item>,
-    storage: &Storage,
-    sources: &Sources,
+    ctx: ResolveContext<'_>,
 ) -> Result<MetaKind, QueryError> {
     Ok(match body {
         ast::ItemStructBody::UnitBody => unit_body_meta(item, enum_item),
         ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, enum_item, tuple),
-        ast::ItemStructBody::StructBody(st) => {
-            struct_body_meta(item, enum_item, storage, sources, st)?
-        }
+        ast::ItemStructBody::StructBody(st) => struct_body_meta(item, enum_item, ctx, st)?,
     })
 }
 

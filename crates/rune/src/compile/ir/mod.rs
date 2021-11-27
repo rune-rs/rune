@@ -146,12 +146,10 @@ impl IrFn {
         let mut args = Vec::new();
 
         for (arg, _) in &ast.args {
-            if let ast::FnArg::Pat(pat) = arg {
-                if let ast::Pat::PatPath(path) = pat.as_ref() {
-                    if let Some(ident) = path.path.try_as_ident() {
-                        args.push(c.resolve(ident)?.into());
-                        continue;
-                    }
+            if let ast::FnArg::Pat(ast::Pat::PatPath(path)) = arg {
+                if let Some(ident) = path.path.try_as_ident() {
+                    args.push(c.resolve(ident)?.into());
+                    continue;
                 }
             }
 

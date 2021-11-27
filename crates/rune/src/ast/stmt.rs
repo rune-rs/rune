@@ -3,8 +3,8 @@ use std::mem::take;
 
 /// A statement within a block.
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::Stmt>("let x = 1;");
 /// testing::roundtrip::<ast::Stmt>("#[attr] let a = f();");

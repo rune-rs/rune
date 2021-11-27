@@ -24,7 +24,7 @@ fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Resu
 
     p.eof()?;
 
-    let output = ast::Ident::new(ctx, &output);
+    let output = ctx.ident(&output);
     Ok(quote!(#output).into_token_stream(ctx))
 }
 

@@ -318,7 +318,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::{BorrowRef, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
@@ -343,7 +343,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::{BorrowRef, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
@@ -458,7 +458,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::{BorrowMut, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
@@ -483,7 +483,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::{BorrowMut, Shared};
     ///
     /// # fn main() -> rune::Result<()> {

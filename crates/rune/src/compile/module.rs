@@ -7,10 +7,10 @@ use crate::collections::HashMap;
 use crate::compile::{ContextError, IntoComponent, Item, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
-    ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Stack,
+    ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Protocol, Stack,
     StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, InstFnNameHash, Protocol};
+use crate::{Hash, InstFnNameHash};
 use std::future;
 use std::sync::Arc;
 
@@ -210,7 +210,7 @@ impl Module {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Any;
     ///
     /// #[derive(Any)]
@@ -275,7 +275,7 @@ impl Module {
     ///
     /// This shows how to register the unit type `()` as `nonstd::unit`.
     ///
-    /// ```rust
+    /// ```
     /// use rune::Module;
     ///
     /// # fn main() -> rune::Result<()> {
@@ -306,7 +306,7 @@ impl Module {
     ///
     /// This shows how to register the `Option` as `nonstd::option::Option`.
     ///
-    /// ```rust
+    /// ```
     /// use rune::Module;
     ///
     /// # fn main() -> rune::Result<()> {
@@ -338,7 +338,7 @@ impl Module {
     ///
     /// This shows how to register the `Result` as `nonstd::result::Result`.
     ///
-    /// ```rust
+    /// ```
     /// use rune::Module;
     ///
     /// # fn main() -> rune::Result<()> {
@@ -371,7 +371,7 @@ impl Module {
     /// This shows how to register the `GeneratorState` as
     /// `nonstd::generator::GeneratorState`.
     ///
-    /// ```rust
+    /// ```
     /// use rune::Module;
     ///
     /// # fn main() -> rune::Result<()> {
@@ -408,7 +408,7 @@ impl Module {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// fn add_ten(value: i64) -> i64 {
     ///     value + 10
     /// }
@@ -449,7 +449,7 @@ impl Module {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     ///
     /// # fn main() -> rune::Result<()> {
     /// let mut module = rune::Module::default();
@@ -511,7 +511,7 @@ impl Module {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// # fn main() -> rune::Result<()> {
     /// let mut module = rune::Module::default();
     ///
@@ -573,7 +573,7 @@ impl Module {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Any;
     ///
     /// #[derive(Any)]
@@ -669,7 +669,7 @@ impl Module {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use std::sync::atomic::AtomicU32;
     /// use std::sync::Arc;
     /// use rune::Any;
@@ -817,7 +817,7 @@ macro_rules! impl_register {
                 impl_register!{@check-args $count, args}
 
                 #[allow(unused_mut)]
-                let mut it = stack.drain_stack_top($count)?;
+                let mut it = stack.drain($count)?;
                 $(let $var = it.next().unwrap();)*
                 drop(it);
 
@@ -855,7 +855,7 @@ macro_rules! impl_register {
                 impl_register!{@check-args $count, args}
 
                 #[allow(unused_mut)]
-                let mut it = stack.drain_stack_top($count)?;
+                let mut it = stack.drain($count)?;
                 $(let $var = it.next().unwrap();)*
                 drop(it);
 
@@ -907,7 +907,7 @@ macro_rules! impl_register {
                 impl_register!{@check-args ($count + 1), args}
 
                 #[allow(unused_mut)]
-                let mut it = stack.drain_stack_top($count + 1)?;
+                let mut it = stack.drain($count + 1)?;
                 let inst = it.next().unwrap();
                 $(let $var = it.next().unwrap();)*
                 drop(it);
@@ -955,7 +955,7 @@ macro_rules! impl_register {
                 impl_register!{@check-args ($count + 1), args}
 
                 #[allow(unused_mut)]
-                let mut it = stack.drain_stack_top($count + 1)?;
+                let mut it = stack.drain($count + 1)?;
                 let inst = it.next().unwrap();
                 $(let $var = it.next().unwrap();)*
                 drop(it);

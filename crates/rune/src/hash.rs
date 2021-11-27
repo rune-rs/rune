@@ -1,5 +1,6 @@
 use crate::compile::{IntoComponent, Item};
-use crate::{Any, Protocol};
+use crate::runtime::Protocol;
+use crate::Any;
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;

@@ -50,8 +50,8 @@
 //! }
 //! ```
 
-use rune::{Any, Protocol, Module, ContextError};
-use rune::runtime::{Bytes, Value};
+use rune::{Any, Module, Value, ContextError};
+use rune::runtime::{Bytes, Protocol};
 use std::fmt;
 use std::fmt::Write;
 

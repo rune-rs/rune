@@ -10,7 +10,7 @@ pub use rune_macros::Any;
 ///
 /// This means, that only types which derive `Any` can be used inside of the VM:
 ///
-/// ```rust
+/// ```
 /// use rune::Any;
 ///
 /// #[derive(Any)]

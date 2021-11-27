@@ -26,8 +26,8 @@ pub enum Pat {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::Pat>("()");
 /// testing::roundtrip::<ast::Pat>("42");

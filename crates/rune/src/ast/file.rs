@@ -30,8 +30,8 @@ impl OptionSpanned for File {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::File>(r#"
 /// use foo;
@@ -50,8 +50,8 @@ impl OptionSpanned for File {
 ///
 /// # Realistic Example
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::File>(r#"
 /// use http;
@@ -66,8 +66,8 @@ impl OptionSpanned for File {
 ///
 /// # File Attributes Example
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::File>(r#"
 /// // NB: Attributes are currently rejected by the compiler

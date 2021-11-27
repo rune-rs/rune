@@ -43,7 +43,7 @@ impl<T> Shared<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Shared;
     ///
     /// let shared = Shared::new(1u32);
@@ -64,7 +64,7 @@ impl<T> Shared<T> {
     ///
     /// # Taking inner value
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Shared;
     ///
     /// let shared = Shared::new(1u32);
@@ -84,7 +84,7 @@ impl<T> Shared<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Shared;
     ///
     /// let shared = Shared::new(1u32);
@@ -110,7 +110,7 @@ impl<T> Shared<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
@@ -162,7 +162,7 @@ impl<T> Shared<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
@@ -222,7 +222,7 @@ impl<T> Shared<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
@@ -280,7 +280,7 @@ impl<T: ?Sized> Shared<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
@@ -323,7 +323,7 @@ impl<T: ?Sized> Shared<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::Shared;
     ///
     /// #[derive(Debug)]
@@ -367,7 +367,7 @@ impl Shared<AnyObj> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Any;
     /// use rune::runtime::Shared;
     ///
@@ -403,7 +403,7 @@ impl Shared<AnyObj> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Any;
     /// use rune::runtime::Shared;
     ///
@@ -891,7 +891,7 @@ impl<T: ?Sized> Ref<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::{Shared, Ref};
     ///
     /// # fn main() -> rune::Result<()> {
@@ -926,7 +926,7 @@ impl<T: ?Sized> Ref<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::{Shared, Ref};
     ///
     /// # fn main() -> rune::Result<()> {
@@ -1012,7 +1012,7 @@ impl<T: ?Sized> Mut<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::{Mut, Shared};
     ///
     /// # fn main() -> rune::Result<()> {
@@ -1050,7 +1050,7 @@ impl<T: ?Sized> Mut<T> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::runtime::{Mut, Shared};
     ///
     /// # fn main() -> rune::Result<()> {

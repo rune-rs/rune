@@ -2,8 +2,8 @@ use crate::ast::prelude::*;
 
 /// A return expression `return [expr]`.
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ExprReturn>("return");
 /// testing::roundtrip::<ast::ExprReturn>("return 42");

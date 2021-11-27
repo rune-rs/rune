@@ -5,7 +5,7 @@ use std::fmt;
 
 /// Pre-canned panic reasons.
 ///
-/// To formulate a custom reason, use [crate::Panic::custom].
+/// To formulate a custom reason, use [crate::runtime::Panic::custom].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum PanicReason {
     /// Not implemented.

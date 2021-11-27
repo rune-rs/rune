@@ -1,7 +1,7 @@
 //! `std::any` module.
 
-use crate::runtime::Value;
-use crate::{Any, ContextError, Module, Protocol};
+use crate::runtime::{Protocol, Value};
+use crate::{Any, ContextError, Module};
 use std::any::TypeId as StdTypeId;
 use std::fmt;
 use std::fmt::Write;

@@ -4,8 +4,8 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
-/// ```rust
-/// use rune::{testing, ast};
+/// ```
+/// use rune::{ast, testing};
 ///
 /// testing::roundtrip::<ast::ItemConst>("const value = #{}");
 /// ```
@@ -36,7 +36,7 @@ pub struct ItemConst {
 impl ItemConst {
     /// Get the descriptive span of this item, e.g. `const ITEM` instead of the
     /// span for the whole expression.
-    pub fn descriptive_span(&self) -> Span {
+    pub(crate) fn descriptive_span(&self) -> Span {
         self.const_token.span().join(self.name.span())
     }
 }

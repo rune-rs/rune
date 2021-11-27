@@ -25,7 +25,7 @@ impl IrCompiler<'_> {
     where
         T: Resolve<'s>,
     {
-        Ok(value.resolve(self.q.storage(), self.q.sources)?)
+        Ok(value.resolve(resolve_context!(self.q))?)
     }
 
     /// Resolve an ir target from an expression.
@@ -443,7 +443,7 @@ impl IrCompile for BuiltInTemplate {
                 ..
             }) = expr
             {
-                let s = s.resolve_template_string(c.q.storage(), c.q.sources)?;
+                let s = s.resolve_template_string(resolve_context!(c.q))?;
 
                 components.push(ir::IrTemplateComponent::String(
                     s.into_owned().into_boxed_str(),

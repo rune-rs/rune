@@ -1,6 +1,15 @@
 use crate::ast::prelude::*;
 
 /// A function call `<expr>!(<args>)`.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::MacroCall>("foo!()");
+/// testing::roundtrip::<ast::MacroCall>("::bar::foo!(question to life)");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct MacroCall {
@@ -26,13 +35,13 @@ pub struct MacroCall {
 
 impl MacroCall {
     /// Test if macro needs semi or not.
-    pub fn needs_semi(&self) -> bool {
+    pub(crate) fn needs_semi(&self) -> bool {
         !matches!(self.close.kind, K!['}'])
     }
 
     /// Wrap the expression into an expression that matches the semi convention
     /// of the macro call.
-    pub fn adjust_expr_semi(&self, expr: ast::Expr) -> ast::Expr {
+    pub(crate) fn adjust_expr_semi(&self, expr: ast::Expr) -> ast::Expr {
         if self.needs_semi() != expr.needs_semi() {
             ast::Expr::ForceSemi(ast::ForceSemi {
                 needs_semi: self.needs_semi(),
@@ -45,7 +54,7 @@ impl MacroCall {
     }
 
     /// The span of the token stream.
-    pub fn stream_span(&self) -> Span {
+    pub(crate) fn stream_span(&self) -> Span {
         if let Some(span) = self.stream.option_span() {
             span
         } else {
@@ -54,7 +63,7 @@ impl MacroCall {
     }
 
     /// Parse with an expression.
-    pub fn parse_with_meta_path(
+    pub(crate) fn parse_with_meta_path(
         parser: &mut Parser,
         attributes: Vec<ast::Attribute>,
         path: ast::Path,

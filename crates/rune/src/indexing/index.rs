@@ -74,13 +74,12 @@ impl<'a> Indexer<'a> {
         attributes: &mut attrs::Attributes,
         ast: &mut ast::MacroCall,
     ) -> Result<bool, CompileError> {
-        let (_, builtin) =
-            match attributes.try_parse::<attrs::BuiltIn>(self.q.storage(), self.q.sources)? {
-                Some(builtin) => builtin,
-                None => return Ok(false),
-            };
+        let (_, builtin) = match attributes.try_parse::<attrs::BuiltIn>(resolve_context!(self.q))? {
+            Some(builtin) => builtin,
+            None => return Ok(false),
+        };
 
-        let args = builtin.args(self.q.storage(), self.q.sources)?;
+        let args = builtin.args(resolve_context!(self.q))?;
 
         // NB: internal macros are
         let ident = match ast.path.try_as_ident() {
@@ -89,13 +88,13 @@ impl<'a> Indexer<'a> {
                 return Err(CompileError::new(
                     ast.path.span(),
                     CompileErrorKind::NoSuchBuiltInMacro {
-                        name: ast.path.resolve(self.q.storage(), self.q.sources)?,
+                        name: ast.path.resolve(resolve_context!(self.q))?,
                     },
                 ))
             }
         };
 
-        let ident = ident.resolve(self.q.storage(), self.q.sources)?;
+        let ident = ident.resolve(resolve_context!(self.q))?;
 
         let mut internal_macro = match ident {
             "template" => self.expand_template_macro(ast, &args)?,
@@ -106,7 +105,7 @@ impl<'a> Indexer<'a> {
                 return Err(CompileError::new(
                     ast.path.span(),
                     CompileErrorKind::NoSuchBuiltInMacro {
-                        name: ast.path.resolve(self.q.storage(), self.q.sources)?,
+                        name: ast.path.resolve(resolve_context!(self.q))?,
                     },
                 ))
             }
@@ -178,7 +177,7 @@ impl<'a> Indexer<'a> {
             let key = p.parse::<ast::Ident>()?;
             let _ = p.parse::<T![=]>()?;
 
-            let k = key.resolve(self.q.storage(), self.q.sources)?;
+            let k = key.resolve(resolve_context!(self.q))?;
 
             match k {
                 "fill" => {
@@ -190,7 +189,7 @@ impl<'a> Indexer<'a> {
                     }
 
                     let arg = p.parse::<ast::LitChar>()?;
-                    let f = arg.resolve(self.q.storage(), self.q.sources)?;
+                    let f = arg.resolve(resolve_context!(self.q))?;
 
                     fill = Some((arg, f));
                 }
@@ -203,7 +202,7 @@ impl<'a> Indexer<'a> {
                     }
 
                     let arg = p.parse::<ast::Ident>()?;
-                    let a = arg.resolve(self.q.storage(), self.q.sources)?;
+                    let a = arg.resolve(resolve_context!(self.q))?;
 
                     align = Some(match str::parse::<format::Alignment>(a) {
                         Ok(a) => (arg, a),
@@ -225,7 +224,7 @@ impl<'a> Indexer<'a> {
 
                     let arg = p.parse::<ast::LitNumber>()?;
                     let f = arg
-                        .resolve(self.q.storage(), self.q.sources)?
+                        .resolve(resolve_context!(self.q))?
                         .as_u32(arg.span(), false)?;
 
                     let f = format::Flags::from(f);
@@ -241,7 +240,7 @@ impl<'a> Indexer<'a> {
 
                     let arg = p.parse::<ast::LitNumber>()?;
                     let f = arg
-                        .resolve(self.q.storage(), self.q.sources)?
+                        .resolve(resolve_context!(self.q))?
                         .as_usize(arg.span(), false)?;
 
                     width = Some((arg, NonZeroUsize::new(f)));
@@ -256,7 +255,7 @@ impl<'a> Indexer<'a> {
 
                     let arg = p.parse::<ast::LitNumber>()?;
                     let f = arg
-                        .resolve(self.q.storage(), self.q.sources)?
+                        .resolve(resolve_context!(self.q))?
                         .as_usize(arg.span(), false)?;
 
                     precision = Some((arg, NonZeroUsize::new(f)));
@@ -270,7 +269,7 @@ impl<'a> Indexer<'a> {
                     }
 
                     let arg = p.parse::<ast::Ident>()?;
-                    let a = arg.resolve(self.q.storage(), self.q.sources)?;
+                    let a = arg.resolve(resolve_context!(self.q))?;
 
                     format_type = Some(match str::parse::<format::Type>(a) {
                         Ok(format_type) => (arg, format_type),
@@ -504,7 +503,7 @@ impl<'a> Indexer<'a> {
     /// Handle a filesystem module.
     pub(crate) fn handle_file_mod(&mut self, item_mod: &mut ast::ItemMod) -> CompileResult<()> {
         let span = item_mod.span();
-        let name = item_mod.name.resolve(self.q.storage(), self.q.sources)?;
+        let name = item_mod.name.resolve(resolve_context!(self.q))?;
         let _guard = self.items.push_name(name.as_ref());
 
         let root = match &self.root {
@@ -587,7 +586,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<
 fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
 
-    let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
+    let name = ast.name.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
@@ -664,7 +663,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
 
     let mut attributes = attrs::Attributes::new(ast.attributes.clone());
 
-    let is_test = match attributes.try_parse::<attrs::Test>(idx.q.storage(), idx.q.sources)? {
+    let is_test = match attributes.try_parse::<attrs::Test>(resolve_context!(idx.q))? {
         Some((span, _)) => {
             if let Some(nested_span) = idx.nested_item {
                 let span = span.join(ast.descriptive_span());
@@ -680,7 +679,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
         _ => false,
     };
 
-    let is_bench = match attributes.try_parse::<attrs::Bench>(idx.q.storage(), idx.q.sources)? {
+    let is_bench = match attributes.try_parse::<attrs::Bench>(resolve_context!(idx.q))? {
         Some((span, _)) => {
             if let Some(nested_span) = idx.nested_item {
                 let span = span.join(ast.descriptive_span());
@@ -933,7 +932,7 @@ fn expr_let(ast: &mut ast::ExprLet, idx: &mut Indexer<'_>) -> CompileResult<()> 
 fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
 
-    let ident = ast.resolve(idx.q.storage(), idx.q.sources)?;
+    let ident = ast.resolve(resolve_context!(idx.q))?;
     idx.scopes.declare(ident, span)?;
     Ok(())
 }
@@ -1211,7 +1210,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         ));
     }
 
-    let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
+    let name = ast.name.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
@@ -1239,7 +1238,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         }
 
         let span = variant.name.span();
-        let name = variant.name.resolve(idx.q.storage(), idx.q.sources)?;
+        let name = variant.name.resolve(resolve_context!(idx.q))?;
         let _guard = idx.items.push_name(name.as_ref());
 
         let item = idx.q.insert_new_item(
@@ -1282,7 +1281,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
         }
     }
 
-    let ident = ast.ident.resolve(idx.q.storage(), idx.q.sources)?;
+    let ident = ast.ident.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(ident);
 
     let visibility = ast_to_visibility(&ast.visibility)?;
@@ -1317,7 +1316,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
         let ident_segment = path_segment
             .try_as_ident()
             .ok_or_else(|| CompileError::msg(path_segment, "unsupported path segment"))?;
-        let ident = ident_segment.resolve(idx.q.storage(), idx.q.sources)?;
+        let ident = ident_segment.resolve(resolve_context!(idx.q))?;
         guards.push(idx.items.push_name(ident));
     }
 
@@ -1348,7 +1347,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
             idx.handle_file_mod(ast)?;
         }
         ast::ItemModBody::InlineBody(body) => {
-            let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
+            let name = ast.name.resolve(resolve_context!(idx.q))?;
             let _guard = idx.items.push_name(name.as_ref());
 
             let visibility = ast_to_visibility(&ast.visibility)?;
@@ -1381,7 +1380,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
     }
 
     let span = ast.span();
-    let name = ast.name.resolve(idx.q.storage(), idx.q.sources)?;
+    let name = ast.name.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(name.as_ref());
 
     let item = idx.q.insert_new_item(
@@ -1462,7 +1461,7 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
             idx.scopes.mark_use(SELF);
         }
         Some(ast::PathKind::Ident(ident)) => {
-            let ident = ident.resolve(idx.q.storage(), idx.q.sources)?;
+            let ident = ident.resolve(resolve_context!(idx.q))?;
             idx.scopes.mark_use(ident);
         }
         None => (),

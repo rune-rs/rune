@@ -93,6 +93,16 @@ macro_rules! error {
     }
 }
 
+/// Helper to borrow out a [ResolveContext][crate::parse::ResolveContext].
+macro_rules! resolve_context {
+    ($q:expr) => {
+        $crate::parse::ResolveContext {
+            sources: $q.sources,
+            storage: $q.storage,
+        }
+    };
+}
+
 /// Build an implementation of `TypeOf` basic of a static type.
 macro_rules! impl_static_type {
     (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {

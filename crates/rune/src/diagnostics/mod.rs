@@ -78,7 +78,7 @@ impl Mode {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```,no_run
 /// use rune::{Sources, Diagnostics};
 /// use rune::termcolor::{StandardStream, ColorChoice};
 ///
@@ -120,7 +120,7 @@ impl Diagnostics {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{Diagnostics, SourceId};
     /// use rune::ast::Span;
     ///
@@ -141,7 +141,7 @@ impl Diagnostics {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{Diagnostics, SourceId};
     /// use rune::ast::Span;
     /// use rune::diagnostics::Diagnostic;

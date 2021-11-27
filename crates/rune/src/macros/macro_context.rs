@@ -77,7 +77,7 @@ impl<'a> MacroContext<'a> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::ast;
     /// use rune::macros::{MacroContext, quote};
     /// use rune::parse::{Parser};
@@ -141,6 +141,51 @@ impl<'a> MacroContext<'a> {
         T::into_lit(lit, self)
     }
 
+    /// Construct a new identifier from the given string from inside of a macro
+    /// context.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::ast;
+    /// use rune::macros::MacroContext;
+    ///
+    /// MacroContext::test(|ctx| {
+    ///     let lit = ctx.ident("foo");
+    ///     assert!(matches!(lit, ast::Ident { .. }))
+    /// });
+    /// ```
+    pub fn ident(&mut self, ident: &str) -> ast::Ident {
+        let span = self.macro_span();
+        let id = self.q.storage.insert_str(ident);
+        let source = ast::LitSource::Synthetic(id);
+        ast::Ident { span, source }
+    }
+
+    /// Construct a new label from the given string. The string should be
+    /// specified *without* the leading `'`, so `"foo"` instead of `"'foo"`.
+    ///
+    /// This constructor does not panic when called outside of a macro context
+    /// but requires access to a `span` and `storage`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::ast;
+    /// use rune::macros::MacroContext;
+    ///
+    /// MacroContext::test(|ctx| {
+    ///     let lit = ctx.label("foo");
+    ///     assert!(matches!(lit, ast::Label { .. }))
+    /// });
+    /// ```
+    pub fn label(&mut self, label: &str) -> ast::Label {
+        let span = self.macro_span();
+        let id = self.q.storage.insert_str(label);
+        let source = ast::LitSource::Synthetic(id);
+        ast::Label { span, source }
+    }
+
     /// Stringify the token stream.
     pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a>
     where
@@ -156,7 +201,7 @@ impl<'a> MacroContext<'a> {
     where
         T: Resolve<'r>,
     {
-        item.resolve(self.q.storage, self.q.sources)
+        item.resolve(resolve_context!(self.q))
     }
 
     /// Access a literal source as a string.
@@ -204,16 +249,6 @@ impl<'a> MacroContext<'a> {
     /// If the macro call was `stringify!(a + b)` this would refer to `a + b`.
     pub fn stream_span(&self) -> Span {
         self.stream_span
-    }
-
-    /// Access storage associated with macro context.
-    pub(crate) fn q(&self) -> &Query<'a> {
-        &self.q
-    }
-
-    /// Access mutable storage associated with macro context.
-    pub(crate) fn q_mut(&mut self) -> &mut Query<'a> {
-        &mut self.q
     }
 }
 

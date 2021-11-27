@@ -1,9 +1,8 @@
 use crate::compile::{ContextError, InstallWith, Module, Named};
 use crate::runtime::{
-    FromValue, Iterator, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
-    Vm, VmError, VmErrorKind,
+    FromValue, Iterator, Mut, Panic, Protocol, RawMut, RawRef, RawStr, Ref, ToValue,
+    UnsafeFromValue, Value, Vm, VmError, VmErrorKind,
 };
-use crate::Protocol;
 use std::fmt;
 use std::ops;
 
@@ -11,7 +10,7 @@ use std::ops;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use rune::ToValue;
 /// use rune::runtime::{Range, RangeLimits};
 ///

@@ -1,8 +1,8 @@
 //! Utilities related to testing
 
 use parking_lot::Mutex;
-use rune::runtime::VmError;
-use rune::{ContextError, Module, Panic, Stack, Value};
+use rune::runtime::{Panic, Stack, VmError};
+use rune::{ContextError, Module, Value};
 use std::io::Write;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
@@ -55,7 +55,7 @@ fn dbg_impl<O>(o: &mut O, stack: &mut Stack, args: usize) -> Result<(), VmError>
 where
     O: Write,
 {
-    for value in stack.drain_stack_top(args)? {
+    for value in stack.drain(args)? {
         writeln!(o, "{:?}", value).map_err(VmError::panic)?;
     }
 

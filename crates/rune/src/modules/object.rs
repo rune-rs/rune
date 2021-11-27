@@ -1,7 +1,7 @@
 //! The `std::object` module.
 
-use crate::runtime::{Iterator, Object, Value};
-use crate::{ContextError, Module, Protocol};
+use crate::runtime::{Iterator, Object, Protocol, Value};
+use crate::{ContextError, Module};
 
 /// Construct the `std::object` module.
 pub fn module() -> Result<Module, ContextError> {

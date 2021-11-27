@@ -59,7 +59,7 @@ pub type Values<'a> = btree_map::Values<'a, String, Value>;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// # fn main() -> rune::Result<()> {
 /// let mut object = rune::runtime::Object::new();
 /// assert!(object.is_empty());

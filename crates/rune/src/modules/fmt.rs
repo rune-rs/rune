@@ -1,7 +1,7 @@
 //! The `std::fmt` module.
 
-use crate::runtime::Format;
-use crate::{ContextError, Module, Protocol};
+use crate::runtime::{Format, Protocol};
+use crate::{ContextError, Module};
 use std::fmt;
 use std::fmt::Write;
 
