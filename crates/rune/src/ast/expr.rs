@@ -287,6 +287,17 @@ impl Expr {
         Self::parse_with(p, NOT_EAGER_BRACE, EAGER_BINARY, CALLABLE)
     }
 
+    /// Helper to perform a parse with the given meta.
+    pub(crate) fn parse_with_meta(
+        p: &mut Parser<'_>,
+        attributes: &mut Vec<ast::Attribute>,
+        callable: Callable,
+    ) -> Result<Self, ParseError> {
+        let lhs = primary(p, attributes, EAGER_BRACE, callable)?;
+        let lookahead = ast::BinOp::from_peeker(p.peeker());
+        binary(p, lhs, lookahead, 0, EAGER_BRACE)
+    }
+
     /// ull, configurable parsing of an expression.F
     pub(crate) fn parse_with(
         p: &mut Parser<'_>,
@@ -296,12 +307,11 @@ impl Expr {
     ) -> Result<Self, ParseError> {
         let mut attributes = p.parse()?;
 
-        let expr = parse_base(p, &mut attributes, eager_brace)?;
-        let expr = parse_chain(p, expr, callable)?;
+        let expr = primary(p, &mut attributes, eager_brace, callable)?;
 
         let expr = if *eager_binary {
             let lookeahead = ast::BinOp::from_peeker(p.peeker());
-            parse_binary(p, expr, lookeahead, 0, eager_brace)?
+            binary(p, expr, lookeahead, 0, eager_brace)?
         } else {
             expr
         };
@@ -339,61 +349,6 @@ impl Expr {
         }
 
         Ok(Self::Path(path))
-    }
-
-    /// Parsing something that opens with an empty group marker.
-    pub fn parse_open_empty(
-        p: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
-        let open = p.parse::<ast::OpenEmpty>()?;
-        let expr = p.parse::<Self>()?;
-        let close = p.parse::<ast::CloseEmpty>()?;
-
-        Ok(Self::Empty(ast::ExprEmpty {
-            attributes,
-            open,
-            expr: Box::new(expr),
-            close,
-        }))
-    }
-
-    /// Parsing something that opens with a parenthesis.
-    pub fn parse_open_paren(
-        p: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
-        // Special case: empty tuple.
-        if let (K!['('], K![')']) = (p.nth(0)?, p.nth(1)?) {
-            return Ok(Self::Tuple(ast::ExprTuple::parse_with_meta(p, attributes)?));
-        }
-
-        let open = p.parse::<T!['(']>()?;
-        let expr = p.parse::<Self>()?;
-
-        if p.peek::<T![')']>()? {
-            return Ok(Self::Group(ast::ExprGroup {
-                attributes,
-                open,
-                expr: Box::new(expr),
-                close: p.parse()?,
-            }));
-        }
-
-        Ok(Self::Tuple(ast::ExprTuple::parse_from_first_expr(
-            p, attributes, open, expr,
-        )?))
-    }
-
-    pub(crate) fn parse_with_meta(
-        p: &mut Parser<'_>,
-        attributes: &mut Vec<ast::Attribute>,
-        callable: Callable,
-    ) -> Result<Self, ParseError> {
-        let lhs = parse_base(p, attributes, EagerBrace(true))?;
-        let lhs = parse_chain(p, lhs, callable)?;
-        let lookahead = ast::BinOp::from_peeker(p.peeker());
-        parse_binary(p, lhs, lookahead, 0, EagerBrace(true))
     }
 }
 
@@ -441,7 +396,7 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_with(p, EagerBrace(true), EAGER_BINARY, CALLABLE)
+        Self::parse_with(p, EAGER_BRACE, EAGER_BINARY, CALLABLE)
     }
 }
 
@@ -483,8 +438,19 @@ impl Peek for Expr {
     }
 }
 
+/// Primary parse entry point.
+fn primary(
+    p: &mut Parser<'_>,
+    attributes: &mut Vec<ast::Attribute>,
+    eager_brace: EagerBrace,
+    callable: Callable,
+) -> Result<Expr, ParseError> {
+    let expr = base(p, attributes, eager_brace)?;
+    chain(p, expr, callable)
+}
+
 /// Parse a basic expression.
-fn parse_base(
+fn base(
     p: &mut Parser<'_>,
     attributes: &mut Vec<ast::Attribute>,
     eager_brace: EagerBrace,
@@ -508,11 +474,11 @@ fn parse_base(
     let expr = match p.nth(0)? {
         K![..] => {
             let limits = ast::ExprRangeLimits::HalfOpen(p.parse()?);
-            parse_range(p, take(attributes), None, limits, eager_brace)?
+            range(p, take(attributes), None, limits, eager_brace)?
         }
         K![..=] => {
             let limits = ast::ExprRangeLimits::Closed(p.parse()?);
-            parse_range(p, take(attributes), None, limits, eager_brace)?
+            range(p, take(attributes), None, limits, eager_brace)?
         }
         K![#] => {
             let ident = ast::ObjectIdent::Anonymous(p.parse()?);
@@ -554,8 +520,8 @@ fn parse_base(
         K![if] => Expr::If(ast::ExprIf::parse_with_meta(p, take(attributes))?),
         K![match] => Expr::Match(ast::ExprMatch::parse_with_attributes(p, take(attributes))?),
         K!['['] => Expr::Vec(ast::ExprVec::parse_with_meta(p, take(attributes))?),
-        ast::Kind::Open(ast::Delimiter::Empty) => Expr::parse_open_empty(p, take(attributes))?,
-        K!['('] => Expr::parse_open_paren(p, take(attributes))?,
+        ast::Kind::Open(ast::Delimiter::Empty) => empty_group(p, take(attributes))?,
+        K!['('] => paren_group(p, take(attributes))?,
         K!['{'] => Expr::Block(ast::ExprBlock::parse_with_meta(
             p,
             take(attributes),
@@ -592,7 +558,7 @@ fn parse_base(
 }
 
 /// Parse an expression chain.
-fn parse_chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr, ParseError> {
+fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr, ParseError> {
     while !p.is_eof()? {
         let is_callable = expr.is_callable(*callable);
 
@@ -626,7 +592,7 @@ fn parse_chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result
             }
             K![=] => {
                 let eq = p.parse()?;
-                let rhs = Expr::parse_with(p, EagerBrace(true), EAGER_BINARY, CALLABLE)?;
+                let rhs = Expr::parse_with(p, EAGER_BRACE, EAGER_BINARY, CALLABLE)?;
 
                 expr = Expr::Assign(ast::ExprAssign {
                     attributes: expr.take_attributes(),
@@ -680,7 +646,7 @@ fn parse_chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result
 }
 
 /// Parse a binary expression.
-fn parse_binary(
+fn binary(
     p: &mut Parser<'_>,
     mut lhs: Expr,
     mut lookahead: Option<ast::BinOp>,
@@ -698,7 +664,7 @@ fn parse_binary(
 
         match op {
             ast::BinOp::DotDot(token) => {
-                lhs = parse_range(
+                lhs = range(
                     p,
                     lhs.take_attributes(),
                     Some(Box::new(lhs)),
@@ -709,7 +675,7 @@ fn parse_binary(
                 continue;
             }
             ast::BinOp::DotDotEq(token) => {
-                lhs = parse_range(
+                lhs = range(
                     p,
                     lhs.take_attributes(),
                     Some(Box::new(lhs)),
@@ -722,15 +688,14 @@ fn parse_binary(
             _ => (),
         }
 
-        let rhs = parse_base(p, &mut vec![], eager_brace)?;
-        let mut rhs = parse_chain(p, rhs, CALLABLE)?;
+        let mut rhs = primary(p, &mut vec![], eager_brace, CALLABLE)?;
         lookahead = ast::BinOp::from_peeker(p.peeker());
 
         while let Some(next) = lookahead {
             match (precedence, next.precedence()) {
                 (lh, rh) if lh < rh => {
                     // Higher precedence elements require us to recurse.
-                    rhs = parse_binary(p, rhs, Some(next), lh + 1, eager_brace)?;
+                    rhs = binary(p, rhs, Some(next), lh + 1, eager_brace)?;
                     lookahead = ast::BinOp::from_peeker(p.peeker());
                     continue;
                 }
@@ -760,7 +725,7 @@ fn parse_binary(
 }
 
 /// Parse the tail-end of a range.
-fn parse_range(
+fn range(
     p: &mut Parser<'_>,
     attributes: Vec<ast::Attribute>,
     from: Option<Box<Expr>>,
@@ -784,6 +749,47 @@ fn parse_range(
         limits,
         to,
     }))
+}
+
+/// Parsing something that opens with an empty group marker.
+fn empty_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Expr, ParseError> {
+    let open = p.parse::<ast::OpenEmpty>()?;
+    let expr = p.parse::<Expr>()?;
+    let close = p.parse::<ast::CloseEmpty>()?;
+
+    Ok(Expr::Empty(ast::ExprEmpty {
+        attributes,
+        open,
+        expr: Box::new(expr),
+        close,
+    }))
+}
+
+/// Parsing something that opens with a parenthesis.
+fn paren_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Expr, ParseError> {
+    // Empty tuple.
+    if let (K!['('], K![')']) = (p.nth(0)?, p.nth(1)?) {
+        return Ok(Expr::Tuple(ast::ExprTuple::parse_with_meta(p, attributes)?));
+    }
+
+    let open = p.parse::<T!['(']>()?;
+    let expr = p.parse::<Expr>()?;
+
+    // Priority expression group.
+    if p.peek::<T![')']>()? {
+        return Ok(Expr::Group(ast::ExprGroup {
+            attributes,
+            open,
+            expr: Box::new(expr),
+            close: p.parse()?,
+        }));
+    }
+
+    // Tuple expression. These are distinguished from a group with a single item
+    // by adding a `,` at the end like `(foo,)`.
+    Ok(Expr::Tuple(ast::ExprTuple::parse_from_first_expr(
+        p, attributes, open, expr,
+    )?))
 }
 
 #[cfg(test)]

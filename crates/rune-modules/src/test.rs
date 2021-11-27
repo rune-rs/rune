@@ -53,7 +53,7 @@ pub(crate) fn assert_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> 
         })
     } else {
         let message = format!("assertion failed: {}", ctx.stringify(&expr));
-        let message = ast::Lit::new(ctx, &message);
+        let message = ctx.lit(&message);
 
         quote!(if !(#expr) {
             panic(#message);
@@ -91,8 +91,7 @@ pub(crate) fn assert_eq_macro(ctx: &mut MacroContext<'_>, stream: &TokenStream) 
             }
         }}
     } else {
-        let message = "assertion failed (left == right):".to_string();
-        let message = ast::Lit::new(ctx, &message);
+        let message = ctx.lit("assertion failed (left == right):");
 
         quote! {{
             let left = #left;

@@ -60,7 +60,7 @@ impl Storage {
     ///
     /// The number will be stored in this storage, and will be synthetic
     /// (rather than from the source).
-    pub fn insert_number<N>(&mut self, number: N) -> SyntheticId
+    pub(crate) fn insert_number<N>(&mut self, number: N) -> SyntheticId
     where
         ast::Number: From<N>,
     {
@@ -73,7 +73,7 @@ impl Storage {
     ///
     /// This will reuse old storage slots that already contains the given
     /// string.
-    pub fn insert_str(&mut self, string: &str) -> SyntheticId {
+    pub(crate) fn insert_str(&mut self, string: &str) -> SyntheticId {
         if let Some(id) = self.strings_rev.get(string).copied() {
             return id;
         }
@@ -89,7 +89,7 @@ impl Storage {
     ///
     /// This will reuse old storage slots that already contains the given
     /// string.
-    pub fn insert_string(&mut self, string: String) -> SyntheticId {
+    pub(crate) fn insert_string(&mut self, string: String) -> SyntheticId {
         if let Some(id) = self.strings_rev.get(&string).copied() {
             return id;
         }
@@ -104,7 +104,7 @@ impl Storage {
     ///
     /// This will reuse old storage slots that already contains the given
     /// byte string.
-    pub fn insert_byte_string(&mut self, bytes: &[u8]) -> SyntheticId {
+    pub(crate) fn insert_byte_string(&mut self, bytes: &[u8]) -> SyntheticId {
         if let Some(id) = self.byte_strings_rev.get(bytes).copied() {
             return id;
         }
@@ -116,17 +116,17 @@ impl Storage {
     }
 
     /// Get the content of the string with the specified id.
-    pub fn get_string(&self, id: SyntheticId) -> Option<&String> {
-        self.strings.get(id.0)
+    pub(crate) fn get_string(&self, id: SyntheticId) -> Option<&str> {
+        self.strings.get(id.0).map(|s| s.as_ref())
     }
 
     /// Get the content of the byte string with the specified id.
-    pub fn get_byte_string(&self, id: SyntheticId) -> Option<&Vec<u8>> {
-        self.byte_strings.get(id.0)
+    pub(crate) fn get_byte_string(&self, id: SyntheticId) -> Option<&[u8]> {
+        self.byte_strings.get(id.0).map(|b| b.as_ref())
     }
 
     /// Get the content of the number with the specified id.
-    pub fn get_number(&self, id: SyntheticId) -> Option<&ast::Number> {
+    pub(crate) fn get_number(&self, id: SyntheticId) -> Option<&ast::Number> {
         self.numbers.get(id.0)
     }
 }

@@ -50,7 +50,7 @@ impl<'a> Resolve<'a> for LitByte {
         let span = self.span;
 
         let string = sources
-            .source(source_id, span.trim_start(2).trim_end(1))
+            .source(source_id, span.trim_start(2u32).trim_end(1u32))
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();

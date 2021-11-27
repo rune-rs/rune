@@ -9,16 +9,15 @@ use crate::query::QueryErrorKind;
 use crate::runtime::{Unit, VmError, VmErrorKind};
 use crate::{Source, Diagnostics, SourceId, Sources};
 use crate::ast::{Span, Spanned};
+use std::convert::TryInto;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
 use std::io;
 use thiserror::Error;
-
 use codespan_reporting::diagnostic as d;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
-
 pub use codespan_reporting::term::termcolor;
 
 struct StackFrame {
@@ -349,12 +348,14 @@ pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
         source.get(start..)?
     };
 
+    let start = start.try_into().unwrap();
+
     Some((
         line,
         s,
         Span::new(
-            span.start.into_usize() - start,
-            span.end.into_usize() - start,
+            span.start.saturating_sub(start),
+            span.end.saturating_sub(start),
         ),
     ))
 }

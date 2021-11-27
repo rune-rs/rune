@@ -6,7 +6,7 @@ use crate::compile::{
     IrBudget, IrCompile, IrCompiler, IrError, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
     IrValue, ItemMeta, NoopCompileVisitor, UnitBuilder,
 };
-use crate::macros::{Storage, ToTokens, TokenStream};
+use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
 use crate::query::{Query, Used};
 use crate::shared::{Consts, Gen};
@@ -121,6 +121,26 @@ impl<'a> MacroContext<'a> {
         }
     }
 
+    /// Construct a new literal from within a macro context.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::ast;
+    /// use rune::macros::MacroContext;
+    ///
+    /// MacroContext::test(|ctx| {
+    ///     let lit = ctx.lit("hello world");
+    ///     assert!(matches!(lit, ast::Lit::Str(..)))
+    /// });
+    /// ```
+    pub fn lit<T>(&mut self, lit: T) -> ast::Lit
+    where
+        T: IntoLit,
+    {
+        T::into_lit(lit, self)
+    }
+
     /// Stringify the token stream.
     pub fn stringify<T>(&mut self, tokens: &T) -> Stringify<'_, 'a>
     where
@@ -137,6 +157,15 @@ impl<'a> MacroContext<'a> {
         T: Resolve<'r>,
     {
         item.resolve(self.q.storage, self.q.sources)
+    }
+
+    /// Access a literal source as a string.
+    pub(crate) fn literal_source(&self, source: ast::LitSource, span: Span) -> Option<&str> {
+        match source {
+            ast::LitSource::Text(source_id) => self.q.sources.source(source_id, span),
+            ast::LitSource::Synthetic(id) => self.q.storage.get_string(id),
+            ast::LitSource::BuiltIn(builtin) => Some(builtin.as_str()),
+        }
     }
 
     /// Insert the given source so that it has a [SourceId] that can be used in
@@ -186,82 +215,6 @@ impl<'a> MacroContext<'a> {
     pub(crate) fn q_mut(&mut self) -> &mut Query<'a> {
         &mut self.q
     }
-}
-
-/// Helper trait used for things that can be converted into tokens.
-pub trait IntoLit {
-    /// Convert the current thing into a token.
-    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit;
-}
-
-impl<T> IntoLit for T
-where
-    ast::Number: From<T>,
-{
-    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
-        let id = storage.insert_number(self);
-        let source = ast::NumberSource::Synthetic(id);
-        ast::Lit::Number(ast::LitNumber { span, source })
-    }
-}
-
-impl IntoLit for char {
-    fn into_lit(self, span: Span, _: &mut Storage) -> ast::Lit {
-        let source = ast::CopySource::Inline(self);
-        ast::Lit::Char(ast::LitChar { span, source })
-    }
-}
-
-impl IntoLit for u8 {
-    fn into_lit(self, span: Span, _: &mut Storage) -> ast::Lit {
-        let source = ast::CopySource::Inline(self);
-        ast::Lit::Byte(ast::LitByte { span, source })
-    }
-}
-
-impl IntoLit for &str {
-    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
-        let id = storage.insert_str(self);
-        let source = ast::StrSource::Synthetic(id);
-        ast::Lit::Str(ast::LitStr { span, source })
-    }
-}
-
-impl IntoLit for &String {
-    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
-        <&str>::into_lit(self, span, storage)
-    }
-}
-
-impl IntoLit for String {
-    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
-        let id = storage.insert_string(self);
-        let source = ast::StrSource::Synthetic(id);
-        ast::Lit::Str(ast::LitStr { span, source })
-    }
-}
-
-impl IntoLit for &[u8] {
-    fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
-        let id = storage.insert_byte_string(self);
-        let source = ast::StrSource::Synthetic(id);
-
-        ast::Lit::ByteStr(ast::LitByteStr { span, source })
-    }
-}
-
-macro_rules! impl_into_lit_byte_array {
-    ($($n:literal),*) => {
-        $(impl IntoLit for &[u8; $n] {
-            fn into_lit(self, span: Span, storage: &mut Storage) -> ast::Lit {
-                <&[u8]>::into_lit(self, span, storage)
-            }
-        })*
-    };
-}
-
-impl_into_lit_byte_array! {
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
 }
 
 pub struct Stringify<'ctx, 'a> {

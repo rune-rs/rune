@@ -49,7 +49,7 @@ impl MacroCall {
         if let Some(span) = self.stream.option_span() {
             span
         } else {
-            self.open.span.end()
+            self.open.span.tail()
         }
     }
 

@@ -229,7 +229,7 @@ fn expand_format_spec<'a>(
     for c in components {
         match c {
             C::Literal(literal) => {
-                let lit = ast::Lit::new(ctx, &*literal);
+                let lit = ctx.lit(&*literal);
                 args.push(quote!(#lit));
             }
             C::Format {
@@ -249,12 +249,12 @@ fn expand_format_spec<'a>(
                 }));
 
                 specs.extend(width.map(|width| {
-                    let width = ast::Lit::new(ctx, width);
+                    let width = ctx.lit(width);
                     quote!(width = #width)
                 }));
 
                 specs.extend(precision.map(|precision| {
-                    let precision = ast::Lit::new(ctx, precision);
+                    let precision = ctx.lit(precision);
                     quote!(precision = #precision)
                 }));
 
@@ -264,7 +264,7 @@ fn expand_format_spec<'a>(
                 }));
 
                 if !flags.is_empty() {
-                    let flags = ast::Lit::new(ctx, flags.into_u32());
+                    let flags = ctx.lit(flags.into_u32());
                     specs.push(quote!(flags = #flags));
                 }
 

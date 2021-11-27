@@ -1,5 +1,4 @@
 use crate::ast::prelude::*;
-use crate::macros::IntoLit;
 
 /// A literal value
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -20,48 +19,6 @@ pub enum Lit {
 }
 
 impl Lit {
-    /// Construct a new literal from within a macro context.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::ast;
-    /// use rune::macros::MacroContext;
-    ///
-    /// MacroContext::test(|ctx| {
-    ///     let lit = ast::Lit::new(ctx, "hello world");
-    ///     assert!(matches!(lit, ast::Lit::Str(..)))
-    /// });
-    /// ```
-    pub fn new<T>(ctx: &mut MacroContext<'_>, lit: T) -> Self
-    where
-        T: IntoLit,
-    {
-        Self::new_with(lit, ctx.macro_span(), &mut ctx.q_mut().storage)
-    }
-
-    /// Construct a new literal with the specified span and storage.
-    ///
-    /// This does not panic outside of a macro context, but requires access to
-    /// the specified arguments.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use rune::ast;
-    /// use rune::ast::Span;
-    /// use rune::macros::Storage;
-    ///
-    /// let mut storage = Storage::default();
-    /// let string = ast::Lit::new_with("hello world", Span::empty(), &mut storage);
-    /// ```
-    pub fn new_with<T>(lit: T, span: Span, storage: &mut Storage) -> Self
-    where
-        T: IntoLit,
-    {
-        T::into_lit(lit, span, storage)
-    }
-
     /// Test if this is an immediate literal in an expression.
     ///
     /// Here we only test for unambiguous literals which will not be caused by

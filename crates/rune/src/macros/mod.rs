@@ -70,6 +70,7 @@
 //! ```
 
 mod format_args;
+mod into_lit;
 mod macro_compiler;
 mod macro_context;
 mod quote_fn;
@@ -77,8 +78,9 @@ mod storage;
 mod token_stream;
 
 pub use self::format_args::FormatArgs;
+pub use self::into_lit::IntoLit;
 pub(crate) use self::macro_compiler::MacroCompiler;
-pub use self::macro_context::{IntoLit, MacroContext};
+pub use self::macro_context::MacroContext;
 pub use self::quote_fn::{quote_fn, Quote};
 pub use self::storage::{Storage, SyntheticId, SyntheticKind};
 pub use self::token_stream::{ToTokens, TokenStream, TokenStreamIter};

@@ -30,7 +30,7 @@ impl<'a> Parser<'a> {
             Source {
                 inner: SourceInner::Lexer(Lexer::new(source, source_id)),
             },
-            Span::new(0, source.len()),
+            Span::new(0u32, source.len()),
         )
     }
 
@@ -150,7 +150,7 @@ impl<'a> Parser<'a> {
         match self.peeker.source.next()? {
             Some(t) => Ok(t),
             None => Err(ParseError::new(
-                self.last_span().end(),
+                self.last_span().tail(),
                 ParseErrorKind::UnexpectedEof,
             )),
         }
@@ -188,7 +188,7 @@ impl<'a> Parser<'a> {
         if let Ok(Some(t)) = self.peeker.at(n) {
             t.span
         } else {
-            self.last_span().end()
+            self.last_span().tail()
         }
     }
 
@@ -199,7 +199,7 @@ impl<'a> Parser<'a> {
         } else {
             Token {
                 kind: Kind::Eof,
-                span: self.last_span().end(),
+                span: self.last_span().tail(),
             }
         })
     }
@@ -262,7 +262,7 @@ impl<'a> Peeker<'a> {
 
         Token {
             kind,
-            span: self.last_span().end(),
+            span: self.last_span().tail(),
         }
     }
 
