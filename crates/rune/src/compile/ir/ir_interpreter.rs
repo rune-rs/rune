@@ -169,7 +169,7 @@ impl IrInterpreter<'_> {
             base.pop();
         };
 
-        let const_fn = self.q.const_fn_for((spanned.span(), Some(id)))?;
+        let const_fn = self.q.const_fn_for((spanned.span(), id))?;
 
         if const_fn.ir_fn.args.len() != args.len() {
             return Err(IrError::new(

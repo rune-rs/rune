@@ -39,13 +39,13 @@ use crate::ast::prelude::*;
 /// assert!(item.async_token.is_none());
 /// assert!(item.const_token.is_some());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemFn {
     /// Opaque identifier for fn item.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// The attributes for the fn
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,

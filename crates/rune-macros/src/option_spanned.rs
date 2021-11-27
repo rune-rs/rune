@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
-/// Derive implementation of `rune::OptionSpanned`.
+/// Derive implementation of `OptionSpanned`.
 pub struct Derive {
     input: syn::DeriveInput,
 }

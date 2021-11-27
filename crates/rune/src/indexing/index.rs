@@ -126,7 +126,7 @@ impl<'a> Indexer<'a> {
         }
 
         let id = self.q.insert_new_builtin_macro(internal_macro)?;
-        ast.id = Some(id);
+        ast.id = id.into();
         Ok(true)
     }
 
@@ -352,7 +352,7 @@ impl<'a> Indexer<'a> {
         let id = self
             .q
             .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
-        ast.path.id = Some(id);
+        ast.path.id = id.into();
 
         let item = self.q.get_item(ast.span(), self.items.id())?;
 
@@ -527,7 +527,7 @@ impl<'a> Indexer<'a> {
             visibility,
         )?;
 
-        item_mod.id = Some(self.items.id());
+        item_mod.id = self.items.id().into();
 
         let source = self.source_loader.load(root, &mod_item.item, span)?;
 
@@ -634,7 +634,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     idx.nested_item = last;
 
     let f = guard.into_function(span)?;
-    ast.id = Some(item.id);
+    ast.id = item.id.into();
 
     let call = match Indexer::call(f.generator, f.kind) {
         Some(call) => call,
@@ -812,7 +812,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         Visibility::default(),
     )?;
 
-    ast.block.id = Some(item.id);
+    ast.block.id = item.id.into();
 
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
@@ -1249,7 +1249,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             &idx.mod_item,
             Visibility::Public,
         )?;
-        variant.id = Some(item.id);
+        variant.id = item.id.into();
 
         idx.q.index_variant(&item, enum_item.id, variant.clone())?;
     }
@@ -1289,7 +1289,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     let item = idx
         .q
         .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
-    ast.id = Some(item.id);
+    ast.id = item.id.into();
 
     idx.q.index_struct(&item, Box::new(ast.clone()))?;
     Ok(())
@@ -1360,7 +1360,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
                 visibility,
             )?;
 
-            ast.id = Some(idx.items.id());
+            ast.id = idx.items.id().into();
 
             let replaced = std::mem::replace(&mut idx.mod_item, mod_item);
             file(&mut body.file, idx)?;
@@ -1392,7 +1392,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
         ast_to_visibility(&ast.visibility)?,
     )?;
 
-    ast.id = Some(item.id);
+    ast.id = item.id.into();
 
     let last = idx.nested_item.replace(ast.descriptive_span());
     expr(&mut ast.expr, idx)?;
@@ -1455,7 +1455,7 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let id = idx
         .q
         .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
-    ast.id = Some(id);
+    ast.id = id.into();
 
     match ast.as_kind() {
         Some(ast::PathKind::SelfValue) => {
@@ -1517,7 +1517,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
         Visibility::Inherited,
     )?;
 
-    ast.id = Some(idx.items.id());
+    ast.id = idx.items.id().into();
 
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
@@ -1654,7 +1654,7 @@ fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResul
 
 #[instrument]
 fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    ast.id = Some(idx.items.id());
+    ast.id = idx.items.id().into();
 
     for (e, _) in &mut ast.args {
         expr(e, idx)?;

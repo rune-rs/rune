@@ -43,7 +43,7 @@ pub enum QueryErrorKind {
         error: ResolveErrorKind,
     },
     #[error("missing {what} for id {id:?}")]
-    MissingId { what: &'static str, id: Option<Id> },
+    MissingId { what: &'static str, id: Id },
     #[error("cannot define conflicting item `{item}`")]
     ItemConflict { item: Item, other: Location },
     #[error("`{item}` can refer to multiple things")]

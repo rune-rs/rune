@@ -16,13 +16,13 @@ use crate::ast::prelude::*;
 /// assert_eq!(item.attributes.len(), 0);
 /// assert!(matches!(item.body, ast::ItemModBody::InlineBody(..)));
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemMod {
     /// The id of the module item.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,

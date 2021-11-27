@@ -15,24 +15,18 @@ use crate::ast::prelude::*;
 /// assert_eq!(expr.block.statements.len(), 1);
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct Block {
     /// The unique identifier for the block expression.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// The close brace.
     pub open: T!['{'],
     /// Statements in the block.
     pub statements: Vec<ast::Stmt>,
     /// The close brace.
     pub close: T!['}'],
-}
-
-impl Opaque for Block {
-    fn id(&self) -> Option<Id> {
-        self.id
-    }
 }
 
 impl Block {

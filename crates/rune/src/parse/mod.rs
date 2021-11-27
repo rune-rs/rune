@@ -13,7 +13,7 @@ mod resolve;
 
 pub use self::expectation::Expectation;
 pub(crate) use self::expectation::IntoExpectation;
-pub(crate) use self::id::Id;
+pub use self::id::{Id, NonZeroId};
 pub use self::lexer::{Lexer, LexerMode};
 pub(crate) use self::opaque::Opaque;
 pub use self::parse::Parse;

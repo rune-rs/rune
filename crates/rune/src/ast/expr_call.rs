@@ -9,12 +9,12 @@ use crate::ast::prelude::*;
 ///
 /// testing::roundtrip::<ast::ExprCall>("test()");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct ExprCall {
     /// Opaque identifier related with call.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// Attributes associated with expression.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -36,9 +36,3 @@ impl ExprCall {
 }
 
 expr_parse!(Call, ExprCall, "call expression");
-
-impl Opaque for ExprCall {
-    fn id(&self) -> Option<Id> {
-        self.id
-    }
-}

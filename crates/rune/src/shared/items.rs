@@ -1,5 +1,5 @@
 use crate::compile::{ComponentRef, Item};
-use crate::parse::Id;
+use crate::parse::NonZeroId;
 use crate::shared::Gen;
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
@@ -8,7 +8,7 @@ use std::rc::Rc;
 struct Inner<'a> {
     id: usize,
     item: Item,
-    ids: Vec<Id>,
+    ids: Vec<NonZeroId>,
     gen: &'a Gen,
 }
 
@@ -32,7 +32,7 @@ impl<'a> Items<'a> {
     }
 
     /// Access the last added id.
-    pub(crate) fn id(&self) -> Id {
+    pub(crate) fn id(&self) -> NonZeroId {
         *self.inner.borrow().ids.last().expect("last id not present")
     }
 
