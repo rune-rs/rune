@@ -43,7 +43,7 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let id = idx
         .q
         .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
-    ast.id = id.into();
+    ast.id.set(id);
 
     if let Some(i) = ast.try_as_ident_mut() {
         ident(i, idx)?;

@@ -126,7 +126,7 @@ impl<'a> Indexer<'a> {
         }
 
         let id = self.q.insert_new_builtin_macro(internal_macro)?;
-        ast.id = id.into();
+        ast.id.set(id);
         Ok(true)
     }
 
@@ -352,7 +352,7 @@ impl<'a> Indexer<'a> {
         let id = self
             .q
             .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
-        ast.path.id = id.into();
+        ast.path.id.set(id);
 
         let item = self.q.get_item(ast.span(), self.items.id())?;
 
@@ -527,7 +527,7 @@ impl<'a> Indexer<'a> {
             visibility,
         )?;
 
-        item_mod.id = self.items.id().into();
+        item_mod.id.set(self.items.id());
 
         let source = self.source_loader.load(root, &mod_item.item, span)?;
 
@@ -1117,7 +1117,7 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
             // the id is set, we just assert that the builtin macro has been
             // added to the query engine.
 
-            if macro_call.id.is_none() {
+            if !macro_call.id.is_set() {
                 if !idx.try_expand_internal_macro(&mut attributes, macro_call)? {
                     let out = idx.expand_macro::<ast::Expr>(macro_call)?;
                     *ast = out;
@@ -1360,7 +1360,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
                 visibility,
             )?;
 
-            ast.id = idx.items.id().into();
+            ast.id.set(idx.items.id());
 
             let replaced = std::mem::replace(&mut idx.mod_item, mod_item);
             file(&mut body.file, idx)?;
@@ -1455,7 +1455,7 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let id = idx
         .q
         .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
-    ast.id = id.into();
+    ast.id.set(id);
 
     match ast.as_kind() {
         Some(ast::PathKind::SelfValue) => {
@@ -1517,7 +1517,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
         Visibility::Inherited,
     )?;
 
-    ast.id = idx.items.id().into();
+    ast.id.set(idx.items.id());
 
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
@@ -1654,7 +1654,7 @@ fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResul
 
 #[instrument]
 fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    ast.id = idx.items.id().into();
+    ast.id.set(idx.items.id());
 
     for (e, _) in &mut ast.args {
         expr(e, idx)?;
