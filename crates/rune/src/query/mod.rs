@@ -236,8 +236,8 @@ impl<'a> Query<'a> {
 
     /// Remove a reference to the given path by id.
     pub(crate) fn remove_path_by_id(&mut self, id: Id) {
-        if let Some(id) = *id {
-            self.inner.query_paths.remove(&id);
+        if let Some(id) = id.as_ref() {
+            self.inner.query_paths.remove(id);
         }
     }
 
@@ -292,7 +292,7 @@ impl<'a> Query<'a> {
 
         Err(QueryError::new(
             span,
-            QueryErrorKind::MissingRevId { id: id.into() },
+            QueryErrorKind::MissingRevId { id: Id::new(id) },
         ))
     }
 
@@ -333,7 +333,8 @@ impl<'a> Query<'a> {
     {
         let item = ast
             .id()
-            .and_then(|n| self.inner.items.get(&n))
+            .as_ref()
+            .and_then(|n| self.inner.items.get(n))
             .ok_or_else(|| {
                 QueryError::new(
                     ast.span(),
@@ -353,7 +354,8 @@ impl<'a> Query<'a> {
     {
         let internal_macro = ast
             .id()
-            .and_then(|n| self.inner.internal_macros.get(&n))
+            .as_ref()
+            .and_then(|n| self.inner.internal_macros.get(n))
             .ok_or_else(|| {
                 QueryError::new(
                     ast.span(),
@@ -389,7 +391,8 @@ impl<'a> Query<'a> {
     {
         let const_fn = ast
             .id()
-            .and_then(|n| self.inner.const_fns.get(&n))
+            .as_ref()
+            .and_then(|n| self.inner.const_fns.get(n))
             .ok_or_else(|| {
                 QueryError::new(
                     ast.span(),
@@ -617,6 +620,7 @@ impl<'a> Query<'a> {
         let id = path.id();
 
         let qp = id
+            .as_ref()
             .and_then(|id| self.inner.query_paths.get(&id))
             .ok_or_else(|| QueryError::new(path, QueryErrorKind::MissingId { what: "path", id }))?
             .clone();
@@ -1032,7 +1036,7 @@ impl<'a> Query<'a> {
                 }
 
                 MetaKind::ConstFn {
-                    id: id.into(),
+                    id: Id::new(id),
                     is_test: false,
                 }
             }
@@ -1089,7 +1093,7 @@ impl<'a> Query<'a> {
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let query_item = Arc::new(ItemMeta {
             location: Location::new(source_id, spanned),
-            id: id.into(),
+            id: Id::new(id),
             item: item.clone(),
             module: module.clone(),
             visibility,

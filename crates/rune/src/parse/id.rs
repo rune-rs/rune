@@ -1,6 +1,5 @@
 use std::fmt;
 use std::num::NonZeroU32;
-use std::ops;
 
 /// A non-zero [Id] which definitely contains a value. We keep this distinct
 /// from `Id` to allow for safely using this as a key in a hashmap, preventing
@@ -24,17 +23,26 @@ impl From<NonZeroU32> for NonZeroId {
 #[repr(transparent)]
 pub struct Id(Option<NonZeroId>);
 
-impl ops::Deref for Id {
-    type Target = Option<NonZeroId>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<NonZeroId> for Id {
-    fn from(value: NonZeroId) -> Self {
+impl Id {
+    /// Construct a new identifier with a value.
+    pub(crate) const fn new(value: NonZeroId) -> Self {
         Self(Some(value))
+    }
+
+    /// Test if the identifier is set.
+    pub(crate) fn is_set(&self) -> bool {
+        self.0.is_some()
+    }
+
+    /// Set the value of an identifier.
+    pub(crate) fn set(&mut self, value: NonZeroId) {
+        debug_assert!(self.0.is_none(), "id should not be set multiple times");
+        self.0 = Some(value);
+    }
+
+    /// Get the underlying identifier.
+    pub(crate) fn as_ref(&self) -> Option<&NonZeroId> {
+        self.0.as_ref()
     }
 }
 
