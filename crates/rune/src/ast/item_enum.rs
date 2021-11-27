@@ -33,12 +33,12 @@ pub struct ItemEnum {
 item_parse!(Enum, ItemEnum, "enum item");
 
 /// An enum variant.
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct ItemVariant {
     /// Opaque identifier of variant.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// The attributes associated with the variant.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,

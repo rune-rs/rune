@@ -19,13 +19,13 @@ use crate::ast::prelude::*;
 /// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)] async || 43");
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ExprClosure {
     /// Opaque identifier for the closure.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// The attributes for the async closure
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
@@ -49,12 +49,6 @@ impl ExprClosure {
         } else {
             self.args.span()
         }
-    }
-}
-
-impl Opaque for ExprClosure {
-    fn id(&self) -> Option<Id> {
-        self.id
     }
 }
 

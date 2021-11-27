@@ -13,13 +13,13 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }");
 /// testing::roundtrip::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c )");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemStruct {
     /// Opaque identifier of the struct.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// The attributes for the struct
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,

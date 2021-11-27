@@ -11,7 +11,7 @@ use crate::compile::{
     Location, Meta, MetaKind, ModMeta, SourceMeta, StructMeta, TupleMeta, UnitBuilder, Visibility,
 };
 use crate::macros::Storage;
-use crate::parse::{Id, Opaque, Resolve};
+use crate::parse::{Id, NonZeroId, Opaque, Resolve};
 use crate::runtime::format;
 use crate::runtime::{Call, Names};
 use crate::shared::{Consts, Gen, Items};
@@ -112,17 +112,17 @@ pub(crate) struct QueryInner {
     /// be compiled.
     indexed: HashMap<Item, Vec<IndexedEntry>>,
     /// Compiled constant functions.
-    const_fns: HashMap<Id, Arc<QueryConstFn>>,
+    const_fns: HashMap<NonZeroId, Arc<QueryConstFn>>,
     /// Query paths.
-    query_paths: HashMap<Id, Arc<QueryPath>>,
+    query_paths: HashMap<NonZeroId, Arc<QueryPath>>,
     /// The result of internally resolved macros.
-    internal_macros: HashMap<Id, Arc<BuiltInMacro>>,
+    internal_macros: HashMap<NonZeroId, Arc<BuiltInMacro>>,
     /// Associated between `id` and `Item`. Use to look up items through
     /// `item_for` with an opaque id.
     ///
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
-    items: HashMap<Id, Arc<ItemMeta>>,
+    items: HashMap<NonZeroId, Arc<ItemMeta>>,
     /// All available names in the context.
     names: Names,
     /// Modules and associated metadata.
@@ -222,7 +222,7 @@ impl<'a> Query<'a> {
         module: &Arc<ModMeta>,
         impl_item: Option<&Arc<Item>>,
         item: &Item,
-    ) -> Id {
+    ) -> NonZeroId {
         let query_path = Arc::new(QueryPath {
             module: module.clone(),
             impl_item: impl_item.cloned(),
@@ -235,8 +235,8 @@ impl<'a> Query<'a> {
     }
 
     /// Remove a reference to the given path by id.
-    pub(crate) fn remove_path_by_id(&mut self, id: Option<Id>) {
-        if let Some(id) = id {
+    pub(crate) fn remove_path_by_id(&mut self, id: Id) {
+        if let Some(id) = *id {
             self.inner.query_paths.remove(&id);
         }
     }
@@ -285,12 +285,15 @@ impl<'a> Query<'a> {
     }
 
     /// Get the compile item for the given item.
-    pub(crate) fn get_item(&self, span: Span, id: Id) -> Result<Arc<ItemMeta>, QueryError> {
+    pub(crate) fn get_item(&self, span: Span, id: NonZeroId) -> Result<Arc<ItemMeta>, QueryError> {
         if let Some(item) = self.inner.items.get(&id) {
             return Ok(item.clone());
         }
 
-        Err(QueryError::new(span, QueryErrorKind::MissingRevId { id }))
+        Err(QueryError::new(
+            span,
+            QueryErrorKind::MissingRevId { id: id.into() },
+        ))
     }
 
     /// Inserts an item that *has* to be unique, else cause an error.
@@ -315,7 +318,7 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_new_builtin_macro(
         &mut self,
         internal_macro: BuiltInMacro,
-    ) -> Result<Id, QueryError> {
+    ) -> Result<NonZeroId, QueryError> {
         let id = self.gen.next();
         self.inner
             .internal_macros
@@ -365,7 +368,7 @@ impl<'a> Query<'a> {
     }
 
     /// Insert an item and return its Id.
-    fn insert_const_fn(&mut self, item: &Arc<ItemMeta>, ir_fn: ir::IrFn) -> Id {
+    fn insert_const_fn(&mut self, item: &Arc<ItemMeta>, ir_fn: ir::IrFn) -> NonZeroId {
         let id = self.gen.next();
 
         self.inner.const_fns.insert(
@@ -922,7 +925,7 @@ impl<'a> Query<'a> {
                 type_hash: Hash::type_hash(&query_item.item),
             },
             Indexed::Variant(variant) => {
-                let enum_item = self.item_for((query_item.location.span, Some(variant.enum_id)))?;
+                let enum_item = self.item_for((query_item.location.span, variant.enum_id))?;
 
                 // Assert that everything is built for the enum.
                 self.query_meta(span, &enum_item.item, Default::default())?;
@@ -1028,7 +1031,10 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                MetaKind::ConstFn { id, is_test: false }
+                MetaKind::ConstFn {
+                    id: id.into(),
+                    is_test: false,
+                }
             }
             Indexed::Import(import) => {
                 let module = import.entry.module.clone();
@@ -1074,7 +1080,7 @@ impl<'a> Query<'a> {
 
     fn insert_new_item_with(
         &mut self,
-        id: Id,
+        id: NonZeroId,
         item: &Item,
         source_id: SourceId,
         spanned: Span,
@@ -1083,7 +1089,7 @@ impl<'a> Query<'a> {
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let query_item = Arc::new(ItemMeta {
             location: Location::new(source_id, spanned),
-            id,
+            id: id.into(),
             item: item.clone(),
             module: module.clone(),
             visibility,

@@ -1,24 +1,32 @@
-use crate::parse::Id;
+use crate::parse::NonZeroId;
 use std::cell::Cell;
+use std::num::NonZeroU32;
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub(crate) struct Gen {
-    id: Cell<Id>,
+    id: Cell<u32>,
 }
 
 impl Gen {
     /// Construct a new shared generator.
     pub(crate) fn new() -> Self {
-        Self {
-            id: Cell::new(Id::initial()),
-        }
+        Self { id: Cell::new(0) }
     }
 
-    /// Get the next identifier.
-    pub(crate) fn next(&self) -> Id {
-        let id = self.id.get();
-        let next = id.next().expect("ran out of ids");
-        self.id.set(next);
-        id
+    /// Get the next id.
+    pub(crate) fn next(&self) -> NonZeroId {
+        let cur = self.id.get();
+        let id = cur
+            .checked_add(1)
+            .and_then(NonZeroU32::new)
+            .expect("ran out of ids");
+        self.id.set(id.get());
+        NonZeroId::from(id)
+    }
+}
+
+impl Default for Gen {
+    fn default() -> Self {
+        Self::new()
     }
 }

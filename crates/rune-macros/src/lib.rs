@@ -50,6 +50,7 @@ mod context;
 mod from_value;
 mod instrument;
 mod internals;
+mod opaque;
 mod option_spanned;
 mod parse;
 mod quote;
@@ -121,6 +122,14 @@ pub fn spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[doc(hidden)]
 pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as option_spanned::Derive);
+    derive.expand().unwrap_or_else(to_compile_errors).into()
+}
+
+/// Helper derive to implement `Opaque`.
+#[proc_macro_derive(Opaque, attributes(rune))]
+#[doc(hidden)]
+pub fn opaque(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as opaque::Derive);
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 

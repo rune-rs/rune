@@ -1,13 +1,13 @@
 use crate::ast::prelude::*;
 
 /// A function call `<expr>!(<args>)`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct MacroCall {
     /// Opaque identifier for macro call. Use to store reference to internally
     /// expanded macros.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// Attributes associated with macro call.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -121,11 +121,5 @@ impl Parse for MacroCall {
         let attributes = parser.parse()?;
         let path = parser.parse()?;
         Self::parse_with_meta_path(parser, attributes, path)
-    }
-}
-
-impl Opaque for MacroCall {
-    fn id(&self) -> Option<Id> {
-        self.id
     }
 }

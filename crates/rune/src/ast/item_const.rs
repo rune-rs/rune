@@ -9,13 +9,13 @@ use crate::ast::prelude::*;
 ///
 /// testing::roundtrip::<ast::ItemConst>("const value = #{}");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
 pub struct ItemConst {
     /// Opaque identifier for the constant.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// The *inner* attributes that are applied to the const declaration.
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,

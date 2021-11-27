@@ -15,12 +15,12 @@ use crate::ast::prelude::*;
 /// testing::roundtrip::<ast::Path>("HashMap::<Foo, Bar>");
 /// testing::roundtrip::<ast::Path>("super::HashMap::<Foo, Bar>");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct Path {
     /// Opaque id associated with path.
     #[rune(id)]
-    pub id: Option<Id>,
+    pub(crate) id: Id,
     /// The optional leading colon `::` indicating global scope.
     #[rune(iter)]
     pub global: Option<T![::]>,
@@ -84,12 +84,6 @@ impl Path {
 
             Some(&it.next()?.1)
         })
-    }
-}
-
-impl Opaque for Path {
-    fn id(&self) -> Option<Id> {
-        self.id
     }
 }
 
