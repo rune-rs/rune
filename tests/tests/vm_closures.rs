@@ -4,166 +4,146 @@ use rune_tests::*;
 
 #[test]
 fn test_nested_closures() {
-    assert_eq! {
-        4,
-        rune! { i64 =>
-            pub fn main() {
-                let var = 1;
+    let out: i64 = rune! {
+        pub fn main() {
+            let var = 1;
 
-                let a = |i| {
-                    let b = |j| {
-                        var + j
-                    };
-
-                    b(i + 1)
+            let a = |i| {
+                let b = |j| {
+                    var + j
                 };
 
-                a(2)
-            }
+                b(i + 1)
+            };
+
+            a(2)
         }
     };
+    assert_eq!(out, 4);
 }
 
 #[test]
 fn test_closure_in_loop_iter() {
-    assert_eq! {
-        10,
-        rune! { i64 =>
-            pub fn main() {
-                let out = 1;
+    let out: i64 = rune! {
+        pub fn main() {
+            let out = 1;
 
-                for var in {
-                    let a = || [1, 2, 3];
-                    a()
-                } {
-                    let b = |n| var + n;
-                    out += b(1);
-                }
-
-                out
+            for var in {
+                let a = || [1, 2, 3];
+                a()
+            } {
+                let b = |n| var + n;
+                out += b(1);
             }
+
+            out
         }
     };
+    assert_eq!(out, 10);
 }
 
 #[test]
 fn test_capture_match() {
-    assert_eq! {
-        3,
-        rune! { i64 =>
-            pub fn main() {
-                let n = 1;
+    let out: i64 = rune! {
+        pub fn main() {
+            let n = 1;
 
-                let a = match { let out = || Some(n + 1); out() } {
-                    Some(n) => |e| n + e,
-                    _ => |_| 0,
-                };
+            let a = match { let out = || Some(n + 1); out() } {
+                Some(n) => |e| n + e,
+                _ => |_| 0,
+            };
 
-                a(1)
-            }
+            a(1)
         }
     };
+    assert_eq!(out, 3);
 }
 
 #[test]
 fn test_capture_fn_arg() {
-    assert_eq! {
-        3,
-        rune! { i64 =>
-            fn foo(n) { |a| n + a }
-            pub fn main() { foo(1)(2) }
-        }
+    let out: i64 = rune! {
+        fn foo(n) { |a| n + a }
+        pub fn main() { foo(1)(2) }
     };
+    assert_eq!(out, 3);
 
-    assert_eq! {
-        4,
-        rune! { i64 =>
-            fn test(a, b) { b / a + 1 }
-            pub fn main() {{let a = || test; a()}({let b = || 2; b()}, {let c = || 6; c()}) }
-        }
+    let out: i64 = rune! {
+        fn test(a, b) { b / a + 1 }
+        pub fn main() {{let a = || test; a()}({let b = || 2; b()}, {let c = || 6; c()}) }
     };
+    assert_eq!(out, 4);
 
-    assert_eq! {
-        (2, 6),
-        rune! { (i64, i64) =>
-            pub fn main() { ({let b = || 2; b()}, {let c = || 6; c()}) }
-        }
+    let out: (i64, i64) = rune! {
+        pub fn main() { ({let b = || 2; b()}, {let c = || 6; c()}) }
     };
+    assert_eq!(out, (2, 6));
 
-    assert_eq! {
-        vec![2, 6],
-        rune! { Vec<i64> =>
-            pub fn main() { [{let b = || 2; b()}, {let c = || 6; c()}] }
-        }
+    let out: Vec<i64> = rune! {
+        pub fn main() { [{let b = || 2; b()}, {let c = || 6; c()}] }
     };
+    assert_eq!(out, vec![2, 6]);
 }
 
 #[test]
 fn test_capture_and_environ() {
-    assert_eq! {
-        13,
-        rune! { i64 =>
-            async fn foo(cb) {
-                cb(1).await
-            }
+    let out: i64 = rune! {
+        async fn foo(cb) {
+            cb(1).await
+        }
 
-            pub async fn main() {
-                let value = 12;
-                foo(async |n| n + value).await
-            }
+        pub async fn main() {
+            let value = 12;
+            foo(async |n| n + value).await
         }
     };
+    assert_eq!(out, 13);
 }
 
 #[test]
 fn test_immediate_call() {
-    assert_eq! {
-        11,
-        rune! { i64 =>
-            pub async fn main() {
-                let future = (async || {
-                    11
-                })();
+    let out: i64 = rune! {
+        pub async fn main() {
+            let future = (async || {
+                11
+            })();
 
-                future.await
-            }
+            future.await
         }
     };
+    assert_eq!(out, 11);
 }
 
 #[test]
 fn test_nested_async_closure() {
-    assert_eq! {
-        6,
-        rune! { i64 =>
-            async fn send_requests(list) {
-                let input = 1;
+    let out: i64 = rune! {
+        async fn send_requests(list) {
+            let input = 1;
 
-                let do_request = async |url, n| {
-                    Ok(input + n)
-                };
+            let do_request = async |url, n| {
+                Ok(input + n)
+            };
 
-                for url in list {
-                    yield do_request(url, 2).await;
-                }
-            }
-
-            pub async fn main() {
-                let requests = send_requests([
-                    "https://google.com",
-                    "https://amazon.com",
-                ]);
-
-                let output = 0;
-
-                while let Some(input) = requests.next().await {
-                    output += input?;
-                }
-
-                output
+            for url in list {
+                yield do_request(url, 2).await;
             }
         }
+
+        pub async fn main() {
+            let requests = send_requests([
+                "https://google.com",
+                "https://amazon.com",
+            ]);
+
+            let output = 0;
+
+            while let Some(input) = requests.next().await {
+                output += input?;
+            }
+
+            output
+        }
     };
+    assert_eq!(out, 6);
 }
 
 #[test]

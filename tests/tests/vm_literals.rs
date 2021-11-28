@@ -3,79 +3,175 @@ use rune_tests::*;
 
 #[test]
 fn test_literals() {
-    assert_eq!(
-        rune!(String => pub fn main() { "Hello World" }),
-        "Hello World"
+    let out: String = rune!(
+        pub fn main() {
+            "Hello World"
+        }
     );
+    assert_eq!(out, "Hello World");
 
-    assert_eq!(
-        rune!(Bytes => pub fn main() { b"Hello World" }),
-        b"Hello World"[..]
+    let out: Bytes = rune!(
+        pub fn main() {
+            b"Hello World"
+        }
     );
+    assert_eq!(out, b"Hello World"[..]);
 
-    assert_eq!(rune!(i64 => pub fn main() { 0xff }), 0xff);
-    assert_eq!(rune!(i64 => pub fn main() { -0xff }), -0xff);
-    assert_eq!(rune!(i64 => pub fn main() { -42 }), -42);
-    assert_eq!(rune!(i64 => pub fn main() { 0b10010001 }), 0b10010001);
-    assert_eq!(rune!(i64 => pub fn main() { -0b10010001 }), -0b10010001);
-    assert_eq!(rune!(i64 => pub fn main() { 0o77 }), 0o77);
-    assert_eq!(rune!(i64 => pub fn main() { -0o77 }), -0o77);
+    let out: i64 = rune!(
+        pub fn main() {
+            0xff
+        }
+    );
+    assert_eq!(out, 0xff);
+    let out: i64 = rune!(
+        pub fn main() {
+            -0xff
+        }
+    );
+    assert_eq!(out, -0xff);
+    let out: i64 = rune!(
+        pub fn main() {
+            -42
+        }
+    );
+    assert_eq!(out, -42);
+    let out: i64 = rune!(
+        pub fn main() {
+            0b10010001
+        }
+    );
+    assert_eq!(out, 0b10010001);
+    let out: i64 = rune!(
+        pub fn main() {
+            -0b10010001
+        }
+    );
+    assert_eq!(out, -0b10010001);
+    let out: i64 = rune!(
+        pub fn main() {
+            0o77
+        }
+    );
+    assert_eq!(out, 0o77);
+    let out: i64 = rune!(
+        pub fn main() {
+            -0o77
+        }
+    );
+    assert_eq!(out, -0o77);
 
-    assert_eq!(rune!(u8 => pub fn main() { b'0' }), b'0');
-    assert_eq!(rune!(u8 => pub fn main() { b'\xaf' }), b'\xaf');
+    let out: u8 = rune!(
+        pub fn main() {
+            b'0'
+        }
+    );
+    assert_eq!(out, b'0');
+    let out: u8 = rune!(
+        pub fn main() {
+            b'\xaf'
+        }
+    );
+    assert_eq!(out, b'\xaf');
 
-    assert_eq!(rune!(char => pub fn main() { '\x60' }), '\x60');
-    assert_eq!(rune!(char => pub fn main() { '\u{1F4AF}' }), '\u{1F4AF}');
-    assert_eq!(rune!(char => pub fn main() { '💯' }), '💯');
+    let out: char = rune!(
+        pub fn main() {
+            '\x60'
+        }
+    );
+    assert_eq!(out, '\x60');
+    let out: char = rune!(
+        pub fn main() {
+            '\u{1F4AF}'
+        }
+    );
+    assert_eq!(out, '\u{1F4AF}');
+    let out: char = rune!(
+        pub fn main() {
+            '💯'
+        }
+    );
+    assert_eq!(out, '💯');
 
-    assert_eq!(rune!(f64 => pub fn main() { 42.42 }), 42.42);
-    assert_eq!(rune!(f64 => pub fn main() { -42.42 }), -42.42);
-    assert_eq!(rune!(f64 => pub fn main() { 1.9e10 }), 1.9e10);
-    assert_eq!(rune!(f64 => pub fn main() { 1e10 }), 1e10);
+    let out: f64 = rune!(
+        pub fn main() {
+            42.42
+        }
+    );
+    assert_eq!(out, 42.42);
+    let out: f64 = rune!(
+        pub fn main() {
+            -42.42
+        }
+    );
+    assert_eq!(out, -42.42);
+    let out: f64 = rune!(
+        pub fn main() {
+            1.9e10
+        }
+    );
+    assert_eq!(out, 1.9e10);
+    let out: f64 = rune!(
+        pub fn main() {
+            1e10
+        }
+    );
+    assert_eq!(out, 1e10);
 }
 
 #[test]
 fn test_string_literals() {
-    assert_eq!(
-        rune!(String => pub fn main() { "
-    " }),
-        "\n    "
+    let out: String = rune!(
+        pub fn main() {
+            "
+    "
+        }
     );
+    assert_eq!(out, "\n    ");
 
-    assert_eq!(
-        rune!(String => pub fn main() { "\
-    " }),
-        ""
+    let out: String = rune!(
+        pub fn main() {
+            "\
+    "
+        }
     );
+    assert_eq!(out, "");
 
-    assert_eq!(
-        rune!(String => pub fn main() { "\
+    let out: String = rune!(
+        pub fn main() {
+            "\
     a \
 \
-    b" }),
-        "a b"
+    b"
+        }
     );
+    assert_eq!(out, "a b");
 }
 
 #[test]
 fn test_byte_string_literals() {
-    assert_eq!(
-        rune!(Bytes => pub fn main() { b"
-    " }),
-        b"\n    "[..]
+    let out: Bytes = rune!(
+        pub fn main() {
+            b"
+    "
+        }
     );
+    assert_eq!(out, b"\n    "[..]);
 
-    assert_eq!(
-        rune!(Bytes => pub fn main() { b"\
-    " }),
-        b""[..]
+    let out: Bytes = rune!(
+        pub fn main() {
+            b"\
+    "
+        }
     );
+    assert_eq!(out, b""[..]);
 
-    assert_eq!(
-        rune!(Bytes => pub fn main() { b"\
+    let out: Bytes = rune!(
+        pub fn main() {
+            b"\
     a \
 \
-    b" }),
-        b"a b"[..]
+    b"
+        }
     );
+    assert_eq!(out, b"a b"[..]);
 }

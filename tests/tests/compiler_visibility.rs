@@ -5,7 +5,7 @@ use rune_tests::*;
 
 #[test]
 fn test_working_visibility() {
-    let output = rune! { i64 =>
+    let output: i64 = rune! {
         mod a {
             pub struct Foo;
 
@@ -69,7 +69,7 @@ fn test_hidden_reexport() {
 
 #[test]
 fn test_indirect_access() {
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         mod d {
             mod a {
                 pub(super) mod b {
@@ -97,7 +97,7 @@ fn test_indirect_access() {
 // Test borrowed from: https://doc.rust-lang.org/reference/visibility-and-privacy.html
 #[test]
 fn test_rust_example() {
-    rune! { () =>
+    let _: () = rune! {
         mod crate_helper_module {
             pub fn crate_helper() {}
 
@@ -128,7 +128,7 @@ fn test_rust_example() {
 
 #[test]
 fn test_access_super() {
-    let value = rune! { i64 =>
+    let value: i64 = rune! {
         struct Test;
 
         mod c {
@@ -142,7 +142,7 @@ fn test_access_super() {
 
     assert_eq!(value, 1);
 
-    let value = rune! { i64 =>
+    let value: i64 = rune! {
         mod a { pub(super) fn test() { 1 } }
         mod b { pub fn test() { crate::a::test() } }
 

@@ -49,7 +49,7 @@ fn test_import_cycle() {
 
 #[test]
 fn test_recursive_import() {
-    let result = rune! { bool =>
+    let result: bool = rune! {
         mod a {
             pub mod c { pub struct Baz; }
             pub mod b { pub use super::c::Baz as Bar; }
@@ -68,7 +68,7 @@ fn test_recursive_import() {
 
 #[test]
 fn test_recursive_context_import() {
-    let result = rune! { bool =>
+    let result: bool = rune! {
         mod a {
             pub mod c { pub use std::option::Option as Baz; }
             pub mod b { pub use super::c::Baz as Bar; }
@@ -87,7 +87,7 @@ fn test_recursive_context_import() {
 
 #[test]
 fn test_recusive_wildcard() {
-    let result = rune! { (bool, bool) =>
+    let result: (bool, bool) = rune! {
         mod a {
             pub mod c { pub use std::option::Option as Baz; }
             pub mod b { pub use super::c::Baz as Bar; }
@@ -106,7 +106,7 @@ fn test_recusive_wildcard() {
 
 #[test]
 fn test_reexport_fn() {
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         pub mod a {
             pub mod b {
                 pub fn out(n) { n + A }

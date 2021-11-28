@@ -3,39 +3,32 @@ use rune_tests::*;
 
 #[test]
 fn test_map() {
-    assert_eq!(
-        rune! { Option<u32> =>
-            pub fn main() {
-                Some(1).map(|v| v + 1)
-            }
-        },
-        Some(2)
-    )
+    let out: Option<u32> = rune! {
+        pub fn main() {
+            Some(1).map(|v| v + 1)
+        }
+    };
+    assert_eq!(out, Some(2))
 }
 
 #[test]
 fn test_and_then() {
-    assert_eq!(
-        rune! { Option<i32> =>
-
-            pub fn main() {
-                Some(1).and_then(|v| Some(v + 1))
-            }
-        },
-        Some(2)
-    )
+    let out: Option<i32> = rune! {
+        pub fn main() {
+            Some(1).and_then(|v| Some(v + 1))
+        }
+    };
+    assert_eq!(out, Some(2))
 }
 
 #[test]
 fn test_expect_some() {
-    assert_eq!(
-        rune! { i32 =>
-            pub fn main() {
-                Some(1).expect("Some")
-            }
-        },
-        1
-    );
+    let out: i32 = rune! {
+        pub fn main() {
+            Some(1).expect("Some")
+        }
+    };
+    assert_eq!(out, 1);
 }
 
 #[test]
@@ -55,14 +48,12 @@ fn test_expect() {
 
 #[test]
 fn test_unwrap_some() {
-    assert_eq!(
-        rune! { i32 =>
-            pub fn main() {
-                Some(1).unwrap()
-            }
-        },
-        1
-    );
+    let out: i32 = rune! {
+        pub fn main() {
+            Some(1).unwrap()
+        }
+    };
+    assert_eq!(out, 1);
 }
 
 #[test]

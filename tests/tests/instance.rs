@@ -2,7 +2,7 @@ use rune_tests::*;
 
 #[test]
 fn test_basic_self() {
-    rune! { () =>
+    let _: () = rune! {
         struct Foo {
             value,
         }
@@ -19,12 +19,12 @@ fn test_basic_self() {
             foo.inc();
             assert_eq!(foo.value, 43);
         }
-    }
+    };
 }
 
 #[test]
 fn test_chaining() {
-    rune! { () =>
+    let _: () = rune! {
         struct Foo {
             value,
         }
@@ -40,5 +40,5 @@ fn test_chaining() {
             let foo = Foo { value: 42 };
             assert_eq!(foo.inc().inc().inc().value, 45);
         }
-    }
+    };
 }

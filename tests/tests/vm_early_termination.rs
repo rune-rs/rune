@@ -2,45 +2,29 @@ use rune_tests::*;
 
 macro_rules! test_case {
     (($($k:tt)*), $field:tt, $index:tt, $($extra:tt)*) => {
-        assert_eq! {
-            rune!(bool => pub fn main() { let m = $($k)*; m[return true]; false } $($extra)*),
-            true,
-        };
+        let out: bool = rune!(pub fn main() { let m = $($k)*; m[return true]; false } $($extra)*);
+        assert_eq!(out, true);
 
-        assert_eq! {
-            rune!(bool => pub fn main() { let m = $($k)*; m[return true] = 0; false } $($extra)*),
-            true,
-        };
+        let out: bool = rune!(pub fn main() { let m = $($k)*; m[return true] = 0; false } $($extra)*);
+        assert_eq!(out, true);
 
-        assert_eq! {
-            rune!(bool => pub fn main() { let m = $($k)*; m[$index] = return true; false } $($extra)*),
-            true,
-        };
+        let out: bool = rune!(pub fn main() { let m = $($k)*; m[$index] = return true; false } $($extra)*);
+        assert_eq!(out, true);
 
-        assert_eq! {
-            rune!(bool => pub fn main() { let m = $($k)*; m.$field = return true; false } $($extra)*),
-            true,
-        };
+        let out: bool = rune!(pub fn main() { let m = $($k)*; m.$field = return true; false } $($extra)*);
+        assert_eq!(out, true);
 
-        assert_eq! {
-            rune!(bool => pub fn main() { $($k)*[return true]; false } $($extra)*),
-            true,
-        };
+        let out: bool = rune!(pub fn main() { $($k)*[return true]; false } $($extra)*);
+        assert_eq!(out, true);
 
-        assert_eq! {
-            rune!(bool => pub fn main() { $($k)*[return true] = 0; false } $($extra)*),
-            true,
-        };
+        let out: bool = rune!(pub fn main() { $($k)*[return true] = 0; false } $($extra)*);
+        assert_eq!(out, true);
 
-        assert_eq! {
-            rune!(bool => pub fn main() { $($k)*[$index] = return true; false } $($extra)*),
-            true,
-        };
+        let out: bool = rune!(pub fn main() { $($k)*[$index] = return true; false } $($extra)*);
+        assert_eq!(out, true);
 
-        assert_eq! {
-            rune!(bool => pub fn main() { $($k)*.$field = return true; false } $($extra)*),
-            true,
-        };
+        let out: bool = rune!(pub fn main() { $($k)*.$field = return true; false } $($extra)*);
+        assert_eq!(out, true);
     };
 
     (($($k:tt)*), $field:tt, $index:tt) => {

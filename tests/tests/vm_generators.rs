@@ -2,58 +2,54 @@ use rune_tests::*;
 
 #[test]
 fn test_simple_generator() {
-    assert_eq! {
-        rune! { i64 =>
-            fn foo() { yield 1; yield 2; yield 3; }
+    let out: i64 = rune! {
+        fn foo() { yield 1; yield 2; yield 3; }
 
-            pub fn main() {
-                let gen = foo();
-                let result = 0;
+        pub fn main() {
+            let gen = foo();
+            let result = 0;
 
-                while let Some(value) = gen.next() {
-                    result += value;
-                }
-
-                result
+            while let Some(value) = gen.next() {
+                result += value;
             }
-        },
-        6,
+
+            result
+        }
     };
+    assert_eq!(out, 6);
 }
 
 #[test]
 fn test_resume() {
-    assert_eq! {
-        rune! { i64 =>
-            use std::generator::GeneratorState;
+    let out: i64 = rune! {
+        use std::generator::GeneratorState;
 
-            fn foo() { let a = yield 1; let b = yield a; b }
+        fn foo() { let a = yield 1; let b = yield a; b }
 
-            pub fn main() {
-                let gen = foo();
-                let result = 0;
+        pub fn main() {
+            let gen = foo();
+            let result = 0;
 
-                if let GeneratorState::Yielded(value) = gen.resume(()) {
-                    result += value;
-                } else {
-                    panic("unexpected");
-                }
-
-                if let GeneratorState::Yielded(value) = gen.resume(2) {
-                    result += value;
-                } else {
-                    panic("unexpected");
-                }
-
-                if let GeneratorState::Complete(value) = gen.resume(3) {
-                    result += value;
-                } else {
-                    panic("unexpected");
-                }
-
-                result
+            if let GeneratorState::Yielded(value) = gen.resume(()) {
+                result += value;
+            } else {
+                panic("unexpected");
             }
-        },
-        6,
+
+            if let GeneratorState::Yielded(value) = gen.resume(2) {
+                result += value;
+            } else {
+                panic("unexpected");
+            }
+
+            if let GeneratorState::Complete(value) = gen.resume(3) {
+                result += value;
+            } else {
+                panic("unexpected");
+            }
+
+            result
+        }
     };
+    assert_eq!(out, 6);
 }

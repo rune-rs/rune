@@ -19,15 +19,11 @@ macro_rules! test_op {
 
 #[test]
 fn test_const_values() {
-    assert_eq!(
-        true,
-        rune!(bool => const VALUE = true; pub fn main() { VALUE })
-    );
+    let out: bool = rune!(const VALUE = true; pub fn main() { VALUE });
+    assert_eq!(out, true);
 
-    assert_eq!(
-        "Hello World",
-        rune!(String => const VALUE = "Hello World"; pub fn main() { VALUE })
-    );
+    let out: String = rune!(const VALUE = "Hello World"; pub fn main() { VALUE });
+    assert_eq!(out, "Hello World");
 
     assert_eq!(
         "Hello World 1 1.0 true",
@@ -94,22 +90,22 @@ fn test_float_ops() {
 
 #[test]
 fn test_const_collections() {
-    let object = rune!(Object => pub fn main() { VALUE } const VALUE = #{};);
+    let object: Object = rune!(pub fn main() { VALUE } const VALUE = #{};);
     assert!(object.is_empty());
 
-    let tuple = rune!(Tuple => pub fn main() { VALUE } const VALUE = (););
+    let tuple: Tuple = rune!(pub fn main() { VALUE } const VALUE = (););
     assert!(tuple.is_empty());
 
-    let tuple = rune!(Tuple => pub fn main() { VALUE } const VALUE = ("Hello World",););
+    let tuple: Tuple = rune!(pub fn main() { VALUE } const VALUE = ("Hello World",););
     assert_eq!(
         Some("Hello World"),
         tuple.get_value::<String>(0).unwrap().as_deref()
     );
 
-    let vec = rune!(Vec => pub fn main() { VALUE } const VALUE = [];);
+    let vec: Vec = rune!(pub fn main() { VALUE } const VALUE = [];);
     assert!(vec.is_empty());
 
-    let vec = rune!(Vec => pub fn main() { VALUE } const VALUE = ["Hello World"];);
+    let vec: Vec = rune!(pub fn main() { VALUE } const VALUE = ["Hello World"];);
     assert_eq!(
         Some("Hello World"),
         vec.get_value::<String>(0).unwrap().as_deref()
@@ -118,7 +114,7 @@ fn test_const_collections() {
 
 #[test]
 fn test_more_complexity() {
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         const BASE = 10;
         const LIMIT = 0b1 << 10;
 
@@ -140,19 +136,19 @@ fn test_more_complexity() {
 
 #[test]
 fn test_if_else() {
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         const VALUE = { if true { 1 } else if true { 2 } else { 3 } };
         pub fn main() { VALUE }
     };
     assert_eq!(result, 1);
 
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         const VALUE = { if false { 1 } else if true { 2 } else { 3 } };
         pub fn main() { VALUE }
     };
     assert_eq!(result, 2);
 
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         const VALUE = { if false { 1 } else if false { 2 } else { 3 } };
         pub fn main() { VALUE }
     };
@@ -161,7 +157,7 @@ fn test_if_else() {
 
 #[test]
 fn test_const_fn() {
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         const VALUE = 2;
         const fn foo(n) { n + VALUE }
 
@@ -208,7 +204,7 @@ fn test_const_fn() {
 
 #[test]
 fn test_const_fn_visibility() {
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         pub mod a {
             pub mod b {
                 pub const fn out(n) {
@@ -237,7 +233,7 @@ fn test_const_fn_visibility() {
 
 #[test]
 fn test_const_block() {
-    let result = rune! { i64 =>
+    let result: i64 = rune! {
         pub fn main() {
             let u = 2;
             let value = const { 1 << test() };
@@ -248,7 +244,7 @@ fn test_const_block() {
 
     assert_eq!(result, (1i64 << 32) - 2);
 
-    let result = rune! { String =>
+    let result: String = rune! {
         pub fn main() {
             let var = "World";
             format!(const { "Hello {}" }, var)
@@ -257,7 +253,7 @@ fn test_const_block() {
 
     assert_eq!(result, "Hello World");
 
-    let result = rune! { String =>
+    let result: String = rune! {
         pub fn main() {
             let var = "World";
             return format!(const { FORMAT }, var);

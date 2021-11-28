@@ -4,33 +4,30 @@ use rune_tests::*;
 /// See: https://github.com/rune-rs/rune/pull/215
 #[test]
 fn assert_variant_comparisons() {
-    rune! {
-        () =>
+    let _: () = rune! {
         enum Foo { A, B }
 
         pub fn main() {
             assert!(Foo::A != Foo::B);
             assert_eq!(Foo::A, Foo::A);
         }
-    }
+    };
 
-    rune! {
-        () =>
+    let _: () = rune! {
         enum Foo { A(a), B }
 
         pub fn main() {
             assert!(Foo::A(10) != Foo::B);
             assert_eq!(Foo::A(10), Foo::A(10));
         }
-    }
+    };
 
-    rune! {
-        () =>
+    let _: () = rune! {
         enum Foo { A { a }, B }
 
         pub fn main() {
             assert!(Foo::A { a: 10 } != Foo::B);
             assert_eq!(Foo::A { a: 10 }, Foo::A { a: 10 });
         }
-    }
+    };
 }
