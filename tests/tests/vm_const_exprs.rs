@@ -8,9 +8,10 @@ macro_rules! test_op {
             lhs = $lhs, rhs = $rhs, op = stringify!($op),
         );
 
+        let out: $ty = rune_s!(&program);
         assert_eq!(
+            out,
             $result,
-            rune_s!($ty => &program),
             concat!("expected ", stringify!($result), " out of program `{}`"),
             program
         );
@@ -25,17 +26,17 @@ fn test_const_values() {
     let out: String = rune!(const VALUE = "Hello World"; pub fn main() { VALUE });
     assert_eq!(out, "Hello World");
 
-    assert_eq!(
-        "Hello World 1 1.0 true",
-        rune_s!(String => r#"
-            const VALUE = `Hello ${WORLD} ${A} ${B} ${C}`;
-            const WORLD = "World";
-            const A = 1;
-            const B = 1.0;
-            const C = true;
-            pub fn main() { VALUE }
-        "#)
+    let out: String = rune_s!(
+        r#"
+        const VALUE = `Hello ${WORLD} ${A} ${B} ${C}`;
+        const WORLD = "World";
+        const A = 1;
+        const B = 1.0;
+        const C = true;
+        pub fn main() { VALUE }
+    "#
     );
+    assert_eq!(out, "Hello World 1 1.0 true");
 }
 
 #[test]
@@ -63,9 +64,10 @@ macro_rules! test_float_op {
             lhs = $lhs, rhs = $rhs, op = stringify!($op),
         );
 
+        let out: $ty = rune_s!(&program);
         assert_eq!(
+            out,
             $result,
-            rune_s!($ty => &program),
             concat!("expected ", stringify!($result), " out of program `{}`"),
             program
         );
@@ -169,7 +171,7 @@ fn test_const_fn() {
 
     assert_eq!(result, 6);
 
-    let result = rune_s! { String => r#"
+    let result: String = rune_s! { r#"
     const VALUE = "baz";
 
     const fn foo(n) {
@@ -183,7 +185,7 @@ fn test_const_fn() {
 
     assert_eq!(result, "foo bar baz");
 
-    let result = rune_s! { String => r#"
+    let result: String = rune_s! { r#"
         const VALUE = foo("bar", "baz");
 
         const fn foo(a, b) {

@@ -440,33 +440,29 @@ fn test_string_concat() {
 
 #[test]
 fn test_template_string() {
-    assert_eq! {
-        rune_s! { String => r#"
-            pub fn main() {
-                let name = "John Doe";
-                `Hello ${name}, I am ${1 - 10} years old!`
-            }
-        "#},
-        "Hello John Doe, I am -9 years old!",
-    };
+    let out: String = rune_s! { r#"
+        pub fn main() {
+            let name = "John Doe";
+            `Hello ${name}, I am ${1 - 10} years old!`
+        }
+    "# };
+    assert_eq!(out, "Hello John Doe, I am -9 years old!");
 
     // Contrived expression with an arbitrary sub-expression.
     // This tests that the temporary variables used during calculations do not
     // accidentally clobber the scope.
-    assert_eq! {
-        rune_s! { String => r#"
-            pub fn main() {
-                let name = "John Doe";
+    let out: String = rune_s! { r#"
+        pub fn main() {
+            let name = "John Doe";
 
-                `Hello ${name}, I am ${{
-                    let a = 20;
-                    a += 2;
-                    a
-                }} years old!`
-            }
-        "#},
-        "Hello John Doe, I am 22 years old!",
-    };
+            `Hello ${name}, I am ${{
+                let a = 20;
+                a += 2;
+                a
+            }} years old!`
+        }
+    "# };
+    assert_eq!(out, "Hello John Doe, I am 22 years old!");
 }
 
 #[test]
@@ -543,20 +539,16 @@ fn test_async_fn() {
 
 #[test]
 fn test_complex_field_access() {
-    assert_eq! {
-        rune_s! {
-            Option<i64> => r#"
-            fn foo() {
-                #{hello: #{world: 42}}
-            }
+    let out: Option<i64> = rune_s! { r#"
+        fn foo() {
+            #{hello: #{world: 42}}
+        }
 
-            pub fn main() {
-                Some((foo()).hello["world"])
-            }
-            "#
-        },
-        Some(42),
-    };
+        pub fn main() {
+            Some((foo()).hello["world"])
+        }
+    "# };
+    assert_eq!(out, Some(42));
 }
 
 #[test]
