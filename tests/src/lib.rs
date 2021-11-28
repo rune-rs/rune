@@ -4,7 +4,7 @@
 pub use ::rune_modules as modules;
 use rune::compile::{IntoComponent, Item};
 use rune::runtime::{Args, VmError};
-use rune::{termcolor, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
+use rune::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -12,8 +12,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum RunError {
     /// A load error was raised during testing.
-    #[error("load errors")]
-    Diagnostics(Diagnostics),
+    #[error("build error")]
+    BuildError(BuildError),
     /// A virtual machine error was raised during testing.
     #[error("vm error")]
     VmError(#[source] VmError),
@@ -29,52 +29,56 @@ impl RunError {
     }
 }
 
-fn internal_compile_source(
-    context: &Context,
-    sources: &mut Sources,
-) -> Result<(Unit, Diagnostics), Diagnostics> {
-    let mut diagnostics = Diagnostics::new();
-
-    let unit = match rune::prepare(sources)
-        .with_context(context)
-        .with_diagnostics(&mut diagnostics)
-        .build()
-    {
-        Ok(unit) => unit,
-        Err(..) => return Err(diagnostics),
-    };
-
-    Ok((unit, diagnostics))
-}
-
 /// Compile the given source into a unit and collection of warnings.
-pub fn compile_source(context: &Context, source: &str) -> Result<(Unit, Diagnostics), Diagnostics> {
+pub fn compile_source(
+    context: &Context,
+    source: &str,
+    diagnostics: &mut Diagnostics,
+) -> Result<Unit, BuildError> {
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
 
-    internal_compile_source(context, &mut sources)
+    let unit = rune::prepare(&mut sources)
+        .with_context(context)
+        .with_diagnostics(diagnostics)
+        .build()?;
+
+    Ok(unit)
 }
 
 /// Construct a virtual machine for the given sources.
-pub fn vm(context: &Context, sources: &mut Sources) -> Result<Vm, RunError> {
-    let (unit, _) = internal_compile_source(context, sources).map_err(RunError::Diagnostics)?;
-    let context = Arc::new(context.runtime());
+fn vm(
+    context: &Context,
+    sources: &mut Sources,
+    diagnostics: &mut Diagnostics,
+) -> Result<Vm, RunError> {
+    let unit = rune::prepare(sources)
+        .with_context(context)
+        .with_diagnostics(diagnostics)
+        .build()
+        .map_err(RunError::BuildError)?;
 
+    let context = Arc::new(context.runtime());
     Ok(Vm::new(context, Arc::new(unit)))
 }
 
 /// Construct a virtual machine for the given source.
-pub fn vm_with_source(context: &Context, source: &str) -> Result<Vm, RunError> {
+pub fn vm_with_source(
+    context: &Context,
+    source: &str,
+    diagnostics: &mut Diagnostics,
+) -> Result<Vm, RunError> {
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
 
-    vm(context, &mut sources)
+    vm(context, &mut sources, diagnostics)
 }
 
 /// Call the specified function in the given script.
 async fn internal_run_async<N, A, T>(
-    context: &Arc<Context>,
+    context: &Context,
     sources: &mut Sources,
+    diagnostics: &mut Diagnostics,
     function: N,
     args: A,
 ) -> Result<T, RunError>
@@ -84,7 +88,7 @@ where
     A: Args,
     T: FromValue,
 {
-    let mut vm = vm(context, sources)?;
+    let mut vm = vm(context, sources, diagnostics)?;
 
     let output = vm
         .execute(&Item::with_item(function), args)
@@ -98,8 +102,9 @@ where
 
 /// Call the specified function in the given script sources.
 fn internal_run<N, A, T>(
-    context: &Arc<Context>,
+    context: &Context,
     sources: &mut Sources,
+    diagnostics: &mut Diagnostics,
     function: N,
     args: A,
 ) -> Result<T, RunError>
@@ -109,12 +114,18 @@ where
     A: Args,
     T: FromValue,
 {
-    ::futures_executor::block_on(internal_run_async(context, sources, function, args))
+    ::futures_executor::block_on(internal_run_async(
+        context,
+        sources,
+        diagnostics,
+        function,
+        args,
+    ))
 }
 
 /// Run the given source with diagnostics being printed to stderr.
 pub fn run_with_diagnostics<N, A, T>(
-    context: &Arc<Context>,
+    context: &Context,
     source: &str,
     function: N,
     args: A,
@@ -128,7 +139,9 @@ where
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
 
-    let e = match internal_run(context, &mut sources, function, args) {
+    let mut diagnostics = Default::default();
+
+    let e = match internal_run(context, &mut sources, &mut diagnostics, function, args) {
         Ok(value) => return Ok(value),
         Err(e) => e,
     };
@@ -136,7 +149,7 @@ where
     let mut writer = termcolor::StandardStream::stdout(termcolor::ColorChoice::Never);
 
     match &e {
-        RunError::Diagnostics(diagnostics) => {
+        RunError::BuildError(..) => {
             diagnostics
                 .emit(&mut writer, &sources)
                 .expect("emit diagnostics");
@@ -151,8 +164,9 @@ where
 
 /// Call the specified function in the given script.
 pub fn run<N, A, T>(
-    context: &Arc<Context>,
+    context: &Context,
     source: &str,
+    diagnostics: &mut Diagnostics,
     function: N,
     args: A,
 ) -> Result<T, RunError>
@@ -165,7 +179,7 @@ where
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
 
-    internal_run(context, &mut sources, function, args)
+    internal_run(context, &mut sources, diagnostics, function, args)
 }
 
 /// Helper function to construct a context and unit from a Rune source for
@@ -208,8 +222,8 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 macro_rules! rune_vm {
     ($($tt:tt)*) => {{
         let context = $crate::modules::default_context().expect("failed to build context");
-        let context = ::std::sync::Arc::new(context);
-        $crate::vm_with_source(&context, stringify!($($tt)*)).expect("program to compile successfully")
+        let mut diagnostics = Default::default();
+        $crate::vm_with_source(&context, stringify!($($tt)*), &mut diagnostics).expect("program to compile successfully")
     }};
 }
 
@@ -235,8 +249,8 @@ macro_rules! rune_vm_capture {
         let io = $crate::modules::capture_io::CaptureIo::new();
         let m = $crate::modules::capture_io::module(&io)?;
         context.install(&m)?;
-        let context = ::std::sync::Arc::new(context);
-        let vm = $crate::vm_with_source(&context, stringify!($($tt)*))?;
+        let mut diagnostics = Default::default();
+        let vm = $crate::vm_with_source(&context, stringify!($($tt)*), &mut diagnostics)?;
         (vm, io)
     }};
 }
@@ -259,8 +273,6 @@ macro_rules! rune_vm_capture {
 macro_rules! rune {
     ($ty:ty => $($tt:tt)*) => {{
         let context = $crate::modules::default_context().expect("failed to build context");
-        let context = ::std::sync::Arc::new(context);
-
         $crate::run_with_diagnostics::<_, (), $ty>(&context, stringify!($($tt)*), &["main"], ())
             .expect("program to run successfully")
     }};
@@ -284,8 +296,6 @@ macro_rules! rune {
 macro_rules! rune_s {
     ($ty:ty => $source:expr) => {{
         let context = $crate::modules::default_context().expect("failed to build context");
-        let context = ::std::sync::Arc::new(context);
-
         $crate::run_with_diagnostics::<_, (), $ty>(&context, $source, &["main"], ())
             .expect("program to run successfully")
     }};
@@ -315,8 +325,6 @@ macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
         let mut context = $crate::modules::default_context().expect("failed to build context");
         context.install(&$module).expect("failed to install native module");
-        let context = ::std::sync::Arc::new(context);
-
         $crate::run_with_diagnostics::<_, _, $ty>(&context, stringify!($($tt)*), &["main"], $args)
             .expect("program to run successfully")
     }};
@@ -340,8 +348,9 @@ macro_rules! assert_vm_error {
 
     // Second variant which allows for specifyinga type.
     ($ty:ty => $source:expr, $pat:pat => $cond:block) => {{
-        let context = ::std::sync::Arc::new($crate::modules::default_context().unwrap());
-        let e = $crate::run::<_, _, $ty>(&context, $source, &["main"], ()).unwrap_err();
+        let context = $crate::modules::default_context().unwrap();
+        let mut diagnostics = Default::default();
+        let e = $crate::run::<_, _, $ty>(&context, $source, &mut diagnostics, &["main"], ()).unwrap_err();
 
         let (e, _) = match e {
             $crate::RunError::VmError(e) => e.into_unwound(),
@@ -364,7 +373,8 @@ macro_rules! assert_vm_error {
 macro_rules! assert_parse {
     ($source:expr) => {{
         let context = $crate::modules::default_context().unwrap();
-        $crate::compile_source(&context, $source).unwrap()
+        let mut diagnostics = Default::default();
+        $crate::compile_source(&context, $source, &mut diagnostics).unwrap()
     }};
 }
 
@@ -381,10 +391,10 @@ macro_rules! assert_compile_error {
 macro_rules! assert_errors {
     ($source:expr, $span:ident, $($variant:ident($pat:pat) => $cond:expr),+ $(,)?) => {{
         let context = $crate::modules::default_context().unwrap();
-        let e = $crate::compile_source(&context, $source).unwrap_err();
-        assert!(e.has_error(), "expected at least one error");
+        let mut diagnostics = Default::default();
+        let _ = $crate::compile_source(&context, $source, &mut diagnostics).unwrap_err();
 
-        let mut it = e.into_diagnostics().into_iter();
+        let mut it = diagnostics.into_diagnostics().into_iter();
 
         $(
             let e = match it.next().expect("expected error") {
@@ -423,7 +433,8 @@ macro_rules! assert_errors {
 macro_rules! assert_warnings {
     ($source:expr $(, $pat:pat => $cond:expr)*) => {{
         let context = $crate::modules::default_context().unwrap();
-        let (_, diagnostics) = $crate::compile_source(&context, $source).expect("source should compile");
+        let mut diagnostics = Default::default();
+        let _ = $crate::compile_source(&context, $source, &mut diagnostics).expect("source should compile");
         assert!(diagnostics.has_warning(), "no warnings produced");
 
         let mut it = diagnostics.into_diagnostics().into_iter();
