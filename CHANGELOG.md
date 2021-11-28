@@ -19,7 +19,8 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 * Completely overhauled how rune is compiled.
 * Changed how diagnostics is emitted.
 * Macros now take an explicit `ctx` macro rather than relying on `TLS` ([#304]).
-* Native functions no longer has to be `Copy` ([#329]).
+* Native functions no longer have to be `Copy` ([#329]).
+* Many types that used to be publicly exported are now hidden.
 
 ## Added
 * We can now compile rune source inside of macros ([#302]).
@@ -32,7 +33,6 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
   [#317]) (thanks [pkolaczk] and [tgolsson]!).
 * Make `SyncFunction` documentation visible ([#279]).
 
-[0.10.0]: https://github.com/rune-rs/rune/compare/0.9.1...main
 [9-to-10]: https://github.com/rune-rs/rune/blob/main/UPGRADING.md
 
 [#279]: https://github.com/rune-rs/rune/issues/279
@@ -46,6 +46,8 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 [pkolaczk]: https://github.com/pkolaczk
 [Steven0351]: https://github.com/Steven0351
 [tgolsson]: https://github.com/tgolsson
+
+[0.10.0]: https://github.com/rune-rs/rune/compare/0.9.1...main
 
 ## [0.9.1]
 
@@ -61,16 +63,17 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 * Correctly mark AnyObj::{from_ref, from_mut} as both super unsafe ([#265])
 * Various internal refactorings (thanks [Roba1993]).
 
-[0.9.1]: https://github.com/rune-rs/rune/compare/0.9.0...0.9.1
-
-[#273]: https://github.com/rune-rs/rune/issues/273
-[#269]: https://github.com/rune-rs/rune/issues/269
-[#268]: https://github.com/rune-rs/rune/issues/268
+[#258]: https://github.com/rune-rs/rune/issues/258
 [#265]: https://github.com/rune-rs/rune/issues/265
+[#268]: https://github.com/rune-rs/rune/issues/268
+[#269]: https://github.com/rune-rs/rune/issues/269
+[#273]: https://github.com/rune-rs/rune/issues/273
 
 [tgolsson]: https://github.com/tgolsson
 [MicahSchiewe]: https://github.com/MicahSchiewe
 [Roba1993]: https://github.com/Roba1993
+
+[0.9.1]: https://github.com/rune-rs/rune/compare/0.9.0...0.9.1
 
 ## [0.9.0]
 
@@ -80,9 +83,9 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 ### Fixed
 * `Vm::async_call` didn't use async completion functions ([#253]) (thanks [Roba1993]!).
 
-[0.9.0]: https://github.com/rune-rs/rune/compare/0.8.0...0.9.0
-
 [Roba1993]: https://github.com/Roba1993
+
+[0.9.0]: https://github.com/rune-rs/rune/compare/0.8.0...0.9.0
 
 ## [0.8.0]
 
@@ -223,10 +226,10 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 [maxmcd]: https://github.com/maxmcd
 [hvithrafn]: https://github.com/hvithrafn
 
-[0.8.0]: https://github.com/rune-rs/rune/compare/0.7.0...0.8.0
-
 [OxidizeBot]: https://github.com/udoprog/OxidizeBot
 [AoC]: https://adventofcode.com/
+
+[0.8.0]: https://github.com/rune-rs/rune/compare/0.7.0...0.8.0
 
 ## [0.7.0]
 
@@ -434,8 +437,6 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 [#157]: https://github.com/rune-rs/rune/pull/157
 [#159]: https://github.com/rune-rs/rune/pull/159
 
-[0.7.0]: https://github.com/rune-rs/rune/compare/0.6.16...0.7.0
-
 [Sparkpin]: https://github.com/Sparkpin
 [seanchen1991]: https://github.com/seanchen1991
 [stoically]: https://github.com/stoically
@@ -446,3 +447,5 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 [killercup]: https://github.com/killercup
 [dillonhicks]: https://github.com/dillonhicks
 [aspenluxxxy]: https://github.com/aspenluxxxy
+
+[0.7.0]: https://github.com/rune-rs/rune/compare/0.6.16...0.7.0
