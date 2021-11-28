@@ -9,7 +9,7 @@ fn test_external_function() -> rune::Result<()> {
     // into another, making sure that the function holds everything it needs to
     // be called.
 
-    let function: Function = run_with_diagnostics(
+    let function: Function = run(
         &context,
         r#"
         fn test() { 42 }
@@ -19,7 +19,7 @@ fn test_external_function() -> rune::Result<()> {
         (),
     )?;
 
-    let output: i64 = run_with_diagnostics(
+    let output: i64 = run(
         &context,
         r#"
         pub fn main(f) { f() }
@@ -40,7 +40,7 @@ fn test_external_generator() -> rune::Result<()> {
     // into another, making sure that the function holds everything it needs to
     // be called.
 
-    let function: Function = run_with_diagnostics(
+    let function: Function = run(
         &context,
         r#"
         fn test() { yield 42; }
@@ -50,7 +50,7 @@ fn test_external_generator() -> rune::Result<()> {
         (),
     )?;
 
-    let output: (Option<i64>, Option<i64>) = run_with_diagnostics(
+    let output: (Option<i64>, Option<i64>) = run(
         &context,
         r#"
         pub fn main(f) { let gen = f(); (gen.next(), gen.next()) }
