@@ -284,17 +284,15 @@ macro_rules! rune {
 /// use rune_tests::*;
 ///
 /// # fn main() {
-/// assert_eq! {
-///     rune_tests::rune_s!(bool => "pub fn main() { true || false }"),
-///     true,
-/// };
+/// let out: bool = rune_tests::rune_s!("pub fn main() { true || false }");
+/// assert_eq!(out, true);
 /// # }
 /// ```
 #[macro_export]
 macro_rules! rune_s {
-    ($ty:ty => $source:expr) => {{
+    ($source:expr) => {{
         let context = $crate::modules::default_context().expect("failed to build context");
-        $crate::run_with_diagnostics::<_, (), $ty>(&context, $source, &["main"], ())
+        $crate::run_with_diagnostics(&context, $source, &["main"], ())
             .expect("program to run successfully")
     }};
 }

@@ -148,8 +148,8 @@ fn test_nested_async_closure() {
 
 #[test]
 fn test_closure_in_lit_vec() -> rune::Result<()> {
-    let ret = rune_s! {
-        VecTuple<(i64, Function, Function, i64)> => r#"pub fn main() { let a = 4; [0, || 2, || 4, 3] }"#
+    let ret: VecTuple<(i64, Function, Function, i64)> = rune_s! {
+        r#"pub fn main() { let a = 4; [0, || 2, || 4, 3] }"#
     };
 
     let (start, first, second, end) = ret.0;
@@ -162,8 +162,8 @@ fn test_closure_in_lit_vec() -> rune::Result<()> {
 
 #[test]
 fn test_closure_in_lit_tuple() -> rune::Result<()> {
-    let ret = rune_s! {
-        (i64, Function, Function, i64) => r#"pub fn main() { let a = 4; (0, || 2, || a, 3) }"#
+    let ret: (i64, Function, Function, i64) = rune_s! {
+        r#"pub fn main() { let a = 4; (0, || 2, || a, 3) }"#
     };
 
     let (start, first, second, end) = ret;
@@ -184,8 +184,8 @@ fn test_closure_in_lit_object() -> rune::Result<()> {
         d: i64,
     }
 
-    let proxy = rune_s! {
-        Proxy => r#"pub fn main() { let a = 4; #{a: 0, b: || 2, c: || a, d: 3} }"#
+    let proxy: Proxy = rune_s! {
+        r#"pub fn main() { let a = 4; #{a: 0, b: || 2, c: || a, d: 3} }"#
     };
 
     assert_eq!(0, proxy.a);

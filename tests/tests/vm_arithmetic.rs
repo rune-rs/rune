@@ -6,77 +6,59 @@ macro_rules! op_tests {
         let out: i64 = rune!(pub fn main() { let a = $lhs; let b = $rhs; a $op b});
         assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"pub fn main() {{ let a = {lhs}; let b = {rhs}; a {op}= b; a }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"pub fn main() {{ let a = {lhs}; let b = {rhs}; a {op}= b; a }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"struct Foo {{ padding, field }}; pub fn main() {{ let a = Foo{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"struct Foo {{ padding, field }}; pub fn main() {{ let a = Foo{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"enum Enum {{ Foo {{ padding, field }} }}; pub fn main() {{ let a = Enum::Foo {{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"enum Enum {{ Foo {{ padding, field }} }}; pub fn main() {{ let a = Enum::Foo {{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"pub fn main() {{ let a = #{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"pub fn main() {{ let a = #{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"pub fn main() {{ let a = (0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"pub fn main() {{ let a = (0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"struct Foo(padding, a); pub fn main() {{ let a = Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"struct Foo(padding, a); pub fn main() {{ let a = Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"enum Enum {{ Foo(padding, a) }}; pub fn main() {{ let a = Enum::Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"enum Enum {{ Foo(padding, a) }}; pub fn main() {{ let a = Enum::Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"pub fn main() {{ let a = Ok({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"pub fn main() {{ let a = Ok({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
 
-        assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"pub fn main() {{ let a = Some({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
-            $out,
-        };
+        let out: i64 = rune_s!(&format!(
+            r#"pub fn main() {{ let a = Some({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
+            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+        ));
+        assert_eq!(out, $out);
     }
 }
 
