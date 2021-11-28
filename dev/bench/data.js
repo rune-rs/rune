@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638053843459,
+  "lastUpdate": 1638066537069,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -9496,6 +9496,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4457914,
             "range": "± 784422",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "3cf90c1a3ba66943364f71f10ebb46d92258fce1",
+          "message": "Remove use of lazy_static in rune-wasm and intro rune_modules::capture_io",
+          "timestamp": "2021-11-28T03:20:43+01:00",
+          "tree_id": "cdd30373d16ef4422630b336eb01ad3cdbf927ae",
+          "url": "https://github.com/rune-rs/rune/commit/3cf90c1a3ba66943364f71f10ebb46d92258fce1"
+        },
+        "date": 1638066535772,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 435370477,
+            "range": "± 60144331",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 246646397,
+            "range": "± 18241796",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 293950,
+            "range": "± 43979",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 916327,
+            "range": "± 137135",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 74175124,
+            "range": "± 8359963",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1238939,
+            "range": "± 227398",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13444543,
+            "range": "± 2071350",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11492475,
+            "range": "± 1611781",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 416884,
+            "range": "± 61226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4625087,
+            "range": "± 643486",
             "unit": "ns/iter"
           }
         ]
