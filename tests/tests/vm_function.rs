@@ -53,7 +53,7 @@ fn test_function() {
     assert!(matches!(value, Value::Integer(3)));
 
     // closure with captures
-    let function: Function = run(
+    let function: Function = run_with_diagnostics(
         &context,
         r#"pub fn main(a, b) { || a + b }"#,
         &["main"],

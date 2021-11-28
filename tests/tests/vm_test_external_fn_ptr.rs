@@ -1,16 +1,15 @@
 use rune::runtime::Function;
 use rune_tests::*;
-use std::sync::Arc;
 
 #[test]
 fn test_external_function() -> rune::Result<()> {
-    let context = Arc::new(rune_modules::default_context()?);
+    let context = rune_modules::default_context()?;
 
     // NB: here we test passing the function from one virtual machine instance
     // into another, making sure that the function holds everything it needs to
     // be called.
 
-    let function: Function = run(
+    let function: Function = run_with_diagnostics(
         &context,
         r#"
         fn test() { 42 }
@@ -20,7 +19,7 @@ fn test_external_function() -> rune::Result<()> {
         (),
     )?;
 
-    let output: i64 = run(
+    let output: i64 = run_with_diagnostics(
         &context,
         r#"
         pub fn main(f) { f() }
@@ -35,13 +34,13 @@ fn test_external_function() -> rune::Result<()> {
 
 #[test]
 fn test_external_generator() -> rune::Result<()> {
-    let context = Arc::new(rune_modules::default_context()?);
+    let context = rune_modules::default_context()?;
 
     // NB: here we test passing the generator from one virtual machine instance
     // into another, making sure that the function holds everything it needs to
     // be called.
 
-    let function: Function = run(
+    let function: Function = run_with_diagnostics(
         &context,
         r#"
         fn test() { yield 42; }
@@ -51,7 +50,7 @@ fn test_external_generator() -> rune::Result<()> {
         (),
     )?;
 
-    let output: (Option<i64>, Option<i64>) = run(
+    let output: (Option<i64>, Option<i64>) = run_with_diagnostics(
         &context,
         r#"
         pub fn main(f) { let gen = f(); (gen.next(), gen.next()) }
