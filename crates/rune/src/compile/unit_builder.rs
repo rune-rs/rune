@@ -751,8 +751,6 @@ impl UnitBuilder {
             label: Label,
             labels: &HashMap<Label, usize>,
         ) -> Result<isize, CompileError> {
-            use std::convert::TryFrom;
-
             let offset = labels
                 .get(&label)
                 .copied()
