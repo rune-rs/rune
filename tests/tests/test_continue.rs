@@ -4,7 +4,7 @@ use rune_tests::*;
 
 #[test]
 fn test_continue_label() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             let n = 0;
             let not_used = true;
@@ -27,12 +27,12 @@ fn test_continue_label() {
 
             assert_eq!(n, 2);
         }
-    }
+    };
 }
 
 #[test]
 fn while_continue() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             let n = 0;
             let condition = true;
@@ -51,12 +51,12 @@ fn while_continue() {
 
             assert_eq!(n, 10);
         }
-    }
+    };
 }
 
 #[test]
 fn loop_continue() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             let n = 0;
             let condition = true;
@@ -80,12 +80,12 @@ fn loop_continue() {
 
             assert_eq!(n, 10);
         }
-    }
+    };
 }
 
 #[test]
 fn for_continue() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             let n = 0;
             let condition = true;
@@ -103,7 +103,7 @@ fn for_continue() {
 
             assert_eq!(n, 10);
         }
-    }
+    };
 }
 
 #[test]

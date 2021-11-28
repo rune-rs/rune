@@ -8,7 +8,7 @@ fn test_function() {
     let context = Arc::new(rune_modules::default_context().unwrap());
 
     // ptr to dynamic function.
-    let function = rune! { Function =>
+    let function: Function = rune! {
         fn foo(a, b) { a + b }
 
         pub fn main() { foo }
@@ -18,13 +18,17 @@ fn test_function() {
     assert!(function.call::<_, i64>((1i64,)).is_err());
 
     // ptr to native function
-    let function = rune!(Function => pub fn main() { Vec::new });
+    let function: Function = rune!(
+        pub fn main() {
+            Vec::new
+        }
+    );
 
     let value: Vec<Value> = function.call(()).unwrap();
     assert_eq!(value.len(), 0);
 
     // ptr to dynamic function.
-    let function = rune! { Function =>
+    let function: Function = rune! {
         enum Custom { A(a) }
         pub fn main() { Custom::A }
     };
@@ -34,7 +38,7 @@ fn test_function() {
     assert!(matches!(value, Value::Variant(..)));
 
     // ptr to dynamic function.
-    let function = rune! { Function =>
+    let function: Function = rune! {
         struct Custom(a);
         pub fn main() { Custom }
     };
@@ -44,7 +48,7 @@ fn test_function() {
     assert!(matches!(value, Value::TupleStruct(..)));
 
     // non-capturing closure == free function
-    let function = rune! { Function =>
+    let function: Function = rune! {
         pub fn main() { |a, b| a + b }
     };
 

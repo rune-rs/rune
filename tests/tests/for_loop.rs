@@ -2,7 +2,7 @@ use rune_tests::*;
 
 #[test]
 fn test_binding_pattern() {
-    let out = rune! { i64 =>
+    let out: i64 = rune! {
         pub fn main() {
             let data = [(1, 2), (2, 3), (3, 4)];
             let out = 0;
@@ -20,7 +20,7 @@ fn test_binding_pattern() {
 
 #[test]
 fn test_simple_binding() {
-    let out = rune! { i64 =>
+    let out: i64 = rune! {
         pub fn main() {
             let data = [1, 2, 3, 4];
             let out = 0;
@@ -38,7 +38,7 @@ fn test_simple_binding() {
 
 #[test]
 fn test_ignore_binding() {
-    let out = rune! { i64 =>
+    let out: i64 = rune! {
         pub fn main() {
             let data = [1, 2, 3, 4];
             let out = 0;

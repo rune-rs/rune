@@ -2,7 +2,7 @@ use rune_tests::*;
 
 #[test]
 fn test_range() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             assert_eq!((1..10).start, Some(1));
             assert_eq!((1..10).end, Some(10));
@@ -27,7 +27,7 @@ fn test_range() {
 
 #[test]
 fn test_range_iter() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             assert_eq!((1..4).iter().collect_vec(), [1, 2, 3]);
             assert_eq!((1..4).iter().rev().collect_vec(), [3, 2, 1]);
@@ -44,13 +44,13 @@ fn test_range_iter() {
 
 #[test]
 fn test_non_numeric_ranges() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             assert_eq!((#{}..=10).start, Some(#{}));
         }
     };
 
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             let a = ..=(1, 2, 3);
             assert_eq!(a.start, None);
@@ -61,7 +61,7 @@ fn test_non_numeric_ranges() {
 
 #[test]
 fn test_range_into_iter() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             let d = [];
 
@@ -73,8 +73,7 @@ fn test_range_into_iter() {
         }
     };
 
-    rune! {
-        () =>
+    let _: () = rune! {
         pub fn main() {
             fn end() {
                 4
@@ -88,15 +87,14 @@ fn test_range_into_iter() {
 
             assert_eq!(d, [1, 2, 3, 4]);
         }
-    }
+    };
 }
 
 /// Ensures that the end of the range is parsed without an eager brace to ensure
 /// it can be used in a loop.
 #[test]
 fn test_range_non_eager_brace() {
-    let out = rune! {
-        i64 =>
+    let out: i64 = rune! {
         pub fn main() {
             let out = 0;
 

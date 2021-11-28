@@ -2,7 +2,7 @@ use rune_tests::*;
 
 #[test]
 fn test_wildcard_precedence() {
-    assert!(rune! { bool =>
+    assert!(rune! {
         mod a { pub struct Foo; }
         mod b { pub struct Foo; }
         use {a::*, b::*};
@@ -10,7 +10,7 @@ fn test_wildcard_precedence() {
         pub fn main() { Foo is b::Foo }
     });
 
-    assert!(rune! { bool =>
+    assert!(rune! {
         mod a { pub struct Foo; }
         mod b { pub struct Foo; }
         use {b::*, a::*};
@@ -18,7 +18,7 @@ fn test_wildcard_precedence() {
         pub fn main() { Foo is a::Foo }
     });
 
-    assert!(rune! { bool =>
+    assert!(rune! {
         mod a { pub struct Foo; }
         mod b { pub struct Foo; }
         use a::*;
@@ -27,7 +27,7 @@ fn test_wildcard_precedence() {
         pub fn main() { Foo is a::Foo }
     });
 
-    assert!(rune! { bool =>
+    assert!(rune! {
         mod a { pub struct Foo; }
         mod b { pub struct Foo; }
         use a::Foo;

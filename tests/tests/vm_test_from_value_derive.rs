@@ -9,7 +9,7 @@ fn test_from_value_object_like() {
         field: u32,
     }
 
-    let value = rune! { Proxy =>
+    let value: Proxy = rune! {
         struct Ignored;
         struct Value { field, ignored }
         pub fn main() { Value { field: 42, ignored: Ignored } }
@@ -17,7 +17,7 @@ fn test_from_value_object_like() {
 
     assert_eq!(value.field, 42);
 
-    let value = rune! { Proxy =>
+    let value: Proxy = rune! {
         struct Ignored;
         pub fn main() { #{ field: 42, ignored: Ignored } }
     };
@@ -30,14 +30,14 @@ fn test_from_value_tuple_like() {
     #[derive(FromValue)]
     struct Proxy(u32);
 
-    let value = rune! { Proxy =>
+    let value: Proxy = rune! {
         struct Value(field);
         pub fn main() { Value(42) }
     };
 
     assert_eq!(value.0, 42);
 
-    let value = rune! { Proxy =>
+    let value: Proxy = rune! {
         pub fn main() { (42,) }
     };
 
@@ -93,7 +93,7 @@ fn test_enum_proxy() {
         Struct { field: String },
     }
 
-    let proxy = rune! { Proxy =>
+    let proxy: Proxy = rune! {
         pub fn main() {
             enum Proxy { Unit, Tuple(a), Struct { field } }
             Proxy::Unit
@@ -102,19 +102,21 @@ fn test_enum_proxy() {
 
     assert_eq!(proxy, Proxy::Unit);
 
-    let proxy = rune! { Proxy =>
-    pub fn main() {
-        enum Proxy { Unit, Tuple(a), Struct { field } }
-        Proxy::Tuple("Hello World")
-    }};
+    let proxy: Proxy = rune! {
+        pub fn main() {
+            enum Proxy { Unit, Tuple(a), Struct { field } }
+            Proxy::Tuple("Hello World")
+        }
+    };
 
     assert_eq!(proxy, Proxy::Tuple(String::from("Hello World")));
 
-    let proxy = rune! { Proxy =>
-    pub fn main() {
-        enum Proxy { Unit, Tuple(a), Struct { field } }
-        Proxy::Struct { field: "Hello World" }
-    }};
+    let proxy: Proxy = rune! {
+        pub fn main() {
+            enum Proxy { Unit, Tuple(a), Struct { field } }
+            Proxy::Struct { field: "Hello World" }
+        }
+    };
 
     assert_eq!(
         proxy,

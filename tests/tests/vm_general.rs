@@ -5,437 +5,437 @@ use rune_tests::*;
 
 #[test]
 fn test_small_programs() {
-    assert_eq!(rune!(u64 => pub fn main() { 42 }), 42u64);
-    assert_eq!(rune!(() => pub fn main() {}), ());
+    let out: u64 = rune!(
+        pub fn main() {
+            42
+        }
+    );
+    assert_eq!(out, 42u64);
+    let _: () = rune!(
+        pub fn main() {}
+    );
 
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() {
-                let a = 1;
-                let b = 2;
-                let c = a + b;
-                let d = c * 2;
-                let e = d / 3;
-                e
-            }
-        },
-        2,
+    let out: i64 = rune! {
+        pub fn main() {
+            let a = 1;
+            let b = 2;
+            let c = a + b;
+            let d = c * 2;
+            let e = d / 3;
+            e
+        }
     };
+    assert_eq!(out, 2);
 }
 
 #[test]
 fn test_boolean_ops() {
-    assert_eq! {
-        rune!(bool => pub fn main() { true && true }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            true && true
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { true && false }),
-        false,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            true && false
+        }
+    );
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { false && true }),
-        false,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            false && true
+        }
+    );
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { false && false }),
-        false,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            false && false
+        }
+    );
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { true || true }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            true || true
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { true || false }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            true || false
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { false || true }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            false || true
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { false || false }),
-        false,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            false || false
+        }
+    );
+    assert_eq!(out, false);
 }
 
 #[test]
 fn test_if() {
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() {
-                let n = 2;
+    let out: i64 = rune! {
+        pub fn main() {
+            let n = 2;
 
-                if n > 5 {
-                    10
-                } else {
-                    0
-                }
+            if n > 5 {
+                10
+            } else {
+                0
             }
-        },
-        0,
+        }
     };
+    assert_eq!(out, 0);
 
-    assert_eq! {
-        rune!{ i64 =>
-            pub fn main() {
-                let n = 6;
+    let out: i64 = rune! {
+        pub fn main() {
+            let n = 6;
 
-                if n > 5 {
-                    10
-                } else {
-                    0
-                }
+            if n > 5 {
+                10
+            } else {
+                0
             }
-        },
-        10,
+        }
     };
+    assert_eq!(out, 10);
 }
 
 #[test]
 fn test_block() {
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() {
-                let b = 10;
+    let out: i64 = rune! {
+        pub fn main() {
+            let b = 10;
 
-                let n = {
-                    let a = 10;
-                    a + b
-                };
+            let n = {
+                let a = 10;
+                a + b
+            };
 
-                n + 1
-            }
-        },
-        21,
+            n + 1
+        }
     };
+    assert_eq!(out, 21);
 }
 
 #[test]
 fn test_shadowing() {
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() {
-                let a = 10;
-                let a = a;
-                a
-            }
-        },
-        10,
+    let out: i64 = rune! {
+        pub fn main() {
+            let a = 10;
+            let a = a;
+            a
+        }
     };
+    assert_eq!(out, 10);
 }
 
 #[test]
 fn test_vectors() {
-    assert_eq! {
-        rune!(() => pub fn main() { let v = [1, 2, 3, 4, 5]; }),
-        (),
-    };
+    let _: () = rune!(
+        pub fn main() {
+            let v = [1, 2, 3, 4, 5];
+        }
+    );
 }
 
 #[test]
 fn test_while() {
-    assert_eq! {
-        rune!{ i64 =>
-            pub fn main() {
-                let a = 0;
+    let out: i64 = rune! {
+        pub fn main() {
+            let a = 0;
 
-                while a < 10 {
-                    a = a + 1;
+            while a < 10 {
+                a = a + 1;
+            }
+
+            a
+        }
+    };
+    assert_eq!(out, 10);
+
+    let out: i64 = rune! {
+        pub fn main() {
+            let a = 0;
+
+            let a = while a >= 0 {
+                if a >= 10 {
+                    break a;
                 }
 
-                a
-            }
-        },
-        10,
+                a = a + 1;
+            };
+
+            a
+        }
     };
-
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() {
-                let a = 0;
-
-                let a = while a >= 0 {
-                    if a >= 10 {
-                        break a;
-                    }
-
-                    a = a + 1;
-                };
-
-                a
-            }
-        },
-        10,
-    };
+    assert_eq!(out, 10);
 }
 
 #[test]
 fn test_loop() {
-    assert_eq! {
-        rune! {
-            VecTuple<(i64, bool)> =>
-            pub fn main() {
-                let a = 0;
+    let out: VecTuple<(i64, bool)> = rune! {
+        pub fn main() {
+            let a = 0;
 
-                let value = loop {
-                    if a >= 10 {
-                        break;
-                    }
+            let value = loop {
+                if a >= 10 {
+                    break;
+                }
 
-                    a = a + 1;
-                };
+                a = a + 1;
+            };
 
-                [a, value is unit]
-            }
-        },
-        VecTuple((10, true)),
+            [a, value is unit]
+        }
     };
+    assert_eq!(out, VecTuple((10, true)));
 
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() {
-                let n = 0;
+    let out: i64 = rune! {
+        pub fn main() {
+            let n = 0;
 
-                let n = loop {
-                    if n >= 10 {
-                        break n;
-                    }
+            let n = loop {
+                if n >= 10 {
+                    break n;
+                }
 
-                    n = n + 1;
-                };
+                n = n + 1;
+            };
 
-                n
-            }
-        },
-        10,
+            n
+        }
     };
+    assert_eq!(out, 10);
 }
 
 #[test]
 fn test_for() {
-    assert_eq! {
-        rune! { i64 =>
-            use std::iter::range;
+    let out: i64 = rune! {
+        use std::iter::range;
 
-            pub fn main() {
-                let a = 0;
-                let it = range(0, 10);
+        pub fn main() {
+            let a = 0;
+            let it = range(0, 10);
 
-                for v in it {
-                    a = a + 1;
+            for v in it {
+                a = a + 1;
+            }
+
+            a
+        }
+    };
+    assert_eq!(out, 10);
+
+    let out: i64 = rune! {
+        use std::iter::range;
+
+        pub fn main() {
+            let a = 0;
+            let it = range(0, 100);
+
+            let a = for v in it {
+                if a >= 10 {
+                    break a;
                 }
 
-                a
-            }
-        },
-        10,
+                a = a + 1;
+            };
+
+            a
+        }
     };
+    assert_eq!(out, 10);
 
-    assert_eq! {
-        rune! { i64 =>
-            use std::iter::range;
+    let out: bool = rune! {
+        use std::iter::range;
 
-            pub fn main() {
-                let a = 0;
-                let it = range(0, 100);
+        pub fn main() {
+            let a = 0;
+            let it = range(0, 100);
 
-                let a = for v in it {
-                    if a >= 10 {
-                        break a;
-                    }
+            let a = for v in it {
+                if a >= 10 {
+                    break;
+                }
 
-                    a = a + 1;
-                };
+                a = a + 1;
+            };
 
-                a
-            }
-        },
-        10,
+            a is unit
+        }
     };
-
-    assert_eq! {
-        rune! { bool =>
-            use std::iter::range;
-
-            pub fn main() {
-                let a = 0;
-                let it = range(0, 100);
-
-                let a = for v in it {
-                    if a >= 10 {
-                        break;
-                    }
-
-                    a = a + 1;
-                };
-
-                a is unit
-            }
-        },
-        true,
-    };
+    assert_eq!(out, true);
 }
 
 #[test]
 fn test_return() {
-    assert_eq! {
-        rune! { i64 =>
-            use std::iter::range;
+    let out: i64 = rune! {
+        use std::iter::range;
 
-            pub fn main() {
-                for v in range(0, 20) {
-                    if v == 10 {
-                        return v;
-                    }
+        pub fn main() {
+            for v in range(0, 20) {
+                if v == 10 {
+                    return v;
                 }
-
-                0
             }
-        },
-        10,
+
+            0
+        }
     };
+    assert_eq!(out, 10);
 }
 
 #[test]
 fn test_is() {
-    assert_eq! {
-        rune! { bool =>
-            pub fn main() {
-                {} is Object
-            }
-        },
-        false,
-    };
+    let out: bool = rune!(pub fn main() { {} is Object });
+    assert!(!out);
 
-    assert!(rune!(bool => pub fn main() { #{} is Object }));
-    assert!(rune!(bool => pub fn main() { () is unit }));
-    assert!(rune!(bool => fn foo() {} pub fn main() { foo() is unit }));
-    assert!(rune!(bool => pub fn main() {{} is unit }));
-    assert!(rune!(bool => pub fn main() { true is bool }));
-    assert!(rune!(bool => pub fn main() { 'a' is char }));
-    assert!(rune!(bool => pub fn main() { 42 is int }));
-    assert!(rune!(bool => pub fn main() { 42.1 is float }));
-    assert!(rune!(bool => pub fn main() { "hello" is String }));
-    assert!(rune!(bool => pub fn main() { #{"hello": "world"} is Object }));
-    assert!(rune!(bool => pub fn main() { ["hello", "world"] is Vec }));
+    let out: bool = rune!(pub fn main() { #{} is Object });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { () is unit });
+    assert!(out);
+
+    let out: bool = rune!(fn foo() {} pub fn main() { foo() is unit });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() {{} is unit });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { true is bool });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { 'a' is char });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { 42 is int });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { 42.1 is float });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { "hello" is String });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { #{"hello": "world"} is Object });
+    assert!(out);
+
+    let out: bool = rune!(pub fn main() { ["hello", "world"] is Vec });
+    assert!(out);
 }
 
 #[test]
 fn test_destructuring() {
-    assert_eq! {
-        rune! { i64 =>
-            fn foo(n) {
-                [n, n + 1]
-            }
+    let out: i64 = rune! {
+        fn foo(n) {
+            [n, n + 1]
+        }
 
-            pub fn main() {
-                let [a, b] = foo(3);
-                a + b
-            }
-        },
-        7,
+        pub fn main() {
+            let [a, b] = foo(3);
+            a + b
+        }
     };
+    assert_eq!(out, 7);
 }
 
 #[test]
 fn test_if_pattern() {
-    assert_eq! {
-        rune! { bool =>
-            pub fn main() {
-                if let [value] = [()] {
-                    true
-                } else {
-                    false
-                }
+    let out: bool = rune! {
+        pub fn main() {
+            if let [value] = [()] {
+                true
+            } else {
+                false
             }
-        },
-        true,
+        }
     };
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune! { bool =>
-            pub fn main() {
-                if let [value] = [(), ()] {
-                    true
-                } else {
-                    false
-                }
+    let out: bool = rune! {
+        pub fn main() {
+            if let [value] = [(), ()] {
+                true
+            } else {
+                false
             }
-        },
-        false,
+        }
     };
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() {
-                let value = [(), (), 2];
+    let out: i64 = rune! {
+        pub fn main() {
+            let value = [(), (), 2];
 
-                if let [(), ()] = value {
-                    1
-                } else if let [(), (), c] = value {
-                    c
-                } else {
-                    3
-                }
+            if let [(), ()] = value {
+                1
+            } else if let [(), (), c] = value {
+                c
+            } else {
+                3
             }
-        },
-        2,
+        }
     };
+    assert_eq!(out, 2);
 }
 
 #[test]
 fn test_break_label() {
-    assert_eq! {
-        rune! { i64 =>
-            use std::iter::range;
+    let out: i64 = rune! {
+        use std::iter::range;
 
-            pub fn main() {
-                let it = range(0, 1000);
-                let tail = 77;
+        pub fn main() {
+            let it = range(0, 1000);
+            let tail = 77;
 
-                'label:
-                while true {
-                    let value = 10;
+            'label:
+            while true {
+                let value = 10;
 
-                    for n in it {
-                        loop {
-                            let value2 = 20;
-                            break 'label;
-                        }
-
-                        tail = tail + 1;
+                for n in it {
+                    loop {
+                        let value2 = 20;
+                        break 'label;
                     }
 
                     tail = tail + 1;
                 }
 
-                tail
+                tail = tail + 1;
             }
-        },
-        77,
+
+            tail
+        }
     };
+    assert_eq!(out, 77);
 }
 
 #[test]
 fn test_string_concat() {
-    assert_eq! {
-        rune! { String =>
-            pub fn main() {
-                let foo = String::from_str("foo");
-                foo += "/bar" + "/baz";
-                foo
-            }
-        },
-        "foo/bar/baz",
+    let out: String = rune! {
+        pub fn main() {
+            let foo = String::from_str("foo");
+            foo += "/bar" + "/baz";
+            foo
+        }
     };
+    assert_eq!(out, "foo/bar/baz");
 }
 
 #[test]
@@ -471,80 +471,74 @@ fn test_template_string() {
 
 #[test]
 fn test_variants_as_functions() {
-    assert_eq! {
-        rune! { i64 =>
-            enum Foo { A(a), B(b, c) }
+    let out: i64 = rune! {
+        enum Foo { A(a), B(b, c) }
 
-            fn construct_tuple(tuple) {
-                tuple(1, 2)
+        fn construct_tuple(tuple) {
+            tuple(1, 2)
+        }
+
+        pub fn main() {
+            let foo = construct_tuple(Foo::B);
+
+            match foo {
+                Foo::B(a, b) => a + b,
+                _ => 0,
             }
-
-            pub fn main() {
-                let foo = construct_tuple(Foo::B);
-
-                match foo {
-                    Foo::B(a, b) => a + b,
-                    _ => 0,
-                }
-            }
-        },
-        3,
+        }
     };
+    assert_eq!(out, 3);
 }
 
 #[test]
 fn test_iter_drop() {
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() {
-                let sum = 0;
-                let values = [1, 2, 3, 4];
+    let out: i64 = rune! {
+        pub fn main() {
+            let sum = 0;
+            let values = [1, 2, 3, 4];
 
-                for v in values.iter() {
+            for v in values.iter() {
+                break;
+            }
+
+            values.push(5);
+
+            for v in values.iter() {
+                sum += v;
+
+                if v == 2 {
                     break;
                 }
-
-                values.push(5);
-
-                for v in values.iter() {
-                    sum += v;
-
-                    if v == 2 {
-                        break;
-                    }
-                }
-
-                values.push(6);
-
-                for v in values.iter() {
-                    sum += v;
-                }
-
-                sum
             }
-        },
-        24,
+
+            values.push(6);
+
+            for v in values.iter() {
+                sum += v;
+            }
+
+            sum
+        }
     };
+    assert_eq!(out, 24);
 }
 
 #[test]
 fn test_async_fn() {
-    assert_eq! {
-        rune! { i64 =>
-            async fn foo(a, b) {
-                b / a
-            }
+    let out: i64 = rune! {
+        async fn foo(a, b) {
+            b / a
+        }
 
-            fn bar(a, b) {
-                b / a
-            }
+        fn bar(a, b) {
+            b / a
+        }
 
-            pub async fn main() {
-                foo(2, 4).await + bar(2, 8)
-            }
-        },
-        6,
+        pub async fn main() {
+            foo(2, 4).await + bar(2, 8)
+        }
     };
+    assert_eq!(out, 6);
 }
 
 #[test]
@@ -567,20 +561,18 @@ fn test_complex_field_access() {
 
 #[test]
 fn test_index_get() {
-    assert_eq! {
-        rune! { i64 =>
-            struct Named(a, b, c);
-            enum Enum { Named(a, b, c) }
+    let out: i64 = rune! {
+        struct Named(a, b, c);
+        enum Enum { Named(a, b, c) }
 
-            fn a() { [1, 2, 3] }
-            fn b() { (2, 3, 4) }
-            fn c() { Named(3, 4, 5) }
-            fn d() { Enum::Named(4, 5, 6) }
+        fn a() { [1, 2, 3] }
+        fn b() { (2, 3, 4) }
+        fn c() { Named(3, 4, 5) }
+        fn d() { Enum::Named(4, 5, 6) }
 
-            pub fn main() {
-                (a())[1] + (b())[1] + (c())[1] + (d())[1] + (a()).2 + (b()).2 + (c()).2 + (d()).2
-            }
-        },
-        32,
+        pub fn main() {
+            (a())[1] + (b())[1] + (c())[1] + (d())[1] + (a()).2 + (b()).2 + (c()).2 + (d()).2
+        }
     };
+    assert_eq!(out, 32);
 }

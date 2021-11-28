@@ -5,8 +5,7 @@ use rune_tests::*;
 /// simply alias the location of `dx`.
 #[test]
 fn test_pattern_binding_bug() {
-    let out = rune! {
-        i64 =>
+    let out: i64 = rune! {
         fn foo(dx) {
             let x = dx;
 
@@ -29,8 +28,7 @@ fn test_pattern_binding_bug() {
 /// inside of an inst fn call.
 #[test]
 fn test_string_pattern_in_instance_fn_bug() {
-    rune! {
-        () =>
+    let _: () = rune! {
         enum Inst { A, Unknown }
 
         pub fn works() {

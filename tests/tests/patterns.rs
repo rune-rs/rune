@@ -3,156 +3,245 @@ use rune_tests::*;
 
 #[test]
 fn test_patterns() {
-    assert_eq! {
-        rune!(i64 => pub fn main() { match 1 { _ => 10 } }),
-        10,
-    };
+    let out: i64 = rune!(
+        pub fn main() {
+            match 1 {
+                _ => 10,
+            }
+        }
+    );
+    assert_eq!(out, 10);
 
-    assert_eq! {
-        rune!(i64 => pub fn main() { match 10 { n => 10 } }),
-        10,
-    };
+    let out: i64 = rune!(
+        pub fn main() {
+            match 10 {
+                n => 10,
+            }
+        }
+    );
+    assert_eq!(out, 10);
 
-    assert_eq! {
-        rune!(char => pub fn main() { match 'a' { 'a' => 'b', n => n } }),
-        'b',
-    };
+    let out: char = rune!(
+        pub fn main() {
+            match 'a' {
+                'a' => 'b',
+                n => n,
+            }
+        }
+    );
+    assert_eq!(out, 'b');
 
-    assert_eq! {
-        rune!(i64 => pub fn main() { match 10 { n => n } }),
-        10,
-    };
+    let out: i64 = rune!(
+        pub fn main() {
+            match 10 {
+                n => n,
+            }
+        }
+    );
+    assert_eq!(out, 10);
 
-    assert_eq! {
-        rune!(i64 => pub fn main() { match 10 { 10 => 5, n => n } }),
-        5,
-    };
+    let out: i64 = rune!(
+        pub fn main() {
+            match 10 {
+                10 => 5,
+                n => n,
+            }
+        }
+    );
+    assert_eq!(out, 5);
 
-    assert_eq! {
-        rune!(String => pub fn main() { match "hello world" { "hello world" => "hello john", n => n } }),
-        "hello john",
-    };
+    let out: String = rune!(
+        pub fn main() {
+            match "hello world" {
+                "hello world" => "hello john",
+                n => n,
+            }
+        }
+    );
+    assert_eq!(out, "hello john");
 
-    assert_eq! {
-        rune!(String => pub fn main() { match (true, false) { (true, false) => "aaaa" , _ => "no", } }),
-        "aaaa",
-    };
+    let out: String = rune!(
+        pub fn main() {
+            match (true, false) {
+                (true, false) => "aaaa",
+                _ => "no",
+            }
+        }
+    );
+    assert_eq!(out, "aaaa");
 
-    assert_eq! {
-        rune!(String => pub fn main() { match (1==1, 1==2) { (true, false) => "aaaa" , _ => "no", } }),
-        "aaaa",
-    };
+    let out: String = rune!(
+        pub fn main() {
+            match (1 == 1, 1 == 2) {
+                (true, false) => "aaaa",
+                _ => "no",
+            }
+        }
+    );
+    assert_eq!(out, "aaaa");
 }
 
 #[test]
 fn test_vec_patterns() {
-    assert_eq! {
-        rune!(bool => pub fn main() { match [] { [..] => true } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [] {
+                [..] => true,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [] { [..] => true, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [] {
+                [..] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [a, b] => a + 1 == b } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, 2] {
+                [a, b] => a + 1 == b,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(() => pub fn main() { match [] { [a, b] => a + 1 == b } }),
-        (),
-    };
+    let _: () = rune!(
+        pub fn main() {
+            match [] {
+                [a, b] => a + 1 == b,
+            }
+        }
+    );
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [a, b] => a + 1 == b, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, 2] {
+                [a, b] => a + 1 == b,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [a, b, ..] => a + 1 == b, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, 2] {
+                [a, b, ..] => a + 1 == b,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [1, ..] => true, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, 2] {
+                [1, ..] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [] => true, _ => false } }),
-        false,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, 2] {
+                [] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [1, 2] => true, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, 2] {
+                [1, 2] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, 2] { [1] => true, _ => false } }),
-        false,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, 2] {
+                [1] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, [2, 3]] { [1, [2, ..]] => true, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, [2, 3]] {
+                [1, [2, ..]] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, []] { [1, [2, ..]] => true, _ => false } }),
-        false,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, []] {
+                [1, [2, ..]] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, [2, 3]] { [1, [2, 3]] => true, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, [2, 3]] {
+                [1, [2, 3]] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match [1, [2, 4]] { [1, [2, 3]] => true, _ => false } }),
-        false,
-    };
+    let out: bool = rune!(
+        pub fn main() {
+            match [1, [2, 4]] {
+                [1, [2, 3]] => true,
+                _ => false,
+            }
+        }
+    );
+    assert_eq!(out, false);
 }
 
 #[test]
 fn test_object_patterns() {
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{} { #{..} => true } }),
-        true,
-    };
+    let out: bool = rune!(pub fn main() { match #{} { #{..} => true } });
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{foo: true} { #{foo} => foo, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(pub fn main() { match #{foo: true} { #{foo} => foo, _ => false } });
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{} { #{..} => true, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(pub fn main() { match #{} { #{..} => true, _ => false } });
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v, ..} => v == 10, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(pub fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v, ..} => v == 10, _ => false } });
+    assert_eq!(out, true);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v} => v == 10, _ => false } }),
-        false,
-    };
+    let out: bool = rune!(pub fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v} => v == 10, _ => false } });
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v} => v == 10, _ => false } }),
-        false,
-    };
+    let out: bool = rune!(pub fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v} => v == 10, _ => false } });
+    assert_eq!(out, false);
 
-    assert_eq! {
-        rune!(bool => pub fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v, ..} => v == 10, _ => false } }),
-        true,
-    };
+    let out: bool = rune!(pub fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v, ..} => v == 10, _ => false } });
+    assert_eq!(out, true);
 }
 
 #[test]

@@ -3,13 +3,13 @@ use rune_tests::*;
 
 #[test]
 fn test_range_iter() {
-    let values = rune!(Vec<i64> =>
+    let values: Vec<i64> = rune! {
         use std::iter::range;
 
         pub fn main() {
             range(0, 100).map(|n| n * 2).filter(|n| n % 3 == 0).collect_vec()
         }
-    );
+    };
 
     assert_eq!(
         values,
@@ -22,13 +22,13 @@ fn test_range_iter() {
 
 #[test]
 fn test_rev() {
-    let values = rune!(Vec<i64> =>
+    let values: Vec<i64> = rune! {
         use std::iter::range;
 
         pub fn main() {
             range(0, 100).map(|n| n * 2).filter(|n| n % 3 == 0).rev().collect_vec()
         }
-    );
+    };
 
     let expected = (0..100)
         .map(|n| n * 2)
@@ -41,7 +41,7 @@ fn test_rev() {
 
 #[test]
 fn test_next_back() {
-    rune! {() =>
+    let _: () = rune! {
         const SOURCE = [1, 2, 3, "foo"];
 
         pub fn main() {
@@ -69,7 +69,7 @@ fn test_object_rev_error() {
 
 #[test]
 fn test_chain() {
-    let values = rune! { Vec<i64> =>
+    let values: Vec<i64> = rune! {
         pub fn main() {
             [1, 2].iter().rev().chain([3, 4].iter()).collect_vec()
         }
@@ -80,7 +80,7 @@ fn test_chain() {
 
 #[test]
 fn test_enumerate() {
-    let values = rune! { Vec<(i64, i64)> =>
+    let values: Vec<(i64, i64)> = rune! {
         pub fn main() {
             let it = [1, 2].iter().rev().chain([3, 4].iter()).enumerate();
             assert_eq!(it.next_back(), Some((3, 4)));
@@ -93,7 +93,7 @@ fn test_enumerate() {
 
 #[test]
 fn test_option_iter() {
-    let values = rune! { Vec<i64> =>
+    let values: Vec<i64> = rune! {
         pub fn main() {
             Some(1).iter().chain(None.iter()).chain(Some(3).iter()).collect_vec()
         }
@@ -104,7 +104,7 @@ fn test_option_iter() {
 
 #[test]
 fn test_peekable_take() {
-    let actual = rune! { Vec<i64> =>
+    let actual: Vec<i64> = rune! {
         use std::iter::range;
 
         pub fn main() {
@@ -136,7 +136,7 @@ fn test_peekable_take() {
 
 #[test]
 fn test_flat_map() {
-    let actual = rune! { Vec<i64> =>
+    let actual: Vec<i64> = rune! {
         use std::iter::range;
 
         pub fn main() {

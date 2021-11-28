@@ -5,52 +5,43 @@ use rune_tests::*;
 
 #[test]
 fn test_map() {
-    assert_eq!(
-        rune! { Result<u32, String> =>
-            pub fn main() {
-                Ok(1).map(|v| v + 1)
-            }
-        },
-        Ok(2)
-    )
+    let out: Result<u32, String> = rune! {
+        pub fn main() {
+            Ok(1).map(|v| v + 1)
+        }
+    };
+    assert_eq!(out, Ok(2))
 }
 
 #[test]
 fn test_and_then() {
-    assert_eq!(
-        rune! { Result<u32, String> =>
-
-            pub fn main() {
-                Ok(1).and_then(|v| Ok(v + 1))
-            }
-        },
-        Ok(2)
-    )
+    let out: Result<u32, String> = rune! {
+        pub fn main() {
+            Ok(1).and_then(|v| Ok(v + 1))
+        }
+    };
+    assert_eq!(out, Ok(2))
 }
 
 #[test]
 fn test_and_then_error() {
-    assert_eq!(
-        rune! { Result<u32, String> =>
+    let out: Result<u32, String> = rune! {
 
-            pub fn main() {
-                Ok(1).and_then(|v| Err("Failed"))
-            }
-        },
-        Err("Failed".to_owned())
-    )
+        pub fn main() {
+            Ok(1).and_then(|v| Err("Failed"))
+        }
+    };
+    assert_eq!(out, Err("Failed".to_owned()))
 }
 
 #[test]
 fn test_expect_some() {
-    assert_eq!(
-        rune! { i32 =>
-            pub fn main() {
-                Ok(1).expect("Ok")
-            }
-        },
-        1
-    );
+    let out: i32 = rune! {
+        pub fn main() {
+            Ok(1).expect("Ok")
+        }
+    };
+    assert_eq!(out, 1);
 }
 
 #[test]
@@ -70,14 +61,12 @@ fn test_expect() {
 
 #[test]
 fn test_unwrap_some() {
-    assert_eq!(
-        rune! { i32 =>
-            pub fn main() {
-                Ok(1).unwrap()
-            }
-        },
-        1
-    );
+    let out: i32 = rune! {
+        pub fn main() {
+            Ok(1).unwrap()
+        }
+    };
+    assert_eq!(out, 1);
 }
 
 #[test]
@@ -97,12 +86,10 @@ fn test_unwrap() {
 
 #[test]
 fn test_unwrap_or() {
-    assert_eq!(
-        rune! { i32 =>
-            pub fn main() {
-                Err("Error").unwrap_or(10)
-            }
-        },
-        10
-    );
+    let out: i32 = rune! {
+        pub fn main() {
+            Err("Error").unwrap_or(10)
+        }
+    };
+    assert_eq!(out, 10);
 }

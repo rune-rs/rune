@@ -4,8 +4,7 @@ use rune_tests::*;
 
 #[test]
 fn basic_use() {
-    rune! {
-        () =>
+    let _: () = rune! {
         mod private {
             #[test]
             fn test_case() {
@@ -20,7 +19,7 @@ fn basic_use() {
 
         pub fn main() {
         }
-    }
+    };
 }
 
 // We prevent tests from being declared inside of nested items at compile time.

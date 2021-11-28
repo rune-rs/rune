@@ -264,16 +264,14 @@ macro_rules! rune_vm_capture {
 /// use rune_tests::*;
 ///
 /// # fn main() {
-/// assert_eq! {
-///     rune_tests::rune!(bool => pub fn main() { true || false }),
-///     true,
-/// };
+/// let out: bool = rune_tests::rune!(pub fn main() { true || false });
+/// assert_eq!(out, true);
 /// # }
 #[macro_export]
 macro_rules! rune {
-    ($ty:ty => $($tt:tt)*) => {{
+    ($($tt:tt)*) => {{
         let context = $crate::modules::default_context().expect("failed to build context");
-        $crate::run_with_diagnostics::<_, (), $ty>(&context, stringify!($($tt)*), &["main"], ())
+        $crate::run_with_diagnostics(&context, stringify!($($tt)*), &["main"], ())
             .expect("program to run successfully")
     }};
 }

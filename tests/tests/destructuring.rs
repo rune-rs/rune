@@ -2,7 +2,7 @@ use rune_tests::*;
 
 macro_rules! test_case {
     (($($st:tt)*), ($($ds:tt)*) $(, $($extra:tt)*)?) => {
-        assert_eq!(15, rune! { i64 =>
+        let out: i64 = rune! {
             $($($extra)*)?
 
             fn foo($($ds)*) {
@@ -18,9 +18,10 @@ macro_rules! test_case {
 
                 n
             }
-        });
+        };
+        assert_eq!(out, 15);
 
-        assert_eq!(15, rune! { i64 =>
+        let out: i64 = rune! {
             $($($extra)*)?
 
             pub fn main() {
@@ -36,7 +37,8 @@ macro_rules! test_case {
 
                 n
             }
-        });
+        };
+        assert_eq!(out, 15);
     }
 }
 

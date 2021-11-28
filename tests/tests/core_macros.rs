@@ -2,20 +2,32 @@ use rune_tests::*;
 
 macro_rules! test_case {
     ($($tt:tt)*) => {
-        let out: String = rune!(String => pub fn main() { format!($($tt)*) });
+        let out: String = rune!(pub fn main() { format!($($tt)*) });
         assert_eq!(format!($($tt)*), out);
     }
 }
 
 #[test]
 fn test_asserts() {
-    rune!(() => pub fn main() { assert!(true) });
-    rune!(() => pub fn main() { assert_eq!(1 + 1, 2) });
+    let _: () = rune!(
+        pub fn main() {
+            assert!(true)
+        }
+    );
+    let _: () = rune!(
+        pub fn main() {
+            assert_eq!(1 + 1, 2)
+        }
+    );
 }
 
 #[test]
 fn test_stringify() {
-    let out: String = rune!(String => pub fn main() { stringify!(assert_eq!(1 + 1, 2)) });
+    let out: String = rune!(
+        pub fn main() {
+            stringify!(assert_eq!(1 + 1, 2))
+        }
+    );
     assert_eq!("assert_eq ! ( 1 + 1 , 2 )", out);
 }
 
@@ -34,8 +46,11 @@ fn test_format() {
     test_case!("Hello, {1} {0}", "John", "Doe");
     test_case!("Hello, {} {0} {}", "John", "Doe");
 
-    let out: String =
-        rune!(String => pub fn main() { format!("Hello, {}" + " {0} {}", "John", "Doe") });
+    let out: String = rune!(
+        pub fn main() {
+            format!("Hello, {}" + " {0} {}", "John", "Doe")
+        }
+    );
     assert_eq!(format!("Hello, {} {0} {}", "John", "Doe"), out);
 }
 

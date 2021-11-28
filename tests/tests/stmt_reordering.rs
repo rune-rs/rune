@@ -2,7 +2,7 @@ use rune_tests::*;
 
 #[test]
 fn test_stmt_reordering() {
-    let len = rune! { i64 =>
+    let len: i64 = rune! {
         pub fn main() {
             let len = 0;
             let value = String::from_str("Hello");
@@ -17,7 +17,7 @@ fn test_stmt_reordering() {
 
 #[test]
 fn test_const_stmt_reordering() {
-    let n = rune! { i64 =>
+    let n: i64 = rune! {
         const fn foo() {
             let n = 0;
             n = 1;

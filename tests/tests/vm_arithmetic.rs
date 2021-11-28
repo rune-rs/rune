@@ -3,10 +3,8 @@ use rune_tests::*;
 
 macro_rules! op_tests {
     ($lhs:literal $op:tt $rhs:literal = $out:expr) => {
-        assert_eq! {
-            rune!(i64 => pub fn main() { let a = $lhs; let b = $rhs; a $op b}),
-            $out,
-        };
+        let out: i64 = rune!(pub fn main() { let a = $lhs; let b = $rhs; a $op b});
+        assert_eq!(out, $out);
 
         assert_eq! {
             rune_s!(i64 => &format!(
@@ -160,10 +158,8 @@ fn test_bit_ops() {
 
 #[test]
 fn test_bitwise_not() {
-    assert_eq! {
-        rune! { i64 =>
-            pub fn main() { let a = 0b10100; !a }
-        },
-        !0b10100,
+    let out: i64 = rune! {
+        pub fn main() { let a = 0b10100; !a }
     };
+    assert_eq!(out, !0b10100);
 }

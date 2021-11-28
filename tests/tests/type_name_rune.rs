@@ -4,20 +4,21 @@ use rune_tests::*;
 
 #[test]
 fn test_trivial_types() {
+    let out: Vec<String> = rune! {
+        use std::any::type_name_of_val;
+        pub fn main() {
+            [
+                type_name_of_val(true),
+                type_name_of_val(1),
+                type_name_of_val(1.0),
+                type_name_of_val('c'),
+                type_name_of_val("s"),
+                type_name_of_val(Some("s")),
+            ]
+        }
+    };
     assert_eq!(
-        rune! { Vec<String> =>
-            use std::any::type_name_of_val;
-            pub fn main() {
-                [
-                    type_name_of_val(true),
-                    type_name_of_val(1),
-                    type_name_of_val(1.0),
-                    type_name_of_val('c'),
-                    type_name_of_val("s"),
-                    type_name_of_val(Some("s")),
-                ]
-            }
-        },
+        out,
         [
             "::std::bool".to_owned(),
             "::std::int".to_owned(),
@@ -31,61 +32,58 @@ fn test_trivial_types() {
 
 #[test]
 fn test_fn_types() {
-    assert_eq!(
-        rune! { Vec<String> =>
-            use std::any::type_name_of_val;
-            fn foo() {}
-            mod bar { pub fn foo() {} }
-            pub fn main() {
-                [type_name_of_val(foo), type_name_of_val(bar::foo)]
-            }
-        },
-        vec!["foo", "bar::foo"]
-    )
+    let out: Vec<String> = rune! {
+        use std::any::type_name_of_val;
+        fn foo() {}
+        mod bar { pub fn foo() {} }
+        pub fn main() {
+            [type_name_of_val(foo), type_name_of_val(bar::foo)]
+        }
+    };
+    assert_eq!(out, vec!["foo", "bar::foo"]);
 }
 
 #[test]
 fn test_struct() {
-    assert_eq!(
-        rune! { Vec<String> =>
-                use std::any::type_name_of_val;
+    let out: Vec<String> = rune! {
+        use std::any::type_name_of_val;
 
-                struct X{}
-                impl X{
-                    fn foo(self) {}
-                    fn ctor() {
-                    }
-                }
-                pub fn main() {
-                    let x = X{};
-                    [type_name_of_val(x), type_name_of_val(X::ctor), type_name_of_val(X::foo)]
-                }
-        },
+        struct X{}
+        impl X{
+            fn foo(self) {}
+            fn ctor() {
+            }
+        }
+        pub fn main() {
+            let x = X{};
+            [type_name_of_val(x), type_name_of_val(X::ctor), type_name_of_val(X::foo)]
+        }
+    };
+
+    assert_eq!(
+        out,
         vec!["X".to_owned(), "X::ctor".to_owned(), "X::foo".to_owned()]
     )
 }
 
 #[test]
 fn test_enum() {
-    assert_eq!(
-        rune! { Vec<String> =>
+    let out: Vec<String> = rune! {
+        use std::any::type_name_of_val;
 
-            use std::any::type_name_of_val;
+        enum E {
+            A{ f },
+            B(g),
+            C,
+        }
 
-            enum E {
-                A{ f },
-                B(g),
-                C,
-            }
+        pub fn main() {
+            let ea = E::A { f: 1 };
+            let eb = E::B(2);
+            let ec = E::C;
 
-            pub fn main() {
-                let ea = E::A { f: 1 };
-                let eb = E::B(2);
-                let ec = E::C;
-
-                [type_name_of_val(ea), type_name_of_val(eb), type_name_of_val(ec)]
-            }
-        },
-        vec!["E".to_owned(), "E".to_owned(), "E".to_owned()]
-    )
+            [type_name_of_val(ea), type_name_of_val(eb), type_name_of_val(ec)]
+        }
+    };
+    assert_eq!(out, vec!["E".to_owned(), "E".to_owned(), "E".to_owned()]);
 }

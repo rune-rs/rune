@@ -2,7 +2,7 @@ use rune_tests::*;
 
 #[test]
 fn test_hash_map_tile() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             use std::collections::HashMap;
 
@@ -17,12 +17,12 @@ fn test_hash_map_tile() {
             assert_eq!(m.get((0, 1)), Some(Tile::Wall));
             assert_eq!(m.get((0, 2)), None);
         }
-    }
+    };
 }
 
 #[test]
 fn test_hash_set_tuple() {
-    rune! { () =>
+    let _: () = rune! {
         pub fn main() {
             use std::collections::HashSet;
 
@@ -37,5 +37,5 @@ fn test_hash_set_tuple() {
             assert!(m.contains((0, 1)));
             assert!(!m.contains((0, 2)));
         }
-    }
+    };
 }
