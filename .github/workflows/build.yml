@@ -98,3 +98,27 @@ jobs:
             target
           key: build_wasm-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
       - run: cargo build --package rune-wasm --target wasm32-unknown-unknown
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: clippy
+          override: true
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            target
+          key: clippy-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features -- -D warnings
