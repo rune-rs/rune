@@ -100,6 +100,9 @@
 #[cfg(feature = "experiments")]
 pub mod experiments;
 
+#[cfg(feature = "capture-io")]
+pub mod capture_io;
+
 macro_rules! modules {
     ($($ident:ident, $name:literal),* $(,)?) => {
         $(

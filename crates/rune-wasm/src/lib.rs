@@ -47,19 +47,19 @@
 #![allow(clippy::collapsible_match)]
 #![allow(clippy::single_match)]
 
-use anyhow::Context;
+use anyhow::Context as _;
 use rune::ast::Spanned;
 use rune::compile::LinkerError;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::runtime::budget;
 use rune::runtime::Value;
-use rune::{ContextError, Options};
+use rune::{Context, ContextError, Options};
+use rune_modules::capture_io::CaptureIo;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
-mod core;
 mod http;
 mod time;
 
@@ -126,6 +126,7 @@ pub struct WasmCompileResult {
 impl WasmCompileResult {
     /// Construct output from compile result.
     fn output(
+        io: &CaptureIo,
         output: Value,
         diagnostics_output: Option<String>,
         diagnostics: Vec<WasmDiagnostic>,
@@ -136,13 +137,14 @@ impl WasmCompileResult {
             diagnostics_output,
             diagnostics,
             result: Some(format!("{:?}", output)),
-            output: core::drain_output(),
+            output: io.drain_utf8().ok(),
             instructions,
         }
     }
 
     /// Construct a result from an error.
     fn from_error<E>(
+        io: &CaptureIo,
         error: E,
         diagnostics_output: Option<String>,
         diagnostics: Vec<WasmDiagnostic>,
@@ -156,16 +158,17 @@ impl WasmCompileResult {
             diagnostics_output,
             diagnostics,
             result: None,
-            output: core::drain_output(),
+            output: io.drain_utf8().ok(),
             instructions,
         }
     }
 }
 
 /// Setup a wasm-compatible context.
-fn setup_context(experimental: bool) -> Result<rune::Context, ContextError> {
-    let mut context = rune::Context::with_config(false)?;
-    context.install(&core::module()?)?;
+fn setup_context(experimental: bool, io: &CaptureIo) -> Result<Context, ContextError> {
+    let mut context = Context::with_config(false)?;
+
+    context.install(&rune_modules::capture_io::module(io)?)?;
     context.install(&time::module()?)?;
     context.install(&http::module()?)?;
     context.install(&rune_modules::json::module(false)?)?;
@@ -183,7 +186,11 @@ fn setup_context(experimental: bool) -> Result<rune::Context, ContextError> {
     Ok(context)
 }
 
-async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResult, anyhow::Error> {
+async fn inner_compile(
+    input: String,
+    config: JsValue,
+    io: &CaptureIo,
+) -> Result<WasmCompileResult, anyhow::Error> {
     let instructions = None;
 
     let config = config.into_serde::<Config>()?;
@@ -193,7 +200,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
     let mut sources = rune::Sources::new();
     sources.insert(source);
 
-    let context = setup_context(config.experimental)?;
+    let context = setup_context(config.experimental, io)?;
 
     let mut options = Options::default();
 
@@ -324,6 +331,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
         Ok(unit) => Arc::new(unit),
         Err(error) => {
             return Ok(WasmCompileResult::from_error(
+                &io,
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -351,6 +359,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
                 .context("emitting to buffer should never fail")?;
 
             return Ok(WasmCompileResult::from_error(
+                &io,
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -398,6 +407,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
                 .context("emitting to buffer should never fail")?;
 
             return Ok(WasmCompileResult::from_error(
+                &io,
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -407,6 +417,7 @@ async fn inner_compile(input: String, config: JsValue) -> Result<WasmCompileResu
     };
 
     Ok(WasmCompileResult::output(
+        &io,
         output,
         diagnostics_output(writer),
         diagnostics,
@@ -423,9 +434,11 @@ fn diagnostics_output(writer: rune::termcolor::Buffer) -> Option<String> {
 
 #[wasm_bindgen]
 pub async fn compile(input: String, config: JsValue) -> JsValue {
-    let result = match inner_compile(input, config).await {
+    let io = CaptureIo::new();
+
+    let result = match inner_compile(input, config, &io).await {
         Ok(result) => result,
-        Err(error) => WasmCompileResult::from_error(error, None, Vec::new(), None),
+        Err(error) => WasmCompileResult::from_error(&io, error, None, Vec::new(), None),
     };
 
     JsValue::from_serde(&result).unwrap()

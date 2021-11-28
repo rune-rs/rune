@@ -3,7 +3,7 @@
 extern crate test;
 
 use rune::{Hash, Result, Vm};
-use rune_tests::CaptureIo;
+use rune_tests::modules::capture_io::CaptureIo;
 use test::Bencher;
 
 fn make_vm() -> Result<(Vm, CaptureIo)> {

@@ -1,20 +1,12 @@
 //! Test cases for rune.
 #![allow(dead_code)]
 
+pub use ::rune_modules as modules;
 use rune::compile::{IntoComponent, Item};
 use rune::runtime::{Args, VmError};
 use rune::{termcolor, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
 use std::sync::Arc;
 use thiserror::Error;
-
-mod capture_io;
-pub use self::capture_io::{capture_io, CaptureIo};
-
-/// Macro internals.
-#[doc(hidden)]
-pub mod macros {
-    pub use ::rune_modules;
-}
 
 /// An error that can be raised during testing.
 #[derive(Debug, Error)]
@@ -215,8 +207,8 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 #[macro_export]
 macro_rules! rune_vm {
     ($($tt:tt)*) => {{
-        let context = $crate::macros::rune_modules::default_context().expect("failed to build context");
-        let context = std::sync::Arc::new(context);
+        let context = $crate::modules::default_context().expect("failed to build context");
+        let context = ::std::sync::Arc::new(context);
         $crate::vm_with_source(&context, stringify!($($tt)*)).expect("program to compile successfully")
     }};
 }
@@ -239,8 +231,9 @@ macro_rules! rune_vm {
 #[macro_export]
 macro_rules! rune_vm_capture {
     ($($tt:tt)*) => {{
-        let mut context = $crate::macros::rune_modules::with_config(false)?;
-        let (m, io) = $crate::capture_io()?;
+        let mut context = $crate::modules::with_config(false)?;
+        let io = $crate::modules::capture_io::CaptureIo::new();
+        let m = $crate::modules::capture_io::module(&io)?;
         context.install(&m)?;
         let context = ::std::sync::Arc::new(context);
         let vm = $crate::vm_with_source(&context, stringify!($($tt)*))?;
@@ -265,8 +258,8 @@ macro_rules! rune_vm_capture {
 #[macro_export]
 macro_rules! rune {
     ($ty:ty => $($tt:tt)*) => {{
-        let context = $crate::macros::rune_modules::default_context().expect("failed to build context");
-        let context = std::sync::Arc::new(context);
+        let context = $crate::modules::default_context().expect("failed to build context");
+        let context = ::std::sync::Arc::new(context);
 
         $crate::run_with_diagnostics::<_, (), $ty>(&context, stringify!($($tt)*), &["main"], ())
             .expect("program to run successfully")
@@ -290,9 +283,8 @@ macro_rules! rune {
 #[macro_export]
 macro_rules! rune_s {
     ($ty:ty => $source:expr) => {{
-        let context =
-            $crate::macros::rune_modules::default_context().expect("failed to build context");
-        let context = std::sync::Arc::new(context);
+        let context = $crate::modules::default_context().expect("failed to build context");
+        let context = ::std::sync::Arc::new(context);
 
         $crate::run_with_diagnostics::<_, (), $ty>(&context, $source, &["main"], ())
             .expect("program to run successfully")
@@ -321,9 +313,9 @@ macro_rules! rune_s {
 #[macro_export]
 macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
-        let mut context = $crate::macros::rune_modules::default_context().expect("failed to build context");
+        let mut context = $crate::modules::default_context().expect("failed to build context");
         context.install(&$module).expect("failed to install native module");
-        let context = std::sync::Arc::new(context);
+        let context = ::std::sync::Arc::new(context);
 
         $crate::run_with_diagnostics::<_, _, $ty>(&context, stringify!($($tt)*), &["main"], $args)
             .expect("program to run successfully")
@@ -348,7 +340,7 @@ macro_rules! assert_vm_error {
 
     // Second variant which allows for specifyinga type.
     ($ty:ty => $source:expr, $pat:pat => $cond:block) => {{
-        let context = std::sync::Arc::new(rune_modules::default_context().unwrap());
+        let context = ::std::sync::Arc::new($crate::modules::default_context().unwrap());
         let e = $crate::run::<_, _, $ty>(&context, $source, &["main"], ()).unwrap_err();
 
         let (e, _) = match e {
@@ -371,7 +363,7 @@ macro_rules! assert_vm_error {
 #[macro_export]
 macro_rules! assert_parse {
     ($source:expr) => {{
-        let context = $crate::macros::rune_modules::default_context().unwrap();
+        let context = $crate::modules::default_context().unwrap();
         $crate::compile_source(&context, $source).unwrap()
     }};
 }
@@ -388,7 +380,7 @@ macro_rules! assert_compile_error {
 #[macro_export]
 macro_rules! assert_errors {
     ($source:expr, $span:ident, $($variant:ident($pat:pat) => $cond:expr),+ $(,)?) => {{
-        let context = $crate::macros::rune_modules::default_context().unwrap();
+        let context = $crate::modules::default_context().unwrap();
         let e = $crate::compile_source(&context, $source).unwrap_err();
         assert!(e.has_error(), "expected at least one error");
 
@@ -430,7 +422,7 @@ macro_rules! assert_errors {
 #[macro_export]
 macro_rules! assert_warnings {
     ($source:expr $(, $pat:pat => $cond:expr)*) => {{
-        let context = $crate::macros::rune_modules::default_context().unwrap();
+        let context = $crate::modules::default_context().unwrap();
         let (_, diagnostics) = $crate::compile_source(&context, $source).expect("source should compile");
         assert!(diagnostics.has_warning(), "no warnings produced");
 
