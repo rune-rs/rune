@@ -19,7 +19,7 @@ use std::io::Write;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct CaptureIo {
     inner: Arc<Mutex<Vec<u8>>>,
 }
@@ -27,9 +27,7 @@ pub struct CaptureIo {
 impl CaptureIo {
     /// Construct a new capture.
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(Vec::new())),
-        }
+        Self::default()
     }
 
     /// Drain all captured I/O that has been written to output functions.
