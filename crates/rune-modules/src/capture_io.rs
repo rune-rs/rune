@@ -1,4 +1,16 @@
-//! Utilities related to testing
+//! I/O module capable of capturing what's been written to a buffer.
+//!
+//! ```
+//! use rune::{Context, ContextError};
+//! use rune_modules::capture_io::{self, CaptureIo};
+//!
+//! # fn main() -> Result<(), ContextError> {
+//! let io = CaptureIo::new();
+//!
+//! let mut c = Context::new();
+//! c.install(&capture_io::module(&io)?)?;
+//! # Ok(()) }
+//! ```
 
 use parking_lot::Mutex;
 use rune::runtime::{Panic, Stack, VmError};
@@ -13,20 +25,28 @@ pub struct CaptureIo {
 }
 
 impl CaptureIo {
-    /// Drain all output that has been written to output functions as UTF-8.
-    pub fn drain_utf8(&self) -> Result<String, FromUtf8Error> {
+    /// Construct a new capture.
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Drain all captured I/O that has been written to output functions.
+    pub fn drain(&self) -> Vec<u8> {
         let mut o = self.inner.lock();
-        let o = std::mem::take(&mut *o);
-        String::from_utf8(o)
+        std::mem::take(&mut *o)
+    }
+
+    /// Drain all captured I/O that has been written to output functions and try
+    /// to decode as UTF-8.
+    pub fn drain_utf8(&self) -> Result<String, FromUtf8Error> {
+        String::from_utf8(self.drain())
     }
 }
 
 /// Provide a bunch of `std` functions that can be used during tests to capture output.
-pub fn capture_io() -> Result<(Module, CaptureIo), ContextError> {
-    let io = CaptureIo {
-        inner: Arc::new(Mutex::new(Vec::new())),
-    };
-
+pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", &["io"]);
 
     let o = io.clone();
@@ -48,7 +68,7 @@ pub fn capture_io() -> Result<(Module, CaptureIo), ContextError> {
         dbg_impl(&mut *o, stack, args)
     })?;
 
-    Ok((module, io))
+    Ok(module)
 }
 
 fn dbg_impl<O>(o: &mut O, stack: &mut Stack, args: usize) -> Result<(), VmError>

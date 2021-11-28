@@ -16,8 +16,7 @@ futures-executor = "0.3.17"
 tokio = { version = "1.13.0", optional = true, features = ["macros"] }
 
 rune = { path = "../crates/rune" }
-rune-modules = { path = "../crates/rune-modules" }
-parking_lot = "0.11.2"
+rune-modules = { path = "../crates/rune-modules", features = ["capture-io"] }
 
 [[test]]
 name = "test"
