@@ -7,13 +7,12 @@ publish = false
 autotests = false
 
 [features]
-default = ["full", "tokio"]
+default = ["full"]
 full = ["rune-modules/full"]
 
 [dependencies]
 thiserror = "1.0.30"
-futures-executor = "0.3.17"
-tokio = { version = "1.13.0", optional = true, features = ["macros"] }
+futures-executor = "0.3.18"
 
 rune = { path = "../crates/rune" }
 rune-modules = { path = "../crates/rune-modules", features = ["capture-io"] }
