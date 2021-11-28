@@ -331,7 +331,7 @@ async fn inner_compile(
         Ok(unit) => Arc::new(unit),
         Err(error) => {
             return Ok(WasmCompileResult::from_error(
-                &io,
+                io,
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -359,7 +359,7 @@ async fn inner_compile(
                 .context("emitting to buffer should never fail")?;
 
             return Ok(WasmCompileResult::from_error(
-                &io,
+                io,
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -407,7 +407,7 @@ async fn inner_compile(
                 .context("emitting to buffer should never fail")?;
 
             return Ok(WasmCompileResult::from_error(
-                &io,
+                io,
                 error,
                 diagnostics_output(writer),
                 diagnostics,
@@ -417,7 +417,7 @@ async fn inner_compile(
     };
 
     Ok(WasmCompileResult::output(
-        &io,
+        io,
         output,
         diagnostics_output(writer),
         diagnostics,

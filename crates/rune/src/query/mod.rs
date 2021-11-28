@@ -616,7 +616,7 @@ impl<'a> Query<'a> {
 
         let qp = id
             .as_ref()
-            .and_then(|id| self.inner.query_paths.get(&id))
+            .and_then(|id| self.inner.query_paths.get(id))
             .ok_or_else(|| QueryError::new(path, QueryErrorKind::MissingId { what: "path", id }))?
             .clone();
 

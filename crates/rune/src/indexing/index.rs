@@ -633,7 +633,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     idx.nested_item = last;
 
     let f = guard.into_function(span)?;
-    ast.id = item.id.into();
+    ast.id = item.id;
 
     let call = match Indexer::call(f.generator, f.kind) {
         Some(call) => call,
@@ -811,7 +811,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         Visibility::default(),
     )?;
 
-    ast.block.id = item.id.into();
+    ast.block.id = item.id;
 
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
@@ -1248,7 +1248,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             &idx.mod_item,
             Visibility::Public,
         )?;
-        variant.id = item.id.into();
+        variant.id = item.id;
 
         idx.q.index_variant(&item, enum_item.id, variant.clone())?;
     }
@@ -1288,7 +1288,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     let item = idx
         .q
         .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
-    ast.id = item.id.into();
+    ast.id = item.id;
 
     idx.q.index_struct(&item, Box::new(ast.clone()))?;
     Ok(())
@@ -1391,7 +1391,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
         ast_to_visibility(&ast.visibility)?,
     )?;
 
-    ast.id = item.id.into();
+    ast.id = item.id;
 
     let last = idx.nested_item.replace(ast.descriptive_span());
     expr(&mut ast.expr, idx)?;
