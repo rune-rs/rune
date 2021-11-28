@@ -512,7 +512,6 @@ impl IrAssignOp {
     where
         S: Copy + Spanned,
     {
-        use std::convert::TryFrom;
         use std::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
 
         match self {

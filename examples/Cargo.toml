@@ -2,7 +2,7 @@
 name = "rune-examples"
 version = "0.0.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [features]
