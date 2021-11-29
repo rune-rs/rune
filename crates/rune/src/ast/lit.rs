@@ -1,6 +1,23 @@
 use crate::ast::prelude::*;
 
-/// A literal value
+/// A literal value,
+///
+/// These are made available by parsing Rune. Custom literals for macros can be
+/// constructed through [MacroContext::lit][crate::macros::MacroContext::lit].
+///
+/// # Examples
+///
+/// Constructing a literal value:
+///
+/// ```
+/// use rune::ast;
+/// use rune::macros::MacroContext;
+///
+/// MacroContext::test(|ctx| {
+///     let lit = ctx.lit("hello world");
+///     assert!(matches!(lit, ast::Lit::Str(..)))
+/// });
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Lit {

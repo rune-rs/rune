@@ -7,6 +7,20 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
+/// Constructing a label:
+///
+/// ```
+/// use rune::ast;
+/// use rune::macros::MacroContext;
+///
+/// MacroContext::test(|ctx| {
+///     let lit = ctx.label("foo");
+///     assert!(matches!(lit, ast::Label { .. }))
+/// });
+/// ```
+///
+/// Example labels:
+///
 /// ```
 /// use rune::{ast, testing};
 ///
