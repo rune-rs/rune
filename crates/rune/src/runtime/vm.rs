@@ -101,20 +101,6 @@ impl Vm {
         Self::new(Default::default(), unit)
     }
 
-    /// Run the given vm to completion.
-    ///
-    /// If any async instructions are encountered, this will error.
-    pub fn complete(self) -> Result<Value, VmError> {
-        let mut execution = VmExecution::new(self);
-        execution.complete()
-    }
-
-    /// Run the given vm to completion with support for async functions.
-    pub async fn async_complete(self) -> Result<Value, VmError> {
-        let mut execution = VmExecution::new(self);
-        execution.async_complete().await
-    }
-
     /// Test if the virtual machine is the same context and unit as specified.
     pub fn is_same(&self, context: &Arc<RuntimeContext>, unit: &Arc<Unit>) -> bool {
         Arc::ptr_eq(&self.context, context) && Arc::ptr_eq(&self.unit, unit)
@@ -186,6 +172,20 @@ impl Vm {
         Ok(())
     }
 
+    /// Run the given vm to completion.
+    ///
+    /// If any async instructions are encountered, this will error.
+    pub fn complete(self) -> Result<Value, VmError> {
+        let mut execution = VmExecution::new(self, Call::Immediate);
+        execution.complete()
+    }
+
+    /// Run the given vm to completion with support for async functions.
+    pub async fn async_complete(self) -> Result<Value, VmError> {
+        let mut execution = VmExecution::new(self, Call::Async);
+        execution.async_complete().await
+    }
+
     /// Call the function identified by the given name.
     ///
     /// Computing the function hash from the name can be a bit costly, so it's
@@ -252,9 +252,9 @@ impl Vm {
         N: IntoTypeHash,
         A: Args,
     {
-        self.set_entrypoint(name, args.count())?;
+        let call = self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack)?;
-        Ok(VmExecution::new(self))
+        Ok(VmExecution::new(self, call))
     }
 
     /// An `execute` variant that returns an execution which implements
@@ -272,9 +272,9 @@ impl Vm {
         // being sent along with the virtual machine.
         self.stack.clear();
 
-        self.set_entrypoint(name, args.count())?;
+        let call = self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack)?;
-        Ok(VmSendExecution(VmExecution::new(self)))
+        Ok(VmSendExecution(VmExecution::new(self, call)))
     }
 
     /// Call the given function immediately, returning the produced value.
@@ -296,14 +296,14 @@ impl Vm {
         N: IntoTypeHash,
         A: GuardedArgs,
     {
-        self.set_entrypoint(name, args.count())?;
+        let call = self.set_entrypoint(name, args.count())?;
 
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
-        let value = VmExecution::new(self).complete()?;
+        let value = VmExecution::new(self, call).complete()?;
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
@@ -332,14 +332,14 @@ impl Vm {
         N: IntoTypeHash,
         A: GuardedArgs,
     {
-        self.set_entrypoint(name, args.count())?;
+        let call = self.set_entrypoint(name, args.count())?;
 
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
-        let value = VmExecution::new(self).async_complete().await?;
+        let value = VmExecution::new(self, call).async_complete().await?;
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
@@ -350,7 +350,7 @@ impl Vm {
 
     /// Update the instruction pointer to match the function matching the given
     /// name and check that the number of argument matches.
-    fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<(), VmError>
+    fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<Call, VmError>
     where
         N: IntoTypeHash,
     {
@@ -363,16 +363,17 @@ impl Vm {
             })
         })?;
 
-        let offset = match info {
+        let (offset, call) = match info {
             // NB: we ignore the calling convention.
             // everything is just async when called externally.
             UnitFn::Offset {
                 offset,
                 args: expected,
+                call,
                 ..
             } => {
                 Self::check_args(count, expected)?;
-                offset
+                (offset, call)
             }
             _ => {
                 return Err(VmError::from(VmErrorKind::MissingFunction { hash }));
@@ -382,7 +383,7 @@ impl Vm {
         self.ip = offset;
         self.stack.clear();
         self.call_frames.clear();
-        Ok(())
+        Ok(call)
     }
 
     /// Helper function to call an instance function.
@@ -1102,17 +1103,17 @@ impl Vm {
         args: usize,
     ) -> Result<(), VmError> {
         match call {
-            Call::Async => {
+            Call::ResumedStream | Call::Async => {
                 self.call_async_fn(offset, args)?;
+            }
+            Call::ResumedGenerator | Call::Immediate => {
+                self.push_call_frame(offset, args)?;
             }
             Call::Stream => {
                 self.call_stream_fn(offset, args)?;
             }
             Call::Generator => {
                 self.call_generator_fn(offset, args)?;
-            }
-            Call::Immediate => {
-                self.push_call_frame(offset, args)?;
             }
         }
 

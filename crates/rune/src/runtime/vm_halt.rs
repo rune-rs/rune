@@ -3,7 +3,7 @@ use std::fmt;
 
 /// The reason why the virtual machine execution stopped.
 #[derive(Debug)]
-pub enum VmHalt {
+pub(crate) enum VmHalt {
     /// The virtual machine exited by running out of call frames.
     Exited,
     /// The virtual machine exited because it ran out of execution quota.
@@ -18,7 +18,7 @@ pub enum VmHalt {
 
 impl VmHalt {
     /// Convert into cheap info enum which only described the reason.
-    pub fn into_info(self) -> VmHaltInfo {
+    pub(crate) fn into_info(self) -> VmHaltInfo {
         match self {
             Self::Exited => VmHaltInfo::Exited,
             Self::Limited => VmHaltInfo::Limited,

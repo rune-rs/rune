@@ -1,7 +1,7 @@
 use crate::compile::Item;
 use crate::runtime::panic::BoxedPanic;
 use crate::runtime::{
-    AccessError, CallFrame, Key, Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Value,
+    AccessError, Call, CallFrame, Key, Panic, Protocol, StackError, TypeInfo, TypeOf, Unit, Value,
     VmHaltInfo,
 };
 use crate::Hash;
@@ -325,6 +325,8 @@ pub enum VmErrorKind {
     IndexOutOfBounds,
     #[error("unsupported range")]
     UnsupportedRange,
+    #[error("expected to be a {expected} function, but was an {actual} function")]
+    ExpectedCall { expected: Call, actual: Call },
 }
 
 impl VmErrorKind {

@@ -3,6 +3,50 @@ use crate::runtime::{
 };
 
 /// The state of a generator.
+///
+/// ```
+/// use rune::{Context, FromValue, Value, Vm};
+/// use rune::runtime::{Generator, GeneratorState};
+/// use std::sync::Arc;
+///
+/// # fn main() -> rune::Result<()> {
+/// let mut sources = rune::sources! {
+///     entry => {
+///         pub fn main() {
+///             let n = yield 1;
+///             let out = yield n + 1;
+///             out
+///         }
+///     }
+/// };
+///
+/// let unit = rune::prepare(&mut sources).build()?;
+///
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
+/// let mut execution = vm.execute(&["main"], ())?;
+///
+/// let first = match execution.resume()? {
+///     GeneratorState::Yielded(first) => i64::from_value(first)?,
+///     GeneratorState::Complete(..) => panic!("generator completed"),
+/// };
+///
+/// assert_eq!(first, 1);
+///
+/// let second = match execution.resume_with(Value::from(2i64))? {
+///     GeneratorState::Yielded(second) => i64::from_value(second)?,
+///     GeneratorState::Complete(..) => panic!("generator completed"),
+/// };
+///
+/// assert_eq!(second, 3);
+///
+/// let ret = match execution.resume_with(Value::from(42i64))? {
+///     GeneratorState::Complete(ret) => i64::from_value(ret)?,
+///     GeneratorState::Yielded(..) => panic!("generator yielded"),
+/// };
+///
+/// assert_eq!(ret, 42);
+/// # Ok(()) }
+/// ```
 #[derive(Debug)]
 pub enum GeneratorState {
     /// The generator yielded.

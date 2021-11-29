@@ -1,7 +1,7 @@
 use crate::compile::Named;
 use crate::runtime::{
-    FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
-    Value, Vm, VmError, VmErrorKind, VmExecution,
+    Call, FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared,
+    UnsafeFromValue, Value, Vm, VmError, VmErrorKind, VmExecution,
 };
 use crate::InstallWith;
 use std::fmt;
@@ -17,7 +17,7 @@ impl Generator {
     /// Construct a generator from a virtual machine.
     pub(crate) fn new(vm: Vm) -> Self {
         Self {
-            execution: Some(VmExecution::new(vm)),
+            execution: Some(VmExecution::new(vm, Call::Generator)),
             first: true,
         }
     }
@@ -31,18 +31,18 @@ impl Generator {
         })
     }
 
-    /// Get the next value produced by this stream.
+    /// Resume the generator with a value and get the next generator state.
     pub fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
         let execution = self
             .execution
             .as_mut()
             .ok_or(VmErrorKind::GeneratorComplete)?;
 
-        if !mem::take(&mut self.first) {
-            execution.vm_mut().stack_mut().push(value);
-        }
-
-        let state = execution.resume()?;
+        let state = if !mem::take(&mut self.first) {
+            execution.resume_with(value)?
+        } else {
+            execution.resume()?
+        };
 
         if state.is_complete() {
             self.execution = None;

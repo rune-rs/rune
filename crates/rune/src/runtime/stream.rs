@@ -1,7 +1,7 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
-    FromValue, GeneratorState, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value,
-    Vm, VmError, VmErrorKind, VmExecution,
+    Call, FromValue, GeneratorState, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
+    Value, Vm, VmError, VmErrorKind, VmExecution,
 };
 use std::fmt;
 use std::mem;
@@ -16,7 +16,7 @@ impl Stream {
     /// Construct a stream from a virtual machine.
     pub(crate) fn new(vm: Vm) -> Self {
         Self {
-            execution: Some(VmExecution::new(vm)),
+            execution: Some(VmExecution::new(vm, Call::Stream)),
             first: true,
         }
     }
@@ -36,11 +36,11 @@ impl Stream {
             .as_mut()
             .ok_or(VmErrorKind::GeneratorComplete)?;
 
-        if !mem::take(&mut self.first) {
-            execution.vm_mut().stack_mut().push(value);
-        }
-
-        let state = execution.async_resume().await?;
+        let state = if !mem::take(&mut self.first) {
+            execution.async_resume_with(value).await?
+        } else {
+            execution.async_resume().await?
+        };
 
         if state.is_complete() {
             self.execution = None;
