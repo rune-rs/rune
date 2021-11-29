@@ -16,9 +16,10 @@ where
 {
     /// The head vm which holds the execution.
     head: T,
+    /// The current head.
     vms: Vec<Vm>,
     /// The calling convention being used.
-    call: Call,
+    pub(crate) call: Call,
 }
 
 macro_rules! vm {
@@ -82,7 +83,7 @@ where
     /// }
     /// # Ok(()) }
     /// ```
-    pub fn into_generator(mut self) -> Result<Generator, VmError> {
+    pub fn into_generator(self) -> Result<Generator<T>, VmError> {
         if !matches!(self.call, Call::Generator) {
             return Err(VmErrorKind::ExpectedCall {
                 expected: Call::Generator,
@@ -91,10 +92,7 @@ where
             .into());
         }
 
-        let vm = self.head.as_mut();
-        let stack = take(vm.stack_mut());
-        let vm = Vm::new_with_stack(vm.context().clone(), vm.unit().clone(), stack);
-        Ok(Generator::new(vm))
+        Ok(Generator::from_execution(self))
     }
 
     /// Coerce the current execution into a stream if appropriate.
@@ -127,7 +125,7 @@ where
     /// }
     /// # Ok(()) }
     /// ```
-    pub fn into_stream(mut self) -> Result<Stream, VmError> {
+    pub fn into_stream(self) -> Result<Stream<T>, VmError> {
         if !matches!(self.call, Call::Stream) {
             return Err(VmErrorKind::ExpectedCall {
                 expected: Call::Stream,
@@ -136,10 +134,7 @@ where
             .into());
         }
 
-        let vm = self.head.as_mut();
-        let stack = take(vm.stack_mut());
-        let vm = Vm::new_with_stack(vm.context().clone(), vm.unit().clone(), stack);
-        Ok(Stream::new(vm))
+        Ok(Stream::from_execution(self))
     }
 
     /// Get a reference to the current virtual machine.
@@ -405,12 +400,17 @@ where
     }
 }
 
-impl<T> Drop for VmExecution<T>
-where
-    T: AsMut<Vm>,
-{
-    fn drop(&mut self) {
-        self.head.as_mut().stack_mut().clear();
+impl VmExecution<&mut Vm> {
+    /// Convert the current execution into one which owns its virtual machine.
+    pub fn into_owned(self) -> VmExecution<Vm> {
+        let stack = take(self.head.stack_mut());
+        let head = Vm::with_stack(self.head.context().clone(), self.head.unit().clone(), stack);
+
+        VmExecution {
+            head,
+            vms: self.vms,
+            call: self.call,
+        }
     }
 }
 

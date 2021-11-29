@@ -8,17 +8,36 @@ use std::fmt;
 use std::mem;
 
 /// A generator with a stored virtual machine.
-pub struct Generator {
-    execution: Option<VmExecution<Vm>>,
+pub struct Generator<T>
+where
+    T: AsMut<Vm>,
+{
+    execution: Option<VmExecution<T>>,
     first: bool,
 }
 
-impl Generator {
+impl<T> Generator<T>
+where
+    T: AsMut<Vm>,
+{
     /// Construct a generator from a virtual machine.
-    pub(crate) fn new(vm: Vm) -> Self {
+    pub(crate) fn new(vm: T) -> Self {
         Self {
             execution: Some(VmExecution::new(vm, Call::Generator)),
             first: true,
+        }
+    }
+
+    /// Construct a generator from a complete execution.
+    pub(crate) fn from_execution(execution: VmExecution<T>) -> Self {
+        let first = match execution.call {
+            Call::Generator => true,
+            _ => false,
+        };
+
+        Self {
+            execution: Some(execution),
+            first,
         }
     }
 
@@ -50,7 +69,19 @@ impl Generator {
 
         Ok(state)
     }
+}
 
+impl Generator<&mut Vm> {
+    /// Convert the current generator into one which owns its virtual machine.
+    pub fn into_owned(self) -> Generator<Vm> {
+        Generator {
+            execution: self.execution.map(|e| e.into_owned()),
+            first: self.first,
+        }
+    }
+}
+
+impl Generator<Vm> {
     /// Convert into iterator
     pub fn into_iterator(self) -> Result<Iterator, VmError> {
         Ok(Iterator::from(
@@ -60,17 +91,17 @@ impl Generator {
     }
 }
 
-impl IntoIterator for Generator {
+impl IntoIterator for Generator<Vm> {
     type Item = Result<Value, VmError>;
     type IntoIter = GeneratorIterator;
 
-    fn into_iter(self) -> GeneratorIterator {
+    fn into_iter(self) -> Self::IntoIter {
         GeneratorIterator { generator: self }
     }
 }
 
 pub struct GeneratorIterator {
-    generator: Generator,
+    generator: Generator<Vm>,
 }
 
 impl std::iter::Iterator for GeneratorIterator {
@@ -81,7 +112,10 @@ impl std::iter::Iterator for GeneratorIterator {
     }
 }
 
-impl fmt::Debug for Generator {
+impl<T> fmt::Debug for Generator<T>
+where
+    T: AsMut<Vm>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Generator")
             .field("completed", &self.execution.is_none())
@@ -89,27 +123,30 @@ impl fmt::Debug for Generator {
     }
 }
 
-impl Named for Generator {
+impl<T> Named for Generator<T>
+where
+    T: AsMut<Vm>,
+{
     const BASE_NAME: RawStr = RawStr::from_str("Generator");
 }
 
-impl InstallWith for Generator {}
+impl<T> InstallWith for Generator<T> where T: AsMut<Vm> {}
 
-impl FromValue for Shared<Generator> {
+impl FromValue for Shared<Generator<Vm>> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         value.into_generator()
     }
 }
 
-impl FromValue for Generator {
+impl FromValue for Generator<Vm> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         let generator = value.into_generator()?;
         Ok(generator.take()?)
     }
 }
 
-impl UnsafeFromValue for &Generator {
-    type Output = *const Generator;
+impl UnsafeFromValue for &Generator<Vm> {
+    type Output = *const Generator<Vm>;
     type Guard = RawRef;
 
     fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
@@ -123,8 +160,8 @@ impl UnsafeFromValue for &Generator {
     }
 }
 
-impl UnsafeFromValue for &mut Generator {
-    type Output = *mut Generator;
+impl UnsafeFromValue for &mut Generator<Vm> {
+    type Output = *mut Generator<Vm>;
     type Guard = RawMut;
 
     fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {

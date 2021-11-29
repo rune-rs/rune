@@ -76,15 +76,11 @@ pub struct Vm {
 impl Vm {
     /// Construct a new virtual machine.
     pub const fn new(context: Arc<RuntimeContext>, unit: Arc<Unit>) -> Self {
-        Self::new_with_stack(context, unit, Stack::new())
+        Self::with_stack(context, unit, Stack::new())
     }
 
     /// Construct a new virtual machine with a custom stack.
-    pub const fn new_with_stack(
-        context: Arc<RuntimeContext>,
-        unit: Arc<Unit>,
-        stack: Stack,
-    ) -> Self {
+    pub const fn with_stack(context: Arc<RuntimeContext>, unit: Arc<Unit>, stack: Stack) -> Self {
         Self {
             context,
             unit,
@@ -303,7 +299,12 @@ impl Vm {
         // Erronously or not.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
-        let value = VmExecution::new(self, call).complete()?;
+        let value = {
+            // Clearing the stack here on panics has safety implications - see
+            // above.
+            let vm = ClearStack(self);
+            VmExecution::new(&mut *vm.0, call).complete()?
+        };
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
@@ -339,7 +340,12 @@ impl Vm {
         // Erronously or not.
         let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
-        let value = VmExecution::new(self, call).async_complete().await?;
+        let value = {
+            // Clearing the stack here on panics has safety implications - see
+            // above.
+            let vm = ClearStack(self);
+            VmExecution::new(&mut *vm.0, call).async_complete().await?
+        };
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
@@ -1071,7 +1077,7 @@ impl Vm {
     /// Construct a future from calling an async function.
     fn call_generator_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
         let stack = self.stack.drain(args)?.collect::<Stack>();
-        let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
+        let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
         self.stack.push(Generator::new(vm));
         Ok(())
@@ -1080,7 +1086,7 @@ impl Vm {
     /// Construct a stream from calling a function.
     fn call_stream_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
         let stack = self.stack.drain(args)?.collect::<Stack>();
-        let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
+        let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
         self.stack.push(Stream::new(vm));
         Ok(())
@@ -1089,7 +1095,7 @@ impl Vm {
     /// Construct a future from calling a function.
     fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
         let stack = self.stack.drain(args)?.collect::<Stack>();
-        let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
+        let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
         self.stack.push(Future::new(vm.async_complete()));
         Ok(())
@@ -3052,5 +3058,14 @@ impl CallFrame {
     /// Get the bottom of the stack of the current call frame.
     pub fn stack_bottom(&self) -> usize {
         self.stack_bottom
+    }
+}
+
+/// Clear stack on drop.
+struct ClearStack<'a>(&'a mut Vm);
+
+impl Drop for ClearStack<'_> {
+    fn drop(&mut self) {
+        self.0.stack.clear();
     }
 }
