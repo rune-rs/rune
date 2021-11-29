@@ -6,16 +6,21 @@ use std::fmt;
 ///
 /// Async functions create a sub-context and immediately return futures.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Call {
     /// Function is `async` and returns a future that must be await:ed to make
     /// progress.
     Async,
-    /// Function produces a stream, also known as an async generator.
-    Stream,
-    /// Function produces a generator.
-    Generator,
     /// Functions are immediately called and control handed over.
     Immediate,
+    /// Function produces a stream, also known as an async generator.
+    Stream,
+    /// A stream which has been resumed.
+    ResumedStream,
+    /// Function produces a generator.
+    Generator,
+    /// A generator that has been resumed.
+    ResumedGenerator,
 }
 
 impl Call {
@@ -25,8 +30,8 @@ impl Call {
         Ok(match self {
             Call::Stream => Value::from(Stream::new(vm)),
             Call::Generator => Value::from(Generator::new(vm)),
-            Call::Immediate => vm.complete()?,
-            Call::Async => Value::from(Future::new(vm.async_complete())),
+            Call::ResumedGenerator | Call::Immediate => vm.complete()?,
+            Call::ResumedStream | Call::Async => Value::from(Future::new(vm.async_complete())),
         })
     }
 }
@@ -34,17 +39,23 @@ impl Call {
 impl fmt::Display for Call {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Stream => {
-                write!(fmt, "stream")?;
-            }
-            Self::Generator => {
-                write!(fmt, "generator")?;
-            }
             Self::Immediate => {
                 write!(fmt, "immediate")?;
             }
             Self::Async => {
                 write!(fmt, "async")?;
+            }
+            Self::Stream => {
+                write!(fmt, "stream")?;
+            }
+            Self::ResumedStream => {
+                write!(fmt, "resumed stream")?;
+            }
+            Self::Generator => {
+                write!(fmt, "generator")?;
+            }
+            Self::ResumedGenerator => {
+                write!(fmt, "resumed generator")?;
             }
         }
 

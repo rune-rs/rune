@@ -1,7 +1,8 @@
 use crate::runtime::budget;
-use crate::runtime::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo};
+use crate::runtime::{Call, GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo};
 use crate::shared::AssertSend;
 use std::future::Future;
+use std::mem::replace;
 
 /// The execution environment for a virtual machine.
 ///
@@ -14,6 +15,26 @@ where
     /// The head vm which holds the execution.
     head: T,
     vms: Vec<Vm>,
+    /// The calling convention being used.
+    call: Call,
+}
+
+macro_rules! vm {
+    ($slf:expr) => {
+        match $slf.vms.last() {
+            Some(vm) => vm,
+            None => $slf.head.as_ref(),
+        }
+    };
+}
+
+macro_rules! vm_mut {
+    ($slf:expr) => {
+        match $slf.vms.last_mut() {
+            Some(vm) => vm,
+            None => $slf.head.as_mut(),
+        }
+    };
 }
 
 impl<T> VmExecution<T>
@@ -21,27 +42,25 @@ where
     T: AsMut<Vm>,
 {
     /// Construct an execution from a virtual machine.
-    pub(crate) fn new(head: T) -> Self {
-        Self { head, vms: vec![] }
+    pub(crate) fn new(head: T, call: Call) -> Self {
+        Self {
+            head,
+            vms: vec![],
+            call,
+        }
     }
 
-    /// Get the current virtual machine.
+    /// Get a reference to the current virtual machine.
     pub fn vm(&self) -> &Vm
     where
         T: AsRef<Vm>,
     {
-        match self.vms.last() {
-            Some(vm) => vm,
-            None => self.head.as_ref(),
-        }
+        vm!(self)
     }
 
-    /// Get the current virtual machine mutably.
+    /// Get a mutable reference the current virtual machine.
     pub fn vm_mut(&mut self) -> &mut Vm {
-        match self.vms.last_mut() {
-            Some(vm) => vm,
-            None => self.head.as_mut(),
-        }
+        vm_mut!(self)
     }
 
     /// Complete the current execution without support for async instructions.
@@ -69,11 +88,28 @@ where
         }
     }
 
+    /// Resume the current execution with the given value and resume
+    /// asynchronous execution.
+    pub async fn async_resume_with(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+        let call = replace(&mut self.call, Call::Stream);
+
+        if !matches!(call, Call::ResumedStream) {
+            return Err(VmErrorKind::ExpectedCall {
+                expected: Call::ResumedStream,
+                actual: self.call,
+            }
+            .into());
+        }
+
+        vm_mut!(self).stack_mut().push(value);
+        self.async_resume().await
+    }
+
     /// Resume the current execution with support for async instructions.
     pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError> {
         loop {
             let len = self.vms.len();
-            let vm = self.vm_mut();
+            let vm = vm_mut!(self);
 
             match Self::run(vm)? {
                 VmHalt::Exited => (),
@@ -85,7 +121,20 @@ where
                     vm_call.into_execution(self)?;
                     continue;
                 }
-                VmHalt::Yielded => return Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
+                VmHalt::Yielded => {
+                    let call = replace(&mut self.call, Call::ResumedStream);
+
+                    if !matches!(call, Call::Stream) {
+                        return Err(VmErrorKind::ExpectedCall {
+                            expected: Call::Stream,
+                            actual: self.call,
+                        }
+                        .into());
+                    }
+
+                    let value = vm.stack_mut().pop()?;
+                    return Ok(GeneratorState::Yielded(value));
+                }
                 halt => {
                     return Err(VmError::from(VmErrorKind::Halted {
                         halt: halt.into_info(),
@@ -102,13 +151,30 @@ where
         }
     }
 
+    /// Resume the current execution with the given value and resume synchronous
+    /// execution.
+    pub fn resume_with(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+        let call = replace(&mut self.call, Call::Generator);
+
+        if !matches!(call, Call::ResumedGenerator) {
+            return Err(VmErrorKind::ExpectedCall {
+                expected: Call::ResumedGenerator,
+                actual: self.call,
+            }
+            .into());
+        }
+
+        vm_mut!(self).stack_mut().push(value);
+        self.resume()
+    }
+
     /// Resume the current execution without support for async instructions.
     ///
     /// If any async instructions are encountered, this will error.
     pub fn resume(&mut self) -> Result<GeneratorState, VmError> {
         loop {
             let len = self.vms.len();
-            let vm = self.vm_mut();
+            let vm = vm_mut!(self);
 
             match Self::run(vm)? {
                 VmHalt::Exited => (),
@@ -116,7 +182,20 @@ where
                     vm_call.into_execution(self)?;
                     continue;
                 }
-                VmHalt::Yielded => return Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
+                VmHalt::Yielded => {
+                    let call = replace(&mut self.call, Call::ResumedGenerator);
+
+                    if !matches!(call, Call::Generator) {
+                        return Err(VmErrorKind::ExpectedCall {
+                            expected: Call::Generator,
+                            actual: self.call,
+                        }
+                        .into());
+                    }
+
+                    let value = vm.stack_mut().pop()?;
+                    return Ok(GeneratorState::Yielded(value));
+                }
                 halt => {
                     return Err(VmError::from(VmErrorKind::Halted {
                         halt: halt.into_info(),
@@ -139,7 +218,7 @@ where
     /// If any async instructions are encountered, this will error.
     pub fn step(&mut self) -> Result<Option<Value>, VmError> {
         let len = self.vms.len();
-        let vm = self.vm_mut();
+        let vm = vm_mut!(self);
 
         match budget::with(1, || Self::run(vm)).call()? {
             VmHalt::Exited => (),
@@ -168,7 +247,7 @@ where
     /// instructions.
     pub async fn async_step(&mut self) -> Result<Option<Value>, VmError> {
         let len = self.vms.len();
-        let vm = self.vm_mut();
+        let vm = vm_mut!(self);
 
         match budget::with(1, || Self::run(vm)).call()? {
             VmHalt::Exited => (),
@@ -219,7 +298,7 @@ where
         let value = stack.pop()?;
         debug_assert!(stack.is_empty(), "vm stack not clean");
 
-        let onto = self.vm_mut();
+        let onto = vm_mut!(self);
         onto.stack_mut().push(value);
         onto.advance();
         Ok(())
