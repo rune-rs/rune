@@ -1,8 +1,10 @@
 use crate::runtime::budget;
-use crate::runtime::{Call, GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo};
+use crate::runtime::{
+    Call, Generator, GeneratorState, Stream, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo,
+};
 use crate::shared::AssertSend;
 use std::future::Future;
-use std::mem::replace;
+use std::mem::{replace, take};
 
 /// The execution environment for a virtual machine.
 ///
@@ -48,6 +50,96 @@ where
             vms: vec![],
             call,
         }
+    }
+
+    /// Coerce the current execution into a generator if appropriate.
+    ///
+    /// ```
+    /// use rune::{Context, FromValue, Vm};
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         pub fn main() {
+    ///             yield 1;
+    ///             yield 2;
+    ///         }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    ///
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let mut generator = vm.execute(&["main"], ())?.into_generator()?;
+    ///
+    /// let mut n = 1i64;
+    ///
+    /// while let Some(value) = generator.next()? {
+    ///     let value = i64::from_value(value)?;
+    ///     assert_eq!(value, n);
+    ///     n += 1;
+    /// }
+    /// # Ok(()) }
+    /// ```
+    pub fn into_generator(mut self) -> Result<Generator, VmError> {
+        if !matches!(self.call, Call::Generator) {
+            return Err(VmErrorKind::ExpectedCall {
+                expected: Call::Generator,
+                actual: self.call,
+            }
+            .into());
+        }
+
+        let vm = self.head.as_mut();
+        let stack = take(vm.stack_mut());
+        let vm = Vm::new_with_stack(vm.context().clone(), vm.unit().clone(), stack);
+        Ok(Generator::new(vm))
+    }
+
+    /// Coerce the current execution into a stream if appropriate.
+    ///
+    /// ```
+    /// use rune::{Context, FromValue, Vm};
+    /// use std::sync::Arc;
+    ///
+    /// # #[tokio::main] async fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         pub async fn main() {
+    ///             yield 1;
+    ///             yield 2;
+    ///         }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    ///
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let mut stream = vm.execute(&["main"], ())?.into_stream()?;
+    ///
+    /// let mut n = 1i64;
+    ///
+    /// while let Some(value) = stream.next().await? {
+    ///     let value = i64::from_value(value)?;
+    ///     assert_eq!(value, n);
+    ///     n += 1;
+    /// }
+    /// # Ok(()) }
+    /// ```
+    pub fn into_stream(mut self) -> Result<Stream, VmError> {
+        if !matches!(self.call, Call::Stream) {
+            return Err(VmErrorKind::ExpectedCall {
+                expected: Call::Stream,
+                actual: self.call,
+            }
+            .into());
+        }
+
+        let vm = self.head.as_mut();
+        let stack = take(vm.stack_mut());
+        let vm = Vm::new_with_stack(vm.context().clone(), vm.unit().clone(), stack);
+        Ok(Stream::new(vm))
     }
 
     /// Get a reference to the current virtual machine.

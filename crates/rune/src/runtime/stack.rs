@@ -11,7 +11,7 @@ use thiserror::Error;
 pub struct StackError(());
 
 /// The stack of the virtual machine, where all values are stored.
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Stack {
     /// The current stack of values.
     stack: Vec<Value>,
