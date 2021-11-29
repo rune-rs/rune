@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638193444291,
+  "lastUpdate": 1638210324409,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -10084,6 +10084,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5028304,
             "range": "± 568531",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "1b92c7e3283c70791197c9e4671263151cbaf0cd",
+          "message": "Explicitly drop stack guards to avoid use-after-free issue",
+          "timestamp": "2021-11-29T19:17:15+01:00",
+          "tree_id": "a3c0c6d149f32011d5a8158a044e8a9227d5a9e5",
+          "url": "https://github.com/rune-rs/rune/commit/1b92c7e3283c70791197c9e4671263151cbaf0cd"
+        },
+        "date": 1638210323733,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 419066926,
+            "range": "± 42146821",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 239791180,
+            "range": "± 20907055",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 290493,
+            "range": "± 25897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 856941,
+            "range": "± 83177",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 67745357,
+            "range": "± 9393930",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1168688,
+            "range": "± 210430",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 11999163,
+            "range": "± 1492782",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 10933012,
+            "range": "± 1009532",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 386025,
+            "range": "± 49057",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4527624,
+            "range": "± 656476",
             "unit": "ns/iter"
           }
         ]
