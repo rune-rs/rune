@@ -829,8 +829,9 @@ macro_rules! impl_register {
                 #[allow(unused)]
                 let ret = unsafe {
                     impl_register!{@unsafe-vars $count, $($ty, $var, $num,)*}
-
-                    self($(<$ty>::unsafe_coerce($var.0),)*)
+                    let ret = self($(<$ty>::unsafe_coerce($var.0),)*);
+                    impl_register!{@drop-stack-guards $($var),*}
+                    ret
                 };
 
                 impl_register!{@return stack, ret, Return}
@@ -871,6 +872,7 @@ macro_rules! impl_register {
 
                     Future::new(async move {
                         let output = fut.await;
+                        impl_register!{@drop-stack-guards $($var),*}
                         let value = output.to_value()?;
                         Ok(value)
                     })
@@ -920,7 +922,9 @@ macro_rules! impl_register {
                 #[allow(unused)]
                 let ret = unsafe {
                     impl_register!{@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*}
-                    self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*)
+                    let ret = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
+                    impl_register!{@drop-stack-guards inst, $($var),*}
+                    ret
                 };
 
                 impl_register!{@return stack, ret, Return}
@@ -972,6 +976,7 @@ macro_rules! impl_register {
 
                     Future::new(async move {
                         let output = fut.await;
+                        impl_register!{@drop-stack-guards inst, $($var),*}
                         let value = output.to_value()?;
                         Ok(value)
                     })
@@ -1025,6 +1030,11 @@ macro_rules! impl_register {
             };
         )*
     };
+
+    // Helper variation to drop all stack guards associated with the specified variables.
+    (@drop-stack-guards $($var:ident),* $(,)?) => {{
+        $(drop(($var.1));)*
+    }};
 
     (@check-args $expected:expr, $actual:expr) => {
         if $actual != $expected {
