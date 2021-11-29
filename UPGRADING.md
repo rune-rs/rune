@@ -124,7 +124,9 @@ MacroContext<'_>`][MacroContext].
 This also requires the context to be "passed around" in certain places where it
 didn't use to be necessary.
 
-* [Lit::new] now takes a `ctx` argument.
+* [Lit::new] has been replaced with [MacroContext::lit].
+* [Label::new] has been replaced with [MacroContext::label].
+* [Ident::new] has been replaced with [MacroContext::ident].
 * [rune::macros::eval] becomes [MacroContext::eval].
 * [rune::macros::resolve] becomes [MacroContext::resolve].
 * [rune::macros::stringify] becomes [MacroContext::stringify].
@@ -185,11 +187,16 @@ pub(crate) fn stringy_math(
 }
 ```
 
-[Lit::new]: https://docs.rs/rune/0.10.0/rune/ast/enum.Lit.html#method.new
-[MacroContext]: https://docs.rs/rune/0.10.0/rune/macros/struct.MacroContext.html
+[Lit::new]: https://docs.rs/rune/0.9.1/rune/ast/enum.Lit.html#method.new
+[Label::new]: https://docs.rs/rune/0.9.1/rune/ast/struct.Label.html#method.new
+[Ident::new]: https://docs.rs/rune/0.9.1/rune/ast/struct.Ident.html#method.new
 [MacroContext::eval]: https://docs.rs/rune/0.10.0/rune/macros/struct.MacroContext.html#method.eval
-[rune::macros::eval]: https://docs.rs/rune/0.9.1/rune/macros/fn.eval.html
+[MacroContext::lit]: https://docs.rs/rune/0.10.0/rune/macros/struct.MacroContext.html#method.lit
+[MacroContext::label]: https://docs.rs/rune/0.10.0/rune/macros/struct.MacroContext.html#method.label
+[MacroContext::ident]: https://docs.rs/rune/0.10.0/rune/macros/struct.MacroContext.html#method.ident
 [MacroContext::resolve]: https://docs.rs/rune/0.10.0/rune/macros/struct.MacroContext.html#method.resolve
-[rune::macros::resolve]: https://docs.rs/rune/0.9.1/rune/macros/fn.resolve.html
 [MacroContext::stringify]: https://docs.rs/rune/0.10.0/rune/macros/struct.MacroContext.html#method.stringify
+[MacroContext]: https://docs.rs/rune/0.10.0/rune/macros/struct.MacroContext.html
+[rune::macros::eval]: https://docs.rs/rune/0.9.1/rune/macros/fn.eval.html
+[rune::macros::resolve]: https://docs.rs/rune/0.9.1/rune/macros/fn.resolve.html
 [rune::macros::stringify]: https://docs.rs/rune/0.9.1/rune/macros/fn.stringify.html

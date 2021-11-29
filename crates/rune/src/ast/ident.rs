@@ -7,6 +7,20 @@ use crate::ast::prelude::*;
 ///
 /// # Examples
 ///
+/// Constructing an identifier:
+///
+/// ```
+/// use rune::ast;
+/// use rune::macros::MacroContext;
+///
+/// MacroContext::test(|ctx| {
+///     let lit = ctx.ident("foo");
+///     assert!(matches!(lit, ast::Ident { .. }))
+/// });
+/// ```
+///
+/// Example identifiers:
+///
 /// ```
 /// use rune::{ast, testing};
 ///
