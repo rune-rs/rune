@@ -155,7 +155,7 @@ pub static GENERATOR_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x50deff8c6ef7532c),
 };
 
-impl_static_type!(rt::Generator => GENERATOR_TYPE);
+impl_static_type!(rt::Generator<rt::Vm> => GENERATOR_TYPE);
 
 /// The specialized type information for a generator state type.
 pub static GENERATOR_STATE_TYPE: &StaticType = &StaticType {
@@ -171,7 +171,7 @@ pub static STREAM_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0xd94133730d02c3ea),
 };
 
-impl_static_type!(rt::Stream => STREAM_TYPE);
+impl_static_type!(rt::Stream<rt::Vm> => STREAM_TYPE);
 
 /// The specialized type information for a result type.
 pub static RESULT_TYPE: &StaticType = &StaticType {

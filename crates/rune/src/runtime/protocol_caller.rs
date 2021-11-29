@@ -47,7 +47,7 @@ impl ProtocolCaller for EnvProtocolCaller {
                 // Safety: We hold onto the guard until the vm has completed.
                 let _guard = unsafe { args.unsafe_into_stack(&mut stack)? };
 
-                let mut vm = Vm::new_with_stack(context.clone(), unit.clone(), stack);
+                let mut vm = Vm::with_stack(context.clone(), unit.clone(), stack);
                 vm.set_ip(offset);
                 return call.call_with_vm(vm);
             }

@@ -259,9 +259,9 @@ pub enum Value {
     /// A stored future.
     Future(Shared<Future>),
     /// A Stream.
-    Stream(Shared<Stream>),
+    Stream(Shared<Stream<Vm>>),
     /// A stored generator.
-    Generator(Shared<Generator>),
+    Generator(Shared<Generator<Vm>>),
     /// Generator state.
     GeneratorState(Shared<GeneratorState>),
     /// An empty value indicating nothing.
@@ -709,19 +709,19 @@ impl Value {
 
     /// Try to coerce value into a generator.
     #[inline]
-    pub fn into_generator(self) -> Result<Shared<Generator>, VmError> {
+    pub fn into_generator(self) -> Result<Shared<Generator<Vm>>, VmError> {
         match self {
             Value::Generator(generator) => Ok(generator),
-            actual => Err(VmError::expected::<Generator>(actual.type_info()?)),
+            actual => Err(VmError::expected::<Generator<Vm>>(actual.type_info()?)),
         }
     }
 
     /// Try to coerce value into a stream.
     #[inline]
-    pub fn into_stream(self) -> Result<Shared<Stream>, VmError> {
+    pub fn into_stream(self) -> Result<Shared<Stream<Vm>>, VmError> {
         match self {
             Value::Stream(stream) => Ok(stream),
-            actual => Err(VmError::expected::<Stream>(actual.type_info()?)),
+            actual => Err(VmError::expected::<Stream<Vm>>(actual.type_info()?)),
         }
     }
 
@@ -1255,8 +1255,8 @@ impl_from_wrapper! {
     Object => Shared<Object>,
     Range => Shared<Range>,
     Future => Shared<Future>,
-    Stream => Shared<Stream>,
-    Generator => Shared<Generator>,
+    Stream => Shared<Stream<Vm>>,
+    Generator => Shared<Generator<Vm>>,
     GeneratorState => Shared<GeneratorState>,
     UnitStruct => Shared<UnitStruct>,
     TupleStruct => Shared<TupleStruct>,

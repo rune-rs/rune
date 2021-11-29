@@ -7,17 +7,36 @@ use std::fmt;
 use std::mem;
 
 /// A stream with a stored virtual machine.
-pub struct Stream {
-    execution: Option<VmExecution<Vm>>,
+pub struct Stream<T>
+where
+    T: AsMut<Vm>,
+{
+    execution: Option<VmExecution<T>>,
     first: bool,
 }
 
-impl Stream {
+impl<T> Stream<T>
+where
+    T: AsMut<Vm>,
+{
     /// Construct a stream from a virtual machine.
-    pub(crate) fn new(vm: Vm) -> Self {
+    pub(crate) fn new(vm: T) -> Self {
         Self {
             execution: Some(VmExecution::new(vm, Call::Stream)),
             first: true,
+        }
+    }
+
+    /// Construct a generator from a complete execution.
+    pub(crate) fn from_execution(execution: VmExecution<T>) -> Self {
+        let first = match execution.call {
+            Call::Stream => true,
+            _ => false,
+        };
+
+        Self {
+            execution: Some(execution),
+            first,
         }
     }
 
@@ -50,7 +69,29 @@ impl Stream {
     }
 }
 
-impl fmt::Debug for Stream {
+impl Stream<&mut Vm> {
+    /// Convert the current stream into one which owns its virtual machine.
+    pub fn into_owned(self) -> Stream<Vm> {
+        Stream {
+            execution: self.execution.map(|e| e.into_owned()),
+            first: self.first,
+        }
+    }
+}
+
+impl<T> Named for Stream<T>
+where
+    T: AsMut<Vm>,
+{
+    const BASE_NAME: RawStr = RawStr::from_str("Stream");
+}
+
+impl<T> InstallWith for Stream<T> where T: AsMut<Vm> {}
+
+impl<T> fmt::Debug for Stream<T>
+where
+    T: AsMut<Vm>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Stream")
             .field("completed", &self.execution.is_none())
@@ -58,21 +99,21 @@ impl fmt::Debug for Stream {
     }
 }
 
-impl FromValue for Shared<Stream> {
+impl FromValue for Shared<Stream<Vm>> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         value.into_stream()
     }
 }
 
-impl FromValue for Stream {
+impl FromValue for Stream<Vm> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         let stream = value.into_stream()?;
         Ok(stream.take()?)
     }
 }
 
-impl UnsafeFromValue for &Stream {
-    type Output = *const Stream;
+impl UnsafeFromValue for &Stream<Vm> {
+    type Output = *const Stream<Vm>;
     type Guard = RawRef;
 
     fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
@@ -86,8 +127,8 @@ impl UnsafeFromValue for &Stream {
     }
 }
 
-impl UnsafeFromValue for &mut Stream {
-    type Output = *mut Stream;
+impl UnsafeFromValue for &mut Stream<Vm> {
+    type Output = *mut Stream<Vm>;
     type Guard = RawMut;
 
     fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
@@ -99,9 +140,3 @@ impl UnsafeFromValue for &mut Stream {
         &mut *output
     }
 }
-
-impl Named for Stream {
-    const BASE_NAME: RawStr = RawStr::from_str("Stream");
-}
-
-impl InstallWith for Stream {}

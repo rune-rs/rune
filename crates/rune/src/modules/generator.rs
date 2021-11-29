@@ -1,18 +1,18 @@
 //! The `std::generator` module.
 
-use crate::runtime::{Generator, Protocol};
+use crate::runtime::{Generator, Protocol, Vm};
 use crate::{ContextError, Module};
 
 /// Construct the `std::generator` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", &["generator"]);
-    module.ty::<Generator>()?;
+    module.ty::<Generator<Vm>>()?;
     module.generator_state(&["GeneratorState"])?;
 
-    module.inst_fn("next", Generator::next)?;
-    module.inst_fn("resume", Generator::resume)?;
-    module.inst_fn("iter", Generator::into_iterator)?;
-    module.inst_fn(Protocol::INTO_ITER, Generator::into_iterator)?;
+    module.inst_fn("next", Generator::<Vm>::next)?;
+    module.inst_fn("resume", Generator::<Vm>::resume)?;
+    module.inst_fn("iter", Generator::<Vm>::into_iterator)?;
+    module.inst_fn(Protocol::INTO_ITER, Generator::<Vm>::into_iterator)?;
 
     Ok(module)
 }
