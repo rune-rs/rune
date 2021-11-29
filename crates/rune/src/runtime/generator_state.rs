@@ -25,6 +25,7 @@ use crate::runtime::{
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let mut execution = vm.execute(&["main"], ())?;
 ///
+/// // Initial resume doesn't take a value.
 /// let first = match execution.resume()? {
 ///     GeneratorState::Yielded(first) => i64::from_value(first)?,
 ///     GeneratorState::Complete(..) => panic!("generator completed"),
@@ -32,6 +33,7 @@ use crate::runtime::{
 ///
 /// assert_eq!(first, 1);
 ///
+/// // Additional resumes require a value.
 /// let second = match execution.resume_with(Value::from(2i64))? {
 ///     GeneratorState::Yielded(second) => i64::from_value(second)?,
 ///     GeneratorState::Complete(..) => panic!("generator completed"),
