@@ -311,7 +311,7 @@ impl Module {
     ///
     /// # fn main() -> rune::Result<()> {
     /// let mut module = Module::with_crate_item("nonstd", &["option"]);
-    /// module.result(&["Option"])?;
+    /// module.option(&["Option"])?;
     /// # Ok(()) }
     pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
     where
