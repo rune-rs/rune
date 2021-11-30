@@ -821,13 +821,16 @@ fn read_tag(content: &[u8]) -> (u8, usize) {
 ///
 /// Panics if the provided size cannot fit withing an identifier.
 fn write_tag(output: &mut SmallVec<[u8; INLINE]>, tag: u8, n: usize) {
-    debug_assert!(tag as usize <= TYPE_MASK);
+    let tag = usize::try_from(tag).expect("tag out of bounds");
+    debug_assert!(tag <= TYPE_MASK);
     assert!(
         n < MAX_DATA,
         "item data overflow, index or string size larger than MAX_DATA"
     );
-    let n = u16::try_from(n << TYPE_BITS | tag as usize).unwrap();
-    output.write_u16::<NativeEndian>(n).unwrap();
+    let n = u16::try_from(n << TYPE_BITS | tag).expect("tag out of bounds");
+    output
+        .write_u16::<NativeEndian>(n)
+        .expect("failed to write native endian");
 }
 
 /// Internal function to write only the crate of a component.

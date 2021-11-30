@@ -24,7 +24,7 @@ impl SourceId {
 
     /// Access the source identifier as an index.
     pub fn into_index(self) -> usize {
-        self.index as usize
+        usize::try_from(self.index).expect("source id out of bounds")
     }
 }
 

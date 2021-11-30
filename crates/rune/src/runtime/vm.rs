@@ -147,7 +147,7 @@ impl Vm {
     /// Advance the instruction pointer.
     #[inline]
     pub(crate) fn advance(&mut self) {
-        self.ip = self.ip.overflowing_add(1).0;
+        self.ip = self.ip.wrapping_add(1);
     }
 
     /// Reset this virtual machine, freeing all memory used.
@@ -160,9 +160,9 @@ impl Vm {
     /// Modify the current instruction pointer.
     pub fn modify_ip(&mut self, offset: isize) -> Result<(), VmError> {
         self.ip = if offset < 0 {
-            self.ip.overflowing_sub(-offset as usize).0
+            self.ip.wrapping_sub(-offset as usize)
         } else {
-            self.ip.overflowing_add(offset as usize).0
+            self.ip.wrapping_add(offset as usize)
         };
 
         Ok(())
@@ -507,7 +507,7 @@ impl Vm {
             stack_bottom: stack_top,
         });
 
-        self.ip = ip.overflowing_sub(1).0;
+        self.ip = ip.wrapping_sub(1);
         Ok(())
     }
 
