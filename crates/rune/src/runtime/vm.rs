@@ -62,13 +62,13 @@ macro_rules! target_value {
 #[derive(Debug, Clone)]
 pub struct Vm {
     /// Context associated with virtual machine.
-    pub(crate) context: Arc<RuntimeContext>,
+    context: Arc<RuntimeContext>,
     /// Unit associated with virtual machine.
-    pub(crate) unit: Arc<Unit>,
+    unit: Arc<Unit>,
     /// The current instruction pointer.
     ip: usize,
     /// The current stack.
-    pub(crate) stack: Stack,
+    stack: Stack,
     /// Frames relative to the stack.
     call_frames: vec::Vec<CallFrame>,
 }

@@ -97,6 +97,6 @@ impl ProtocolCaller for &mut Vm {
             }));
         }
 
-        Ok(self.stack.pop()?)
+        Ok(self.stack_mut().pop()?)
     }
 }
