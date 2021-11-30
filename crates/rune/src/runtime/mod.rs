@@ -107,6 +107,6 @@ pub use self::vec_tuple::VecTuple;
 pub use self::vm::{CallFrame, Vm};
 pub(crate) use self::vm_call::VmCall;
 pub use self::vm_error::{VmError, VmErrorKind, VmIntegerRepr};
-pub use self::vm_execution::{VmExecution, VmSendExecution};
+pub use self::vm_execution::{ExecutionState, VmExecution, VmSendExecution};
 pub(crate) use self::vm_halt::VmHalt;
 pub use self::vm_halt::VmHaltInfo;

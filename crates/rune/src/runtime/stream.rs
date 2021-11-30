@@ -1,10 +1,9 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
-    Call, FromValue, GeneratorState, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
-    Value, Vm, VmError, VmErrorKind, VmExecution,
+    FromValue, GeneratorState, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value,
+    Vm, VmError, VmErrorKind, VmExecution,
 };
 use std::fmt;
-use std::mem;
 
 /// A stream with a stored virtual machine.
 pub struct Stream<T>
@@ -12,7 +11,6 @@ where
     T: AsMut<Vm>,
 {
     execution: Option<VmExecution<T>>,
-    first: bool,
 }
 
 impl<T> Stream<T>
@@ -22,21 +20,14 @@ where
     /// Construct a stream from a virtual machine.
     pub(crate) fn new(vm: T) -> Self {
         Self {
-            execution: Some(VmExecution::new(vm, Call::Stream)),
-            first: true,
+            execution: Some(VmExecution::new(vm)),
         }
     }
 
     /// Construct a generator from a complete execution.
     pub(crate) fn from_execution(execution: VmExecution<T>) -> Self {
-        let first = match execution.call {
-            Call::Stream => true,
-            _ => false,
-        };
-
         Self {
             execution: Some(execution),
-            first,
         }
     }
 
@@ -55,7 +46,7 @@ where
             .as_mut()
             .ok_or(VmErrorKind::GeneratorComplete)?;
 
-        let state = if !mem::take(&mut self.first) {
+        let state = if execution.is_resumed() {
             execution.async_resume_with(value).await?
         } else {
             execution.async_resume().await?
@@ -74,7 +65,6 @@ impl Stream<&mut Vm> {
     pub fn into_owned(self) -> Stream<Vm> {
         Stream {
             execution: self.execution.map(|e| e.into_owned()),
-            first: self.first,
         }
     }
 }

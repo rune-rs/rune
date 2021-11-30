@@ -1,11 +1,10 @@
 use crate::compile::Named;
 use crate::runtime::{
-    Call, FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared,
-    UnsafeFromValue, Value, Vm, VmError, VmErrorKind, VmExecution,
+    FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
+    Value, Vm, VmError, VmErrorKind, VmExecution,
 };
 use crate::InstallWith;
 use std::fmt;
-use std::mem;
 
 /// A generator with a stored virtual machine.
 pub struct Generator<T>
@@ -13,7 +12,6 @@ where
     T: AsMut<Vm>,
 {
     execution: Option<VmExecution<T>>,
-    first: bool,
 }
 
 impl<T> Generator<T>
@@ -23,21 +21,14 @@ where
     /// Construct a generator from a virtual machine.
     pub(crate) fn new(vm: T) -> Self {
         Self {
-            execution: Some(VmExecution::new(vm, Call::Generator)),
-            first: true,
+            execution: Some(VmExecution::new(vm)),
         }
     }
 
     /// Construct a generator from a complete execution.
     pub(crate) fn from_execution(execution: VmExecution<T>) -> Self {
-        let first = match execution.call {
-            Call::Generator => true,
-            _ => false,
-        };
-
         Self {
             execution: Some(execution),
-            first,
         }
     }
 
@@ -57,7 +48,7 @@ where
             .as_mut()
             .ok_or(VmErrorKind::GeneratorComplete)?;
 
-        let state = if !mem::take(&mut self.first) {
+        let state = if execution.is_resumed() {
             execution.resume_with(value)?
         } else {
             execution.resume()?
@@ -76,7 +67,6 @@ impl Generator<&mut Vm> {
     pub fn into_owned(self) -> Generator<Vm> {
         Generator {
             execution: self.execution.map(|e| e.into_owned()),
-            first: self.first,
         }
     }
 }

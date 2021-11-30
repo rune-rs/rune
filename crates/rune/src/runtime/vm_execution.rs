@@ -1,10 +1,34 @@
 use crate::runtime::budget;
 use crate::runtime::{
-    Call, Generator, GeneratorState, Stream, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo,
+    Generator, GeneratorState, Stream, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo,
 };
 use crate::shared::AssertSend;
+use std::fmt;
 use std::future::Future;
-use std::mem::{replace, take};
+use std::mem::take;
+
+/// The state of an execution. We keep track of this because it's important to
+/// correctly interact with functions that yield (like generators and streams)
+/// by initially just calling the function, then by providing a value pushed
+/// onto the stack.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub enum ExecutionState {
+    /// The initial state of an execution.
+    Initial,
+    /// The resumed state of an execution. This expects a value to be pushed
+    /// onto the virtual machine before it is continued.
+    Resumed,
+}
+
+impl fmt::Display for ExecutionState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExecutionState::Initial => write!(f, "initial"),
+            ExecutionState::Resumed => write!(f, "resumed"),
+        }
+    }
+}
 
 /// The execution environment for a virtual machine.
 ///
@@ -14,18 +38,19 @@ pub struct VmExecution<T = Vm>
 where
     T: AsMut<Vm>,
 {
-    /// The head vm which holds the execution.
+    /// The current head vm which holds the execution.
     head: T,
-    /// The current head.
-    vms: Vec<Vm>,
-    /// The calling convention being used.
-    pub(crate) call: Call,
+    /// The state of an execution.
+    state: ExecutionState,
+    /// The current stack of virtual machines and the execution state that must
+    /// be restored once one is popped.
+    vms: Vec<(Vm, ExecutionState)>,
 }
 
 macro_rules! vm {
     ($slf:expr) => {
         match $slf.vms.last() {
-            Some(vm) => vm,
+            Some((vm, _)) => vm,
             None => $slf.head.as_ref(),
         }
     };
@@ -34,7 +59,7 @@ macro_rules! vm {
 macro_rules! vm_mut {
     ($slf:expr) => {
         match $slf.vms.last_mut() {
-            Some(vm) => vm,
+            Some((vm, _)) => vm,
             None => $slf.head.as_mut(),
         }
     };
@@ -45,12 +70,17 @@ where
     T: AsMut<Vm>,
 {
     /// Construct an execution from a virtual machine.
-    pub(crate) fn new(head: T, call: Call) -> Self {
+    pub(crate) fn new(head: T) -> Self {
         Self {
             head,
             vms: vec![],
-            call,
+            state: ExecutionState::Initial,
         }
+    }
+
+    /// Test if the current execution state is resumed.
+    pub(crate) fn is_resumed(&self) -> bool {
+        matches!(self.state, ExecutionState::Resumed)
     }
 
     /// Coerce the current execution into a generator if appropriate.
@@ -84,14 +114,6 @@ where
     /// # Ok(()) }
     /// ```
     pub fn into_generator(self) -> Result<Generator<T>, VmError> {
-        if !matches!(self.call, Call::Generator) {
-            return Err(VmErrorKind::ExpectedCall {
-                expected: Call::Generator,
-                actual: self.call,
-            }
-            .into());
-        }
-
         Ok(Generator::from_execution(self))
     }
 
@@ -126,14 +148,6 @@ where
     /// # Ok(()) }
     /// ```
     pub fn into_stream(self) -> Result<Stream<T>, VmError> {
-        if !matches!(self.call, Call::Stream) {
-            return Err(VmErrorKind::ExpectedCall {
-                expected: Call::Stream,
-                actual: self.call,
-            }
-            .into());
-        }
-
         Ok(Stream::from_execution(self))
     }
 
@@ -178,22 +192,33 @@ where
     /// Resume the current execution with the given value and resume
     /// asynchronous execution.
     pub async fn async_resume_with(&mut self, value: Value) -> Result<GeneratorState, VmError> {
-        let call = replace(&mut self.call, Call::Stream);
-
-        if !matches!(call, Call::ResumedStream) {
-            return Err(VmErrorKind::ExpectedCall {
-                expected: Call::ResumedStream,
-                actual: self.call,
+        if !matches!(self.state, ExecutionState::Resumed) {
+            return Err(VmErrorKind::ExpectedExecutionState {
+                expected: ExecutionState::Resumed,
+                actual: self.state,
             }
             .into());
         }
 
         vm_mut!(self).stack_mut().push(value);
-        self.async_resume().await
+        self.inner_async_resume().await
     }
 
     /// Resume the current execution with support for async instructions.
+    ///
+    /// If the function being executed is a generator or stream this will resume
+    /// it while returning a unit from the current `yield`.
     pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError> {
+        if matches!(self.state, ExecutionState::Resumed) {
+            vm_mut!(self).stack_mut().push(Value::Unit);
+        } else {
+            self.state = ExecutionState::Resumed;
+        }
+
+        self.inner_async_resume().await
+    }
+
+    async fn inner_async_resume(&mut self) -> Result<GeneratorState, VmError> {
         loop {
             let len = self.vms.len();
             let vm = vm_mut!(self);
@@ -209,16 +234,6 @@ where
                     continue;
                 }
                 VmHalt::Yielded => {
-                    let call = replace(&mut self.call, Call::ResumedStream);
-
-                    if !matches!(call, Call::Stream) {
-                        return Err(VmErrorKind::ExpectedCall {
-                            expected: Call::Stream,
-                            actual: self.call,
-                        }
-                        .into());
-                    }
-
                     let value = vm.stack_mut().pop()?;
                     return Ok(GeneratorState::Yielded(value));
                 }
@@ -241,24 +256,36 @@ where
     /// Resume the current execution with the given value and resume synchronous
     /// execution.
     pub fn resume_with(&mut self, value: Value) -> Result<GeneratorState, VmError> {
-        let call = replace(&mut self.call, Call::Generator);
-
-        if !matches!(call, Call::ResumedGenerator) {
-            return Err(VmErrorKind::ExpectedCall {
-                expected: Call::ResumedGenerator,
-                actual: self.call,
+        if !matches!(self.state, ExecutionState::Resumed) {
+            return Err(VmErrorKind::ExpectedExecutionState {
+                expected: ExecutionState::Resumed,
+                actual: self.state,
             }
             .into());
         }
 
         vm_mut!(self).stack_mut().push(value);
-        self.resume()
+        self.inner_resume()
     }
 
     /// Resume the current execution without support for async instructions.
     ///
-    /// If any async instructions are encountered, this will error.
+    /// If the function being executed is a generator or stream this will resume
+    /// it while returning a unit from the current `yield`.
+    ///
+    /// If any async instructions are encountered, this will error with
+    /// [VmErrorKind::Halted].
     pub fn resume(&mut self) -> Result<GeneratorState, VmError> {
+        if matches!(self.state, ExecutionState::Resumed) {
+            vm_mut!(self).stack_mut().push(Value::Unit);
+        } else {
+            self.state = ExecutionState::Resumed;
+        }
+
+        self.inner_resume()
+    }
+
+    fn inner_resume(&mut self) -> Result<GeneratorState, VmError> {
         loop {
             let len = self.vms.len();
             let vm = vm_mut!(self);
@@ -270,16 +297,6 @@ where
                     continue;
                 }
                 VmHalt::Yielded => {
-                    let call = replace(&mut self.call, Call::ResumedGenerator);
-
-                    if !matches!(call, Call::Generator) {
-                        return Err(VmErrorKind::ExpectedCall {
-                            expected: Call::Generator,
-                            actual: self.call,
-                        }
-                        .into());
-                    }
-
                     let value = vm.stack_mut().pop()?;
                     return Ok(GeneratorState::Yielded(value));
                 }
@@ -373,13 +390,14 @@ where
 
     /// Push a virtual machine state onto the execution.
     pub(crate) fn push_vm(&mut self, vm: Vm) {
-        self.vms.push(vm);
+        self.vms.push((vm, self.state));
+        self.state = ExecutionState::Initial;
     }
 
     /// Pop a virtual machine state from the execution and transfer the top of
     /// the stack from the popped machine.
     fn pop_vm(&mut self) -> Result<(), VmError> {
-        let mut from = self.vms.pop().ok_or(VmErrorKind::NoRunningVm)?;
+        let (mut from, state) = self.vms.pop().ok_or(VmErrorKind::NoRunningVm)?;
 
         let stack = from.stack_mut();
         let value = stack.pop()?;
@@ -388,6 +406,7 @@ where
         let onto = vm_mut!(self);
         onto.stack_mut().push(value);
         onto.advance();
+        self.state = state;
         Ok(())
     }
 
@@ -409,7 +428,7 @@ impl VmExecution<&mut Vm> {
         VmExecution {
             head,
             vms: self.vms,
-            call: self.call,
+            state: self.state,
         }
     }
 }

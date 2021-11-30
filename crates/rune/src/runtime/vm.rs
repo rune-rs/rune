@@ -172,13 +172,13 @@ impl Vm {
     ///
     /// If any async instructions are encountered, this will error.
     pub fn complete(self) -> Result<Value, VmError> {
-        let mut execution = VmExecution::new(self, Call::Immediate);
+        let mut execution = VmExecution::new(self);
         execution.complete()
     }
 
     /// Run the given vm to completion with support for async functions.
     pub async fn async_complete(self) -> Result<Value, VmError> {
-        let mut execution = VmExecution::new(self, Call::Async);
+        let mut execution = VmExecution::new(self);
         execution.async_complete().await
     }
 
@@ -248,9 +248,9 @@ impl Vm {
         N: IntoTypeHash,
         A: Args,
     {
-        let call = self.set_entrypoint(name, args.count())?;
+        self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack)?;
-        Ok(VmExecution::new(self, call))
+        Ok(VmExecution::new(self))
     }
 
     /// An `execute` variant that returns an execution which implements
@@ -268,9 +268,9 @@ impl Vm {
         // being sent along with the virtual machine.
         self.stack.clear();
 
-        let call = self.set_entrypoint(name, args.count())?;
+        self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack)?;
-        Ok(VmSendExecution(VmExecution::new(self, call)))
+        Ok(VmSendExecution(VmExecution::new(self)))
     }
 
     /// Call the given function immediately, returning the produced value.
@@ -292,7 +292,7 @@ impl Vm {
         N: IntoTypeHash,
         A: GuardedArgs,
     {
-        let call = self.set_entrypoint(name, args.count())?;
+        self.set_entrypoint(name, args.count())?;
 
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
@@ -303,7 +303,7 @@ impl Vm {
             // Clearing the stack here on panics has safety implications - see
             // above.
             let vm = ClearStack(self);
-            VmExecution::new(&mut *vm.0, call).complete()?
+            VmExecution::new(&mut *vm.0).complete()?
         };
 
         // Note: this might panic if something in the vm is holding on to a
@@ -333,7 +333,7 @@ impl Vm {
         N: IntoTypeHash,
         A: GuardedArgs,
     {
-        let call = self.set_entrypoint(name, args.count())?;
+        self.set_entrypoint(name, args.count())?;
 
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
@@ -344,7 +344,7 @@ impl Vm {
             // Clearing the stack here on panics has safety implications - see
             // above.
             let vm = ClearStack(self);
-            VmExecution::new(&mut *vm.0, call).async_complete().await?
+            VmExecution::new(&mut *vm.0).async_complete().await?
         };
 
         // Note: this might panic if something in the vm is holding on to a
@@ -356,7 +356,7 @@ impl Vm {
 
     /// Update the instruction pointer to match the function matching the given
     /// name and check that the number of argument matches.
-    fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<Call, VmError>
+    fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<(), VmError>
     where
         N: IntoTypeHash,
     {
@@ -369,17 +369,16 @@ impl Vm {
             })
         })?;
 
-        let (offset, call) = match info {
+        let offset = match info {
             // NB: we ignore the calling convention.
             // everything is just async when called externally.
             UnitFn::Offset {
                 offset,
                 args: expected,
-                call,
                 ..
             } => {
                 Self::check_args(count, expected)?;
-                (offset, call)
+                offset
             }
             _ => {
                 return Err(VmError::from(VmErrorKind::MissingFunction { hash }));
@@ -389,7 +388,7 @@ impl Vm {
         self.ip = offset;
         self.stack.clear();
         self.call_frames.clear();
-        Ok(call)
+        Ok(())
     }
 
     /// Helper function to call an instance function.
@@ -1109,10 +1108,10 @@ impl Vm {
         args: usize,
     ) -> Result<(), VmError> {
         match call {
-            Call::ResumedStream | Call::Async => {
+            Call::Async => {
                 self.call_async_fn(offset, args)?;
             }
-            Call::ResumedGenerator | Call::Immediate => {
+            Call::Immediate => {
                 self.push_call_frame(offset, args)?;
             }
             Call::Stream => {
