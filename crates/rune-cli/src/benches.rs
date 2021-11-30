@@ -78,7 +78,8 @@ fn bench_fn(
         drop(value);
     }
 
-    let mut collected = Vec::with_capacity(args.iterations as usize);
+    let iterations = usize::try_from(args.iterations).expect("iterations out of bounds");
+    let mut collected = Vec::with_capacity(iterations);
 
     for _ in 0..args.iterations {
         let start = Instant::now();
