@@ -2,9 +2,7 @@ use crate::runtime::{Future, Generator, Stream, Value, Vm, VmError};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// How the function is called.
-///
-/// Async functions create a sub-context and immediately return futures.
+/// The calling convention of a function.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Call {
@@ -15,12 +13,8 @@ pub enum Call {
     Immediate,
     /// Function produces a stream, also known as an async generator.
     Stream,
-    /// A stream which has been resumed.
-    ResumedStream,
     /// Function produces a generator.
     Generator,
-    /// A generator that has been resumed.
-    ResumedGenerator,
 }
 
 impl Call {
@@ -30,8 +24,8 @@ impl Call {
         Ok(match self {
             Call::Stream => Value::from(Stream::new(vm)),
             Call::Generator => Value::from(Generator::new(vm)),
-            Call::ResumedGenerator | Call::Immediate => vm.complete()?,
-            Call::ResumedStream | Call::Async => Value::from(Future::new(vm.async_complete())),
+            Call::Immediate => vm.complete()?,
+            Call::Async => Value::from(Future::new(vm.async_complete())),
         })
     }
 }
@@ -48,14 +42,8 @@ impl fmt::Display for Call {
             Self::Stream => {
                 write!(fmt, "stream")?;
             }
-            Self::ResumedStream => {
-                write!(fmt, "resumed stream")?;
-            }
             Self::Generator => {
                 write!(fmt, "generator")?;
-            }
-            Self::ResumedGenerator => {
-                write!(fmt, "resumed generator")?;
             }
         }
 
