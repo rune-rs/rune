@@ -443,7 +443,7 @@ where
     pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
-                (handler.handler)(&mut vm.stack, args)?;
+                (handler.handler)(vm.stack_mut(), args)?;
                 None
             }
             Inner::FnOffset(fn_offset) => {

@@ -1042,7 +1042,7 @@ impl Value {
             },
             (a, b) => {
                 if vm.call_instance_fn(a.clone(), Protocol::EQ, (b.clone(),))? {
-                    return bool::from_value(vm.stack.pop()?);
+                    return bool::from_value(vm.stack_mut().pop()?);
                 }
             }
         }
