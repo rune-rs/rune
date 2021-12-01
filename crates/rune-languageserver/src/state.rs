@@ -136,7 +136,7 @@ impl State {
             let mut diagnostics = rune::Diagnostics::new();
             let mut visitor = Visitor::new(Index::default());
 
-            let result = rune::prepare(&mut sources)
+            let _ = rune::prepare(&mut sources)
                 .with_context(&self.inner.context)
                 .with_diagnostics(&mut diagnostics)
                 .with_options(&self.inner.options)
@@ -144,85 +144,82 @@ impl State {
                 .with_source_loader(&mut source_loader)
                 .build();
 
-            if let Err(rune::BuildError) = result {
-                for diagnostic in diagnostics.diagnostics() {
-                    match diagnostic {
-                        Diagnostic::Fatal(fatal) => {
-                            let source_id = fatal.source_id();
+            for diagnostic in diagnostics.diagnostics() {
+                match diagnostic {
+                    Diagnostic::Fatal(fatal) => {
+                        let source_id = fatal.source_id();
 
-                            match fatal.kind() {
-                                FatalDiagnosticKind::ParseError(error) => {
-                                    report(
-                                        &sources,
-                                        &mut by_url,
-                                        error.span(),
-                                        source_id,
-                                        error,
-                                        display_to_error,
-                                    );
-                                }
-                                FatalDiagnosticKind::CompileError(error) => {
-                                    report(
-                                        &sources,
-                                        &mut by_url,
-                                        error.span(),
-                                        source_id,
-                                        error,
-                                        display_to_error,
-                                    );
-                                }
-                                FatalDiagnosticKind::QueryError(error) => {
-                                    report(
-                                        &sources,
-                                        &mut by_url,
-                                        error.span(),
-                                        source_id,
-                                        error,
-                                        display_to_error,
-                                    );
-                                }
-                                FatalDiagnosticKind::LinkError(error) => match error {
-                                    LinkerError::MissingFunction { hash, spans } => {
-                                        for (span, _) in spans {
-                                            let diagnostics =
-                                                by_url.entry(url.clone()).or_default();
-
-                                            let range = source.span_to_lsp_range(*span);
-
-                                            diagnostics.push(display_to_error(
-                                                range,
-                                                format!("missing function with hash `{}`", hash),
-                                            ));
-                                        }
-                                    }
-                                    error => {
+                        match fatal.kind() {
+                            FatalDiagnosticKind::ParseError(error) => {
+                                report(
+                                    &sources,
+                                    &mut by_url,
+                                    error.span(),
+                                    source_id,
+                                    error,
+                                    display_to_error,
+                                );
+                            }
+                            FatalDiagnosticKind::CompileError(error) => {
+                                report(
+                                    &sources,
+                                    &mut by_url,
+                                    error.span(),
+                                    source_id,
+                                    error,
+                                    display_to_error,
+                                );
+                            }
+                            FatalDiagnosticKind::QueryError(error) => {
+                                report(
+                                    &sources,
+                                    &mut by_url,
+                                    error.span(),
+                                    source_id,
+                                    error,
+                                    display_to_error,
+                                );
+                            }
+                            FatalDiagnosticKind::LinkError(error) => match error {
+                                LinkerError::MissingFunction { hash, spans } => {
+                                    for (span, _) in spans {
                                         let diagnostics = by_url.entry(url.clone()).or_default();
-                                        let range = lsp::Range::default();
-                                        diagnostics.push(display_to_error(range, error));
+
+                                        let range = source.span_to_lsp_range(*span);
+
+                                        diagnostics.push(display_to_error(
+                                            range,
+                                            format!("missing function with hash `{}`", hash),
+                                        ));
                                     }
-                                },
-                                FatalDiagnosticKind::Internal(message) => {
-                                    let diagnostics = by_url.entry(url.clone()).or_default();
-                                    let range = lsp::Range::default();
-                                    diagnostics.push(display_to_error(range, message));
                                 }
                                 error => {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
                                     let range = lsp::Range::default();
                                     diagnostics.push(display_to_error(range, error));
                                 }
+                            },
+                            FatalDiagnosticKind::Internal(message) => {
+                                let diagnostics = by_url.entry(url.clone()).or_default();
+                                let range = lsp::Range::default();
+                                diagnostics.push(display_to_error(range, message));
+                            }
+                            error => {
+                                let diagnostics = by_url.entry(url.clone()).or_default();
+                                let range = lsp::Range::default();
+                                diagnostics.push(display_to_error(range, error));
                             }
                         }
-                        Diagnostic::Warning(warning) => {
-                            report(
-                                &sources,
-                                &mut by_url,
-                                warning.span(),
-                                warning.source_id(),
-                                warning.kind(),
-                                display_to_warning,
-                            );
-                        }
+                    }
+                    Diagnostic::Warning(warning) => {
+                        report(
+                            &sources,
+                            &mut by_url,
+                            warning.span(),
+                            warning.source_id(),
+                            warning.kind(),
+                            display_to_warning,
+                        );
                     }
                 }
             }
