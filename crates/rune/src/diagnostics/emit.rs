@@ -108,6 +108,7 @@ impl VmError {
                 return Ok(());
             }
         };
+
         let debug_inst = match debug_info.instruction_at(ip) {
             Some(debug_inst) => debug_inst,
             None => {

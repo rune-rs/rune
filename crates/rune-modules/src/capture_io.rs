@@ -7,7 +7,7 @@
 //! # fn main() -> Result<(), ContextError> {
 //! let io = CaptureIo::new();
 //!
-//! let mut c = Context::new();
+//! let mut c = rune_modules::with_config(false)?;
 //! c.install(&capture_io::module(&io)?)?;
 //! # Ok(()) }
 //! ```
@@ -15,7 +15,7 @@
 use parking_lot::Mutex;
 use rune::runtime::{Panic, Stack, VmError};
 use rune::{ContextError, Module, Value};
-use std::io::Write;
+use std::io::{self, Write};
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 
@@ -34,6 +34,18 @@ impl CaptureIo {
     pub fn drain(&self) -> Vec<u8> {
         let mut o = self.inner.lock();
         std::mem::take(&mut *o)
+    }
+
+    /// Drain all captured I/O that has been written to output functions into
+    /// the given [Write].
+    pub fn drain_into<O>(&self, mut out: O) -> io::Result<()>
+    where
+        O: Write,
+    {
+        let mut o = self.inner.lock();
+        out.write_all(&*o)?;
+        o.clear();
+        Ok(())
     }
 
     /// Drain all captured I/O that has been written to output functions and try
