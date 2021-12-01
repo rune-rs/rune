@@ -188,7 +188,7 @@ pub use self::expr_unary::{ExprUnary, UnOp};
 pub use self::expr_vec::ExprVec;
 pub use self::expr_while::ExprWhile;
 pub use self::expr_yield::ExprYield;
-pub use self::file::File;
+pub use self::file::{File, Shebang};
 pub use self::fn_arg::FnArg;
 pub use self::force_semi::ForceSemi;
 pub use self::grouped::{AngleBracketed, Braced, Bracketed, Parenthesized};

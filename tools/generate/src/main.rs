@@ -199,6 +199,7 @@ fn main() -> Result<()> {
             #("/// Helper macro to reference a specific token kind, or short sequence of kinds.")
             #[macro_export]
             macro_rules! K {
+                (#!($($tt:tt)*)) => { $crate::ast::Kind::Shebang($($tt)*) };
                 (ident) => { $crate::ast::Kind::Ident(..) };
                 (ident ($($tt:tt)*)) => { $crate::ast::Kind::Ident($($tt)*) };
                 ('label) => { $crate::ast::Kind::Label(..) };
@@ -238,6 +239,8 @@ fn main() -> Result<()> {
                 MultilineComment(bool),
                 #("/// En error marker.")
                 Error,
+                #("/// The special initial line of a file shebang.")
+                Shebang(#lit_source),
                 #("/// A close delimiter: `)`, `}`, or `]`.")
                 Close(#delimiter),
                 #("/// An open delimiter: `(`, `{`, or `[`.")
@@ -310,6 +313,7 @@ fn main() -> Result<()> {
                         Self::Eof => #expectation::Description("eof"),
                         Self::Comment | Self::MultilineComment(..) => #expectation::Comment,
                         Self::Error => #expectation::Description("error"),
+                        Self::Shebang { .. } => #expectation::Description("shebang"),
                         Self::Ident(..) => #expectation::Description("ident"),
                         Self::Label(..) => #expectation::Description("label"),
                         Self::Byte { .. } => #expectation::Description("byte"),

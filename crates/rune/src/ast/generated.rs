@@ -4206,6 +4206,7 @@ macro_rules! T {
 /// Helper macro to reference a specific token kind, or short sequence of kinds.
 #[macro_export]
 macro_rules! K {
+    (#!($($tt:tt)*)) => { $crate::ast::Kind::Shebang($($tt)*) };
     (ident) => { $crate::ast::Kind::Ident(..) };
     (ident ($($tt:tt)*)) => { $crate::ast::Kind::Ident($($tt)*) };
     ('label) => { $crate::ast::Kind::Label(..) };
@@ -4336,6 +4337,8 @@ pub enum Kind {
     MultilineComment(bool),
     /// En error marker.
     Error,
+    /// The special initial line of a file shebang.
+    Shebang(ast::LitSource),
     /// A close delimiter: `)`, `}`, or `]`.
     Close(ast::Delimiter),
     /// An open delimiter: `(`, `{`, or `[`.
@@ -4744,6 +4747,7 @@ impl parse::IntoExpectation for Kind {
             Self::Eof => parse::Expectation::Description("eof"),
             Self::Comment | Self::MultilineComment(..) => parse::Expectation::Comment,
             Self::Error => parse::Expectation::Description("error"),
+            Self::Shebang { .. } => parse::Expectation::Description("shebang"),
             Self::Ident(..) => parse::Expectation::Description("ident"),
             Self::Label(..) => parse::Expectation::Description("label"),
             Self::Byte { .. } => parse::Expectation::Description("byte"),

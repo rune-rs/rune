@@ -11,7 +11,7 @@ use crate::ast::prelude::*;
 /// use rune::testing;
 ///
 /// testing::roundtrip::<ast::ItemFn>("async fn hello() {}");
-/// assert!(parse_all::<ast::ItemFn>("fn async hello() {}", SourceId::empty()).is_err());
+/// assert!(parse_all::<ast::ItemFn>("fn async hello() {}", SourceId::EMPTY, false).is_err());
 ///
 /// let item = testing::roundtrip::<ast::ItemFn>("fn hello() {}");
 /// assert_eq!(item.args.len(), 0);

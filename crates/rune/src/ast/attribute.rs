@@ -174,9 +174,9 @@ mod tests {
         ];
 
         for s in TEST_STRINGS.iter() {
-            parse_all::<ast::Attribute>(s, SourceId::empty()).expect(s);
+            parse_all::<ast::Attribute>(s, SourceId::empty(), false).expect(s);
             let withbang = s.replacen("#[", "#![", 1);
-            parse_all::<ast::Attribute>(&withbang, SourceId::empty()).expect(&withbang);
+            parse_all::<ast::Attribute>(&withbang, SourceId::empty(), false).expect(&withbang);
         }
     }
 }

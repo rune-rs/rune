@@ -233,7 +233,7 @@ impl<'a> MacroContext<'a> {
             )
         })?;
 
-        crate::parse::parse_all(source.as_str(), id)
+        crate::parse::parse_all(source.as_str(), id, false)
     }
 
     /// The span of the macro call including the name of the macro.

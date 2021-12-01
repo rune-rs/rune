@@ -16,51 +16,24 @@ pub struct Lexer<'a> {
     modes: LexerModes,
     /// Buffered tokens.
     buffer: VecDeque<ast::Token>,
+    /// If the lexer should try and lex a shebang.
+    shebang: bool,
 }
 
 impl<'a> Lexer<'a> {
     /// Construct a new lexer over the given source.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{span, SourceId};
-    /// use rune::ast;
-    /// use rune::parse::Lexer;
-    ///
-    /// assert! {
-    ///     matches! {
-    ///         Lexer::new("fn", SourceId::EMPTY).next().unwrap().unwrap(),
-    ///         ast::Token {
-    ///             kind: ast::Kind::Fn,
-    ///             span: span!(0, 2),
-    ///             ..
-    ///         }
-    ///     }
-    /// };
-    ///
-    /// assert! {
-    ///     matches! {
-    ///         Lexer::new("name", SourceId::EMPTY).next().unwrap().unwrap(),
-    ///         ast::Token {
-    ///             kind: ast::Kind::Ident(ast::LitSource::Text(SourceId::EMPTY)),
-    ///             span: span!(0, 4),
-    ///             ..
-    ///         }
-    ///     }
-    /// };
-    /// ```
-    pub fn new(source: &'a str, source_id: SourceId) -> Self {
+    pub(crate) fn new(source: &'a str, source_id: SourceId, shebang: bool) -> Self {
         Self {
             iter: SourceIter::new(source),
             source_id,
             modes: LexerModes::default(),
             buffer: VecDeque::new(),
+            shebang,
         }
     }
 
     /// Access the span of the lexer.
-    pub fn span(&self) -> Span {
+    pub(crate) fn span(&self) -> Span {
         self.iter.end_span(0)
     }
 
@@ -488,7 +461,7 @@ impl<'a> Lexer<'a> {
 
     /// Consume the next token from the lexer.
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Result<Option<ast::Token>, ParseError> {
+    pub(crate) fn next(&mut self) -> Result<Option<ast::Token>, ParseError> {
         'outer: loop {
             if let Some(token) = self.buffer.pop_front() {
                 return Ok(Some(token));
@@ -501,7 +474,7 @@ impl<'a> Lexer<'a> {
                     self.template_next()?;
                     continue;
                 }
-                LexerMode::Default(level) => (level),
+                LexerMode::Default(level) => level,
             };
 
             let (start, c) = match self.iter.next_with_pos() {
@@ -511,6 +484,22 @@ impl<'a> Lexer<'a> {
                     return Ok(None);
                 }
             };
+
+            // Added here specifically to avoid skipping over leading whitespace
+            // tokens just below. We only ever want to parse shebangs which are
+            // the first two leading characters in any input.
+            if self.shebang {
+                self.shebang = false;
+
+                if matches!((c, self.iter.peek()), ('#', Some('!'))) {
+                    self.consume_line();
+
+                    return Ok(Some(ast::Token {
+                        kind: ast::Kind::Shebang(ast::LitSource::Text(self.source_id)),
+                        span: self.iter.span_from(start),
+                    }));
+                }
+            }
 
             if char::is_whitespace(c) {
                 continue;
@@ -925,7 +914,7 @@ mod tests {
 
     macro_rules! test_lexer {
         ($source:expr $(, $pat:pat)* $(,)?) => {{
-            let mut it = Lexer::new($source, SourceId::empty());
+            let mut it = Lexer::new($source, SourceId::empty(), false);
 
             #[allow(never_used)]
             #[allow(unused_assignments)]
