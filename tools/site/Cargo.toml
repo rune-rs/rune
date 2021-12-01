@@ -3,6 +3,7 @@ name = "site"
 version = "0.0.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
+publish = false
 
 [dependencies]
 reqwest = {version = "0.10.8", features = ["blocking"]}

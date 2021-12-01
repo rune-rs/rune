@@ -3,6 +3,7 @@ name = "builder"
 version = "0.0.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
+publish = false
 
 [dependencies]
 anyhow = "1.0.9"
