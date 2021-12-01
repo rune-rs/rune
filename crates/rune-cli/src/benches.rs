@@ -3,6 +3,8 @@ use rune::compile::{Item, Meta};
 use rune::runtime::{Function, Unit, Value};
 use rune::termcolor::StandardStream;
 use rune::{Any, Context, ContextError, Hash, Module, Sources};
+use rune_modules::capture_io::CaptureIo;
+use std::fmt;
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
@@ -46,6 +48,7 @@ pub(crate) async fn run(
     o: &mut StandardStream,
     args: &Flags,
     context: &Context,
+    io: Option<&CaptureIo>,
     unit: Arc<Unit>,
     sources: &Sources,
     fns: &[(Hash, Meta)],
@@ -58,18 +61,35 @@ pub(crate) async fn run(
     let mut any_error = false;
 
     for (hash, meta) in fns {
+        let item = &meta.item.item;
         let mut bencher = Bencher::default();
 
         if let Err(error) = vm.call(*hash, (&mut bencher,)) {
-            writeln!(o, "Error in benchmark `{}`", meta.item.item)?;
+            writeln!(o, "{}: Error in benchmark", item)?;
             error.emit(o, sources)?;
             any_error = true;
+
+            if let Some(io) = io {
+                writeln!(o, "-- output --")?;
+                io.drain_into(&mut *o)?;
+                writeln!(o, "-- end output --")?;
+            }
+
             continue;
         }
 
+        let multiple = bencher.fns.len() > 1;
+
         for (i, f) in bencher.fns.iter().enumerate() {
-            if let Err(e) = bench_fn(o, i, &meta.item.item, args, f) {
-                writeln!(o, "Error running benchmark iteration: {}", e)?;
+            if let Err(e) = bench_fn(o, i, item, args, f, multiple) {
+                writeln!(o, "{}: Error in bench iteration: {}", item, e)?;
+
+                if let Some(io) = io {
+                    writeln!(o, "-- output --")?;
+                    io.drain_into(&mut *o)?;
+                    writeln!(o, "-- end output --")?;
+                }
+
                 any_error = true;
             }
         }
@@ -88,6 +108,7 @@ fn bench_fn(
     item: &Item,
     args: &Flags,
     f: &Function,
+    multiple: bool,
 ) -> anyhow::Result<()> {
     for _ in 0..args.warmup {
         let value = f.call::<_, Value>(())?;
@@ -117,10 +138,43 @@ fn bench_fn(
         / len;
     let stddev = variance.sqrt();
 
-    writeln!(
-        o,
-        "bench {}#{}: mean={:.2}ns, stddev={:.2}, iterations={}",
-        item, i, average, stddev, args.iterations,
-    )?;
+    let format = Format {
+        average: average as u128,
+        stddev: stddev as u128,
+        iterations,
+    };
+
+    if multiple {
+        writeln!(o, "bench {}#{}: {}", item, i, format)?;
+    } else {
+        writeln!(o, "bench {}: {}", item, format)?;
+    }
+
     Ok(())
+}
+
+struct Format {
+    average: u128,
+    stddev: u128,
+    iterations: usize,
+}
+
+impl fmt::Display for Format {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "mean={:.2}, stddev={:.2}, iterations={}",
+            Time(self.average),
+            Time(self.stddev),
+            self.iterations
+        )
+    }
+}
+
+struct Time(u128);
+
+impl fmt::Display for Time {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}ns", self.0)
+    }
 }

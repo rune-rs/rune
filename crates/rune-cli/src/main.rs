@@ -53,6 +53,7 @@ use anyhow::Result;
 use rune::compile::ParseOptionError;
 use rune::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use rune::{Context, ContextError, Options};
+use rune_modules::capture_io::CaptureIo;
 use std::error::Error;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -151,6 +152,23 @@ impl SharedFlags {
 
         Ok(context)
     }
+
+    /// Setup a context that captures output.
+    fn context_with_capture(&self, io: &CaptureIo) -> Result<Context, ContextError> {
+        let mut context = rune_modules::with_config(false)?;
+
+        context.install(&rune_modules::capture_io::module(io)?)?;
+
+        if self.experimental {
+            context.install(&rune_modules::experiments::module(true)?)?;
+        }
+
+        if self.test {
+            context.install(&benches::test_module()?)?;
+        }
+
+        Ok(context)
+    }
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -180,6 +198,7 @@ impl Args {
         // Command-specific override defaults.
         match &self.cmd {
             Command::Test(_) | Command::Check(_) => {
+                options.debug_info(true);
                 options.test(true);
                 options.bytecode(false);
             }
@@ -362,7 +381,8 @@ async fn run_path(
     match &args.cmd {
         Command::Check(flags) => check::run(o, flags, options, path),
         Command::Test(flags) => {
-            let context = flags.shared.context()?;
+            let io = rune_modules::capture_io::CaptureIo::new();
+            let context = flags.shared.context_with_capture(&io)?;
 
             let load = loader::load(o, &context, args, options, path, visitor::Attribute::Test)?;
 
@@ -370,6 +390,7 @@ async fn run_path(
                 o,
                 flags,
                 &context,
+                Some(&io),
                 load.unit,
                 &load.sources,
                 &load.functions,
@@ -377,7 +398,8 @@ async fn run_path(
             .await
         }
         Command::Bench(flags) => {
-            let context = flags.shared.context()?;
+            let io = rune_modules::capture_io::CaptureIo::new();
+            let context = flags.shared.context_with_capture(&io)?;
 
             let load = loader::load(o, &context, args, options, path, visitor::Attribute::Bench)?;
 
@@ -385,6 +407,7 @@ async fn run_path(
                 o,
                 flags,
                 &context,
+                Some(&io),
                 load.unit,
                 &load.sources,
                 &load.functions,

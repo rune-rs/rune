@@ -15,7 +15,7 @@ Native modules for Rune, an embeddable dynamic programming language for Rust.
 """
 
 [features]
-default = ["test", "core", "io", "fmt", "macros"]
+default = ["test", "core", "io", "fmt", "macros", "disable-io"]
 full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand", "io", "fmt", "macros"]
 time = ["tokio", "tokio/time"]
 fs = ["tokio", "tokio/fs"]
@@ -26,6 +26,7 @@ signal = ["tokio/signal"]
 rand = ["nanorand"]
 experiments = []
 capture-io = ["parking_lot"]
+disable-io = []
 test = []
 core = []
 io = []
