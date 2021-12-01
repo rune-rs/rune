@@ -232,6 +232,10 @@ fn main() -> Result<()> {
             pub enum Kind {
                 #("/// En end-of-file marker.")
                 Eof,
+                #("/// A single-line comment.")
+                Comment,
+                #("/// A multiline comment where the boolean indicates if it's been terminated correctly.")
+                MultilineComment(bool),
                 #("/// En error marker.")
                 Error,
                 #("/// A close delimiter: `)`, `}`, or `]`.")
@@ -304,6 +308,7 @@ fn main() -> Result<()> {
                 fn into_expectation(self) -> #expectation {
                     match self {
                         Self::Eof => #expectation::Description("eof"),
+                        Self::Comment | Self::MultilineComment(..) => #expectation::Comment,
                         Self::Error => #expectation::Description("error"),
                         Self::Ident(..) => #expectation::Description("ident"),
                         Self::Label(..) => #expectation::Description("label"),

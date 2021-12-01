@@ -290,6 +290,21 @@ impl<'a> Peeker<'a> {
                 None => break,
             };
 
+            match token.kind {
+                Kind::Comment => continue,
+                Kind::MultilineComment(term) => {
+                    if !term {
+                        return Err(ParseError::new(
+                            token.span,
+                            ParseErrorKind::ExpectedMultilineCommentTerm,
+                        ));
+                    }
+
+                    continue;
+                }
+                _ => (),
+            }
+
             self.last = Some(token.span);
             self.buf.push_back(token);
         }

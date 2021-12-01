@@ -111,4 +111,6 @@ pub enum ParseErrorKind {
     MultipleMatchingAttributes { name: &'static str },
     #[error("missing source id `{source_id}`")]
     MissingSourceId { source_id: SourceId },
+    #[error("expected multiline comment to be terminated with a `*/`")]
+    ExpectedMultilineCommentTerm,
 }
