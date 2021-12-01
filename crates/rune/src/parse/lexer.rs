@@ -338,6 +338,24 @@ impl<'a> Lexer<'a> {
         while !matches!(self.iter.next(), Some('\n') | None) {}
     }
 
+    /// Consume a multiline comment and indicate if it's terminated correctly.
+    fn consume_multiline_comment(&mut self) -> bool {
+        self.iter.next();
+        self.iter.next();
+
+        let mut cur = self.iter.next();
+
+        while let Some(a) = cur {
+            cur = self.iter.next();
+
+            if matches!((a, cur), ('*', Some('/'))) {
+                return true;
+            }
+        }
+
+        false
+    }
+
     fn template_next(&mut self) -> Result<(), ParseError> {
         use std::mem::take;
 
@@ -537,7 +555,11 @@ impl<'a> Lexer<'a> {
                         }
                         ('/', '/') => {
                             self.consume_line();
-                            continue 'outer;
+                            break ast::Kind::Comment;
+                        }
+                        ('/', '*') => {
+                            let term = self.consume_multiline_comment();
+                            break ast::Kind::MultilineComment(term);
                         }
                         (':', ':') => {
                             self.iter.next();
