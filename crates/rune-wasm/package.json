@@ -5,8 +5,8 @@
   "main": "rollup.config.js",
   "dependencies": {},
   "devDependencies": {
-    "@wasm-tool/rollup-plugin-rust": "^1.0.5",
-    "rollup": "^2.34.1"
+    "@wasm-tool/rollup-plugin-rust": "^1.0.7",
+    "rollup": "^2.60.2"
   },
   "scripts": {
     "build": "rollup -c"
