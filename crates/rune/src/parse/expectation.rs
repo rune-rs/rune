@@ -20,6 +20,8 @@ pub enum Expectation {
     Literal,
     /// An expression.
     Expression,
+    /// A shebang.
+    Shebang,
     /// A comment.
     Comment,
 }
@@ -35,6 +37,7 @@ impl fmt::Display for Expectation {
             Expectation::Boolean => write!(f, "true or false"),
             Expectation::Literal => write!(f, r#"literal like `"a string"` or 42"#),
             Expectation::Expression => write!(f, "expression"),
+            Expectation::Shebang => write!(f, "shebang"),
             Expectation::Comment => write!(f, "comment"),
         }
     }

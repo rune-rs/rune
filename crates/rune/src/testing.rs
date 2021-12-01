@@ -16,7 +16,7 @@ where
 {
     let source_id = SourceId::empty();
 
-    let mut parser = Parser::new(source, source_id);
+    let mut parser = Parser::new(source, source_id, false);
     let ast = parser.parse::<T>().expect("first parse");
     parser.eof().expect("first parse eof");
 

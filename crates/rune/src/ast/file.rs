@@ -1,9 +1,83 @@
 use crate::ast::prelude::*;
 
 /// A parsed file.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::File>(r#"
+/// use foo;
+///
+/// fn foo() {
+///     42
+/// }
+///
+/// use bar;
+///
+/// fn bar(a, b) {
+///     a
+/// }
+/// "#);
+/// ```
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::File>(r#"
+/// use http;
+///
+/// fn main() {
+///     let client = http::client();
+///     let response = client.get("https://google.com");
+///     let text = response.text();
+/// }
+/// "#);
+///```
+///
+/// Parsing with file attributes:
+///
+/// ```
+/// use rune::{ast, testing};
+///
+/// testing::roundtrip::<ast::File>(r#"
+/// // NB: Attributes are currently rejected by the compiler
+/// #![feature(attributes)]
+///
+/// fn main() {
+///     for x in [1, 2, 3, 4, 5, 6] {
+///         println!("{}", x)
+///     }
+/// }
+/// "#);
+/// ```
+///
+/// Parsing a shebang:
+///
+/// ```
+/// use rune::SourceId;
+/// use rune::{ast, parse};
+///
+/// # fn main() -> rune::Result<()> {
+/// let file = parse::parse_all::<ast::File>(r#"#!rune run
+///
+/// fn main() {
+///     for x in [1, 2, 3, 4, 5, 6] {
+///         println!("{}", x)
+///     }
+/// }
+/// "#, SourceId::EMPTY, true)?;
+///
+/// assert!(file.shebang.is_some());
+/// # Ok(()) }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 #[non_exhaustive]
 pub struct File {
+    /// Top-level shebang.
+    #[rune(iter)]
+    pub shebang: Option<Shebang>,
     /// Top level "Outer" `#![...]` attributes for the file
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -26,65 +100,10 @@ impl OptionSpanned for File {
     }
 }
 
-/// Parse a file.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::File>(r#"
-/// use foo;
-///
-/// fn foo() {
-///     42
-/// }
-///
-/// use bar;
-///
-/// fn bar(a, b) {
-///     a
-/// }
-/// "#);
-/// ```
-///
-/// # Realistic Example
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::File>(r#"
-/// use http;
-///
-/// fn main() {
-///     let client = http::client();
-///     let response = client.get("https://google.com");
-///     let text = response.text();
-/// }
-/// "#);
-///```
-///
-/// # File Attributes Example
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::File>(r#"
-/// // NB: Attributes are currently rejected by the compiler
-/// #![feature(attributes)]
-///
-/// fn main() {
-///     for x in [1,2,3,4,5,6] {
-///         println(`{x}`)
-///     }
-/// }
-/// "#);
-/// ```
-///
-// TODO: this is a false positive: https://github.com/rust-lang/rust-clippy/issues/5879
-#[allow(clippy::needless_doctest_main)]
 impl Parse for File {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let shebang = p.parse()?;
+
         let mut attributes = vec![];
 
         // only allow outer attributes at the top of a file
@@ -123,6 +142,55 @@ impl Parse for File {
             return Err(ParseError::unsupported(span, "visibility"));
         }
 
-        Ok(Self { attributes, items })
+        Ok(Self {
+            shebang,
+            attributes,
+            items,
+        })
+    }
+}
+
+/// The shebang of a file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Shebang {
+    /// The span of the shebang.
+    pub span: Span,
+    /// The source of the shebang.
+    pub source: ast::LitSource,
+}
+
+impl Peek for Shebang {
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!(p.nth(0), K![#!(..)])
+    }
+}
+
+impl Parse for Shebang {
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let token = p.next()?;
+
+        match token.kind {
+            K![#!(source)] => Ok(Self {
+                span: token.span,
+                source,
+            }),
+            _ => Err(ParseError::expected(token, Expectation::Shebang)),
+        }
+    }
+}
+
+impl Spanned for Shebang {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl ToTokens for Shebang {
+    fn to_tokens(&self, _: &mut MacroContext<'_>, stream: &mut TokenStream) {
+        stream.push(ast::Token {
+            span: self.span,
+            kind: ast::Kind::Shebang(self.source),
+        })
     }
 }

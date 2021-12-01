@@ -86,14 +86,17 @@ impl<'a> Worker<'a> {
                         }
                     };
 
-                    let mut file =
-                        match crate::parse::parse_all::<ast::File>(source.as_str(), source_id) {
-                            Ok(file) => file,
-                            Err(error) => {
-                                self.diagnostics.error(source_id, error);
-                                continue;
-                            }
-                        };
+                    let mut file = match crate::parse::parse_all::<ast::File>(
+                        source.as_str(),
+                        source_id,
+                        true,
+                    ) {
+                        Ok(file) => file,
+                        Err(error) => {
+                            self.diagnostics.error(source_id, error);
+                            continue;
+                        }
+                    };
 
                     let root = match kind {
                         LoadFileKind::Root => source.path().map(ToOwned::to_owned),

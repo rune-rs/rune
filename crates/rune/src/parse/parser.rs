@@ -15,8 +15,10 @@ use std::ops;
 /// use rune::SourceId;
 /// use rune::parse::Parser;
 ///
-/// let mut parser = Parser::new("fn foo() {}", SourceId::empty());
-/// parser.parse::<ast::ItemFn>().unwrap();
+/// # fn main() -> rune::Result<()> {
+/// let mut parser = Parser::new("fn foo() {}", SourceId::empty(), false);
+/// let ast = parser.parse::<ast::ItemFn>()?;
+/// # Ok(()) }
 /// ```
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -25,10 +27,12 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     /// Construct a new parser around the given source.
-    pub fn new(source: &'a str, source_id: SourceId) -> Self {
+    ///
+    /// `shebang` indicates if the parser should try and parse a shebang or not.
+    pub fn new(source: &'a str, source_id: SourceId, shebang: bool) -> Self {
         Self::with_source(
             Source {
-                inner: SourceInner::Lexer(Lexer::new(source, source_id)),
+                inner: SourceInner::Lexer(Lexer::new(source, source_id, shebang)),
             },
             Span::new(0u32, source.len()),
         )
