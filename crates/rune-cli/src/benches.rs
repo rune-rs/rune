@@ -1,11 +1,26 @@
-use crate::ExitCode;
+use crate::{ExitCode, SharedFlags};
 use rune::compile::{Item, Meta};
-use rune::runtime::{Function, RuntimeContext, Unit, Value};
+use rune::runtime::{Function, Unit, Value};
 use rune::termcolor::StandardStream;
-use rune::{Any, ContextError, Hash, Module, Sources};
+use rune::{Any, Context, ContextError, Hash, Module, Sources};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug, Clone)]
+pub(crate) struct Flags {
+    /// Rounds of warmup to perform
+    #[structopt(long, default_value = "100")]
+    warmup: u32,
+
+    /// Iterations to run of the benchmark
+    #[structopt(long, default_value = "100")]
+    iterations: u32,
+
+    #[structopt(flatten)]
+    pub(crate) shared: SharedFlags,
+}
 
 #[derive(Default, Any)]
 pub(crate) struct Bencher {
@@ -27,33 +42,34 @@ pub(crate) fn test_module() -> Result<Module, ContextError> {
 }
 
 /// Run benchmarks.
-pub(crate) async fn do_benches(
-    args: &crate::BenchFlags,
-    mut out: StandardStream,
-    runtime: Arc<RuntimeContext>,
+pub(crate) async fn run(
+    o: &mut StandardStream,
+    args: &Flags,
+    context: &Context,
     unit: Arc<Unit>,
-    sources: Sources,
-    found: Vec<(Hash, Meta)>,
+    sources: &Sources,
+    fns: &[(Hash, Meta)],
 ) -> anyhow::Result<ExitCode> {
+    let runtime = Arc::new(context.runtime());
     let mut vm = rune::Vm::new(runtime, unit);
 
-    writeln!(out, "Found {} benches...", found.len())?;
+    writeln!(o, "Found {} benches...", fns.len())?;
 
     let mut any_error = false;
 
-    for (hash, meta) in found {
+    for (hash, meta) in fns {
         let mut bencher = Bencher::default();
 
-        if let Err(error) = vm.call(hash, (&mut bencher,)) {
-            writeln!(out, "Error in benchmark `{}`", meta.item.item)?;
-            error.emit(&mut out, &sources)?;
+        if let Err(error) = vm.call(*hash, (&mut bencher,)) {
+            writeln!(o, "Error in benchmark `{}`", meta.item.item)?;
+            error.emit(o, sources)?;
             any_error = true;
             continue;
         }
 
         for (i, f) in bencher.fns.iter().enumerate() {
-            if let Err(e) = bench_fn(&mut out, i, &meta.item.item, args, f) {
-                writeln!(out, "Error running benchmark iteration: {}", e)?;
+            if let Err(e) = bench_fn(o, i, &meta.item.item, args, f) {
+                writeln!(o, "Error running benchmark iteration: {}", e)?;
                 any_error = true;
             }
         }
@@ -67,10 +83,10 @@ pub(crate) async fn do_benches(
 }
 
 fn bench_fn(
-    out: &mut StandardStream,
+    o: &mut StandardStream,
     i: usize,
     item: &Item,
-    args: &crate::BenchFlags,
+    args: &Flags,
     f: &Function,
 ) -> anyhow::Result<()> {
     for _ in 0..args.warmup {
@@ -102,7 +118,7 @@ fn bench_fn(
     let stddev = variance.sqrt();
 
     writeln!(
-        out,
+        o,
         "bench {}#{}: mean={:.2}ns, stddev={:.2}, iterations={}",
         item, i, average, stddev, args.iterations,
     )?;

@@ -9,7 +9,8 @@ use thiserror::Error;
 ///
 /// Look at the passed in [Diagnostics] instance for details.
 #[derive(Debug, Error)]
-#[error("failed to load sources (see `errors` for details)")]
+#[error("failed to build rune sources (see diagnostics for details)")]
+#[non_exhaustive]
 pub struct BuildError;
 
 /// Entry point to building [Sources] of Rune.

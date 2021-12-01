@@ -1,28 +1,43 @@
-use crate::ExitCode;
+use crate::{ExitCode, SharedFlags};
 use rune::compile::Meta;
-use rune::runtime::{RuntimeContext, Unit, UnitFn, Value, Vm, VmError, VmErrorKind};
+use rune::runtime::{Unit, Value, Vm, VmError};
 use rune::termcolor::StandardStream;
-use rune::{Hash, Sources};
+use rune::{Context, Hash, Sources};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug, Clone)]
+pub(crate) struct Flags {
+    /// Display one character per test instead of one line
+    #[structopt(short = "q", long)]
+    quiet: bool,
+
+    /// Run all tests regardless of failure
+    #[structopt(long)]
+    no_fail_fast: bool,
+
+    #[structopt(flatten)]
+    pub(crate) shared: SharedFlags,
+}
 
 #[derive(Debug)]
 enum FailureReason {
     Crash(VmError),
     ReturnedNone,
-    ReturnedErr(Result<Value, Value>),
+    ReturnedErr(Value),
 }
 
 #[derive(Debug)]
-struct TestCase {
+struct TestCase<'a> {
     hash: Hash,
-    meta: Meta,
+    meta: &'a Meta,
     outcome: Option<FailureReason>,
 }
 
-impl TestCase {
-    fn from_parts(hash: Hash, meta: Meta) -> Self {
+impl<'a> TestCase<'a> {
+    fn from_parts(hash: Hash, meta: &'a Meta) -> Self {
         Self {
             hash,
             meta,
@@ -30,155 +45,139 @@ impl TestCase {
         }
     }
 
-    fn start(&self, out: &mut StandardStream, quiet: bool) -> Result<(), std::io::Error> {
+    fn start(&self, o: &mut StandardStream, quiet: bool) -> Result<(), std::io::Error> {
         if quiet {
             return Ok(());
         }
 
-        write!(out, "Test {:30} ", self.meta.item.item)
+        write!(o, "Test {:30} ", self.meta.item.item)
     }
 
-    async fn execute(&mut self, unit: &Unit, mut vm: Vm) -> Result<bool, VmError> {
-        let info = unit.lookup(self.hash).ok_or_else(|| {
-            VmError::from(VmErrorKind::MissingEntry {
-                hash: self.hash,
-                item: self.meta.item.item.clone(),
-            })
-        })?;
-
-        let offset = match info {
-            // NB: we ignore the calling convention.
-            // everything is just async when called externally.
-            UnitFn::Offset { offset, .. } => offset,
-            _ => {
-                return Err(VmError::from(VmErrorKind::MissingFunction {
-                    hash: self.hash,
-                }));
-            }
+    async fn execute(&mut self, vm: &mut Vm) -> Result<bool, VmError> {
+        let result = match vm.execute(self.hash, ()) {
+            Err(err) => Err(err),
+            Ok(mut execution) => execution.async_complete().await,
         };
 
-        vm.set_ip(offset);
-        self.outcome = match vm.async_complete().await {
+        self.outcome = match result {
             Err(e) => Some(FailureReason::Crash(e)),
-            Ok(v) => {
-                if let Ok(v) = v.clone().into_result() {
-                    let res = v.take().unwrap();
-                    if res.is_err() {
-                        Some(FailureReason::ReturnedErr(res))
-                    } else {
-                        None
-                    }
-                } else if let Ok(v) = v.into_option() {
-                    if v.borrow_ref().unwrap().is_none() {
-                        Some(FailureReason::ReturnedNone)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
+            Ok(v) => match v {
+                Value::Result(result) => match result.take()? {
+                    Ok(..) => None,
+                    Err(err) => Some(FailureReason::ReturnedErr(err)),
+                },
+                Value::Option(option) => match *option.borrow_ref()? {
+                    Some(..) => None,
+                    None => Some(FailureReason::ReturnedNone),
+                },
+                _ => None,
+            },
         };
 
         Ok(self.outcome.is_none())
     }
 
-    fn end(&self, out: &mut StandardStream, quiet: bool) -> Result<(), std::io::Error> {
+    fn end(&self, o: &mut StandardStream, quiet: bool) -> Result<(), std::io::Error> {
         if quiet {
             match &self.outcome {
                 Some(FailureReason::Crash(_)) => {
-                    write!(out, "F")
+                    write!(o, "F")
                 }
                 Some(FailureReason::ReturnedErr(_)) => {
-                    write!(out, "f")
+                    write!(o, "f")
                 }
                 Some(FailureReason::ReturnedNone) => {
-                    write!(out, "n")
+                    write!(o, "n")
                 }
-                None => write!(out, "."),
+                None => write!(o, "."),
             }
         } else {
             match &self.outcome {
                 Some(FailureReason::Crash(_)) => {
-                    writeln!(out, "failed")
+                    writeln!(o, "failed")
                 }
                 Some(FailureReason::ReturnedErr(_)) => {
-                    writeln!(out, "returned error")
+                    writeln!(o, "returned error")
                 }
                 Some(FailureReason::ReturnedNone) => {
-                    writeln!(out, "returned none")
+                    writeln!(o, "returned none")
                 }
-                None => writeln!(out, "passed"),
+                None => writeln!(o, "passed"),
             }
         }
     }
 
-    fn emit(&self, out: &mut StandardStream, sources: &Sources) -> Result<(), std::io::Error> {
+    fn emit(&self, o: &mut StandardStream, sources: &Sources) -> Result<(), std::io::Error> {
         if self.outcome.is_none() {
             return Ok(());
         }
         match self.outcome.as_ref().unwrap() {
             FailureReason::Crash(err) => {
-                writeln!(out, "----------------------------------------")?;
-                writeln!(out, "Test: {}\n", self.meta.item.item)?;
-                err.emit(out, sources).expect("failed writing diagnostics");
+                writeln!(o, "----------------------------------------")?;
+                writeln!(o, "Test: {}\n", self.meta.item.item)?;
+                err.emit(o, sources).expect("failed writing diagnostics");
             }
             FailureReason::ReturnedNone => {}
             FailureReason::ReturnedErr(e) => {
-                writeln!(out, "----------------------------------------")?;
-                writeln!(out, "Test: {}\n", self.meta.item.item)?;
-                writeln!(out, "Return value: {:?}\n", e)?;
+                writeln!(o, "----------------------------------------")?;
+                writeln!(o, "Test: {}\n", self.meta.item.item)?;
+                writeln!(o, "Error: {:?}\n", e)?;
             }
         }
         Ok(())
     }
 }
 
-pub(crate) async fn do_tests(
-    test_args: &crate::TestFlags,
-    mut out: StandardStream,
-    runtime: Arc<RuntimeContext>,
+pub(crate) async fn run(
+    o: &mut StandardStream,
+    flags: &Flags,
+    context: &Context,
     unit: Arc<Unit>,
-    sources: Sources,
-    tests: Vec<(Hash, Meta)>,
+    sources: &Sources,
+    fns: &[(Hash, Meta)],
 ) -> anyhow::Result<ExitCode> {
-    let mut cases = tests
-        .into_iter()
-        .map(|v| TestCase::from_parts(v.0, v.1))
+    let runtime = Arc::new(context.runtime());
+
+    let mut cases = fns
+        .iter()
+        .map(|v| TestCase::from_parts(v.0, &v.1))
         .collect::<Vec<_>>();
 
-    writeln!(out, "Found {} tests...", cases.len())?;
+    writeln!(o, "Found {} tests...", cases.len())?;
 
     let start = Instant::now();
     let mut failure_count = 0;
     let mut executed_count = 0;
+
+    let mut vm = Vm::new(runtime.clone(), unit.clone());
+
     for test in &mut cases {
         executed_count += 1;
-        let vm = Vm::new(runtime.clone(), unit.clone());
 
-        test.start(&mut out, test_args.quiet)?;
-        let success = test.execute(unit.as_ref(), vm).await?;
-        test.end(&mut out, test_args.quiet)?;
+        test.start(o, flags.quiet)?;
+        let success = test.execute(&mut vm).await?;
+        test.end(o, flags.quiet)?;
         if !success {
             failure_count += 1;
-            if !test_args.no_fail_fast {
+            if !flags.no_fail_fast {
                 break;
             }
         }
     }
 
-    if test_args.quiet {
-        writeln!(out)?;
+    if flags.quiet {
+        writeln!(o)?;
     }
+
     let elapsed = start.elapsed();
 
     for case in &cases {
-        case.emit(&mut out, &sources)?;
+        case.emit(o, sources)?;
     }
 
-    writeln!(out, "====")?;
+    writeln!(o, "====")?;
     writeln!(
-        out,
+        o,
         "Executed {} tests with {} failures ({} skipped) in {:.3} seconds",
         executed_count,
         failure_count,
