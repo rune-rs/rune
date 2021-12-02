@@ -12,6 +12,13 @@ pub async fn main() {
             continue;
         }
 
+        let cargo_toml = fs::read_to_string(`${project}/Cargo.toml`).await?;
+        let cargo_toml = toml::from_string(cargo_toml)?;
+
+        if !cargo_toml.package.get("publish").unwrap_or(true) {
+            continue;
+        }
+
         let cargo = Command::new("cargo");
         cargo.args(["publish", "--manifest-path", `${project}/Cargo.toml`, "--no-verify"]);
 
