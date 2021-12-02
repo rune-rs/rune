@@ -21,10 +21,14 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 * Macros now take an explicit `ctx` macro rather than relying on `TLS` ([#304]).
 * Native functions no longer have to be `Copy` ([#329]).
 * Many types that used to be publicly exported are now hidden.
+* `rune test` (and `rune bench`) now captures all output ([#354]).
 
 ## Added
 * We can now compile rune source inside of macros ([#302]).
-* Basic benchmarking tool to `rune-cli` through `rune bench` ([#296]).
+* Basic benchmarking tool has been added to `rune-cli` through `rune bench`
+  ([#296]).
+* `Vm::with` has been added so we can call functions like
+  `Value::string_display` that "must be run withing a virtual machine" ([#291]).
 
 ## Fixed
 * Fixed issue when expanding template literals which prevents properly using
@@ -36,12 +40,15 @@ For a guide on how to go from 0.9.x 0.10.x, see the [upgrade guide for 0.9.x to 
 [9-to-10]: https://github.com/rune-rs/rune/blob/main/UPGRADING.md
 
 [#279]: https://github.com/rune-rs/rune/issues/279
+[#291]: https://github.com/rune-rs/rune/pull/291
 [#296]: https://github.com/rune-rs/rune/pull/296
 [#302]: https://github.com/rune-rs/rune/issues/302
 [#304]: https://github.com/rune-rs/rune/pull/304
 [#316]: https://github.com/rune-rs/rune/issues/316
 [#317]: https://github.com/rune-rs/rune/pull/317
 [#326]: https://github.com/rune-rs/rune/issues/326
+[#329]: https://github.com/rune-rs/rune/issues/329
+[#354]: https://github.com/rune-rs/rune/issues/354
 
 [pkolaczk]: https://github.com/pkolaczk
 [Steven0351]: https://github.com/Steven0351
