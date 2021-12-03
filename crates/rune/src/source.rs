@@ -29,8 +29,6 @@ impl Source {
     pub fn from_path(path: &Path) -> io::Result<Self> {
         let name = path.display().to_string();
         let source = fs::read_to_string(&path)?;
-        let path = path.canonicalize()?;
-
         Ok(Self::with_path(name, source, Some(path)))
     }
 

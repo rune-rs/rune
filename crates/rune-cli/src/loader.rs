@@ -1,15 +1,13 @@
-use crate::{visitor, Args};
+use crate::{visitor, Args, Io};
 use anyhow::{anyhow, Context as _, Result};
 use rune::compile::FileSourceLoader;
 use rune::compile::Meta;
-use rune::termcolor::StandardStream;
 use rune::Diagnostics;
 use rune::{Context, Hash, Options, Source, Sources, Unit};
 use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
 pub(crate) struct Load {
@@ -20,14 +18,14 @@ pub(crate) struct Load {
 
 /// Load context and code for a given path
 pub(crate) fn load(
-    o: &mut StandardStream,
+    io: &mut Io<'_>,
     context: &Context,
     args: &Args,
     options: &Options,
     path: &Path,
     attribute: visitor::Attribute,
 ) -> Result<Load> {
-    let shared = args.shared();
+    let shared = args.cmd.shared();
 
     let bytecode_path = path.with_extension("rnc");
 
@@ -79,7 +77,7 @@ pub(crate) fn load(
                 .with_source_loader(&mut source_loader)
                 .build();
 
-            diagnostics.emit(o, &sources)?;
+            diagnostics.emit(io.stdout, &sources)?;
             let unit = result?;
 
             if options.bytecode {
@@ -112,11 +110,12 @@ fn should_cache_be_used(source: &Path, cached: &Path) -> io::Result<bool> {
     Ok(source.modified()? < cached.modified()?)
 }
 
-pub(crate) fn walk_paths(
+pub(crate) fn recurse_paths(
     recursive: bool,
-    paths: Vec<PathBuf>,
-) -> impl Iterator<Item = io::Result<PathBuf>> {
-    let mut queue = paths.into_iter().collect::<VecDeque<_>>();
+    first: Box<Path>,
+) -> impl Iterator<Item = io::Result<Box<Path>>> {
+    let mut queue = VecDeque::with_capacity(1);
+    queue.push_back(first);
 
     std::iter::from_fn(move || loop {
         let path = queue.pop_front()?;
@@ -144,7 +143,7 @@ pub(crate) fn walk_paths(
                 Err(error) => return Some(Err(error)),
             };
 
-            queue.push_back(e.path());
+            queue.push_back(e.path().into());
         }
     })
 }

@@ -1,7 +1,6 @@
-use crate::{ExitCode, SharedFlags};
+use crate::{Config, ExitCode, Io, SharedFlags};
 use anyhow::Result;
 use rune::runtime::{VmError, VmExecution};
-use rune::termcolor::StandardStream;
 use rune::{Context, Sources, Unit, Value, Vm};
 use std::io::Write;
 use std::sync::Arc;
@@ -95,32 +94,33 @@ impl From<std::io::Error> for TraceError {
 }
 
 pub(crate) async fn run(
-    o: &mut StandardStream,
+    io: &mut Io<'_>,
+    c: &Config,
     args: &Flags,
     context: &Context,
     unit: Arc<Unit>,
     sources: &Sources,
 ) -> Result<ExitCode> {
     if args.dump_native_functions {
-        writeln!(o, "# functions")?;
+        writeln!(io.stdout, "# functions")?;
 
         for (i, (hash, f)) in context.iter_functions().enumerate() {
-            writeln!(o, "{:04} = {} ({})", i, f, hash)?;
+            writeln!(io.stdout, "{:04} = {} ({})", i, f, hash)?;
         }
     }
 
     if args.dump_native_types {
-        writeln!(o, "# types")?;
+        writeln!(io.stdout, "# types")?;
 
         for (i, (hash, ty)) in context.iter_types().enumerate() {
-            writeln!(o, "{:04} = {} ({})", i, ty, hash)?;
+            writeln!(io.stdout, "{:04} = {} ({})", i, ty, hash)?;
         }
     }
 
     if args.dump_unit() {
         if args.emit_instructions() {
+            let mut o = io.stdout.lock();
             writeln!(o, "# instructions")?;
-            let mut o = o.lock();
             unit.emit_instructions(&mut o, sources, args.with_source)?;
         }
 
@@ -130,38 +130,38 @@ pub(crate) async fn run(
         let mut constants = unit.iter_constants().peekable();
 
         if args.dump_functions && functions.peek().is_some() {
-            writeln!(o, "# dynamic functions")?;
+            writeln!(io.stdout, "# dynamic functions")?;
 
             for (hash, kind) in functions {
                 if let Some(signature) = unit.debug_info().and_then(|d| d.functions.get(&hash)) {
-                    writeln!(o, "{} = {}", hash, signature)?;
+                    writeln!(io.stdout, "{} = {}", hash, signature)?;
                 } else {
-                    writeln!(o, "{} = {}", hash, kind)?;
+                    writeln!(io.stdout, "{} = {}", hash, kind)?;
                 }
             }
         }
 
         if strings.peek().is_some() {
-            writeln!(o, "# strings")?;
+            writeln!(io.stdout, "# strings")?;
 
             for string in strings {
-                writeln!(o, "{} = {:?}", string.hash(), string)?;
+                writeln!(io.stdout, "{} = {:?}", string.hash(), string)?;
             }
         }
 
         if args.dump_constants && constants.peek().is_some() {
-            writeln!(o, "# constants")?;
+            writeln!(io.stdout, "# constants")?;
 
             for constant in constants {
-                writeln!(o, "{} = {:?}", constant.0, constant.1)?;
+                writeln!(io.stdout, "{} = {:?}", constant.0, constant.1)?;
             }
         }
 
         if keys.peek().is_some() {
-            writeln!(o, "# object keys")?;
+            writeln!(io.stdout, "# object keys")?;
 
             for (hash, keys) in keys {
-                writeln!(o, "{} = {:?}", hash, keys)?;
+                writeln!(io.stdout, "{} = {:?}", hash, keys)?;
             }
         }
     }
@@ -174,7 +174,7 @@ pub(crate) async fn run(
     let mut execution: VmExecution<_> = vm.execute(&["main"], ())?;
     let result = if args.trace {
         match do_trace(
-            o,
+            io,
             &mut execution,
             sources,
             args.dump_stack,
@@ -195,18 +195,26 @@ pub(crate) async fn run(
     match result {
         Ok(result) => {
             let duration = Instant::now().duration_since(last);
-            writeln!(o, "== {:?} ({:?})", result, duration)?;
+
+            if c.verbose {
+                writeln!(io.stderr, "== {:?} ({:?})", result, duration)?;
+            }
+
             errored = None;
         }
         Err(error) => {
             let duration = Instant::now().duration_since(last);
-            writeln!(o, "== ! ({}) ({:?})", error, duration)?;
+
+            if c.verbose {
+                writeln!(io.stderr, "== ! ({}) ({:?})", error, duration)?;
+            }
+
             errored = Some(error);
         }
     };
 
     if args.dump_stack {
-        writeln!(o, "# full stack dump after halting")?;
+        writeln!(io.stdout, "# full stack dump after halting")?;
 
         let vm = execution.vm();
 
@@ -225,33 +233,44 @@ pub(crate) async fn run(
                 .get(frame.stack_bottom()..stack_top)
                 .expect("bad stack slice");
 
-            writeln!(o, "  frame #{} (+{})", count, frame.stack_bottom())?;
+            writeln!(io.stdout, "  frame #{} (+{})", count, frame.stack_bottom())?;
 
             if values.is_empty() {
-                writeln!(o, "    *empty*")?;
+                writeln!(io.stdout, "    *empty*")?;
             }
 
             for (n, value) in stack.iter().enumerate() {
-                writeln!(o, "{}+{} = {:?}", frame.stack_bottom(), n, value)?;
+                writeln!(io.stdout, "{}+{} = {:?}", frame.stack_bottom(), n, value)?;
             }
         }
 
         // NB: print final frame
-        writeln!(o, "  frame #{} (+{})", frames.len(), stack.stack_bottom())?;
+        writeln!(
+            io.stdout,
+            "  frame #{} (+{})",
+            frames.len(),
+            stack.stack_bottom()
+        )?;
 
         let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
 
         if values.is_empty() {
-            writeln!(o, "    *empty*")?;
+            writeln!(io.stdout, "    *empty*")?;
         }
 
         for (n, value) in values.iter().enumerate() {
-            writeln!(o, "    {}+{} = {:?}", stack.stack_bottom(), n, value)?;
+            writeln!(
+                io.stdout,
+                "    {}+{} = {:?}",
+                stack.stack_bottom(),
+                n,
+                value
+            )?;
         }
     }
 
     if let Some(error) = errored {
-        error.emit(o, sources)?;
+        error.emit(io.stdout, sources)?;
         Ok(ExitCode::VmError)
     } else {
         Ok(ExitCode::Success)
@@ -260,7 +279,7 @@ pub(crate) async fn run(
 
 /// Perform a detailed trace of the program.
 async fn do_trace<T>(
-    o: &mut StandardStream,
+    io: &mut Io<'_>,
     execution: &mut VmExecution<T>,
     sources: &Sources,
     dump_stack: bool,
@@ -274,7 +293,7 @@ where
     loop {
         {
             let vm = execution.vm();
-            let mut o = o.lock();
+            let mut o = io.stdout.lock();
 
             if let Some((hash, signature)) =
                 vm.unit().debug_info().and_then(|d| d.function_at(vm.ip()))
@@ -316,7 +335,7 @@ where
             Err(e) => return Err(TraceError::VmError(e)),
         };
 
-        let mut o = o.lock();
+        let mut o = io.stdout.lock();
 
         if dump_stack {
             let vm = execution.vm();

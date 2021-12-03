@@ -33,7 +33,7 @@ macro_rules! error {
             /// broken for some reason.
             pub fn msg<S>(spanned: S, message: &'static str) -> Self
             where
-                S: Spanned,
+                S: $crate::ast::Spanned,
             {
                 Self::new(spanned, $kind::Custom { message })
             }
@@ -69,6 +69,8 @@ macro_rules! error {
 
         impl From<$crate::shared::Custom> for $error_ty {
             fn from(error: $crate::shared::Custom) -> Self {
+                use $crate::ast::Spanned;
+
                 Self::new(
                     error.span(),
                     $kind::Custom {
@@ -159,6 +161,16 @@ macro_rules! cfg_emit {
         $(
             #[cfg(feature = "emit")]
             #[cfg_attr(docsrs, doc(cfg(feature = "emit")))]
+            $item
+        )*
+    }
+}
+
+macro_rules! cfg_workspace {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "workspace")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "workspace")))]
             $item
         )*
     }

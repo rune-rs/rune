@@ -252,6 +252,10 @@ pub use self::sources::Sources;
 
 mod worker;
 
+cfg_workspace! {
+    pub mod workspace;
+}
+
 #[doc(hidden)]
 pub mod testing;
 

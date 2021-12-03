@@ -1,7 +1,6 @@
-use crate::{visitor, ExitCode, SharedFlags};
+use crate::{visitor, Config, ExitCode, Io, SharedFlags};
 use anyhow::{Context, Result};
 use rune::compile::FileSourceLoader;
-use rune::termcolor::StandardStream;
 use rune::{Diagnostics, Options, Source, Sources};
 use std::io::Write;
 use std::path::Path;
@@ -18,14 +17,15 @@ pub(crate) struct Flags {
 }
 
 pub(crate) fn run(
-    o: &mut StandardStream,
+    io: &mut Io<'_>,
+    c: &Config,
     flags: &Flags,
     options: &Options,
     path: &Path,
 ) -> Result<ExitCode> {
-    writeln!(o, "Checking: {}", path.display())?;
+    writeln!(io.stdout, "Checking: {}", path.display())?;
 
-    let context = flags.shared.context()?;
+    let context = flags.shared.context(c)?;
 
     let source =
         Source::from_path(path).with_context(|| format!("reading file: {}", path.display()))?;
@@ -51,7 +51,7 @@ pub(crate) fn run(
         .with_source_loader(&mut source_loader)
         .build();
 
-    diagnostics.emit(o, &sources)?;
+    diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
     if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
         Ok(ExitCode::Failure)

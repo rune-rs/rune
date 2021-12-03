@@ -1,7 +1,6 @@
-use crate::{ExitCode, SharedFlags};
+use crate::{ExitCode, Io, SharedFlags};
 use rune::compile::{Item, Meta};
 use rune::runtime::{Function, Unit, Value};
-use rune::termcolor::StandardStream;
 use rune::{Any, Context, ContextError, Hash, Module, Sources};
 use rune_modules::capture_io::CaptureIo;
 use std::fmt;
@@ -45,10 +44,10 @@ pub(crate) fn test_module() -> Result<Module, ContextError> {
 
 /// Run benchmarks.
 pub(crate) async fn run(
-    o: &mut StandardStream,
+    io: &mut Io<'_>,
     args: &Flags,
     context: &Context,
-    io: Option<&CaptureIo>,
+    capture_io: Option<&CaptureIo>,
     unit: Arc<Unit>,
     sources: &Sources,
     fns: &[(Hash, Meta)],
@@ -56,7 +55,7 @@ pub(crate) async fn run(
     let runtime = Arc::new(context.runtime());
     let mut vm = rune::Vm::new(runtime, unit);
 
-    writeln!(o, "Found {} benches...", fns.len())?;
+    writeln!(io.stdout, "Found {} benches...", fns.len())?;
 
     let mut any_error = false;
 
@@ -65,14 +64,14 @@ pub(crate) async fn run(
         let mut bencher = Bencher::default();
 
         if let Err(error) = vm.call(*hash, (&mut bencher,)) {
-            writeln!(o, "{}: Error in benchmark", item)?;
-            error.emit(o, sources)?;
+            writeln!(io.stdout, "{}: Error in benchmark", item)?;
+            error.emit(io.stdout, sources)?;
             any_error = true;
 
-            if let Some(io) = io {
-                writeln!(o, "-- output --")?;
-                io.drain_into(&mut *o)?;
-                writeln!(o, "-- end output --")?;
+            if let Some(capture_io) = capture_io {
+                writeln!(io.stdout, "-- output --")?;
+                capture_io.drain_into(&mut *io.stdout)?;
+                writeln!(io.stdout, "-- end output --")?;
             }
 
             continue;
@@ -81,13 +80,13 @@ pub(crate) async fn run(
         let multiple = bencher.fns.len() > 1;
 
         for (i, f) in bencher.fns.iter().enumerate() {
-            if let Err(e) = bench_fn(o, i, item, args, f, multiple) {
-                writeln!(o, "{}: Error in bench iteration: {}", item, e)?;
+            if let Err(e) = bench_fn(io, i, item, args, f, multiple) {
+                writeln!(io.stdout, "{}: Error in bench iteration: {}", item, e)?;
 
-                if let Some(io) = io {
-                    writeln!(o, "-- output --")?;
-                    io.drain_into(&mut *o)?;
-                    writeln!(o, "-- end output --")?;
+                if let Some(capture_io) = capture_io {
+                    writeln!(io.stdout, "-- output --")?;
+                    capture_io.drain_into(&mut *io.stdout)?;
+                    writeln!(io.stdout, "-- end output --")?;
                 }
 
                 any_error = true;
@@ -103,7 +102,7 @@ pub(crate) async fn run(
 }
 
 fn bench_fn(
-    o: &mut StandardStream,
+    io: &mut Io<'_>,
     i: usize,
     item: &Item,
     args: &Flags,
@@ -145,9 +144,9 @@ fn bench_fn(
     };
 
     if multiple {
-        writeln!(o, "bench {}#{}: {}", item, i, format)?;
+        writeln!(io.stdout, "bench {}#{}: {}", item, i, format)?;
     } else {
-        writeln!(o, "bench {}: {}", item, format)?;
+        writeln!(io.stdout, "bench {}: {}", item, format)?;
     }
 
     Ok(())
