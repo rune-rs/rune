@@ -49,9 +49,10 @@
 //! [Rune Language]: https://rune-rs.github.io
 //! [rune]: https://github.com/rune-rs/rune
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use rune::compile::ParseOptionError;
 use rune::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use rune::workspace::WorkspaceFilter;
 use rune::{Context, ContextError, Options};
 use rune_modules::capture_io::CaptureIo;
 use std::error::Error;
@@ -68,6 +69,11 @@ mod visitor;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
 
+struct Io<'a> {
+    stdout: &'a mut StandardStream,
+    stderr: &'a mut StandardStream,
+}
+
 #[derive(StructOpt, Debug, Clone)]
 enum Command {
     /// Run checks but do not execute
@@ -81,19 +87,93 @@ enum Command {
 }
 
 impl Command {
-    fn propagate_related_flags(&mut self) {
+    fn propagate_related_flags(&mut self, c: &mut Config) {
         match self {
             Command::Check(_) => {}
-            Command::Test(args) => {
-                args.shared.test = true;
+            Command::Test(..) => {
+                c.test = true;
             }
-            Command::Bench(args) => {
-                args.shared.test = true;
+            Command::Bench(..) => {
+                c.test = true;
             }
             Command::Run(args) => {
                 args.propagate_related_flags();
             }
         }
+    }
+
+    fn describe(&self) -> &'static str {
+        match self {
+            Command::Check(..) => "Checking",
+            Command::Test(..) => "Testing",
+            Command::Bench(..) => "Benchmarking",
+            Command::Run(..) => "Running",
+        }
+    }
+
+    fn shared(&self) -> &SharedFlags {
+        match self {
+            Command::Check(args) => &args.shared,
+            Command::Test(args) => &args.shared,
+            Command::Bench(args) => &args.shared,
+            Command::Run(args) => &args.shared,
+        }
+    }
+
+    fn bins_test(&self) -> Option<WorkspaceFilter<'_>> {
+        if !matches!(self, Command::Run(..) | Command::Check(..)) {
+            return None;
+        }
+
+        let shared = self.shared();
+
+        Some(if let Some(name) = &shared.bin {
+            WorkspaceFilter::Name(name)
+        } else {
+            WorkspaceFilter::All
+        })
+    }
+
+    fn tests_test(&self) -> Option<WorkspaceFilter<'_>> {
+        if !matches!(self, Command::Test(..) | Command::Check(..)) {
+            return None;
+        }
+
+        let shared = self.shared();
+
+        Some(if let Some(name) = &shared.test {
+            WorkspaceFilter::Name(name)
+        } else {
+            WorkspaceFilter::All
+        })
+    }
+
+    fn examples_test(&self) -> Option<WorkspaceFilter<'_>> {
+        if !matches!(self, Command::Run(..) | Command::Check(..)) {
+            return None;
+        }
+
+        let shared = self.shared();
+
+        Some(if let Some(name) = &shared.example {
+            WorkspaceFilter::Name(name)
+        } else {
+            WorkspaceFilter::All
+        })
+    }
+
+    fn benches_test(&self) -> Option<WorkspaceFilter<'_>> {
+        if !matches!(self, Command::Bench(..) | Command::Check(..)) {
+            return None;
+        }
+
+        let shared = self.shared();
+
+        Some(if let Some(name) = &shared.bench {
+            WorkspaceFilter::Name(name)
+        } else {
+            WorkspaceFilter::All
+        })
     }
 }
 
@@ -104,10 +184,6 @@ struct SharedFlags {
     /// This makes the `std::experimental` module available to scripts.
     #[structopt(long)]
     experimental: bool,
-
-    /// Enabled the std::test experimental module.
-    #[structopt(long)]
-    test: bool,
 
     /// Recursively load all files in the given directory.
     #[structopt(long)]
@@ -131,22 +207,64 @@ struct SharedFlags {
     #[structopt(name = "option", short = "O", number_of_values = 1)]
     compiler_options: Vec<String>,
 
+    /// Run with the following binary from a loaded manifest. This requires a
+    /// `Rune.toml` manifest.
+    #[structopt(long = "bin")]
+    bin: Option<String>,
+
+    /// Run with the following test from a loaded manifest. This requires a
+    /// `Rune.toml` manifest.
+    #[structopt(long = "test")]
+    test: Option<String>,
+
+    /// Run with the following example from a loaded manifest. This requires a
+    /// `Rune.toml` manifest.
+    #[structopt(long = "example")]
+    example: Option<String>,
+
+    /// Run with the following benchmark by name from a loaded manifest. This
+    /// requires a `Rune.toml` manifest.
+    #[structopt(long = "bench")]
+    bench: Option<String>,
+
     /// All paths to include in the command. By default, the tool searches the
     /// current directory and some known files for candidates.
     #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
 }
 
+struct Package {
+    /// The name of the package the path belongs to.
+    name: Box<str>,
+}
+
+enum Entry {
+    /// A plain path entry.
+    Path(Box<Path>),
+    /// A path from a specific package.
+    PackagePath(Package, Box<Path>),
+}
+
+#[derive(Default)]
+struct Config {
+    /// Whether or not the test module should be included.
+    test: bool,
+    /// Whether or not to use verbose output.
+    verbose: bool,
+    /// The explicit paths to load.
+    entries: Vec<Entry>,
+}
+
 impl SharedFlags {
     /// Construct a rune context according to the specified argument.
-    fn context(&self) -> Result<Context, ContextError> {
+    fn context(&self, c: &Config) -> Result<Context, ContextError> {
         let mut context = rune_modules::default_context()?;
 
         if self.experimental {
             context.install(&rune_modules::experiments::module(true)?)?;
         }
 
-        if self.test {
+        if c.test {
             context.install(&benches::test_module()?)?;
         }
 
@@ -154,7 +272,7 @@ impl SharedFlags {
     }
 
     /// Setup a context that captures output.
-    fn context_with_capture(&self, io: &CaptureIo) -> Result<Context, ContextError> {
+    fn context_with_capture(&self, c: &Config, io: &CaptureIo) -> Result<Context, ContextError> {
         let mut context = rune_modules::with_config(false)?;
 
         context.install(&rune_modules::capture_io::module(io)?)?;
@@ -163,7 +281,7 @@ impl SharedFlags {
             context.install(&rune_modules::experiments::module(true)?)?;
         }
 
-        if self.test {
+        if c.test {
             context.install(&benches::test_module()?)?;
         }
 
@@ -205,31 +323,11 @@ impl Args {
             Command::Bench(_) | Command::Run(_) => (),
         }
 
-        for option in &self.shared().compiler_options {
+        for option in &self.cmd.shared().compiler_options {
             options.parse_option(option)?;
         }
 
         Ok(options)
-    }
-
-    /// Access shared arguments.
-    fn shared(&self) -> &SharedFlags {
-        match &self.cmd {
-            Command::Check(args) => &args.shared,
-            Command::Test(args) => &args.shared,
-            Command::Bench(args) => &args.shared,
-            Command::Run(args) => &args.shared,
-        }
-    }
-
-    /// Access shared arguments mutably.
-    fn shared_mut(&mut self) -> &mut SharedFlags {
-        match &mut self.cmd {
-            Command::Check(args) => &mut args.shared,
-            Command::Test(args) => &mut args.shared,
-            Command::Bench(args) => &mut args.shared,
-            Command::Run(args) => &mut args.shared,
-        }
     }
 }
 
@@ -315,12 +413,20 @@ async fn try_main() -> Result<ExitCode, io::Error> {
         _ => ColorChoice::Auto,
     };
 
-    let mut o = StandardStream::stdout(choice);
+    let mut stdout = StandardStream::stdout(choice);
+    let mut stderr = StandardStream::stderr(choice);
+
+    let mut io = Io {
+        stdout: &mut stdout,
+        stderr: &mut stderr,
+    };
+
     env_logger::init();
 
-    match main_with_out(&mut o, args).await {
+    match main_with_out(&mut io, args).await {
         Ok(code) => Ok(code),
         Err(error) => {
+            let mut o = io.stdout.lock();
             o.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
             let result = format_errors(&mut o, error.as_ref());
             o.set_color(&ColorSpec::new())?;
@@ -330,40 +436,129 @@ async fn try_main() -> Result<ExitCode, io::Error> {
     }
 }
 
-async fn main_with_out(o: &mut StandardStream, mut args: Args) -> Result<ExitCode> {
-    args.cmd.propagate_related_flags();
+fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
+    c.entries.extend(
+        args.cmd
+            .shared()
+            .paths
+            .iter()
+            .map(|p| Entry::Path(p.as_path().into())),
+    );
 
-    let shared = args.shared_mut();
+    if !c.entries.is_empty() {
+        return Ok(());
+    }
 
-    if shared.paths.is_empty() {
-        for file in SPECIAL_FILES {
-            let path = PathBuf::from(file);
-            if path.exists() && path.is_file() {
-                shared.paths.push(path);
-                break;
-            }
-        }
+    for file in SPECIAL_FILES {
+        let path = Path::new(file);
 
-        if shared.paths.is_empty() {
-            writeln!(
-                o,
-                "Invalid usage: No input path given and no main or lib file found"
-            )?;
-            return Ok(ExitCode::Failure);
+        if path.is_file() {
+            c.entries.push(Entry::Path(path.into()));
+            return Ok(());
         }
     }
 
-    let paths = loader::walk_paths(shared.recursive, std::mem::take(&mut shared.paths));
+    let path = Path::new(rune::workspace::MANIFEST_FILE);
 
+    if !path.is_file() {
+        return Err(anyhow!(
+            "Invalid usage: No input file nor project (`Rune.toml`) found"
+        ));
+    }
+
+    // When building or running a workspace we need to be more verbose so that
+    // users understand what exactly happens.
+    c.verbose = true;
+
+    let mut sources = rune::Sources::new();
+    sources.insert(rune::Source::from_path(path)?);
+
+    let mut diagnostics = rune::workspace::Diagnostics::new();
+
+    let result = rune::workspace::prepare(&mut sources)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    diagnostics.emit(io.stdout, &sources)?;
+
+    let manifest = result?;
+
+    if let Some(bin) = args.cmd.bins_test() {
+        for found in manifest.find_bins(bin)? {
+            let package = Package {
+                name: found.package.name.clone(),
+            };
+            c.entries.push(Entry::PackagePath(package, found.path));
+        }
+    }
+
+    if let Some(test) = args.cmd.tests_test() {
+        for found in manifest.find_tests(test)? {
+            let package = Package {
+                name: found.package.name.clone(),
+            };
+            c.entries.push(Entry::PackagePath(package, found.path));
+        }
+    }
+
+    if let Some(example) = args.cmd.examples_test() {
+        for found in manifest.find_examples(example)? {
+            let package = Package {
+                name: found.package.name.clone(),
+            };
+            c.entries.push(Entry::PackagePath(package, found.path));
+        }
+    }
+
+    if let Some(bench) = args.cmd.benches_test() {
+        for found in manifest.find_benches(bench)? {
+            let package = Package {
+                name: found.package.name.clone(),
+            };
+            c.entries.push(Entry::PackagePath(package, found.path));
+        }
+    }
+
+    Ok(())
+}
+
+async fn main_with_out(io: &mut Io<'_>, mut args: Args) -> Result<ExitCode> {
+    let mut c = Config::default();
+    args.cmd.propagate_related_flags(&mut c);
+    populate_config(io, &mut c, &args)?;
+
+    let entries = std::mem::take(&mut c.entries);
     let options = args.options()?;
 
-    for path in paths {
-        let path = path?;
+    let what = args.cmd.describe();
+    let verbose = c.verbose;
+    let recursive = args.cmd.shared().recursive;
 
-        match run_path(o, &args, &options, &path).await? {
-            ExitCode::Success => (),
-            other => {
-                return Ok(other);
+    for entry in entries {
+        let path = match entry {
+            Entry::Path(path) => path,
+            Entry::PackagePath(p, path) => {
+                if verbose {
+                    let mut o = io.stderr.lock();
+                    o.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
+                    let result = write!(o, "{:>12}", what);
+                    o.set_color(&ColorSpec::new())?;
+                    result?;
+                    writeln!(o, " `{}` (from {})", path.display(), p.name)?;
+                }
+
+                path
+            }
+        };
+
+        for path in loader::recurse_paths(recursive, path) {
+            let path = path?;
+
+            match run_path(io, &c, &args, &options, &path).await? {
+                ExitCode::Success => (),
+                other => {
+                    return Ok(other);
+                }
             }
         }
     }
@@ -373,24 +568,25 @@ async fn main_with_out(o: &mut StandardStream, mut args: Args) -> Result<ExitCod
 
 /// Run a single path.
 async fn run_path(
-    o: &mut StandardStream,
+    io: &mut Io<'_>,
+    c: &Config,
     args: &Args,
     options: &Options,
     path: &Path,
 ) -> Result<ExitCode> {
     match &args.cmd {
-        Command::Check(flags) => check::run(o, flags, options, path),
+        Command::Check(flags) => check::run(io, c, flags, options, path),
         Command::Test(flags) => {
-            let io = rune_modules::capture_io::CaptureIo::new();
-            let context = flags.shared.context_with_capture(&io)?;
+            let capture_io = rune_modules::capture_io::CaptureIo::new();
+            let context = flags.shared.context_with_capture(c, &capture_io)?;
 
-            let load = loader::load(o, &context, args, options, path, visitor::Attribute::Test)?;
+            let load = loader::load(io, &context, args, options, path, visitor::Attribute::Test)?;
 
             tests::run(
-                o,
+                io,
                 flags,
                 &context,
-                Some(&io),
+                Some(&capture_io),
                 load.unit,
                 &load.sources,
                 &load.functions,
@@ -398,16 +594,16 @@ async fn run_path(
             .await
         }
         Command::Bench(flags) => {
-            let io = rune_modules::capture_io::CaptureIo::new();
-            let context = flags.shared.context_with_capture(&io)?;
+            let capture_io = rune_modules::capture_io::CaptureIo::new();
+            let context = flags.shared.context_with_capture(c, &capture_io)?;
 
-            let load = loader::load(o, &context, args, options, path, visitor::Attribute::Bench)?;
+            let load = loader::load(io, &context, args, options, path, visitor::Attribute::Bench)?;
 
             benches::run(
-                o,
+                io,
                 flags,
                 &context,
-                Some(&io),
+                Some(&capture_io),
                 load.unit,
                 &load.sources,
                 &load.functions,
@@ -415,11 +611,9 @@ async fn run_path(
             .await
         }
         Command::Run(flags) => {
-            let context = flags.shared.context()?;
-
-            let load = loader::load(o, &context, args, options, path, visitor::Attribute::None)?;
-
-            run::run(o, flags, &context, load.unit, &load.sources).await
+            let context = flags.shared.context(c)?;
+            let load = loader::load(io, &context, args, options, path, visitor::Attribute::None)?;
+            run::run(io, c, flags, &context, load.unit, &load.sources).await
         }
     }
 }
