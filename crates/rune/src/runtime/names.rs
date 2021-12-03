@@ -3,17 +3,9 @@ use crate::compile::{Component, ComponentRef, IntoComponent};
 use std::mem;
 
 /// A tree of names.
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Names {
     root: Node,
-}
-
-impl Default for Names {
-    fn default() -> Self {
-        Names {
-            root: Default::default(),
-        }
-    }
 }
 
 impl Names {

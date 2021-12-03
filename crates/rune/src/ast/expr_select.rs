@@ -76,6 +76,7 @@ expr_parse!(Select, ExprSelect, "select expression");
 /// A single selection branch.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 pub enum ExprSelectBranch {
     /// A patterned branch.
     Pat(ExprSelectPatBranch),
