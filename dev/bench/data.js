@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638474191552,
+  "lastUpdate": 1638503859151,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -11008,6 +11008,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4185567,
             "range": "± 20311",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "fc2020556e358161f8f8d10b0bc7e6bbfbde813b",
+          "message": "Ignore of fix busted clippy lints",
+          "timestamp": "2021-12-03T04:49:37+01:00",
+          "tree_id": "07ca9669d71dc73c4056dbdffaf0fece161eb718",
+          "url": "https://github.com/rune-rs/rune/commit/fc2020556e358161f8f8d10b0bc7e6bbfbde813b"
+        },
+        "date": 1638503858047,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 438903729,
+            "range": "± 15773928",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 233277645,
+            "range": "± 8164425",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 284120,
+            "range": "± 16215",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 892640,
+            "range": "± 45834",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 76813555,
+            "range": "± 2834454",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1325970,
+            "range": "± 44570",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 14011285,
+            "range": "± 695787",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 12129351,
+            "range": "± 692747",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 435268,
+            "range": "± 36987",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4766912,
+            "range": "± 234537",
             "unit": "ns/iter"
           }
         ]
