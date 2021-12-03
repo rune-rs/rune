@@ -96,6 +96,7 @@ impl Parse for Stmt {
 /// Parsing an item or an expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 pub enum ItemOrExpr {
     /// An item.
     Item(ast::Item),

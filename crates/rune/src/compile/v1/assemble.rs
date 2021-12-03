@@ -1469,7 +1469,7 @@ fn expr_block(ast: &ast::ExprBlock, c: &mut Assembler<'_>, needs: Needs) -> Comp
                     let var = c
                         .scopes
                         .take_var(c.q.visitor, &ident.ident, c.source_id, span)?;
-                    var.do_move(&mut c.asm, span, format!("captures `{}`", ident.ident));
+                    var.do_move(c.asm, span, format!("captures `{}`", ident.ident));
                 } else {
                     let var = c
                         .scopes
@@ -1849,7 +1849,7 @@ fn expr_closure(ast: &ast::ExprClosure, c: &mut Assembler<'_>, needs: Needs) -> 
                 let var = c
                     .scopes
                     .take_var(c.q.visitor, &capture.ident, c.source_id, span)?;
-                var.do_move(&mut c.asm, span, format!("capture `{}`", capture.ident));
+                var.do_move(c.asm, span, format!("capture `{}`", capture.ident));
             } else {
                 let var = c
                     .scopes

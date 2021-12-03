@@ -27,7 +27,7 @@ pub(crate) struct Flags {
 #[derive(Debug)]
 enum FailureReason {
     Crash(VmError),
-    ReturnedNone { output: Box<[u8]> },
+    ReturnedNone,
     ReturnedErr { output: Box<[u8]>, error: Value },
 }
 
@@ -81,9 +81,7 @@ impl<'a> TestCase<'a> {
                 },
                 Value::Option(option) => match *option.borrow_ref()? {
                     Some(..) => None,
-                    None => Some(FailureReason::ReturnedNone {
-                        output: self.buf.as_slice().into(),
-                    }),
+                    None => Some(FailureReason::ReturnedNone),
                 },
                 _ => None,
             },

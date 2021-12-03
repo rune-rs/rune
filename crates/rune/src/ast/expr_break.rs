@@ -28,6 +28,7 @@ expr_parse!(Break, ExprBreak, "break expression");
 /// Things that we can break on.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 pub enum ExprBreakValue {
     /// Breaking a value out of a loop.
     Expr(ast::Expr),
