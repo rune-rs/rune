@@ -21,7 +21,6 @@ mod inst;
 mod iterator;
 mod key;
 mod label;
-mod names;
 mod object;
 mod panic;
 mod protocol;
@@ -75,7 +74,6 @@ pub use self::inst::{
 pub use self::iterator::{Iterator, IteratorTrait};
 pub use self::key::Key;
 pub use self::label::{DebugLabel, Label};
-pub use self::names::Names;
 pub use self::object::Object;
 pub use self::panic::Panic;
 pub use self::protocol::Protocol;
