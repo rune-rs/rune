@@ -8,7 +8,7 @@ use crate::runtime::{
     Shared, Stack, Stream, Struct, Tuple, TypeCheck, Unit, UnitStruct, Value, Variant, VariantData,
     Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
 };
-use crate::{Hash, InstFnNameHash, IntoTypeHash};
+use crate::{Hash, IntoTypeHash};
 use std::fmt;
 use std::mem;
 use std::sync::Arc;
@@ -423,17 +423,14 @@ impl Vm {
             return Ok(true);
         }
 
-        let handler = match self.context.function(hash) {
-            Some(handler) => handler,
-            None => {
-                // NB: restore the stack
-                self.stack.popn(count)?;
-                return Ok(false);
-            }
-        };
+        if let Some(handler) = self.context.function(hash) {
+            handler(&mut self.stack, count)?;
+            return Ok(true);
+        }
 
-        handler(&mut self.stack, count)?;
-        Ok(true)
+        // NB: restore the stack
+        self.stack.popn(count)?;
+        Ok(false)
     }
 
     /// Helper to call a field function.
@@ -2618,55 +2615,33 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_call_instance(
-        &mut self,
-        inst_fn: impl InstFnNameHash,
-        args: usize,
-    ) -> Result<(), VmError> {
-        self.inner_op_call_instance(inst_fn.inst_fn_name_hash(), args)
-    }
-
-    #[inline(never)]
-    fn inner_op_call_instance(&mut self, inst_fn: Hash, args: usize) -> Result<(), VmError> {
+    fn op_call_instance(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
         // NB: +1 to include the instance itself.
         let args = args + 1;
         let instance = self.stack.at_offset_from_top(args)?;
         let type_hash = instance.type_hash()?;
-        let hash = Hash::instance_function(type_hash, inst_fn);
+        let hash = Hash::instance_function(type_hash, hash);
 
-        match self.unit.function(hash) {
-            Some(info) => match info {
-                UnitFn::Offset {
-                    offset,
-                    call,
-                    args: expected,
-                } => {
-                    Self::check_args(args, expected)?;
-                    self.call_offset_fn(offset, call, args)?;
-                }
-                _ => {
-                    return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
-                        instance: instance.type_info()?,
-                        hash,
-                    }));
-                }
-            },
-            None => {
-                let handler = match self.context.function(hash) {
-                    Some(handler) => handler,
-                    None => {
-                        return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
-                            instance: instance.type_info()?,
-                            hash,
-                        }));
-                    }
-                };
-
-                handler(&mut self.stack, args)?;
-            }
+        if let Some(UnitFn::Offset {
+            offset,
+            call,
+            args: expected,
+        }) = self.unit.function(hash)
+        {
+            Self::check_args(args, expected)?;
+            self.call_offset_fn(offset, call, args)?;
+            return Ok(());
         }
 
-        Ok(())
+        if let Some(handler) = self.context.function(hash) {
+            handler(&mut self.stack, args)?;
+            return Ok(());
+        }
+
+        Err(VmError::from(VmErrorKind::MissingInstanceFunction {
+            instance: instance.type_info()?,
+            hash,
+        }))
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
