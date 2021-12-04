@@ -2,7 +2,7 @@ use crate::runtime::{Future, Select, Shared, ToValue, Vm, VmError};
 
 /// A stored await task.
 #[derive(Debug)]
-pub enum Awaited {
+pub(crate) enum Awaited {
     /// A future to be awaited.
     Future(Shared<Future>),
     /// A select to be awaited.

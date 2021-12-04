@@ -14,6 +14,16 @@ use std::task::{Context, Poll};
 
 thread_local!(static BUDGET: Cell<usize> = Cell::new(usize::max_value()));
 
+/// Something being budgeted.
+#[pin_project]
+pub struct Budget<T> {
+    /// The current budget.
+    budget: usize,
+    /// The thing being budgeted.
+    #[pin]
+    value: T,
+}
+
 /// Wrap the given value with a budget.
 ///
 /// The value can either be a function, after which you can use [Budget::call],
@@ -25,7 +35,7 @@ pub fn with<T>(budget: usize, value: T) -> Budget<T> {
 /// Take a ticket from the budget, indicating with `true` if the budget is
 /// maintained
 #[inline(never)]
-pub fn take() -> bool {
+pub(crate) fn take() -> bool {
     BUDGET.with(|tls| {
         let v = tls.get();
 
@@ -51,22 +61,12 @@ impl Drop for BudgetGuard {
     }
 }
 
-/// A budgeted future.
-#[pin_project]
-pub struct Budget<T> {
-    /// The current budget.
-    budget: usize,
-    /// The future being budgeted.
-    #[pin]
-    value: T,
-}
-
 impl<T, O> Budget<T>
 where
     T: FnOnce() -> O,
 {
     /// Call the wrapped function.
-    pub fn call(self) -> O {
+    pub(crate) fn call(self) -> O {
         BUDGET.with(|tls| {
             let _guard = BudgetGuard(tls.get());
             tls.set(self.budget);

@@ -362,7 +362,7 @@ impl Vm {
     {
         let hash = name.into_type_hash();
 
-        let info = self.unit.lookup(hash).ok_or_else(|| {
+        let info = self.unit.function(hash).ok_or_else(|| {
             VmError::from(VmErrorKind::MissingEntry {
                 hash,
                 item: name.into_item(),
@@ -416,14 +416,14 @@ impl Vm {
             offset,
             call,
             args: expected,
-        }) = self.unit.lookup(hash)
+        }) = self.unit.function(hash)
         {
             Self::check_args(count, expected)?;
             self.call_offset_fn(offset, call, count)?;
             return Ok(true);
         }
 
-        let handler = match self.context.lookup(hash) {
+        let handler = match self.context.function(hash) {
             Some(handler) => handler,
             None => {
                 // NB: restore the stack
@@ -455,7 +455,7 @@ impl Vm {
 
         let hash = Hash::field_fn(protocol, target.type_hash()?, hash.into_type_hash());
 
-        let handler = match self.context.lookup(hash) {
+        let handler = match self.context.function(hash) {
             Some(handler) => handler,
             None => {
                 // NB: restore the stack
@@ -2456,7 +2456,7 @@ impl Vm {
     /// Load a function as a value onto the stack.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
-        let function = match self.unit.lookup(hash) {
+        let function = match self.unit.function(hash) {
             Some(info) => match info {
                 UnitFn::Offset { offset, call, args } => Function::from_offset(
                     self.context.clone(),
@@ -2502,7 +2502,7 @@ impl Vm {
             None => {
                 let handler = self
                     .context
-                    .lookup(hash)
+                    .function(hash)
                     .ok_or(VmErrorKind::MissingFunction { hash })?;
 
                 Function::from_handler(handler.clone(), hash)
@@ -2518,7 +2518,7 @@ impl Vm {
     fn op_closure(&mut self, hash: Hash, count: usize) -> Result<(), VmError> {
         let info = self
             .unit
-            .lookup(hash)
+            .function(hash)
             .ok_or(VmErrorKind::MissingFunction { hash })?;
 
         let (offset, call, args) = match info {
@@ -2545,7 +2545,7 @@ impl Vm {
     /// Implementation of a function call.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_call(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
-        match self.unit.lookup(hash) {
+        match self.unit.function(hash) {
             Some(info) => match info {
                 UnitFn::Offset {
                     offset,
@@ -2607,7 +2607,7 @@ impl Vm {
             None => {
                 let handler = self
                     .context
-                    .lookup(hash)
+                    .function(hash)
                     .ok_or(VmErrorKind::MissingFunction { hash })?;
 
                 handler(&mut self.stack, args)?;
@@ -2634,7 +2634,7 @@ impl Vm {
         let type_hash = instance.type_hash()?;
         let hash = Hash::instance_function(type_hash, inst_fn);
 
-        match self.unit.lookup(hash) {
+        match self.unit.function(hash) {
             Some(info) => match info {
                 UnitFn::Offset {
                     offset,
@@ -2652,7 +2652,7 @@ impl Vm {
                 }
             },
             None => {
-                let handler = match self.context.lookup(hash) {
+                let handler = match self.context.function(hash) {
                     Some(handler) => handler,
                     None => {
                         return Err(VmError::from(VmErrorKind::MissingInstanceFunction {

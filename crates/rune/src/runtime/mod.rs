@@ -55,7 +55,7 @@ pub use self::access::{
 };
 pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
 pub use self::args::Args;
-pub use self::awaited::Awaited;
+pub(crate) use self::awaited::Awaited;
 pub use self::bytes::Bytes;
 pub use self::call::Call;
 pub use self::const_value::ConstValue;

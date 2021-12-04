@@ -27,7 +27,7 @@ fn bug_344_function() -> rune::Result<()> {
 
     let hash = Hash::type_hash(&["function"]);
 
-    let function = runtime.lookup(hash).expect("expect function");
+    let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
@@ -54,7 +54,7 @@ fn bug_344_inst_fn() -> rune::Result<()> {
 
     let hash = Hash::instance_function(<GuardCheck as Any>::type_hash(), "function");
 
-    let function = runtime.lookup(hash).expect("expect function");
+    let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
@@ -83,7 +83,7 @@ fn bug_344_async_function() -> rune::Result<()> {
 
     let hash = Hash::type_hash(&["function"]);
 
-    let function = runtime.lookup(hash).expect("expect function");
+    let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
@@ -112,7 +112,7 @@ fn bug_344_async_inst_fn() -> rune::Result<()> {
 
     let hash = Hash::instance_function(<GuardCheck as Any>::type_hash(), "function");
 
-    let function = runtime.lookup(hash).expect("expect function");
+    let function = runtime.function(hash).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
