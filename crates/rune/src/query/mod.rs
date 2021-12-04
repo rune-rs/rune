@@ -8,12 +8,13 @@ use crate::compile::ir;
 use crate::compile::{
     CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, EmptyMeta,
     ImportStep, IntoComponent, IrBudget, IrCompile, IrCompiler, IrInterpreter, Item, ItemMeta,
-    Location, Meta, MetaKind, ModMeta, SourceMeta, StructMeta, TupleMeta, UnitBuilder, Visibility,
+    Location, Meta, MetaKind, ModMeta, Names, SourceMeta, StructMeta, TupleMeta, UnitBuilder,
+    Visibility,
 };
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::runtime::format;
-use crate::runtime::{Call, Names};
+use crate::runtime::Call;
 use crate::shared::{Consts, Gen, Items};
 use crate::{Context, Hash, SourceId, Sources};
 use std::collections::VecDeque;

@@ -3,10 +3,12 @@ use crate::compile::module::{
     Function, Module, ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType,
     ModuleUnitType,
 };
-use crate::compile::{ComponentRef, IntoComponent, Item, Meta, MetaKind, StructMeta, TupleMeta};
+use crate::compile::{
+    ComponentRef, IntoComponent, Item, Meta, MetaKind, Names, StructMeta, TupleMeta,
+};
 use crate::runtime::{
-    ConstValue, FunctionHandler, MacroHandler, Names, Protocol, RuntimeContext, StaticType,
-    TypeCheck, TypeInfo, TypeOf, VmError,
+    ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
+    TypeInfo, TypeOf, VmError,
 };
 use crate::Hash;
 use std::fmt;

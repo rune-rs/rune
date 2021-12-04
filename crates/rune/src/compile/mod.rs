@@ -60,6 +60,9 @@ pub use self::module::{InstallWith, Module};
 mod named;
 pub use self::named::Named;
 
+mod names;
+pub(crate) use self::names::Names;
+
 mod visibility;
 pub(crate) use self::visibility::Visibility;
 

@@ -9,25 +9,8 @@ pub struct Names {
 }
 
 impl Names {
-    /// Construct a collection of names.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Insert the given item as an import.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::runtime::Names;
-    ///
-    /// let mut names = Names::new();
-    /// assert!(!names.contains(&["test"]));
-    /// assert!(!names.insert(&["test"]));
-    /// assert!(names.contains(&["test"]));
-    /// assert!(names.insert(&["test"]));
-    /// ```
-    pub fn insert<I>(&mut self, iter: I) -> bool
+    pub(crate) fn insert<I>(&mut self, iter: I) -> bool
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -42,19 +25,7 @@ impl Names {
     }
 
     /// Test if the given import exists.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::runtime::Names;
-    ///
-    /// let mut names = Names::new();
-    /// assert!(!names.contains(&["test"]));
-    /// assert!(!names.insert(&["test"]));
-    /// assert!(names.contains(&["test"]));
-    /// assert!(names.insert(&["test"]));
-    /// ```
-    pub fn contains<I>(&self, iter: I) -> bool
+    pub(crate) fn contains<I>(&self, iter: I) -> bool
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -63,7 +34,7 @@ impl Names {
     }
 
     /// Test if we contain the given prefix.
-    pub fn contains_prefix<I>(&self, iter: I) -> bool
+    pub(crate) fn contains_prefix<I>(&self, iter: I) -> bool
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -73,7 +44,7 @@ impl Names {
 
     /// Iterate over all known components immediately under the specified `iter`
     /// path.
-    pub fn iter_components<'a, I: 'a>(
+    pub(crate) fn iter_components<'a, I: 'a>(
         &'a self,
         iter: I,
     ) -> impl Iterator<Item = ComponentRef<'a>> + 'a
@@ -134,4 +105,27 @@ struct Node {
     term: bool,
     /// The children of this node.
     children: HashMap<Component, Node>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Names;
+
+    #[test]
+    fn insert() {
+        let mut names = Names::default();
+        assert!(!names.contains(&["test"]));
+        assert!(!names.insert(&["test"]));
+        assert!(names.contains(&["test"]));
+        assert!(names.insert(&["test"]));
+    }
+
+    #[test]
+    fn contains() {
+        let mut names = Names::default();
+        assert!(!names.contains(&["test"]));
+        assert!(!names.insert(&["test"]));
+        assert!(names.contains(&["test"]));
+        assert!(names.insert(&["test"]));
+    }
 }
