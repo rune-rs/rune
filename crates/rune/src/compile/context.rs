@@ -240,6 +240,9 @@ impl Context {
 
     /// Construct a runtime context used when executing the virtual machine.
     ///
+    /// This is not a cheap operation, since it requires cloning things out of
+    /// the build-time [Context] which are necessary at runtime.
+    ///
     /// ```
     /// use rune::{Context, Vm, Unit};
     /// use std::sync::Arc;
@@ -254,14 +257,14 @@ impl Context {
     /// # Ok(()) }
     /// ```
     pub fn runtime(&self) -> RuntimeContext {
-        RuntimeContext {
-            functions: self.functions.clone(),
-            types: self.types.iter().map(|(k, t)| (*k, t.type_check)).collect(),
-            constants: self.constants.clone(),
-        }
+        RuntimeContext::new(self.functions.clone(), self.constants.clone())
     }
 
     /// Install the specified module.
+    ///
+    /// This installs everything that has been declared in the given [Module]
+    /// and ensures that they are compatible with the overall context, like
+    /// ensuring that a given type is only declared once.
     pub fn install(&mut self, module: &Module) -> Result<(), ContextError> {
         if let Some(ComponentRef::Crate(name)) = module.item.first() {
             self.crates.insert(name.into());
@@ -303,7 +306,7 @@ impl Context {
         Ok(())
     }
 
-    /// Iterate over all available functions
+    /// Iterate over all available functions in the [Context].
     pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &ContextSignature)> {
         let mut it = self.functions_info.iter();
 
@@ -313,7 +316,7 @@ impl Context {
         })
     }
 
-    /// Iterate over all available types.
+    /// Iterate over all available types in the [Context].
     pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &ContextTypeInfo)> {
         let mut it = self.types.iter();
 

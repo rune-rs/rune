@@ -37,7 +37,7 @@ impl ProtocolCaller for EnvProtocolCaller {
                 offset,
                 args: expected,
                 call,
-            }) = unit.lookup(hash)
+            }) = unit.function(hash)
             {
                 check_args(count, expected)?;
 
@@ -52,7 +52,7 @@ impl ProtocolCaller for EnvProtocolCaller {
                 return call.call_with_vm(vm);
             }
 
-            let handler = match context.lookup(hash) {
+            let handler = match context.function(hash) {
                 Some(handler) => handler,
                 None => return Err(VmError::from(VmErrorKind::MissingFunction { hash })),
             };

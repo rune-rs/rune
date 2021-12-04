@@ -140,12 +140,12 @@ impl Unit {
         self.variant_rtti.get(&hash)
     }
 
-    /// Lookup information of a function.
-    pub fn lookup(&self, hash: Hash) -> Option<UnitFn> {
+    /// Lookup a function in the unit.
+    pub fn function(&self, hash: Hash) -> Option<UnitFn> {
         self.functions.get(&hash).copied()
     }
 
-    /// Read a constant value from the unit.
+    /// Lookup a constant from the unit.
     pub fn constant(&self, hash: Hash) -> Option<&ConstValue> {
         self.constants.get(&hash)
     }
@@ -153,8 +153,9 @@ impl Unit {
 
 /// The kind and necessary information on registered functions.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum UnitFn {
-    /// Offset to call a "real" function.
+    /// Instruction offset of a function inside of the unit.
     Offset {
         /// Offset of the registered function.
         offset: usize,
@@ -163,24 +164,24 @@ pub enum UnitFn {
         /// The number of arguments the function takes.
         args: usize,
     },
-    /// An empty constructor.
+    /// An empty constructor of the type identified by the given hash.
     UnitStruct {
         /// The type hash of the empty.
         hash: Hash,
     },
-    /// A tuple constructor.
+    /// A tuple constructor of the type identified by the given hash.
     TupleStruct {
         /// The type hash of the tuple.
         hash: Hash,
         /// The number of arguments the tuple takes.
         args: usize,
     },
-    /// A empty variant constructor.
+    /// A unit variant of the type identified by the given hash.
     UnitVariant {
         /// The type hash of the empty variant.
         hash: Hash,
     },
-    /// A tuple variant constructor.
+    /// A tuple variant of the type identified by the given hash.
     TupleVariant {
         /// The type hash of the variant.
         hash: Hash,

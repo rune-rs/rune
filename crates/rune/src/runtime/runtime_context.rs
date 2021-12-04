@@ -1,7 +1,6 @@
 use crate::collections::HashMap;
-use crate::compile::Item;
 use crate::macros::{MacroContext, TokenStream};
-use crate::runtime::{ConstValue, Stack, TypeCheck, VmError};
+use crate::runtime::{ConstValue, Stack, VmError};
 use crate::Hash;
 use std::fmt;
 use std::sync::Arc;
@@ -22,26 +21,24 @@ pub(crate) type MacroHandler =
 #[derive(Default)]
 pub struct RuntimeContext {
     /// Registered native function handlers.
-    pub(crate) functions: HashMap<Hash, Arc<FunctionHandler>>,
-    /// Registered types.
-    pub(crate) types: HashMap<Hash, TypeCheck>,
+    functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Named constant values
-    pub(crate) constants: HashMap<Hash, ConstValue>,
+    constants: HashMap<Hash, ConstValue>,
 }
 
 impl RuntimeContext {
-    /// Construct a new empty collection of functions.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Use the specified type check.
-    pub fn type_check_for(&self, item: &Item) -> Option<TypeCheck> {
-        Some(*self.types.get(&Hash::type_hash(item))?)
+    pub(crate) fn new(
+        functions: HashMap<Hash, Arc<FunctionHandler>>,
+        constants: HashMap<Hash, ConstValue>,
+    ) -> Self {
+        Self {
+            functions,
+            constants,
+        }
     }
 
     /// Lookup the given native function handler in the context.
-    pub fn lookup(&self, hash: Hash) -> Option<&Arc<FunctionHandler>> {
+    pub fn function(&self, hash: Hash) -> Option<&Arc<FunctionHandler>> {
         self.functions.get(&hash)
     }
 
