@@ -3,7 +3,7 @@ use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
 use crate::compile::{
-    CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, Meta, MetaKind,
+    CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, PrivMeta, PrivMetaKind,
 };
 use crate::parse::{Id, ParseErrorKind, Resolve};
 use crate::query::{BuiltInFormat, BuiltInTemplate};
@@ -80,75 +80,84 @@ impl Asm {
 
 /// Compile an item.
 #[instrument]
-fn meta(span: Span, c: &mut Assembler<'_>, meta: &Meta, needs: Needs) -> CompileResult<()> {
+fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> CompileResult<()> {
     if let Needs::Value = needs {
         match &meta.kind {
-            MetaKind::UnitStruct { empty, .. } => {
+            PrivMetaKind::UnitStruct { empty, .. } => {
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash: empty.hash,
                         args: 0,
                     },
                     span,
-                    meta.to_string(),
+                    meta.info().to_string(),
                 );
             }
-            MetaKind::TupleStruct { tuple, .. } if tuple.args == 0 => {
+            PrivMetaKind::TupleStruct { tuple, .. } if tuple.args == 0 => {
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash: tuple.hash,
                         args: 0,
                     },
                     span,
-                    meta.to_string(),
+                    meta.info().to_string(),
                 );
             }
-            MetaKind::UnitVariant { empty, .. } => {
+            PrivMetaKind::UnitVariant { empty, .. } => {
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash: empty.hash,
                         args: 0,
                     },
                     span,
-                    meta.to_string(),
+                    meta.info().to_string(),
                 );
             }
-            MetaKind::TupleVariant { tuple, .. } if tuple.args == 0 => {
+            PrivMetaKind::TupleVariant { tuple, .. } if tuple.args == 0 => {
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash: tuple.hash,
                         args: 0,
                     },
                     span,
-                    meta.to_string(),
+                    meta.info().to_string(),
                 );
             }
-            MetaKind::TupleStruct { tuple, .. } => {
-                c.asm
-                    .push_with_comment(Inst::LoadFn { hash: tuple.hash }, span, meta.to_string());
+            PrivMetaKind::TupleStruct { tuple, .. } => {
+                c.asm.push_with_comment(
+                    Inst::LoadFn { hash: tuple.hash },
+                    span,
+                    meta.info().to_string(),
+                );
             }
-            MetaKind::TupleVariant { tuple, .. } => {
-                c.asm
-                    .push_with_comment(Inst::LoadFn { hash: tuple.hash }, span, meta.to_string());
+            PrivMetaKind::TupleVariant { tuple, .. } => {
+                c.asm.push_with_comment(
+                    Inst::LoadFn { hash: tuple.hash },
+                    span,
+                    meta.info().to_string(),
+                );
             }
-            MetaKind::Function { type_hash, .. } => {
-                c.asm
-                    .push_with_comment(Inst::LoadFn { hash: *type_hash }, span, meta.to_string());
+            PrivMetaKind::Function { type_hash, .. } => {
+                c.asm.push_with_comment(
+                    Inst::LoadFn { hash: *type_hash },
+                    span,
+                    meta.info().to_string(),
+                );
             }
-            MetaKind::Const { const_value, .. } => {
+            PrivMetaKind::Const { const_value, .. } => {
                 const_(span, c, const_value, Needs::Value)?;
             }
             _ => {
                 return Err(CompileError::expected_meta(
                     span,
-                    meta.clone(),
+                    meta.info(),
                     "something that can be used as a value",
                 ));
             }
         }
     } else {
         let type_hash = meta.type_hash_of().ok_or_else(|| {
-            CompileError::expected_meta(span, meta.clone(), "something that has a type")
+            CompileError::expected_meta(span, meta.info(), "something that has a type")
         })?;
 
         c.asm.push(
@@ -494,7 +503,7 @@ fn pat_tuple(
             None => {
                 return Err(CompileError::expected_meta(
                     span,
-                    meta,
+                    meta.info(),
                     "type that can be used in a tuple pattern",
                 ));
             }
@@ -504,7 +513,7 @@ fn pat_tuple(
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
-                    meta,
+                    meta: meta.info(),
                     expected: args,
                     actual: count,
                 },
@@ -633,13 +642,13 @@ fn pat_object(
             let meta = c.lookup_meta(span, &named.item)?;
 
             let (object, type_check) = match &meta.kind {
-                MetaKind::Struct {
+                PrivMetaKind::Struct {
                     object, type_hash, ..
                 } => {
                     let type_check = TypeCheck::Type(*type_hash);
                     (object, type_check)
                 }
-                MetaKind::StructVariant {
+                PrivMetaKind::StructVariant {
                     object, type_hash, ..
                 } => {
                     let type_check = TypeCheck::Variant(*type_hash);
@@ -648,7 +657,7 @@ fn pat_object(
                 _ => {
                     return Err(CompileError::expected_meta(
                         span,
-                        meta,
+                        meta.info(),
                         "type that can be used in an object pattern",
                     ));
                 }
@@ -741,17 +750,17 @@ fn pat_object(
 fn pat_meta_binding(
     span: Span,
     c: &mut Assembler<'_>,
-    meta: &Meta,
+    meta: &PrivMeta,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<bool> {
     let type_check = match &meta.kind {
-        MetaKind::UnitStruct { type_hash, .. } => TypeCheck::Type(*type_hash),
-        MetaKind::TupleStruct {
+        PrivMetaKind::UnitStruct { type_hash, .. } => TypeCheck::Type(*type_hash),
+        PrivMetaKind::TupleStruct {
             tuple, type_hash, ..
         } if tuple.args == 0 => TypeCheck::Type(*type_hash),
-        MetaKind::UnitVariant { type_hash, .. } => TypeCheck::Variant(*type_hash),
-        MetaKind::TupleVariant {
+        PrivMetaKind::UnitVariant { type_hash, .. } => TypeCheck::Variant(*type_hash),
+        PrivMetaKind::TupleVariant {
             tuple, type_hash, ..
         } if tuple.args == 0 => TypeCheck::Variant(*type_hash),
         _ => return Ok(false),
@@ -1458,7 +1467,7 @@ fn expr_block(ast: &ast::ExprBlock, c: &mut Assembler<'_>, needs: Needs) -> Comp
     let meta = c.lookup_meta(span, &item.item)?;
 
     match &meta.kind {
-        MetaKind::AsyncBlock {
+        PrivMetaKind::AsyncBlock {
             captures, do_move, ..
         } => {
             let captures = &**captures;
@@ -1485,7 +1494,7 @@ fn expr_block(ast: &ast::ExprBlock, c: &mut Assembler<'_>, needs: Needs) -> Comp
                     args: captures.len(),
                 },
                 span,
-                meta.to_string(),
+                meta.info().to_string(),
             );
 
             if !needs.value() {
@@ -1493,11 +1502,15 @@ fn expr_block(ast: &ast::ExprBlock, c: &mut Assembler<'_>, needs: Needs) -> Comp
                     .push_with_comment(Inst::Pop, span, "value is not needed");
             }
         }
-        MetaKind::Const { const_value } => {
+        PrivMetaKind::Const { const_value } => {
             const_(span, c, const_value, needs)?;
         }
         _ => {
-            return Err(CompileError::expected_meta(span, meta, "async block"));
+            return Err(CompileError::expected_meta(
+                span,
+                meta.info(),
+                "async block",
+            ));
         }
     };
 
@@ -1574,9 +1587,9 @@ enum Call {
         /// Hash of the fn being called.
         hash: Hash,
     },
-    Meta {
-        /// Meta being called.
-        meta: Meta,
+    PrivMeta {
+        /// PrivMeta being called.
+        meta: PrivMeta,
         /// The hash of the meta thing being called.
         hash: Hash,
     },
@@ -1584,8 +1597,8 @@ enum Call {
     Expr,
     /// A constant function call.
     ConstFn {
-        /// Meta of the constand function.
-        meta: Meta,
+        /// PrivMeta of the constand function.
+        meta: PrivMeta,
         /// The identifier of the constant function.
         id: Id,
     },
@@ -1615,24 +1628,25 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
             let meta = c.lookup_meta(path.span(), &named.item)?;
 
             match &meta.kind {
-                MetaKind::UnitStruct { .. } | MetaKind::UnitVariant { .. } => {
+                PrivMetaKind::UnitStruct { .. } | PrivMetaKind::UnitVariant { .. } => {
                     if !ast.args.is_empty() {
                         return Err(CompileError::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
-                                meta: meta.clone(),
+                                meta: meta.info(),
                                 expected: 0,
                                 actual: ast.args.len(),
                             },
                         ));
                     }
                 }
-                MetaKind::TupleStruct { tuple, .. } | MetaKind::TupleVariant { tuple, .. } => {
+                PrivMetaKind::TupleStruct { tuple, .. }
+                | PrivMetaKind::TupleVariant { tuple, .. } => {
                     if tuple.args != ast.args.len() {
                         return Err(CompileError::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
-                                meta: meta.clone(),
+                                meta: meta.info(),
                                 expected: tuple.args,
                                 actual: ast.args.len(),
                             },
@@ -1649,22 +1663,22 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
                         );
                     }
                 }
-                MetaKind::Function { .. } => (),
-                MetaKind::ConstFn { id, .. } => {
+                PrivMetaKind::Function { .. } => (),
+                PrivMetaKind::ConstFn { id, .. } => {
                     let id = *id;
                     return Ok(Call::ConstFn { meta, id });
                 }
                 _ => {
                     return Err(CompileError::expected_meta(
                         span,
-                        meta,
+                        meta.info(),
                         "something that can be called as a function",
                     ));
                 }
             };
 
             let hash = Hash::type_hash(&meta.item.item);
-            return Ok(Call::Meta { meta, hash });
+            return Ok(Call::PrivMeta { meta, hash });
         }
         ast::Expr::FieldAccess(ast::ExprFieldAccess {
             expr_field: ast::ExprField::Path(path),
@@ -1719,14 +1733,14 @@ fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> Compil
             c.asm.push(Inst::CallInstance { hash, args }, span);
             c.scopes.undecl_anon(span, ast.args.len() + 1)?;
         }
-        Call::Meta { meta, hash } => {
+        Call::PrivMeta { meta, hash } => {
             for (e, _) in &ast.args {
                 expr(e, c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
             }
 
             c.asm
-                .push_with_comment(Inst::Call { hash, args }, span, meta.to_string());
+                .push_with_comment(Inst::Call { hash, args }, span, meta.info().to_string());
 
             c.scopes.undecl_anon(span, args)?;
         }
@@ -1824,11 +1838,11 @@ fn expr_closure(ast: &ast::ExprClosure, c: &mut Assembler<'_>, needs: Needs) -> 
     };
 
     let (captures, do_move) = match &meta.kind {
-        MetaKind::Closure {
+        PrivMetaKind::Closure {
             captures, do_move, ..
         } => (&**captures, *do_move),
         _ => {
-            return Err(CompileError::expected_meta(span, meta, "a closure"));
+            return Err(CompileError::expected_meta(span, meta.info(), "a closure"));
         }
     };
 
@@ -2460,19 +2474,19 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
             let meta = c.lookup_meta(path.span(), &named.item)?;
 
             match &meta.kind {
-                MetaKind::UnitStruct { .. } => {
+                PrivMetaKind::UnitStruct { .. } => {
                     check_object_fields(&HashSet::new(), check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);
                     c.asm.push(Inst::UnitStruct { hash }, span);
                 }
-                MetaKind::Struct { object, .. } => {
+                PrivMetaKind::Struct { object, .. } => {
                     check_object_fields(&object.fields, check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);
                     c.asm.push(Inst::Struct { hash, slot }, span);
                 }
-                MetaKind::StructVariant { object, .. } => {
+                PrivMetaKind::StructVariant { object, .. } => {
                     check_object_fields(&object.fields, check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);
@@ -2481,7 +2495,7 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
                 _ => {
                     return Err(CompileError::new(
                         span,
-                        CompileErrorKind::UnsupportedLitObject { meta },
+                        CompileErrorKind::UnsupportedLitObject { meta: meta.info() },
                     ));
                 }
             };

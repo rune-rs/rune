@@ -1,6 +1,6 @@
 use crate::{ExitCode, Io, SharedFlags};
 use anyhow::Result;
-use rune::compile::Meta;
+use rune::compile::Item;
 use rune::runtime::{Unit, Value, Vm, VmError};
 use rune::{Context, Hash, Sources};
 use rune_modules::capture_io::CaptureIo;
@@ -33,16 +33,16 @@ enum FailureReason {
 #[derive(Debug)]
 struct TestCase<'a> {
     hash: Hash,
-    meta: &'a Meta,
+    item: &'a Item,
     outcome: Option<FailureReason>,
     buf: Vec<u8>,
 }
 
 impl<'a> TestCase<'a> {
-    fn from_parts(hash: Hash, meta: &'a Meta) -> Self {
+    fn from_parts(hash: Hash, item: &'a Item) -> Self {
         Self {
             hash,
-            meta,
+            item,
             outcome: None,
             buf: Vec::new(),
         }
@@ -56,7 +56,7 @@ impl<'a> TestCase<'a> {
         capture_io: Option<&CaptureIo>,
     ) -> Result<bool> {
         if !quiet {
-            write!(io.stdout, "Test {:30} ", self.meta.item.item)?;
+            write!(io.stdout, "Test {:30} ", self.item)?;
         }
 
         let result = match vm.execute(self.hash, ()) {
@@ -127,13 +127,13 @@ impl<'a> TestCase<'a> {
             match outcome {
                 FailureReason::Crash(err) => {
                     writeln!(io.stdout, "----------------------------------------")?;
-                    writeln!(io.stdout, "Test: {}\n", self.meta.item.item)?;
+                    writeln!(io.stdout, "Test: {}\n", self.item)?;
                     err.emit(io.stdout, sources)?;
                 }
                 FailureReason::ReturnedNone { .. } => {}
                 FailureReason::ReturnedErr { output, error, .. } => {
                     writeln!(io.stdout, "----------------------------------------")?;
-                    writeln!(io.stdout, "Test: {}\n", self.meta.item.item)?;
+                    writeln!(io.stdout, "Test: {}\n", self.item)?;
                     writeln!(io.stdout, "Error: {:?}\n", error)?;
                     writeln!(io.stdout, "-- output --")?;
                     io.stdout.write_all(output)?;
@@ -153,7 +153,7 @@ pub(crate) async fn run(
     capture_io: Option<&CaptureIo>,
     unit: Arc<Unit>,
     sources: &Sources,
-    fns: &[(Hash, Meta)],
+    fns: &[(Hash, Item)],
 ) -> anyhow::Result<ExitCode> {
     let runtime = Arc::new(context.runtime());
 

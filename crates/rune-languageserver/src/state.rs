@@ -6,7 +6,7 @@ use ropey::Rope;
 use rune::ast::{Span, Spanned};
 use rune::compile::{
     CompileError, CompileVisitor, ComponentRef, FileSourceLoader, Item, LinkerError, Location,
-    Meta, MetaKind, SourceMeta,
+    MetaKind, MetaRef, SourceMeta,
 };
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::{Context, Options, SourceId};
@@ -585,12 +585,12 @@ impl Visitor {
 }
 
 impl CompileVisitor for Visitor {
-    fn visit_meta(&mut self, source_id: SourceId, meta: &Meta, span: Span) {
+    fn visit_meta(&mut self, source_id: SourceId, meta: MetaRef<'_>, span: Span) {
         if source_id.into_index() != 0 {
             return;
         }
 
-        let source = match meta.source.as_ref() {
+        let source = match meta.source {
             Some(source) => source,
             None => return,
         };

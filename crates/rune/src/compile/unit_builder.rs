@@ -6,8 +6,8 @@
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{
-    Assembly, AssemblyInst, CompileError, CompileErrorKind, IntoComponent, Item, Location, Meta,
-    MetaKind,
+    Assembly, AssemblyInst, CompileError, CompileErrorKind, IntoComponent, Item, Location,
+    PrivMeta, PrivMetaKind,
 };
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
@@ -315,9 +315,9 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub(crate) fn insert_meta(&mut self, span: Span, meta: &Meta) -> Result<(), QueryError> {
+    pub(crate) fn insert_meta(&mut self, span: Span, meta: &PrivMeta) -> Result<(), QueryError> {
         match &meta.kind {
-            MetaKind::UnitStruct { empty, .. } => {
+            PrivMetaKind::UnitStruct { empty, .. } => {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
 
                 let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
@@ -352,7 +352,7 @@ impl UnitBuilder {
                     .functions
                     .insert(empty.hash, signature);
             }
-            MetaKind::TupleStruct { tuple, .. } => {
+            PrivMetaKind::TupleStruct { tuple, .. } => {
                 let info = UnitFn::TupleStruct {
                     hash: tuple.hash,
                     args: tuple.args,
@@ -391,7 +391,7 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            MetaKind::Struct { .. } => {
+            PrivMetaKind::Struct { .. } => {
                 let hash = Hash::type_hash(&meta.item.item);
 
                 let rtti = Arc::new(Rtti {
@@ -411,7 +411,7 @@ impl UnitBuilder {
                     ));
                 }
             }
-            MetaKind::UnitVariant {
+            PrivMetaKind::UnitVariant {
                 enum_item, empty, ..
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
@@ -446,7 +446,7 @@ impl UnitBuilder {
                     .functions
                     .insert(empty.hash, signature);
             }
-            MetaKind::TupleVariant {
+            PrivMetaKind::TupleVariant {
                 enum_item, tuple, ..
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
@@ -485,7 +485,7 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            MetaKind::StructVariant { enum_item, .. } => {
+            PrivMetaKind::StructVariant { enum_item, .. } => {
                 let hash = Hash::type_hash(&meta.item.item);
                 let enum_hash = Hash::type_hash(enum_item);
 
@@ -502,22 +502,22 @@ impl UnitBuilder {
                     ));
                 }
             }
-            MetaKind::Enum { type_hash } => {
+            PrivMetaKind::Enum { type_hash } => {
                 self.constants.insert(
                     Hash::instance_function(*type_hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(meta.item.item.to_string()),
                 );
             }
 
-            MetaKind::Function { .. } => (),
-            MetaKind::Closure { .. } => (),
-            MetaKind::AsyncBlock { .. } => (),
-            MetaKind::Const { const_value } => {
+            PrivMetaKind::Function { .. } => (),
+            PrivMetaKind::Closure { .. } => (),
+            PrivMetaKind::AsyncBlock { .. } => (),
+            PrivMetaKind::Const { const_value } => {
                 self.constants
                     .insert(Hash::type_hash(&meta.item.item), const_value.clone());
             }
-            MetaKind::ConstFn { .. } => (),
-            MetaKind::Import { .. } => (),
+            PrivMetaKind::ConstFn { .. } => (),
+            PrivMetaKind::Import { .. } => (),
         }
 
         Ok(())

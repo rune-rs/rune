@@ -4,7 +4,7 @@ use crate::compile::module::{
     ModuleUnitType,
 };
 use crate::compile::{
-    ComponentRef, IntoComponent, Item, Meta, MetaKind, Names, StructMeta, TupleMeta,
+    ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -25,10 +25,7 @@ pub enum ContextError {
     #[error("`{name}` types are already present")]
     InternalAlreadyPresent { name: &'static str },
     #[error("conflicting meta {existing} while trying to insert {current}")]
-    ConflictingMeta {
-        current: Box<Meta>,
-        existing: Box<Meta>,
-    },
+    ConflictingMeta { current: Meta, existing: Meta },
     #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
         signature: ContextSignature,
@@ -166,7 +163,7 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
-    meta: HashMap<Item, Meta>,
+    meta: HashMap<Item, PrivMeta>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Registered native macro handlers.
@@ -339,7 +336,7 @@ impl Context {
     }
 
     /// Access the meta for the given item.
-    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<Meta> {
+    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<PrivMeta> {
         self.meta.get(name).cloned()
     }
 
@@ -378,11 +375,11 @@ impl Context {
     }
 
     /// Install the given meta.
-    fn install_meta(&mut self, meta: Meta) -> Result<(), ContextError> {
+    fn install_meta(&mut self, meta: PrivMeta) -> Result<(), ContextError> {
         if let Some(existing) = self.meta.insert(meta.item.item.clone(), meta.clone()) {
             return Err(ContextError::ConflictingMeta {
-                existing: Box::new(existing),
-                current: Box::new(meta),
+                existing: existing.info(),
+                current: meta.info(),
             });
         }
 
@@ -409,9 +406,9 @@ impl Context {
             },
         )?;
 
-        self.install_meta(Meta {
+        self.install_meta(PrivMeta {
             item: Arc::new(item.into()),
-            kind: MetaKind::Struct {
+            kind: PrivMetaKind::Struct {
                 type_hash,
                 object: StructMeta {
                     fields: Default::default(),
@@ -479,9 +476,9 @@ impl Context {
         self.functions.insert(hash, f.handler.clone());
         self.meta.insert(
             item.clone(),
-            Meta {
+            PrivMeta {
                 item: Arc::new(item.into()),
-                kind: MetaKind::Function {
+                kind: PrivMetaKind::Function {
                     type_hash: hash,
                     is_test: false,
                     is_bench: false,
@@ -527,9 +524,9 @@ impl Context {
 
         self.meta.insert(
             item.clone(),
-            Meta {
+            PrivMeta {
                 item: Arc::new(item.into()),
-                kind: MetaKind::Const {
+                kind: PrivMetaKind::Const {
                     const_value: v.clone(),
                 },
                 source: None,
@@ -582,9 +579,9 @@ impl Context {
         }
         self.meta.insert(
             item.clone(),
-            Meta {
+            PrivMeta {
                 item: Arc::new(item.into()),
-                kind: MetaKind::Function {
+                kind: PrivMetaKind::Function {
                     type_hash: hash,
                     is_test: false,
                     is_bench: false,
@@ -635,9 +632,9 @@ impl Context {
         let enum_item = module.item.join(&internal_enum.base_type);
         let enum_hash = Hash::type_hash(&enum_item);
 
-        self.install_meta(Meta {
+        self.install_meta(PrivMeta {
             item: Arc::new(enum_item.clone().into()),
-            kind: MetaKind::Enum {
+            kind: PrivMetaKind::Enum {
                 type_hash: internal_enum.static_type.hash,
             },
             source: None,
@@ -667,9 +664,9 @@ impl Context {
                 },
             )?;
 
-            self.install_meta(Meta {
+            self.install_meta(PrivMeta {
                 item: Arc::new(item.clone().into()),
-                kind: MetaKind::TupleVariant {
+                kind: PrivMetaKind::TupleVariant {
                     type_hash: variant.type_hash,
                     enum_item: enum_item.clone(),
                     tuple: TupleMeta {
@@ -716,18 +713,18 @@ impl Context {
         let tuple = TupleMeta { args, hash };
 
         let meta = match enum_item {
-            Some(enum_item) => Meta {
+            Some(enum_item) => PrivMeta {
                 item: Arc::new(item.clone().into()),
-                kind: MetaKind::TupleVariant {
+                kind: PrivMetaKind::TupleVariant {
                     type_hash,
                     enum_item,
                     tuple,
                 },
                 source: None,
             },
-            None => Meta {
+            None => PrivMeta {
                 item: Arc::new(item.clone().into()),
-                kind: MetaKind::TupleStruct { type_hash, tuple },
+                kind: PrivMetaKind::TupleStruct { type_hash, tuple },
                 source: None,
             },
         };

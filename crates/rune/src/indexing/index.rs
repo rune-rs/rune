@@ -3,8 +3,8 @@ use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::collections::HashMap;
 use crate::compile::attrs;
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, Item, Location, Meta, MetaKind, ModMeta,
-    Options, SourceLoader, SourceMeta, Visibility,
+    CompileError, CompileErrorKind, CompileResult, Item, Location, ModMeta, Options, PrivMeta,
+    PrivMetaKind, SourceLoader, SourceMeta, Visibility,
 };
 use crate::indexing::locals;
 use crate::indexing::{IndexFnKind, IndexScopes};
@@ -707,6 +707,13 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
             ));
         }
 
+        if is_bench {
+            return Err(CompileError::msg(
+                span,
+                "#[bench] is not supported on member functions",
+            ));
+        }
+
         let impl_item = idx.impl_item.as_ref().ok_or_else(|| {
             CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
         })?;
@@ -728,13 +735,13 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
             used: Used::Used,
         });
 
-        let kind = MetaKind::Function {
+        let kind = PrivMetaKind::Function {
             type_hash: Hash::type_hash(&item.item),
             is_test: false,
             is_bench: false,
         };
 
-        let meta = Meta {
+        let meta = PrivMeta {
             item,
             kind,
             source: Some(SourceMeta {
@@ -753,13 +760,13 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
             used: Used::Used,
         });
 
-        let kind = MetaKind::Function {
+        let kind = PrivMetaKind::Function {
             type_hash: Hash::type_hash(&item.item),
             is_test,
             is_bench,
         };
 
-        let meta = Meta {
+        let meta = PrivMeta {
             item,
             kind,
             source: Some(SourceMeta {

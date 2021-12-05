@@ -1,7 +1,7 @@
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{
-    IrError, IrErrorKind, IrEval, IrEvalOutcome, IrValue, Item, MetaKind, ModMeta,
+    IrError, IrErrorKind, IrEval, IrEvalOutcome, IrValue, Item, ModMeta, PrivMetaKind,
 };
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
@@ -106,11 +106,14 @@ impl IrInterpreter<'_> {
 
             if let Some(meta) = self.q.query_meta(spanned, &item, used)? {
                 match &meta.kind {
-                    MetaKind::Const { const_value, .. } => {
+                    PrivMetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value));
                     }
                     _ => {
-                        return Err(IrError::new(spanned, IrErrorKind::UnsupportedMeta { meta }));
+                        return Err(IrError::new(
+                            spanned,
+                            IrErrorKind::UnsupportedMeta { meta: meta.info() },
+                        ));
                     }
                 }
             }
@@ -153,11 +156,14 @@ impl IrInterpreter<'_> {
 
             if let Some(meta) = self.q.query_meta(span, &item, used)? {
                 match &meta.kind {
-                    MetaKind::ConstFn { id, .. } => {
+                    PrivMetaKind::ConstFn { id, .. } => {
                         break *id;
                     }
                     _ => {
-                        return Err(IrError::new(span, IrErrorKind::UnsupportedMeta { meta }));
+                        return Err(IrError::new(
+                            span,
+                            IrErrorKind::UnsupportedMeta { meta: meta.info() },
+                        ));
                     }
                 }
             }

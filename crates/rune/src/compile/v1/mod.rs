@@ -2,7 +2,7 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::{
     Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler, IrInterpreter,
-    Item, ItemMeta, Meta, Options,
+    Item, ItemMeta, Options, PrivMeta,
 };
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst};
@@ -55,18 +55,26 @@ pub(crate) struct Assembler<'a> {
 
 impl<'a> Assembler<'a> {
     /// Access the meta for the given language item.
-    pub fn try_lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<Option<Meta>> {
+    pub fn try_lookup_meta(
+        &mut self,
+        spanned: Span,
+        item: &Item,
+    ) -> CompileResult<Option<PrivMeta>> {
         log::trace!("lookup meta: {:?}", item);
 
         if let Some(meta) = self.q.query_meta(spanned, item, Default::default())? {
             log::trace!("found in query: {:?}", meta);
-            self.q.visitor.visit_meta(self.source_id, &meta, spanned);
+            self.q
+                .visitor
+                .visit_meta(self.source_id, meta.info_ref(), spanned);
             return Ok(Some(meta));
         }
 
         if let Some(meta) = self.context.lookup_meta(item) {
             log::trace!("found in context: {:?}", meta);
-            self.q.visitor.visit_meta(self.source_id, &meta, spanned);
+            self.q
+                .visitor
+                .visit_meta(self.source_id, meta.info_ref(), spanned);
             return Ok(Some(meta));
         }
 
@@ -74,7 +82,7 @@ impl<'a> Assembler<'a> {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<Meta> {
+    pub fn lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<PrivMeta> {
         if let Some(meta) = self.try_lookup_meta(spanned, item)? {
             return Ok(meta);
         }
@@ -144,7 +152,7 @@ impl<'a> Assembler<'a> {
     pub(crate) fn call_const_fn<S>(
         &mut self,
         spanned: S,
-        meta: &Meta,
+        meta: &PrivMeta,
         from: &ItemMeta,
         query_const_fn: &QueryConstFn,
         args: &[(ast::Expr, Option<T![,]>)],
@@ -156,7 +164,7 @@ impl<'a> Assembler<'a> {
             return Err(CompileError::new(
                 spanned,
                 CompileErrorKind::UnsupportedArgumentCount {
-                    meta: meta.clone(),
+                    meta: meta.info(),
                     expected: query_const_fn.ir_fn.args.len(),
                     actual: args.len(),
                 },
