@@ -1,5 +1,5 @@
 use crate::{ExitCode, Io, SharedFlags};
-use rune::compile::{Item, Meta};
+use rune::compile::Item;
 use rune::runtime::{Function, Unit, Value};
 use rune::{Any, Context, ContextError, Hash, Module, Sources};
 use rune_modules::capture_io::CaptureIo;
@@ -50,7 +50,7 @@ pub(crate) async fn run(
     capture_io: Option<&CaptureIo>,
     unit: Arc<Unit>,
     sources: &Sources,
-    fns: &[(Hash, Meta)],
+    fns: &[(Hash, Item)],
 ) -> anyhow::Result<ExitCode> {
     let runtime = Arc::new(context.runtime());
     let mut vm = rune::Vm::new(runtime, unit);
@@ -59,8 +59,7 @@ pub(crate) async fn run(
 
     let mut any_error = false;
 
-    for (hash, meta) in fns {
-        let item = &meta.item.item;
+    for (hash, item) in fns {
         let mut bencher = Bencher::default();
 
         if let Err(error) = vm.call(*hash, (&mut bencher,)) {

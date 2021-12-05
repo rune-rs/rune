@@ -8,8 +8,8 @@ use crate::compile::ir;
 use crate::compile::{
     CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, EmptyMeta,
     ImportStep, IntoComponent, IrBudget, IrCompile, IrCompiler, IrInterpreter, Item, ItemMeta,
-    Location, Meta, MetaKind, ModMeta, Names, SourceMeta, StructMeta, TupleMeta, UnitBuilder,
-    Visibility,
+    Location, ModMeta, Names, PrivMeta, PrivMetaKind, SourceMeta, StructMeta, TupleMeta,
+    UnitBuilder, Visibility,
 };
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
@@ -106,7 +106,7 @@ impl Spanned for BuiltInLine {
 #[derive(Default)]
 pub(crate) struct QueryInner {
     /// Resolved meta about every single item during a compilation.
-    meta: HashMap<Item, Meta>,
+    meta: HashMap<Item, PrivMeta>,
     /// Build queue.
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
@@ -183,17 +183,17 @@ impl<'a> Query<'a> {
     }
 
     /// Insert the given compile meta.
-    pub(crate) fn insert_meta(&mut self, span: Span, meta: Meta) -> Result<(), QueryError> {
+    pub(crate) fn insert_meta(&mut self, span: Span, meta: PrivMeta) -> Result<(), QueryError> {
         let item = meta.item.item.clone();
 
-        self.visitor.register_meta(&meta);
+        self.visitor.register_meta(meta.info_ref());
 
         if let Some(existing) = self.inner.meta.insert(item, meta.clone()) {
             return Err(QueryError::new(
                 span,
                 QueryErrorKind::MetaConflict {
-                    current: meta,
-                    existing,
+                    current: meta.info(),
+                    existing: existing.info(),
                 },
             ));
         }
@@ -574,7 +574,7 @@ impl<'a> Query<'a> {
             {
                 self.visitor.visit_meta(
                     query_item.location.source_id,
-                    &meta,
+                    meta.info_ref(),
                     query_item.location.span,
                 );
             }
@@ -590,7 +590,7 @@ impl<'a> Query<'a> {
         span: Span,
         item: &Item,
         used: Used,
-    ) -> Result<Option<Meta>, QueryError> {
+    ) -> Result<Option<PrivMeta>, QueryError> {
         if let Some(meta) = self.inner.meta.get(item) {
             return Ok(Some(meta.clone()));
         }
@@ -852,7 +852,7 @@ impl<'a> Query<'a> {
         // already resolved query.
         if let Some(meta) = self.inner.meta.get(item) {
             return Ok(match &meta.kind {
-                MetaKind::Import {
+                PrivMetaKind::Import {
                     module,
                     location,
                     target,
@@ -889,9 +889,9 @@ impl<'a> Query<'a> {
             }
         };
 
-        let meta = Meta {
+        let meta = PrivMeta {
             item: entry.item.clone(),
-            kind: MetaKind::Import {
+            kind: PrivMetaKind::Import {
                 module: import.module.clone(),
                 location: import.location,
                 target: import.target.clone(),
@@ -914,14 +914,14 @@ impl<'a> Query<'a> {
         span: Span,
         entry: IndexedEntry,
         used: Used,
-    ) -> Result<Meta, QueryError> {
+    ) -> Result<PrivMeta, QueryError> {
         let IndexedEntry {
             item: query_item,
             indexed,
         } = entry;
 
         let kind = match indexed {
-            Indexed::Enum => MetaKind::Enum {
+            Indexed::Enum => PrivMetaKind::Enum {
                 type_hash: Hash::type_hash(&query_item.item),
             },
             Indexed::Variant(variant) => {
@@ -948,7 +948,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                MetaKind::Function {
+                PrivMetaKind::Function {
                     type_hash: Hash::type_hash(&query_item.item),
                     is_test: false,
                     is_bench: false,
@@ -965,7 +965,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                MetaKind::Closure {
+                PrivMetaKind::Closure {
                     type_hash: Hash::type_hash(&query_item.item),
                     captures,
                     do_move,
@@ -982,7 +982,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                MetaKind::AsyncBlock {
+                PrivMetaKind::AsyncBlock {
                     type_hash: Hash::type_hash(&query_item.item),
                     captures,
                     do_move,
@@ -1008,7 +1008,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                MetaKind::Const { const_value }
+                PrivMetaKind::Const { const_value }
             }
             Indexed::ConstFn(c) => {
                 let mut ir_compiler = IrCompiler { q: self.borrow() };
@@ -1026,10 +1026,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                MetaKind::ConstFn {
-                    id: Id::new(id),
-                    is_test: false,
-                }
+                PrivMetaKind::ConstFn { id: Id::new(id) }
             }
             Indexed::Import(import) => {
                 let module = import.entry.module.clone();
@@ -1045,7 +1042,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                MetaKind::Import {
+                PrivMetaKind::Import {
                     module,
                     location,
                     target,
@@ -1061,7 +1058,7 @@ impl<'a> Query<'a> {
                 .map(Into::into),
         };
 
-        Ok(Meta {
+        Ok(PrivMeta {
             item: query_item,
             kind,
             source: Some(source),
@@ -1489,7 +1486,7 @@ impl fmt::Display for Named {
 }
 
 /// Construct metadata for an empty body.
-fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> MetaKind {
+fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> PrivMetaKind {
     let type_hash = Hash::type_hash(item);
 
     let empty = EmptyMeta {
@@ -1497,12 +1494,12 @@ fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> MetaKind {
     };
 
     match enum_item {
-        Some(enum_item) => MetaKind::UnitVariant {
+        Some(enum_item) => PrivMetaKind::UnitVariant {
             type_hash,
             enum_item: enum_item.clone(),
             empty,
         },
-        None => MetaKind::UnitStruct { type_hash, empty },
+        None => PrivMetaKind::UnitStruct { type_hash, empty },
     }
 }
 
@@ -1511,7 +1508,7 @@ fn tuple_body_meta(
     item: &Item,
     enum_item: Option<&Item>,
     tuple: ast::Parenthesized<ast::Field, T![,]>,
-) -> MetaKind {
+) -> PrivMetaKind {
     let type_hash = Hash::type_hash(item);
 
     let tuple = TupleMeta {
@@ -1520,12 +1517,12 @@ fn tuple_body_meta(
     };
 
     match enum_item {
-        Some(enum_item) => MetaKind::TupleVariant {
+        Some(enum_item) => PrivMetaKind::TupleVariant {
             type_hash,
             enum_item: enum_item.clone(),
             tuple,
         },
-        None => MetaKind::TupleStruct { type_hash, tuple },
+        None => PrivMetaKind::TupleStruct { type_hash, tuple },
     }
 }
 
@@ -1535,7 +1532,7 @@ fn struct_body_meta(
     enum_item: Option<&Item>,
     ctx: ResolveContext<'_>,
     st: ast::Braced<ast::Field, T![,]>,
-) -> Result<MetaKind, QueryError> {
+) -> Result<PrivMetaKind, QueryError> {
     let type_hash = Hash::type_hash(item);
 
     let mut fields = HashSet::new();
@@ -1548,12 +1545,12 @@ fn struct_body_meta(
     let object = StructMeta { fields };
 
     Ok(match enum_item {
-        Some(enum_item) => MetaKind::StructVariant {
+        Some(enum_item) => PrivMetaKind::StructVariant {
             type_hash,
             enum_item: enum_item.clone(),
             object,
         },
-        None => MetaKind::Struct { type_hash, object },
+        None => PrivMetaKind::Struct { type_hash, object },
     })
 }
 
@@ -1563,7 +1560,7 @@ fn variant_into_item_decl(
     body: ast::ItemVariantBody,
     enum_item: Option<&Item>,
     ctx: ResolveContext<'_>,
-) -> Result<MetaKind, QueryError> {
+) -> Result<PrivMetaKind, QueryError> {
     Ok(match body {
         ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_item),
         ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_item, tuple),
@@ -1577,7 +1574,7 @@ fn struct_into_item_decl(
     body: ast::ItemStructBody,
     enum_item: Option<&Item>,
     ctx: ResolveContext<'_>,
-) -> Result<MetaKind, QueryError> {
+) -> Result<PrivMetaKind, QueryError> {
     Ok(match body {
         ast::ItemStructBody::UnitBody => unit_body_meta(item, enum_item),
         ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, enum_item, tuple),

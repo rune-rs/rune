@@ -50,9 +50,10 @@ mod location;
 pub use self::location::Location;
 
 mod meta;
-pub use self::meta::{
-    CaptureMeta, EmptyMeta, ItemMeta, Meta, MetaKind, ModMeta, SourceMeta, StructMeta, TupleMeta,
+pub(crate) use self::meta::{
+    CaptureMeta, EmptyMeta, ItemMeta, ModMeta, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
 };
+pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
 mod module;
 pub use self::module::{InstallWith, Module};
@@ -230,9 +231,9 @@ impl CompileBuildEntry<'_> {
                 let mut c = self.compiler1(location, span, &mut asm);
                 let meta = c.lookup_meta(f.instance_span, &f.impl_item)?;
 
-                let type_hash = meta
-                    .type_hash_of()
-                    .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
+                let type_hash = meta.type_hash_of().ok_or_else(|| {
+                    CompileError::expected_meta(span, meta.info(), "instance function")
+                })?;
 
                 assemble::fn_from_item_fn(&f.ast, &mut c, true)?;
 
