@@ -1,6 +1,6 @@
 [package]
 name = "rune-wasm"
-version = "0.10.0"
+version = "0.10.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2021"
@@ -21,9 +21,9 @@ wasm-bindgen-futures = "0.4.28"
 js-sys = "0.3.55"
 anyhow = "1.0.49"
 
-rune = {version = "0.10.0", path = "../rune", features = []}
-rune-macros = {version = "0.10.0", path = "../rune-macros"}
-rune-modules = {version = "0.10.0", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand", "experiments", "macros", "capture-io", "wasm-bindgen"]}
+rune = {version = "0.10.1", path = "../rune", features = []}
+rune-macros = {version = "0.10.1", path = "../rune-macros"}
+rune-modules = {version = "0.10.1", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand", "experiments", "macros", "capture-io", "wasm-bindgen"]}
 
 [dependencies.web-sys]
 version = "0.3.55"
