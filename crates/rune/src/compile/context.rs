@@ -582,39 +582,43 @@ impl Context {
         if let (InstFnKind::Instance(name), AssocKind::Instance) = (&assoc.name, key.kind) {
             let item = info.item.extended(name);
 
+            let type_hash = Hash::type_hash(&item);
+            let hash = type_hash.with_parameters(key.parameters);
+
             self.constants.insert(
                 Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
                 ConstValue::String(item.to_string()),
             );
-            let free_hash = Hash::type_hash(&item).with_parameters(key.parameters);
 
             let signature = ContextSignature::Function {
-                type_hash: free_hash,
+                type_hash: hash,
                 item: item.clone(),
                 args: assoc.args,
             };
 
-            if let Some(old) = self.functions_info.insert(free_hash, signature) {
+            if let Some(old) = self.functions_info.insert(hash, signature) {
                 return Err(ContextError::ConflictingFunction {
                     signature: old,
                     hash,
                 });
             }
 
-            self.meta.insert(
-                item.clone(),
-                PrivMeta {
-                    item: Arc::new(item.into()),
-                    kind: PrivMetaKind::Function {
-                        type_hash: hash,
-                        is_test: false,
-                        is_bench: false,
+            if !self.meta.contains_key(&item) {
+                self.meta.insert(
+                    item.clone(),
+                    PrivMeta {
+                        item: Arc::new(item.into()),
+                        kind: PrivMetaKind::Function {
+                            type_hash,
+                            is_test: false,
+                            is_bench: false,
+                        },
+                        source: None,
                     },
-                    source: None,
-                },
-            );
+                );
+            }
 
-            self.functions.insert(free_hash, assoc.handler.clone());
+            self.functions.insert(hash, assoc.handler.clone());
         }
 
         Ok(())

@@ -605,11 +605,11 @@ impl<'a> Query<'a> {
     }
 
     /// Perform a path lookup on the current state of the unit.
-    pub(crate) fn convert_path(
+    pub(crate) fn convert_path<'ast>(
         &mut self,
         context: &Context,
-        path: &ast::Path,
-    ) -> Result<Named, CompileError> {
+        path: &'ast ast::Path,
+    ) -> Result<Named<'ast>, CompileError> {
         let id = path.id();
 
         let qp = id
@@ -620,6 +620,7 @@ impl<'a> Query<'a> {
 
         let mut in_self_type = false;
         let mut local = None;
+        let mut generics = None;
 
         let mut item = match (&path.global, &path.first) {
             (Some(..), ast::PathSegment::Ident(ident)) => {
@@ -669,6 +670,13 @@ impl<'a> Query<'a> {
         for (_, segment) in &path.rest {
             log::trace!("item = {}", item);
 
+            if generics.is_some() {
+                return Err(CompileError::new(
+                    segment,
+                    CompileErrorKind::UnsupportedAfterGeneric,
+                ));
+            }
+
             match segment {
                 ast::PathSegment::Ident(ident) => {
                     let ident = ident.resolve(resolve_context!(self))?;
@@ -686,10 +694,14 @@ impl<'a> Query<'a> {
                         .ok_or_else(CompileError::unsupported_super(super_token))?;
                 }
                 ast::PathSegment::Generics(arguments) => {
-                    return Err(CompileError::new(
-                        arguments,
-                        CompileErrorKind::UnsupportedGenerics,
-                    ));
+                    if generics.is_some() {
+                        return Err(CompileError::new(
+                            arguments,
+                            CompileErrorKind::UnsupportedGenerics,
+                        ));
+                    }
+
+                    generics = Some(arguments);
                 }
                 other => {
                     return Err(CompileError::new(
@@ -708,10 +720,18 @@ impl<'a> Query<'a> {
         };
 
         if let Some(new) = self.import(span, &qp.module, &item, Used::Used)? {
-            return Ok(Named { local, item: new });
+            return Ok(Named {
+                local,
+                item: new,
+                generics,
+            });
         }
 
-        Ok(Named { local, item })
+        Ok(Named {
+            local,
+            item,
+            generics,
+        })
     }
 
     /// Declare a new import.
@@ -1461,21 +1481,39 @@ pub(crate) struct QueryConstFn {
 
 /// The result of calling [Query::convert_path].
 #[derive(Debug)]
-pub(crate) struct Named {
+pub(crate) struct Named<'a> {
     /// If the resolved value is local.
-    pub local: Option<Box<str>>,
+    pub(crate) local: Option<Box<str>>,
     /// The path resolved to the given item.
-    pub item: Item,
+    pub(crate) item: Item,
+    /// Generic arguments if any.
+    pub(crate) generics: Option<&'a ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>,
 }
 
-impl Named {
+impl Named<'_> {
     /// Get the local identifier of this named.
     pub(crate) fn as_local(&self) -> Option<&str> {
-        self.local.as_deref()
+        if self.generics.is_none() {
+            self.local.as_deref()
+        } else {
+            None
+        }
+    }
+
+    /// Assert that this named type is not generic.
+    pub(crate) fn assert_not_generic(&self) -> Result<(), CompileError> {
+        if let Some(generics) = self.generics {
+            return Err(CompileError::new(
+                generics,
+                CompileErrorKind::UnsupportedGenerics,
+            ));
+        }
+
+        Ok(())
     }
 }
 
-impl fmt::Display for Named {
+impl fmt::Display for Named<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.item, f)
     }

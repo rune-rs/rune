@@ -6,7 +6,7 @@ use crate::compile::{
     CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, PrivMeta, PrivMetaKind,
 };
 use crate::parse::{Id, ParseErrorKind, Resolve};
-use crate::query::{BuiltInFormat, BuiltInTemplate};
+use crate::query::{BuiltInFormat, BuiltInTemplate, Named};
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
     InstVariant, Label, PanicReason, Protocol, TypeCheck,
@@ -80,10 +80,17 @@ impl Asm {
 
 /// Compile an item.
 #[instrument]
-fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> CompileResult<()> {
+fn meta(
+    span: Span,
+    c: &mut Assembler<'_>,
+    meta: &PrivMeta,
+    needs: Needs,
+    named: Named<'_>,
+) -> CompileResult<()> {
     if let Needs::Value = needs {
         match &meta.kind {
             PrivMetaKind::UnitStruct { empty, .. } => {
+                named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash: empty.hash,
@@ -94,6 +101,7 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> Com
                 );
             }
             PrivMetaKind::TupleStruct { tuple, .. } if tuple.args == 0 => {
+                named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash: tuple.hash,
@@ -104,6 +112,7 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> Com
                 );
             }
             PrivMetaKind::UnitVariant { empty, .. } => {
+                named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash: empty.hash,
@@ -114,6 +123,7 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> Com
                 );
             }
             PrivMetaKind::TupleVariant { tuple, .. } if tuple.args == 0 => {
+                named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::Call {
                         hash: tuple.hash,
@@ -124,6 +134,7 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> Com
                 );
             }
             PrivMetaKind::TupleStruct { tuple, .. } => {
+                named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::LoadFn { hash: tuple.hash },
                     span,
@@ -131,6 +142,7 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> Com
                 );
             }
             PrivMetaKind::TupleVariant { tuple, .. } => {
+                named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::LoadFn { hash: tuple.hash },
                     span,
@@ -138,13 +150,18 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> Com
                 );
             }
             PrivMetaKind::Function { type_hash, .. } => {
-                c.asm.push_with_comment(
-                    Inst::LoadFn { hash: *type_hash },
-                    span,
-                    meta.info().to_string(),
-                );
+                let hash = if let Some(generics) = named.generics {
+                    let parameters = generics_parameters(generics, c)?;
+                    type_hash.with_parameters(parameters)
+                } else {
+                    *type_hash
+                };
+
+                c.asm
+                    .push_with_comment(Inst::LoadFn { hash }, span, meta.info().to_string());
             }
             PrivMetaKind::Const { const_value, .. } => {
+                named.assert_not_generic()?;
                 const_(span, c, const_value, Needs::Value)?;
             }
             _ => {
@@ -156,6 +173,8 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &PrivMeta, needs: Needs) -> Com
             }
         }
     } else {
+        named.assert_not_generic()?;
+
         let type_hash = meta.type_hash_of().ok_or_else(|| {
             CompileError::expected_meta(span, meta.info(), "something that has a type")
         })?;
@@ -249,6 +268,7 @@ fn pat(
             let span = p.span();
 
             let named = c.convert_path(&p.path)?;
+            named.assert_not_generic()?;
 
             if let Some(meta) = c.try_lookup_meta(span, &named.item)? {
                 if pat_meta_binding(span, c, &meta, false_label, load)? {
@@ -496,6 +516,8 @@ fn pat_tuple(
 
     let type_check = if let Some(path) = &ast.path {
         let named = c.convert_path(path)?;
+        named.assert_not_generic()?;
+
         let meta = c.lookup_meta(path.span(), &named.item)?;
 
         let (args, type_check) = match meta.as_tuple() {
@@ -639,6 +661,8 @@ fn pat_object(
             let span = path.span();
 
             let named = c.convert_path(path)?;
+            named.assert_not_generic()?;
+
             let meta = c.lookup_meta(span, &named.item)?;
 
             let (object, type_check) = match &meta.kind {
@@ -1590,8 +1614,10 @@ fn generics_parameters(
             }
         };
 
-        let path = c.convert_path(path)?;
-        let meta = c.lookup_meta(param.span(), &path.item)?;
+        let named = c.convert_path(path)?;
+        named.assert_not_generic()?;
+
+        let meta = c.lookup_meta(param.span(), &named.item)?;
 
         let hash = match meta.kind {
             PrivMetaKind::UnitStruct { type_hash, .. } => type_hash,
@@ -1623,7 +1649,7 @@ enum Call {
         /// Hash of the fn being called.
         hash: Hash,
     },
-    PrivMeta {
+    Meta {
         /// PrivMeta being called.
         meta: PrivMeta,
         /// The hash of the meta thing being called.
@@ -1662,9 +1688,12 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
             }
 
             let meta = c.lookup_meta(path.span(), &named.item)?;
+            debug_assert_eq!(meta.item.item, named.item);
 
             match &meta.kind {
                 PrivMetaKind::UnitStruct { .. } | PrivMetaKind::UnitVariant { .. } => {
+                    named.assert_not_generic()?;
+
                     if !ast.args.is_empty() {
                         return Err(CompileError::new(
                             span,
@@ -1678,6 +1707,8 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
                 }
                 PrivMetaKind::TupleStruct { tuple, .. }
                 | PrivMetaKind::TupleVariant { tuple, .. } => {
+                    named.assert_not_generic()?;
+
                     if tuple.args != ast.args.len() {
                         return Err(CompileError::new(
                             span,
@@ -1701,6 +1732,7 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
                 }
                 PrivMetaKind::Function { .. } => (),
                 PrivMetaKind::ConstFn { id, .. } => {
+                    named.assert_not_generic()?;
                     let id = *id;
                     return Ok(Call::ConstFn { meta, id });
                 }
@@ -1714,7 +1746,15 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
             };
 
             let hash = Hash::type_hash(&meta.item.item);
-            return Ok(Call::PrivMeta { meta, hash });
+
+            let hash = if let Some(generics) = named.generics {
+                let parameters = generics_parameters(generics, c)?;
+                hash.with_parameters(parameters)
+            } else {
+                hash
+            };
+
+            return Ok(Call::Meta { meta, hash });
         }
         ast::Expr::FieldAccess(ast::ExprFieldAccess {
             expr_field: ast::ExprField::Path(path),
@@ -1777,7 +1817,7 @@ fn expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>, needs: Needs) -> Compil
             c.asm.push(Inst::CallInstance { hash, args }, span);
             c.scopes.undecl_anon(span, ast.args.len() + 1)?;
         }
-        Call::PrivMeta { meta, hash } => {
+        Call::Meta { meta, hash } => {
             for (e, _) in &ast.args {
                 expr(e, c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
@@ -2515,6 +2555,8 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
     match &ast.ident {
         ast::ObjectIdent::Named(path) => {
             let named = c.convert_path(path)?;
+            named.assert_not_generic()?;
+
             let meta = c.lookup_meta(path.span(), &named.item)?;
 
             match &meta.kind {
@@ -2621,7 +2663,7 @@ fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
     }
 
     if let Some(m) = c.try_lookup_meta(span, &named.item)? {
-        meta(span, c, &m, needs)?;
+        meta(span, c, &m, needs, named)?;
         return Ok(Asm::top(span));
     }
 
@@ -2636,7 +2678,7 @@ fn path(ast: &ast::Path, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
                 },
             ));
         }
-    };
+    }
 
     Err(CompileError::new(
         span,
@@ -2808,6 +2850,7 @@ fn expr_select(ast: &ast::ExprSelect, c: &mut Assembler<'_>, needs: Needs) -> Co
             match &branch.pat {
                 ast::Pat::PatPath(path) => {
                     let named = c.convert_path(&path.path)?;
+                    named.assert_not_generic()?;
 
                     if let Some(local) = named.as_local() {
                         c.scopes.decl_var(local, path.span())?;
