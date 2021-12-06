@@ -3,6 +3,21 @@ use rune::FromValue;
 use rune_tests::*;
 
 #[test]
+fn test_clobbered_scope() {
+    let out: i64 = rune! {
+        pub fn main() {
+            let a = |b| {
+                let a = 10;
+                a * b
+            };
+
+            a(5)
+        }
+    };
+    assert_eq!(out, 50);
+}
+
+#[test]
 fn test_nested_closures() {
     let out: i64 = rune! {
         pub fn main() {
