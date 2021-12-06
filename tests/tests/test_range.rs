@@ -29,15 +29,15 @@ fn test_range() {
 fn test_range_iter() {
     let _: () = rune! {
         pub fn main() {
-            assert_eq!((1..4).iter().collect_vec(), [1, 2, 3]);
-            assert_eq!((1..4).iter().rev().collect_vec(), [3, 2, 1]);
-            assert_eq!((1..=4).iter().collect_vec(), [1, 2, 3, 4]);
-            assert_eq!((1..=4).iter().rev().collect_vec(), [4, 3, 2, 1]);
-            assert_eq!((0..10).iter().rev().take(3).collect_vec(), [9, 8, 7]);
-            assert_eq!((0..).iter().take(3).collect_vec(), [0, 1, 2]);
+            assert_eq!((1..4).iter().collect::<Vec>(), [1, 2, 3]);
+            assert_eq!((1..4).iter().rev().collect::<Vec>(), [3, 2, 1]);
+            assert_eq!((1..=4).iter().collect::<Vec>(), [1, 2, 3, 4]);
+            assert_eq!((1..=4).iter().rev().collect::<Vec>(), [4, 3, 2, 1]);
+            assert_eq!((0..10).iter().rev().take(3).collect::<Vec>(), [9, 8, 7]);
+            assert_eq!((0..).iter().take(3).collect::<Vec>(), [0, 1, 2]);
 
             let n = 1;
-            assert_eq!((n + 1..).iter().take(3).collect_vec(), [2, 3, 4]);
+            assert_eq!((n + 1..).iter().take(3).collect::<Vec>(), [2, 3, 4]);
         }
     };
 }

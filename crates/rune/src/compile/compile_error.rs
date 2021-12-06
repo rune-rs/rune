@@ -269,7 +269,7 @@ pub enum CompileErrorKind {
     NoSuchBuiltInMacro { name: Box<str> },
     #[error("variable moved")]
     VariableMoved { moved_at: Span },
-    #[error("unsupported generic arguments")]
+    #[error("unsupported generic argument")]
     UnsupportedGenerics,
     #[error("#[test] attributes are not supported on nested items")]
     NestedTest { nested_span: Span },
