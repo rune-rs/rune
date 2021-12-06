@@ -1,7 +1,7 @@
 use crate::collections::{HashMap, HashSet};
 use crate::compile::module::{
-    Function, Module, ModuleAssociatedFn, ModuleAssociatedKind, ModuleFn, ModuleInternalEnum,
-    ModuleMacro, ModuleType, ModuleUnitType,
+    AssocFn, AssocKind, Function, Module, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType,
+    ModuleUnitType,
 };
 use crate::compile::{
     ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
@@ -538,8 +538,8 @@ impl Context {
         &mut self,
         type_hash: Hash,
         hash: Hash,
-        kind: ModuleAssociatedKind,
-        assoc: &ModuleAssociatedFn,
+        kind: AssocKind,
+        assoc: &AssocFn,
     ) -> Result<(), ContextError> {
         let info = match self
             .types_rev
@@ -579,7 +579,7 @@ impl Context {
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        if let (InstFnName::Instance(name), ModuleAssociatedKind::Instance) = (&assoc.name, kind) {
+        if let (InstFnName::Instance(name), AssocKind::Instance) = (&assoc.name, kind) {
             let item = info.item.extended(name);
 
             self.constants.insert(

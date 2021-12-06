@@ -1,5 +1,5 @@
 use crate::compile::Item;
-use crate::{Hash, InstFnName, InstFnNameHash, IntoTypeHash};
+use crate::{Hash, InstFnInfo, InstFnName, IntoTypeHash, NamedInstFn};
 use std::cmp;
 use std::fmt;
 use std::hash;
@@ -13,13 +13,18 @@ pub struct Protocol {
     pub hash: Hash,
 }
 
-impl InstFnNameHash for Protocol {
-    fn inst_fn_name_hash(self) -> Hash {
+impl NamedInstFn for Protocol {
+    #[inline]
+    fn name_hash(self) -> Hash {
         self.hash
     }
 
-    fn into_name(self) -> InstFnName {
-        InstFnName::Protocol(self)
+    #[inline]
+    fn info(self) -> InstFnInfo {
+        InstFnInfo {
+            hash: self.hash,
+            name: InstFnName::Protocol(self),
+        }
     }
 }
 
