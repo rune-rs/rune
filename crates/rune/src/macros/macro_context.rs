@@ -3,12 +3,11 @@
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    IrBudget, IrCompile, IrCompiler, IrError, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
-    IrValue, ItemMeta, NoopCompileVisitor, UnitBuilder,
+    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
-use crate::query::{Query, Used};
+use crate::query::Query;
 use crate::shared::{Consts, Gen};
 use crate::{Source, SourceId, Sources};
 use std::fmt;
@@ -95,30 +94,14 @@ impl<'a> MacroContext<'a> {
     /// ```
     pub fn eval<T>(&mut self, target: &T) -> Result<IrValue, IrError>
     where
-        T: IrCompile,
+        T: IrEval,
     {
-        let mut ir_compiler = IrCompiler { q: self.q.borrow() };
-
-        let output = ir_compiler.compile(target)?;
-
-        let mut ir_interpreter = IrInterpreter {
-            budget: IrBudget::new(1_000_000),
-            scopes: Default::default(),
-            module: self.item.module.clone(),
-            item: self.item.item.clone(),
-            q: self.q.borrow(),
+        let mut ctx = IrEvalContext {
+            c: IrCompiler { q: self.q.borrow() },
+            item: &self.item,
         };
 
-        match output.eval(&mut ir_interpreter, Used::Used) {
-            Ok(value) => Ok(value),
-            Err(e) => match e {
-                IrEvalOutcome::Error(error) => Err(error),
-                IrEvalOutcome::NotConst(span) => Err(IrError::new(span, IrErrorKind::NotConst)),
-                IrEvalOutcome::Break(span, _) => {
-                    Err(IrError::new(span, IrErrorKind::BreakOutsideOfLoop))
-                }
-            },
-        }
+        target.eval(&mut ctx)
     }
 
     /// Construct a new literal from within a macro context.

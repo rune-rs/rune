@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::{
-    Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler, IrInterpreter,
-    Item, ItemMeta, Options, PrivMeta,
+    ir, Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler,
+    IrInterpreter, Item, ItemMeta, Options, PrivMeta,
 };
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst};
@@ -177,7 +177,7 @@ impl<'a> Assembler<'a> {
 
         // TODO: precompile these and fetch using opaque id?
         for ((a, _), name) in args.iter().zip(&query_const_fn.ir_fn.args) {
-            compiled.push((compiler.compile(a)?, name));
+            compiled.push((ir::compile::expr(a, &mut compiler)?, name));
         }
 
         let mut interpreter = IrInterpreter {

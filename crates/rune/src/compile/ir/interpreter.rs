@@ -1,8 +1,6 @@
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{
-    IrError, IrErrorKind, IrEval, IrEvalOutcome, IrValue, Item, ModMeta, PrivMetaKind,
-};
+use crate::compile::{IrError, IrErrorKind, IrEvalOutcome, IrValue, Item, ModMeta, PrivMetaKind};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
 use std::sync::Arc;
@@ -38,7 +36,7 @@ impl IrInterpreter<'_> {
             return Err(IrError::new(ir, IrErrorKind::ConstCycle));
         }
 
-        let ir_value = match ir.eval(self, used) {
+        let ir_value = match ir::eval_ir(ir, self, used) {
             Ok(ir_value) => ir_value,
             Err(outcome) => match outcome {
                 IrEvalOutcome::Error(error) => {
@@ -69,7 +67,7 @@ impl IrInterpreter<'_> {
 
     /// Evaluate to an ir value.
     pub(crate) fn eval_value(&mut self, ir: &ir::Ir, used: Used) -> Result<IrValue, IrError> {
-        match ir.eval(self, used) {
+        match ir::eval_ir(ir, self, used) {
             Ok(ir_value) => Ok(ir_value),
             Err(outcome) => match outcome {
                 IrEvalOutcome::Error(error) => Err(error),
