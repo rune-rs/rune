@@ -924,8 +924,10 @@ fn local(ast: &mut ast::Local, idx: &mut Indexer<'_>) -> CompileResult<()> {
         return Err(CompileError::msg(span, "attributes are not supported"));
     }
 
-    pat(&mut ast.pat, idx, false)?;
+    // We index the rhs expression first so that it doesn't see it's own
+    // declaration and use that instead of capturing from the outside.
     expr(&mut ast.expr, idx)?;
+    pat(&mut ast.pat, idx, false)?;
     Ok(())
 }
 

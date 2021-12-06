@@ -2,19 +2,39 @@ use rune::runtime::{Function, VecTuple};
 use rune::FromValue;
 use rune_tests::*;
 
+/// Test that we don't accidentally capture `a` as part of its own declaration.
 #[test]
 fn test_clobbered_scope() {
     let out: i64 = rune! {
         pub fn main() {
             let a = |b| {
-                let a = 10;
+                let a = 11;
                 a * b
             };
 
-            a(5)
+            a(3)
         }
     };
-    assert_eq!(out, 50);
+    assert_eq!(out, 33);
+}
+
+/// Tests that delcaring `c` doesn't clobber the declaration and that it is
+/// being correctly captured.
+#[test]
+fn test_self_declaration() {
+    let out: i64 = rune! {
+        pub fn main() {
+            let c = 7;
+
+            let c = |b| {
+                let c = c * 11;
+                c * b
+            };
+
+            c(3)
+        }
+    };
+    assert_eq!(out, 231);
 }
 
 #[test]
