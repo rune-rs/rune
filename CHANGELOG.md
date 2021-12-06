@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/rune-rs/rune/compare/0.10.0...main
+[Unreleased]: https://github.com/rune-rs/rune/compare/0.10.1...main
+
+## [0.10.1]
+
+## Fixed
+* Fix shadowed variables being incorrectly captured ([#363]).
+
+[#363]: https://github.com/rune-rs/rune/issues/363
+
+[0.10.1]: https://github.com/rune-rs/rune/compare/0.10.0...0.10.1
 
 ## [0.10.0]
 
