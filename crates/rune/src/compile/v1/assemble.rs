@@ -1576,6 +1576,42 @@ fn expr_break(ast: &ast::ExprBreak, c: &mut Assembler<'_>, _: Needs) -> CompileR
     Ok(Asm::top(span))
 }
 
+fn generics_parameters(
+    generics: &ast::AngleBracketed<ast::PathSegmentExpr, T![,]>,
+    c: &mut Assembler<'_>,
+) -> Result<Hash, CompileError> {
+    let mut parameters = Vec::with_capacity(generics.len());
+
+    for (param, _) in generics {
+        let path = match &param.expr {
+            ast::Expr::Path(path) => path,
+            e => {
+                return Err(CompileError::new(e, CompileErrorKind::UnsupportedGenerics));
+            }
+        };
+
+        let path = c.convert_path(path)?;
+        let meta = c.lookup_meta(param.span(), &path.item)?;
+
+        let hash = match meta.kind {
+            PrivMetaKind::UnitStruct { type_hash, .. } => type_hash,
+            PrivMetaKind::TupleStruct { type_hash, .. } => type_hash,
+            PrivMetaKind::Struct { type_hash, .. } => type_hash,
+            PrivMetaKind::Enum { type_hash, .. } => type_hash,
+            _ => {
+                return Err(CompileError::new(
+                    generics,
+                    CompileErrorKind::UnsupportedGenerics,
+                ));
+            }
+        };
+
+        parameters.push(hash);
+    }
+
+    Ok(Hash::parameters(parameters))
+}
+
 enum Call {
     Var {
         /// The variable slot being called.
@@ -1684,9 +1720,17 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
             expr_field: ast::ExprField::Path(path),
             ..
         }) => {
-            if let Some(ident) = path.try_as_ident() {
+            if let Some((ident, generics)) = path.try_as_ident_generics() {
                 let ident = ident.resolve(resolve_context!(c.q))?;
                 let hash = Hash::instance_fn_name(ident);
+
+                let hash = if let Some(generics) = generics {
+                    let parameters = generics_parameters(generics, c)?;
+                    hash.with_parameters(parameters)
+                } else {
+                    hash
+                };
+
                 return Ok(Call::Instance { hash });
             }
         }

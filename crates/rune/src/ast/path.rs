@@ -60,6 +60,28 @@ impl Path {
         }
     }
 
+    /// Borrow ident and generics at the same time.
+    pub(crate) fn try_as_ident_generics(
+        &self,
+    ) -> Option<(
+        &ast::Ident,
+        Option<&ast::AngleBracketed<PathSegmentExpr, T![,]>>,
+    )> {
+        if self.trailing.is_none() && self.global.is_none() {
+            if let Some(ident) = self.first.try_as_ident() {
+                let generics = if let [(_, PathSegment::Generics(generics))] = &self.rest[..] {
+                    Some(generics)
+                } else {
+                    None
+                };
+
+                return Some((ident, generics));
+            }
+        }
+
+        None
+    }
+
     /// Borrow as an identifier used for field access calls.
     ///
     /// This is only allowed if there are no other path components

@@ -4,12 +4,12 @@ use crate::Any;
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
-use std::hash;
-use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
+use std::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
 use std::mem;
 use twox_hash::XxHash64;
 
 const SEP: usize = 0x7f;
+const PARAMS: usize = 0x80;
 const TYPE: usize = 1;
 const INSTANCE_FUNCTION_HASH: u64 = 0x5ea77ffbcdf5f302;
 const FIELD_FUNCTION_HASH: u64 = 0xab53b6a7a53c757e;
@@ -22,6 +22,9 @@ const OBJECT_KEYS: usize = 4;
 pub struct Hash(u64);
 
 impl Hash {
+    /// The empty hash.
+    pub(crate) const EMPTY: Self = Self(0);
+
     /// Construct a new raw hash.
     pub(crate) const fn new(hash: u64) -> Self {
         Self(hash)
@@ -105,25 +108,32 @@ impl Hash {
         Self(hasher.finish())
     }
 
-    /// Construct a new hasher.
-    fn new_hasher() -> impl hash::Hasher {
-        BuildHasherDefault::<XxHash64>::default().build_hasher()
+    /// Mix the current hash in the correct manner with another parameters hash.
+    pub(crate) fn with_parameters(self, parameters: Self) -> Self {
+        Self(self.0 ^ parameters.0)
     }
 
-    /// Construct a hash for an use.
-    fn path_hash<I>(kind: usize, path: I) -> Self
+    /// Hash type parameters.
+    pub(crate) fn parameters<I>(parameters: I) -> Self
     where
         I: IntoIterator,
-        I::Item: IntoComponent,
+        I::Item: IntoTypeHash,
     {
         let mut hasher = Self::new_hasher();
-        kind.hash(&mut hasher);
 
-        for c in path {
-            c.hash_component(&mut hasher);
+        PARAMS.hash(&mut hasher);
+
+        for p in parameters {
+            SEP.hash(&mut hasher);
+            p.hash(&mut hasher);
         }
 
         Self(hasher.finish())
+    }
+
+    /// Construct a new hasher.
+    fn new_hasher() -> impl Hasher {
+        BuildHasherDefault::<XxHash64>::default().build_hasher()
     }
 }
 
@@ -146,6 +156,11 @@ pub trait IntoTypeHash: Copy {
 
     /// Optionally convert into an item, if appropriate.
     fn into_item(self) -> Option<Item>;
+
+    /// Hash the current value.
+    fn hash<H>(self, hasher: &mut H)
+    where
+        H: Hasher;
 }
 
 impl IntoTypeHash for Hash {
@@ -156,6 +171,13 @@ impl IntoTypeHash for Hash {
     fn into_item(self) -> Option<Item> {
         None
     }
+
+    fn hash<H>(self, hasher: &mut H)
+    where
+        H: Hasher,
+    {
+        self.0.hash(hasher);
+    }
 }
 
 impl<I> IntoTypeHash for I
@@ -164,11 +186,24 @@ where
     I::Item: IntoComponent,
 {
     fn into_type_hash(self) -> Hash {
-        Hash::path_hash(TYPE, self)
+        let mut hasher = Hash::new_hasher();
+        self.hash(&mut hasher);
+        Hash(hasher.finish())
     }
 
     fn into_item(self) -> Option<Item> {
         Some(Item::with_item(self))
+    }
+
+    fn hash<H>(self, hasher: &mut H)
+    where
+        H: Hasher,
+    {
+        TYPE.hash(hasher);
+
+        for c in self {
+            c.hash_component(hasher);
+        }
     }
 }
 
@@ -202,6 +237,8 @@ pub struct InstFnInfo {
     pub hash: Hash,
     /// The name of the instance function.
     pub kind: InstFnKind,
+    /// Parameters hash.
+    pub parameters: Hash,
 }
 
 /// Trait used to determine what can be used as an instance function name.
@@ -224,6 +261,7 @@ impl InstFnName for &str {
         InstFnInfo {
             hash: self.name_hash(),
             kind: InstFnKind::Instance(self.into()),
+            parameters: Hash::EMPTY,
         }
     }
 }
@@ -239,6 +277,35 @@ impl InstFnName for Hash {
         InstFnInfo {
             hash: self,
             kind: InstFnKind::Hash(self),
+            parameters: Hash::EMPTY,
+        }
+    }
+}
+
+/// Helper to register a parameterized function.
+///
+/// This is used to wrap the name of the function in order to associated
+/// parameters with it.
+#[derive(Clone, Copy)]
+pub struct Params<T, P>(pub T, pub P);
+
+impl<T, P> InstFnName for Params<T, P>
+where
+    T: InstFnName,
+    P: Copy + IntoIterator,
+    P::Item: IntoTypeHash,
+{
+    fn name_hash(self) -> Hash {
+        self.0.name_hash()
+    }
+
+    fn info(self) -> InstFnInfo {
+        let info = self.0.info();
+
+        InstFnInfo {
+            hash: info.hash,
+            kind: info.kind,
+            parameters: Hash::parameters(self.1),
         }
     }
 }

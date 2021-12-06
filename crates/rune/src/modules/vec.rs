@@ -1,7 +1,7 @@
 //! The `std::vec` module.
 
-use crate::runtime::{Function, Protocol, Value, Vec};
-use crate::{ContextError, Module};
+use crate::runtime::{Function, Protocol, TypeOf, Value, Vec};
+use crate::{ContextError, Module, Params};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -25,8 +25,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
 
     // TODO: parameterize with generics.
-    module.inst_fn("sort_int", sort_int)?;
-
+    module.inst_fn(Params("sort", [i64::type_hash()]), sort_int)?;
     Ok(module)
 }
 
@@ -47,6 +46,6 @@ fn sort_by(vec: &mut Vec, comparator: &Function) {
     vec.sort_by(|a, b| {
         comparator
             .call::<_, std::cmp::Ordering>((a, b))
-            .expect("an ordering")
+            .unwrap_or(std::cmp::Ordering::Equal)
     })
 }

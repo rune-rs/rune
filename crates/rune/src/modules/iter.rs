@@ -1,7 +1,7 @@
 //! The `std::iter` module.
 
-use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, Value, Vec, VmError};
-use crate::{ContextError, Module};
+use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, TypeOf, Value, Vec, VmError};
+use crate::{ContextError, Module, Params};
 
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -10,9 +10,9 @@ pub fn module() -> Result<Module, ContextError> {
 
     // Sorted for ease of finding
     module.inst_fn("chain", Iterator::chain)?;
-    module.inst_fn("collect_object", collect_object)?;
-    module.inst_fn("collect_vec", collect_vec)?;
-    module.inst_fn("collect_tuple", collect_tuple)?;
+    module.inst_fn(Params("collect", [Object::type_hash()]), collect_object)?;
+    module.inst_fn(Params("collect", [Vec::type_hash()]), collect_vec)?;
+    module.inst_fn(Params("collect", [Tuple::type_hash()]), collect_tuple)?;
     module.inst_fn("enumerate", Iterator::enumerate)?;
     module.inst_fn("filter", Iterator::filter)?;
     module.inst_fn("find", Iterator::find)?;

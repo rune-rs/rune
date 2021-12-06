@@ -56,7 +56,7 @@ fn aoc_2020_11a(b: &mut Bencher) -> rune::Result<()> {
 
             fn add(self, row) {
 
-                let row = row.collect_vec();
+                let row = row.collect::<Vec>();
                 if self.grid_world.len() == 0 {
                     self.height = 1;
                     self.grid_world.extend(row.iter().map(|_| CellState::Floor));
@@ -74,8 +74,8 @@ fn aoc_2020_11a(b: &mut Bencher) -> rune::Result<()> {
             fn complete(self, scanfunc) {
                 self.height += 1;
                 self.grid_world.extend((0..self.width).iter().map(|_| CellState::Floor));
-                self.backbuffer = self.grid_world.iter().collect_vec();
-                self.n1 = self.grid_world.iter().collect_vec();
+                self.backbuffer = self.grid_world.iter().collect::<Vec>();
+                self.n1 = self.grid_world.iter().collect::<Vec>();
                 for y in 0..self.height  {
                     for x in 0..self.width {
                         let idx = x + y * self.width;
@@ -199,7 +199,7 @@ fn aoc_2020_11a(b: &mut Bencher) -> rune::Result<()> {
                 .map(scan_line)
                 .fold(Map::new(), Map::add);
 
-            waiting_hall.complete(|m, x, y| m.slopes.iter().map(|(dx, dy)| (x + dx) + (y + dy) * m.width).collect_vec());
+            waiting_hall.complete(|m, x, y| m.slopes.iter().map(|(dx, dy)| (x + dx) + (y + dy) * m.width).collect::<Vec>());
 
 
             for i in (0..2).iter() {

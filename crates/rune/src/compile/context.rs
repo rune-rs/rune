@@ -1,6 +1,6 @@
 use crate::collections::{HashMap, HashSet};
 use crate::compile::module::{
-    AssocFn, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type, UnitType,
+    AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type, UnitType,
 };
 use crate::compile::{
     ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
@@ -295,7 +295,7 @@ impl Context {
         }
 
         for (key, inst) in &module.associated_functions {
-            self.install_associated_function(key.type_hash, key.hash, key.kind, inst)?;
+            self.install_associated_function(key, inst)?;
         }
 
         Ok(())
@@ -535,14 +535,12 @@ impl Context {
 
     fn install_associated_function(
         &mut self,
-        type_hash: Hash,
-        hash: Hash,
-        kind: AssocKind,
+        key: &AssocKey,
         assoc: &AssocFn,
     ) -> Result<(), ContextError> {
         let info = match self
             .types_rev
-            .get(&type_hash)
+            .get(&key.type_hash)
             .and_then(|hash| self.types.get(hash))
         {
             Some(info) => info,
@@ -553,10 +551,13 @@ impl Context {
             }
         };
 
-        let hash = kind.hash(type_hash, hash);
+        let hash = key
+            .kind
+            .hash(key.type_hash, key.hash)
+            .with_parameters(key.parameters);
 
         let signature = ContextSignature::Instance {
-            type_hash,
+            type_hash: key.type_hash,
             item: info.item.clone(),
             name: assoc.name.clone(),
             args: assoc.args,
@@ -578,14 +579,14 @@ impl Context {
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        if let (InstFnKind::Instance(name), AssocKind::Instance) = (&assoc.name, kind) {
+        if let (InstFnKind::Instance(name), AssocKind::Instance) = (&assoc.name, key.kind) {
             let item = info.item.extended(name);
 
             self.constants.insert(
                 Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
                 ConstValue::String(item.to_string()),
             );
-            let free_hash = Hash::type_hash(&item);
+            let free_hash = Hash::type_hash(&item).with_parameters(key.parameters);
 
             let signature = ContextSignature::Function {
                 type_hash: free_hash,

@@ -55,7 +55,7 @@ fn aoc_2020_1b(b: &mut Bencher) -> rune::Result<()> {
         }
 
         pub fn main(lines) {
-            lines.sort_int();
+            lines.sort::<int>();
             (filter_inner(iter::all_pairs(lines)), filter_inner(iter::all_triples(lines)))
         }
     };

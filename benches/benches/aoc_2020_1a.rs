@@ -24,7 +24,7 @@ fn aoc_2020_1a(b: &mut Bencher) -> rune::Result<()> {
         struct NoSolution;
 
         fn part1(v, target) {
-            v.sort_int();
+            v.sort::<int>();
 
             let a = 0;
             let b = v.len() - 1;
@@ -41,7 +41,7 @@ fn aoc_2020_1a(b: &mut Bencher) -> rune::Result<()> {
         }
 
         fn part2(v, target) {
-            v.sort_int();
+            v.sort::<int>();
 
             let a = 0;
             let c = v.len() - 1;

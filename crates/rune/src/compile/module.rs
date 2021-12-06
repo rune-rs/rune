@@ -135,6 +135,7 @@ pub(crate) struct AssocFn {
 pub(crate) struct AssocKey {
     pub(crate) type_hash: Hash,
     pub(crate) hash: Hash,
+    pub(crate) parameters: Hash,
     pub(crate) kind: AssocKind,
 }
 
@@ -697,6 +698,7 @@ impl Module {
             type_hash: ty.hash,
             hash: name.hash,
             kind,
+            parameters: name.parameters,
         };
 
         if self.associated_functions.contains_key(&key) {

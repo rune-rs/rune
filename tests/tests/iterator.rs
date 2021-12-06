@@ -7,7 +7,7 @@ fn test_range_iter() {
         use std::iter::range;
 
         pub fn main() {
-            range(0, 100).map(|n| n * 2).filter(|n| n % 3 == 0).collect_vec()
+            range(0, 100).map(|n| n * 2).filter(|n| n % 3 == 0).collect::<Vec>()
         }
     };
 
@@ -26,7 +26,7 @@ fn test_rev() {
         use std::iter::range;
 
         pub fn main() {
-            range(0, 100).map(|n| n * 2).filter(|n| n % 3 == 0).rev().collect_vec()
+            range(0, 100).map(|n| n * 2).filter(|n| n % 3 == 0).rev().collect::<Vec>()
         }
     };
 
@@ -71,7 +71,7 @@ fn test_object_rev_error() {
 fn test_chain() {
     let values: Vec<i64> = rune! {
         pub fn main() {
-            [1, 2].iter().rev().chain([3, 4].iter()).collect_vec()
+            [1, 2].iter().rev().chain([3, 4].iter()).collect::<Vec>()
         }
     };
 
@@ -84,7 +84,7 @@ fn test_enumerate() {
         pub fn main() {
             let it = [1, 2].iter().rev().chain([3, 4].iter()).enumerate();
             assert_eq!(it.next_back(), Some((3, 4)));
-            it.collect_vec()
+            it.collect::<Vec>()
         }
     };
 
@@ -95,7 +95,7 @@ fn test_enumerate() {
 fn test_option_iter() {
     let values: Vec<i64> = rune! {
         pub fn main() {
-            Some(1).iter().chain(None.iter()).chain(Some(3).iter()).collect_vec()
+            Some(1).iter().chain(None.iter()).chain(Some(3).iter()).collect::<Vec>()
         }
     };
 

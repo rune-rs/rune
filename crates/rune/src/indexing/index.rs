@@ -29,6 +29,15 @@ use std::sync::Arc;
 /// `self` variable.
 const SELF: &str = "self";
 
+/// Indicates whether the thing being indexed should be marked as used to
+/// determine whether they capture a variable from an outside scope (like a
+/// closure) or not.
+#[derive(Debug, Clone, Copy)]
+struct IsUsed(bool);
+
+const IS_USED: IsUsed = IsUsed(true);
+const NOT_USED: IsUsed = IsUsed(true);
+
 pub(crate) struct Indexer<'a> {
     /// The root URL that the indexed file originated from.
     pub(crate) root: Option<PathBuf>,
@@ -115,11 +124,11 @@ impl<'a> Indexer<'a> {
         match &mut internal_macro {
             BuiltInMacro::Template(template) => {
                 for e in &mut template.exprs {
-                    expr(e, self)?;
+                    expr(e, self, IS_USED)?;
                 }
             }
             BuiltInMacro::Format(format) => {
-                expr(&mut format.value, self)?;
+                expr(&mut format.value, self, IS_USED)?;
             }
 
             BuiltInMacro::Line(_) | BuiltInMacro::File(_) => { /* Nothing to index */ }
@@ -894,7 +903,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
                     must_be_last = Some(e.span());
                 }
 
-                expr(e, idx)?;
+                expr(e, idx, IS_USED)?;
             }
             ast::Stmt::Expr(e, Some(semi)) => {
                 if !e.needs_semi() {
@@ -902,7 +911,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
                         .uneccessary_semi_colon(idx.source_id, semi.span());
                 }
 
-                expr(e, idx)?;
+                expr(e, idx, IS_USED)?;
             }
             ast::Stmt::Item(item, semi) => {
                 if let Some(semi) = semi {
@@ -926,15 +935,15 @@ fn local(ast: &mut ast::Local, idx: &mut Indexer<'_>) -> CompileResult<()> {
 
     // We index the rhs expression first so that it doesn't see it's own
     // declaration and use that instead of capturing from the outside.
-    expr(&mut ast.expr, idx)?;
-    pat(&mut ast.pat, idx, false)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
+    pat(&mut ast.pat, idx, NOT_USED)?;
     Ok(())
 }
 
 #[instrument]
 fn expr_let(ast: &mut ast::ExprLet, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    pat(&mut ast.pat, idx, false)?;
-    expr(&mut ast.expr, idx)?;
+    pat(&mut ast.pat, idx, NOT_USED)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
     Ok(())
 }
 
@@ -948,10 +957,10 @@ fn declare(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
 }
 
 #[instrument]
-fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>, is_use: bool) -> CompileResult<()> {
+fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>, is_used: IsUsed) -> CompileResult<()> {
     match ast {
         ast::Pat::PatPath(pat) => {
-            path(&mut pat.path, idx, is_use)?;
+            path(&mut pat.path, idx, is_used)?;
 
             if let Some(i) = pat.path.try_as_ident_mut() {
                 // Treat as a variable declaration going lexically forward.
@@ -982,11 +991,11 @@ fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>, is_use: bool) -> CompileResult
 fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
     if let Some(p) = &mut ast.path {
         // Not a variable use - just the name of the tuple.
-        path(p, idx, false)?;
+        path(p, idx, NOT_USED)?;
     }
 
     for (p, _) in &mut ast.items {
-        pat(p, idx, false)?;
+        pat(p, idx, NOT_USED)?;
     }
 
     Ok(())
@@ -994,7 +1003,7 @@ fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()
 
 #[instrument]
 fn pat_binding(ast: &mut ast::PatBinding, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    pat(&mut ast.pat, idx, false)?;
+    pat(&mut ast.pat, idx, NOT_USED)?;
     Ok(())
 }
 
@@ -1004,12 +1013,12 @@ fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<
         ast::ObjectIdent::Anonymous(..) => (),
         ast::ObjectIdent::Named(p) => {
             // Not a variable use - just a name in a pattern match.
-            path(p, idx, false)?;
+            path(p, idx, NOT_USED)?;
         }
     }
 
     for (p, _) in &mut ast.items {
-        pat(p, idx, false)?;
+        pat(p, idx, NOT_USED)?;
     }
 
     Ok(())
@@ -1018,19 +1027,19 @@ fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<
 #[instrument]
 fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
     for (p, _) in &mut ast.items {
-        pat(p, idx, false)?;
+        pat(p, idx, NOT_USED)?;
     }
 
     Ok(())
 }
 
 #[instrument]
-fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>, is_used: IsUsed) -> CompileResult<()> {
     let mut attributes = attrs::Attributes::new(ast.attributes().to_vec());
 
     match ast {
         ast::Expr::Path(e) => {
-            path(e, idx, true)?;
+            path(e, idx, is_used)?;
         }
         ast::Expr::Let(e) => {
             expr_let(e, idx)?;
@@ -1039,10 +1048,10 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
             expr_block(e, idx)?;
         }
         ast::Expr::Group(e) => {
-            expr(&mut e.expr, idx)?;
+            expr(&mut e.expr, idx, is_used)?;
         }
         ast::Expr::Empty(e) => {
-            expr(&mut e.expr, idx)?;
+            expr(&mut e.expr, idx, is_used)?;
         }
         ast::Expr::If(e) => {
             expr_if(e, idx)?;
@@ -1106,7 +1115,7 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
             expr_lit(e, idx)?;
         }
         ast::Expr::ForceSemi(e) => {
-            expr(&mut e.expr, idx)?;
+            expr(&mut e.expr, idx, is_used)?;
         }
         ast::Expr::Tuple(e) => {
             expr_tuple(e, idx)?;
@@ -1133,7 +1142,7 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
                 if !idx.try_expand_internal_macro(&mut attributes, macro_call)? {
                     let out = idx.expand_macro::<ast::Expr>(macro_call)?;
                     *ast = out;
-                    expr(ast, idx)?;
+                    expr(ast, idx, is_used)?;
                 }
             } else {
                 // Assert that the built-in macro has been expanded.
@@ -1169,30 +1178,30 @@ fn expr_if(ast: &mut ast::ExprIf, idx: &mut Indexer<'_>) -> CompileResult<()> {
 
 #[instrument]
 fn expr_assign(ast: &mut ast::ExprAssign, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    expr(&mut ast.lhs, idx)?;
-    expr(&mut ast.rhs, idx)?;
+    expr(&mut ast.lhs, idx, IS_USED)?;
+    expr(&mut ast.rhs, idx, IS_USED)?;
     Ok(())
 }
 
 #[instrument]
 fn expr_binary(ast: &mut ast::ExprBinary, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    expr(&mut ast.lhs, idx)?;
-    expr(&mut ast.rhs, idx)?;
+    expr(&mut ast.lhs, idx, IS_USED)?;
+    expr(&mut ast.rhs, idx, IS_USED)?;
     Ok(())
 }
 
 #[instrument]
 fn expr_match(ast: &mut ast::ExprMatch, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    expr(&mut ast.expr, idx)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
 
     for (branch, _) in &mut ast.branches {
         if let Some((_, condition)) = &mut branch.condition {
-            expr(condition, idx)?;
+            expr(condition, idx, IS_USED)?;
         }
 
         let _guard = idx.scopes.push_scope();
-        pat(&mut branch.pat, idx, false)?;
-        expr(&mut branch.body, idx)?;
+        pat(&mut branch.pat, idx, NOT_USED)?;
+        expr(&mut branch.body, idx, IS_USED)?;
     }
 
     Ok(())
@@ -1202,7 +1211,7 @@ fn expr_match(ast: &mut ast::ExprMatch, idx: &mut Indexer<'_>) -> CompileResult<
 fn condition(ast: &mut ast::Condition, idx: &mut Indexer<'_>) -> CompileResult<()> {
     match ast {
         ast::Condition::Expr(e) => {
-            expr(e, idx)?;
+            expr(e, idx, IS_USED)?;
         }
         ast::Condition::ExprLet(e) => {
             expr_let(e, idx)?;
@@ -1407,7 +1416,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
     ast.id = item.id;
 
     let last = idx.nested_item.replace(ast.descriptive_span());
-    expr(&mut ast.expr, idx)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
     idx.nested_item = last;
 
     idx.q.index_const(&item, &ast.expr, ir::compile::expr)?;
@@ -1463,13 +1472,19 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
 }
 
 #[instrument]
-fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>, is_use: bool) -> CompileResult<()> {
+fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>, is_used: IsUsed) -> CompileResult<()> {
     let id = idx
         .q
         .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
     ast.id.set(id);
 
-    if is_use {
+    path_segment(&mut ast.first, idx)?;
+
+    for (_, segment) in &mut ast.rest {
+        path_segment(segment, idx)?;
+    }
+
+    if is_used.0 {
         match ast.as_kind() {
             Some(ast::PathKind::SelfValue) => {
                 idx.scopes.mark_use(SELF);
@@ -1479,6 +1494,20 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>, is_use: bool) -> CompileResu
                 idx.scopes.mark_use(ident);
             }
             None => (),
+        }
+    }
+
+    Ok(())
+}
+
+#[instrument]
+fn path_segment(ast: &mut ast::PathSegment, idx: &mut Indexer<'_>) -> CompileResult<()> {
+    if let ast::PathSegment::Generics(generics) = ast {
+        for (param, _) in generics {
+            // This is a special case where the expression of a generic
+            // statement does not count as "used". Since they do not capture
+            // the outside environment.
+            expr(&mut param.expr, idx, NOT_USED)?;
         }
     }
 
@@ -1503,10 +1532,10 @@ fn expr_loop(ast: &mut ast::ExprLoop, idx: &mut Indexer<'_>) -> CompileResult<()
 #[instrument]
 fn expr_for(ast: &mut ast::ExprFor, idx: &mut Indexer<'_>) -> CompileResult<()> {
     // NB: creating the iterator is evaluated in the parent scope.
-    expr(&mut ast.iter, idx)?;
+    expr(&mut ast.iter, idx, IS_USED)?;
 
     let _guard = idx.scopes.push_scope();
-    pat(&mut ast.binding, idx, false)?;
+    pat(&mut ast.binding, idx, NOT_USED)?;
     block(&mut ast.body, idx)?;
     Ok(())
 }
@@ -1544,7 +1573,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
         }
     }
 
-    expr(&mut ast.body, idx)?;
+    expr(&mut ast.body, idx, IS_USED)?;
 
     let c = guard.into_closure(span)?;
 
@@ -1565,20 +1594,28 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
 
 #[instrument]
 fn expr_field_access(ast: &mut ast::ExprFieldAccess, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    expr(&mut ast.expr, idx)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
+
+    match &mut ast.expr_field {
+        ast::ExprField::Path(p) => {
+            path(p, idx, IS_USED)?;
+        }
+        ast::ExprField::LitNumber(..) => {}
+    }
+
     Ok(())
 }
 
 #[instrument]
 fn expr_unary(ast: &mut ast::ExprUnary, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    expr(&mut ast.expr, idx)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
     Ok(())
 }
 
 #[instrument]
 fn expr_index(ast: &mut ast::ExprIndex, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    expr(&mut ast.index, idx)?;
-    expr(&mut ast.target, idx)?;
+    expr(&mut ast.index, idx, IS_USED)?;
+    expr(&mut ast.target, idx, IS_USED)?;
     Ok(())
 }
 
@@ -1587,7 +1624,7 @@ fn expr_break(ast: &mut ast::ExprBreak, idx: &mut Indexer<'_>) -> CompileResult<
     if let Some(e) = ast.expr.as_deref_mut() {
         match e {
             ast::ExprBreakValue::Expr(e) => {
-                expr(e, idx)?;
+                expr(e, idx, IS_USED)?;
             }
             ast::ExprBreakValue::Label(..) => (),
         }
@@ -1607,7 +1644,7 @@ fn expr_yield(ast: &mut ast::ExprYield, idx: &mut Indexer<'_>) -> CompileResult<
     idx.scopes.mark_yield(span)?;
 
     if let Some(e) = &mut ast.expr {
-        expr(e, idx)?;
+        expr(e, idx, IS_USED)?;
     }
 
     Ok(())
@@ -1616,7 +1653,7 @@ fn expr_yield(ast: &mut ast::ExprYield, idx: &mut Indexer<'_>) -> CompileResult<
 #[instrument]
 fn expr_return(ast: &mut ast::ExprReturn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     if let Some(e) = &mut ast.expr {
-        expr(e, idx)?;
+        expr(e, idx, IS_USED)?;
     }
 
     Ok(())
@@ -1626,13 +1663,13 @@ fn expr_return(ast: &mut ast::ExprReturn, idx: &mut Indexer<'_>) -> CompileResul
 fn expr_await(ast: &mut ast::ExprAwait, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
     idx.scopes.mark_await(span)?;
-    expr(&mut ast.expr, idx)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
     Ok(())
 }
 
 #[instrument]
 fn expr_try(ast: &mut ast::ExprTry, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    expr(&mut ast.expr, idx)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
     Ok(())
 }
 
@@ -1646,11 +1683,11 @@ fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResul
         match branch {
             ast::ExprSelectBranch::Pat(p) => {
                 // NB: expression to evaluate future is evaled in parent scope.
-                expr(&mut p.expr, idx)?;
+                expr(&mut p.expr, idx, IS_USED)?;
 
                 let _guard = idx.scopes.push_scope();
-                pat(&mut p.pat, idx, false)?;
-                expr(&mut p.body, idx)?;
+                pat(&mut p.pat, idx, NOT_USED)?;
+                expr(&mut p.body, idx, IS_USED)?;
             }
             ast::ExprSelectBranch::Default(def) => {
                 default_branch = Some(def);
@@ -1660,7 +1697,7 @@ fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResul
 
     if let Some(def) = default_branch {
         let _guard = idx.scopes.push_scope();
-        expr(&mut def.body, idx)?;
+        expr(&mut def.body, idx, IS_USED)?;
     }
 
     Ok(())
@@ -1671,10 +1708,10 @@ fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> CompileResult<()
     ast.id.set(idx.items.id());
 
     for (e, _) in &mut ast.args {
-        expr(e, idx)?;
+        expr(e, idx, IS_USED)?;
     }
 
-    expr(&mut ast.expr, idx)?;
+    expr(&mut ast.expr, idx, IS_USED)?;
     Ok(())
 }
 
@@ -1704,7 +1741,7 @@ fn expr_lit(ast: &mut ast::ExprLit, _: &mut Indexer<'_>) -> CompileResult<()> {
 #[instrument]
 fn expr_tuple(ast: &mut ast::ExprTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
     for (e, _) in &mut ast.items {
-        expr(e, idx)?;
+        expr(e, idx, IS_USED)?;
     }
 
     Ok(())
@@ -1713,7 +1750,7 @@ fn expr_tuple(ast: &mut ast::ExprTuple, idx: &mut Indexer<'_>) -> CompileResult<
 #[instrument]
 fn expr_vec(ast: &mut ast::ExprVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
     for (e, _) in &mut ast.items {
-        expr(e, idx)?;
+        expr(e, idx, IS_USED)?;
     }
 
     Ok(())
@@ -1724,14 +1761,14 @@ fn expr_object(ast: &mut ast::ExprObject, idx: &mut Indexer<'_>) -> CompileResul
     match &mut ast.ident {
         ast::ObjectIdent::Named(p) => {
             // Not a variable use: Name of the object.
-            path(p, idx, false)?;
+            path(p, idx, NOT_USED)?;
         }
         ast::ObjectIdent::Anonymous(..) => (),
     }
 
     for (assign, _) in &mut ast.assignments {
         if let Some((_, e)) = &mut assign.assign {
-            expr(e, idx)?;
+            expr(e, idx, IS_USED)?;
         }
     }
 
@@ -1741,11 +1778,11 @@ fn expr_object(ast: &mut ast::ExprObject, idx: &mut Indexer<'_>) -> CompileResul
 #[instrument]
 fn expr_range(ast: &mut ast::ExprRange, idx: &mut Indexer<'_>) -> CompileResult<()> {
     if let Some(from) = &mut ast.from {
-        expr(from, idx)?;
+        expr(from, idx, IS_USED)?;
     }
 
     if let Some(to) = &mut ast.to {
-        expr(to, idx)?;
+        expr(to, idx, IS_USED)?;
     }
 
     Ok(())

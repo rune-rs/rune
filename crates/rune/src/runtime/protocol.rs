@@ -24,6 +24,7 @@ impl InstFnName for Protocol {
         InstFnInfo {
             hash: self.hash,
             kind: InstFnKind::Protocol(self),
+            parameters: Hash::EMPTY,
         }
     }
 }
@@ -35,6 +36,13 @@ impl IntoTypeHash for Protocol {
 
     fn into_item(self) -> Option<Item> {
         None
+    }
+
+    fn hash<H>(self, hasher: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        self.hash.hash(hasher);
     }
 }
 
