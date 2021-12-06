@@ -62,7 +62,7 @@ impl Hash {
     #[inline]
     pub fn instance_function<N>(type_hash: Hash, name: N) -> Self
     where
-        N: NamedInstFn,
+        N: InstFnName,
     {
         let name = name.name_hash();
         Self(INSTANCE_FUNCTION_HASH ^ (type_hash.0 ^ name.0))
@@ -72,7 +72,7 @@ impl Hash {
     #[inline]
     pub fn field_fn<N>(protocol: Protocol, type_hash: Hash, name: N) -> Self
     where
-        N: NamedInstFn,
+        N: InstFnName,
     {
         let name = name.name_hash();
         Self(FIELD_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ name.0))
@@ -175,7 +175,7 @@ where
 /// An instance function name.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum InstFnName {
+pub enum InstFnKind {
     /// The instance function refers to the given protocol.
     Protocol(Protocol),
     /// The instance function refers to the given named instance fn.
@@ -184,12 +184,12 @@ pub enum InstFnName {
     Hash(Hash),
 }
 
-impl fmt::Display for InstFnName {
+impl fmt::Display for InstFnKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InstFnName::Protocol(protocol) => write!(f, "<{}>", protocol.name),
-            InstFnName::Instance(name) => write!(f, "{}", name),
-            InstFnName::Hash(hash) => write!(f, "<{}>", hash),
+            InstFnKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
+            InstFnKind::Instance(name) => write!(f, "{}", name),
+            InstFnKind::Hash(hash) => write!(f, "<{}>", hash),
         }
     }
 }
@@ -201,11 +201,11 @@ pub struct InstFnInfo {
     /// The hash of the instance function.
     pub hash: Hash,
     /// The name of the instance function.
-    pub name: InstFnName,
+    pub kind: InstFnKind,
 }
 
 /// Trait used to determine what can be used as an instance function name.
-pub trait NamedInstFn: Copy {
+pub trait InstFnName: Copy {
     /// Get only the hash of the named instance function.
     fn name_hash(self) -> Hash;
 
@@ -213,7 +213,7 @@ pub trait NamedInstFn: Copy {
     fn info(self) -> InstFnInfo;
 }
 
-impl NamedInstFn for &str {
+impl InstFnName for &str {
     #[inline]
     fn name_hash(self) -> Hash {
         Hash::of(self)
@@ -223,12 +223,12 @@ impl NamedInstFn for &str {
     fn info(self) -> InstFnInfo {
         InstFnInfo {
             hash: self.name_hash(),
-            name: InstFnName::Instance(self.into()),
+            kind: InstFnKind::Instance(self.into()),
         }
     }
 }
 
-impl NamedInstFn for Hash {
+impl InstFnName for Hash {
     #[inline]
     fn name_hash(self) -> Hash {
         self
@@ -238,7 +238,7 @@ impl NamedInstFn for Hash {
     fn info(self) -> InstFnInfo {
         InstFnInfo {
             hash: self,
-            name: InstFnName::Hash(self),
+            kind: InstFnKind::Hash(self),
         }
     }
 }

@@ -10,7 +10,7 @@ use crate::runtime::{
     ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Protocol, Stack,
     StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, InstFnInfo, InstFnName, NamedInstFn};
+use crate::{Hash, InstFnInfo, InstFnKind, InstFnName};
 use std::future;
 use std::sync::Arc;
 
@@ -23,14 +23,24 @@ pub trait InstallWith {
     }
 }
 
+/// The static hash and diagnostical information about a type.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct AssocType {
+    /// Hash of the type.
+    pub hash: Hash,
+    /// Type information of the instance function.
+    pub type_info: TypeInfo,
+}
+
 /// Specialized information on `Option` types.
-pub(crate) struct ModuleUnitType {
+pub(crate) struct UnitType {
     /// Item of the unit type.
     pub(crate) name: Box<str>,
 }
 
 /// Specialized information on `GeneratorState` types.
-pub(crate) struct ModuleInternalEnum {
+pub(crate) struct InternalEnum {
     /// The name of the internal enum.
     pub(crate) name: &'static str,
     /// The result type.
@@ -38,17 +48,17 @@ pub(crate) struct ModuleInternalEnum {
     /// The static type of the enum.
     pub(crate) static_type: &'static StaticType,
     /// Internal variants.
-    pub(crate) variants: Vec<ModuleInternalVariant>,
+    pub(crate) variants: Vec<InternalVariant>,
 }
 
-impl ModuleInternalEnum {
+impl InternalEnum {
     /// Construct a new handler for an internal enum.
-    pub fn new<N>(name: &'static str, base_type: N, static_type: &'static StaticType) -> Self
+    fn new<N>(name: &'static str, base_type: N, static_type: &'static StaticType) -> Self
     where
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        ModuleInternalEnum {
+        InternalEnum {
             name,
             base_type: Item::with_item(base_type),
             static_type,
@@ -66,7 +76,7 @@ impl ModuleInternalEnum {
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
         let type_hash = C::Return::type_hash();
 
-        self.variants.push(ModuleInternalVariant {
+        self.variants.push(InternalVariant {
             name,
             type_check,
             args: C::args(),
@@ -77,7 +87,7 @@ impl ModuleInternalEnum {
 }
 
 /// Internal variant.
-pub(crate) struct ModuleInternalVariant {
+pub(crate) struct InternalVariant {
     /// The name of the variant.
     pub(crate) name: &'static str,
     /// Type check for the variant.
@@ -90,8 +100,9 @@ pub(crate) struct ModuleInternalVariant {
     pub(crate) type_hash: Hash,
 }
 
-pub(crate) struct ModuleType {
-    /// The item of the installed type.
+pub(crate) struct Type {
+    /// The name of the installed type which will be the final component in the
+    /// item it will constitute.
     pub(crate) name: Box<str>,
     /// Type information for the installed type.
     pub(crate) type_info: TypeInfo,
@@ -105,7 +116,7 @@ pub(crate) enum AssocKind {
 
 impl AssocKind {
     /// Convert the kind into a hash function.
-    pub fn hash(self, instance_type: Hash, field: Hash) -> Hash {
+    pub(crate) fn hash(self, instance_type: Hash, field: Hash) -> Hash {
         match self {
             Self::FieldFn(protocol) => Hash::field_fn(protocol, instance_type, field),
             Self::Instance => Hash::instance_function(instance_type, field),
@@ -117,11 +128,11 @@ pub(crate) struct AssocFn {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
     pub(crate) type_info: TypeInfo,
-    pub(crate) name: InstFnName,
+    pub(crate) name: InstFnKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct ModuleAssocKey {
+pub(crate) struct AssocKey {
     pub(crate) type_hash: Hash,
     pub(crate) hash: Hash,
     pub(crate) kind: AssocKind,
@@ -132,7 +143,7 @@ pub(crate) struct ModuleFn {
     pub(crate) args: Option<usize>,
 }
 
-pub(crate) struct ModuleMacro {
+pub(crate) struct Macro {
     pub(crate) handler: Arc<MacroHandler>,
 }
 
@@ -147,17 +158,17 @@ pub struct Module {
     /// Free functions.
     pub(crate) functions: HashMap<Item, ModuleFn>,
     /// MacroHandler handlers.
-    pub(crate) macros: HashMap<Item, ModuleMacro>,
+    pub(crate) macros: HashMap<Item, Macro>,
     /// Constant values.
     pub(crate) constants: HashMap<Item, ConstValue>,
     /// Instance functions.
-    pub(crate) associated_functions: HashMap<ModuleAssocKey, AssocFn>,
+    pub(crate) associated_functions: HashMap<AssocKey, AssocFn>,
     /// Registered types.
-    pub(crate) types: HashMap<Hash, ModuleType>,
+    pub(crate) types: HashMap<Hash, Type>,
     /// Registered unit type.
-    pub(crate) unit_type: Option<ModuleUnitType>,
+    pub(crate) unit_type: Option<UnitType>,
     /// Registered generator state type.
-    pub(crate) internal_enums: Vec<ModuleInternalEnum>,
+    pub(crate) internal_enums: Vec<InternalEnum>,
 }
 
 impl Module {
@@ -250,7 +261,7 @@ impl Module {
         let type_hash = T::type_hash();
         let type_info = T::type_info();
 
-        let ty = ModuleType {
+        let ty = Type {
             name: T::full_name(),
             type_info,
         };
@@ -290,7 +301,7 @@ impl Module {
             return Err(ContextError::UnitAlreadyPresent);
         }
 
-        self.unit_type = Some(ModuleUnitType {
+        self.unit_type = Some(UnitType {
             name: <Box<str>>::from(name.as_ref()),
         });
 
@@ -318,7 +329,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let mut enum_ = ModuleInternalEnum::new("Option", name, crate::runtime::OPTION_TYPE);
+        let mut enum_ = InternalEnum::new("Option", name, crate::runtime::OPTION_TYPE);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
@@ -350,7 +361,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let mut enum_ = ModuleInternalEnum::new("Result", name, crate::runtime::RESULT_TYPE);
+        let mut enum_ = InternalEnum::new("Result", name, crate::runtime::RESULT_TYPE);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
@@ -384,7 +395,7 @@ impl Module {
         N::Item: IntoComponent,
     {
         let mut enum_ =
-            ModuleInternalEnum::new("GeneratorState", name, crate::runtime::GENERATOR_STATE_TYPE);
+            InternalEnum::new("GeneratorState", name, crate::runtime::GENERATOR_STATE_TYPE);
 
         // Note: these numeric variants are magic, and must simply match up with
         // what's being used in the virtual machine implementation for these
@@ -503,7 +514,7 @@ impl Module {
         }
 
         let handler: Arc<MacroHandler> = Arc::new(f);
-        self.macros.insert(name, ModuleMacro { handler });
+        self.macros.insert(name, Macro { handler });
         Ok(())
     }
 
@@ -606,7 +617,7 @@ impl Module {
     /// ```
     pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: NamedInstFn,
+        N: InstFnName,
         Func: InstFn<Args>,
     {
         let name = name.info();
@@ -624,7 +635,7 @@ impl Module {
         f: Func,
     ) -> Result<(), ContextError>
     where
-        N: NamedInstFn,
+        N: InstFnName,
         Func: InstFn<Args>,
     {
         let name = name.info();
@@ -663,7 +674,7 @@ impl Module {
     /// ```
     pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: NamedInstFn,
+        N: InstFnName,
         Func: AsyncInstFn<Args>,
     {
         let name = name.info();
@@ -678,27 +689,27 @@ impl Module {
         &mut self,
         name: InstFnInfo,
         handler: Arc<FunctionHandler>,
-        ty: InstType,
+        ty: AssocType,
         args: Option<usize>,
         kind: AssocKind,
     ) -> Result<(), ContextError> {
-        let key = ModuleAssocKey {
+        let key = AssocKey {
             type_hash: ty.hash,
             hash: name.hash,
             kind,
         };
 
         if self.associated_functions.contains_key(&key) {
-            return Err(match name.name {
-                InstFnName::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
+            return Err(match name.kind {
+                InstFnKind::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
                     type_info: ty.type_info,
                     name: protocol.name.into(),
                 },
-                InstFnName::Instance(name) => ContextError::ConflictingInstanceFunction {
+                InstFnKind::Instance(name) => ContextError::ConflictingInstanceFunction {
                     type_info: ty.type_info,
                     name,
                 },
-                InstFnName::Hash(hash) => ContextError::ConflictingInstanceFunctionHash {
+                InstFnKind::Hash(hash) => ContextError::ConflictingInstanceFunctionHash {
                     type_info: ty.type_info,
                     hash,
                 },
@@ -709,7 +720,7 @@ impl Module {
             handler,
             args,
             type_info: ty.type_info,
-            name: name.name,
+            name: name.kind,
         };
 
         self.associated_functions.insert(key, assoc_fn);
@@ -741,15 +752,6 @@ pub trait AsyncFunction<Args>: 'static + Send + Sync {
     fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct InstType {
-    /// Hash of the type.
-    pub hash: Hash,
-    /// Type information of the instance function.
-    pub type_info: TypeInfo,
-}
-
 /// Trait used to provide the [inst_fn][Module::inst_fn] function.
 pub trait InstFn<Args>: 'static + Send + Sync {
     /// The type of the instance.
@@ -762,7 +764,7 @@ pub trait InstFn<Args>: 'static + Send + Sync {
 
     /// Access static information on the instance type with the associated
     /// function.
-    fn ty() -> InstType;
+    fn ty() -> AssocType;
 
     /// Perform the vm call.
     fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
@@ -780,7 +782,7 @@ pub trait AsyncInstFn<Args>: 'static + Send + Sync {
 
     /// Access static information on the instance type with the associated
     /// function.
-    fn ty() -> InstType;
+    fn ty() -> AssocType;
 
     /// Perform the vm call.
     fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
@@ -893,8 +895,8 @@ macro_rules! impl_register {
                 $count + 1
             }
 
-            fn ty() -> InstType {
-                InstType {
+            fn ty() -> AssocType {
+                AssocType {
                     hash: Instance::type_hash(),
                     type_info: Instance::type_info(),
                 }
@@ -942,8 +944,8 @@ macro_rules! impl_register {
                 $count + 1
             }
 
-            fn ty() -> InstType {
-                InstType {
+            fn ty() -> AssocType {
+                AssocType {
                     hash: Instance::type_hash(),
                     type_info: Instance::type_info(),
                 }
