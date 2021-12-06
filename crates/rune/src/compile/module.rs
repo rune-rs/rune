@@ -10,7 +10,7 @@ use crate::runtime::{
     ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Protocol, Stack,
     StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, InstFnNameHash};
+use crate::{Hash, InstFnName, InstFnNameHash};
 use std::future;
 use std::sync::Arc;
 
@@ -117,7 +117,7 @@ pub(crate) struct ModuleAssociatedFn {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
     pub(crate) type_info: TypeInfo,
-    pub(crate) name: Box<str>,
+    pub(crate) name: InstFnName,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -649,7 +649,20 @@ impl Module {
         let name = name.into_name();
 
         if self.associated_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction { type_info, name });
+            match name {
+                InstFnName::Protocol(protocol) => {
+                    return Err(ContextError::ConflictingProtocolFunction {
+                        type_info,
+                        name: protocol.name.into(),
+                    });
+                }
+                InstFnName::Instance(name) => {
+                    return Err(ContextError::ConflictingInstanceFunction { type_info, name });
+                }
+                InstFnName::Hash(hash) => {
+                    return Err(ContextError::ConflictingInstanceFunctionHash { type_info, hash });
+                }
+            }
         }
 
         let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
@@ -709,7 +722,20 @@ impl Module {
         let name = name.into_name();
 
         if self.associated_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction { type_info, name });
+            match name {
+                InstFnName::Protocol(protocol) => {
+                    return Err(ContextError::ConflictingProtocolFunction {
+                        type_info,
+                        name: protocol.name.into(),
+                    });
+                }
+                InstFnName::Instance(name) => {
+                    return Err(ContextError::ConflictingInstanceFunction { type_info, name });
+                }
+                InstFnName::Hash(hash) => {
+                    return Err(ContextError::ConflictingInstanceFunctionHash { type_info, hash });
+                }
+            }
         }
 
         let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
