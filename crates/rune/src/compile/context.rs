@@ -1,7 +1,6 @@
 use crate::collections::{HashMap, HashSet};
 use crate::compile::module::{
-    AssocFn, AssocKind, Function, Module, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType,
-    ModuleUnitType,
+    AssocFn, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type, UnitType,
 };
 use crate::compile::{
     ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
@@ -10,7 +9,7 @@ use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
     TypeInfo, TypeOf, VmError,
 };
-use crate::{Hash, InstFnName};
+use crate::{Hash, InstFnKind};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -95,7 +94,7 @@ pub enum ContextSignature {
         /// Path to the instance function.
         item: Item,
         /// Name of the instance function.
-        name: InstFnName,
+        name: InstFnKind,
         /// Arguments.
         args: Option<usize>,
         /// Information on the self type.
@@ -390,7 +389,7 @@ impl Context {
         &mut self,
         module: &Module,
         type_hash: Hash,
-        ty: &ModuleType,
+        ty: &Type,
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*ty.name);
         let hash = Hash::type_hash(&item);
@@ -494,7 +493,7 @@ impl Context {
         &mut self,
         module: &Module,
         item: &Item,
-        m: &ModuleMacro,
+        m: &Macro,
     ) -> Result<(), ContextError> {
         let item = module.item.join(item);
 
@@ -579,7 +578,7 @@ impl Context {
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        if let (InstFnName::Instance(name), AssocKind::Instance) = (&assoc.name, kind) {
+        if let (InstFnKind::Instance(name), AssocKind::Instance) = (&assoc.name, kind) {
             let item = info.item.extended(name);
 
             self.constants.insert(
@@ -624,7 +623,7 @@ impl Context {
     fn install_unit_type(
         &mut self,
         module: &Module,
-        unit_type: &ModuleUnitType,
+        unit_type: &UnitType,
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*unit_type.name);
         let hash = Hash::type_hash(&item);
@@ -647,7 +646,7 @@ impl Context {
     fn install_internal_enum(
         &mut self,
         module: &Module,
-        internal_enum: &ModuleInternalEnum,
+        internal_enum: &InternalEnum,
     ) -> Result<(), ContextError> {
         if !self.internal_enums.insert(internal_enum.static_type) {
             return Err(ContextError::InternalAlreadyPresent {

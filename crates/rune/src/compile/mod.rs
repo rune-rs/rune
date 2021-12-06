@@ -56,7 +56,7 @@ pub(crate) use self::meta::{
 pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
 mod module;
-pub use self::module::{InstallWith, Module};
+pub use self::module::{AssocType, InstallWith, Module};
 
 mod named;
 pub use self::named::Named;

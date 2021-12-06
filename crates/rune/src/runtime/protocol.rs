@@ -1,5 +1,5 @@
 use crate::compile::Item;
-use crate::{Hash, InstFnInfo, InstFnName, IntoTypeHash, NamedInstFn};
+use crate::{Hash, InstFnInfo, InstFnKind, InstFnName, IntoTypeHash};
 use std::cmp;
 use std::fmt;
 use std::hash;
@@ -13,7 +13,7 @@ pub struct Protocol {
     pub hash: Hash,
 }
 
-impl NamedInstFn for Protocol {
+impl InstFnName for Protocol {
     #[inline]
     fn name_hash(self) -> Hash {
         self.hash
@@ -23,7 +23,7 @@ impl NamedInstFn for Protocol {
     fn info(self) -> InstFnInfo {
         InstFnInfo {
             hash: self.hash,
-            name: InstFnName::Protocol(self),
+            kind: InstFnKind::Protocol(self),
         }
     }
 }
