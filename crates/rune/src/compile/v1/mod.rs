@@ -121,7 +121,10 @@ impl<'a> Assembler<'a> {
     }
 
     /// Convert an [ast::Path] into a [Named] item.
-    pub(crate) fn convert_path(&mut self, path: &ast::Path) -> CompileResult<Named> {
+    pub(crate) fn convert_path<'ast>(
+        &mut self,
+        path: &'ast ast::Path,
+    ) -> CompileResult<Named<'ast>> {
         self.q.convert_path(self.context, path)
     }
 
