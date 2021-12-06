@@ -145,7 +145,7 @@ pub trait IntoTypeHash: Copy {
     fn into_type_hash(self) -> Hash;
 
     /// Optionally convert into an item, if appropriate.
-    fn into_item(self) -> Item;
+    fn into_item(self) -> Option<Item>;
 }
 
 impl IntoTypeHash for Hash {
@@ -153,8 +153,8 @@ impl IntoTypeHash for Hash {
         self
     }
 
-    fn into_item(self) -> Item {
-        Item::new()
+    fn into_item(self) -> Option<Item> {
+        None
     }
 }
 
@@ -167,8 +167,29 @@ where
         Hash::path_hash(TYPE, self)
     }
 
-    fn into_item(self) -> Item {
-        Item::with_item(self)
+    fn into_item(self) -> Option<Item> {
+        Some(Item::with_item(self))
+    }
+}
+
+/// An instance function name.
+#[derive(Debug, Clone)]
+pub enum InstFnName {
+    /// The instance function refers to the given protocol.
+    Protocol(Protocol),
+    /// The instance function refers to the given named instance fn.
+    Instance(Box<str>),
+    /// Instance function only has a hash.
+    Hash(Hash),
+}
+
+impl fmt::Display for InstFnName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InstFnName::Protocol(protocol) => write!(f, "<{}>", protocol.name),
+            InstFnName::Instance(name) => write!(f, "{}", name),
+            InstFnName::Hash(hash) => write!(f, "<{}>", hash),
+        }
     }
 }
 
@@ -178,7 +199,7 @@ pub trait InstFnNameHash: Copy {
     fn inst_fn_name_hash(self) -> Hash;
 
     /// Get a human readable name for the function.
-    fn into_name(self) -> Box<str>;
+    fn into_name(self) -> InstFnName;
 }
 
 impl<'a> InstFnNameHash for &'a str {
@@ -186,8 +207,8 @@ impl<'a> InstFnNameHash for &'a str {
         Hash::of(self)
     }
 
-    fn into_name(self) -> Box<str> {
-        self.into()
+    fn into_name(self) -> InstFnName {
+        InstFnName::Instance(self.into())
     }
 }
 
@@ -197,7 +218,7 @@ impl<'a> InstFnNameHash for Hash {
         self
     }
 
-    fn into_name(self) -> Box<str> {
-        Box::<str>::default()
+    fn into_name(self) -> InstFnName {
+        InstFnName::Hash(self)
     }
 }

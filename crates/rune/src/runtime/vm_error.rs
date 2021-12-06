@@ -188,6 +188,8 @@ pub enum VmErrorKind {
     MissingConst { hash: Hash },
     #[error("missing entry `{item}` with hash `{hash}`")]
     MissingEntry { item: Item, hash: Hash },
+    #[error("missing entry with hash `{hash}`")]
+    MissingEntryHash { hash: Hash },
     #[error("missing function with hash `{hash}`")]
     MissingFunction { hash: Hash },
     #[error("missing instance function `{hash}` for `{instance}`")]

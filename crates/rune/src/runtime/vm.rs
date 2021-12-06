@@ -363,10 +363,11 @@ impl Vm {
         let hash = name.into_type_hash();
 
         let info = self.unit.function(hash).ok_or_else(|| {
-            VmError::from(VmErrorKind::MissingEntry {
-                hash,
-                item: name.into_item(),
-            })
+            if let Some(item) = name.into_item() {
+                VmError::from(VmErrorKind::MissingEntry { hash, item })
+            } else {
+                VmError::from(VmErrorKind::MissingEntryHash { hash })
+            }
         })?;
 
         let offset = match info {

@@ -1,5 +1,5 @@
 use crate::compile::Item;
-use crate::{Hash, InstFnNameHash, IntoTypeHash};
+use crate::{Hash, InstFnName, InstFnNameHash, IntoTypeHash};
 use std::cmp;
 use std::fmt;
 use std::hash;
@@ -18,8 +18,8 @@ impl InstFnNameHash for Protocol {
         self.hash
     }
 
-    fn into_name(self) -> Box<str> {
-        <Box<str>>::from(self.name)
+    fn into_name(self) -> InstFnName {
+        InstFnName::Protocol(self)
     }
 }
 
@@ -28,8 +28,8 @@ impl IntoTypeHash for Protocol {
         self.hash
     }
 
-    fn into_item(self) -> Item {
-        Item::with_item(&[self.name])
+    fn into_item(self) -> Option<Item> {
+        None
     }
 }
 

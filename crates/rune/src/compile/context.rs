@@ -1,7 +1,7 @@
 use crate::collections::{HashMap, HashSet};
 use crate::compile::module::{
-    Function, Module, ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType,
-    ModuleUnitType,
+    Function, Module, ModuleAssociatedFn, ModuleAssociatedKind, ModuleFn, ModuleInternalEnum,
+    ModuleMacro, ModuleType, ModuleUnitType,
 };
 use crate::compile::{
     ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
@@ -10,7 +10,7 @@ use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
     TypeInfo, TypeOf, VmError,
 };
-use crate::Hash;
+use crate::{Hash, InstFnName};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -37,6 +37,10 @@ pub enum ContextError {
     ConflictingConstantName { name: Item },
     #[error("instance function `{name}` for type `{type_info}` already exists")]
     ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
+    #[error("protocol function `{name}` for type `{type_info}` already exists")]
+    ConflictingProtocolFunction { type_info: TypeInfo, name: Box<str> },
+    #[error("protocol function with hash `{hash}` for type `{type_info}` already exists")]
+    ConflictingInstanceFunctionHash { type_info: TypeInfo, hash: Hash },
     #[error("module `{item}` with hash `{hash}` already exists")]
     ConflictingModule { item: Item, hash: Hash },
     #[error("type `{item}` already exists `{existing}`")]
@@ -91,7 +95,7 @@ pub enum ContextSignature {
         /// Path to the instance function.
         item: Item,
         /// Name of the instance function.
-        name: Box<str>,
+        name: InstFnName,
         /// Arguments.
         args: Option<usize>,
         /// Information on the self type.
@@ -292,12 +296,7 @@ impl Context {
         }
 
         for (key, inst) in &module.associated_functions {
-            self.install_associated_function(
-                key.type_hash,
-                key.hash,
-                inst,
-                |instance_type, field| key.kind.hash(instance_type, field),
-            )?;
+            self.install_associated_function(key.type_hash, key.hash, key.kind, inst)?;
         }
 
         Ok(())
@@ -539,8 +538,8 @@ impl Context {
         &mut self,
         type_hash: Hash,
         hash: Hash,
+        kind: ModuleAssociatedKind,
         assoc: &ModuleAssociatedFn,
-        hash_fn: impl FnOnce(Hash, Hash) -> Hash,
     ) -> Result<(), ContextError> {
         let info = match self
             .types_rev
@@ -555,7 +554,7 @@ impl Context {
             }
         };
 
-        let hash = hash_fn(type_hash, hash);
+        let hash = kind.hash(type_hash, hash);
 
         let signature = ContextSignature::Instance {
             type_hash,
@@ -564,12 +563,6 @@ impl Context {
             args: assoc.args,
             self_type_info: info.type_info.clone(),
         };
-        let item = info.item.extended(&assoc.name);
-
-        self.constants.insert(
-            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(item.to_string()),
-        );
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
@@ -577,20 +570,53 @@ impl Context {
                 hash,
             });
         }
-        self.meta.insert(
-            item.clone(),
-            PrivMeta {
-                item: Arc::new(item.into()),
-                kind: PrivMetaKind::Function {
-                    type_hash: hash,
-                    is_test: false,
-                    is_bench: false,
-                },
-                source: None,
-            },
-        );
 
         self.functions.insert(hash, assoc.handler.clone());
+
+        // If the associated function is a named instance function - register it
+        // under the name of the item it corresponds to unless it's a field
+        // function.
+        //
+        // The other alternatives are protocol functions (which are not free)
+        // and plain hashes.
+        if let (InstFnName::Instance(name), ModuleAssociatedKind::Instance) = (&assoc.name, kind) {
+            let item = info.item.extended(name);
+
+            self.constants.insert(
+                Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                ConstValue::String(item.to_string()),
+            );
+            let free_hash = Hash::type_hash(&item);
+
+            let signature = ContextSignature::Function {
+                type_hash: free_hash,
+                item: item.clone(),
+                args: assoc.args,
+            };
+
+            if let Some(old) = self.functions_info.insert(free_hash, signature) {
+                return Err(ContextError::ConflictingFunction {
+                    signature: old,
+                    hash,
+                });
+            }
+
+            self.meta.insert(
+                item.clone(),
+                PrivMeta {
+                    item: Arc::new(item.into()),
+                    kind: PrivMetaKind::Function {
+                        type_hash: hash,
+                        is_test: false,
+                        is_bench: false,
+                    },
+                    source: None,
+                },
+            );
+
+            self.functions.insert(free_hash, assoc.handler.clone());
+        }
+
         Ok(())
     }
 
