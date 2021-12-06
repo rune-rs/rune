@@ -62,9 +62,9 @@ impl Hash {
     #[inline]
     pub fn instance_function<N>(type_hash: Hash, name: N) -> Self
     where
-        N: InstFnNameHash,
+        N: NamedInstFn,
     {
-        let name = name.inst_fn_name_hash();
+        let name = name.name_hash();
         Self(INSTANCE_FUNCTION_HASH ^ (type_hash.0 ^ name.0))
     }
 
@@ -72,9 +72,9 @@ impl Hash {
     #[inline]
     pub fn field_fn<N>(protocol: Protocol, type_hash: Hash, name: N) -> Self
     where
-        N: InstFnNameHash,
+        N: NamedInstFn,
     {
-        let name = name.inst_fn_name_hash();
+        let name = name.name_hash();
         Self(FIELD_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ name.0))
     }
 
@@ -174,6 +174,7 @@ where
 
 /// An instance function name.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum InstFnName {
     /// The instance function refers to the given protocol.
     Protocol(Protocol),
@@ -193,32 +194,51 @@ impl fmt::Display for InstFnName {
     }
 }
 
-/// Trait used to determine what can be used as an instance function name.
-pub trait InstFnNameHash: Copy {
-    /// Generate a locally unique hash to check for conflicts.
-    fn inst_fn_name_hash(self) -> Hash;
-
-    /// Get a human readable name for the function.
-    fn into_name(self) -> InstFnName;
+/// A descriptor for an instance function.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct InstFnInfo {
+    /// The hash of the instance function.
+    pub hash: Hash,
+    /// The name of the instance function.
+    pub name: InstFnName,
 }
 
-impl<'a> InstFnNameHash for &'a str {
-    fn inst_fn_name_hash(self) -> Hash {
+/// Trait used to determine what can be used as an instance function name.
+pub trait NamedInstFn: Copy {
+    /// Get only the hash of the named instance function.
+    fn name_hash(self) -> Hash;
+
+    /// Get information on the naming of the instance function.
+    fn info(self) -> InstFnInfo;
+}
+
+impl NamedInstFn for &str {
+    #[inline]
+    fn name_hash(self) -> Hash {
         Hash::of(self)
     }
 
-    fn into_name(self) -> InstFnName {
-        InstFnName::Instance(self.into())
+    #[inline]
+    fn info(self) -> InstFnInfo {
+        InstFnInfo {
+            hash: self.name_hash(),
+            name: InstFnName::Instance(self.into()),
+        }
     }
 }
 
-impl<'a> InstFnNameHash for Hash {
+impl NamedInstFn for Hash {
     #[inline]
-    fn inst_fn_name_hash(self) -> Hash {
+    fn name_hash(self) -> Hash {
         self
     }
 
-    fn into_name(self) -> InstFnName {
-        InstFnName::Hash(self)
+    #[inline]
+    fn info(self) -> InstFnInfo {
+        InstFnInfo {
+            hash: self,
+            name: InstFnName::Hash(self),
+        }
     }
 }

@@ -10,7 +10,7 @@ use crate::runtime::{
     ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Protocol, Stack,
     StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, InstFnName, InstFnNameHash};
+use crate::{Hash, InstFnInfo, InstFnName, NamedInstFn};
 use std::future;
 use std::sync::Arc;
 
@@ -98,12 +98,12 @@ pub(crate) struct ModuleType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum ModuleAssociatedKind {
+pub(crate) enum AssocKind {
     FieldFn(Protocol),
     Instance,
 }
 
-impl ModuleAssociatedKind {
+impl AssocKind {
     /// Convert the kind into a hash function.
     pub fn hash(self, instance_type: Hash, field: Hash) -> Hash {
         match self {
@@ -113,7 +113,7 @@ impl ModuleAssociatedKind {
     }
 }
 
-pub(crate) struct ModuleAssociatedFn {
+pub(crate) struct AssocFn {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
     pub(crate) type_info: TypeInfo,
@@ -124,7 +124,7 @@ pub(crate) struct ModuleAssociatedFn {
 pub(crate) struct ModuleAssocKey {
     pub(crate) type_hash: Hash,
     pub(crate) hash: Hash,
-    pub(crate) kind: ModuleAssociatedKind,
+    pub(crate) kind: AssocKind,
 }
 
 pub(crate) struct ModuleFn {
@@ -151,7 +151,7 @@ pub struct Module {
     /// Constant values.
     pub(crate) constants: HashMap<Item, ConstValue>,
     /// Instance functions.
-    pub(crate) associated_functions: HashMap<ModuleAssocKey, ModuleAssociatedFn>,
+    pub(crate) associated_functions: HashMap<ModuleAssocKey, AssocFn>,
     /// Registered types.
     pub(crate) types: HashMap<Hash, ModuleType>,
     /// Registered unit type.
@@ -606,13 +606,17 @@ impl Module {
     /// ```
     pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: InstFnNameHash,
+        N: NamedInstFn,
         Func: InstFn<Args>,
     {
-        self.assoc_fn(name, f, ModuleAssociatedKind::Instance)
+        let name = name.info();
+        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
+        let ty = Func::ty();
+        let args = Some(Func::args());
+        self.assoc_fn(name, handler, ty, args, AssocKind::Instance)
     }
 
-    /// Install a protocol function for the given field.
+    /// Install a protocol function that interacts with the given field.
     pub fn field_fn<N, Func, Args>(
         &mut self,
         protocol: Protocol,
@@ -620,62 +624,14 @@ impl Module {
         f: Func,
     ) -> Result<(), ContextError>
     where
-        N: InstFnNameHash,
+        N: NamedInstFn,
         Func: InstFn<Args>,
     {
-        self.assoc_fn(name, f, ModuleAssociatedKind::FieldFn(protocol))
-    }
-
-    /// Install an associated function.
-    fn assoc_fn<N, Func, Args>(
-        &mut self,
-        name: N,
-        f: Func,
-        kind: ModuleAssociatedKind,
-    ) -> Result<(), ContextError>
-    where
-        N: InstFnNameHash,
-        Func: InstFn<Args>,
-    {
-        let type_hash = Func::instance_type_hash();
-        let type_info = Func::instance_type_info();
-
-        let key = ModuleAssocKey {
-            type_hash,
-            hash: name.inst_fn_name_hash(),
-            kind,
-        };
-
-        let name = name.into_name();
-
-        if self.associated_functions.contains_key(&key) {
-            match name {
-                InstFnName::Protocol(protocol) => {
-                    return Err(ContextError::ConflictingProtocolFunction {
-                        type_info,
-                        name: protocol.name.into(),
-                    });
-                }
-                InstFnName::Instance(name) => {
-                    return Err(ContextError::ConflictingInstanceFunction { type_info, name });
-                }
-                InstFnName::Hash(hash) => {
-                    return Err(ContextError::ConflictingInstanceFunctionHash { type_info, hash });
-                }
-            }
-        }
-
+        let name = name.info();
         let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
-
-        let instance_function = ModuleAssociatedFn {
-            handler,
-            args: Some(Func::args()),
-            type_info,
-            name,
-        };
-
-        self.associated_functions.insert(key, instance_function);
-        Ok(())
+        let ty = Func::ty();
+        let args = Some(Func::args());
+        self.assoc_fn(name, handler, ty, args, AssocKind::FieldFn(protocol))
     }
 
     /// Register an instance function.
@@ -707,47 +663,56 @@ impl Module {
     /// ```
     pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: InstFnNameHash,
+        N: NamedInstFn,
         Func: AsyncInstFn<Args>,
     {
-        let type_hash = Func::instance_type_hash();
-        let type_info = Func::instance_type_info();
+        let name = name.info();
+        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
+        let ty = Func::ty();
+        let args = Some(Func::args());
+        self.assoc_fn(name, handler, ty, args, AssocKind::Instance)
+    }
 
+    /// Install an associated function.
+    fn assoc_fn(
+        &mut self,
+        name: InstFnInfo,
+        handler: Arc<FunctionHandler>,
+        ty: InstType,
+        args: Option<usize>,
+        kind: AssocKind,
+    ) -> Result<(), ContextError> {
         let key = ModuleAssocKey {
-            type_hash,
-            hash: name.inst_fn_name_hash(),
-            kind: ModuleAssociatedKind::Instance,
+            type_hash: ty.hash,
+            hash: name.hash,
+            kind,
         };
-
-        let name = name.into_name();
 
         if self.associated_functions.contains_key(&key) {
-            match name {
-                InstFnName::Protocol(protocol) => {
-                    return Err(ContextError::ConflictingProtocolFunction {
-                        type_info,
-                        name: protocol.name.into(),
-                    });
-                }
-                InstFnName::Instance(name) => {
-                    return Err(ContextError::ConflictingInstanceFunction { type_info, name });
-                }
-                InstFnName::Hash(hash) => {
-                    return Err(ContextError::ConflictingInstanceFunctionHash { type_info, hash });
-                }
-            }
+            return Err(match name.name {
+                InstFnName::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
+                    type_info: ty.type_info,
+                    name: protocol.name.into(),
+                },
+                InstFnName::Instance(name) => ContextError::ConflictingInstanceFunction {
+                    type_info: ty.type_info,
+                    name,
+                },
+                InstFnName::Hash(hash) => ContextError::ConflictingInstanceFunctionHash {
+                    type_info: ty.type_info,
+                    hash,
+                },
+            });
         }
 
-        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
-
-        let instance_function = ModuleAssociatedFn {
+        let assoc_fn = AssocFn {
             handler,
-            args: Some(Func::args()),
-            type_info,
-            name,
+            args,
+            type_info: ty.type_info,
+            name: name.name,
         };
 
-        self.associated_functions.insert(key, instance_function);
+        self.associated_functions.insert(key, assoc_fn);
         Ok(())
     }
 }
@@ -776,6 +741,15 @@ pub trait AsyncFunction<Args>: 'static + Send + Sync {
     fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct InstType {
+    /// Hash of the type.
+    pub hash: Hash,
+    /// Type information of the instance function.
+    pub type_info: TypeInfo,
+}
+
 /// Trait used to provide the [inst_fn][Module::inst_fn] function.
 pub trait InstFn<Args>: 'static + Send + Sync {
     /// The type of the instance.
@@ -786,11 +760,9 @@ pub trait InstFn<Args>: 'static + Send + Sync {
     /// Get the number of arguments.
     fn args() -> usize;
 
-    /// Access the value type of the instance.
-    fn instance_type_hash() -> Hash;
-
-    /// Access the value type info of the instance.
-    fn instance_type_info() -> TypeInfo;
+    /// Access static information on the instance type with the associated
+    /// function.
+    fn ty() -> InstType;
 
     /// Perform the vm call.
     fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
@@ -806,11 +778,9 @@ pub trait AsyncInstFn<Args>: 'static + Send + Sync {
     /// Get the number of arguments.
     fn args() -> usize;
 
-    /// Access the value type of the instance.
-    fn instance_type_hash() -> Hash;
-
-    /// Access the value type of the instance.
-    fn instance_type_info() -> TypeInfo;
+    /// Access static information on the instance type with the associated
+    /// function.
+    fn ty() -> InstType;
 
     /// Perform the vm call.
     fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
@@ -923,12 +893,11 @@ macro_rules! impl_register {
                 $count + 1
             }
 
-            fn instance_type_hash() -> Hash {
-                Instance::type_hash()
-            }
-
-            fn instance_type_info() -> TypeInfo {
-                Instance::type_info()
+            fn ty() -> InstType {
+                InstType {
+                    hash: Instance::type_hash(),
+                    type_info: Instance::type_info(),
+                }
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
@@ -973,12 +942,11 @@ macro_rules! impl_register {
                 $count + 1
             }
 
-            fn instance_type_hash() -> Hash {
-                Instance::type_hash()
-            }
-
-            fn instance_type_info() -> TypeInfo {
-                Instance::type_info()
+            fn ty() -> InstType {
+                InstType {
+                    hash: Instance::type_hash(),
+                    type_info: Instance::type_info(),
+                }
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {

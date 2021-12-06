@@ -223,7 +223,7 @@ pub mod diagnostics;
 pub use self::diagnostics::Diagnostics;
 
 mod hash;
-pub use self::hash::{Hash, InstFnName, InstFnNameHash, IntoTypeHash};
+pub use self::hash::{Hash, InstFnInfo, InstFnName, IntoTypeHash, NamedInstFn};
 
 mod indexing;
 
