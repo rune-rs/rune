@@ -1,7 +1,7 @@
-use crate::compile::{ContextError, InstallWith, Module, Named};
+use crate::compile::{InstallWith, Named};
 use crate::runtime::{
-    FromValue, Iterator, Mut, Panic, Protocol, RawMut, RawRef, RawStr, Ref, ToValue,
-    UnsafeFromValue, Value, Vm, VmError, VmErrorKind,
+    FromValue, Iterator, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
+    Vm, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::ops;
@@ -262,12 +262,4 @@ impl Named for Range {
     const BASE_NAME: RawStr = RawStr::from_str("Range");
 }
 
-impl InstallWith for Range {
-    fn install_with(module: &mut Module) -> Result<(), ContextError> {
-        module.field_fn(Protocol::GET, "start", |r: &Range| r.start.clone())?;
-        module.field_fn(Protocol::GET, "end", |r: &Range| r.end.clone())?;
-        module.inst_fn(Protocol::INTO_ITER, Range::into_iterator)?;
-        module.inst_fn("iter", Range::into_iterator)?;
-        Ok(())
-    }
-}
+impl InstallWith for Range {}
