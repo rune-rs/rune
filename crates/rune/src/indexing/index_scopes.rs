@@ -227,48 +227,45 @@ impl IndexScopes {
         let mut levels = self.levels.borrow_mut();
         let iter = levels.iter_mut().rev();
 
-        let mut closures = Vec::new();
+        // Defer marking a variable as found since it might not be declared at
+        // all during the indexing stage.
         let mut found = false;
+        let mut closures = smallvec::SmallVec::<[_; 8]>::new();
 
-        for level in iter {
-            match level {
-                IndexScopeLevel::IndexScope(scope) => {
-                    if scope.locals.get(var).is_some() {
-                        found = true;
-                        break;
-                    }
-                }
-                IndexScopeLevel::IndexClosure(closure) => {
-                    if closure.existing.contains(var) {
-                        found = true;
-                        break;
-                    }
+        for scope in iter {
+            let (scope, closure, term) = match scope {
+                IndexScopeLevel::IndexScope(scope) => (scope, None, false),
+                IndexScopeLevel::IndexClosure(closure) => (
+                    &mut closure.scope,
+                    Some((&mut closure.existing, &mut closure.captures)),
+                    false,
+                ),
+                IndexScopeLevel::IndexFunction(function) => (&mut function.scope, None, true),
+            };
 
-                    if closure.scope.locals.get(var).is_some() {
-                        found = true;
-                        break;
-                    }
+            // Found a local variable - nothing more to do!
+            if scope.locals.get(var).is_some() {
+                found = true;
+                break;
+            }
 
-                    closures.push(closure);
+            if let Some((existing, captures)) = closure {
+                if existing.contains(var) {
+                    found = true;
+                } else {
+                    closures.push((existing, captures));
                 }
-                // NB: cannot capture variables outside of functions.
-                IndexScopeLevel::IndexFunction(scope) => {
-                    found = scope.scope.locals.get(var).is_some();
-                    break;
-                }
+            }
+
+            if term || found {
+                break;
             }
         }
 
-        // mark all traversed closures to capture the given variable.
         if found {
-            for closure in closures {
-                closure.captures.push(CaptureMeta { ident: var.into() });
-
-                let inserted = closure.existing.insert(var.into());
-
-                // NB: should be checked above, because closures where it's
-                // already captured are skipped.
-                debug_assert!(inserted);
+            for (existing, captures) in closures {
+                existing.insert(var.into());
+                captures.push(CaptureMeta { ident: var.into() });
             }
         }
     }

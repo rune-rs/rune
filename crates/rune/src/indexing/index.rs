@@ -916,20 +916,20 @@ fn local(ast: &mut ast::Local, idx: &mut Indexer<'_>) -> CompileResult<()> {
         return Err(CompileError::msg(span, "attributes are not supported"));
     }
 
-    pat(&mut ast.pat, idx)?;
+    pat(&mut ast.pat, idx, false)?;
     expr(&mut ast.expr, idx)?;
     Ok(())
 }
 
 #[instrument]
 fn expr_let(ast: &mut ast::ExprLet, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    pat(&mut ast.pat, idx)?;
+    pat(&mut ast.pat, idx, false)?;
     expr(&mut ast.expr, idx)?;
     Ok(())
 }
 
 #[instrument]
-fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn declare(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
 
     let ident = ast.resolve(resolve_context!(idx.q))?;
@@ -938,13 +938,14 @@ fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
 }
 
 #[instrument]
-fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>, is_use: bool) -> CompileResult<()> {
     match ast {
         ast::Pat::PatPath(pat) => {
-            path(&mut pat.path, idx)?;
+            path(&mut pat.path, idx, is_use)?;
 
             if let Some(i) = pat.path.try_as_ident_mut() {
-                ident(i, idx)?;
+                // Treat as a variable declaration going lexically forward.
+                declare(i, idx)?;
             }
         }
         ast::Pat::PatObject(pat) => {
@@ -970,11 +971,12 @@ fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()> {
 #[instrument]
 fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
     if let Some(p) = &mut ast.path {
-        path(p, idx)?;
+        // Not a variable use - just the name of the tuple.
+        path(p, idx, false)?;
     }
 
     for (p, _) in &mut ast.items {
-        pat(p, idx)?;
+        pat(p, idx, false)?;
     }
 
     Ok(())
@@ -982,7 +984,7 @@ fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()
 
 #[instrument]
 fn pat_binding(ast: &mut ast::PatBinding, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    pat(&mut ast.pat, idx)?;
+    pat(&mut ast.pat, idx, false)?;
     Ok(())
 }
 
@@ -991,12 +993,13 @@ fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<
     match &mut ast.ident {
         ast::ObjectIdent::Anonymous(..) => (),
         ast::ObjectIdent::Named(p) => {
-            path(p, idx)?;
+            // Not a variable use - just a name in a pattern match.
+            path(p, idx, false)?;
         }
     }
 
     for (p, _) in &mut ast.items {
-        pat(p, idx)?;
+        pat(p, idx, false)?;
     }
 
     Ok(())
@@ -1005,7 +1008,7 @@ fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<
 #[instrument]
 fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
     for (p, _) in &mut ast.items {
-        pat(p, idx)?;
+        pat(p, idx, false)?;
     }
 
     Ok(())
@@ -1017,7 +1020,7 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>) -> CompileResult<()> {
 
     match ast {
         ast::Expr::Path(e) => {
-            path(e, idx)?;
+            path(e, idx, true)?;
         }
         ast::Expr::Let(e) => {
             expr_let(e, idx)?;
@@ -1178,7 +1181,7 @@ fn expr_match(ast: &mut ast::ExprMatch, idx: &mut Indexer<'_>) -> CompileResult<
         }
 
         let _guard = idx.scopes.push_scope();
-        pat(&mut branch.pat, idx)?;
+        pat(&mut branch.pat, idx, false)?;
         expr(&mut branch.body, idx)?;
     }
 
@@ -1450,21 +1453,23 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
 }
 
 #[instrument]
-fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>, is_use: bool) -> CompileResult<()> {
     let id = idx
         .q
         .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
     ast.id.set(id);
 
-    match ast.as_kind() {
-        Some(ast::PathKind::SelfValue) => {
-            idx.scopes.mark_use(SELF);
+    if is_use {
+        match ast.as_kind() {
+            Some(ast::PathKind::SelfValue) => {
+                idx.scopes.mark_use(SELF);
+            }
+            Some(ast::PathKind::Ident(ident)) => {
+                let ident = ident.resolve(resolve_context!(idx.q))?;
+                idx.scopes.mark_use(ident);
+            }
+            None => (),
         }
-        Some(ast::PathKind::Ident(ident)) => {
-            let ident = ident.resolve(resolve_context!(idx.q))?;
-            idx.scopes.mark_use(ident);
-        }
-        None => (),
     }
 
     Ok(())
@@ -1491,7 +1496,7 @@ fn expr_for(ast: &mut ast::ExprFor, idx: &mut Indexer<'_>) -> CompileResult<()> 
     expr(&mut ast.iter, idx)?;
 
     let _guard = idx.scopes.push_scope();
-    pat(&mut ast.binding, idx)?;
+    pat(&mut ast.binding, idx, false)?;
     block(&mut ast.body, idx)?;
     Ok(())
 }
@@ -1634,7 +1639,7 @@ fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResul
                 expr(&mut p.expr, idx)?;
 
                 let _guard = idx.scopes.push_scope();
-                pat(&mut p.pat, idx)?;
+                pat(&mut p.pat, idx, false)?;
                 expr(&mut p.body, idx)?;
             }
             ast::ExprSelectBranch::Default(def) => {
@@ -1708,7 +1713,8 @@ fn expr_vec(ast: &mut ast::ExprVec, idx: &mut Indexer<'_>) -> CompileResult<()> 
 fn expr_object(ast: &mut ast::ExprObject, idx: &mut Indexer<'_>) -> CompileResult<()> {
     match &mut ast.ident {
         ast::ObjectIdent::Named(p) => {
-            path(p, idx)?;
+            // Not a variable use: Name of the object.
+            path(p, idx, false)?;
         }
         ast::ObjectIdent::Anonymous(..) => (),
     }
