@@ -2,6 +2,7 @@ use crate::ast;
 use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::collections::HashMap;
 use crate::compile::attrs;
+use crate::compile::ir;
 use crate::compile::{
     CompileError, CompileErrorKind, CompileResult, Item, Location, ModMeta, Options, PrivMeta,
     PrivMetaKind, SourceLoader, SourceMeta, Visibility,
@@ -829,7 +830,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         }
 
         block(&mut ast.block, idx)?;
-        idx.q.index_const(&item, ast)?;
+        idx.q.index_const(&item, ast, ir::compile::expr_block)?;
         return Ok(());
     }
 
@@ -1404,7 +1405,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
     expr(&mut ast.expr, idx)?;
     idx.nested_item = last;
 
-    idx.q.index_const(&item, &ast.expr)?;
+    idx.q.index_const(&item, &ast.expr, ir::compile::expr)?;
     Ok(())
 }
 

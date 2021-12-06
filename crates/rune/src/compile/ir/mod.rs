@@ -3,26 +3,58 @@
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
-mod ir_compiler;
-pub(crate) use self::ir_compiler::{IrCompile, IrCompiler};
+pub(crate) mod compile;
+pub(crate) use self::compile::IrCompiler;
 
-mod ir_error;
-pub use self::ir_error::{IrError, IrErrorKind};
+mod error;
+pub use self::error::{IrError, IrErrorKind};
 
-mod ir_eval;
-pub(crate) use self::ir_eval::{IrEval, IrEvalOutcome};
+mod eval;
+pub(crate) use self::eval::{eval_ir, IrEvalOutcome};
 
-mod ir_interpreter;
-pub(crate) use self::ir_interpreter::{IrBudget, IrInterpreter};
+mod interpreter;
+pub(crate) use self::interpreter::{IrBudget, IrInterpreter};
 
-mod ir_value;
-pub use self::ir_value::IrValue;
+mod value;
+pub use self::value::IrValue;
 
-use self::ir_eval::IrEvalBreak;
+use self::eval::IrEvalBreak;
 use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;
+use crate::compile::ItemMeta;
 use crate::query::Used;
+
+/// Context used for [IrEval].
+pub struct IrEvalContext<'a> {
+    pub(crate) c: IrCompiler<'a>,
+    pub(crate) item: &'a ItemMeta,
+}
+
+/// The trait for a type that can be compiled into intermediate representation.
+///
+/// This is primarily used through [MacroContext::eval][crate::macros::MacroContext::eval].
+pub trait IrEval {
+    /// Evaluate the current value as a constant expression and return its value
+    /// through its intermediate representation [IrValue].
+    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue, IrError>;
+}
+
+impl IrEval for ast::Expr {
+    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue, IrError> {
+        let ir = compile::expr(self, &mut ctx.c)?;
+
+        let mut ir_interpreter = IrInterpreter {
+            budget: IrBudget::new(1_000_000),
+            scopes: Default::default(),
+            module: ctx.item.module.clone(),
+            item: ctx.item.item.clone(),
+            q: ctx.c.q.borrow(),
+        };
+
+        ir_interpreter.eval_value(&ir, Used::Used)
+    }
+}
 
 macro_rules! decl_kind {
     (
@@ -156,7 +188,7 @@ impl IrFn {
             return Err(IrError::msg(arg, "unsupported argument in const fn"));
         }
 
-        let ir_scope = ast.body.compile(c)?;
+        let ir_scope = compile::block(&ast.body, c)?;
 
         Ok(ir::IrFn {
             span: ast.span(),
@@ -353,7 +385,7 @@ impl IrBreak {
 
         let kind = match ast.expr.as_deref() {
             Some(expr) => match expr {
-                ast::ExprBreakValue::Expr(expr) => ir::IrBreakKind::Ir(Box::new(expr.compile(c)?)),
+                ast::ExprBreakValue::Expr(e) => ir::IrBreakKind::Ir(Box::new(compile::expr(e, c)?)),
                 ast::ExprBreakValue::Label(label) => {
                     ir::IrBreakKind::Label(c.resolve(label)?.into())
                 }
@@ -373,7 +405,7 @@ impl IrBreak {
         }
 
         match &self.kind {
-            IrBreakKind::Ir(ir) => match ir.eval(interp, used) {
+            IrBreakKind::Ir(ir) => match ir::eval_ir(ir, interp, used) {
                 Ok(value) => IrEvalOutcome::Break(span, IrEvalBreak::Value(value)),
                 Err(err) => err,
             },

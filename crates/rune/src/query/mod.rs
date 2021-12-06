@@ -7,9 +7,9 @@ use crate::collections::{HashMap, HashSet};
 use crate::compile::ir;
 use crate::compile::{
     CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, EmptyMeta,
-    ImportStep, IntoComponent, IrBudget, IrCompile, IrCompiler, IrInterpreter, Item, ItemMeta,
-    Location, ModMeta, Names, PrivMeta, PrivMetaKind, SourceMeta, StructMeta, TupleMeta,
-    UnitBuilder, Visibility,
+    ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemMeta, Location,
+    ModMeta, Names, PrivMeta, PrivMetaKind, SourceMeta, StructMeta, TupleMeta, UnitBuilder,
+    Visibility,
 };
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
@@ -418,16 +418,13 @@ impl<'a> Query<'a> {
     pub(crate) fn index_const<T>(
         &mut self,
         item: &Arc<ItemMeta>,
-        expr: &T,
-    ) -> Result<(), QueryError>
-    where
-        T: IrCompile<Output = ir::Ir>,
-    {
+        value: &T,
+        f: fn(&T, &mut IrCompiler) -> Result<ir::Ir, ir::IrError>,
+    ) -> Result<(), QueryError> {
         log::trace!("new const: {:?}", item.item);
 
-        let mut ir_compiler = IrCompiler { q: self.borrow() };
-
-        let ir = ir_compiler.compile(expr)?;
+        let mut c = IrCompiler { q: self.borrow() };
+        let ir = f(value, &mut c)?;
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -1011,9 +1008,8 @@ impl<'a> Query<'a> {
                 PrivMetaKind::Const { const_value }
             }
             Indexed::ConstFn(c) => {
-                let mut ir_compiler = IrCompiler { q: self.borrow() };
-
-                let ir_fn = ir::IrFn::compile_ast(&c.item_fn, &mut ir_compiler)?;
+                let mut compiler = IrCompiler { q: self.borrow() };
+                let ir_fn = ir::IrFn::compile_ast(&c.item_fn, &mut compiler)?;
 
                 let id = self.insert_const_fn(&query_item, ir_fn);
 
@@ -1274,7 +1270,7 @@ impl<'a> Query<'a> {
 
 /// Indication whether a value is being evaluated because it's being used or not.
 #[derive(Debug, Clone, Copy)]
-pub enum Used {
+pub(crate) enum Used {
     /// The value is not being used.
     Unused,
     /// The value is being used.

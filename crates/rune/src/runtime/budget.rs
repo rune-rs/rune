@@ -25,9 +25,6 @@ pub struct Budget<T> {
 }
 
 /// Wrap the given value with a budget.
-///
-/// The value can either be a function, after which you can use [Budget::call],
-/// or it can be a [Future] which can be polled.
 pub fn with<T>(budget: usize, value: T) -> Budget<T> {
     Budget { budget, value }
 }
