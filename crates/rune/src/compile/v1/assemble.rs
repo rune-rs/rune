@@ -5,6 +5,7 @@ use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
 use crate::compile::{
     CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, PrivMeta, PrivMetaKind,
 };
+use crate::hash::ParametersBuilder;
 use crate::parse::{Id, ParseErrorKind, Resolve};
 use crate::query::{BuiltInFormat, BuiltInTemplate, Named};
 use crate::runtime::{
@@ -1604,7 +1605,7 @@ fn generics_parameters(
     generics: &ast::AngleBracketed<ast::PathSegmentExpr, T![,]>,
     c: &mut Assembler<'_>,
 ) -> Result<Hash, CompileError> {
-    let mut parameters = Vec::with_capacity(generics.len());
+    let mut parameters = ParametersBuilder::new();
 
     for (param, _) in generics {
         let path = match &param.expr {
@@ -1632,10 +1633,10 @@ fn generics_parameters(
             }
         };
 
-        parameters.push(hash);
+        parameters.add(hash);
     }
 
-    Ok(Hash::parameters(parameters))
+    Ok(parameters.finish())
 }
 
 enum Call {
