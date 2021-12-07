@@ -8,12 +8,12 @@ use std::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
 use std::mem;
 use twox_hash::XxHash64;
 
-const SEP: usize = 0x7f;
-const PARAMS: usize = 0x80;
-const TYPE: usize = 1;
+const SEP: u64 = 0x4bc94d6bd06053ad;
+const PARAMS: u64 = 0x19893cc8f39b1371;
+const TYPE: u64 = 0x2fac10b63a6cc57c;
 const INSTANCE_FUNCTION_HASH: u64 = 0x5ea77ffbcdf5f302;
 const FIELD_FUNCTION_HASH: u64 = 0xab53b6a7a53c757e;
-const OBJECT_KEYS: usize = 4;
+const OBJECT_KEYS: u64 = 0x4473d7017aef7645;
 
 /// The primitive hash that among other things is used to reference items,
 /// types, and native functions.
@@ -54,7 +54,7 @@ impl Hash {
     }
 
     /// Construct a hash from a type id.
-    pub fn from_type_id(type_id: any::TypeId) -> Self {
+    pub const fn from_type_id(type_id: any::TypeId) -> Self {
         // Safety: a type id is exactly a 64-bit unsigned integer.
         // And has an identical bit pattern to `Hash`.
         unsafe { mem::transmute(type_id) }
@@ -119,33 +119,39 @@ impl Hash {
         I: IntoIterator,
         I::Item: IntoTypeHash,
     {
-        let mut hasher = Self::new_hasher();
-
-        PARAMS.hash(&mut hasher);
+        let mut hasher = ParametersBuilder::new();
 
         for p in parameters {
-            SEP.hash(&mut hasher);
-            p.hash(&mut hasher);
+            hasher.add(p);
         }
 
-        Self(hasher.finish())
+        hasher.finish()
     }
 
     /// Construct a new hasher.
-    fn new_hasher() -> impl Hasher {
+    fn new_hasher() -> XxHash64 {
         BuildHasherDefault::<XxHash64>::default().build_hasher()
     }
 }
 
 impl fmt::Display for Hash {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "0x{:x}", self.0)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:x}", self.0)
     }
 }
 
 impl fmt::Debug for Hash {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "Hash(0x{:x})", self.0)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        return f.debug_tuple("Hash").field(&Hex(self.0)).finish();
+
+        #[repr(transparent)]
+        struct Hex(u64);
+
+        impl fmt::Debug for Hex {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "0x{:x}", self.0)
+            }
+        }
     }
 }
 
@@ -307,5 +313,27 @@ where
             kind: info.kind,
             parameters: Hash::parameters(self.1),
         }
+    }
+}
+
+/// Helper to build a parameters hash.
+pub(crate) struct ParametersBuilder {
+    hasher: XxHash64,
+}
+
+impl ParametersBuilder {
+    pub(crate) fn new() -> Self {
+        let mut hasher = Hash::new_hasher();
+        PARAMS.hash(&mut hasher);
+        Self { hasher }
+    }
+
+    pub(crate) fn add(&mut self, p: impl IntoTypeHash) {
+        SEP.hash(&mut self.hasher);
+        p.hash(&mut self.hasher);
+    }
+
+    pub(crate) fn finish(&self) -> Hash {
+        Hash(self.hasher.finish())
     }
 }
