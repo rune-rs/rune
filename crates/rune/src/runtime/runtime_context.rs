@@ -18,7 +18,7 @@ pub(crate) type MacroHandler =
 /// * Declared functions.
 /// * Declared instance functions.
 /// * Built-in type checks.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct RuntimeContext {
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<FunctionHandler>>,

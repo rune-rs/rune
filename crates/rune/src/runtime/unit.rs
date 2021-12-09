@@ -13,7 +13,7 @@ use std::fmt;
 use std::sync::Arc;
 
 /// Instructions from a single source file.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Unit {
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
