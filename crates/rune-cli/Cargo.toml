@@ -1,6 +1,6 @@
 [package]
 name = "rune-cli"
-version = "0.10.1"
+version = "0.10.2"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2021"
@@ -24,8 +24,8 @@ codespan-reporting = "0.11.1"
 anyhow = { version = "1.0.49", features = ["std"] }
 structopt = { version = "0.3.25", default-features = false, features = ["wrap_help", "suggestions", "color"] }
 
-rune = {version = "0.10.1", path = "../rune"}
-rune-modules = {version = "0.10.1", path = "../rune-modules", features = ["full", "experiments", "capture-io"]}
+rune = {version = "0.10.2", path = "../rune"}
+rune-modules = {version = "0.10.2", path = "../rune-modules", features = ["full", "experiments", "capture-io"]}
 
 [build-dependencies]
 anyhow = "1.0.49"
