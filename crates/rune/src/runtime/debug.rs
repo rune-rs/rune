@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Debug information about a unit.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct DebugInfo {
     /// Debug information on each instruction.
@@ -35,7 +35,7 @@ impl DebugInfo {
 }
 
 /// Debug information for every instruction.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct DebugInst {
     /// The file by id the instruction belongs to.
@@ -66,7 +66,7 @@ impl DebugInst {
 }
 
 /// Debug information on function arguments.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DebugArgs {
     /// An empty, with not arguments.
     EmptyArgs,
@@ -77,7 +77,7 @@ pub enum DebugArgs {
 }
 
 /// A description of a function signature.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct DebugSignature {
     /// The path of the function.
