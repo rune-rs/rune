@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/rune-rs/rune/compare/0.10.1...main
+[Unreleased]: https://github.com/rune-rs/rune/compare/0.10.2...main
+
+## [0.10.2]
+
+## Fixed
+* Fix rune-cli build when building with default features, as it does when
+  installing from crates.io ([#368]) (thanks [tgolsson]!).
+
+[#368]: https://github.com/rune-rs/rune/issues/368
+[tgolsson]: https://github.com/tgolsson
+
+[0.10.2]: https://github.com/rune-rs/rune/compare/0.10.1...0.10.2
 
 ## [0.10.1]
 
