@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1639038092766,
+  "lastUpdate": 1639144893237,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -12268,6 +12268,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4494017,
             "range": "± 825925",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "pkolaczk@datastax.com",
+            "name": "Piotr Kołaczkowski",
+            "username": "pkolaczk"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "aab70a24aadb6efd232d57b579a65db9f59402a2",
+          "message": "Add Clone to Unit and Context\n\nOn multiprocessor computers, sharing the\nsame Unit (or Context) behind a single Arc can\nbe very costly, because the Arc(s) used inside\nthose structures end up in the\ncaches of all cores, and each update on\none core invalidates caches of the other cores.\n\nBy allowing Unit and Context to be Clone,\nthe users are able to do deep per-thread copies,\neffectively unsharing all the reference counters\nand letting each core progress at full\nspeed independently, at the expense of higher memory use.",
+          "timestamp": "2021-12-10T14:54:43+01:00",
+          "tree_id": "2782d1a55fd8af42d14e5623eaaca483e431f2be",
+          "url": "https://github.com/rune-rs/rune/commit/aab70a24aadb6efd232d57b579a65db9f59402a2"
+        },
+        "date": 1639144892257,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 375935794,
+            "range": "± 1032072",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 211800393,
+            "range": "± 2657174",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 259415,
+            "range": "± 1852",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 797750,
+            "range": "± 33507",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 66321601,
+            "range": "± 493278",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1113229,
+            "range": "± 13593",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 12114643,
+            "range": "± 155085",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 10569680,
+            "range": "± 117719",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 359727,
+            "range": "± 2304",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4088614,
+            "range": "± 19136",
             "unit": "ns/iter"
           }
         ]
