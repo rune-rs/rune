@@ -323,7 +323,7 @@ impl Stack {
     // Assert that the stack frame has been restored to the previous top
     // at the point of return.
     pub(crate) fn check_stack_top(&self) -> Result<(), StackError> {
-        log::trace!(
+        tracing::trace!(
             "check_stack_top: self.stack.len() ({}) == self.stack_bottom ({})",
             self.stack.len(),
             self.stack_bottom

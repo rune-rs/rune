@@ -75,7 +75,7 @@ impl Server {
             return Ok(());
         }
 
-        log::warn!("Unhandled method `{}`", method);
+        tracing::warn!("Unhandled method `{}`", method);
 
         self.output
             .log(

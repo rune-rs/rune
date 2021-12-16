@@ -1931,7 +1931,7 @@ fn expr_closure(ast: &ast::ExprClosure, c: &mut Assembler<'_>, needs: Needs) -> 
         }
     };
 
-    log::trace!("captures: {} => {:?}", item.item, captures);
+    tracing::trace!("captures: {} => {:?}", item.item, captures);
 
     if captures.is_empty() {
         // NB: if closure doesn't capture the environment it acts like a regular

@@ -106,7 +106,7 @@ impl Scope {
     fn decl_var(&mut self, name: &str, span: Span) -> usize {
         let offset = self.total_var_count;
 
-        log::trace!("decl {} => {}", name, offset);
+        tracing::trace!("decl {} => {}", name, offset);
 
         self.locals.insert(
             name.to_owned(),
@@ -209,11 +209,11 @@ impl Scopes {
         source_id: SourceId,
         span: Span,
     ) -> CompileResult<Option<Var>> {
-        log::trace!("get var: {}", name);
+        tracing::trace!("get var: {}", name);
 
         for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name, span)? {
-                log::trace!("found var: {} => {:?}", name, var);
+                tracing::trace!("found var: {} => {:?}", name, var);
                 visitor.visit_variable_use(source_id, var.span, span);
                 return Ok(Some(var));
             }
@@ -231,11 +231,11 @@ impl Scopes {
         source_id: SourceId,
         span: Span,
     ) -> CompileResult<Option<&Var>> {
-        log::trace!("get var: {}", name);
+        tracing::trace!("get var: {}", name);
 
         for scope in self.scopes.iter_mut().rev() {
             if let Some(var) = scope.take(name, span)? {
-                log::trace!("found var: {} => {:?}", name, var);
+                tracing::trace!("found var: {} => {:?}", name, var);
                 visitor.visit_variable_use(source_id, var.span, span);
                 return Ok(Some(var));
             }

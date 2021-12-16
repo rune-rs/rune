@@ -404,7 +404,7 @@ impl<'a> Query<'a> {
 
     /// Index the given entry. It is not allowed to overwrite other entries.
     pub(crate) fn index(&mut self, entry: IndexedEntry) {
-        log::trace!("indexed: {}", entry.item.item);
+        tracing::trace!("index: {}", entry.item.item);
 
         self.insert_name(&entry.item.item);
         self.inner
@@ -421,7 +421,7 @@ impl<'a> Query<'a> {
         value: &T,
         f: fn(&T, &mut IrCompiler) -> Result<ir::Ir, ir::IrError>,
     ) -> Result<(), QueryError> {
-        log::trace!("new const: {:?}", item.item);
+        tracing::trace!("new const: {:?}", item.item);
 
         let mut c = IrCompiler { q: self.borrow() };
         let ir = f(value, &mut c)?;
@@ -443,7 +443,7 @@ impl<'a> Query<'a> {
         item: &Arc<ItemMeta>,
         item_fn: Box<ast::ItemFn>,
     ) -> Result<(), QueryError> {
-        log::trace!("new const fn: {:?}", item.item);
+        tracing::trace!("new const fn: {:?}", item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -455,7 +455,7 @@ impl<'a> Query<'a> {
 
     /// Add a new enum item.
     pub(crate) fn index_enum(&mut self, item: &Arc<ItemMeta>) -> Result<(), QueryError> {
-        log::trace!("new enum: {:?}", item.item);
+        tracing::trace!("new enum: {:?}", item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -471,7 +471,7 @@ impl<'a> Query<'a> {
         item: &Arc<ItemMeta>,
         ast: Box<ast::ItemStruct>,
     ) -> Result<(), QueryError> {
-        log::trace!("new struct: {:?}", item.item);
+        tracing::trace!("new struct: {:?}", item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -488,7 +488,7 @@ impl<'a> Query<'a> {
         enum_id: Id,
         ast: ast::ItemVariant,
     ) -> Result<(), QueryError> {
-        log::trace!("new variant: {:?}", item.item);
+        tracing::trace!("new variant: {:?}", item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -507,7 +507,7 @@ impl<'a> Query<'a> {
         call: Call,
         do_move: bool,
     ) -> Result<(), QueryError> {
-        log::trace!("new closure: {:?}", item.item);
+        tracing::trace!("new closure: {:?}", item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -531,7 +531,7 @@ impl<'a> Query<'a> {
         call: Call,
         do_move: bool,
     ) -> Result<(), QueryError> {
-        log::trace!("new closure: {:?}", item.item);
+        tracing::trace!("new closure: {:?}", item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -668,7 +668,7 @@ impl<'a> Query<'a> {
         };
 
         for (_, segment) in &path.rest {
-            log::trace!("item = {}", item);
+            tracing::trace!("item = {}", item);
 
             if generics.is_some() {
                 return Err(CompileError::new(
@@ -746,6 +746,8 @@ impl<'a> Query<'a> {
         alias: Option<ast::Ident>,
         wildcard: bool,
     ) -> Result<(), QueryError> {
+        tracing::trace!("insert_import {}", at);
+
         let alias = match alias {
             Some(alias) => Some(alias.resolve(resolve_context!(self))?),
             None => None,

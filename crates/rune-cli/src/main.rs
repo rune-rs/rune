@@ -421,7 +421,9 @@ async fn try_main() -> Result<ExitCode, io::Error> {
         stderr: &mut stderr,
     };
 
-    env_logger::init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::TRACE)
+        .init();
 
     match main_with_out(&mut io, args).await {
         Ok(code) => Ok(code),

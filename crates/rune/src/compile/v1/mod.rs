@@ -60,10 +60,10 @@ impl<'a> Assembler<'a> {
         spanned: Span,
         item: &Item,
     ) -> CompileResult<Option<PrivMeta>> {
-        log::trace!("lookup meta: {:?}", item);
+        tracing::trace!("lookup meta: {:?}", item);
 
         if let Some(meta) = self.q.query_meta(spanned, item, Default::default())? {
-            log::trace!("found in query: {:?}", meta);
+            tracing::trace!("found in query: {:?}", meta);
             self.q
                 .visitor
                 .visit_meta(self.source_id, meta.info_ref(), spanned);
@@ -71,7 +71,7 @@ impl<'a> Assembler<'a> {
         }
 
         if let Some(meta) = self.context.lookup_meta(item) {
-            log::trace!("found in context: {:?}", meta);
+            tracing::trace!("found in context: {:?}", meta);
             self.q
                 .visitor
                 .visit_meta(self.source_id, meta.info_ref(), spanned);

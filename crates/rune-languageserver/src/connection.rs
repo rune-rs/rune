@@ -28,7 +28,7 @@ impl Input {
             None => return Ok(None),
         };
 
-        log::trace!("headers: {:?}", headers);
+        tracing::trace!("headers: {:?}", headers);
 
         let length = match headers.content_length {
             Some(length) => length as usize,
@@ -37,7 +37,7 @@ impl Input {
 
         self.buf.resize(length, 0u8);
 
-        log::trace!("read frame: {}", self.buf.len());
+        tracing::trace!("read frame: {}", self.buf.len());
         self.stdin.read_exact(&mut self.buf[..]).await?;
 
         Ok(Some(Frame { content: &self.buf }))

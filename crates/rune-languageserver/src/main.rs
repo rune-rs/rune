@@ -47,32 +47,36 @@
 use anyhow::{bail, Result};
 use rune::Options;
 use std::env;
+use std::path::PathBuf;
+use tracing_appender::non_blocking::WorkerGuard;
 
-fn setup_logging() -> Result<()> {
+fn setup_logging() -> Result<Option<WorkerGuard>> {
+    let mut guard = None;
+
     // Set environment variable to get the language server to trace log to the
     // given file.
     if let Some(log_path) = std::env::var_os("RUNE_TRACE_LOG_FILE") {
-        use log::LevelFilter;
-        use log4rs::append::file::FileAppender;
-        use log4rs::config::{Appender, Config, Root};
-        use log4rs::encode::pattern::PatternEncoder;
+        let log_path = PathBuf::from(log_path);
 
-        let logfile = FileAppender::builder()
-            .encoder(Box::new(PatternEncoder::default()))
-            .build(log_path)?;
+        if let (Some(d), Some(name)) = (log_path.parent(), log_path.file_name()) {
+            let file_appender = tracing_appender::rolling::never(d, name);
 
-        let config = Config::builder()
-            .appender(Appender::builder().build("logfile", Box::new(logfile)))
-            .build(Root::builder().appender("logfile").build(LevelFilter::Info))?;
+            let (non_blocking, g) = tracing_appender::non_blocking(file_appender);
 
-        log4rs::init_config(config)?;
+            tracing_subscriber::fmt()
+                .with_max_level(tracing::Level::TRACE)
+                .with_writer(non_blocking)
+                .init();
+
+            guard = Some(g);
+        }
     }
 
-    Ok(())
+    Ok(guard)
 }
 
 fn main() -> Result<()> {
-    setup_logging()?;
+    let _guard = setup_logging()?;
 
     let mut it = env::args();
     it.next();

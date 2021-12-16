@@ -8,6 +8,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::{path::Path, sync::Arc};
+use tracing::{error, trace};
 
 pub(crate) struct Load {
     pub(crate) unit: Arc<Unit>,
@@ -42,11 +43,11 @@ pub(crate) fn load(
 
         match bincode::deserialize_from::<_, Unit>(f) {
             Ok(unit) => {
-                log::trace!("using cache: {}", bytecode_path.display());
+                trace!("using cache: {}", bytecode_path.display());
                 Some(Arc::new(unit))
             }
             Err(e) => {
-                log::error!("failed to deserialize: {}: {}", bytecode_path.display(), e);
+                error!("failed to deserialize: {}: {}", bytecode_path.display(), e);
                 None
             }
         }
@@ -57,7 +58,7 @@ pub(crate) fn load(
     let (unit, functions) = match maybe_unit {
         Some(unit) => (unit, Default::default()),
         None => {
-            log::trace!("building file: {}", path.display());
+            trace!("building file: {}", path.display());
 
             let mut diagnostics = if shared.warnings {
                 Diagnostics::new()
@@ -80,7 +81,7 @@ pub(crate) fn load(
             let unit = result?;
 
             if options.bytecode {
-                log::trace!("serializing cache: {}", bytecode_path.display());
+                trace!("serializing cache: {}", bytecode_path.display());
                 let f = fs::File::create(&bytecode_path)?;
                 bincode::serialize_into(f, &unit)?;
             }
