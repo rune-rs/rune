@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/rune-rs/rune/compare/0.10.2...main
+[Unreleased]: https://github.com/rune-rs/rune/compare/0.10.3...main
+
+## [0.10.3]
+
+## Fixed
+* Stop depending on yanked futures-core ([#372]) (thanks [d00z3l]!).
+
+[#372]: https://github.com/rune-rs/rune/issues/372
+[d00z3l]: https://github.com/d00z3l
+
+[0.10.3]: https://github.com/rune-rs/rune/compare/0.10.2...0.10.3
 
 ## [0.10.2]
 
