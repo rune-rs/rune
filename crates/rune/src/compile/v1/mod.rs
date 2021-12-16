@@ -186,8 +186,8 @@ impl<'a> Assembler<'a> {
         let mut interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            module: from.module.clone(),
-            item: from.item.clone(),
+            module: &from.module,
+            item: &from.item,
             q: self.q.borrow(),
         };
 
@@ -196,8 +196,8 @@ impl<'a> Assembler<'a> {
             interpreter.scopes.decl(name, value, spanned)?;
         }
 
-        interpreter.module = query_const_fn.item.module.clone();
-        interpreter.item = query_const_fn.item.item.clone();
+        interpreter.module = &query_const_fn.item.module;
+        interpreter.item = &query_const_fn.item.item;
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
         Ok(value.into_const(spanned)?)
     }
