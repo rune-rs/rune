@@ -1009,8 +1009,8 @@ impl<'a> Query<'a> {
                 let mut const_compiler = IrInterpreter {
                     budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
-                    module: c.module.clone(),
-                    item: query_item.item.clone(),
+                    module: &c.module,
+                    item: &query_item.item,
                     q: self.borrow(),
                 };
 

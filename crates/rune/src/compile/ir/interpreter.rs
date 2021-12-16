@@ -3,7 +3,6 @@ use crate::compile::ir;
 use crate::compile::{IrError, IrErrorKind, IrEvalOutcome, IrValue, Item, ModMeta, PrivMetaKind};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
-use std::sync::Arc;
 
 /// Ir Scopes.
 pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
@@ -14,9 +13,9 @@ pub struct IrInterpreter<'a> {
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
     /// The module in which the interpreter is run.
-    pub(crate) module: Arc<ModMeta>,
+    pub(crate) module: &'a ModMeta,
     /// The item where the constant expression is located.
-    pub(crate) item: Item,
+    pub(crate) item: &'a Item,
     /// Constant scopes.
     pub(crate) scopes: IrScopes,
     /// Query engine to look for constant expressions.
@@ -28,11 +27,11 @@ impl IrInterpreter<'_> {
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
         log::trace!("processing constant: {}", self.item);
 
-        if let Some(const_value) = self.q.consts.get(&self.item) {
+        if let Some(const_value) = self.q.consts.get(self.item) {
             return Ok(const_value.clone());
         }
 
-        if !self.q.consts.mark(&self.item) {
+        if !self.q.consts.mark(self.item) {
             return Err(IrError::new(ir, IrErrorKind::ConstCycle));
         }
 
