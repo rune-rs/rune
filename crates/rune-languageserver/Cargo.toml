@@ -18,7 +18,7 @@ Language server for Rune.
 tokio = { version = "1.14.0", features = ["full"] }
 tokio-util = { version = "0.6.9", features = ["codec"] }
 lsp = { version = "0.91.1", package = "lsp-types" }
-futures-core = "0.3.18"
+futures-core = "0.3.0"
 anyhow = "1.0.49"
 serde = { version = "1.0.130", features = ["derive"] }
 serde_json = "1.0.72"
