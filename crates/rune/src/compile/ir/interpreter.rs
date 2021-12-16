@@ -25,7 +25,7 @@ pub struct IrInterpreter<'a> {
 impl IrInterpreter<'_> {
     /// Outer evaluation for an expression which performs caching into `consts`.
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
-        log::trace!("processing constant: {}", self.item);
+        tracing::trace!("processing constant: {}", self.item);
 
         if let Some(const_value) = self.q.consts.get(self.item) {
             return Ok(const_value.clone());

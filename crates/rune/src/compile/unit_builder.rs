@@ -597,7 +597,7 @@ impl UnitBuilder {
         call: Call,
         debug_args: Box<[Box<str>]>,
     ) -> Result<(), CompileError> {
-        log::trace!("instance fn: {}", path);
+        tracing::trace!("instance fn: {}", path);
 
         let offset = self.instructions.len();
         let instance_fn = Hash::instance_function(type_hash, name);

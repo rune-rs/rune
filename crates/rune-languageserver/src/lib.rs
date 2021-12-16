@@ -84,7 +84,7 @@ pub fn run(context: Context, options: Options) -> Result<()> {
     );
     server.notification_handler::<lsp::notification::Initialized, _, _>(initialized);
 
-    log::info!("Starting server");
+    tracing::info!("Starting server");
 
     tokio::runtime::Runtime::new()?.block_on(async {
         loop {
@@ -140,7 +140,7 @@ async fn initialize(
 
 /// Handle initialized notification.
 async fn initialized(_: State, _: Output, _: lsp::InitializedParams) -> Result<()> {
-    log::info!("Initialized");
+    tracing::info!("Initialized");
     Ok(())
 }
 
@@ -172,7 +172,7 @@ async fn did_open_text_document(
         .insert_text(params.text_document.uri.clone(), params.text_document.text)
         .is_some()
     {
-        log::warn!(
+        tracing::warn!(
             "opened text document `{}`, but it was already open!",
             params.text_document.uri
         );
@@ -201,7 +201,7 @@ async fn did_change_text_document(
                 }
             }
         } else {
-            log::warn!(
+            tracing::warn!(
                 "tried to modify `{}`, but it was not open!",
                 params.text_document.uri
             );

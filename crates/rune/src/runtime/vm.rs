@@ -2750,7 +2750,7 @@ impl Vm {
                 .instruction_at(self.ip)
                 .ok_or(VmErrorKind::IpOutOfBounds)?;
 
-            log::trace!("{}: {}", self.ip, inst);
+            tracing::trace!("{}: {}", self.ip, inst);
 
             match inst {
                 Inst::Not => {

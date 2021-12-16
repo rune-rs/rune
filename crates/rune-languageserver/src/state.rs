@@ -100,7 +100,7 @@ impl State {
 
         let location = lsp::Location { uri: url, range };
 
-        log::trace!("go to location: {:?}", location);
+        tracing::trace!("go to location: {:?}", location);
         Some(location)
     }
 
@@ -120,7 +120,7 @@ impl State {
         let mut source_loader = SourceLoader::new(sources);
 
         for (url, source) in &inner.sources {
-            log::trace!("build: {}", url);
+            tracing::trace!("build: {}", url);
 
             by_url.insert(url.clone(), Default::default());
 
@@ -322,7 +322,7 @@ impl Source {
         let (found_span, definition) = self.index.definitions.range(..=span).rev().next()?;
 
         if span.start >= found_span.start && span.end <= found_span.end {
-            log::trace!("found {:?}", definition);
+            tracing::trace!("found {:?}", definition);
             return Some(definition);
         }
 
@@ -613,7 +613,7 @@ impl CompileVisitor for Visitor {
         };
 
         if let Some(d) = self.index.definitions.insert(span, definition) {
-            log::warn!("replaced definition: {:?}", d.kind)
+            tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
@@ -628,7 +628,7 @@ impl CompileVisitor for Visitor {
         };
 
         if let Some(d) = self.index.definitions.insert(span, definition) {
-            log::warn!("replaced definition: {:?}", d.kind)
+            tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
@@ -643,7 +643,7 @@ impl CompileVisitor for Visitor {
         };
 
         if let Some(d) = self.index.definitions.insert(span, definition) {
-            log::warn!("replaced definition: {:?}", d.kind)
+            tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }
 }
@@ -709,7 +709,7 @@ impl SourceLoader {
 
 impl rune::compile::SourceLoader for SourceLoader {
     fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<rune::Source, CompileError> {
-        log::trace!("load {} (root: {})", item, root.display());
+        tracing::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {
             for url in candidates.iter() {

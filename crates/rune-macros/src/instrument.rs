@@ -43,10 +43,11 @@ impl Expander {
                 let ident = syn::LitStr::new(&ident.to_string(), ident.span());
 
                 Some(quote! {
+                    let _instrument_span = ::tracing::span!(::tracing::Level::TRACE, #ident);
+                    let _instrument_enter = _instrument_span.enter();
+
                     if let Some(source) = #b.q.sources.source(#b.source_id, #a.span()) {
-                        log::trace!("{} => {:?}", #ident, source);
-                    } else {
-                        log::trace!("{}", #ident);
+                        ::tracing::trace!("{:?}", source);
                     }
                 })
             }
@@ -60,7 +61,7 @@ impl Expander {
         Ok(quote! {
             #vis #sig {
                 #log
-                #(#stmts)*
+                { #(#stmts)* }
             }
         })
     }

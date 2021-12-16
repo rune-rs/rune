@@ -75,7 +75,7 @@ impl<'a> Worker<'a> {
                     source_id,
                     mod_item,
                 } => {
-                    log::trace!("load file: {}", mod_item.item);
+                    tracing::trace!("load file: {}", mod_item.item);
 
                     let source = match self.q.sources.get(source_id) {
                         Some(source) => source,
@@ -103,7 +103,7 @@ impl<'a> Worker<'a> {
                         LoadFileKind::Module { root } => root,
                     };
 
-                    log::trace!("index: {}", mod_item.item);
+                    tracing::trace!("index: {}", mod_item.item);
                     let items = Items::new(mod_item.item.clone(), self.gen);
 
                     let mut indexer = Indexer {
