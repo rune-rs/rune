@@ -55,15 +55,12 @@ pointers out of the virtual machine using the `Function` type.
 This allows you to write code that takes a function constructed in Rune, and use
 it for something else.
 
-Below we showcase this, with the help of the `rune_s!` macro from the `testing`
-module.
-
 ```rust,noplaypen
-{{#include ../../examples/examples/call_rune_fn.rs}}
+{{#include ../../examples/examples/rune_function.rs}}
 ```
 
 ```text
-$> cargo run --example call_rune_fn
+$> cargo run --example rune_function
 4
 8
 ```
