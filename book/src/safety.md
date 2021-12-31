@@ -62,7 +62,7 @@ implementation should be sound. We have an internal `Any` type instead of
 relying on `Box<dyn Any>` to allow [`AnyObjVtable`] to be implementable by external
 types to support external types through a C ffi.
 
-[internal `Any` type]: https://docs.rs/rune/0/rune/struct.AnyObj.html
+[internal `Any` type]: https://docs.rs/rune/0/rune/runtime/struct.AnyObj.html
 [`AnyObjVtable`]: https://docs.rs/rune/0/rune/runtime/struct.AnyObjVtable.html
 
 ## `Shared<T>` and `UnsafeFromValue`
