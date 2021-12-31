@@ -50,10 +50,10 @@ same time it can be harder to reason on what your program will do.
 Rune functions can be easily set up and called from Rust.
 
 ```rust,noplaypen
-{{#include ../../examples/examples/basic_add.rs}}
+{{#include ../../examples/examples/minimal.rs}}
 ```
 
 ```text
-$> cargo run --example basic_add
+$> cargo run --example minimal
 output: 43
 ```
