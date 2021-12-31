@@ -62,8 +62,8 @@ implementation should be sound. We have an internal `Any` type instead of
 relying on `Box<dyn Any>` to allow [`AnyObjVtable`] to be implementable by external
 types to support external types through a C ffi.
 
-[internal `Any` type]: https://docs.rs/rune/0/rune/struct.Any.html
-[`AnyObjVtable`]: https://docs.rs/rune/0/rune/struct.AnyObjVtable.html
+[internal `Any` type]: https://docs.rs/rune/0/rune/struct.AnyObj.html
+[`AnyObjVtable`]: https://docs.rs/rune/0/rune/runtime/struct.AnyObjVtable.html
 
 ## `Shared<T>` and `UnsafeFromValue`
 
@@ -78,5 +78,5 @@ pointer and a raw guard, which is used in many implementations of
 [`UnsafeFromValue`] is a conversion trait which is strictly used internally to
 convert values into references. Its safety is documented in the trait.
 
-["owned borrows"]: https://docs.rs/rune/0/rune/struct.Shared.html#method.into_ref
-[`UnsafeFromValue`]: https://docs.rs/rune/0/rune/trait.UnsafeFromValue.html
+["owned borrows"]: https://docs.rs/rune/0/rune/runtime/struct.Shared.html#method.into_ref
+[`UnsafeFromValue`]: https://docs.rs/rune/0/rune/runtime/trait.UnsafeFromValue.html
