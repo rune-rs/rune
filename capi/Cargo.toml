@@ -1,0 +1,13 @@
+[package]
+name = "rune-capi"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "rune"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+rune = { package = "rune", path = "../crates/rune", features = ["ffi"] }
+cbindgen = "0.20.0"

@@ -171,13 +171,13 @@ impl Vm {
     /// Run the given vm to completion.
     ///
     /// If any async instructions are encountered, this will error.
-    pub fn complete(self) -> Result<Value, VmError> {
+    pub fn complete(&mut self) -> Result<Value, VmError> {
         let mut execution = VmExecution::new(self);
         execution.complete()
     }
 
     /// Run the given vm to completion with support for async functions.
-    pub async fn async_complete(self) -> Result<Value, VmError> {
+    pub async fn async_complete(&mut self) -> Result<Value, VmError> {
         let mut execution = VmExecution::new(self);
         execution.async_complete().await
     }
@@ -354,9 +354,15 @@ impl Vm {
         Ok(value)
     }
 
+    /// Exported for use with FFI.
+    #[cfg(feature = "ffi")]
+    pub fn ffi_set_entrypoint(&mut self, hash: Hash, count: usize) -> Result<(), VmError> {
+        self.set_entrypoint(hash, count)
+    }
+
     /// Update the instruction pointer to match the function matching the given
     /// name and check that the number of argument matches.
-    fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<(), VmError>
+    pub(crate) fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<(), VmError>
     where
         N: IntoTypeHash,
     {
@@ -1094,7 +1100,8 @@ impl Vm {
         let stack = self.stack.drain(args)?.collect::<Stack>();
         let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
-        self.stack.push(Future::new(vm.async_complete()));
+        self.stack
+            .push(Future::new(async move { vm.async_complete().await }));
         Ok(())
     }
 

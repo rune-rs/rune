@@ -176,6 +176,14 @@ impl FromValue for Tuple {
     }
 }
 
+impl FromIterator<Value> for Tuple {
+    fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
+        Self {
+            inner: iter.into_iter().collect::<Box<[Value]>>(),
+        }
+    }
+}
+
 macro_rules! impl_tuple {
     () => ();
 

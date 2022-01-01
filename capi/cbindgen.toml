@@ -1,0 +1,34 @@
+language = "C"
+include_guard = "RUNE_H"
+no_includes = true
+sys_includes = ["stdbool.h", "stdint.h", "stddef.h"]
+cpp_compat = true
+documentation_style = "doxy"
+
+style = "type"
+
+[export.rename]
+"Build" = "rune_build"
+"ColorChoice" = "rune_color_choice"
+"Context" = "rune_context"
+"ContextError" = "rune_context_error"
+"Diagnostics" = "rune_diagnostics"
+"Hash" = "rune_hash"
+"Module" = "rune_module"
+"RuntimeContext" = "rune_runtime_context"
+"Source" = "rune_source"
+"Sources" = "rune_sources"
+"Stack" = "rune_stack"
+"StandardStream" = "rune_standard_stream"
+"Unit" = "rune_unit"
+"Value" = "rune_value"
+"Vm" = "rune_vm"
+"VmError" = "rune_vm_error"
+"StaticType" = "rune_static_type"
+
+[parse.expand]
+crates = ["rune-capi"]
+
+[enum]
+rename_variants = "ScreamingSnakeCase"
+prefix_with_name = true

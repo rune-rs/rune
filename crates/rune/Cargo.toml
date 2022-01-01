@@ -19,6 +19,7 @@ default = ["emit"]
 emit = ["codespan-reporting"]
 bench = []
 workspace = ["toml", "toml-spanned-value", "semver", "relative-path", "serde-hashkey"]
+ffi = []
 
 [dependencies]
 thiserror = "1.0.30"

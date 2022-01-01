@@ -249,6 +249,14 @@ impl From<Box<[Value]>> for Vec {
     }
 }
 
+impl FromIterator<Value> for Vec {
+    fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
+        Self {
+            inner: iter.into_iter().collect::<vec::Vec<Value>>(),
+        }
+    }
+}
+
 impl FromValue for Mut<Vec> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value.into_vec()?.into_mut()?)

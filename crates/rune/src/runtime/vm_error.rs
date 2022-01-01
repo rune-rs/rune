@@ -27,7 +27,12 @@ impl VmError {
         })
     }
 
-    /// Bad argument.
+    /// Construct a [VmError] that reports a bad argument count.
+    pub fn bad_argument_count(actual: usize, expected: usize) -> VmError {
+        Self::from(VmErrorKind::BadArgumentCount { actual, expected })
+    }
+
+    /// Construct a [VmError] that reports a bad argument.
     pub fn bad_argument<T>(arg: usize, value: &Value) -> Result<Self, VmError>
     where
         T: TypeOf,
@@ -39,7 +44,21 @@ impl VmError {
         }))
     }
 
-    /// Construct an expected error.
+    /// Construct a [VmError] that reports a bad argument at.
+    #[cfg(feature = "ffi")]
+    pub fn ffi_bad_argument_at(
+        arg: usize,
+        value: &Value,
+        expected: TypeInfo,
+    ) -> Result<Self, VmError> {
+        Ok(Self::from(VmErrorKind::BadArgumentAt {
+            arg,
+            expected,
+            actual: value.type_info()?,
+        }))
+    }
+
+    /// Construct a [VmError] that reports a violated expectation.
     pub fn expected<T>(actual: TypeInfo) -> Self
     where
         T: TypeOf,
@@ -108,6 +127,12 @@ impl VmError {
         }
     }
 
+    /// Missing virtual machine.
+    #[cfg(feature = "ffi")]
+    pub fn ffi_missing_vm() -> VmError {
+        VmError::from(VmErrorKind::MissingVm)
+    }
+
     /// Unsmuggles the vm error, returning Ok(Self) in case the error is
     /// critical and should be propagated unaltered.
     pub(crate) fn unpack_critical(self) -> Result<Self, Self> {
@@ -144,7 +169,10 @@ where
 /// The kind of error encountered.
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum VmErrorKind {
+    #[error("missing virtual machine")]
+    MissingVm,
     /// A vm error that was propagated from somewhere else.
     ///
     /// In order to represent this, we need to preserve the instruction pointer
