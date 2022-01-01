@@ -6,7 +6,7 @@
   "dependencies": {},
   "devDependencies": {
     "@wasm-tool/rollup-plugin-rust": "^1.0.7",
-    "rollup": "^2.60.2"
+    "rollup": "^2.62.0"
   },
   "scripts": {
     "build": "rollup -c"
