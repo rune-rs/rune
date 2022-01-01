@@ -11,6 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+
+    - uses: actions/cache@v2
+      with:
+        path: |
+          **/node_modules
+        key: ${{ runner.os }}-site-${{ hashFiles('**/packages-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-site-
     - uses: actions-rs/toolchain@v1
       id: rust_toolchain
       with:
@@ -28,6 +36,7 @@ jobs:
     - name: Build Playground (Install Dependencies)
       working-directory: crates/rune-wasm
       run: npm install
+
     - name: Build Playground
       working-directory: crates/rune-wasm
       run: npm run build
