@@ -15,8 +15,12 @@ jobs:
     - uses: actions/cache@v2
       with:
         path: |
-          **/node_modules
-        key: ${{ runner.os }}-site-${{ hashFiles('**/packages-lock.json') }}
+          ~/.cargo/registry
+          ~/.cargo/git
+          ~/.cargo/bin
+          crates/rune-wasm/node_modules
+          target
+        key: ${{ runner.os }}-site-${{ hashFiles('crates/rune-wasm/package-lock.json') }}
         restore-keys: |
           ${{ runner.os }}-site-
     - uses: actions-rs/toolchain@v1
@@ -31,7 +35,7 @@ jobs:
     - name: Setup mdBook
       uses: peaceiris/actions-mdbook@v1
       with:
-        mdbook-version: 'latest'
+        mdbook-version: latest
 
     - name: Build Playground (Install Dependencies)
       working-directory: crates/rune-wasm
