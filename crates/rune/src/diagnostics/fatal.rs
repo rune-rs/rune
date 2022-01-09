@@ -1,3 +1,4 @@
+use crate::ast::{Span, Spanned};
 use crate::compile::{CompileError, LinkerError};
 use crate::parse::ParseError;
 use crate::query::QueryError;
@@ -30,6 +31,16 @@ impl FatalDiagnostic {
     /// Convert into the kind of the load error.
     pub fn into_kind(self) -> FatalDiagnosticKind {
         *self.kind
+    }
+
+    pub(crate) fn span(&self) -> Option<Span> {
+        match &*self.kind {
+            FatalDiagnosticKind::ParseError(error) => Some(error.span()),
+            FatalDiagnosticKind::CompileError(error) => Some(error.span()),
+            FatalDiagnosticKind::QueryError(error) => Some(error.span()),
+            FatalDiagnosticKind::LinkError(..) => None,
+            FatalDiagnosticKind::Internal(..) => None,
+        }
     }
 }
 

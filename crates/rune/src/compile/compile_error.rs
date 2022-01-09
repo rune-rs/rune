@@ -281,6 +281,8 @@ pub enum CompileErrorKind {
     MissingFunctionHash { hash: Hash },
     #[error("conflicting function already exists `{hash}`")]
     FunctionConflictHash { hash: Hash },
+    #[error("non-exhaustive pattern for `{item}`")]
+    PatternMissingFields { item: Item, fields: Box<[Box<str>]> },
 }
 
 /// A single step in an import.

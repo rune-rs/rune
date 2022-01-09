@@ -250,7 +250,7 @@ pub(crate) enum PrivMetaKind {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
         /// The underlying object.
-        object: StructMeta,
+        st: StructMeta,
     },
     /// Metadata about an empty variant.
     UnitVariant {
@@ -277,7 +277,7 @@ pub(crate) enum PrivMetaKind {
         /// The item of the enum.
         enum_item: Item,
         /// The underlying object.
-        object: StructMeta,
+        st: StructMeta,
     },
     /// An enum item.
     Enum {

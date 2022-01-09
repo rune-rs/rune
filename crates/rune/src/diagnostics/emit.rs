@@ -465,7 +465,11 @@ where
     let mut labels = Vec::new();
     let mut notes = Vec::new();
 
-    let span = match this.kind() {
+    if let (Some(span), Some(e)) = (this.span(), this.kind().source()) {
+        labels.push(d::Label::primary(this.source_id(), span.range()).with_message(e.to_string()));
+    }
+
+    match this.kind() {
         FatalDiagnosticKind::Internal(message) => {
             writeln!(out, "internal error: {}", message)?;
             return Ok(());
@@ -495,7 +499,6 @@ where
 
             return Ok(());
         }
-        FatalDiagnosticKind::ParseError(error) => error.span(),
         FatalDiagnosticKind::CompileError(error) => {
             format_compile_error(
                 this,
@@ -505,8 +508,6 @@ where
                 &mut labels,
                 &mut notes,
             )?;
-
-            error.span()
         }
         FatalDiagnosticKind::QueryError(error) => {
             format_query_error(
@@ -517,14 +518,9 @@ where
                 &mut labels,
                 &mut notes,
             )?;
-
-            error.span()
         }
+        FatalDiagnosticKind::ParseError(..) => {},
     };
-
-    if let Some(e) = this.kind().source() {
-        labels.push(d::Label::primary(this.source_id(), span.range()).with_message(e.to_string()));
-    }
 
     let diagnostic = d::Diagnostic::error()
         .with_message(this.kind().to_string())
@@ -599,6 +595,22 @@ where
                     d::Label::secondary(this.source_id(), nested_span.range())
                         .with_message("nested in here"),
                 );
+            }
+            CompileErrorKind::PatternMissingFields { fields, .. } => {
+                let pl = if fields.len() == 1 {
+                    "field"
+                } else {
+                    "fields"
+                };
+
+                let fields = fields.join(", ");
+
+                labels.push(
+                    d::Label::secondary(this.source_id(), error_span.range())
+                        .with_message(&format!("missing {}: {}", pl, fields)),
+                );
+
+                notes.push("You can also make the pattern non-exhaustive by adding `..`".to_string());
             }
             _ => (),
         }

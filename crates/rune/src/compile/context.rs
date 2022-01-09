@@ -413,7 +413,7 @@ impl Context {
             match spec {
                 TypeSpecification::Struct(st) => PrivMetaKind::Struct {
                     type_hash,
-                    object: StructMeta {
+                    st: StructMeta {
                         fields: st.fields.clone(),
                     },
                 },
