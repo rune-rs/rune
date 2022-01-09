@@ -657,33 +657,29 @@ fn pat_object(
 
     match &ast.ident {
         ast::ObjectIdent::Named(path) => {
-            let span = path.span();
+            let path_span = path.span();
 
             let named = c.convert_path(path)?;
             named.assert_not_generic()?;
 
-            let meta = c.lookup_meta(span, &named.item)?;
+            let meta = c.lookup_meta(path_span, &named.item)?;
 
-            let (object, type_hash) = match &meta.kind {
-                PrivMetaKind::Struct {
-                    object, type_hash, ..
-                } => (object, *type_hash),
-                PrivMetaKind::StructVariant {
-                    object, type_hash, ..
-                } => (object, *type_hash),
+            let (st, type_hash) = match &meta.kind {
+                PrivMetaKind::Struct { st, type_hash, .. } => (st, *type_hash),
+                PrivMetaKind::StructVariant { st, type_hash, .. } => (st, *type_hash),
                 _ => {
                     return Err(CompileError::expected_meta(
-                        span,
+                        path_span,
                         meta.info(),
-                        "type that can be used in an object pattern",
+                        "type that can be used in a struct pattern",
                     ));
                 }
             };
 
-            let fields = &object.fields;
+            let mut fields = st.fields.clone();
 
             for binding in &bindings {
-                if !fields.contains(binding.key()) {
+                if !fields.remove(binding.key()) {
                     return Err(CompileError::new(
                         span,
                         CompileErrorKind::LitObjectNotField {
@@ -692,6 +688,22 @@ fn pat_object(
                         },
                     ));
                 }
+            }
+
+            if !has_rest && !fields.is_empty() {
+                let mut fields = fields
+                    .into_iter()
+                    .map(Box::<str>::from)
+                    .collect::<Box<[_]>>();
+                fields.sort();
+
+                return Err(CompileError::new(
+                    ast.items.span(),
+                    CompileErrorKind::PatternMissingFields {
+                        item: meta.item.item.clone(),
+                        fields,
+                    },
+                ));
             }
 
             c.asm.push(Inst::Copy { offset }, span);
@@ -2562,14 +2574,14 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
                     let hash = Hash::type_hash(&meta.item.item);
                     c.asm.push(Inst::UnitStruct { hash }, span);
                 }
-                PrivMetaKind::Struct { object, .. } => {
-                    check_object_fields(&object.fields, check_keys, span, &meta.item.item)?;
+                PrivMetaKind::Struct { st, .. } => {
+                    check_object_fields(&st.fields, check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);
                     c.asm.push(Inst::Struct { hash, slot }, span);
                 }
-                PrivMetaKind::StructVariant { object, .. } => {
-                    check_object_fields(&object.fields, check_keys, span, &meta.item.item)?;
+                PrivMetaKind::StructVariant { st, .. } => {
+                    check_object_fields(&st.fields, check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);
                     c.asm.push(Inst::StructVariant { hash, slot }, span);

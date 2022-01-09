@@ -1578,15 +1578,15 @@ fn struct_body_meta(
         fields.insert(name.into());
     }
 
-    let object = StructMeta { fields };
+    let st = StructMeta { fields };
 
     Ok(match enum_item {
         Some(enum_item) => PrivMetaKind::StructVariant {
             type_hash,
             enum_item: enum_item.clone(),
-            object,
+            st,
         },
-        None => PrivMetaKind::Struct { type_hash, object },
+        None => PrivMetaKind::Struct { type_hash, st },
     })
 }
 
