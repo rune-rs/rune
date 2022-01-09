@@ -37,11 +37,6 @@ impl<'a> Lexer<'a> {
         self.iter.from_span(0)
     }
 
-    /// Get the endpoint of the lexer as span.
-    pub(crate) fn end(&self) -> Span {
-        self.iter.end()
-    }
-
     fn emit_builtin_attribute(&mut self, span: Span) {
         self.buffer.push_back(ast::Token { kind: K![#], span });
 
@@ -789,11 +784,6 @@ impl<'a> SourceIter<'a> {
     /// Get the span from the given start, to the current position.
     fn span_from(&self, start: usize) -> Span {
         Span::new(start, self.pos())
-    }
-
-    /// Get the endpoint span.
-    fn end(&self) -> Span {
-        Span::new(self.cursor, self.source.len())
     }
 
     /// Get the end span from the given start to the end of the source.
