@@ -1028,49 +1028,6 @@ impl Vm {
         Ok(())
     }
 
-    fn on_object_keys<F, O>(
-        &mut self,
-        type_check: TypeCheck,
-        slot: usize,
-        f: F,
-    ) -> Result<Option<O>, VmError>
-    where
-        F: FnOnce(&Object, &[String]) -> O,
-    {
-        let value = self.stack.pop()?;
-
-        let keys = self
-            .unit
-            .lookup_object_keys(slot)
-            .ok_or(VmErrorKind::MissingStaticObjectKeys { slot })?;
-
-        match (type_check, value) {
-            (TypeCheck::Object, Value::Object(object)) => {
-                let object = object.borrow_ref()?;
-                return Ok(Some(f(&*object, keys)));
-            }
-            (TypeCheck::Type(hash), Value::Struct(typed_object)) => {
-                let typed_object = typed_object.borrow_ref()?;
-
-                if typed_object.type_hash() == hash {
-                    return Ok(Some(f(typed_object.data(), keys)));
-                }
-            }
-            (TypeCheck::Variant(hash), Value::Variant(variant)) => {
-                let variant = variant.borrow_ref()?;
-
-                if variant.rtti().hash == hash {
-                    if let VariantData::Struct(st) = variant.data() {
-                        return Ok(Some(f(st, keys)));
-                    }
-                }
-            }
-            _ => (),
-        }
-
-        Ok(None)
-    }
-
     /// Construct a future from calling an async function.
     fn call_generator_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
         let stack = self.stack.drain(args)?.collect::<Stack>();
@@ -2396,13 +2353,40 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_object(
-        &mut self,
-        type_check: TypeCheck,
-        slot: usize,
-        exact: bool,
-    ) -> Result<(), VmError> {
-        let result = self.on_object_keys(type_check, slot, |object, keys| {
+    fn op_match_type(&mut self, hash: Hash) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        let value_hash = match value {
+            Value::Variant(variant) => variant.borrow_ref()?.rtti().hash,
+            value => value.type_hash()?,
+        };
+
+        let is_match = value_hash == hash;
+        self.stack.push(is_match);
+        Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_match_object(&mut self, slot: usize, exact: bool) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        let is_match = match value {
+            Value::Object(object) => {
+                let keys = self
+                    .unit
+                    .lookup_object_keys(slot)
+                    .ok_or(VmErrorKind::MissingStaticObjectKeys { slot })?;
+
+                let object = object.borrow_ref()?;
+                test(&*object, keys, exact)
+            }
+            _ => false,
+        };
+
+        self.stack.push(is_match);
+        return Ok(());
+
+        fn test(object: &Object, keys: &[String], exact: bool) -> bool {
             if exact {
                 if object.len() != keys.len() {
                     return false;
@@ -2411,20 +2395,14 @@ impl Vm {
                 return false;
             }
 
-            let mut is_match = true;
-
             for key in keys {
                 if !object.contains_key(key) {
-                    is_match = false;
-                    break;
+                    return false;
                 }
             }
 
-            is_match
-        })?;
-
-        self.stack.push(Value::Bool(result.unwrap_or_default()));
-        Ok(())
+            true
+        }
     }
 
     /// Push the given variant onto the stack.
@@ -2957,12 +2935,11 @@ impl Vm {
                 } => {
                     self.op_match_sequence(type_check, len, exact)?;
                 }
-                Inst::MatchObject {
-                    type_check,
-                    slot,
-                    exact,
-                } => {
-                    self.op_match_object(type_check, slot, exact)?;
+                Inst::MatchType { hash } => {
+                    self.op_match_type(hash)?;
+                }
+                Inst::MatchObject { slot, exact } => {
+                    self.op_match_object(slot, exact)?;
                 }
                 Inst::Yield => {
                     self.advance();

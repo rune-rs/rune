@@ -3,7 +3,7 @@
 //! A native module is one that provides rune with functions and types through
 //! native code.
 
-use crate::collections::HashMap;
+use crate::collections::{HashMap, HashSet};
 use crate::compile::{ContextError, IntoComponent, Item, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
@@ -100,12 +100,26 @@ pub(crate) struct InternalVariant {
     pub(crate) type_hash: Hash,
 }
 
+/// Data for an opaque type. If `spec` is set, indicates things which are known
+/// about that type.
 pub(crate) struct Type {
     /// The name of the installed type which will be the final component in the
     /// item it will constitute.
     pub(crate) name: Box<str>,
     /// Type information for the installed type.
     pub(crate) type_info: TypeInfo,
+    /// The specification for the type.
+    pub(crate) spec: Option<TypeSpecification>,
+}
+
+/// The type specification for a native struct.
+pub(crate) struct Struct {
+    /// The names of the struct fields known at compile time.
+    pub(crate) fields: HashSet<Box<str>>,
+}
+
+pub(crate) enum TypeSpecification {
+    Struct(Struct),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -265,16 +279,54 @@ impl Module {
         let ty = Type {
             name: T::full_name(),
             type_info,
+            spec: None,
         };
 
         if let Some(old) = self.types.insert(type_hash, ty) {
             return Err(ContextError::ConflictingType {
                 item: Item::with_item(&[T::full_name()]),
-                existing: old.type_info,
+                type_info: old.type_info,
             });
         }
 
         T::install_with(self)?;
+        Ok(())
+    }
+
+    /// Register that the given type is a struct, and that it has the given
+    /// compile-time metadata. This implies that each field has a
+    /// [Protocol::GET] field function.
+    ///
+    /// This is typically not used directly, but is used automatically with the
+    /// [Any][crate::Any] derive.
+    pub fn struct_meta<T>(&mut self, fields: &'static [&'static str]) -> Result<(), ContextError>
+    where
+        T: Named + TypeOf,
+    {
+        let type_hash = T::type_hash();
+        let type_info = T::type_info();
+
+        let ty = match self.types.get_mut(&type_hash) {
+            Some(ty) => ty,
+            None => {
+                return Err(ContextError::MissingType {
+                    item: Item::with_item(&[T::full_name()]),
+                    type_info,
+                });
+            }
+        };
+
+        let old = ty.spec.replace(TypeSpecification::Struct(Struct {
+            fields: fields.iter().copied().map(Box::<str>::from).collect(),
+        }));
+
+        if old.is_some() {
+            return Err(ContextError::ConflictingTypeMeta {
+                item: Item::with_item(&[T::full_name()]),
+                type_info: ty.type_info.clone(),
+            });
+        }
+
         Ok(())
     }
 

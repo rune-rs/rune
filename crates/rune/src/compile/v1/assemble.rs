@@ -655,9 +655,7 @@ fn pat_object(
         keys.push(key.to_string());
     }
 
-    let keys = c.q.unit.new_static_object_keys_iter(span, &keys[..])?;
-
-    let type_check = match &ast.ident {
+    match &ast.ident {
         ast::ObjectIdent::Named(path) => {
             let span = path.span();
 
@@ -666,19 +664,13 @@ fn pat_object(
 
             let meta = c.lookup_meta(span, &named.item)?;
 
-            let (object, type_check) = match &meta.kind {
+            let (object, type_hash) = match &meta.kind {
                 PrivMetaKind::Struct {
                     object, type_hash, ..
-                } => {
-                    let type_check = TypeCheck::Type(*type_hash);
-                    (object, type_check)
-                }
+                } => (object, *type_hash),
                 PrivMetaKind::StructVariant {
                     object, type_hash, ..
-                } => {
-                    let type_check = TypeCheck::Variant(*type_hash);
-                    (object, type_check)
-                }
+                } => (object, *type_hash),
                 _ => {
                     return Err(CompileError::expected_meta(
                         span,
@@ -702,22 +694,24 @@ fn pat_object(
                 }
             }
 
-            type_check
+            c.asm.push(Inst::Copy { offset }, span);
+            c.asm.push(Inst::MatchType { hash: type_hash }, span);
         }
-        ast::ObjectIdent::Anonymous(..) => TypeCheck::Object,
-    };
+        ast::ObjectIdent::Anonymous(..) => {
+            let keys = c.q.unit.new_static_object_keys_iter(span, &keys[..])?;
 
-    // Copy the temporary and check that its length matches the pattern and
-    // that it is indeed a vector.
-    c.asm.push(Inst::Copy { offset }, span);
-    c.asm.push(
-        Inst::MatchObject {
-            type_check,
-            slot: keys,
-            exact: !has_rest,
-        },
-        span,
-    );
+            // Copy the temporary and check that its length matches the pattern and
+            // that it is indeed a vector.
+            c.asm.push(Inst::Copy { offset }, span);
+            c.asm.push(
+                Inst::MatchObject {
+                    slot: keys,
+                    exact: !has_rest,
+                },
+                span,
+            );
+        }
+    }
 
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
@@ -1621,6 +1615,7 @@ fn generics_parameters(
         let meta = c.lookup_meta(param.span(), &named.item)?;
 
         let hash = match meta.kind {
+            PrivMetaKind::Unknown { type_hash, .. } => type_hash,
             PrivMetaKind::UnitStruct { type_hash, .. } => type_hash,
             PrivMetaKind::TupleStruct { type_hash, .. } => type_hash,
             PrivMetaKind::Struct { type_hash, .. } => type_hash,

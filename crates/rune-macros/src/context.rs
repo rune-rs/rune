@@ -32,6 +32,8 @@ pub(crate) struct FieldAttrs {
     /// `#[rune(copy)]` to indicate that a field is copy and does not need to be
     /// cloned.
     pub(crate) copy: bool,
+    /// Whether this field should be known at compile time or not.
+    pub(crate) field: bool,
 }
 
 impl FieldAttrs {
@@ -69,7 +71,7 @@ pub(crate) struct TypeAttrs {
     pub(crate) parse: ParseKind,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct Generate<'a> {
     pub(crate) tokens: &'a Tokens,
     pub(crate) attrs: &'a FieldAttrs,
@@ -245,6 +247,7 @@ impl Context {
                         attrs.copy = true;
                     }
                     Meta(meta) if meta.path() == GET => {
+                        attrs.field = true;
                         attrs.protocols.push(FieldProtocol {
                             custom: self.parse_field_custom(meta)?,
                             generate: |g| {

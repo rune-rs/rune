@@ -316,7 +316,28 @@ impl UnitBuilder {
 
     /// Declare a new struct.
     pub(crate) fn insert_meta(&mut self, span: Span, meta: &PrivMeta) -> Result<(), QueryError> {
+        // TODO: Can someone deduplicate this?
         match &meta.kind {
+            PrivMetaKind::Unknown { .. } => {
+                let hash = Hash::type_hash(&meta.item.item);
+
+                let rtti = Arc::new(Rtti {
+                    hash,
+                    item: meta.item.item.clone(),
+                });
+
+                self.constants.insert(
+                    Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(rtti.item.to_string()),
+                );
+
+                if self.rtti.insert(hash, rtti).is_some() {
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::TypeRttiConflict { hash },
+                    ));
+                }
+            }
             PrivMetaKind::UnitStruct { empty, .. } => {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
 
@@ -508,7 +529,6 @@ impl UnitBuilder {
                     ConstValue::String(meta.item.item.to_string()),
                 );
             }
-
             PrivMetaKind::Function { .. } => (),
             PrivMetaKind::Closure { .. } => (),
             PrivMetaKind::AsyncBlock { .. } => (),

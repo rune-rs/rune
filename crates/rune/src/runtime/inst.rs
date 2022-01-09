@@ -813,6 +813,18 @@ pub enum Inst {
         /// The slot to test against.
         slot: usize,
     },
+    /// Test that the top of the stack has the given type.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    MatchType {
+        /// The type hash to match against.
+        hash: Hash,
+    },
     /// Test that the top of the stack is a tuple with the given length
     /// requirements.
     ///
@@ -841,8 +853,6 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     MatchObject {
-        /// Type constraints that the object must match.
-        type_check: TypeCheck,
         /// The slot of object keys to use.
         slot: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -1181,6 +1191,9 @@ impl fmt::Display for Inst {
             Self::EqStaticString { slot } => {
                 write!(fmt, "eq-static-string slot={}", slot)?;
             }
+            Self::MatchType { hash } => {
+                write!(fmt, "match-type hash={}", hash,)?;
+            }
             Self::MatchSequence {
                 type_check,
                 len,
@@ -1192,16 +1205,8 @@ impl fmt::Display for Inst {
                     type_check, len, exact
                 )?;
             }
-            Self::MatchObject {
-                type_check,
-                slot,
-                exact,
-            } => {
-                write!(
-                    fmt,
-                    "match-object type_check={}, slot={}, exact={}",
-                    type_check, slot, exact
-                )?;
+            Self::MatchObject { slot, exact } => {
+                write!(fmt, "match-object slot={}, exact={}", slot, exact)?;
             }
             Self::Yield => {
                 write!(fmt, "yield")?;

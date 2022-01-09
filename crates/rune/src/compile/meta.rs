@@ -36,6 +36,8 @@ pub struct MetaRef<'a> {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum MetaKind {
+    /// An unknown type.
+    Unknown,
     /// Item describes a unit structure.
     UnitStruct,
     /// Item describes a tuple structure.
@@ -74,6 +76,9 @@ pub enum MetaKind {
 impl fmt::Display for Meta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
+            MetaKind::Unknown => {
+                write!(fmt, "unknown {}", self.item)?;
+            }
             MetaKind::UnitStruct => {
                 write!(fmt, "struct {}", self.item)?;
             }
@@ -174,6 +179,7 @@ impl PrivMeta {
     /// compare them against the enum type.
     pub(crate) fn type_hash_of(&self) -> Option<Hash> {
         match &self.kind {
+            PrivMetaKind::Unknown { type_hash, .. } => Some(*type_hash),
             PrivMetaKind::UnitStruct { type_hash, .. } => Some(*type_hash),
             PrivMetaKind::TupleStruct { type_hash, .. } => Some(*type_hash),
             PrivMetaKind::Struct { type_hash, .. } => Some(*type_hash),
@@ -222,6 +228,9 @@ impl PrivMeta {
 /// Compile-time metadata kind about a unit.
 #[derive(Debug, Clone)]
 pub(crate) enum PrivMetaKind {
+    /// The type is completely opaque. We have no idea about what it is with the
+    /// exception of it having a type hash.
+    Unknown { type_hash: Hash },
     /// Metadata about an object.
     UnitStruct {
         /// The type hash associated with this meta kind.
@@ -329,6 +338,7 @@ impl PrivMetaKind {
     /// Coerce into a [MetaKind].
     pub(crate) fn as_meta_info_kind(&self) -> MetaKind {
         match self {
+            PrivMetaKind::Unknown { .. } => MetaKind::Unknown,
             PrivMetaKind::UnitStruct { .. } => MetaKind::UnitStruct,
             PrivMetaKind::TupleStruct { .. } => MetaKind::TupleStruct,
             PrivMetaKind::Struct { .. } => MetaKind::Struct,
