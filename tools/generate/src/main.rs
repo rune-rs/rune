@@ -20,12 +20,20 @@ struct Punct {
 }
 
 #[derive(Debug, Deserialize)]
+struct Syntax {
+    variant: String,
+    doc: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "kind")]
 enum Token {
     #[serde(rename = "keyword")]
     Keyword(Keyword),
     #[serde(rename = "punct")]
     Punct(Punct),
+    #[serde(rename = "syntax")]
+    Syntax(Syntax),
 }
 
 impl Token {
@@ -33,6 +41,7 @@ impl Token {
         match self {
             Self::Keyword(k) => &k.doc,
             Self::Punct(p) => &p.doc,
+            Self::Syntax(p) => &p.doc,
         }
     }
 
@@ -40,6 +49,7 @@ impl Token {
         match self {
             Self::Keyword(k) => &k.variant,
             Self::Punct(p) => &p.variant,
+            Self::Syntax(p) => &p.variant,
         }
     }
 }
@@ -63,6 +73,20 @@ fn main() -> Result<()> {
             Token::Punct(p) => Some(p),
             _ => None,
         })
+        .collect::<Vec<_>>();
+
+    let syntax = tokens
+        .iter()
+        .flat_map(|t| match t {
+            Token::Syntax(s) => Some(s),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    // Collection of non-syntax tokens.
+    let non_syntax = tokens
+        .iter()
+        .filter(|t| !matches!(t, Token::Syntax(..)))
         .collect::<Vec<_>>();
 
     let kind = &rust::import("crate::quote", "Kind");
@@ -118,7 +142,7 @@ fn main() -> Result<()> {
             #(format!("/// This file has been generated from `{}`", asset.display()))
             #("/// DO NOT modify by hand!")
 
-            #(for t in &tokens join(#<line>) =>
+            #(for t in &non_syntax join(#<line>) =>
                 #(format!("/// {}", t.doc()))
                 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
                 #[non_exhaustive]
@@ -325,6 +349,7 @@ fn main() -> Result<()> {
                         Self::Open(delimiter) => #expectation::Delimiter(delimiter.open()),
                         #(for k in &keywords join (#<push>) => Self::#(&k.variant) => #expectation::Keyword(#(quoted(&k.keyword))),)
                         #(for p in &punctuations join (#<push>) => Self::#(&p.variant) => #expectation::Punctuation(#(quoted(&p.punct))),)
+                        #(for s in &syntax join (#<push>) => Self::#(&s.variant) => #expectation::Syntax,)
                     }
                 }
             }

@@ -2,6 +2,7 @@ use crate::ast;
 use crate::ast::{Spanned, SpannedError};
 use crate::parse::{Expectation, IntoExpectation, LexerMode, ResolveError, ResolveErrorKind};
 use crate::SourceId;
+use syntree::TreeError;
 use thiserror::Error;
 
 error! {
@@ -113,4 +114,10 @@ pub enum ParseErrorKind {
     MissingSourceId { source_id: SourceId },
     #[error("expected multiline comment to be terminated with a `*/`")]
     ExpectedMultilineCommentTerm,
+    #[error("tree error")]
+    TreeError {
+        #[from]
+        #[source]
+        error: TreeError,
+    },
 }

@@ -163,6 +163,11 @@ impl Span {
             end: ByteIndex::max(self.end.saturating_sub(amount), self.start),
         }
     }
+
+    /// Get the length of the span.
+    pub(crate) fn len(&self) -> ByteIndex {
+        self.end.saturating_sub(self.start)
+    }
 }
 
 impl Serialize for Span {

@@ -151,7 +151,7 @@ impl<'a> Parser<'a> {
             return Ok(t);
         }
 
-        match self.peeker.source.next()? {
+        match self.peeker.next()? {
             Some(t) => Ok(t),
             None => Err(ParseError::new(
                 self.last_span().tail(),
@@ -217,7 +217,9 @@ impl<'a> Parser<'a> {
 /// Construct used to peek a parser.
 #[derive(Debug)]
 pub struct Peeker<'a> {
+    /// The source being processed.
     pub(crate) source: Source<'a>,
+    /// The buffer of tokens seen.
     buf: VecDeque<Token>,
     // NB: parse errors encountered during peeking.
     error: Option<ParseError>,
@@ -281,21 +283,19 @@ impl<'a> Peeker<'a> {
         }
     }
 
-    /// Make sure there are at least `n` items in the buffer, and return the
-    /// item at that point.
-    fn at(&mut self, n: usize) -> Result<Option<Token>, ParseError> {
-        if let Some(error) = self.error.take() {
-            return Err(error);
-        }
-
-        while self.buf.len() <= n {
+    /// Advance the internals of the peeker and return the next token (without
+    /// buffering).
+    fn next(&mut self) -> Result<Option<Token>, ParseError> {
+        loop {
             let token = match self.source.next()? {
                 Some(token) => token,
-                None => break,
+                None => return Ok(None),
             };
 
             match token.kind {
-                Kind::Comment => continue,
+                Kind::Comment | Kind::Whitespace => {
+                    continue;
+                }
                 Kind::MultilineComment(term) => {
                     if !term {
                         return Err(ParseError::new(
@@ -308,6 +308,23 @@ impl<'a> Peeker<'a> {
                 }
                 _ => (),
             }
+
+            return Ok(Some(token));
+        }
+    }
+
+    /// Make sure there are at least `n` items in the buffer, and return the
+    /// item at that point.
+    fn at(&mut self, n: usize) -> Result<Option<Token>, ParseError> {
+        if let Some(error) = self.error.take() {
+            return Err(error);
+        }
+
+        while self.buf.len() <= n {
+            let token = match self.next()? {
+                Some(token) => token,
+                None => break,
+            };
 
             self.last = Some(token.span);
             self.buf.push_back(token);
@@ -329,7 +346,7 @@ pub(crate) struct Source<'a> {
 
 impl Source<'_> {
     /// Get the span of the source.
-    pub(crate) fn span(&self) -> Option<Span> {
+    fn span(&self) -> Option<Span> {
         match &self.inner {
             SourceInner::Lexer(lexer) => Some(lexer.span()),
             SourceInner::TokenStream(token_stream) => token_stream.option_span(),
@@ -337,7 +354,7 @@ impl Source<'_> {
     }
 
     /// Get the next token in the stream.
-    pub(crate) fn next(&mut self) -> Result<Option<Token>, ParseError> {
+    fn next(&mut self) -> Result<Option<Token>, ParseError> {
         match &mut self.inner {
             SourceInner::Lexer(lexer) => lexer.next(),
             SourceInner::TokenStream(token_stream) => Ok(token_stream.next()),

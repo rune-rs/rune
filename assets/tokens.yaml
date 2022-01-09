@@ -386,3 +386,6 @@
   variant: Yield
   doc: "The `yield` keyword."
   keyword: "yield"
+- kind: syntax
+  variant: Whitespace
+  doc: Kind used for whitespace.

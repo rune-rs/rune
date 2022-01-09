@@ -34,7 +34,12 @@ impl<'a> Lexer<'a> {
 
     /// Access the span of the lexer.
     pub(crate) fn span(&self) -> Span {
-        self.iter.end_span(0)
+        self.iter.from_span(0)
+    }
+
+    /// Get the endpoint of the lexer as span.
+    pub(crate) fn end(&self) -> Span {
+        self.iter.end()
     }
 
     fn emit_builtin_attribute(&mut self, span: Span) {
@@ -202,7 +207,7 @@ impl<'a> Lexer<'a> {
         }
 
         if count == 0 {
-            let span = self.iter.end_span(start);
+            let span = self.iter.from_span(start);
 
             if !is_label {
                 return Err(ParseError::new(span, ParseErrorKind::ExpectedCharClose));
@@ -311,6 +316,17 @@ impl<'a> Lexer<'a> {
         while !matches!(self.iter.next(), Some('\n') | None) {}
     }
 
+    /// Consume whitespace.
+    fn consume_whitespace(&mut self) {
+        while let Some(c) = self.iter.peek() {
+            if !c.is_whitespace() {
+                break;
+            }
+
+            self.iter.next();
+        }
+    }
+
     /// Consume a multiline comment and indicate if it's terminated correctly.
     fn consume_multiline_comment(&mut self) -> bool {
         self.iter.next();
@@ -356,7 +372,7 @@ impl<'a> Lexer<'a> {
                             ));
                         }
                         None => {
-                            let span = self.iter.end_span(start);
+                            let span = self.iter.from_span(start);
                             return Err(ParseError::new(span, ParseErrorKind::UnexpectedEof));
                         }
                     }
@@ -502,7 +518,12 @@ impl<'a> Lexer<'a> {
             }
 
             if char::is_whitespace(c) {
-                continue;
+                self.consume_whitespace();
+
+                return Ok(Some(ast::Token {
+                    kind: ast::Kind::Whitespace,
+                    span: self.iter.span_from(start),
+                }));
             }
 
             // This loop is useful, at least until it's rewritten.
@@ -740,20 +761,17 @@ impl<'a> Lexer<'a> {
 #[derive(Debug, Clone)]
 struct SourceIter<'a> {
     source: &'a str,
-    chars: std::str::Chars<'a>,
+    cursor: usize,
 }
 
 impl<'a> SourceIter<'a> {
     fn new(source: &'a str) -> Self {
-        Self {
-            source,
-            chars: source.chars(),
-        }
+        Self { source, cursor: 0 }
     }
 
     /// Get the current character position of the iterator.
     fn pos(&self) -> usize {
-        self.source.len() - self.chars.as_str().len()
+        self.cursor
     }
 
     /// Get the source from the given start, to the current position.
@@ -773,19 +791,24 @@ impl<'a> SourceIter<'a> {
         Span::new(start, self.pos())
     }
 
+    /// Get the endpoint span.
+    fn end(&self) -> Span {
+        Span::new(self.cursor, self.source.len())
+    }
+
     /// Get the end span from the given start to the end of the source.
-    fn end_span(&self, start: usize) -> Span {
+    fn from_span(&self, start: usize) -> Span {
         Span::new(start, self.source.len())
     }
 
     /// Peek the next index.
     fn peek(&self) -> Option<char> {
-        self.chars.clone().next()
+        self.source.get(self.cursor..)?.chars().next()
     }
 
     /// Peek the next next char.
     fn peek2(&self) -> Option<char> {
-        let mut it = self.chars.clone();
+        let mut it = self.source.get(self.cursor..)?.chars();
         it.next()?;
         it.next()
     }
@@ -808,7 +831,9 @@ impl Iterator for SourceIter<'_> {
 
     /// Consume the next character.
     fn next(&mut self) -> Option<Self::Item> {
-        self.chars.next()
+        let c = self.source.get(self.cursor..)?.chars().next()?;
+        self.cursor += c.len_utf8();
+        Some(c)
     }
 }
 
@@ -1003,8 +1028,16 @@ mod tests {
                 kind: ast::Kind::Label(ast::LitSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
+                span: span!(5, 6),
+                kind: ast::Kind::Whitespace,
+            },
+            ast::Token {
                 span: span!(6, 9),
                 kind: ast::Kind::Char(ast::CopySource::Text(SourceId::EMPTY)),
+            },
+            ast::Token {
+                span: span!(9, 10),
+                kind: ast::Kind::Whitespace,
             },
             ast::Token {
                 span: span!(10, 19),
@@ -1022,28 +1055,56 @@ mod tests {
                 kind: ast::Kind::Plus,
             },
             ast::Token {
+                span: span!(1, 2),
+                kind: ast::Kind::Whitespace,
+            },
+            ast::Token {
                 span: span!(2, 4),
                 kind: ast::Kind::PlusEq,
+            },
+            ast::Token {
+                span: span!(4, 5),
+                kind: ast::Kind::Whitespace,
             },
             ast::Token {
                 span: span!(5, 6),
                 kind: ast::Kind::Dash,
             },
             ast::Token {
+                span: span!(6, 7),
+                kind: ast::Kind::Whitespace,
+            },
+            ast::Token {
                 span: span!(7, 9),
                 kind: ast::Kind::DashEq,
+            },
+            ast::Token {
+                span: span!(9, 10),
+                kind: ast::Kind::Whitespace,
             },
             ast::Token {
                 span: span!(10, 11),
                 kind: ast::Kind::Star,
             },
             ast::Token {
+                span: span!(11, 12),
+                kind: ast::Kind::Whitespace,
+            },
+            ast::Token {
                 span: span!(12, 14),
                 kind: ast::Kind::StarEq,
             },
             ast::Token {
+                span: span!(14, 15),
+                kind: ast::Kind::Whitespace,
+            },
+            ast::Token {
                 span: span!(15, 16),
                 kind: ast::Kind::Div,
+            },
+            ast::Token {
+                span: span!(16, 17),
+                kind: ast::Kind::Whitespace,
             },
             ast::Token {
                 span: span!(17, 19),
@@ -1310,8 +1371,16 @@ mod tests {
                 kind: ast::Kind::Label(ast::LitSource::Text(SourceId::EMPTY)),
             },
             ast::Token {
+                span: span!(6, 7),
+                kind: ast::Kind::Whitespace,
+            },
+            ast::Token {
                 span: span!(7, 10),
                 kind: ast::Kind::Char(ast::CopySource::Text(SourceId::EMPTY)),
+            },
+            ast::Token {
+                span: span!(10, 11),
+                kind: ast::Kind::Whitespace,
             },
             ast::Token {
                 span: span!(11, 15),

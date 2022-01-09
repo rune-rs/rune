@@ -4551,6 +4551,8 @@ pub enum Kind {
     While,
     /// The `yield` keyword.
     Yield,
+    /// Kind used for whitespace.
+    Whitespace,
 }
 
 impl From<ast::Token> for Kind {
@@ -4854,6 +4856,7 @@ impl parse::IntoExpectation for Kind {
             Self::StarEq => parse::Expectation::Punctuation("*="),
             Self::Tilde => parse::Expectation::Punctuation("~"),
             Self::Underscore => parse::Expectation::Punctuation("_"),
+            Self::Whitespace => parse::Expectation::Syntax,
         }
     }
 }
