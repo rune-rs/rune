@@ -1,6 +1,7 @@
 use crate::collections::{HashMap, HashSet};
 use crate::compile::module::{
-    AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type, UnitType,
+    AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type,
+    TypeSpecification, UnitType,
 };
 use crate::compile::{
     ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
@@ -42,8 +43,12 @@ pub enum ContextError {
     ConflictingInstanceFunctionHash { type_info: TypeInfo, hash: Hash },
     #[error("module `{item}` with hash `{hash}` already exists")]
     ConflictingModule { item: Item, hash: Hash },
-    #[error("type `{item}` already exists `{existing}`")]
-    ConflictingType { item: Item, existing: TypeInfo },
+    #[error("type `{item}` already exists `{type_info}`")]
+    ConflictingType { item: Item, type_info: TypeInfo },
+    #[error("type `{item}` at `{type_info}` already has a specification")]
+    ConflictingTypeMeta { item: Item, type_info: TypeInfo },
+    #[error("type `{item}` with info `{type_info}` isn't registered")]
+    MissingType { item: Item, type_info: TypeInfo },
     #[error("tried to insert conflicting hash `{hash}` for `{existing}`")]
     ConflictingTypeHash { hash: Hash, existing: Hash },
     #[error("variant with `{item}` already exists")]
@@ -404,14 +409,22 @@ impl Context {
             },
         )?;
 
+        let kind = if let Some(spec) = &ty.spec {
+            match spec {
+                TypeSpecification::Struct(st) => PrivMetaKind::Struct {
+                    type_hash,
+                    object: StructMeta {
+                        fields: st.fields.clone(),
+                    },
+                },
+            }
+        } else {
+            PrivMetaKind::Unknown { type_hash }
+        };
+
         self.install_meta(PrivMeta {
             item: Arc::new(item.into()),
-            kind: PrivMetaKind::Struct {
-                type_hash,
-                object: StructMeta {
-                    fields: Default::default(),
-                },
-            },
+            kind,
             source: None,
         })?;
 
@@ -431,10 +444,10 @@ impl Context {
             ConstValue::String(info.item.to_string()),
         );
 
-        if let Some(existing) = self.types.insert(hash, info) {
+        if let Some(old) = self.types.insert(hash, info) {
             return Err(ContextError::ConflictingType {
-                item: existing.item,
-                existing: existing.type_info,
+                item: old.item,
+                type_info: old.type_info,
             });
         }
 

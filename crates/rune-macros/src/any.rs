@@ -110,8 +110,11 @@ pub(crate) fn expand_install_with(
         });
     }
 
+    let mut fields = Vec::new();
+
     let ident = &input.ident;
     let (_, ty_generics, _) = generics.split_for_impl();
+
     match &input.data {
         syn::Data::Struct(st) => {
             for field in &st.fields {
@@ -133,7 +136,7 @@ pub(crate) fn expand_install_with(
                 };
 
                 let ty = &field.ty;
-                let name = &syn::LitStr::new(&field_ident.to_string(), field_ident.span());
+                let name = syn::LitStr::new(&field_ident.to_string(), field_ident.span());
 
                 for protocol in &attrs.protocols {
                     installers.push((protocol.generate)(Generate {
@@ -144,9 +147,13 @@ pub(crate) fn expand_install_with(
                         field,
                         field_ident,
                         ty,
-                        name,
+                        name: &name,
                         ty_generics: &ty_generics,
                     }));
+                }
+
+                if attrs.field {
+                    fields.push(name);
                 }
             }
         }
@@ -165,6 +172,10 @@ pub(crate) fn expand_install_with(
             return None;
         }
     }
+
+    installers.push(quote! {
+        module.struct_meta::<Self>(&[#(#fields),*][..])?;
+    });
 
     Some(quote! {
         #(#installers)*

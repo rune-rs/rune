@@ -882,6 +882,9 @@ impl Value {
     }
 
     /// Get the type hash for the current value.
+    ///
+    /// One notable feature is that the type of a variant is its container
+    /// *enum*, and not the type hash of the variant itself.
     pub fn type_hash(&self) -> Result<Hash, VmError> {
         Ok(match self {
             Self::Unit => crate::runtime::UNIT_TYPE.hash,
