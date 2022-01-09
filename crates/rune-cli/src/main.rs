@@ -59,6 +59,7 @@ use std::error::Error;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
+use tracing_subscriber::filter::EnvFilter;
 
 mod benches;
 mod check;
@@ -422,7 +423,7 @@ async fn try_main() -> Result<ExitCode, io::Error> {
     };
 
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
+        .with_env_filter(EnvFilter::from_default_env())
         .init();
 
     match main_with_out(&mut io, args).await {
