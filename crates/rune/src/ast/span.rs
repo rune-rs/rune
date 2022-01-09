@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::mem::size_of;
 use std::ops;
+use thiserror::Error;
 
 /// A span corresponding to a range in the source file being parsed.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -163,6 +165,12 @@ impl Span {
             end: ByteIndex::max(self.end.saturating_sub(amount), self.start),
         }
     }
+
+    /// Get the length of the span.
+    #[cfg(rune_grammar)]
+    pub(crate) fn len(&self) -> ByteIndex {
+        self.end.saturating_sub(self.start)
+    }
 }
 
 impl Serialize for Span {
@@ -199,6 +207,11 @@ impl fmt::Debug for Span {
     }
 }
 
+#[derive(Debug, Error)]
+#[non_exhaustive]
+#[error("failed to coerce ByteIndex into usize")]
+pub struct IntoUsizeError;
+
 /// A single index in a [Span], like the start or ending index.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
@@ -212,22 +225,28 @@ impl ByteIndex {
     ///
     /// Panics if the byte index contains values which cannot be faithfully
     /// represented in an [usize].
+    #[inline]
     pub fn into_usize(self) -> usize {
-        usize::try_from(self.0).expect("byte index out of range")
+        const _: () = assert!(size_of::<u32>() <= size_of::<usize>());
+        self.0 as usize
     }
 
+    #[inline]
     fn min(a: Self, b: Self) -> Self {
         Self(u32::min(a.0, b.0))
     }
 
+    #[inline]
     fn max(a: Self, b: Self) -> Self {
         Self(u32::max(a.0, b.0))
     }
 
+    #[inline]
     pub(crate) fn saturating_sub(self, other: Self) -> Self {
         Self(self.0.saturating_sub(other.0))
     }
 
+    #[inline]
     fn saturating_add(self, other: Self) -> Self {
         Self(self.0.saturating_add(other.0))
     }

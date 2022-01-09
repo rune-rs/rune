@@ -33,8 +33,24 @@ impl<'a> Lexer<'a> {
     }
 
     /// Access the span of the lexer.
-    pub(crate) fn span(&self) -> Span {
+    pub(crate) fn full_span(&self) -> Span {
         self.iter.from_span(0)
+    }
+
+    /// Get the end span from the given start to the end of the source.
+    #[cfg(rune_grammar)]
+    pub(crate) fn from_span(&self, start: usize) -> Span {
+        self.iter.from_span(start)
+    }
+
+    /// Get the endpoint of the lexer as span.
+    #[cfg(rune_grammar)]
+    pub(crate) fn remainder(&self) -> Span {
+        if let Some(head) = self.buffer.front() {
+            self.iter.from_span(head.span.start.into_usize())
+        } else {
+            self.iter.remainder()
+        }
     }
 
     fn emit_builtin_attribute(&mut self, span: Span) {
@@ -784,6 +800,12 @@ impl<'a> SourceIter<'a> {
     /// Get the span from the given start, to the current position.
     fn span_from(&self, start: usize) -> Span {
         Span::new(start, self.pos())
+    }
+
+    /// Get the endpoint span.
+    #[cfg(rune_grammar)]
+    fn remainder(&self) -> Span {
+        Span::new(self.cursor, self.source.len())
     }
 
     /// Get the end span from the given start to the end of the source.

@@ -348,7 +348,7 @@ impl Source<'_> {
     /// Get the span of the source.
     fn span(&self) -> Option<Span> {
         match &self.inner {
-            SourceInner::Lexer(lexer) => Some(lexer.span()),
+            SourceInner::Lexer(lexer) => Some(lexer.full_span()),
             SourceInner::TokenStream(token_stream) => token_stream.option_span(),
         }
     }

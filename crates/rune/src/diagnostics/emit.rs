@@ -334,8 +334,9 @@ impl Source {
 /// Get the line number and source line for the given source and span.
 pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
     let line_starts = source.line_starts();
+    let index = span.start.into_usize();
 
-    let line = match line_starts.binary_search(&span.start.into_usize()) {
+    let line = match line_starts.binary_search(&index) {
         Ok(n) => n,
         Err(n) => n.saturating_sub(1),
     };

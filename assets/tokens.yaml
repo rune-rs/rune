@@ -389,3 +389,29 @@
 - kind: syntax
   variant: Whitespace
   doc: Kind used for whitespace.
+
+# Syntax nodes below
+- kind: syntax
+  variant: File
+  doc: Kind used for a file.
+- kind: syntax
+  variant: OuterAttribute
+  doc: Outer attributes directly nested inside of files.
+- kind: syntax
+  variant: Visibility
+  doc: A visiblity modifier for an item.
+- kind: syntax
+  variant: Item
+  doc: An item declaration.
+- kind: syntax
+  variant: ItemFn
+  doc: A function declaration.
+- kind: syntax
+  variant: ItemFnName
+  doc: The name of a function.
+- kind: syntax
+  variant: ItemFnArguments
+  doc: The arguments of a function.
+- kind: syntax
+  variant: ItemFnBody
+  doc: The body of a function.

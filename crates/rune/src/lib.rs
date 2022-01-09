@@ -222,6 +222,9 @@ pub mod diagnostics;
 #[doc(inline)]
 pub use self::diagnostics::Diagnostics;
 
+#[cfg(rune_grammar)]
+mod grammar;
+
 mod hash;
 pub use self::hash::{Hash, InstFnInfo, InstFnKind, InstFnName, IntoTypeHash, Params};
 

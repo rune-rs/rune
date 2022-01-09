@@ -4553,6 +4553,22 @@ pub enum Kind {
     Yield,
     /// Kind used for whitespace.
     Whitespace,
+    /// Kind used for a file.
+    File,
+    /// Outer attributes directly nested inside of files.
+    OuterAttribute,
+    /// A visiblity modifier for an item.
+    Visibility,
+    /// An item declaration.
+    Item,
+    /// A function declaration.
+    ItemFn,
+    /// The name of a function.
+    ItemFnName,
+    /// The arguments of a function.
+    ItemFnArguments,
+    /// The body of a function.
+    ItemFnBody,
 }
 
 impl From<ast::Token> for Kind {
@@ -4857,6 +4873,14 @@ impl parse::IntoExpectation for Kind {
             Self::Tilde => parse::Expectation::Punctuation("~"),
             Self::Underscore => parse::Expectation::Punctuation("_"),
             Self::Whitespace => parse::Expectation::Syntax,
+            Self::File => parse::Expectation::Syntax,
+            Self::OuterAttribute => parse::Expectation::Syntax,
+            Self::Visibility => parse::Expectation::Syntax,
+            Self::Item => parse::Expectation::Syntax,
+            Self::ItemFn => parse::Expectation::Syntax,
+            Self::ItemFnName => parse::Expectation::Syntax,
+            Self::ItemFnArguments => parse::Expectation::Syntax,
+            Self::ItemFnBody => parse::Expectation::Syntax,
         }
     }
 }

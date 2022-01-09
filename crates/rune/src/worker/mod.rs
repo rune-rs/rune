@@ -86,6 +86,23 @@ impl<'a> Worker<'a> {
                         }
                     };
 
+                    #[cfg(rune_grammar)]
+                    {
+                        let mut p = crate::grammar::Parser::new(source.as_str(), source_id, true);
+
+                        if let Err(error) = crate::grammar::ast::file(&mut p) {
+                            self.diagnostics.error(source_id, error);
+                        }
+
+                        if let Ok(tree) = p.build() {
+                            let _ = syntree::print::print_with_source(
+                                std::io::stdout(),
+                                &tree,
+                                source.as_str(),
+                            );
+                        }
+                    }
+
                     let mut file = match crate::parse::parse_all::<ast::File>(
                         source.as_str(),
                         source_id,
