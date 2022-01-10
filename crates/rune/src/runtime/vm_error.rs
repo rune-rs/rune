@@ -237,6 +237,8 @@ pub enum VmErrorKind {
         index: TypeInfo,
         value: TypeInfo,
     },
+    #[error("the object field get operation is not supported on `{target}`")]
+    UnsupportedObjectFieldGet { target: TypeInfo },
     #[error("the index get operation `{target}[{index}]` is not supported")]
     UnsupportedIndexGet { target: TypeInfo, index: TypeInfo },
     #[error("the tuple index get operation is not supported on `{target}`")]
@@ -254,7 +256,7 @@ pub enum VmErrorKind {
     },
     #[error("`{actual_type}` cannot be called since it's not a function")]
     UnsupportedCallFn { actual_type: TypeInfo },
-    #[error("missing index by static string slot `{slot}` in object")]
+    #[error("missing index by static string slot `{slot}`")]
     ObjectIndexMissing { slot: usize },
     #[error("`{target}` missing index `{index}`")]
     MissingIndex {

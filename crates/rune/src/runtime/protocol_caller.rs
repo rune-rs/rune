@@ -1,3 +1,4 @@
+use crate::runtime::vm::CallResult;
 use crate::runtime::{GuardedArgs, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind};
 use crate::Hash;
 
@@ -91,7 +92,7 @@ impl ProtocolCaller for &mut Vm {
     where
         A: GuardedArgs,
     {
-        if !self.call_instance_fn(target, protocol, args)? {
+        if let CallResult::Unsupported(..) = self.call_instance_fn(target, protocol, args)? {
             return Err(VmError::from(VmErrorKind::MissingFunction {
                 hash: protocol.hash,
             }));

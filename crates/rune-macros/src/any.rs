@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::context::{Context, Generate, Tokens, TypeAttrs};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
@@ -104,65 +106,14 @@ pub(crate) fn expand_install_with(
 ) -> Option<TokenStream> {
     let mut installers = Vec::new();
 
-    if let Some(install_with) = &attrs.install_with {
-        installers.push(quote_spanned! { input.span() =>
-            #install_with(module)?;
-        });
-    }
-
-    let mut fields = Vec::new();
-
     let ident = &input.ident;
-    let (_, ty_generics, _) = generics.split_for_impl();
 
     match &input.data {
         syn::Data::Struct(st) => {
-            for field in &st.fields {
-                let attrs = ctx.field_attrs(&field.attrs)?;
-
-                let field_ident = match &field.ident {
-                    Some(ident) => ident,
-                    None => {
-                        if !attrs.protocols.is_empty() {
-                            ctx.errors.push(syn::Error::new_spanned(
-                                field,
-                                "only named fields can be used with protocol generators like `#[rune(get)]`",
-                            ));
-                            return None;
-                        }
-
-                        continue;
-                    }
-                };
-
-                let ty = &field.ty;
-                let name = syn::LitStr::new(&field_ident.to_string(), field_ident.span());
-
-                for protocol in &attrs.protocols {
-                    installers.push((protocol.generate)(Generate {
-                        tokens,
-                        protocol,
-                        attrs: &attrs,
-                        ident,
-                        field,
-                        field_ident,
-                        ty,
-                        name: &name,
-                        ty_generics: &ty_generics,
-                    }));
-                }
-
-                if attrs.field {
-                    fields.push(name);
-                }
-            }
+            expand_struct_install_with(ctx, &mut installers, ident, st, tokens, generics)?;
         }
-        syn::Data::Enum(..) => {
-            ctx.errors.push(syn::Error::new_spanned(
-                input,
-                "`Any` not supported on enums",
-            ));
-            return None;
+        syn::Data::Enum(en) => {
+            expand_enum_install_with(ctx, &mut installers, ident, en, tokens, generics)?;
         }
         syn::Data::Union(..) => {
             ctx.errors.push(syn::Error::new_spanned(
@@ -173,14 +124,241 @@ pub(crate) fn expand_install_with(
         }
     }
 
-    installers.push(quote! {
-        module.struct_meta::<Self>(&[#(#fields),*][..])?;
-    });
+    if let Some(install_with) = &attrs.install_with {
+        installers.push(quote_spanned! { input.span() =>
+            #install_with(module)?;
+        });
+    }
 
     Some(quote! {
         #(#installers)*
         Ok(())
     })
+}
+
+fn expand_struct_install_with(
+    ctx: &mut Context,
+    installers: &mut Vec<TokenStream>,
+    ident: &syn::Ident,
+    st: &syn::DataStruct,
+    tokens: &Tokens,
+    generics: &syn::Generics,
+) -> Option<()> {
+    let (_, ty_generics, _) = generics.split_for_impl();
+
+    let mut fields = Vec::new();
+
+    for field in &st.fields {
+        let attrs = ctx.field_attrs(&field.attrs)?;
+
+        let field_ident = match &field.ident {
+            Some(ident) => ident,
+            None => {
+                if !attrs.protocols.is_empty() {
+                    ctx.errors.push(syn::Error::new_spanned(
+                        field,
+                        "only named fields can be used with protocol generators like `#[rune(get)]`",
+                    ));
+                    return None;
+                }
+
+                continue;
+            }
+        };
+
+        let ty = &field.ty;
+        let name = syn::LitStr::new(&field_ident.to_string(), field_ident.span());
+
+        for protocol in &attrs.protocols {
+            installers.push((protocol.generate)(Generate {
+                tokens,
+                protocol,
+                attrs: &attrs,
+                ident,
+                field,
+                field_ident,
+                ty,
+                name: &name,
+                ty_generics: &ty_generics,
+            }));
+        }
+
+        if attrs.field {
+            fields.push(name);
+        }
+    }
+
+    let len = fields.len();
+
+    installers.push(quote! {
+        module.struct_meta::<Self, #len>([#(#fields),*])?;
+    });
+
+    Some(())
+}
+
+fn expand_enum_install_with(
+    ctx: &mut Context,
+    installers: &mut Vec<TokenStream>,
+    ident: &syn::Ident,
+    en: &syn::DataEnum,
+    tokens: &Tokens,
+    generics: &syn::Generics,
+) -> Option<()> {
+    let protocol = &tokens.protocol;
+    let variant_meta = &tokens.variant;
+    let vm_error = &tokens.vm_error;
+    let vm_error_kind = &tokens.vm_error_kind;
+    let to_value = &tokens.to_value;
+    let type_of = &tokens.type_of;
+
+    let mut is_variant = Vec::new();
+    let mut variants = Vec::new();
+    let mut constructors = Vec::new();
+
+    // Protocol::GET implementations per available field. Each implementation
+    // needs to match the enum to extract the appropriate field.
+    let mut get = BTreeMap::<String, Vec<TokenStream>>::new();
+    let mut get_index = BTreeMap::<usize, Vec<TokenStream>>::new();
+
+    for (variant_index, variant) in en.variants.iter().enumerate() {
+        let span = variant.fields.span();
+
+        let variant_attrs = ctx.variant_attrs(&variant.attrs)?;
+        let variant_ident = &variant.ident;
+        let variant_name = syn::LitStr::new(&variant_ident.to_string(), span);
+
+        is_variant.push(quote!((#ident::#variant_ident { .. }, #variant_index) => true));
+
+        match &variant.fields {
+            syn::Fields::Named(fields) => {
+                let mut field_names = Vec::new();
+
+                for f in &fields.named {
+                    let attrs = ctx.field_attrs(&f.attrs)?;
+
+                    let f_ident = match &f.ident {
+                        Some(ident) => ident,
+                        None => {
+                            ctx.errors
+                                .push(syn::Error::new_spanned(f, "missing field name"));
+                            return None;
+                        }
+                    };
+
+                    if attrs.field {
+                        let f_name = f_ident.to_string();
+                        let name = syn::LitStr::new(&f_name, f.span());
+                        field_names.push(name);
+
+                        let fields = get.entry(f_name).or_default();
+
+                        let value = if attrs.copy {
+                            quote!(#to_value::to_value(*#f_ident)?)
+                        } else {
+                            quote!(#to_value::to_value(#f_ident.clone())?)
+                        };
+
+                        fields.push(quote!(#ident::#variant_ident { #f_ident, .. } => #value));
+                    }
+                }
+
+                variants.push(quote!((#variant_name, #variant_meta::st([#(#field_names),*]))));
+            }
+            syn::Fields::Unnamed(fields) => {
+                let mut fields_len = 0usize;
+
+                for (n, field) in fields.unnamed.iter().enumerate() {
+                    let span = field.span();
+                    let attrs = ctx.field_attrs(&field.attrs)?;
+
+                    if attrs.field {
+                        fields_len += 1;
+                        let fields = get_index.entry(n).or_default();
+                        let n = syn::LitInt::new(&n.to_string(), span);
+
+                        let value = if attrs.copy {
+                            quote!(#to_value::to_value(*value)?)
+                        } else {
+                            quote!(#to_value::to_value(value.clone())?)
+                        };
+
+                        fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #value));
+                    }
+                }
+
+                variants.push(quote!((#variant_name, #variant_meta::tuple(#fields_len))));
+
+                if variant_attrs.constructor {
+                    if fields_len != fields.unnamed.len() {
+                        ctx.errors.push(syn::Error::new_spanned(fields, "#[rune(constructor)] can only be used if all fields are marked with #[rune(get)"));
+                        return None;
+                    }
+
+                    constructors.push(quote!(#variant_index, #ident #generics :: #variant_ident));
+                }
+            }
+            syn::Fields::Unit => {
+                variants.push(quote!((#variant_name, #variant_meta::unit())));
+
+                if variant_attrs.constructor {
+                    constructors
+                        .push(quote!(#variant_index, || #ident #generics :: #variant_ident));
+                }
+            }
+        }
+    }
+
+    let is_variant = quote! {
+        module.inst_fn(#protocol::IS_VARIANT, |this: &#ident #generics, index: usize| {
+            match (this, index) {
+                #(#is_variant,)*
+                _ => false,
+            }
+        })?;
+    };
+
+    installers.push(is_variant);
+
+    for (field, matches) in get {
+        installers.push(quote! {
+            module.field_fn(#protocol::GET, #field, |this: &#ident #generics| {
+                Ok::<_, #vm_error>(match this {
+                    #(#matches,)*
+                    _ => return Err(#vm_error::from(#vm_error_kind::UnsupportedObjectFieldGet {
+                        target: <Self as #type_of>::type_info(),
+                    })),
+                })
+            })?;
+        });
+    }
+
+    for (index, matches) in get_index {
+        installers.push(quote! {
+            module.index_fn(#protocol::GET, #index, |this: &#ident #generics| {
+                Ok::<_, #vm_error>(match this {
+                    #(#matches,)*
+                    _ => return Err(#vm_error::from(#vm_error_kind::UnsupportedTupleIndexGet {
+                        target: <Self as #type_of>::type_info(),
+                    })),
+                })
+            })?;
+        });
+    }
+
+    let variant_count = en.variants.len();
+
+    let enum_meta = quote! {
+        module.enum_meta::<#ident #generics, #variant_count>([#(#variants),*])?;
+    };
+
+    installers.push(enum_meta);
+
+    for constructor in constructors {
+        installers.push(quote!(module.variant_constructor(#constructor)?;))
+    }
+
+    Some(())
 }
 
 /// Expand the necessary implementation details for `Any`.
@@ -236,6 +414,7 @@ where
             }
         }
     };
+
     Ok(quote! {
         impl #impl_generics #any for #ident #ty_generics #where_clause {
             fn type_hash() -> #hash {

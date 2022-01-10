@@ -71,6 +71,13 @@ pub(crate) struct TypeAttrs {
     pub(crate) parse: ParseKind,
 }
 
+/// Parsed variant attributes.
+#[derive(Default)]
+pub(crate) struct VariantAttrs {
+    /// `#[rune(constructor)]`.
+    pub(crate) constructor: bool,
+}
+
 #[derive(Clone)]
 pub(crate) struct Generate<'a> {
     pub(crate) tokens: &'a Tokens,
@@ -452,6 +459,42 @@ impl Context {
         Some(attrs)
     }
 
+    /// Parse and extract variant attributes.
+    pub(crate) fn variant_attrs(&mut self, input: &[syn::Attribute]) -> Option<VariantAttrs> {
+        let mut attrs = VariantAttrs::default();
+        let mut error = false;
+
+        for attr in input {
+            for meta in self.get_meta_items(attr, RUNE)? {
+                match meta {
+                    Meta(meta) if meta.path() == CONSTRUCTOR => {
+                        if attrs.constructor {
+                            self.errors.push(syn::Error::new_spanned(
+                                meta,
+                                "#[rune(constructor)] must only be used once",
+                            ));
+                            error = true;
+                        }
+
+                        attrs.constructor = true;
+                    }
+                    _ => {
+                        self.errors
+                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
+
+                        return None;
+                    }
+                }
+            }
+        }
+
+        if error {
+            return None;
+        }
+
+        Some(attrs)
+    }
+
     /// Parse path to custom field function.
     fn parse_field_custom(&mut self, meta: syn::Meta) -> Option<Option<syn::Path>> {
         let s = match meta {
@@ -632,6 +675,7 @@ impl Context {
             unsafe_to_value: quote!(#module::runtime::UnsafeToValue),
             value: quote!(#module::runtime::Value),
             variant_data: quote!(#module::runtime::VariantData),
+            variant: quote!(#module::compile::Variant),
             vm_error_kind: quote!(#module::runtime::VmErrorKind),
             vm_error: quote!(#module::runtime::VmError),
         }
@@ -673,6 +717,7 @@ pub(crate) struct Tokens {
     pub(crate) unsafe_to_value: TokenStream,
     pub(crate) value: TokenStream,
     pub(crate) variant_data: TokenStream,
+    pub(crate) variant: TokenStream,
     pub(crate) vm_error_kind: TokenStream,
     pub(crate) vm_error: TokenStream,
 }

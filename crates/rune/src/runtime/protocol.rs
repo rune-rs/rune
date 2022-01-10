@@ -250,14 +250,24 @@ impl Protocol {
     };
 
     /// Function used to convert an argument into a future.
+    ///
+    /// Signature: `fn(Value) -> Future`.
     pub const INTO_FUTURE: Protocol = Protocol {
         name: "into_future",
         hash: Hash::new(0x596e6428deabfda2),
     };
 
-    /// Function used to convert an argument into a future.
+    /// Coerce a value into a type name. This is stored as a constant.
     pub const INTO_TYPE_NAME: Protocol = Protocol {
         name: "into_type_name",
         hash: Hash::new(0xbffd08b816c24682),
+    };
+
+    /// Function used to test if a value is a specific variant.
+    ///
+    /// Signature: `fn(self, usize) -> bool`.
+    pub const IS_VARIANT: Protocol = Protocol {
+        name: "is_variant",
+        hash: Hash::new(0xc030d82bbd4dabe8),
     };
 }

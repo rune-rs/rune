@@ -4,6 +4,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
 use crate::compile::{
     CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, PrivMeta, PrivMetaKind,
+    PrivStructMeta, PrivVariantMeta,
 };
 use crate::hash::ParametersBuilder;
 use crate::parse::{Id, ParseErrorKind, Resolve};
@@ -90,40 +91,34 @@ fn meta(
 ) -> CompileResult<()> {
     if let Needs::Value = needs {
         match &meta.kind {
-            PrivMetaKind::UnitStruct { empty, .. } => {
+            PrivMetaKind::Struct {
+                type_hash,
+                variant: PrivVariantMeta::Unit,
+                ..
+            }
+            | PrivMetaKind::Variant {
+                type_hash,
+                variant: PrivVariantMeta::Unit,
+                ..
+            } => {
                 named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::Call {
-                        hash: empty.hash,
+                        hash: *type_hash,
                         args: 0,
                     },
                     span,
                     meta.info().to_string(),
                 );
             }
-            PrivMetaKind::TupleStruct { tuple, .. } if tuple.args == 0 => {
-                named.assert_not_generic()?;
-                c.asm.push_with_comment(
-                    Inst::Call {
-                        hash: tuple.hash,
-                        args: 0,
-                    },
-                    span,
-                    meta.info().to_string(),
-                );
+            PrivMetaKind::Variant {
+                variant: PrivVariantMeta::Tuple(tuple),
+                ..
             }
-            PrivMetaKind::UnitVariant { empty, .. } => {
-                named.assert_not_generic()?;
-                c.asm.push_with_comment(
-                    Inst::Call {
-                        hash: empty.hash,
-                        args: 0,
-                    },
-                    span,
-                    meta.info().to_string(),
-                );
-            }
-            PrivMetaKind::TupleVariant { tuple, .. } if tuple.args == 0 => {
+            | PrivMetaKind::Struct {
+                variant: PrivVariantMeta::Tuple(tuple),
+                ..
+            } if tuple.args == 0 => {
                 named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::Call {
@@ -134,7 +129,10 @@ fn meta(
                     meta.info().to_string(),
                 );
             }
-            PrivMetaKind::TupleStruct { tuple, .. } => {
+            PrivMetaKind::Struct {
+                variant: PrivVariantMeta::Tuple(tuple),
+                ..
+            } => {
                 named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::LoadFn { hash: tuple.hash },
@@ -142,7 +140,10 @@ fn meta(
                     meta.info().to_string(),
                 );
             }
-            PrivMetaKind::TupleVariant { tuple, .. } => {
+            PrivMetaKind::Variant {
+                variant: PrivVariantMeta::Tuple(tuple),
+                ..
+            } => {
                 named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::LoadFn { hash: tuple.hash },
@@ -489,6 +490,87 @@ fn pat_vec(
     Ok(())
 }
 
+/// Construct the appropriate match instruction for the given [PrivMeta].
+#[instrument]
+fn struct_match_for<'a>(
+    span: Span,
+    c: &Assembler<'_>,
+    meta: &'a PrivMeta,
+) -> Option<(&'a PrivStructMeta, Inst)> {
+    Some(match &meta.kind {
+        PrivMetaKind::Struct {
+            type_hash,
+            variant: PrivVariantMeta::Struct(st),
+            ..
+        } => (st, Inst::MatchType { hash: *type_hash }),
+        PrivMetaKind::Variant {
+            type_hash,
+            enum_hash,
+            index,
+            variant: PrivVariantMeta::Struct(st),
+            ..
+        } => {
+            let inst = if let Some(type_check) = c.context.type_check_for(*type_hash) {
+                Inst::MatchBuiltIn { type_check }
+            } else {
+                Inst::MatchVariant {
+                    variant_hash: *type_hash,
+                    enum_hash: *enum_hash,
+                    index: *index,
+                }
+            };
+
+            (st, inst)
+        }
+        _ => {
+            return None;
+        }
+    })
+}
+
+/// Construct the appropriate match instruction for the given [PrivMeta].
+#[instrument]
+fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &PrivMeta) -> Option<(usize, Inst)> {
+    Some(match &meta.kind {
+        PrivMetaKind::Struct {
+            type_hash,
+            variant: PrivVariantMeta::Unit,
+            ..
+        } => (0, Inst::MatchType { hash: *type_hash }),
+        PrivMetaKind::Struct {
+            type_hash,
+            variant: PrivVariantMeta::Tuple(tuple),
+            ..
+        } => (tuple.args, Inst::MatchType { hash: *type_hash }),
+        PrivMetaKind::Variant {
+            enum_hash,
+            type_hash,
+            index,
+            variant,
+            ..
+        } => {
+            let args = match variant {
+                PrivVariantMeta::Tuple(tuple) => tuple.args,
+                PrivVariantMeta::Unit => 0,
+                _ => return None,
+            };
+
+            let inst = if let Some(type_check) = c.context.type_check_for(*type_hash) {
+                Inst::MatchBuiltIn { type_check }
+            } else {
+                Inst::MatchVariant {
+                    enum_hash: *enum_hash,
+                    variant_hash: *type_hash,
+                    index: *index,
+                }
+            };
+
+            (args, inst)
+        }
+        _ => return None,
+    })
+}
+
 /// Encode a vector pattern match.
 #[instrument]
 fn pat_tuple(
@@ -515,14 +597,16 @@ fn pat_tuple(
 
     let (is_open, count) = pat_items_count(&ast.items)?;
 
-    let type_check = if let Some(path) = &ast.path {
+    if let Some(path) = &ast.path {
         let named = c.convert_path(path)?;
         named.assert_not_generic()?;
 
         let meta = c.lookup_meta(path.span(), &named.item)?;
 
-        let (args, type_check) = match meta.as_tuple() {
-            Some((args, type_check)) => (args, type_check),
+        // Treat the current meta as a tuple and get the number of arguments it
+        // should receive and the type check that applies to it.
+        let (args, inst) = match tuple_match_for(span, c, &meta) {
+            Some(out) => out,
             None => {
                 return Err(CompileError::expected_meta(
                     span,
@@ -543,22 +627,20 @@ fn pat_tuple(
             ));
         }
 
-        c.context
-            .type_check_for(&meta.item.item)
-            .unwrap_or(type_check)
+        c.asm.push(Inst::Copy { offset }, span);
+        c.asm.push(inst, span);
     } else {
-        TypeCheck::Tuple
+        c.asm.push(Inst::Copy { offset }, span);
+        c.asm.push(
+            Inst::MatchSequence {
+                type_check: TypeCheck::Tuple,
+                len: count,
+                exact: !is_open,
+            },
+            span,
+        );
     };
 
-    c.asm.push(Inst::Copy { offset }, span);
-    c.asm.push(
-        Inst::MatchSequence {
-            type_check,
-            len: count,
-            exact: !is_open,
-        },
-        span,
-    );
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
 
@@ -664,10 +746,9 @@ fn pat_object(
 
             let meta = c.lookup_meta(path_span, &named.item)?;
 
-            let (st, type_hash) = match &meta.kind {
-                PrivMetaKind::Struct { st, type_hash, .. } => (st, *type_hash),
-                PrivMetaKind::StructVariant { st, type_hash, .. } => (st, *type_hash),
-                _ => {
+            let (st, inst) = match struct_match_for(span, c, &meta) {
+                Some(out) => out,
+                None => {
                     return Err(CompileError::expected_meta(
                         path_span,
                         meta.info(),
@@ -707,7 +788,7 @@ fn pat_object(
             }
 
             c.asm.push(Inst::Copy { offset }, span);
-            c.asm.push(Inst::MatchType { hash: type_hash }, span);
+            c.asm.push(inst, span);
         }
         ast::ObjectIdent::Anonymous(..) => {
             let keys = c.q.unit.new_static_object_keys_iter(span, &keys[..])?;
@@ -785,32 +866,13 @@ fn pat_meta_binding(
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<bool> {
-    let type_check = match &meta.kind {
-        PrivMetaKind::UnitStruct { type_hash, .. } => TypeCheck::Type(*type_hash),
-        PrivMetaKind::TupleStruct {
-            tuple, type_hash, ..
-        } if tuple.args == 0 => TypeCheck::Type(*type_hash),
-        PrivMetaKind::UnitVariant { type_hash, .. } => TypeCheck::Variant(*type_hash),
-        PrivMetaKind::TupleVariant {
-            tuple, type_hash, ..
-        } if tuple.args == 0 => TypeCheck::Variant(*type_hash),
+    let inst = match tuple_match_for(span, c, meta) {
+        Some((args, inst)) if args == 0 => inst,
         _ => return Ok(false),
     };
 
-    let type_check = match c.context.type_check_for(&meta.item.item) {
-        Some(type_check) => type_check,
-        None => type_check,
-    };
-
     load(c, Needs::Value)?;
-    c.asm.push(
-        Inst::MatchSequence {
-            type_check,
-            len: 0,
-            exact: true,
-        },
-        span,
-    );
+    c.asm.push(inst, span);
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
     Ok(true)
@@ -1628,8 +1690,6 @@ fn generics_parameters(
 
         let hash = match meta.kind {
             PrivMetaKind::Unknown { type_hash, .. } => type_hash,
-            PrivMetaKind::UnitStruct { type_hash, .. } => type_hash,
-            PrivMetaKind::TupleStruct { type_hash, .. } => type_hash,
             PrivMetaKind::Struct { type_hash, .. } => type_hash,
             PrivMetaKind::Enum { type_hash, .. } => type_hash,
             _ => {
@@ -1699,7 +1759,14 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
             debug_assert_eq!(meta.item.item, named.item);
 
             match &meta.kind {
-                PrivMetaKind::UnitStruct { .. } | PrivMetaKind::UnitVariant { .. } => {
+                PrivMetaKind::Struct {
+                    variant: PrivVariantMeta::Unit,
+                    ..
+                }
+                | PrivMetaKind::Variant {
+                    variant: PrivVariantMeta::Unit,
+                    ..
+                } => {
                     named.assert_not_generic()?;
 
                     if !ast.args.is_empty() {
@@ -1713,8 +1780,14 @@ fn convert_expr_call(ast: &ast::ExprCall, c: &mut Assembler<'_>) -> CompileResul
                         ));
                     }
                 }
-                PrivMetaKind::TupleStruct { tuple, .. }
-                | PrivMetaKind::TupleVariant { tuple, .. } => {
+                PrivMetaKind::Struct {
+                    variant: PrivVariantMeta::Tuple(tuple),
+                    ..
+                }
+                | PrivMetaKind::Variant {
+                    variant: PrivVariantMeta::Tuple(tuple),
+                    ..
+                } => {
                     named.assert_not_generic()?;
 
                     if tuple.args != ast.args.len() {
@@ -2568,19 +2641,28 @@ fn expr_object(ast: &ast::ExprObject, c: &mut Assembler<'_>, needs: Needs) -> Co
             let meta = c.lookup_meta(path.span(), &named.item)?;
 
             match &meta.kind {
-                PrivMetaKind::UnitStruct { .. } => {
+                PrivMetaKind::Struct {
+                    variant: PrivVariantMeta::Unit,
+                    ..
+                } => {
                     check_object_fields(&HashSet::new(), check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);
                     c.asm.push(Inst::UnitStruct { hash }, span);
                 }
-                PrivMetaKind::Struct { st, .. } => {
+                PrivMetaKind::Struct {
+                    variant: PrivVariantMeta::Struct(st),
+                    ..
+                } => {
                     check_object_fields(&st.fields, check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);
                     c.asm.push(Inst::Struct { hash, slot }, span);
                 }
-                PrivMetaKind::StructVariant { st, .. } => {
+                PrivMetaKind::Variant {
+                    variant: PrivVariantMeta::Struct(st),
+                    ..
+                } => {
                     check_object_fields(&st.fields, check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);

@@ -6,10 +6,10 @@ use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::ir;
 use crate::compile::{
-    CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, EmptyMeta,
-    ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemMeta, Location,
-    ModMeta, Names, PrivMeta, PrivMetaKind, SourceMeta, StructMeta, TupleMeta, UnitBuilder,
-    Visibility,
+    CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ImportStep,
+    IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemMeta, Location, ModMeta, Names,
+    PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta,
+    UnitBuilder, Visibility,
 };
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
@@ -487,12 +487,13 @@ impl<'a> Query<'a> {
         item: &Arc<ItemMeta>,
         enum_id: Id,
         ast: ast::ItemVariant,
+        index: usize,
     ) -> Result<(), QueryError> {
         tracing::trace!("new variant: {:?}", item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
-            indexed: Indexed::Variant(Variant::new(enum_id, ast)),
+            indexed: Indexed::Variant(Variant::new(enum_id, ast, index)),
         });
 
         Ok(())
@@ -948,11 +949,12 @@ impl<'a> Query<'a> {
 
                 // Assert that everything is built for the enum.
                 self.query_meta(span, &enum_item.item, Default::default())?;
+                let enum_hash = Hash::type_hash(&enum_item.item);
 
                 variant_into_item_decl(
                     &query_item.item,
                     variant.ast.body,
-                    Some(&enum_item.item),
+                    Some((&enum_item.item, enum_hash, variant.index)),
                     resolve_context!(self),
                 )?
             }
@@ -1354,12 +1356,18 @@ pub(crate) struct Variant {
     enum_id: Id,
     /// Ast for declaration.
     ast: ast::ItemVariant,
+    /// The index of the variant in its source.
+    index: usize,
 }
 
 impl Variant {
     /// Construct a new variant.
-    pub(crate) fn new(enum_id: Id, ast: ast::ItemVariant) -> Self {
-        Self { enum_id, ast }
+    pub(crate) fn new(enum_id: Id, ast: ast::ItemVariant, index: usize) -> Self {
+        Self {
+            enum_id,
+            ast,
+            index,
+        }
     }
 }
 
@@ -1522,50 +1530,56 @@ impl fmt::Display for Named<'_> {
 }
 
 /// Construct metadata for an empty body.
-fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> PrivMetaKind {
+fn unit_body_meta(item: &Item, enum_item: Option<(&Item, Hash, usize)>) -> PrivMetaKind {
     let type_hash = Hash::type_hash(item);
 
-    let empty = EmptyMeta {
-        hash: Hash::type_hash(item),
-    };
-
     match enum_item {
-        Some(enum_item) => PrivMetaKind::UnitVariant {
+        Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
             type_hash,
             enum_item: enum_item.clone(),
-            empty,
+            enum_hash,
+            index,
+            variant: PrivVariantMeta::Unit,
         },
-        None => PrivMetaKind::UnitStruct { type_hash, empty },
+        None => PrivMetaKind::Struct {
+            type_hash,
+            variant: PrivVariantMeta::Unit,
+        },
     }
 }
 
 /// Construct metadata for an empty body.
 fn tuple_body_meta(
     item: &Item,
-    enum_item: Option<&Item>,
+    enum_: Option<(&Item, Hash, usize)>,
     tuple: ast::Parenthesized<ast::Field, T![,]>,
 ) -> PrivMetaKind {
     let type_hash = Hash::type_hash(item);
 
-    let tuple = TupleMeta {
+    let tuple = PrivTupleMeta {
         args: tuple.len(),
         hash: Hash::type_hash(item),
     };
 
-    match enum_item {
-        Some(enum_item) => PrivMetaKind::TupleVariant {
+    match enum_ {
+        Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
             type_hash,
             enum_item: enum_item.clone(),
-            tuple,
+            enum_hash,
+            index,
+            variant: PrivVariantMeta::Tuple(tuple),
         },
-        None => PrivMetaKind::TupleStruct { type_hash, tuple },
+        None => PrivMetaKind::Struct {
+            type_hash,
+            variant: PrivVariantMeta::Tuple(tuple),
+        },
     }
 }
 
 /// Construct metadata for a struct body.
 fn struct_body_meta(
     item: &Item,
-    enum_item: Option<&Item>,
+    enum_: Option<(&Item, Hash, usize)>,
     ctx: ResolveContext<'_>,
     st: ast::Braced<ast::Field, T![,]>,
 ) -> Result<PrivMetaKind, QueryError> {
@@ -1578,15 +1592,20 @@ fn struct_body_meta(
         fields.insert(name.into());
     }
 
-    let st = StructMeta { fields };
+    let st = PrivStructMeta { fields };
 
-    Ok(match enum_item {
-        Some(enum_item) => PrivMetaKind::StructVariant {
+    Ok(match enum_ {
+        Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
             type_hash,
             enum_item: enum_item.clone(),
-            st,
+            enum_hash,
+            index,
+            variant: PrivVariantMeta::Struct(st),
         },
-        None => PrivMetaKind::Struct { type_hash, st },
+        None => PrivMetaKind::Struct {
+            type_hash,
+            variant: PrivVariantMeta::Struct(st),
+        },
     })
 }
 
@@ -1594,13 +1613,13 @@ fn struct_body_meta(
 fn variant_into_item_decl(
     item: &Item,
     body: ast::ItemVariantBody,
-    enum_item: Option<&Item>,
+    enum_: Option<(&Item, Hash, usize)>,
     ctx: ResolveContext<'_>,
 ) -> Result<PrivMetaKind, QueryError> {
     Ok(match body {
-        ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_item),
-        ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_item, tuple),
-        ast::ItemVariantBody::StructBody(st) => struct_body_meta(item, enum_item, ctx, st)?,
+        ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_),
+        ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
+        ast::ItemVariantBody::StructBody(st) => struct_body_meta(item, enum_, ctx, st)?,
     })
 }
 
@@ -1608,13 +1627,13 @@ fn variant_into_item_decl(
 fn struct_into_item_decl(
     item: &Item,
     body: ast::ItemStructBody,
-    enum_item: Option<&Item>,
+    enum_: Option<(&Item, Hash, usize)>,
     ctx: ResolveContext<'_>,
 ) -> Result<PrivMetaKind, QueryError> {
     Ok(match body {
-        ast::ItemStructBody::UnitBody => unit_body_meta(item, enum_item),
-        ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, enum_item, tuple),
-        ast::ItemStructBody::StructBody(st) => struct_body_meta(item, enum_item, ctx, st)?,
+        ast::ItemStructBody::UnitBody => unit_body_meta(item, enum_),
+        ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
+        ast::ItemStructBody::StructBody(st) => struct_body_meta(item, enum_, ctx, st)?,
     })
 }
 

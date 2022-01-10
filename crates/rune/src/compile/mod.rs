@@ -51,12 +51,13 @@ pub use self::location::Location;
 
 mod meta;
 pub(crate) use self::meta::{
-    CaptureMeta, EmptyMeta, ItemMeta, ModMeta, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
+    CaptureMeta, ItemMeta, ModMeta, PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta,
+    PrivVariantMeta,
 };
 pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
 mod module;
-pub use self::module::{AssocType, InstallWith, Module};
+pub use self::module::{AssocType, InstallWith, Module, Variant};
 
 mod named;
 pub use self::named::Named;
