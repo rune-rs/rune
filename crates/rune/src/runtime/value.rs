@@ -1,4 +1,5 @@
 use crate::compile::Item;
+use crate::runtime::vm::CallResult;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, Function, Future,
     Generator, GeneratorState, Iterator, Mut, Object, Protocol, ProtocolCaller, Range, RawMut,
@@ -1043,11 +1044,10 @@ impl Value {
                 (Err(a), Err(b)) => return Self::value_ptr_eq(vm, a, b),
                 _ => return Ok(false),
             },
-            (a, b) => {
-                if vm.call_instance_fn(a.clone(), Protocol::EQ, (b.clone(),))? {
-                    return bool::from_value(vm.stack_mut().pop()?);
-                }
-            }
+            (a, b) => match vm.call_instance_fn(a.clone(), Protocol::EQ, (b.clone(),))? {
+                CallResult::Ok(()) => return bool::from_value(vm.stack_mut().pop()?),
+                CallResult::Unsupported(..) => {}
+            },
         }
 
         Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {

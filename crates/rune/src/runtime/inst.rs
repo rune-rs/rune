@@ -41,8 +41,9 @@ impl fmt::Display for PanicReason {
     }
 }
 
-/// An encoded type check.
+/// Type checks for built-in types.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TypeCheck {
     /// Matches a unit type.
     Unit,
@@ -58,10 +59,6 @@ pub enum TypeCheck {
     Result(usize),
     /// A generator state type, and the specified variant index.
     GeneratorState(usize),
-    /// Matches the type with the corresponding hash.
-    Type(Hash),
-    /// Matches the variant with the corresponding hash.
-    Variant(Hash),
 }
 
 impl fmt::Display for TypeCheck {
@@ -71,11 +68,12 @@ impl fmt::Display for TypeCheck {
             Self::Tuple => write!(fmt, "Tuple"),
             Self::Object => write!(fmt, "Object"),
             Self::Vec => write!(fmt, "Vec"),
-            Self::Option(variant) => write!(fmt, "Option::{}", variant),
-            Self::Result(variant) => write!(fmt, "Result::{}", variant),
-            Self::GeneratorState(variant) => write!(fmt, "GeneratorState::{}", variant),
-            Self::Type(hash) => write!(fmt, "Type({})", hash),
-            Self::Variant(hash) => write!(fmt, "Variant({})", hash),
+            Self::Option(0) => write!(fmt, "Option::Some"),
+            Self::Option(..) => write!(fmt, "Option::None"),
+            Self::Result(0) => write!(fmt, "Result::Ok"),
+            Self::Result(..) => write!(fmt, "Result::Err"),
+            Self::GeneratorState(0) => write!(fmt, "GeneratorState::Yielded"),
+            Self::GeneratorState(..) => write!(fmt, "GeneratorState::Complete"),
         }
     }
 }
@@ -825,6 +823,37 @@ pub enum Inst {
         /// The type hash to match against.
         hash: Hash,
     },
+    /// Test if the specified variant matches. This is distinct from
+    /// [Inst::MatchType] because it will match immediately on the variant type
+    /// if appropriate which is possible for internal types, but external types
+    /// will require an additional runtime check for matching.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    MatchVariant {
+        /// The exact type hash of the variant.
+        variant_hash: Hash,
+        /// The container type.
+        enum_hash: Hash,
+        /// The index of the variant.
+        index: usize,
+    },
+    /// Test if the top of the stack is the given builtin type or variant.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    MatchBuiltIn {
+        /// The type to check for.
+        type_check: TypeCheck,
+    },
     /// Test that the top of the stack is a tuple with the given length
     /// requirements.
     ///
@@ -1193,6 +1222,20 @@ impl fmt::Display for Inst {
             }
             Self::MatchType { hash } => {
                 write!(fmt, "match-type hash={}", hash,)?;
+            }
+            Self::MatchVariant {
+                variant_hash,
+                enum_hash,
+                index,
+            } => {
+                write!(
+                    fmt,
+                    "match-variant variant_hash={}, enum_hash={}, index={}",
+                    enum_hash, variant_hash, index
+                )?;
+            }
+            Self::MatchBuiltIn { type_check } => {
+                write!(fmt, "match-builtin type_check={}", type_check)?;
             }
             Self::MatchSequence {
                 type_check,

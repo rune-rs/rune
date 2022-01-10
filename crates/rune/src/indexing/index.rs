@@ -1242,7 +1242,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
 
     idx.q.index_enum(&enum_item)?;
 
-    for (variant, _) in &mut ast.variants {
+    for (index, (variant, _)) in ast.variants.iter_mut().enumerate() {
         if let Some(first) = variant.attributes.first() {
             return Err(CompileError::msg(
                 first,
@@ -1272,7 +1272,8 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         )?;
         variant.id = item.id;
 
-        idx.q.index_variant(&item, enum_item.id, variant.clone())?;
+        idx.q
+            .index_variant(&item, enum_item.id, variant.clone(), index)?;
     }
 
     Ok(())

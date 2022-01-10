@@ -1,6 +1,7 @@
 use crate::runtime::{
-    FromValue, Mut, RawMut, RawRef, Ref, Shared, UnsafeFromValue, Value, VmError,
+    FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value, VmError,
 };
+use crate::{compile::Named, InstallWith};
 
 /// The state of a generator.
 ///
@@ -110,3 +111,9 @@ impl UnsafeFromValue for &mut GeneratorState {
         &mut *output
     }
 }
+
+impl Named for GeneratorState {
+    const BASE_NAME: RawStr = RawStr::from_str("GeneratorState");
+}
+
+impl InstallWith for GeneratorState {}

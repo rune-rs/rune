@@ -7,11 +7,17 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", &["ops"]);
     module.ty::<Range>()?;
-    module.inst_fn("contains_int", Range::contains_int)?;
+    module.struct_meta::<Range, 2>(["start", "end"])?;
+    module.field_fn(Protocol::GET, "start", |r: &Range| r.start.clone())?;
     module.field_fn(Protocol::SET, "start", range_set_start)?;
+
+    module.field_fn(Protocol::GET, "end", |r: &Range| r.end.clone())?;
     module.field_fn(Protocol::SET, "end", range_set_end)?;
     module.inst_fn(Protocol::INTO_ITER, Range::into_iterator)?;
+
+    module.inst_fn("contains_int", Range::contains_int)?;
     module.inst_fn("iter", Range::into_iterator)?;
+
     Ok(module)
 }
 

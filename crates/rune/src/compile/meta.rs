@@ -3,7 +3,7 @@
 use crate::collections::HashSet;
 use crate::compile::{Item, Location, Visibility};
 use crate::parse::Id;
-use crate::runtime::{ConstValue, TypeCheck};
+use crate::runtime::ConstValue;
 use crate::Hash;
 use std::fmt;
 use std::path::Path;
@@ -180,49 +180,25 @@ impl PrivMeta {
     pub(crate) fn type_hash_of(&self) -> Option<Hash> {
         match &self.kind {
             PrivMetaKind::Unknown { type_hash, .. } => Some(*type_hash),
-            PrivMetaKind::UnitStruct { type_hash, .. } => Some(*type_hash),
-            PrivMetaKind::TupleStruct { type_hash, .. } => Some(*type_hash),
             PrivMetaKind::Struct { type_hash, .. } => Some(*type_hash),
             PrivMetaKind::Enum { type_hash, .. } => Some(*type_hash),
             PrivMetaKind::Function { type_hash, .. } => Some(*type_hash),
             PrivMetaKind::Closure { type_hash, .. } => Some(*type_hash),
             PrivMetaKind::AsyncBlock { type_hash, .. } => Some(*type_hash),
-            PrivMetaKind::UnitVariant { .. } => None,
-            PrivMetaKind::TupleVariant { .. } => None,
-            PrivMetaKind::StructVariant { .. } => None,
+            PrivMetaKind::Variant { .. } => None,
             PrivMetaKind::Const { .. } => None,
             PrivMetaKind::ConstFn { .. } => None,
             PrivMetaKind::Import { .. } => None,
         }
     }
+}
 
-    /// Treat the current meta as a tuple and get the number of arguments it
-    /// should receive and the type check that applies to it.
-    pub(crate) fn as_tuple(&self) -> Option<(usize, TypeCheck)> {
-        match &self.kind {
-            PrivMetaKind::UnitStruct { type_hash, .. } => {
-                let type_check = TypeCheck::Type(*type_hash);
-                Some((0, type_check))
-            }
-            PrivMetaKind::TupleStruct {
-                tuple, type_hash, ..
-            } => {
-                let type_check = TypeCheck::Type(*type_hash);
-                Some((tuple.args, type_check))
-            }
-            PrivMetaKind::UnitVariant { type_hash, .. } => {
-                let type_check = TypeCheck::Variant(*type_hash);
-                Some((0, type_check))
-            }
-            PrivMetaKind::TupleVariant {
-                tuple, type_hash, ..
-            } => {
-                let type_check = TypeCheck::Variant(*type_hash);
-                Some((tuple.args, type_check))
-            }
-            _ => None,
-        }
-    }
+/// Private variant metadata.
+#[derive(Debug, Clone)]
+pub(crate) enum PrivVariantMeta {
+    Tuple(PrivTupleMeta),
+    Struct(PrivStructMeta),
+    Unit,
 }
 
 /// Compile-time metadata kind about a unit.
@@ -231,53 +207,25 @@ pub(crate) enum PrivMetaKind {
     /// The type is completely opaque. We have no idea about what it is with the
     /// exception of it having a type hash.
     Unknown { type_hash: Hash },
-    /// Metadata about an object.
-    UnitStruct {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
-        /// The underlying object.
-        empty: EmptyMeta,
-    },
-    /// Metadata about a tuple.
-    TupleStruct {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
-        /// The underlying tuple.
-        tuple: TupleMeta,
-    },
-    /// Metadata about an object.
+    /// Metadata about a struct.
     Struct {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
-        /// The underlying object.
-        st: StructMeta,
+        /// Variant metadata.
+        variant: PrivVariantMeta,
     },
     /// Metadata about an empty variant.
-    UnitVariant {
+    Variant {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
         /// The item of the enum.
         enum_item: Item,
-        /// The underlying empty.
-        empty: EmptyMeta,
-    },
-    /// Metadata about a tuple variant.
-    TupleVariant {
-        /// The type hash associated with this meta item.
-        type_hash: Hash,
-        /// The item of the enum.
-        enum_item: Item,
-        /// The underlying tuple.
-        tuple: TupleMeta,
-    },
-    /// Metadata about a variant object.
-    StructVariant {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
-        /// The item of the enum.
-        enum_item: Item,
-        /// The underlying object.
-        st: StructMeta,
+        /// Type hash of the enum this unit variant belongs to.
+        enum_hash: Hash,
+        /// The index of the variant.
+        index: usize,
+        /// Variant metadata.
+        variant: PrivVariantMeta,
     },
     /// An enum item.
     Enum {
@@ -339,12 +287,30 @@ impl PrivMetaKind {
     pub(crate) fn as_meta_info_kind(&self) -> MetaKind {
         match self {
             PrivMetaKind::Unknown { .. } => MetaKind::Unknown,
-            PrivMetaKind::UnitStruct { .. } => MetaKind::UnitStruct,
-            PrivMetaKind::TupleStruct { .. } => MetaKind::TupleStruct,
-            PrivMetaKind::Struct { .. } => MetaKind::Struct,
-            PrivMetaKind::UnitVariant { .. } => MetaKind::UnitVariant,
-            PrivMetaKind::TupleVariant { .. } => MetaKind::TupleVariant,
-            PrivMetaKind::StructVariant { .. } => MetaKind::StructVariant,
+            PrivMetaKind::Struct {
+                variant: PrivVariantMeta::Unit,
+                ..
+            } => MetaKind::UnitStruct,
+            PrivMetaKind::Struct {
+                variant: PrivVariantMeta::Tuple(..),
+                ..
+            } => MetaKind::TupleStruct,
+            PrivMetaKind::Struct {
+                variant: PrivVariantMeta::Struct(..),
+                ..
+            } => MetaKind::Struct,
+            PrivMetaKind::Variant {
+                variant: PrivVariantMeta::Unit,
+                ..
+            } => MetaKind::UnitVariant,
+            PrivMetaKind::Variant {
+                variant: PrivVariantMeta::Tuple(..),
+                ..
+            } => MetaKind::TupleVariant,
+            PrivMetaKind::Variant {
+                variant: PrivVariantMeta::Struct(..),
+                ..
+            } => MetaKind::StructVariant,
             PrivMetaKind::Enum { .. } => MetaKind::Enum,
             PrivMetaKind::Function {
                 type_hash,
@@ -365,18 +331,10 @@ impl PrivMetaKind {
     }
 }
 
-/// The metadata about an empty type.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub(crate) struct EmptyMeta {
-    /// Hash of the constructor function.
-    pub(crate) hash: Hash,
-}
-
 /// The metadata about a struct.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(crate) struct StructMeta {
+pub(crate) struct PrivStructMeta {
     /// Fields associated with the type.
     pub(crate) fields: HashSet<Box<str>>,
 }
@@ -384,7 +342,7 @@ pub(crate) struct StructMeta {
 /// The metadata about a tuple.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(crate) struct TupleMeta {
+pub(crate) struct PrivTupleMeta {
     /// The number of arguments the variant takes.
     pub(crate) args: usize,
     /// Hash of the constructor function.

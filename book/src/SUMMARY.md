@@ -21,6 +21,7 @@
 - [Dynamic types](./dynamic_types.md)
   - [Structs](./structs.md)
   - [Enums](./enums.md)
+- [External types](./external_types.md)
 - [Try operator](./try_operator.md)
 - [Generators](./generators.md)
 - [Closures](./closures.md)

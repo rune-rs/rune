@@ -1,14 +1,15 @@
 use crate::collections::{HashMap, HashSet};
 use crate::compile::module::{
     AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type,
-    TypeSpecification, UnitType,
+    TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, StructMeta, TupleMeta,
+    ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, PrivStructMeta,
+    PrivTupleMeta, PrivVariantMeta,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
-    TypeInfo, TypeOf, VmError,
+    TypeInfo, TypeOf, VariantRtti, VmError,
 };
 use crate::{Hash, InstFnKind};
 use std::fmt;
@@ -49,6 +50,8 @@ pub enum ContextError {
     ConflictingTypeMeta { item: Item, type_info: TypeInfo },
     #[error("type `{item}` with info `{type_info}` isn't registered")]
     MissingType { item: Item, type_info: TypeInfo },
+    #[error("type `{item}` with info `{type_info}` is registered but is not an enum")]
+    MissingEnum { item: Item, type_info: TypeInfo },
     #[error("tried to insert conflicting hash `{hash}` for `{existing}`")]
     ConflictingTypeHash { hash: Hash, existing: Hash },
     #[error("variant with `{item}` already exists")]
@@ -57,6 +60,10 @@ pub enum ContextError {
     MissingInstance { instance_type: TypeInfo },
     #[error("error when converting to constant value: {error}")]
     ValueError { error: VmError },
+    #[error("missing variant {index} for `{type_info}`")]
+    MissingVariant { type_info: TypeInfo, index: usize },
+    #[error("constructor for variant {index} in `{type_info}` has already been registered")]
+    VariantConstructorConflict { type_info: TypeInfo, index: usize },
 }
 
 /// Information on a specific type.
@@ -64,7 +71,7 @@ pub enum ContextError {
 #[non_exhaustive]
 pub struct ContextTypeInfo {
     /// The type check used for the current type.
-    pub(crate) type_check: TypeCheck,
+    pub(crate) type_check: Option<TypeCheck>,
     /// Complete detailed information on the hash.
     pub(crate) type_info: TypeInfo,
     /// The name of the type.
@@ -358,10 +365,10 @@ impl Context {
         self.macros.get(&hash)
     }
 
-    /// Look up the type check implementation for the specified item.
-    pub(crate) fn type_check_for(&self, item: &Item) -> Option<TypeCheck> {
-        let ty = self.types.get(&Hash::type_hash(item))?;
-        Some(ty.type_check)
+    /// Look up the type check implementation for the specified type hash.
+    pub(crate) fn type_check_for(&self, hash: Hash) -> Option<TypeCheck> {
+        let ty = self.types.get(&hash)?;
+        ty.type_check
     }
 
     /// Check if context contains the given crate.
@@ -402,7 +409,7 @@ impl Context {
         self.install_type_info(
             hash,
             ContextTypeInfo {
-                type_check: TypeCheck::Type(type_hash),
+                type_check: None,
                 item: item.clone(),
                 type_hash,
                 type_info: ty.type_info.clone(),
@@ -413,10 +420,81 @@ impl Context {
             match spec {
                 TypeSpecification::Struct(st) => PrivMetaKind::Struct {
                     type_hash,
-                    st: StructMeta {
+                    variant: PrivVariantMeta::Struct(PrivStructMeta {
                         fields: st.fields.clone(),
-                    },
+                    }),
                 },
+                TypeSpecification::Enum(en) => {
+                    let enum_item = &item;
+                    let enum_hash = type_hash;
+
+                    for (index, (name, variant)) in en.variants.iter().enumerate() {
+                        let item = enum_item.extended(name);
+                        let hash = Hash::type_hash(&item);
+                        let constructor = variant.constructor.as_ref();
+
+                        let (variant, args) = match &variant.kind {
+                            VariantKind::Tuple(t) => (
+                                PrivVariantMeta::Tuple(PrivTupleMeta { args: t.args, hash }),
+                                Some(t.args),
+                            ),
+                            VariantKind::Struct(st) => (
+                                PrivVariantMeta::Struct(PrivStructMeta {
+                                    fields: st.fields.clone(),
+                                }),
+                                None,
+                            ),
+                            VariantKind::Unit => (PrivVariantMeta::Unit, Some(0)),
+                        };
+
+                        self.install_type_info(
+                            hash,
+                            ContextTypeInfo {
+                                type_check: None,
+                                item: item.clone(),
+                                type_hash: hash,
+                                type_info: TypeInfo::Variant(Arc::new(VariantRtti {
+                                    enum_hash,
+                                    hash,
+                                    item: item.clone(),
+                                })),
+                            },
+                        )?;
+
+                        if let (Some(c), Some(args)) = (constructor, args) {
+                            let signature = ContextSignature::Function {
+                                type_hash: hash,
+                                item: item.clone(),
+                                args: Some(args),
+                            };
+
+                            if let Some(old) = self.functions_info.insert(hash, signature) {
+                                return Err(ContextError::ConflictingFunction {
+                                    signature: old,
+                                    hash,
+                                });
+                            }
+
+                            self.functions.insert(hash, c.clone());
+                        }
+
+                        let kind = PrivMetaKind::Variant {
+                            type_hash: hash,
+                            enum_item: enum_item.clone(),
+                            enum_hash,
+                            index,
+                            variant,
+                        };
+
+                        self.install_meta(PrivMeta {
+                            item: Arc::new(item.into()),
+                            kind,
+                            source: None,
+                        })?;
+                    }
+
+                    PrivMetaKind::Enum { type_hash }
+                }
             }
         } else {
             PrivMetaKind::Unknown { type_hash }
@@ -466,6 +544,11 @@ impl Context {
 
         let hash = Hash::type_hash(&item);
 
+        self.constants.insert(
+            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(item.to_string()),
+        );
+
         let signature = ContextSignature::Function {
             type_hash: hash,
             item: item.clone(),
@@ -479,12 +562,8 @@ impl Context {
             });
         }
 
-        self.constants.insert(
-            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(item.to_string()),
-        );
-
         self.functions.insert(hash, f.handler.clone());
+
         self.meta.insert(
             item.clone(),
             PrivMeta {
@@ -650,7 +729,7 @@ impl Context {
         self.install_type_info(
             hash,
             ContextTypeInfo {
-                type_check: TypeCheck::Unit,
+                type_check: Some(TypeCheck::Unit),
                 item,
                 type_hash: crate::runtime::UNIT_TYPE.hash,
                 type_info: TypeInfo::StaticType(crate::runtime::UNIT_TYPE),
@@ -686,21 +765,21 @@ impl Context {
         self.install_type_info(
             enum_hash,
             ContextTypeInfo {
-                type_check: TypeCheck::Type(internal_enum.static_type.hash),
+                type_check: None,
                 item: enum_item.clone(),
                 type_hash: internal_enum.static_type.hash,
                 type_info: TypeInfo::StaticType(internal_enum.static_type),
             },
         )?;
 
-        for variant in &internal_enum.variants {
+        for (index, variant) in internal_enum.variants.iter().enumerate() {
             let item = enum_item.extended(variant.name);
             let hash = Hash::type_hash(&item);
 
             self.install_type_info(
                 hash,
                 ContextTypeInfo {
-                    type_check: variant.type_check,
+                    type_check: Some(variant.type_check),
                     item: item.clone(),
                     type_hash: hash,
                     type_info: TypeInfo::StaticType(internal_enum.static_type),
@@ -709,19 +788,21 @@ impl Context {
 
             self.install_meta(PrivMeta {
                 item: Arc::new(item.clone().into()),
-                kind: PrivMetaKind::TupleVariant {
-                    type_hash: variant.type_hash,
+                kind: PrivMetaKind::Variant {
+                    type_hash: hash,
                     enum_item: enum_item.clone(),
-                    tuple: TupleMeta {
+                    enum_hash,
+                    index,
+                    variant: PrivVariantMeta::Tuple(PrivTupleMeta {
                         args: variant.args,
                         hash,
-                    },
+                    }),
                 },
                 source: None,
             })?;
 
             let signature = ContextSignature::Function {
-                type_hash: variant.type_hash,
+                type_hash: hash,
                 item,
                 args: Some(variant.args),
             };
@@ -732,6 +813,7 @@ impl Context {
                     hash,
                 });
             }
+
             self.functions.insert(hash, variant.constructor.clone());
         }
 
@@ -741,7 +823,7 @@ impl Context {
     /// Add a piece of internal tuple meta.
     fn add_internal_tuple<C, Args>(
         &mut self,
-        enum_item: Option<Item>,
+        enum_item: Option<(Item, Hash, usize)>,
         item: Item,
         args: usize,
         constructor: C,
@@ -753,21 +835,26 @@ impl Context {
         let type_hash = <C::Return as TypeOf>::type_hash();
         let hash = Hash::type_hash(&item);
 
-        let tuple = TupleMeta { args, hash };
+        let tuple = PrivTupleMeta { args, hash };
 
         let meta = match enum_item {
-            Some(enum_item) => PrivMeta {
+            Some((enum_item, enum_hash, index)) => PrivMeta {
                 item: Arc::new(item.clone().into()),
-                kind: PrivMetaKind::TupleVariant {
+                kind: PrivMetaKind::Variant {
                     type_hash,
                     enum_item,
-                    tuple,
+                    enum_hash,
+                    index,
+                    variant: PrivVariantMeta::Tuple(tuple),
                 },
                 source: None,
             },
             None => PrivMeta {
                 item: Arc::new(item.clone().into()),
-                kind: PrivMetaKind::TupleStruct { type_hash, tuple },
+                kind: PrivMetaKind::Struct {
+                    type_hash,
+                    variant: PrivVariantMeta::Tuple(tuple),
+                },
                 source: None,
             },
         };

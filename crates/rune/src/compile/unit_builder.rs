@@ -7,7 +7,7 @@ use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{
     Assembly, AssemblyInst, CompileError, CompileErrorKind, IntoComponent, Item, Location,
-    PrivMeta, PrivMetaKind,
+    PrivMeta, PrivMetaKind, PrivVariantMeta,
 };
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
@@ -338,24 +338,28 @@ impl UnitBuilder {
                     ));
                 }
             }
-            PrivMetaKind::UnitStruct { empty, .. } => {
-                let info = UnitFn::UnitStruct { hash: empty.hash };
+            PrivMetaKind::Struct {
+                type_hash,
+                variant: PrivVariantMeta::Unit,
+                ..
+            } => {
+                let info = UnitFn::UnitStruct { hash: *type_hash };
 
                 let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
 
                 let rtti = Arc::new(Rtti {
-                    hash: empty.hash,
+                    hash: *type_hash,
                     item: meta.item.item.clone(),
                 });
 
-                if self.rtti.insert(empty.hash, rtti).is_some() {
+                if self.rtti.insert(*type_hash, rtti).is_some() {
                     return Err(QueryError::new(
                         span,
-                        QueryErrorKind::TypeRttiConflict { hash: empty.hash },
+                        QueryErrorKind::TypeRttiConflict { hash: *type_hash },
                     ));
                 }
 
-                if self.functions.insert(empty.hash, info).is_some() {
+                if self.functions.insert(*type_hash, info).is_some() {
                     return Err(QueryError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
@@ -365,15 +369,18 @@ impl UnitBuilder {
                 }
 
                 self.constants.insert(
-                    Hash::instance_function(empty.hash, Protocol::INTO_TYPE_NAME),
+                    Hash::instance_function(*type_hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(signature.path.to_string()),
                 );
 
                 self.debug_info_mut()
                     .functions
-                    .insert(empty.hash, signature);
+                    .insert(*type_hash, signature);
             }
-            PrivMetaKind::TupleStruct { tuple, .. } => {
+            PrivMetaKind::Struct {
+                variant: PrivVariantMeta::Tuple(tuple),
+                ..
+            } => {
                 let info = UnitFn::TupleStruct {
                     hash: tuple.hash,
                     args: tuple.args,
@@ -432,29 +439,32 @@ impl UnitBuilder {
                     ));
                 }
             }
-            PrivMetaKind::UnitVariant {
-                enum_item, empty, ..
+            PrivMetaKind::Variant {
+                type_hash,
+                enum_item,
+                variant: PrivVariantMeta::Unit,
+                ..
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
-                    hash: empty.hash,
+                    hash: *type_hash,
                     item: meta.item.item.clone(),
                 });
 
-                if self.variant_rtti.insert(empty.hash, rtti).is_some() {
+                if self.variant_rtti.insert(*type_hash, rtti).is_some() {
                     return Err(QueryError::new(
                         span,
-                        QueryErrorKind::VariantRttiConflict { hash: empty.hash },
+                        QueryErrorKind::VariantRttiConflict { hash: *type_hash },
                     ));
                 }
 
-                let info = UnitFn::UnitVariant { hash: empty.hash };
+                let info = UnitFn::UnitVariant { hash: *type_hash };
 
                 let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
 
-                if self.functions.insert(empty.hash, info).is_some() {
+                if self.functions.insert(*type_hash, info).is_some() {
                     return Err(QueryError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
@@ -465,10 +475,12 @@ impl UnitBuilder {
 
                 self.debug_info_mut()
                     .functions
-                    .insert(empty.hash, signature);
+                    .insert(*type_hash, signature);
             }
-            PrivMetaKind::TupleVariant {
-                enum_item, tuple, ..
+            PrivMetaKind::Variant {
+                enum_item,
+                variant: PrivVariantMeta::Tuple(tuple),
+                ..
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
 
@@ -506,7 +518,11 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            PrivMetaKind::StructVariant { enum_item, .. } => {
+            PrivMetaKind::Variant {
+                enum_item,
+                variant: PrivVariantMeta::Struct(..),
+                ..
+            } => {
                 let hash = Hash::type_hash(&meta.item.item);
                 let enum_hash = Hash::type_hash(enum_item);
 

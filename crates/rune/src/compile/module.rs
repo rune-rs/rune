@@ -11,6 +11,7 @@ use crate::runtime::{
     StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use crate::{Hash, InstFnInfo, InstFnKind, InstFnName};
+use std::fmt;
 use std::future;
 use std::sync::Arc;
 
@@ -70,18 +71,15 @@ impl InternalEnum {
     fn variant<C, Args>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
     where
         C: Function<Args>,
-        C::Return: TypeOf,
     {
         let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
-        let type_hash = C::Return::type_hash();
 
         self.variants.push(InternalVariant {
             name,
             type_check,
             args: C::args(),
             constructor,
-            type_hash,
         });
     }
 }
@@ -96,8 +94,6 @@ pub(crate) struct InternalVariant {
     pub(crate) args: usize,
     /// The constructor of the variant.
     pub(crate) constructor: Arc<FunctionHandler>,
-    /// The value type of the variant.
-    pub(crate) type_hash: Hash,
 }
 
 /// Data for an opaque type. If `spec` is set, indicates things which are known
@@ -112,28 +108,105 @@ pub(crate) struct Type {
     pub(crate) spec: Option<TypeSpecification>,
 }
 
+/// Metadata about a variant.
+pub struct Variant {
+    /// Variant metadata.
+    pub(crate) kind: VariantKind,
+    /// Handler to use if this variant can be constructed through a regular function call.
+    pub(crate) constructor: Option<Arc<FunctionHandler>>,
+}
+
+impl fmt::Debug for Variant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Variant")
+            .field("kind", &self.kind)
+            .field("constructor", &self.constructor.is_some())
+            .finish()
+    }
+}
+
+/// The kind of the variant.
+#[derive(Debug)]
+pub(crate) enum VariantKind {
+    /// Variant is a Tuple variant.
+    Tuple(Tuple),
+    /// Variant is a Struct variant.
+    Struct(Struct),
+    /// Variant is a Unit variant.
+    Unit,
+}
+
+impl Variant {
+    /// Construct metadata for a tuple variant.
+    #[inline]
+    pub fn tuple(args: usize) -> Self {
+        Self {
+            kind: VariantKind::Tuple(Tuple { args }),
+            constructor: None,
+        }
+    }
+
+    /// Construct metadata for a tuple variant.
+    #[inline]
+    pub fn st<const N: usize>(fields: [&'static str; N]) -> Self {
+        Self {
+            kind: VariantKind::Struct(Struct {
+                fields: fields.into_iter().map(Box::<str>::from).collect(),
+            }),
+            constructor: None,
+        }
+    }
+
+    /// Construct metadata for a unit variant.
+    #[inline]
+    pub fn unit() -> Self {
+        Self {
+            kind: VariantKind::Unit,
+            constructor: None,
+        }
+    }
+}
+
+/// Metadata about a tuple or tuple variant.
+#[derive(Debug)]
+pub struct Tuple {
+    /// The number of fields.
+    pub(crate) args: usize,
+}
+
 /// The type specification for a native struct.
+#[derive(Debug)]
 pub(crate) struct Struct {
     /// The names of the struct fields known at compile time.
     pub(crate) fields: HashSet<Box<str>>,
 }
 
+/// The type specification for a native enum.
+pub(crate) struct Enum {
+    /// The variants.
+    pub(crate) variants: Vec<(Box<str>, Variant)>,
+}
+
+/// A type specification.
 pub(crate) enum TypeSpecification {
     Struct(Struct),
+    Enum(Enum),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum AssocKind {
+    IndexFn(Protocol),
     FieldFn(Protocol),
     Instance,
 }
 
 impl AssocKind {
     /// Convert the kind into a hash function.
-    pub(crate) fn hash(self, instance_type: Hash, field: Hash) -> Hash {
+    pub(crate) fn hash(self, instance_type: Hash, key: Hash) -> Hash {
         match self {
-            Self::FieldFn(protocol) => Hash::field_fn(protocol, instance_type, field),
-            Self::Instance => Hash::instance_function(instance_type, field),
+            Self::IndexFn(protocol) => Hash::index_fn(protocol, instance_type, key),
+            Self::FieldFn(protocol) => Hash::field_fn(protocol, instance_type, key),
+            Self::Instance => Hash::instance_function(instance_type, key),
         }
     }
 }
@@ -299,25 +372,27 @@ impl Module {
     ///
     /// This is typically not used directly, but is used automatically with the
     /// [Any][crate::Any] derive.
-    pub fn struct_meta<T>(&mut self, fields: &'static [&'static str]) -> Result<(), ContextError>
+    pub fn struct_meta<T, const N: usize>(
+        &mut self,
+        fields: [&'static str; N],
+    ) -> Result<(), ContextError>
     where
         T: Named + TypeOf,
     {
         let type_hash = T::type_hash();
-        let type_info = T::type_info();
 
         let ty = match self.types.get_mut(&type_hash) {
             Some(ty) => ty,
             None => {
                 return Err(ContextError::MissingType {
                     item: Item::with_item(&[T::full_name()]),
-                    type_info,
+                    type_info: T::type_info(),
                 });
             }
         };
 
         let old = ty.spec.replace(TypeSpecification::Struct(Struct {
-            fields: fields.iter().copied().map(Box::<str>::from).collect(),
+            fields: fields.into_iter().map(Box::<str>::from).collect(),
         }));
 
         if old.is_some() {
@@ -326,6 +401,100 @@ impl Module {
                 type_info: ty.type_info.clone(),
             });
         }
+
+        Ok(())
+    }
+
+    /// Register enum metadata for the given type `T`. This allows an enum to be
+    /// used in limited ways in Rune.
+    pub fn enum_meta<T, const N: usize>(
+        &mut self,
+        variants: [(&'static str, Variant); N],
+    ) -> Result<(), ContextError>
+    where
+        T: Named + TypeOf,
+    {
+        let type_hash = T::type_hash();
+
+        let ty = match self.types.get_mut(&type_hash) {
+            Some(ty) => ty,
+            None => {
+                return Err(ContextError::MissingType {
+                    item: Item::with_item(&[T::full_name()]),
+                    type_info: T::type_info(),
+                });
+            }
+        };
+
+        let old = ty.spec.replace(TypeSpecification::Enum(Enum {
+            variants: variants
+                .into_iter()
+                .map(|(name, variant)| (Box::from(name), variant))
+                .collect(),
+        }));
+
+        if old.is_some() {
+            return Err(ContextError::ConflictingTypeMeta {
+                item: Item::with_item(&[T::full_name()]),
+                type_info: ty.type_info.clone(),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Register a variant constructor for type `T`.
+    pub fn variant_constructor<Func, Args, T>(
+        &mut self,
+        index: usize,
+        constructor: Func,
+    ) -> Result<(), ContextError>
+    where
+        T: Named + TypeOf,
+        Func: Function<Args, Return = T>,
+    {
+        let type_hash = T::type_hash();
+
+        let ty = match self.types.get_mut(&type_hash) {
+            Some(ty) => ty,
+            None => {
+                return Err(ContextError::MissingType {
+                    item: Item::with_item(&[T::full_name()]),
+                    type_info: T::type_info(),
+                });
+            }
+        };
+
+        let en = match &mut ty.spec {
+            Some(TypeSpecification::Enum(en)) => en,
+            _ => {
+                return Err(ContextError::MissingEnum {
+                    item: Item::with_item(&[T::full_name()]),
+                    type_info: T::type_info(),
+                });
+            }
+        };
+
+        let variant = match en.variants.get_mut(index) {
+            Some((_, variant)) => variant,
+            _ => {
+                return Err(ContextError::MissingVariant {
+                    type_info: T::type_info(),
+                    index,
+                });
+            }
+        };
+
+        if variant.constructor.is_some() {
+            return Err(ContextError::VariantConstructorConflict {
+                type_info: T::type_info(),
+                index,
+            });
+        }
+
+        variant.constructor = Some(Arc::new(move |stack, args| {
+            constructor.fn_call(stack, args)
+        }));
 
         Ok(())
     }
@@ -361,6 +530,48 @@ impl Module {
         Ok(())
     }
 
+    /// Construct the type information for the `GeneratorState` type.
+    ///
+    /// Registering this allows the given type to be used in Rune scripts when
+    /// referring to the `GeneratorState` type.
+    ///
+    /// # Examples
+    ///
+    /// This shows how to register the `GeneratorState` as
+    /// `nonstd::generator::GeneratorState`.
+    ///
+    /// ```
+    /// use rune::Module;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut module = Module::with_crate_item("nonstd", &["generator"]);
+    /// module.generator_state(&["GeneratorState"])?;
+    /// # Ok(()) }
+    pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        let mut enum_ =
+            InternalEnum::new("GeneratorState", name, crate::runtime::GENERATOR_STATE_TYPE);
+
+        // Note: these numeric variants are magic, and must simply match up with
+        // what's being used in the virtual machine implementation for these
+        // types.
+        enum_.variant(
+            "Complete",
+            TypeCheck::GeneratorState(0),
+            GeneratorState::Complete,
+        );
+        enum_.variant(
+            "Yielded",
+            TypeCheck::GeneratorState(1),
+            GeneratorState::Yielded,
+        );
+
+        self.internal_enums.push(enum_);
+        Ok(())
+    }
     /// Construct type information for the `Option` type.
     ///
     /// Registering this allows the given type to be used in Rune scripts when
@@ -421,49 +632,6 @@ impl Module {
         // types.
         enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok);
         enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err);
-        self.internal_enums.push(enum_);
-        Ok(())
-    }
-
-    /// Construct the type information for the `GeneratorState` type.
-    ///
-    /// Registering this allows the given type to be used in Rune scripts when
-    /// referring to the `GeneratorState` type.
-    ///
-    /// # Examples
-    ///
-    /// This shows how to register the `GeneratorState` as
-    /// `nonstd::generator::GeneratorState`.
-    ///
-    /// ```
-    /// use rune::Module;
-    ///
-    /// # fn main() -> rune::Result<()> {
-    /// let mut module = Module::with_crate_item("nonstd", &["generator"]);
-    /// module.generator_state(&["GeneratorState"])?;
-    /// # Ok(()) }
-    pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
-    where
-        N: IntoIterator,
-        N::Item: IntoComponent,
-    {
-        let mut enum_ =
-            InternalEnum::new("GeneratorState", name, crate::runtime::GENERATOR_STATE_TYPE);
-
-        // Note: these numeric variants are magic, and must simply match up with
-        // what's being used in the virtual machine implementation for these
-        // types.
-        enum_.variant(
-            "Complete",
-            TypeCheck::GeneratorState(0),
-            GeneratorState::Complete,
-        );
-        enum_.variant(
-            "Yielded",
-            TypeCheck::GeneratorState(1),
-            GeneratorState::Yielded,
-        );
-
         self.internal_enums.push(enum_);
         Ok(())
     }
@@ -696,6 +864,26 @@ impl Module {
         let ty = Func::ty();
         let args = Some(Func::args());
         self.assoc_fn(name, handler, ty, args, AssocKind::FieldFn(protocol))
+    }
+
+    /// Install a protocol function that interacts with the given index.
+    ///
+    /// An index can either be a field inside a tuple, or a variant inside of an
+    /// enum as configured with [Module::enum_meta].
+    pub fn index_fn<Func, Args>(
+        &mut self,
+        protocol: Protocol,
+        index: usize,
+        f: Func,
+    ) -> Result<(), ContextError>
+    where
+        Func: InstFn<Args>,
+    {
+        let name = InstFnInfo::index(protocol, index);
+        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
+        let ty = Func::ty();
+        let args = Some(Func::args());
+        self.assoc_fn(name, handler, ty, args, AssocKind::IndexFn(protocol))
     }
 
     /// Register an instance function.

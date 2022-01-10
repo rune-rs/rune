@@ -14,6 +14,8 @@ const TYPE: u64 = 0x2fac10b63a6cc57c;
 const INSTANCE_FUNCTION_HASH: u64 = 0x5ea77ffbcdf5f302;
 const FIELD_FUNCTION_HASH: u64 = 0xab53b6a7a53c757e;
 const OBJECT_KEYS: u64 = 0x4473d7017aef7645;
+const INDEX_FUNCTION_HASH: u64 = 0x2579e52d1534901b;
+const INDEX: u64 = 0xe1b2378d7a937035;
 
 /// The primitive hash that among other things is used to reference items,
 /// types, and native functions.
@@ -35,6 +37,12 @@ impl Hash {
         let mut hasher = Self::new_hasher();
         thing.hash(&mut hasher);
         Self(hasher.finish())
+    }
+
+    /// Construct a hash from an index.
+    #[inline]
+    pub fn index(index: usize) -> Self {
+        Self(INDEX ^ (index as u64))
     }
 
     /// Get the hash of a type.
@@ -79,6 +87,12 @@ impl Hash {
     {
         let name = name.name_hash();
         Self(FIELD_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ name.0))
+    }
+
+    /// Construct an index function.
+    #[inline]
+    pub fn index_fn(protocol: Protocol, type_hash: Hash, index: Hash) -> Self {
+        Self(INDEX_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ index.0))
     }
 
     /// Get the hash corresponding to a static byte array.
@@ -245,6 +259,16 @@ pub struct InstFnInfo {
     pub kind: InstFnKind,
     /// Parameters hash.
     pub parameters: Hash,
+}
+
+impl InstFnInfo {
+    pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
+        Self {
+            hash: Hash::index(index),
+            kind: InstFnKind::Protocol(protocol),
+            parameters: Hash::EMPTY,
+        }
+    }
 }
 
 /// Trait used to determine what can be used as an instance function name.
