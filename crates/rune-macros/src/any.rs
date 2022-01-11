@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::context::{Context, Generate, Tokens, TypeAttrs};
+use crate::context::{Context, Generate, GenerateTarget, Tokens, TypeAttrs};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
 use syn::spanned::Spanned as _;
@@ -148,26 +148,29 @@ fn expand_struct_install_with(
 
     let mut fields = Vec::new();
 
-    for field in &st.fields {
+    for (n, field) in st.fields.iter().enumerate() {
         let attrs = ctx.field_attrs(&field.attrs)?;
 
-        let field_ident = match &field.ident {
-            Some(ident) => ident,
-            None => {
-                if !attrs.protocols.is_empty() {
-                    ctx.errors.push(syn::Error::new_spanned(
-                        field,
-                        "only named fields can be used with protocol generators like `#[rune(get)]`",
-                    ));
-                    return None;
+        let target = match &field.ident {
+            Some(ident) => {
+                let name = syn::LitStr::new(&ident.to_string(), ident.span());
+
+                if attrs.field {
+                    fields.push(name.clone());
                 }
 
-                continue;
+                GenerateTarget::Named {
+                    field_ident: ident,
+                    field_name: name,
+                }
+            }
+            None => {
+                let index = syn::LitInt::new(&n.to_string(), field.span());
+                GenerateTarget::Numbered { field_index: index }
             }
         };
 
         let ty = &field.ty;
-        let name = syn::LitStr::new(&field_ident.to_string(), field_ident.span());
 
         for protocol in &attrs.protocols {
             installers.push((protocol.generate)(Generate {
@@ -176,23 +179,24 @@ fn expand_struct_install_with(
                 attrs: &attrs,
                 ident,
                 field,
-                field_ident,
                 ty,
-                name: &name,
+                target: &target,
                 ty_generics: &ty_generics,
             }));
         }
-
-        if attrs.field {
-            fields.push(name);
-        }
     }
 
-    let len = fields.len();
+    match &st.fields {
+        syn::Fields::Named(..) => {
+            let len = fields.len();
 
-    installers.push(quote! {
-        module.struct_meta::<Self, #len>([#(#fields),*])?;
-    });
+            installers.push(quote! {
+                module.struct_meta::<Self, #len>([#(#fields),*])?;
+            });
+        }
+        syn::Fields::Unnamed(..) => {}
+        syn::Fields::Unit => {}
+    }
 
     Some(())
 }

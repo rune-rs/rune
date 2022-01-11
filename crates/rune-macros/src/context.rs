@@ -79,16 +79,26 @@ pub(crate) struct VariantAttrs {
 }
 
 #[derive(Clone)]
+pub(crate) enum GenerateTarget<'a> {
+    Named {
+        field_ident: &'a syn::Ident,
+        field_name: syn::LitStr,
+    },
+    Numbered {
+        field_index: syn::LitInt,
+    },
+}
+
+#[derive(Clone)]
 pub(crate) struct Generate<'a> {
     pub(crate) tokens: &'a Tokens,
     pub(crate) attrs: &'a FieldAttrs,
     pub(crate) protocol: &'a FieldProtocol,
     pub(crate) ident: &'a syn::Ident,
     pub(crate) field: &'a syn::Field,
-    pub(crate) field_ident: &'a syn::Ident,
     pub(crate) ty: &'a syn::Type,
-    pub(crate) name: &'a syn::LitStr,
     pub(crate) ty_generics: &'a syn::TypeGenerics<'a>,
+    pub(crate) target: &'a GenerateTarget<'a>,
 }
 
 pub(crate) struct FieldProtocol {
@@ -175,24 +185,40 @@ impl Context {
                 |g| {
                     let Generate {
                         ident,
-                        field_ident,
                         ty,
-                        name,
+                        target,
                         ty_generics,
                         ..
                     } = g;
 
                     let protocol = g.tokens.protocol($proto);
 
-                    if let Some(custom) = &g.protocol.custom {
-                        quote_spanned! { g.field.span() =>
-                            module.field_fn(#protocol, #name, #custom)?;
+                    match target {
+                        GenerateTarget::Named { field_ident, field_name } => {
+                            if let Some(custom) = &g.protocol.custom {
+                                quote_spanned! { g.field.span() =>
+                                    module.field_fn(#protocol, #field_name, #custom)?;
+                                }
+                            } else {
+                                quote_spanned! { g.field.span() =>
+                                    module.field_fn(#protocol, #field_name, |s: &mut #ident #ty_generics, value: #ty| {
+                                        s.#field_ident $op value;
+                                    })?;
+                                }
+                            }
                         }
-                    } else {
-                        quote_spanned! { g.field.span() =>
-                            module.field_fn(#protocol, #name, |s: &mut #ident #ty_generics, value: #ty| {
-                                s.#field_ident $op value;
-                            })?;
+                        GenerateTarget::Numbered { field_index } => {
+                            if let Some(custom) = &g.protocol.custom {
+                                quote_spanned! { g.field.span() =>
+                                    module.index_fn(#protocol, #field_index, #custom)?;
+                                }
+                            } else {
+                                quote_spanned! { g.field.span() =>
+                                    module.index_fn(#protocol, #field_index, |s: &mut #ident #ty_generics, value: #ty| {
+                                        s.#field_index $op value;
+                                    })?;
+                                }
+                            }
                         }
                     }
                 }
@@ -260,22 +286,38 @@ impl Context {
                             generate: |g| {
                                 let Generate {
                                     ident,
-                                    field_ident,
-                                    name,
+                                    target,
                                     ty_generics,
                                     ..
                                 } = g;
 
-                                let access = if g.attrs.copy {
-                                    quote!(s.#field_ident)
-                                } else {
-                                    quote!(Clone::clone(&s.#field_ident))
-                                };
+                                match target {
+                                    GenerateTarget::Named { field_ident, field_name } => {
+                                        let access = if g.attrs.copy {
+                                            quote!(s.#field_ident)
+                                        } else {
+                                            quote!(Clone::clone(&s.#field_ident))
+                                        };
 
-                                let protocol = g.tokens.protocol(PROTOCOL_GET);
+                                        let protocol = g.tokens.protocol(PROTOCOL_GET);
 
-                                quote_spanned! { g.field.span() =>
-                                    module.field_fn(#protocol, #name, |s: &#ident #ty_generics| #access)?;
+                                        quote_spanned! { g.field.span() =>
+                                            module.field_fn(#protocol, #field_name, |s: &#ident #ty_generics| #access)?;
+                                        }
+                                    }
+                                    GenerateTarget::Numbered { field_index } => {
+                                        let access = if g.attrs.copy {
+                                            quote!(s.#field_index)
+                                        } else {
+                                            quote!(Clone::clone(&s.#field_index))
+                                        };
+
+                                        let protocol = g.tokens.protocol(PROTOCOL_GET);
+
+                                        quote_spanned! { g.field.span() =>
+                                            module.index_fn(#protocol, #field_index, |s: &#ident #ty_generics| #access)?;
+                                        }
+                                    }
                                 }
                             },
                         });
@@ -286,18 +328,29 @@ impl Context {
                             generate: |g| {
                                 let Generate {
                                     ident,
-                                    field_ident,
                                     ty,
-                                    name,
                                     ty_generics,
+                                    target,
                                     ..
                                 } = g;
 
                                 let protocol = g.tokens.protocol(PROTOCOL_SET);
-                                quote_spanned! { g.field.span() =>
-                                    module.field_fn(#protocol, #name, |s: &mut #ident #ty_generics, value: #ty| {
-                                        s.#field_ident = value;
-                                    })?;
+
+                                match target {
+                                    GenerateTarget::Named { field_ident, field_name } => {
+                                        quote_spanned! { g.field.span() =>
+                                            module.field_fn(#protocol, #field_name, |s: &mut #ident #ty_generics, value: #ty| {
+                                                s.#field_ident = value;
+                                            })?;
+                                        }
+                                    }
+                                    GenerateTarget::Numbered { field_index } => {
+                                        quote_spanned! { g.field.span() =>
+                                            module.index_fn(#protocol, #field_index, |s: &mut #ident #ty_generics, value: #ty| {
+                                                s.#field_index = value;
+                                            })?;
+                                        }
+                                    }
                                 }
                             },
                         });
