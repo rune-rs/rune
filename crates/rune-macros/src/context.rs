@@ -78,14 +78,14 @@ pub(crate) struct VariantAttrs {
     pub(crate) constructor: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) enum GenerateTarget<'a> {
     Named {
         field_ident: &'a syn::Ident,
-        field_name: syn::LitStr,
+        field_name: &'a syn::LitStr,
     },
     Numbered {
-        field_index: syn::LitInt,
+        field_index: &'a syn::LitInt,
     },
 }
 
@@ -94,11 +94,9 @@ pub(crate) struct Generate<'a> {
     pub(crate) tokens: &'a Tokens,
     pub(crate) attrs: &'a FieldAttrs,
     pub(crate) protocol: &'a FieldProtocol,
-    pub(crate) ident: &'a syn::Ident,
     pub(crate) field: &'a syn::Field,
     pub(crate) ty: &'a syn::Type,
-    pub(crate) ty_generics: &'a syn::TypeGenerics<'a>,
-    pub(crate) target: &'a GenerateTarget<'a>,
+    pub(crate) target: GenerateTarget<'a>,
 }
 
 pub(crate) struct FieldProtocol {
@@ -184,37 +182,37 @@ impl Context {
             ($proto:ident, $op:tt) => {
                 |g| {
                     let Generate {
-                        ident,
                         ty,
                         target,
-                        ty_generics,
+                        field,
+                        protocol,
                         ..
                     } = g;
 
-                    let protocol = g.tokens.protocol($proto);
+                    let protocol_field = g.tokens.protocol($proto);
 
                     match target {
                         GenerateTarget::Named { field_ident, field_name } => {
-                            if let Some(custom) = &g.protocol.custom {
-                                quote_spanned! { g.field.span() =>
-                                    module.field_fn(#protocol, #field_name, #custom)?;
+                            if let Some(custom) = &protocol.custom {
+                                quote_spanned! { field.span() =>
+                                    module.field_fn(#protocol_field, #field_name, #custom)?;
                                 }
                             } else {
-                                quote_spanned! { g.field.span() =>
-                                    module.field_fn(#protocol, #field_name, |s: &mut #ident #ty_generics, value: #ty| {
+                                quote_spanned! { field.span() =>
+                                    module.field_fn(#protocol_field, #field_name, |s: &mut Self, value: #ty| {
                                         s.#field_ident $op value;
                                     })?;
                                 }
                             }
                         }
                         GenerateTarget::Numbered { field_index } => {
-                            if let Some(custom) = &g.protocol.custom {
-                                quote_spanned! { g.field.span() =>
-                                    module.index_fn(#protocol, #field_index, #custom)?;
+                            if let Some(custom) = &protocol.custom {
+                                quote_spanned! { field.span() =>
+                                    module.index_fn(#protocol_field, #field_index, #custom)?;
                                 }
                             } else {
-                                quote_spanned! { g.field.span() =>
-                                    module.index_fn(#protocol, #field_index, |s: &mut #ident #ty_generics, value: #ty| {
+                                quote_spanned! { field.span() =>
+                                    module.index_fn(#protocol_field, #field_index, |s: &mut Self, value: #ty| {
                                         s.#field_index $op value;
                                     })?;
                                 }
@@ -285,9 +283,7 @@ impl Context {
                             custom: self.parse_field_custom(meta)?,
                             generate: |g| {
                                 let Generate {
-                                    ident,
                                     target,
-                                    ty_generics,
                                     ..
                                 } = g;
 
@@ -302,7 +298,7 @@ impl Context {
                                         let protocol = g.tokens.protocol(PROTOCOL_GET);
 
                                         quote_spanned! { g.field.span() =>
-                                            module.field_fn(#protocol, #field_name, |s: &#ident #ty_generics| #access)?;
+                                            module.field_fn(#protocol, #field_name, |s: &Self| #access)?;
                                         }
                                     }
                                     GenerateTarget::Numbered { field_index } => {
@@ -315,7 +311,7 @@ impl Context {
                                         let protocol = g.tokens.protocol(PROTOCOL_GET);
 
                                         quote_spanned! { g.field.span() =>
-                                            module.index_fn(#protocol, #field_index, |s: &#ident #ty_generics| #access)?;
+                                            module.index_fn(#protocol, #field_index, |s: &Self| #access)?;
                                         }
                                     }
                                 }
@@ -327,9 +323,7 @@ impl Context {
                             custom: self.parse_field_custom(meta)?,
                             generate: |g| {
                                 let Generate {
-                                    ident,
                                     ty,
-                                    ty_generics,
                                     target,
                                     ..
                                 } = g;
@@ -339,14 +333,14 @@ impl Context {
                                 match target {
                                     GenerateTarget::Named { field_ident, field_name } => {
                                         quote_spanned! { g.field.span() =>
-                                            module.field_fn(#protocol, #field_name, |s: &mut #ident #ty_generics, value: #ty| {
+                                            module.field_fn(#protocol, #field_name, |s: &mut Self, value: #ty| {
                                                 s.#field_ident = value;
                                             })?;
                                         }
                                     }
                                     GenerateTarget::Numbered { field_index } => {
                                         quote_spanned! { g.field.span() =>
-                                            module.index_fn(#protocol, #field_index, |s: &mut #ident #ty_generics, value: #ty| {
+                                            module.index_fn(#protocol, #field_index, |s: &mut Self, value: #ty| {
                                                 s.#field_index = value;
                                             })?;
                                         }
