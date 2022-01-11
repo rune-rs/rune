@@ -110,7 +110,7 @@ pub(crate) fn expand_install_with(
 
     match &input.data {
         syn::Data::Struct(st) => {
-            expand_struct_install_with(ctx, &mut installers, ident, st, tokens, generics)?;
+            expand_struct_install_with(ctx, &mut installers, st, tokens)?;
         }
         syn::Data::Enum(en) => {
             expand_enum_install_with(ctx, &mut installers, ident, en, tokens, generics)?;
@@ -139,21 +139,19 @@ pub(crate) fn expand_install_with(
 fn expand_struct_install_with(
     ctx: &mut Context,
     installers: &mut Vec<TokenStream>,
-    ident: &syn::Ident,
     st: &syn::DataStruct,
     tokens: &Tokens,
-    generics: &syn::Generics,
 ) -> Option<()> {
-    let (_, ty_generics, _) = generics.split_for_impl();
-
     let mut fields = Vec::new();
 
     for (n, field) in st.fields.iter().enumerate() {
         let attrs = ctx.field_attrs(&field.attrs)?;
+        let name;
+        let index;
 
         let target = match &field.ident {
             Some(ident) => {
-                let name = syn::LitStr::new(&ident.to_string(), ident.span());
+                name = syn::LitStr::new(&ident.to_string(), ident.span());
 
                 if attrs.field {
                     fields.push(name.clone());
@@ -161,12 +159,15 @@ fn expand_struct_install_with(
 
                 GenerateTarget::Named {
                     field_ident: ident,
-                    field_name: name,
+                    field_name: &name,
                 }
             }
             None => {
-                let index = syn::LitInt::new(&n.to_string(), field.span());
-                GenerateTarget::Numbered { field_index: index }
+                index = syn::LitInt::new(&n.to_string(), field.span());
+
+                GenerateTarget::Numbered {
+                    field_index: &index,
+                }
             }
         };
 
@@ -177,11 +178,9 @@ fn expand_struct_install_with(
                 tokens,
                 protocol,
                 attrs: &attrs,
-                ident,
                 field,
                 ty,
-                target: &target,
-                ty_generics: &ty_generics,
+                target,
             }));
         }
     }
@@ -222,8 +221,8 @@ fn expand_enum_install_with(
 
     // Protocol::GET implementations per available field. Each implementation
     // needs to match the enum to extract the appropriate field.
-    let mut get = BTreeMap::<String, Vec<TokenStream>>::new();
-    let mut get_index = BTreeMap::<usize, Vec<TokenStream>>::new();
+    let mut field_fns = BTreeMap::<String, Vec<TokenStream>>::new();
+    let mut index_fns = BTreeMap::<usize, Vec<TokenStream>>::new();
 
     for (variant_index, variant) in en.variants.iter().enumerate() {
         let span = variant.fields.span();
@@ -255,7 +254,7 @@ fn expand_enum_install_with(
                         let name = syn::LitStr::new(&f_name, f.span());
                         field_names.push(name);
 
-                        let fields = get.entry(f_name).or_default();
+                        let fields = field_fns.entry(f_name).or_default();
 
                         let value = if attrs.copy {
                             quote!(#to_value::to_value(*#f_ident)?)
@@ -278,7 +277,7 @@ fn expand_enum_install_with(
 
                     if attrs.field {
                         fields_len += 1;
-                        let fields = get_index.entry(n).or_default();
+                        let fields = index_fns.entry(n).or_default();
                         let n = syn::LitInt::new(&n.to_string(), span);
 
                         let value = if attrs.copy {
@@ -324,7 +323,7 @@ fn expand_enum_install_with(
 
     installers.push(is_variant);
 
-    for (field, matches) in get {
+    for (field, matches) in field_fns {
         installers.push(quote! {
             module.field_fn(#protocol::GET, #field, |this: &#ident #generics| {
                 Ok::<_, #vm_error>(match this {
@@ -337,7 +336,7 @@ fn expand_enum_install_with(
         });
     }
 
-    for (index, matches) in get_index {
+    for (index, matches) in index_fns {
         installers.push(quote! {
             module.index_fn(#protocol::GET, #index, |this: &#ident #generics| {
                 Ok::<_, #vm_error>(match this {
