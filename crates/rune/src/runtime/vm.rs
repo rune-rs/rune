@@ -1995,7 +1995,7 @@ impl Vm {
         }
 
         if let CallResult::Unsupported(value) =
-            self.call_index_fn(Protocol::GET, value.clone(), index, ())?
+            self.call_index_fn(Protocol::GET, value, index, ())?
         {
             return Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
                 target: value.type_info()?,
@@ -2034,7 +2034,7 @@ impl Vm {
         let value = value.clone();
 
         if let CallResult::Unsupported(value) =
-            self.call_index_fn(Protocol::GET, value.clone(), index, ())?
+            self.call_index_fn(Protocol::GET, value, index, ())?
         {
             return Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
                 target: value.type_info()?,
