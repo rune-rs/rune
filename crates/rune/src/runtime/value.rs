@@ -1481,6 +1481,22 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     }
 
     #[inline]
+    fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Value::Float(v as f64))
+    }
+
+    #[inline]
+    fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Value::Float(v))
+    }
+
+    #[inline]
     fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
     where
         E: de::Error,
