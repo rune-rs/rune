@@ -56,6 +56,11 @@ impl HashMap {
     }
 
     #[inline]
+    fn index_set(&mut self, key: Key, value: Value) {
+        let _ = self.map.insert(key, value);
+    }
+
+    #[inline]
     fn insert(&mut self, key: Key, value: Value) -> Option<Value> {
         self.map.insert(key, value)
     }
@@ -66,7 +71,7 @@ impl HashMap {
     }
 
     #[inline]
-    fn fallible_get(&self, key: Key) -> Result<Value, VmError> {
+    fn index_get(&self, key: Key) -> Result<Value, VmError> {
         use crate::runtime::TypeOf;
 
         let value = self.map.get(&key).ok_or_else(|| {
@@ -425,8 +430,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("remove", HashMap::remove)?;
     module.inst_fn("values", HashMap::values)?;
     module.inst_fn(Protocol::INTO_ITER, HashMap::iter)?;
-    module.inst_fn(Protocol::INDEX_SET, HashMap::insert)?;
-    module.inst_fn(Protocol::INDEX_GET, HashMap::fallible_get)?;
+    module.inst_fn(Protocol::INDEX_SET, HashMap::index_set)?;
+    module.inst_fn(Protocol::INDEX_GET, HashMap::index_get)?;
     module.inst_fn(Protocol::STRING_DEBUG, HashMap::string_debug)?;
 
     module.ty::<HashSet>()?;

@@ -46,6 +46,7 @@
 
 #![allow(clippy::collapsible_match)]
 #![allow(clippy::single_match)]
+#![allow(clippy::unused_unit)]
 
 use anyhow::Context as _;
 use rune::ast::Spanned;
