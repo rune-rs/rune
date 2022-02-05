@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643901913041,
+  "lastUpdate": 1644076438234,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -13528,6 +13528,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4894960,
             "range": "± 12974",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "josh@robsonchase.com",
+            "name": "Josh Robson Chase",
+            "username": "jrobsonchase"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c2b529ca720f64cec38ed918b98c970e56fa570e",
+          "message": "Fix HashMap INDEX_{SET,GET} (#391)\n\n* Add HashMap INDEX_{SET,GET} test case\n\n* Fix signature of INDEX_SET for HashMap\n\n* Bump and silence clippy lint\n\nCo-authored-by: John-John Tedro <udoprog@tedro.se>",
+          "timestamp": "2022-02-05T16:47:19+01:00",
+          "tree_id": "801b8df8d6f6fa1c68c4fd9e54c85915a02c792e",
+          "url": "https://github.com/rune-rs/rune/commit/c2b529ca720f64cec38ed918b98c970e56fa570e"
+        },
+        "date": 1644076437672,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 359450554,
+            "range": "± 1183023",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 211786828,
+            "range": "± 2207726",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 236796,
+            "range": "± 821",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 723778,
+            "range": "± 7016",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 63452885,
+            "range": "± 210045",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1055285,
+            "range": "± 8194",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 11345825,
+            "range": "± 53395",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 10100144,
+            "range": "± 100970",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 367379,
+            "range": "± 2901",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4061419,
+            "range": "± 94813",
             "unit": "ns/iter"
           }
         ]
