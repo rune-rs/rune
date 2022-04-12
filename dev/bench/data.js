@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1644076438234,
+  "lastUpdate": 1649791813156,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -13612,6 +13612,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4061419,
             "range": "± 94813",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "466673+nleguen@users.noreply.github.com",
+            "name": "nleguen",
+            "username": "nleguen"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a7d84bd3190302073c96a1d59be35bd334732eb4",
+          "message": "Update dependencies and add missing license file (#396)",
+          "timestamp": "2022-04-12T19:20:50Z",
+          "tree_id": "4110b8dc5aeac125d3f8701b13d1909934e542cc",
+          "url": "https://github.com/rune-rs/rune/commit/a7d84bd3190302073c96a1d59be35bd334732eb4"
+        },
+        "date": 1649791811887,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 533549264,
+            "range": "± 29236083",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 290822674,
+            "range": "± 12015723",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 368710,
+            "range": "± 65892",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1172751,
+            "range": "± 150190",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 91575280,
+            "range": "± 5378513",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1580220,
+            "range": "± 112408",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 16436704,
+            "range": "± 2112849",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 14501891,
+            "range": "± 1737342",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 642246,
+            "range": "± 102992",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 7191247,
+            "range": "± 415155",
             "unit": "ns/iter"
           }
         ]
