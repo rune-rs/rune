@@ -5,7 +5,7 @@
     "preview": true,
     "private": true,
     "icon": "icon.png",
-    "version": "0.9.0",
+    "version": "0.9.1",
     "releaseTag": null,
     "publisher": "udoprog",
     "repository": {
@@ -21,7 +21,7 @@
         "Programming Languages"
     ],
     "engines": {
-        "vscode": "^1.47.1"
+        "vscode": "^1.66.0"
     },
     "scripts": {
         "vscode:prepublish": "tsc && rollup -c",
@@ -30,17 +30,17 @@
         "watch": "tsc --watch"
     },
     "dependencies": {
-        "node-fetch": "2.6.1",
+        "node-fetch": "^2.6.7",
         "vscode-languageclient": "7.0.0-next.9"
     },
     "devDependencies": {
         "@rollup/plugin-commonjs": "^13.0.2",
         "@rollup/plugin-node-resolve": "^8.4.0",
-        "@types/node-fetch": "^2.5.7",
-        "@types/vscode": "^1.47.1",
-        "rollup": "^2.26.9",
-        "typescript": "^3.9.7",
-        "vsce": "^1.79.5"
+        "@types/node-fetch": "^2.6.1",
+        "@types/vscode": "^1.66.0",
+        "rollup": "^2.70.1",
+        "typescript": "^3.9.10",
+        "vsce": "^2.7.0"
     },
     "contributes": {
         "languages": [
