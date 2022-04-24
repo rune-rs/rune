@@ -11,6 +11,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.inst_fn("len", Object::len)?;
     module.inst_fn("insert", Object::insert)?;
+    module.inst_fn("remove", remove)?;
     module.inst_fn("clear", Object::clear)?;
     module.inst_fn("contains_key", contains_key)?;
     module.inst_fn("get", get)?;
@@ -24,6 +25,10 @@ pub fn module() -> Result<Module, ContextError> {
 
 fn contains_key(object: &Object, key: &str) -> bool {
     object.contains_key(key)
+}
+
+fn remove(object: &mut Object, key: &str) -> Option<Value> {
+    object.remove(key)
 }
 
 fn get(object: &Object, key: &str) -> Option<Value> {
