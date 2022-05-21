@@ -1132,11 +1132,11 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>, is_used: IsUsed) -> CompileR
         // NB: macros have nothing to index, they don't export language
         // items.
         ast::Expr::MacroCall(macro_call) => {
-            // Note: There is a preprocessing step involved with statemetns
-            // for which the macro **might** have been expanded to a
-            // built-in macro if we end up here. So instead of expanding if
-            // the id is set, we just assert that the builtin macro has been
-            // added to the query engine.
+            // Note: There is a preprocessing step involved with statements for
+            // which the macro **might** have been expanded to a built-in macro
+            // if we end up here. So instead of expanding if the id is set, we
+            // just assert that the builtin macro has been added to the query
+            // engine.
 
             if !macro_call.id.is_set() {
                 if !idx.try_expand_internal_macro(&mut attributes, macro_call)? {

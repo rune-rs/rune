@@ -103,7 +103,7 @@ impl<'a> Worker<'a> {
                         LoadFileKind::Module { root } => root,
                     };
 
-                    tracing::trace!("index: {}", mod_item.item);
+                    tracing::trace!("load file: {}", mod_item.item);
                     let items = Items::new(mod_item.item.clone(), self.gen);
 
                     let mut indexer = Indexer {
@@ -128,6 +128,8 @@ impl<'a> Worker<'a> {
                     }
                 }
                 Task::ExpandImport(import) => {
+                    tracing::trace!("expand import");
+
                     let source_id = import.source_id;
                     let queue = &mut self.queue;
 
@@ -140,6 +142,8 @@ impl<'a> Worker<'a> {
                     }
                 }
                 Task::ExpandWildcardImport(wildcard_import) => {
+                    tracing::trace!("expand wildcard import");
+
                     wildcard_imports.push(wildcard_import);
                 }
             }

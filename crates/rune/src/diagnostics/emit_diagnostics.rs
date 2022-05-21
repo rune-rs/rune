@@ -496,22 +496,10 @@ where
                 format_ir_error(this, sources, error_span, error, labels, notes)?;
             }
             QueryErrorKind::ImportCycle { path } => {
-                let mut it = path.iter();
-                let last = it.next_back();
-
-                for (step, entry) in (1..).zip(it) {
-                    labels.push(
-                        d::Label::secondary(entry.location.source_id, entry.location.span.range())
-                            .with_message(format!("step #{} for `{}`", step, entry.item)),
-                    );
-                }
-
-                if let Some(entry) = last {
-                    labels.push(
-                        d::Label::secondary(entry.location.source_id, entry.location.span.range())
-                            .with_message(format!("final step cycling back to `{}`", entry.item)),
-                    );
-                }
+                diagnose_import_path(&mut labels, path);
+            }
+            QueyrErrorKind::ImportRecursionLimit { path, .. } => {
+                diagnose_import_path(&mut labels, path);
             }
             QueryErrorKind::ItemConflict {
                 other: Location { source_id, span },
@@ -593,6 +581,28 @@ where
         _: &mut Vec<String>,
     ) -> fmt::Result {
         Ok(())
+    }
+
+    fn diagnose_import_path(
+        labels: &mut Vec<d::Label<SourceId>>,
+        path: &[ImportStep],
+    ) {
+        let mut it = path.iter();
+        let last = it.next_back();
+
+        for (step, entry) in (1..).zip(it) {
+            labels.push(
+                d::Label::secondary(entry.location.source_id, entry.location.span.range())
+                    .with_message(format!("step #{} for `{}`", step, entry.item)),
+            );
+        }
+
+        if let Some(entry) = last {
+            labels.push(
+                d::Label::secondary(entry.location.source_id, entry.location.span.range())
+                    .with_message(format!("final step cycling back to `{}`", entry.item)),
+            );
+        }
     }
 }
 
