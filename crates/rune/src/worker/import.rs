@@ -75,6 +75,8 @@ impl Import {
         queue.push_back((&self.ast.path, name, first, initial));
 
         while let Some((path, mut name, first, mut initial)) = queue.pop_front() {
+            tracing::trace!("process one");
+
             let mut it = first
                 .into_iter()
                 .chain(path.segments.iter().map(|(_, s)| s));

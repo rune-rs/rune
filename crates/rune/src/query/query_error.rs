@@ -75,6 +75,8 @@ pub enum QueryErrorKind {
     MissingMod { item: Item },
     #[error("cycle in import")]
     ImportCycle { path: Vec<ImportStep> },
+    #[error("import recursion limit reached ({count})")]
+    ImportRecursionLimit { count: usize, path: Vec<ImportStep> },
     #[error("missing last use component")]
     LastUseComponent,
     #[error("found indexed entry for `{item}`, but was not an import")]

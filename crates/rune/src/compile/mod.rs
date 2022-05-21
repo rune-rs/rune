@@ -127,6 +127,8 @@ pub(crate) fn compile(
 
     loop {
         while let Some(entry) = worker.q.next_build_entry() {
+            tracing::trace!("next build entry: {}", entry.item.item);
+
             let source_id = entry.location.source_id;
 
             let task = CompileBuildEntry {
@@ -184,6 +186,7 @@ impl CompileBuildEntry<'_> {
         }
     }
 
+    #[tracing::instrument(skip(self, entry))]
     fn compile(mut self, entry: BuildEntry) -> Result<(), CompileError> {
         let BuildEntry {
             item,
@@ -196,6 +199,8 @@ impl CompileBuildEntry<'_> {
 
         match build {
             Build::Function(f) => {
+                tracing::trace!("function: {}", item.item);
+
                 use self::v1::assemble;
 
                 let args =
@@ -221,6 +226,8 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::InstanceFunction(f) => {
+                tracing::trace!("instance function: {}", item.item);
+
                 use self::v1::assemble;
 
                 let args =
@@ -256,6 +263,8 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Closure(closure) => {
+                tracing::trace!("closure: {}", item.item);
+
                 use self::v1::assemble;
 
                 let span = closure.ast.span();
@@ -283,6 +292,8 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::AsyncBlock(b) => {
+                tracing::trace!("async block: {}", item.item);
+
                 use self::v1::assemble;
 
                 let args = b.captures.len();
@@ -306,12 +317,16 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Unused => {
+                tracing::trace!("unused: {}", item.item);
+
                 if !item.visibility.is_public() {
                     self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 }
             }
             Build::Import(import) => {
+                tracing::trace!("import: {}", item.item);
+
                 // Issue the import to check access.
                 let result = self
                     .q
@@ -341,6 +356,8 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::ReExport => {
+                tracing::trace!("re-export: {}", item.item);
+
                 let import = match self
                     .q
                     .import(location.span, &item.module, &item.item, used)?

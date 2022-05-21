@@ -22,6 +22,9 @@ use std::fmt;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+/// The permitted number of import recursions when constructing a path.
+const IMPORT_RECURSION_LIMIT: usize = 128;
+
 pub use self::query_error::{QueryError, QueryErrorKind};
 
 mod query_error;
@@ -808,6 +811,7 @@ impl<'a> Query<'a> {
     }
 
     /// Get the given import by name.
+    #[tracing::instrument(skip(self, span, module))]
     pub(crate) fn import(
         &mut self,
         span: Span,
@@ -821,7 +825,18 @@ impl<'a> Query<'a> {
         let mut item = item.clone();
         let mut any_matched = false;
 
+        let mut count = 0usize;
+
         'outer: loop {
+            if count > IMPORT_RECURSION_LIMIT {
+                return Err(QueryError::new(
+                    span,
+                    QueryErrorKind::ImportRecursionLimit { count, path },
+                ));
+            }
+
+            count += 1;
+
             let mut cur = Item::new();
             let mut it = item.iter();
 
@@ -861,6 +876,7 @@ impl<'a> Query<'a> {
     }
 
     /// Inner import implementation that doesn't walk the imported name.
+    #[tracing::instrument(skip(self, span, module, path))]
     fn import_step(
         &mut self,
         span: Span,
