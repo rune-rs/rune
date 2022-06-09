@@ -10,6 +10,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<ParseCharError>()?;
 
     module.function(&["from_int"], char_from_int_impl)?;
+    module.function(&["to_int"], char_to_int_impl)?;
     module.function(&["is_alphabetic"], char::is_alphabetic)?;
     module.function(&["is_alphanumeric"], char::is_alphanumeric)?;
     module.function(&["is_control"], char::is_control)?;
@@ -21,6 +22,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.function(&["to_digit"], char::to_digit)?;
 
     Ok(module)
+}
+
+fn char_to_int_impl(value: char) -> Result<Value, VmError> {
+    Ok((value as i64).into())
 }
 
 fn char_from_int_impl(value: i64) -> Result<Option<Value>, VmError> {
