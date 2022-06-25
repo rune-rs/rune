@@ -64,8 +64,10 @@ impl Expander {
         let opaque = &self.tokens.opaque;
         let id = &self.tokens.id;
 
+        let (gen_impl, gen_type, gen_where) = input.generics.split_for_impl();
+
         Some(quote! {
-            impl #opaque for #ident {
+            impl #gen_impl #opaque for #ident #gen_type #gen_where {
                 fn id(&self) -> #id {
                     #accessor
                 }

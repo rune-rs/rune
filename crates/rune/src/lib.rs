@@ -225,6 +225,8 @@ pub use self::diagnostics::Diagnostics;
 mod hash;
 pub use self::hash::{Hash, InstFnInfo, InstFnKind, InstFnName, IntoTypeHash, Params};
 
+mod hir;
+
 mod indexing;
 
 pub mod macros;

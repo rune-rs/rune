@@ -5,6 +5,7 @@
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
+use crate::hir;
 use crate::macros::Storage;
 use crate::parse::Resolve;
 use crate::query::{Build, BuildEntry, Query};
@@ -210,6 +211,9 @@ impl CompileBuildEntry<'_> {
                 let count = f.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
+                let arena = hir::Arena::new();
+                let ctx = hir::lowering::Ctx::new(&arena);
+                let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
                 assemble::fn_from_item_fn(&f.ast, &mut c, false)?;
 
                 if used.is_unused() {

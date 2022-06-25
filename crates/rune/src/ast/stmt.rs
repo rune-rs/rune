@@ -18,7 +18,11 @@ pub enum Stmt {
     /// A declaration.
     Item(ast::Item, #[rune(iter)] Option<T![;]>),
     /// An expression.
-    Expr(ast::Expr, #[rune(iter)] Option<T![;]>),
+    Expr(ast::Expr),
+    /// An with a trailing semi-colon.
+    ///
+    /// And absent semicolon indicates that it is synthetic.
+    Semi(StmtSemi),
 }
 
 impl Stmt {
@@ -81,7 +85,10 @@ impl Parse for Stmt {
             // Parsed an expression which can be treated directly as an item.
             match expr.into_item() {
                 Ok(item) => Self::Item(item, p.parse()?),
-                Err(expr) => Self::Expr(expr, p.parse()?),
+                Err(expr) => match p.parse()? {
+                    Some(semi) => Self::Semi(StmtSemi::new(expr, semi)),
+                    None => Self::Expr(expr),
+                },
             }
         };
 
@@ -157,6 +164,48 @@ pub enum StmtSortKey {
     Item,
     /// Other things, that should be processed last.
     Other,
+}
+
+/// A semi-terminated expression.
+///
+/// These have special meaning since they indicate that whatever block or
+/// function they belong to should not evaluate to the value of the expression
+/// if it is the last expression in the block.
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[non_exhaustive]
+pub struct StmtSemi {
+    /// The expression that is considered to be semi-terminated.
+    pub expr: ast::Expr,
+    /// The semi-token associated with the expression.
+    pub semi_token: T![;],
+    /// Indicates if the nested expression needs a semi or not.
+    #[rune(skip)]
+    pub needs_semi: Option<bool>,
+}
+
+impl StmtSemi {
+    /// Construct a new [StmtSemi] which doesn't override
+    /// [needs_semi][StmtSemi::needs_semi].
+    pub(crate) fn new(expr: ast::Expr, semi_token: T![;]) -> Self {
+        Self {
+            expr,
+            semi_token,
+            needs_semi: None,
+        }
+    }
+
+    /// Modify semi requirement.
+    pub(crate) fn with_needs_semi(self, needs_semi: bool) -> Self {
+        Self {
+            needs_semi: Some(needs_semi),
+            ..self
+        }
+    }
+
+    /// Test if the statement requires a semi-colon or not.
+    pub(crate) fn needs_semi(&self) -> bool {
+        self.needs_semi.unwrap_or_else(|| self.expr.needs_semi())
+    }
 }
 
 #[cfg(test)]

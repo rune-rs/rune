@@ -124,7 +124,6 @@ mod expr_while;
 mod expr_yield;
 mod file;
 mod fn_arg;
-mod force_semi;
 mod grouped;
 mod ident;
 mod item;
@@ -166,7 +165,7 @@ pub use self::expr_binary::{BinOp, ExprBinary};
 pub use self::expr_block::ExprBlock;
 pub use self::expr_break::{ExprBreak, ExprBreakValue};
 pub use self::expr_call::ExprCall;
-pub use self::expr_closure::ExprClosure;
+pub use self::expr_closure::{ExprClosure, ExprClosureArgs};
 pub use self::expr_continue::ExprContinue;
 pub use self::expr_empty::ExprEmpty;
 pub use self::expr_field_access::{ExprField, ExprFieldAccess};
@@ -190,7 +189,6 @@ pub use self::expr_while::ExprWhile;
 pub use self::expr_yield::ExprYield;
 pub use self::file::{File, Shebang};
 pub use self::fn_arg::FnArg;
-pub use self::force_semi::ForceSemi;
 pub use self::grouped::{AngleBracketed, Braced, Bracketed, Parenthesized};
 pub use self::ident::Ident;
 pub use self::item::Item;
@@ -217,7 +215,7 @@ pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::spanned_error::SpannedError;
 pub(crate) use self::spanned_error::WithSpan;
-pub use self::stmt::{ItemOrExpr, Stmt, StmtSortKey};
+pub use self::stmt::{ItemOrExpr, Stmt, StmtSemi, StmtSortKey};
 pub use self::token::{
     BuiltIn, CopySource, Delimiter, LitSource, Number, NumberBase, NumberSource, NumberText,
     StrSource, StrText, Token,

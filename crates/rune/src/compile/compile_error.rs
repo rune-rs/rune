@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::ast::{Span, Spanned, SpannedError};
 use crate::compile::{IrError, IrErrorKind, Item, Location, Meta};
+use crate::hir::{HirError, HirErrorKind};
 use crate::parse::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::DebugSignature;
@@ -21,6 +22,7 @@ error! {
     impl From<IrError>;
     impl From<QueryError>;
     impl From<ResolveError>;
+    impl From<HirError>;
 }
 
 impl From<CompileError> for SpannedError {
@@ -88,6 +90,12 @@ pub enum CompileErrorKind {
         #[source]
         #[from]
         error: ResolveErrorKind,
+    },
+    #[error("{error}")]
+    HirError {
+        #[source]
+        #[from]
+        error: HirErrorKind,
     },
     #[error("failed to load `{path}`: {error}")]
     ModFileError {

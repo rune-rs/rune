@@ -85,10 +85,6 @@ pub enum Expr {
     Call(ast::ExprCall),
     /// A field access on an expression.
     FieldAccess(ast::ExprFieldAccess),
-    /// A grouped expression.
-    Group(ast::ExprGroup),
-    /// A grouped empty expression.
-    Empty(ast::ExprEmpty),
     /// A binary expression.
     Binary(ast::ExprBinary),
     /// A unary expression.
@@ -115,10 +111,6 @@ pub enum Expr {
     Closure(ast::ExprClosure),
     /// A literal expression.
     Lit(ast::ExprLit),
-    /// Force a specific semi-colon policy.
-    ForceSemi(ast::ForceSemi),
-    /// A macro call,
-    MacroCall(ast::MacroCall),
     /// An object literal
     Object(ast::ExprObject),
     /// A tuple literal
@@ -127,6 +119,12 @@ pub enum Expr {
     Vec(ast::ExprVec),
     /// A range expression.
     Range(ast::ExprRange),
+    /// A grouped empty expression.
+    Empty(ast::ExprEmpty),
+    /// A grouped expression.
+    Group(ast::ExprGroup),
+    /// A macro call,
+    MacroCall(ast::MacroCall),
 }
 
 impl Expr {
@@ -158,7 +156,6 @@ impl Expr {
             Self::Index(expr) => &expr.attributes,
             Self::Await(expr) => &expr.attributes,
             Self::Try(expr) => &expr.attributes,
-            Self::ForceSemi(expr) => expr.expr.attributes(),
             Self::MacroCall(expr) => &expr.attributes,
             Self::Object(expr) => &expr.attributes,
             Self::Range(expr) => &expr.attributes,
@@ -178,7 +175,6 @@ impl Expr {
             Self::Block(_) => false,
             Self::Select(_) => false,
             Self::MacroCall(macro_call) => macro_call.needs_semi(),
-            Self::ForceSemi(force_semi) => force_semi.needs_semi,
             _ => true,
         }
     }
@@ -193,7 +189,6 @@ impl Expr {
             Self::If(_) => callable,
             Self::Match(_) => callable,
             Self::Select(_) => callable,
-            Self::ForceSemi(expr) => expr.expr.is_callable(callable),
             _ => true,
         }
     }
@@ -226,7 +221,6 @@ impl Expr {
             Self::Index(expr) => take(&mut expr.attributes),
             Self::Await(expr) => take(&mut expr.attributes),
             Self::Try(expr) => take(&mut expr.attributes),
-            Self::ForceSemi(expr) => expr.expr.take_attributes(),
             Self::Object(expr) => take(&mut expr.attributes),
             Self::Range(expr) => take(&mut expr.attributes),
             Self::Vec(expr) => take(&mut expr.attributes),

@@ -39,20 +39,6 @@ impl MacroCall {
         !matches!(self.close.kind, K!['}'])
     }
 
-    /// Wrap the expression into an expression that matches the semi convention
-    /// of the macro call.
-    pub(crate) fn adjust_expr_semi(&self, expr: ast::Expr) -> ast::Expr {
-        if self.needs_semi() != expr.needs_semi() {
-            ast::Expr::ForceSemi(ast::ForceSemi {
-                needs_semi: self.needs_semi(),
-                span: self.span(),
-                expr: Box::new(expr),
-            })
-        } else {
-            expr
-        }
-    }
-
     /// The span of the token stream.
     pub(crate) fn stream_span(&self) -> Span {
         if let Some(span) = self.stream.option_span() {

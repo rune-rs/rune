@@ -465,15 +465,27 @@ impl<'a> Indexer<'a> {
 
                     if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
                         // Expand into an expression so that it gets compiled.
-                        stmts.push(ast::Stmt::Expr(ast::Expr::MacroCall(macro_call), semi));
+                        let stmt = match semi {
+                            Some(semi) => ast::Stmt::Semi(ast::StmtSemi::new(
+                                ast::Expr::MacroCall(macro_call),
+                                semi,
+                            )),
+                            None => ast::Stmt::Expr(ast::Expr::MacroCall(macro_call)),
+                        };
+
+                        stmts.push(stmt);
                     } else if let Some(out) =
                         self.expand_macro::<Option<ast::ItemOrExpr>>(&mut macro_call)?
                     {
                         let stmt = match out {
                             ast::ItemOrExpr::Item(item) => ast::Stmt::Item(item, semi),
-                            ast::ItemOrExpr::Expr(expr) => {
-                                ast::Stmt::Expr(macro_call.adjust_expr_semi(expr), semi)
-                            }
+                            ast::ItemOrExpr::Expr(expr) => match semi {
+                                Some(semi) => ast::Stmt::Semi(
+                                    ast::StmtSemi::new(expr, semi)
+                                        .with_needs_semi(macro_call.needs_semi()),
+                                ),
+                                None => ast::Stmt::Expr(expr),
+                            },
                         };
 
                         queue.push_front(stmt);
@@ -483,15 +495,12 @@ impl<'a> Indexer<'a> {
                         return Err(CompileError::msg(span, "unsupported statement attribute"));
                     }
                 }
-                ast::Stmt::Expr(expr, semi) => {
-                    stmts.push(ast::Stmt::Expr(expr, semi));
-                }
-                ast::Stmt::Local(expr) => {
-                    stmts.push(ast::Stmt::Local(expr));
-                }
                 ast::Stmt::Item(mut i, semi) => {
                     item(&mut i, self)?;
                     stmts.push(ast::Stmt::Item(i, semi));
+                }
+                stmt => {
+                    stmts.push(stmt);
                 }
             }
         }
@@ -898,20 +907,20 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
             ast::Stmt::Local(l) => {
                 local(l, idx)?;
             }
-            ast::Stmt::Expr(e, None) => {
+            ast::Stmt::Expr(e) => {
                 if e.needs_semi() {
                     must_be_last = Some(e.span());
                 }
 
                 expr(e, idx, IS_USED)?;
             }
-            ast::Stmt::Expr(e, Some(semi)) => {
-                if !e.needs_semi() {
+            ast::Stmt::Semi(semi) => {
+                if !semi.needs_semi() {
                     idx.diagnostics
                         .uneccessary_semi_colon(idx.source_id, semi.span());
                 }
 
-                expr(e, idx, IS_USED)?;
+                expr(&mut semi.expr, idx, IS_USED)?;
             }
             ast::Stmt::Item(item, semi) => {
                 if let Some(semi) = semi {
@@ -1113,9 +1122,6 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>, is_used: IsUsed) -> CompileR
         }
         ast::Expr::Lit(e) => {
             expr_lit(e, idx)?;
-        }
-        ast::Expr::ForceSemi(e) => {
-            expr(&mut e.expr, idx, is_used)?;
         }
         ast::Expr::Tuple(e) => {
             expr_tuple(e, idx)?;

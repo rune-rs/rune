@@ -326,7 +326,8 @@ pub(crate) fn block(ast: &ast::Block, c: &mut IrCompiler<'_>) -> Result<ir::IrSc
                 instructions.push(local(l, c)?);
                 continue;
             }
-            ast::Stmt::Expr(e, semi) => (e, semi.is_some()),
+            ast::Stmt::Expr(e) => (e, false),
+            ast::Stmt::Semi(semi) => (&semi.expr, true),
             ast::Stmt::Item(..) => continue,
         };
 

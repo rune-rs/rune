@@ -909,7 +909,7 @@ fn block(ast: &ast::Block, c: &mut Assembler<'_>, needs: Needs) -> CompileResult
     let mut last = None::<(&ast::Expr, bool)>;
 
     for stmt in &ast.statements {
-        let (e, term) = match stmt {
+        let (e, semi) = match stmt {
             ast::Stmt::Local(l) => {
                 if let Some((e, _)) = std::mem::take(&mut last) {
                     // NB: terminated expressions do not need to produce a value.
@@ -919,18 +919,19 @@ fn block(ast: &ast::Block, c: &mut Assembler<'_>, needs: Needs) -> CompileResult
                 local(l, c, Needs::None)?.apply(c)?;
                 continue;
             }
-            ast::Stmt::Expr(expr, semi) => (expr, semi.is_some()),
+            ast::Stmt::Expr(expr) => (expr, false),
+            ast::Stmt::Semi(semi) => (&semi.expr, true),
             ast::Stmt::Item(..) => continue,
         };
 
-        if let Some((e, _)) = std::mem::replace(&mut last, Some((e, term))) {
+        if let Some((e, _)) = std::mem::replace(&mut last, Some((e, semi))) {
             // NB: terminated expressions do not need to produce a value.
             expr(e, c, Needs::None)?.apply(c)?;
         }
     }
 
-    let produced = if let Some((e, term)) = last {
-        if term {
+    let produced = if let Some((e, semi)) = last {
+        if semi {
             expr(e, c, Needs::None)?.apply(c)?;
             false
         } else {
@@ -1209,7 +1210,6 @@ fn expr(ast: &ast::Expr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<A
         ast::Expr::FieldAccess(e) => expr_field_access(e, c, needs)?,
         ast::Expr::Closure(e) => expr_closure(e, c, needs)?,
         ast::Expr::Lit(e) => lit(&e.lit, c, needs)?,
-        ast::Expr::ForceSemi(e) => expr(&e.expr, c, needs)?,
         ast::Expr::Tuple(e) => expr_tuple(e, c, needs)?,
         ast::Expr::Vec(e) => expr_vec(e, c, needs)?,
         ast::Expr::Object(e) => expr_object(e, c, needs)?,
