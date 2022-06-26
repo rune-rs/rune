@@ -101,7 +101,7 @@ impl Import {
                                 continue;
                             }
 
-                            name = self.lookup_local(context, q, &*ident);
+                            name = self.lookup_local(context, q, ident);
                         }
                         ast::PathSegment::SelfType(self_type) => {
                             return Err(CompileError::new(

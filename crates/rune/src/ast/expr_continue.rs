@@ -16,7 +16,7 @@ pub struct ExprContinue {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The return token.
-    pub break_token: T![continue],
+    pub continue_token: T![continue],
     /// An optional label to continue to.
     #[rune(iter)]
     pub label: Option<ast::Label>,

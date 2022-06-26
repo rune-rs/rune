@@ -190,9 +190,7 @@ pub(crate) async fn run(
         execution.async_complete().await
     };
 
-    let errored;
-
-    match result {
+    let errored = match result {
         Ok(result) => {
             let duration = Instant::now().duration_since(last);
 
@@ -200,7 +198,7 @@ pub(crate) async fn run(
                 writeln!(io.stderr, "== {:?} ({:?})", result, duration)?;
             }
 
-            errored = None;
+            None
         }
         Err(error) => {
             let duration = Instant::now().duration_since(last);
@@ -209,7 +207,7 @@ pub(crate) async fn run(
                 writeln!(io.stderr, "== ! ({}) ({:?})", error, duration)?;
             }
 
-            errored = Some(error);
+            Some(error)
         }
     };
 

@@ -20,7 +20,7 @@
 
 <div align="center">
 <a href="https://github.com/rune-rs/rune/actions">
-    <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/Build/badge.svg">
+    <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/CI/badge.svg">
 </a>
 
 <a href="https://github.com/rune-rs/rune/actions">

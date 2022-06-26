@@ -1,7 +1,7 @@
 use crate::ast::prelude::*;
 
 /// A character literal.
-#[derive(Debug, Clone, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitChar {
     /// The span corresponding to the literal.

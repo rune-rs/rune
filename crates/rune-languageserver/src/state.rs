@@ -125,11 +125,7 @@ impl State {
             by_url.insert(url.clone(), Default::default());
 
             let mut sources = rune::Sources::new();
-            let input = rune::Source::with_path(
-                url.to_string(),
-                source.to_string(),
-                url.to_file_path().ok(),
-            );
+            let input = rune::Source::with_path(url, source.to_string(), url.to_file_path().ok());
 
             sources.insert(input);
 
@@ -435,7 +431,7 @@ fn report<E, R>(
     R: Fn(lsp::Range, E) -> lsp::Diagnostic,
 {
     let source = match sources.get(source_id) {
-        Some(source) => &*source,
+        Some(source) => source,
         None => return,
     };
 
@@ -447,7 +443,7 @@ fn report<E, R>(
         None => return,
     };
 
-    let range = match span_to_lsp_range(&*source, span) {
+    let range = match span_to_lsp_range(source, span) {
         Some(range) => range,
         None => return,
     };
@@ -714,7 +710,7 @@ impl rune::compile::SourceLoader for SourceLoader {
         if let Some(candidates) = Self::candidates(root, item) {
             for url in candidates.iter() {
                 if let Some(s) = self.sources.get(url) {
-                    return Ok(rune::Source::new(url.to_string(), s.to_string()));
+                    return Ok(rune::Source::new(url, s.to_string()));
                 }
             }
         }

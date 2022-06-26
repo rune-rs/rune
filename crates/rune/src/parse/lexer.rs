@@ -34,7 +34,7 @@ impl<'a> Lexer<'a> {
 
     /// Access the span of the lexer.
     pub(crate) fn span(&self) -> Span {
-        self.iter.from_span(0)
+        self.iter.span_to_len(0)
     }
 
     fn emit_builtin_attribute(&mut self, span: Span) {
@@ -152,7 +152,7 @@ impl<'a> Lexer<'a> {
                 is_fractional,
                 base,
             })),
-            span: self.iter.span_from(start),
+            span: self.iter.span_to_pos(start),
         }))
     }
 
@@ -168,7 +168,7 @@ impl<'a> Lexer<'a> {
 
                     if self.iter.next().is_none() {
                         return Err(ParseError::new(
-                            self.iter.span_from(s),
+                            self.iter.span_to_pos(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
                     }
@@ -187,7 +187,7 @@ impl<'a> Lexer<'a> {
                     count += 1;
                 }
                 c if c.is_control() => {
-                    let span = self.iter.span_from(start);
+                    let span = self.iter.span_to_pos(start);
                     return Err(ParseError::new(span, ParseErrorKind::UnterminatedCharLit));
                 }
                 _ if is_label && count > 0 => {
@@ -202,7 +202,7 @@ impl<'a> Lexer<'a> {
         }
 
         if count == 0 {
-            let span = self.iter.from_span(start);
+            let span = self.iter.span_to_len(start);
 
             if !is_label {
                 return Err(ParseError::new(span, ParseErrorKind::ExpectedCharClose));
@@ -214,12 +214,12 @@ impl<'a> Lexer<'a> {
         if is_label {
             Ok(Some(ast::Token {
                 kind: ast::Kind::Label(ast::LitSource::Text(self.source_id)),
-                span: self.iter.span_from(start),
+                span: self.iter.span_to_pos(start),
             }))
         } else {
             Ok(Some(ast::Token {
                 kind: ast::Kind::Char(ast::CopySource::Text(self.source_id)),
-                span: self.iter.span_from(start),
+                span: self.iter.span_to_pos(start),
             }))
         }
     }
@@ -231,7 +231,7 @@ impl<'a> Lexer<'a> {
                 Some(c) => c,
                 None => {
                     return Err(ParseError::new(
-                        self.iter.span_from(start),
+                        self.iter.span_to_pos(start),
                         ParseErrorKind::ExpectedByteClose,
                     ));
                 }
@@ -241,7 +241,7 @@ impl<'a> Lexer<'a> {
                 '\\' => {
                     if self.iter.next().is_none() {
                         return Err(ParseError::new(
-                            self.iter.span_from(s),
+                            self.iter.span_to_pos(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
                     }
@@ -250,7 +250,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 c if c.is_control() => {
-                    let span = self.iter.span_from(start);
+                    let span = self.iter.span_to_pos(start);
                     return Err(ParseError::new(span, ParseErrorKind::UnterminatedByteLit));
                 }
                 _ => (),
@@ -259,7 +259,7 @@ impl<'a> Lexer<'a> {
 
         Ok(Some(ast::Token {
             kind: ast::Kind::Byte(ast::CopySource::Text(self.source_id)),
-            span: self.iter.span_from(start),
+            span: self.iter.span_to_pos(start),
         }))
     }
 
@@ -276,7 +276,7 @@ impl<'a> Lexer<'a> {
             let (s, c) = match self.iter.next_with_pos() {
                 Some(next) => next,
                 None => {
-                    return Err(ParseError::new(self.iter.span_from(start), error_kind()));
+                    return Err(ParseError::new(self.iter.span_to_pos(start), error_kind()));
                 }
             };
 
@@ -285,7 +285,7 @@ impl<'a> Lexer<'a> {
                 '\\' => {
                     if self.iter.next().is_none() {
                         return Err(ParseError::new(
-                            self.iter.span_from(s),
+                            self.iter.span_to_pos(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
                     }
@@ -302,7 +302,7 @@ impl<'a> Lexer<'a> {
                 escaped,
                 wrapped: true,
             })),
-            span: self.iter.span_from(start),
+            span: self.iter.span_to_pos(start),
         }))
     }
 
@@ -351,7 +351,7 @@ impl<'a> Lexer<'a> {
                 '$' => {
                     let expressions = self.modes.expression_count(&self.iter, start)?;
 
-                    let span = self.iter.span_from(start);
+                    let span = self.iter.span_to_pos(start);
                     let had_string = start != self.iter.pos();
                     let start = self.iter.pos();
 
@@ -360,14 +360,14 @@ impl<'a> Lexer<'a> {
                     match self.iter.next_with_pos() {
                         Some((_, '{')) => (),
                         Some((start, c)) => {
-                            let span = self.iter.span_from(start);
+                            let span = self.iter.span_to_pos(start);
                             return Err(ParseError::new(
                                 span,
                                 ParseErrorKind::UnexpectedChar { c },
                             ));
                         }
                         None => {
-                            let span = self.iter.from_span(start);
+                            let span = self.iter.span_to_len(start);
                             return Err(ParseError::new(span, ParseErrorKind::UnexpectedEof));
                         }
                     }
@@ -395,7 +395,7 @@ impl<'a> Lexer<'a> {
                     if *expressions > 0 {
                         self.buffer.push_back(ast::Token {
                             kind: ast::Kind::Comma,
-                            span: self.iter.span_from(start),
+                            span: self.iter.span_to_pos(start),
                         });
                     }
 
@@ -407,7 +407,7 @@ impl<'a> Lexer<'a> {
 
                     if self.iter.next().is_none() {
                         return Err(ParseError::new(
-                            self.iter.span_from(s),
+                            self.iter.span_to_pos(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
                     }
@@ -415,7 +415,7 @@ impl<'a> Lexer<'a> {
                     escaped = true;
                 }
                 '`' => {
-                    let span = self.iter.span_from(start);
+                    let span = self.iter.span_to_pos(start);
                     let had_string = start != self.iter.pos();
                     let start = self.iter.pos();
                     self.iter.next();
@@ -444,12 +444,12 @@ impl<'a> Lexer<'a> {
 
                     self.buffer.push_back(ast::Token {
                         kind: K![')'],
-                        span: self.iter.span_from(start),
+                        span: self.iter.span_to_pos(start),
                     });
 
                     self.buffer.push_back(ast::Token {
                         kind: ast::Kind::Close(ast::Delimiter::Empty),
-                        span: self.iter.span_from(start),
+                        span: self.iter.span_to_pos(start),
                     });
 
                     let expressions = *expressions;
@@ -507,7 +507,7 @@ impl<'a> Lexer<'a> {
 
                     return Ok(Some(ast::Token {
                         kind: ast::Kind::Shebang(ast::LitSource::Text(self.source_id)),
-                        span: self.iter.span_from(start),
+                        span: self.iter.span_to_pos(start),
                     }));
                 }
             }
@@ -517,7 +517,7 @@ impl<'a> Lexer<'a> {
 
                 return Ok(Some(ast::Token {
                     kind: ast::Kind::Whitespace,
-                    span: self.iter.span_from(start),
+                    span: self.iter.span_to_pos(start),
                 }));
             }
 
@@ -711,7 +711,7 @@ impl<'a> Lexer<'a> {
                         );
                     }
                     '`' => {
-                        let span = self.iter.span_from(start);
+                        let span = self.iter.span_to_pos(start);
 
                         self.buffer.push_back(ast::Token {
                             kind: ast::Kind::Open(ast::Delimiter::Empty),
@@ -739,7 +739,7 @@ impl<'a> Lexer<'a> {
                         return self.next_char_or_label(start);
                     }
                     _ => {
-                        let span = self.iter.span_from(start);
+                        let span = self.iter.span_to_pos(start);
                         return Err(ParseError::new(span, ParseErrorKind::UnexpectedChar { c }));
                     }
                 };
@@ -747,7 +747,7 @@ impl<'a> Lexer<'a> {
 
             return Ok(Some(ast::Token {
                 kind,
-                span: self.iter.span_from(start),
+                span: self.iter.span_to_pos(start),
             }));
         }
     }
@@ -782,12 +782,12 @@ impl<'a> SourceIter<'a> {
     }
 
     /// Get the span from the given start, to the current position.
-    fn span_from(&self, start: usize) -> Span {
+    fn span_to_pos(&self, start: usize) -> Span {
         Span::new(start, self.pos())
     }
 
     /// Get the end span from the given start to the end of the source.
-    fn from_span(&self, start: usize) -> Span {
+    fn span_to_len(&self, start: usize) -> Span {
         Span::new(start, self.source.len())
     }
 
@@ -879,7 +879,7 @@ impl LexerModes {
         match self.modes.last_mut() {
             Some(LexerMode::Template(expression)) => Ok(expression),
             _ => {
-                let span = iter.span_from(start);
+                let span = iter.span_to_pos(start);
                 Err(ParseError::new(
                     span,
                     ParseErrorKind::BadLexerMode {

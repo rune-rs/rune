@@ -258,22 +258,22 @@ pub struct PatBinding {
     pub pat: Box<ast::Pat>,
 }
 
-/// A tuple pattern.
+/// A path pattern.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatPath {
     /// Attributes associate with the path.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
-    /// The path, if the tuple is typed.
+    /// The path of the pattern.
     pub path: ast::Path,
 }
 
-/// A ignore pattern.
+/// An ignore pattern.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct PatIgnore {
-    /// Attributes associate with the path.
+    /// Attributes associate with the pattern.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The ignore token`_`.

@@ -85,7 +85,7 @@ pub(crate) fn expr(ast: &ast::Expr, c: &mut IrCompiler<'_>) -> Result<ir::Ir, Ir
             ir::Ir::new(expr_break, ir::IrBreak::compile_ast(expr_break, c)?)
         }
         ast::Expr::MacroCall(macro_call) => {
-            let internal_macro = c.q.builtin_macro_for(&*macro_call)?;
+            let internal_macro = c.q.builtin_macro_for(macro_call)?;
 
             match &*internal_macro {
                 BuiltInMacro::Template(template) => {

@@ -7,7 +7,7 @@ pub struct ExprAssign {
     /// Attributes associated with the assign expression.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
-    /// The expression being awaited.
+    /// The expression being assigned to.
     pub lhs: Box<ast::Expr>,
     /// The equals sign `=`.
     pub eq: T![=],

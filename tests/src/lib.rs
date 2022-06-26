@@ -35,7 +35,7 @@ pub fn compile_helper(source: &str, diagnostics: &mut Diagnostics) -> Result<Uni
     let context = self::modules::default_context().expect("setting up default modules");
 
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source.to_owned()));
+    sources.insert(Source::new("main", source));
 
     let unit = rune::prepare(&mut sources)
         .with_context(&context)
@@ -94,7 +94,7 @@ where
 #[doc(hidden)]
 pub fn sources(source: &str) -> Sources {
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source.to_owned()));
+    sources.insert(Source::new("main", source));
     sources
 }
 
@@ -107,7 +107,7 @@ where
     T: FromValue,
 {
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source.to_owned()));
+    sources.insert(Source::new("main", source));
 
     let mut diagnostics = Default::default();
 

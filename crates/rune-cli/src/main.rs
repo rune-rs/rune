@@ -18,7 +18,7 @@
 //!
 //! <div align="center">
 //! <a href="https://github.com/rune-rs/rune/actions">
-//!     <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/Build/badge.svg">
+//!     <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/CI/badge.svg">
 //! </a>
 //!
 //! <a href="https://github.com/rune-rs/rune/actions">
@@ -433,7 +433,7 @@ async fn try_main() -> Result<ExitCode, io::Error> {
             o.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
             let result = format_errors(&mut o, error.as_ref());
             o.set_color(&ColorSpec::new())?;
-            let () = result?;
+            result?;
             Ok(ExitCode::Failure)
         }
     }

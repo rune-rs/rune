@@ -1,6 +1,6 @@
 use crate::ast::prelude::*;
 
-/// A let expression `let <name> = <expr>;`
+/// A let expression `let <name> = <expr>`
 ///
 /// # Examples
 ///

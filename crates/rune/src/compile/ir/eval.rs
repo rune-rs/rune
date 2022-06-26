@@ -241,9 +241,9 @@ fn eval_ir_loop(
 
     loop {
         if let Some(condition) = &ir.condition {
-            interp.scopes.clear_current(&*condition)?;
+            interp.scopes.clear_current(condition)?;
 
-            let value = eval_ir_condition(&*condition, interp, used)?;
+            let value = eval_ir_condition(condition, interp, used)?;
 
             if !as_bool(condition.span(), value)? {
                 break;
