@@ -1,6 +1,6 @@
 use crate::ast::prelude::*;
 
-/// A label, like `'foo`
+/// A label, like `'foo`.
 ///
 /// Custom labels are constructed in macros using
 /// [MacroContext::label][crate::macros::MacroContext::label].
@@ -32,7 +32,7 @@ use crate::ast::prelude::*;
 pub struct Label {
     /// The token of the label.
     pub span: Span,
-    /// The kind of the label.
+    /// The source of the label.
     #[rune(skip)]
     pub source: ast::LitSource,
 }

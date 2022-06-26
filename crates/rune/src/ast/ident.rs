@@ -1,6 +1,6 @@
 use crate::ast::prelude::*;
 
-/// An identifier, like `foo` or `Hello`.".
+/// An identifier, like `foo` or `Hello`.
 ///
 /// Custom identifiers are constructed in macros using
 /// [MacroContext::ident][crate::macros::MacroContext::ident].
@@ -30,7 +30,7 @@ use crate::ast::prelude::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct Ident {
-    /// The kind of the identifier.
+    /// The span of the identifier.
     pub span: Span,
     /// The kind of the identifier.
     #[rune(skip)]

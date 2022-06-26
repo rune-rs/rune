@@ -1,6 +1,6 @@
 use crate::ast::prelude::*;
 
-/// An if statement: `if cond { true } else { false }`
+/// An if statement: `if cond { true } else { false }`.
 ///
 /// # Examples
 ///

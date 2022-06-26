@@ -3,7 +3,7 @@ use num::Num;
 use std::str::FromStr;
 
 /// A number literal.
-#[derive(Debug, Clone, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitNumber {
     /// The span corresponding to the literal.

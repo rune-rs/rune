@@ -2,7 +2,7 @@ use crate::ast::prelude::*;
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitByteStr {
     /// The span corresponding to the literal.

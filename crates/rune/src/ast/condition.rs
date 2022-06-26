@@ -1,6 +1,6 @@
 use crate::ast::prelude::*;
 
-/// An if condition.
+/// The condition in an if statement.
 ///
 /// # Examples
 ///

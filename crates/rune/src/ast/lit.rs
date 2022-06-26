@@ -18,7 +18,7 @@ use crate::ast::prelude::*;
 ///     assert!(matches!(lit, ast::Lit::Str(..)))
 /// });
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Lit {
     /// A boolean literal
