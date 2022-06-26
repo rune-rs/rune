@@ -45,15 +45,6 @@ pub struct Block {
     pub close: T!['}'],
 }
 
-impl Block {
-    /// Test if the block doesn't produce anything. Which is when the last
-    /// element is either a non-expression or is an expression terminated by a
-    /// semi.
-    pub(crate) fn produces_nothing(&self) -> bool {
-        matches!(self.statements.last(), Some(ast::Stmt::Semi(..)) | None)
-    }
-}
-
 impl Parse for Block {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut statements = Vec::new();

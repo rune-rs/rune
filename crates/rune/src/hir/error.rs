@@ -1,15 +1,19 @@
 use thiserror::Error;
 
+use crate::query::{QueryError, QueryErrorKind};
+
 error! {
     /// An error while constructing HIR representation.
-    #[derive(Debug, Clone)]
+    #[derive(Debug)]
     pub struct HirError {
         kind: HirErrorKind,
     }
+
+    impl From<QueryError>;
 }
 
 /// The kind of a hir error.
-#[derive(Debug, Clone, Copy, Error)]
+#[derive(Debug, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum HirErrorKind {
@@ -19,4 +23,10 @@ pub enum HirErrorKind {
     ArenaWriteSliceOutOfBounds { index: usize },
     #[error("allocation error for {requested} bytes")]
     ArenaAllocError { requested: usize },
+    #[error("{error}")]
+    QueryError {
+        #[source]
+        #[from]
+        error: Box<QueryErrorKind>,
+    },
 }

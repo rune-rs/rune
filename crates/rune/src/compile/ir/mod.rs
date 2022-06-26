@@ -18,11 +18,12 @@ pub(crate) use self::interpreter::{IrBudget, IrInterpreter};
 mod value;
 pub use self::value::IrValue;
 
-use self::eval::IrEvalBreak;
 use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;
+use crate::compile::ir::eval::IrEvalBreak;
 use crate::compile::ItemMeta;
+use crate::hir;
 use crate::query::Used;
 
 /// Context used for [IrEval].
@@ -42,7 +43,13 @@ pub trait IrEval {
 
 impl IrEval for ast::Expr {
     fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue, IrError> {
-        let ir = compile::expr(self, &mut ctx.c)?;
+        let ir = {
+            // TODO: avoid this arena?
+            let arena = crate::hir::Arena::new();
+            let hir_ctx = crate::hir::lowering::Ctx::new(&arena, ctx.c.q.borrow());
+            let hir = crate::hir::lowering::expr(&hir_ctx, self)?;
+            compile::expr(&hir, &mut ctx.c)?
+        };
 
         let mut ir_interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
@@ -174,11 +181,14 @@ pub struct IrFn {
 }
 
 impl IrFn {
-    pub(crate) fn compile_ast(ast: &ast::ItemFn, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
+    pub(crate) fn compile_ast(
+        hir: &hir::ItemFn<'_>,
+        c: &mut IrCompiler<'_>,
+    ) -> Result<Self, IrError> {
         let mut args = Vec::new();
 
-        for (arg, _) in &ast.args {
-            if let ast::FnArg::Pat(ast::Pat::PatPath(path)) = arg {
+        for arg in hir.args {
+            if let hir::FnArg::Pat(hir::Pat::PatPath(path)) = arg {
                 if let Some(ident) = path.path.try_as_ident() {
                     args.push(c.resolve(ident)?.into());
                     continue;
@@ -188,12 +198,12 @@ impl IrFn {
             return Err(IrError::msg(arg, "unsupported argument in const fn"));
         }
 
-        let ir_scope = compile::block(&ast.body, c)?;
+        let ir_scope = compile::block(hir.body, c)?;
 
         Ok(ir::IrFn {
-            span: ast.span(),
+            span: hir.span(),
             args,
-            ir: ir::Ir::new(ast.span(), ir_scope),
+            ir: ir::Ir::new(hir.span(), ir_scope),
         })
     }
 }
@@ -321,10 +331,10 @@ pub enum IrPat {
 }
 
 impl IrPat {
-    fn compile_ast(ast: &ast::Pat, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
-        match ast {
-            ast::Pat::PatIgnore(..) => return Ok(ir::IrPat::Ignore),
-            ast::Pat::PatPath(path) => {
+    fn compile_ast(hir: &hir::Pat<'_>, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
+        match hir {
+            hir::Pat::PatIgnore(..) => return Ok(ir::IrPat::Ignore),
+            hir::Pat::PatPath(path) => {
                 if let Some(ident) = path.path.try_as_ident() {
                     let name = c.resolve(ident)?;
                     return Ok(ir::IrPat::Binding(name.into()));
@@ -333,7 +343,7 @@ impl IrPat {
             _ => (),
         }
 
-        Err(IrError::msg(ast, "pattern not supported yet"))
+        Err(IrError::msg(hir, "pattern not supported yet"))
     }
 
     fn matches<S>(
@@ -380,13 +390,13 @@ pub struct IrBreak {
 }
 
 impl IrBreak {
-    fn compile_ast(ast: &ast::ExprBreak, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
-        let span = ast.span();
+    fn compile_ast(hir: &hir::ExprBreak, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
+        let span = hir.span();
 
-        let kind = match ast.expr.as_deref() {
-            Some(expr) => match expr {
-                ast::ExprBreakValue::Expr(e) => ir::IrBreakKind::Ir(Box::new(compile::expr(e, c)?)),
-                ast::ExprBreakValue::Label(label) => {
+        let kind = match hir.expr {
+            Some(expr) => match *expr {
+                hir::ExprBreakValue::Expr(e) => ir::IrBreakKind::Ir(Box::new(compile::expr(e, c)?)),
+                hir::ExprBreakValue::Label(label) => {
                     ir::IrBreakKind::Label(c.resolve(label)?.into())
                 }
             },

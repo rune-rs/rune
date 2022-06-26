@@ -167,6 +167,7 @@
 #![allow(clippy::branches_sharing_code)]
 #![allow(clippy::match_like_matches_macro)]
 #![allow(clippy::type_complexity)]
+#![allow(clippy::module_inception)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 /// A macro that can be used to construct a [Span][crate::ast::Span] that can be

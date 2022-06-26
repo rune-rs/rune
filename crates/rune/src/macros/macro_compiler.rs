@@ -33,7 +33,12 @@ impl MacroCompiler<'_> {
 
         // TODO: include information on the module the macro is being called
         // from.
-        let named = self.query.convert_path(self.context, &macro_call.path)?;
+        //
+        // TODO: Figure out how to avoid performing ad-hoc lowering here.
+        let arena = crate::hir::Arena::new();
+        let ctx = crate::hir::lowering::Ctx::new(&arena, self.query.borrow());
+        let path = crate::hir::lowering::path(&ctx, &macro_call.path)?;
+        let named = self.query.convert_path(self.context, &path)?;
 
         let hash = Hash::type_hash(&named.item);
 

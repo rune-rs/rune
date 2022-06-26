@@ -298,7 +298,8 @@ impl<'a> Indexer<'a> {
         }
 
         p.eof()?;
-        Ok(BuiltInMacro::Format(Box::new(BuiltInFormat {
+
+        Ok(BuiltInMacro::Format(BuiltInFormat {
             span: ast.span(),
             fill,
             align,
@@ -307,7 +308,7 @@ impl<'a> Indexer<'a> {
             flags,
             format_type,
             value,
-        })))
+        }))
     }
 
     /// Expand a macro returning the current file
@@ -848,7 +849,13 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         }
 
         block(&mut ast.block, idx)?;
-        idx.q.index_const(&item, ast, ir::compile::expr_block)?;
+        idx.q.index_const(&item, ast, |ast, c| {
+            // TODO: avoid this arena?
+            let arena = crate::hir::Arena::new();
+            let hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
+            let hir = crate::hir::lowering::expr_block(&hir_ctx, ast)?;
+            ir::compile::expr_block(&hir, c)
+        })?;
         return Ok(());
     }
 
@@ -1426,7 +1433,14 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
     expr(&mut ast.expr, idx, IS_USED)?;
     idx.nested_item = last;
 
-    idx.q.index_const(&item, &ast.expr, ir::compile::expr)?;
+    idx.q.index_const(&item, &ast.expr, |ast, c| {
+        // TODO: avoid this arena?
+        let arena = crate::hir::Arena::new();
+        let hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
+        let hir = crate::hir::lowering::expr(&hir_ctx, ast)?;
+        ir::compile::expr(&hir, c)
+    })?;
+
     Ok(())
 }
 

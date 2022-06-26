@@ -11,6 +11,7 @@ use crate::compile::{
     PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta,
     UnitBuilder, Visibility,
 };
+use crate::hir;
 use crate::macros::Storage;
 use crate::parse::{Id, NonZeroId, Opaque, Resolve, ResolveContext};
 use crate::runtime::format;
@@ -30,16 +31,19 @@ pub use self::query_error::{QueryError, QueryErrorKind};
 mod query_error;
 
 /// An internally resolved macro.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum BuiltInMacro {
     Template(BuiltInTemplate),
-    Format(Box<BuiltInFormat>),
+    Format(BuiltInFormat),
     File(BuiltInFile),
     Line(BuiltInLine),
 }
 
 /// An internally resolved template.
+#[derive(Spanned)]
 pub(crate) struct BuiltInTemplate {
     /// The span of the built-in template.
+    #[rune(span)]
     pub(crate) span: Span,
     /// Indicate if template originated from literal.
     pub(crate) from_literal: bool,
@@ -47,14 +51,10 @@ pub(crate) struct BuiltInTemplate {
     pub(crate) exprs: Vec<ast::Expr>,
 }
 
-impl Spanned for BuiltInTemplate {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
 /// An internal format specification.
+#[derive(Spanned)]
 pub(crate) struct BuiltInFormat {
+    #[rune(span)]
     pub(crate) span: Span,
     /// The fill character to use.
     pub(crate) fill: Option<(ast::LitChar, char)>,
@@ -72,38 +72,24 @@ pub(crate) struct BuiltInFormat {
     pub(crate) value: ast::Expr,
 }
 
-impl Spanned for BuiltInFormat {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
 /// Macro data for `file!()`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 pub(crate) struct BuiltInFile {
     /// The span of the built-in-file
+    #[rune(span)]
     pub(crate) span: Span,
     /// Path value to use
     pub(crate) value: ast::LitStr,
 }
 
-impl Spanned for BuiltInFile {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
 /// Macro data for `line!()`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 pub(crate) struct BuiltInLine {
     /// The span of the built-in-file
+    #[rune(span)]
     pub(crate) span: Span,
     /// The line number
     pub(crate) value: ast::LitNumber,
-}
-
-impl Spanned for BuiltInLine {
-    fn span(&self) -> Span {
-        self.span
-    }
 }
 
 #[derive(Default)]
@@ -120,7 +106,7 @@ pub(crate) struct QueryInner {
     /// Query paths.
     query_paths: HashMap<NonZeroId, Arc<QueryPath>>,
     /// The result of internally resolved macros.
-    internal_macros: HashMap<NonZeroId, Arc<BuiltInMacro>>,
+    internal_macros: HashMap<NonZeroId, BuiltInMacro>,
     /// Associated between `id` and `Item`. Use to look up items through
     /// `item_for` with an opaque id.
     ///
@@ -319,9 +305,7 @@ impl<'a> Query<'a> {
         internal_macro: BuiltInMacro,
     ) -> Result<NonZeroId, QueryError> {
         let id = self.gen.next();
-        self.inner
-            .internal_macros
-            .insert(id, Arc::new(internal_macro));
+        self.inner.internal_macros.insert(id, internal_macro);
         Ok(id)
     }
 
@@ -347,7 +331,7 @@ impl<'a> Query<'a> {
         Ok(item.clone())
     }
 
-    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> Result<Arc<BuiltInMacro>, QueryError>
+    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> Result<&BuiltInMacro, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -365,7 +349,7 @@ impl<'a> Query<'a> {
                 )
             })?;
 
-        Ok(internal_macro.clone())
+        Ok(internal_macro)
     }
 
     /// Insert an item and return its Id.
@@ -609,11 +593,11 @@ impl<'a> Query<'a> {
     }
 
     /// Perform a path lookup on the current state of the unit.
-    pub(crate) fn convert_path<'ast>(
+    pub(crate) fn convert_path<'hir>(
         &mut self,
         context: &Context,
-        path: &'ast ast::Path,
-    ) -> Result<Named<'ast>, CompileError> {
+        path: &'hir hir::Path<'hir>,
+    ) -> Result<Named<'hir>, CompileError> {
         let id = path.id();
 
         let qp = id
@@ -626,52 +610,53 @@ impl<'a> Query<'a> {
         let mut local = None;
         let mut generics = None;
 
-        let mut item = match (&path.global, &path.first) {
-            (Some(..), ast::PathSegment::Ident(ident)) => {
-                Item::with_crate(ident.resolve(resolve_context!(self))?)
+        let mut item = match (path.global, path.first) {
+            (
+                Some(..),
+                hir::PathSegment {
+                    kind: hir::PathSegmentKind::Ident(ident),
+                    ..
+                },
+            ) => Item::with_crate(ident.resolve(resolve_context!(self))?),
+            (Some(span), _) => {
+                return Err(CompileError::new(span, CompileErrorKind::UnsupportedGlobal));
             }
-            (Some(global), _) => {
-                return Err(CompileError::new(
-                    global.span(),
-                    CompileErrorKind::UnsupportedGlobal,
-                ));
-            }
-            (None, segment) => match segment {
-                ast::PathSegment::Ident(ident) => {
+            (None, segment) => match segment.kind {
+                hir::PathSegmentKind::Ident(ident) => {
                     if path.rest.is_empty() {
-                        local = Some(*ident);
+                        local = Some(ident);
                     }
 
                     self.convert_initial_path(context, &qp.module, &qp.item, ident)?
                 }
-                ast::PathSegment::Super(super_value) => {
+                hir::PathSegmentKind::Super => {
                     let mut item = qp.module.item.clone();
 
                     item.pop()
-                        .ok_or_else(CompileError::unsupported_super(super_value))?;
+                        .ok_or_else(CompileError::unsupported_super(segment.span()))?;
 
                     item
                 }
-                ast::PathSegment::SelfType(self_type) => {
+                hir::PathSegmentKind::SelfType => {
                     let impl_item = qp.impl_item.as_deref().ok_or_else(|| {
-                        CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
+                        CompileError::new(segment.span(), CompileErrorKind::UnsupportedSelfType)
                     })?;
 
                     in_self_type = true;
                     impl_item.clone()
                 }
-                ast::PathSegment::SelfValue(..) => qp.module.item.clone(),
-                ast::PathSegment::Crate(..) => Item::new(),
-                ast::PathSegment::Generics(arguments) => {
+                hir::PathSegmentKind::SelfValue => qp.module.item.clone(),
+                hir::PathSegmentKind::Crate => Item::new(),
+                hir::PathSegmentKind::Generics(..) => {
                     return Err(CompileError::new(
-                        arguments,
+                        segment.span(),
                         CompileErrorKind::UnsupportedGenerics,
                     ));
                 }
             },
         };
 
-        for (_, segment) in &path.rest {
+        for segment in path.rest {
             tracing::trace!("item = {}", item);
 
             if generics.is_some() {
@@ -681,35 +666,35 @@ impl<'a> Query<'a> {
                 ));
             }
 
-            match segment {
-                ast::PathSegment::Ident(ident) => {
+            match segment.kind {
+                hir::PathSegmentKind::Ident(ident) => {
                     let ident = ident.resolve(resolve_context!(self))?;
                     item.push(ident);
                 }
-                ast::PathSegment::Super(super_token) => {
+                hir::PathSegmentKind::Super => {
                     if in_self_type {
                         return Err(CompileError::new(
-                            super_token,
+                            segment.span(),
                             CompileErrorKind::UnsupportedSuperInSelfType,
                         ));
                     }
 
                     item.pop()
-                        .ok_or_else(CompileError::unsupported_super(super_token))?;
+                        .ok_or_else(CompileError::unsupported_super(segment.span()))?;
                 }
-                ast::PathSegment::Generics(arguments) => {
+                hir::PathSegmentKind::Generics(arguments) => {
                     if generics.is_some() {
                         return Err(CompileError::new(
-                            arguments,
+                            segment.span(),
                             CompileErrorKind::UnsupportedGenerics,
                         ));
                     }
 
-                    generics = Some(arguments);
+                    generics = Some((segment.span(), arguments));
                 }
-                other => {
+                _ => {
                     return Err(CompileError::new(
-                        other,
+                        segment.span(),
                         CompileErrorKind::ExpectedLeadingPathSegment,
                     ));
                 }
@@ -1048,8 +1033,14 @@ impl<'a> Query<'a> {
                 PrivMetaKind::Const { const_value }
             }
             Indexed::ConstFn(c) => {
-                let mut compiler = IrCompiler { q: self.borrow() };
-                let ir_fn = ir::IrFn::compile_ast(&c.item_fn, &mut compiler)?;
+                let ir_fn = {
+                    // TODO: avoid this arena?
+                    let arena = crate::hir::Arena::new();
+                    let ctx = crate::hir::lowering::Ctx::new(&arena, self.borrow());
+                    let hir = crate::hir::lowering::item_fn(&ctx, &c.item_fn)?;
+                    let mut c = IrCompiler { q: self.borrow() };
+                    ir::IrFn::compile_ast(&hir, &mut c)?
+                };
 
                 let id = self.insert_const_fn(&query_item, ir_fn);
 
@@ -1507,13 +1498,13 @@ pub(crate) struct QueryConstFn {
 
 /// The result of calling [Query::convert_path].
 #[derive(Debug)]
-pub(crate) struct Named<'a> {
+pub(crate) struct Named<'hir> {
     /// If the resolved value is local.
     pub(crate) local: Option<Box<str>>,
     /// The path resolved to the given item.
     pub(crate) item: Item,
     /// Generic arguments if any.
-    pub(crate) generics: Option<&'a ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>,
+    pub(crate) generics: Option<(Span, &'hir [hir::Expr<'hir>])>,
 }
 
 impl Named<'_> {
@@ -1528,9 +1519,9 @@ impl Named<'_> {
 
     /// Assert that this named type is not generic.
     pub(crate) fn assert_not_generic(&self) -> Result<(), CompileError> {
-        if let Some(generics) = self.generics {
+        if let Some((span, _)) = self.generics {
             return Err(CompileError::new(
-                generics,
+                span,
                 CompileErrorKind::UnsupportedGenerics,
             ));
         }

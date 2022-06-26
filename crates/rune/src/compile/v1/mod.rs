@@ -1,9 +1,9 @@
-use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::{
     ir, Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler,
     IrInterpreter, Item, ItemMeta, Options, PrivMeta,
 };
+use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst};
 use crate::{Context, Diagnostics, SourceId};
@@ -121,10 +121,10 @@ impl<'a> Assembler<'a> {
     }
 
     /// Convert an [ast::Path] into a [Named] item.
-    pub(crate) fn convert_path<'ast>(
+    pub(crate) fn convert_path<'hir>(
         &mut self,
-        path: &'ast ast::Path,
-    ) -> CompileResult<Named<'ast>> {
+        path: &'hir hir::Path<'hir>,
+    ) -> CompileResult<Named<'hir>> {
         self.q.convert_path(self.context, path)
     }
 
@@ -158,7 +158,7 @@ impl<'a> Assembler<'a> {
         meta: &PrivMeta,
         from: &ItemMeta,
         query_const_fn: &QueryConstFn,
-        args: &[(ast::Expr, Option<T![,]>)],
+        args: &[hir::Expr<'_>],
     ) -> Result<ConstValue, CompileError>
     where
         S: Copy + Spanned,
@@ -179,7 +179,7 @@ impl<'a> Assembler<'a> {
         let mut compiled = Vec::new();
 
         // TODO: precompile these and fetch using opaque id?
-        for ((a, _), name) in args.iter().zip(&query_const_fn.ir_fn.args) {
+        for (a, name) in args.iter().zip(&query_const_fn.ir_fn.args) {
             compiled.push((ir::compile::expr(a, &mut compiler)?, name));
         }
 

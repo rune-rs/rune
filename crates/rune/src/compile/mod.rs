@@ -210,11 +210,11 @@ impl CompileBuildEntry<'_> {
                 let span = f.ast.span();
                 let count = f.ast.args.len();
 
-                let mut c = self.compiler1(location, span, &mut asm);
                 let arena = hir::Arena::new();
-                let ctx = hir::lowering::Ctx::new(&arena);
+                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
                 let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
-                assemble::fn_from_item_fn(&f.ast, &mut c, false)?;
+                let mut c = self.compiler1(location, span, &mut asm);
+                assemble::fn_from_item_fn(&hir, &mut c, false)?;
 
                 if used.is_unused() {
                     self.diagnostics.not_used(location.source_id, span, None);
@@ -247,7 +247,10 @@ impl CompileBuildEntry<'_> {
                     CompileError::expected_meta(span, meta.info(), "instance function")
                 })?;
 
-                assemble::fn_from_item_fn(&f.ast, &mut c, true)?;
+                let arena = hir::Arena::new();
+                let ctx = hir::lowering::Ctx::new(&arena, c.q.borrow());
+                let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
+                assemble::fn_from_item_fn(&hir, &mut c, true)?;
 
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
@@ -278,8 +281,11 @@ impl CompileBuildEntry<'_> {
                     closure.ast.args.as_slice().iter().map(|(a, _)| a),
                 )?;
 
+                let arena = hir::Arena::new();
+                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
+                let hir = hir::lowering::expr_closure(&ctx, &closure.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::closure_from_expr_closure(&closure.ast, &mut c, &closure.captures)?;
+                assemble::closure_from_expr_closure(&hir, &mut c, &closure.captures)?;
 
                 if used.is_unused() {
                     c.diagnostics
@@ -303,8 +309,12 @@ impl CompileBuildEntry<'_> {
                 let args = b.captures.len();
                 let span = b.ast.span();
 
+                let arena = hir::Arena::new();
+                let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
+                let hir = hir::lowering::block(&ctx, &b.ast)?;
+
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::closure_from_block(&b.ast, &mut c, &b.captures)?;
+                assemble::closure_from_block(&hir, &mut c, &b.captures)?;
 
                 if used.is_unused() {
                     self.diagnostics

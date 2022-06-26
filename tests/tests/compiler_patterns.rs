@@ -14,7 +14,7 @@ fn illegal_pattern_in_match() {
         "#,
         span, PatternMissingFields { fields, .. } => {
             assert_eq!(&fields[..], [Box::from("bar"), Box::from("baz")]);
-            assert_eq!(span, span!(85, 88));
+            assert_eq!(span, span!(81, 88));
         }
     };
 
@@ -28,7 +28,7 @@ fn illegal_pattern_in_match() {
         "#,
         span, PatternMissingFields { fields, .. } => {
             assert_eq!(&fields[..], [Box::from("baz")]);
-            assert_eq!(span, span!(85, 92));
+            assert_eq!(span, span!(81, 92));
         }
     };
 }

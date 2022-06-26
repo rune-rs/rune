@@ -1,5 +1,6 @@
 use crate::ast::{Spanned, SpannedError};
 use crate::compile::{IrValue, Meta};
+use crate::hir::{HirError, HirErrorKind};
 use crate::parse::{ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
@@ -16,6 +17,7 @@ error! {
     impl From<ResolveError>;
     impl From<QueryError>;
     impl From<ScopeError>;
+    impl From<HirError>;
 }
 
 impl IrError {
@@ -56,14 +58,6 @@ impl From<IrError> for SpannedError {
 pub enum IrErrorKind {
     #[error("{message}")]
     Custom { message: &'static str },
-    /// A scope error.
-    #[error("scope error: {error}")]
-    ScopeError {
-        /// The kind of the scope error.
-        #[source]
-        #[from]
-        error: ScopeErrorKind,
-    },
     /// An access error raised during compilation.
     #[error("access error: {error}")]
     AccessError {
@@ -85,6 +79,22 @@ pub enum IrErrorKind {
         #[source]
         #[from]
         error: ResolveErrorKind,
+    },
+    /// A scope error.
+    #[error("scope error: {error}")]
+    ScopeError {
+        /// The kind of the scope error.
+        #[source]
+        #[from]
+        error: ScopeErrorKind,
+    },
+    /// A HIR error.
+    #[error("hir error: {error}")]
+    HirError {
+        /// The kind of the scope error.
+        #[source]
+        #[from]
+        error: HirErrorKind,
     },
     /// Encountered an expression that is not supported as a constant
     /// expression.
