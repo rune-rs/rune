@@ -127,7 +127,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.61.0
           profile: minimal
           components: clippy
           override: true
