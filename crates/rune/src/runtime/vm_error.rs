@@ -87,7 +87,7 @@ impl VmError {
                 unit,
                 ip,
                 frames,
-            } => (&*kind, Some((unit, *ip, frames))),
+            } => (kind, Some((unit, *ip, frames))),
             kind => (kind, None),
         }
     }
@@ -345,7 +345,7 @@ impl VmErrorKind {
                 unit,
                 ip,
                 frames,
-            } => (&*kind, Some((unit.clone(), *ip, frames.clone()))),
+            } => (kind, Some((unit.clone(), *ip, frames.clone()))),
             kind => (kind, None),
         }
     }

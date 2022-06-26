@@ -984,7 +984,7 @@ impl Vm {
     }
 
     /// Internal implementation of the instance check.
-    fn is_instance(&mut self, lhs: InstAddress, rhs: InstAddress) -> Result<bool, VmError> {
+    fn test_is_instance(&mut self, lhs: InstAddress, rhs: InstAddress) -> Result<bool, VmError> {
         let b = self.stack.address(rhs)?;
         let a = self.stack.address(lhs)?;
 
@@ -1713,11 +1713,11 @@ impl Vm {
                 self.internal_boolean_op(|a, b| a || b, "||", lhs, rhs)?;
             }
             InstOp::Is => {
-                let is_instance = self.is_instance(lhs, rhs)?;
+                let is_instance = self.test_is_instance(lhs, rhs)?;
                 self.stack.push(is_instance);
             }
             InstOp::IsNot => {
-                let is_instance = self.is_instance(lhs, rhs)?;
+                let is_instance = self.test_is_instance(lhs, rhs)?;
                 self.stack.push(!is_instance);
             }
         }

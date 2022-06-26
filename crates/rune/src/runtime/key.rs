@@ -262,11 +262,11 @@ impl ser::Serialize for Key {
             Self::Byte(c) => serializer.serialize_u8(*c),
             Self::Integer(integer) => serializer.serialize_i64(*integer),
             Self::String(string) => serializer.serialize_str(string.as_str()),
-            Self::Bytes(bytes) => serializer.serialize_bytes(&*bytes),
+            Self::Bytes(bytes) => serializer.serialize_bytes(bytes),
             Self::Vec(vec) => {
                 let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
-                for value in &*vec {
+                for value in vec {
                     serializer.serialize_element(value)?;
                 }
 

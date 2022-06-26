@@ -909,7 +909,7 @@ impl<'a> Query<'a> {
 
         self.check_access_to(
             span,
-            &*module,
+            module,
             item,
             &entry.item.module,
             entry.item.location,

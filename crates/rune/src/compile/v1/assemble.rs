@@ -1123,7 +1123,7 @@ fn const_(
             c.asm.push(Inst::String { slot }, span);
         }
         ConstValue::Bytes(b) => {
-            let slot = c.q.unit.new_static_bytes(span, &*b)?;
+            let slot = c.q.unit.new_static_bytes(span, b)?;
             c.asm.push(Inst::Bytes { slot }, span);
         }
         ConstValue::Option(option) => match option {
@@ -1244,7 +1244,7 @@ fn expr_assign(ast: &ast::ExprAssign, c: &mut Assembler<'_>, needs: Needs) -> Co
                 .try_as_ident()
                 .ok_or_else(|| CompileError::msg(path, "unsupported path"))?;
             let ident = segment.resolve(resolve_context!(c.q))?;
-            let var = c.scopes.get_var(c.q.visitor, &*ident, c.source_id, span)?;
+            let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
             true
         }
@@ -1469,7 +1469,7 @@ fn expr_binary(ast: &ast::ExprBinary, c: &mut Assembler<'_>, needs: Needs) -> Co
                     .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
 
                 let ident = segment.resolve(resolve_context!(c.q))?;
-                let var = c.scopes.get_var(c.q.visitor, &*ident, c.source_id, span)?;
+                let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
 
                 Some(InstTarget::Offset(var.offset))
             }

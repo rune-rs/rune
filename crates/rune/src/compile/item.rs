@@ -407,7 +407,7 @@ impl fmt::Debug for Item {
     }
 }
 
-impl<'a> IntoIterator for Item {
+impl IntoIterator for Item {
     type IntoIter = std::vec::IntoIter<Component>;
     type Item = Component;
 
@@ -609,8 +609,8 @@ impl Component {
     /// Convert into component reference.
     pub fn as_component_ref(&self) -> ComponentRef<'_> {
         match self {
-            Self::Crate(s) => ComponentRef::Crate(&*s),
-            Self::Str(s) => ComponentRef::Str(&*s),
+            Self::Crate(s) => ComponentRef::Crate(s),
+            Self::Str(s) => ComponentRef::Str(s),
             Self::Id(n) => ComponentRef::Id(*n),
         }
     }

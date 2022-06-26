@@ -433,7 +433,7 @@ async fn try_main() -> Result<ExitCode, io::Error> {
             o.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
             let result = format_errors(&mut o, error.as_ref());
             o.set_color(&ColorSpec::new())?;
-            let () = result?;
+            result?;
             Ok(ExitCode::Failure)
         }
     }

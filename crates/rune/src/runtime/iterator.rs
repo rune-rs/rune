@@ -460,12 +460,10 @@ impl RuneIterator for IterRepr {
 
     fn next_back(&mut self) -> Result<Option<Value>, VmError> {
         match self {
-            Self::Iterator(iter) => {
-                return Err(VmError::panic(format!(
-                    "`{}` is not a double-ended iterator",
-                    iter.name
-                )));
-            }
+            Self::Iterator(iter) => Err(VmError::panic(format!(
+                "`{}` is not a double-ended iterator",
+                iter.name
+            ))),
             Self::DoubleEndedIterator(iter) => iter.iter.next_back(),
             Self::Map(iter) => iter.next_back(),
             Self::FlatMap(iter) => iter.next_back(),
