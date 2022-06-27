@@ -28,6 +28,9 @@ pub(crate) use self::compile_visitor::NoopCompileVisitor;
 pub(crate) mod context;
 pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
 
+mod prelude;
+pub(crate) use self::prelude::Prelude;
+
 pub(crate) mod ir;
 pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, IrInterpreter};
 pub use self::ir::{IrError, IrErrorKind, IrEval, IrValue};
@@ -75,6 +78,7 @@ pub(crate) type CompileResult<T> = ::std::result::Result<T, CompileError>;
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile(
     unit: &mut UnitBuilder,
+    prelude: &Prelude,
     sources: &mut Sources,
     context: &Context,
     diagnostics: &mut Diagnostics,
@@ -96,6 +100,7 @@ pub(crate) fn compile(
         sources,
         options,
         unit,
+        prelude,
         diagnostics,
         visitor,
         source_loader,

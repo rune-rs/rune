@@ -3,7 +3,8 @@
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, UnitBuilder,
+    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, Prelude,
+    UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
@@ -41,6 +42,7 @@ impl<'a> MacroContext<'a> {
         F: FnOnce(&mut MacroContext<'_>) -> O,
     {
         let mut unit = UnitBuilder::default();
+        let prelude = Prelude::default();
         let gen = Gen::default();
         let mut consts = Consts::default();
         let mut storage = Storage::default();
@@ -50,6 +52,7 @@ impl<'a> MacroContext<'a> {
 
         let mut query = Query::new(
             &mut unit,
+            &prelude,
             &mut consts,
             &mut storage,
             &mut sources,
