@@ -570,7 +570,7 @@ fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &PrivMeta) -> Option<(us
 fn pat_tuple(
     span: Span,
     c: &mut Assembler<'_>,
-    hir: &hir::PatTuple<'_>,
+    hir: &hir::PatItems<'_>,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
@@ -590,7 +590,7 @@ fn pat_tuple(
 
     let (is_open, count) = pat_items_count(hir.items)?;
 
-    if let Some(path) = &hir.path {
+    if let Some(path) = hir.path {
         let named = c.convert_path(path)?;
         named.assert_not_generic()?;
 
@@ -659,7 +659,7 @@ fn pat_tuple(
 fn pat_object(
     span: Span,
     c: &mut Assembler<'_>,
-    hir: &hir::PatObject<'_>,
+    hir: &hir::PatItems<'_>,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
@@ -728,8 +728,8 @@ fn pat_object(
         keys.push(key.to_string());
     }
 
-    match &hir.ident {
-        hir::ObjectIdent::Named(path) => {
+    match hir.path {
+        Some(path) => {
             let path_span = path.span();
 
             let named = c.convert_path(path)?;
@@ -781,7 +781,7 @@ fn pat_object(
             c.asm.push(Inst::Copy { offset }, span);
             c.asm.push(inst, span);
         }
-        hir::ObjectIdent::Anonymous => {
+        None => {
             let keys = c.q.unit.new_static_object_keys_iter(span, &keys[..])?;
 
             // Copy the temporary and check that its length matches the pattern and
@@ -2649,8 +2649,8 @@ fn expr_object(
 
     let slot = c.q.unit.new_static_object_keys_iter(span, &keys)?;
 
-    match hir.ident {
-        hir::ObjectIdent::Named(path) => {
+    match hir.path {
+        Some(path) => {
             let named = c.convert_path(path)?;
             named.assert_not_generic()?;
 
@@ -2692,7 +2692,7 @@ fn expr_object(
                 }
             };
         }
-        hir::ObjectIdent::Anonymous => {
+        None => {
             c.asm.push(Inst::Object { slot }, span);
         }
     }

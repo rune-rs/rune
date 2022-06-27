@@ -260,7 +260,7 @@ pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir
         }))),
         ast::Expr::Object(ast) => Ok(hir::Expr::Object(alloc!(ctx, ast; hir::ExprObject {
             span: ast.span(),
-            ident: alloc!(ctx, ast; object_ident(ctx, &ast.ident)?),
+            path: object_ident(ctx, &ast.ident)?,
             assignments: iter!(ctx, ast; &ast.assignments, |(ast, _)| hir::FieldAssign {
                 span: ast.span(),
                 key: alloc!(ctx, ast; object_key(ctx, &ast.key)?),
@@ -390,12 +390,12 @@ fn pat<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Pat) -> Result<hir::Pat<'hir>, HirE
             ast::Pat::PatVec(ast) => {
                 hir::PatKind::PatVec(iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?))
             }
-            ast::Pat::PatTuple(ast) => hir::PatKind::PatTuple(alloc!(ctx, ast; hir::PatTuple {
+            ast::Pat::PatTuple(ast) => hir::PatKind::PatTuple(alloc!(ctx, ast; hir::PatItems {
                 path: option!(ctx, ast; &ast.path, |ast| path(ctx, ast)?),
                 items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
             })),
-            ast::Pat::PatObject(ast) => hir::PatKind::PatObject(alloc!(ctx, ast; hir::PatObject {
-                ident: alloc!(ctx, ast; object_ident(ctx, &ast.ident)?),
+            ast::Pat::PatObject(ast) => hir::PatKind::PatObject(alloc!(ctx, ast; hir::PatItems {
+                path: object_ident(ctx, &ast.ident)?,
                 items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
             })),
             ast::Pat::PatBinding(ast) => {
@@ -418,13 +418,14 @@ fn object_key<'hir>(
     })
 }
 
+/// Lower an object identifier to an optional path.
 fn object_ident<'hir>(
     ctx: &Ctx<'hir, '_>,
     ast: &ast::ObjectIdent,
-) -> Result<hir::ObjectIdent<'hir>, HirError> {
+) -> Result<Option<&'hir hir::Path<'hir>>, HirError> {
     Ok(match ast {
-        ast::ObjectIdent::Anonymous(_) => hir::ObjectIdent::Anonymous,
-        ast::ObjectIdent::Named(ast) => hir::ObjectIdent::Named(alloc!(ctx, ast; path(ctx, ast)?)),
+        ast::ObjectIdent::Anonymous(_) => None,
+        ast::ObjectIdent::Named(ast) => Some(alloc!(ctx, ast; path(ctx, ast)?)),
     })
 }
 

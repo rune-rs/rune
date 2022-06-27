@@ -50,9 +50,9 @@ pub enum PatKind<'hir> {
     /// A vector pattern.
     PatVec(&'hir [Pat<'hir>]),
     /// A tuple pattern.
-    PatTuple(&'hir PatTuple<'hir>),
+    PatTuple(&'hir PatItems<'hir>),
     /// An object pattern.
-    PatObject(&'hir PatObject<'hir>),
+    PatObject(&'hir PatItems<'hir>),
     /// A binding `a: pattern` or `"foo": pattern`.
     PatBinding(&'hir PatBinding<'hir>),
 }
@@ -60,20 +60,10 @@ pub enum PatKind<'hir> {
 /// A tuple pattern.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct PatTuple<'hir> {
+pub struct PatItems<'hir> {
     /// The path, if the tuple is typed.
     pub path: Option<&'hir Path<'hir>>,
     /// The items in the tuple.
-    pub items: &'hir [Pat<'hir>],
-}
-
-/// An object pattern.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct PatObject<'hir> {
-    /// The identifier of the object pattern.
-    pub ident: &'hir ObjectIdent<'hir>,
-    /// The fields matched against.
     pub items: &'hir [Pat<'hir>],
 }
 
@@ -600,7 +590,7 @@ pub struct ExprObject<'hir> {
     #[rune(span)]
     pub span: Span,
     /// An object identifier.
-    pub ident: &'hir ObjectIdent<'hir>,
+    pub path: Option<&'hir Path<'hir>>,
     /// Assignments in the object.
     pub assignments: &'hir [FieldAssign<'hir>],
 }
@@ -646,16 +636,6 @@ impl<'a, 'hir> Resolve<'a> for ObjectKey<'hir> {
             }
         })
     }
-}
-
-/// A literal object identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ObjectIdent<'hir> {
-    /// An anonymous object.
-    Anonymous,
-    /// A named object.
-    Named(&'hir Path<'hir>),
 }
 
 /// A literal vector.
