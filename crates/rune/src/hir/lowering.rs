@@ -359,16 +359,38 @@ fn pat<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Pat) -> Result<hir::Pat<'hir>, HirE
             }
             ast::Pat::PatLit(ast) => hir::PatKind::PatLit(alloc!(ctx, ast; expr(ctx, &ast.expr)?)),
             ast::Pat::PatVec(ast) => {
-                hir::PatKind::PatVec(iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?))
+                let items = iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?);
+                let (is_open, count) = pat_items_count(items)?;
+
+                hir::PatKind::PatVec(alloc!(ctx, ast; hir::PatItems {
+                    path: None,
+                    items,
+                    is_open,
+                    count,
+                }))
             }
-            ast::Pat::PatTuple(ast) => hir::PatKind::PatTuple(alloc!(ctx, ast; hir::PatItems {
-                path: option!(ctx, ast; &ast.path, |ast| path(ctx, ast)?),
-                items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
-            })),
-            ast::Pat::PatObject(ast) => hir::PatKind::PatObject(alloc!(ctx, ast; hir::PatItems {
-                path: object_ident(ctx, &ast.ident)?,
-                items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
-            })),
+            ast::Pat::PatTuple(ast) => {
+                let items = iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?);
+                let (is_open, count) = pat_items_count(items)?;
+
+                hir::PatKind::PatTuple(alloc!(ctx, ast; hir::PatItems {
+                    path: option!(ctx, ast; &ast.path, |ast| path(ctx, ast)?),
+                    items,
+                    is_open,
+                    count,
+                }))
+            }
+            ast::Pat::PatObject(ast) => {
+                let items = iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?);
+                let (is_open, count) = pat_items_count(items)?;
+
+                hir::PatKind::PatObject(alloc!(ctx, ast; hir::PatItems {
+                    path: object_ident(ctx, &ast.ident)?,
+                    items,
+                    is_open,
+                    count,
+                }))
+            }
             ast::Pat::PatBinding(ast) => {
                 hir::PatKind::PatBinding(alloc!(ctx, ast; hir::PatBinding {
                     key: alloc!(ctx, ast; object_key(ctx, &ast.key)?),
@@ -451,4 +473,29 @@ fn condition<'hir>(
             expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
         })),
     })
+}
+
+/// Test if the given pattern is open or not.
+fn pat_items_count(items: &[hir::Pat<'_>]) -> Result<(bool, usize), HirError> {
+    let mut it = items.iter();
+
+    let (is_open, mut count) = match it.next_back() {
+        Some(pat) => matches!(pat.kind, hir::PatKind::PatRest)
+            .then(|| (true, 0))
+            .unwrap_or((false, 1)),
+        None => return Ok((false, 0)),
+    };
+
+    for pat in it {
+        if let hir::PatKind::PatRest = pat.kind {
+            return Err(HirError::new(
+                pat.span(),
+                HirErrorKind::UnsupportedPatternRest,
+            ));
+        }
+
+        count += 1;
+    }
+
+    Ok((is_open, count))
 }

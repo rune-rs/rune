@@ -1,6 +1,11 @@
 //! Lazy query system, used to compile and build items on demand and keep track
 //! of what's being used and not.
 
+use std::collections::VecDeque;
+use std::fmt;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
@@ -18,10 +23,6 @@ use crate::runtime::format;
 use crate::runtime::Call;
 use crate::shared::{Consts, Gen, Items};
 use crate::{Context, Hash, SourceId, Sources};
-use std::collections::VecDeque;
-use std::fmt;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
 
 /// The permitted number of import recursions when constructing a path.
 const IMPORT_RECURSION_LIMIT: usize = 128;
