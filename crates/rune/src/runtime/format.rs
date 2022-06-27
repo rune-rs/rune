@@ -357,7 +357,7 @@ impl FormatSpec {
 }
 
 /// The type of formatting requested.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Type {
     /// Display type (default).
@@ -424,7 +424,7 @@ impl fmt::Display for Type {
 }
 
 /// The alignment requested.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Alignment {
     /// Left alignment.
@@ -488,7 +488,7 @@ pub enum Flag {
 }
 
 /// Format specification flags.
-#[derive(Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Flags(u32);
 

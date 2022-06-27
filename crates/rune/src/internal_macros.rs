@@ -69,10 +69,8 @@ macro_rules! error {
 
         impl From<$crate::shared::Custom> for $error_ty {
             fn from(error: $crate::shared::Custom) -> Self {
-                use $crate::ast::Spanned;
-
                 Self::new(
-                    error.span(),
+                    $crate::ast::Spanned::span(&error),
                     $kind::Custom {
                         message: error.message(),
                     },
@@ -84,7 +82,7 @@ macro_rules! error {
             impl From<$from_error> for $error_ty {
                 fn from(error: $from_error) -> Self {
                     $error_ty {
-                        span: error.span(),
+                        span: crate::ast::Spanned::span(&error),
                         kind: Box::new($kind::$from_error {
                             error: From::from(error.into_kind()),
                         }),

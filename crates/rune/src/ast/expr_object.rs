@@ -1,7 +1,7 @@
 use crate::ast::prelude::*;
 use std::borrow::Cow;
 
-/// Parse an object expression.
+/// An object expression.
 ///
 /// # Examples
 ///
@@ -54,7 +54,7 @@ impl Parse for ObjectIdent {
     }
 }
 
-/// A literal object field.
+/// A single field assignment in an object expression.
 ///
 /// # Examples
 ///

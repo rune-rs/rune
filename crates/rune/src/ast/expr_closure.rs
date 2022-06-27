@@ -54,13 +54,16 @@ impl ExprClosure {
 
 expr_parse!(Closure, ExprClosure, "closure expression");
 
+/// Representation of closure arguments.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 #[non_exhaustive]
 pub enum ExprClosureArgs {
+    /// Closure has no arguments.
     Empty {
         /// The `||` token.
         token: T![||],
     },
+    /// Closure has a list of arguments.
     List {
         /// The opening pipe for the argument group.
         open: T![|],

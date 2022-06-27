@@ -11,7 +11,7 @@ fn test_parse_in_macro() -> rune::Result<()> {
     let string = "1 + 2 + 13 * 3";
 
     m.macro_(&["string_as_code"], move |ctx, _| {
-        let id = ctx.insert_source("string_as_code", &string);
+        let id = ctx.insert_source("string_as_code", string);
         let expr = ctx.parse_source::<ast::Expr>(id)?;
 
         Ok(quote!(#expr).into_token_stream(ctx))

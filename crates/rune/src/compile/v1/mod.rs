@@ -1,9 +1,9 @@
-use crate::ast;
-use crate::ast::{Span, Spanned};
+use crate::ast::Span;
 use crate::compile::{
     ir, Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler,
     IrInterpreter, Item, ItemMeta, Options, PrivMeta,
 };
+use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst};
 use crate::{Context, Diagnostics, SourceId};
@@ -121,10 +121,10 @@ impl<'a> Assembler<'a> {
     }
 
     /// Convert an [ast::Path] into a [Named] item.
-    pub(crate) fn convert_path<'ast>(
+    pub(crate) fn convert_path<'hir>(
         &mut self,
-        path: &'ast ast::Path,
-    ) -> CompileResult<Named<'ast>> {
+        path: &'hir hir::Path<'hir>,
+    ) -> CompileResult<Named<'hir>> {
         self.q.convert_path(self.context, path)
     }
 
@@ -152,20 +152,17 @@ impl<'a> Assembler<'a> {
     }
 
     /// Calling a constant function by id and return the resuling value.
-    pub(crate) fn call_const_fn<S>(
+    pub(crate) fn call_const_fn(
         &mut self,
-        spanned: S,
+        span: Span,
         meta: &PrivMeta,
         from: &ItemMeta,
         query_const_fn: &QueryConstFn,
-        args: &[(ast::Expr, Option<T![,]>)],
-    ) -> Result<ConstValue, CompileError>
-    where
-        S: Copy + Spanned,
-    {
+        args: &[hir::Expr<'_>],
+    ) -> Result<ConstValue, CompileError> {
         if query_const_fn.ir_fn.args.len() != args.len() {
             return Err(CompileError::new(
-                spanned,
+                span,
                 CompileErrorKind::UnsupportedArgumentCount {
                     meta: meta.info(),
                     expected: query_const_fn.ir_fn.args.len(),
@@ -174,13 +171,16 @@ impl<'a> Assembler<'a> {
             ));
         }
 
-        let mut compiler = IrCompiler { q: self.q.borrow() };
+        let mut compiler = IrCompiler {
+            source_id: self.source_id,
+            q: self.q.borrow(),
+        };
 
         let mut compiled = Vec::new();
 
         // TODO: precompile these and fetch using opaque id?
-        for ((a, _), name) in args.iter().zip(&query_const_fn.ir_fn.args) {
-            compiled.push((ir::compile::expr(a, &mut compiler)?, name));
+        for (hir, name) in args.iter().zip(&query_const_fn.ir_fn.args) {
+            compiled.push((ir::compile::expr(hir, &mut compiler)?, name));
         }
 
         let mut interpreter = IrInterpreter {
@@ -193,12 +193,12 @@ impl<'a> Assembler<'a> {
 
         for (ir, name) in compiled {
             let value = interpreter.eval_value(&ir, Used::Used)?;
-            interpreter.scopes.decl(name, value, spanned)?;
+            interpreter.scopes.decl(name, value, span)?;
         }
 
         interpreter.module = &query_const_fn.item.module;
         interpreter.item = &query_const_fn.item.item;
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
-        Ok(value.into_const(spanned)?)
+        Ok(value.into_const(span)?)
     }
 }

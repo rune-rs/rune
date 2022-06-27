@@ -770,9 +770,9 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    EqCharacter {
+    EqChar {
         /// The character to test against.
-        character: char,
+        char: char,
     },
     /// Test if the top of the stack is a specific integer.
     ///
@@ -807,7 +807,19 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    EqStaticString {
+    EqString {
+        /// The slot to test against.
+        slot: usize,
+    },
+    /// Compare the top of the stack against a static bytes slot.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqBytes {
         /// The slot to test against.
         slot: usize,
     },
@@ -1208,8 +1220,8 @@ impl fmt::Display for Inst {
             Self::EqByte { byte } => {
                 write!(fmt, "eq-byte byte={:?}", byte)?;
             }
-            Self::EqCharacter { character } => {
-                write!(fmt, "eq-character character={:?}", character)?;
+            Self::EqChar { char } => {
+                write!(fmt, "eq-character char={:?}", char)?;
             }
             Self::EqInteger { integer } => {
                 write!(fmt, "eq-integer integer={}", integer)?;
@@ -1217,8 +1229,11 @@ impl fmt::Display for Inst {
             Self::EqBool { boolean } => {
                 write!(fmt, "eq-integer boolean={}", boolean)?;
             }
-            Self::EqStaticString { slot } => {
-                write!(fmt, "eq-static-string slot={}", slot)?;
+            Self::EqString { slot } => {
+                write!(fmt, "eq-string slot={}", slot)?;
+            }
+            Self::EqBytes { slot } => {
+                write!(fmt, "eq-bytes slot={}", slot)?;
             }
             Self::MatchType { hash } => {
                 write!(fmt, "match-type hash={}", hash,)?;

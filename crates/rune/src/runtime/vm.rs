@@ -2338,9 +2338,9 @@ impl Vm {
     }
 
     /// Test if the top of stack is equal to the string at the given static
-    /// string location.
+    /// string slot.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_eq_static_string(&mut self, slot: usize) -> Result<(), VmError> {
+    fn op_eq_string(&mut self, slot: usize) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
         let equal = match value {
@@ -2357,7 +2357,25 @@ impl Vm {
         };
 
         self.stack.push(Value::Bool(equal));
+        Ok(())
+    }
 
+    /// Test if the top of stack is equal to the string at the given static
+    /// bytes slot.
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_eq_bytes(&mut self, slot: usize) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        let equal = match value {
+            Value::Bytes(actual) => {
+                let bytes = self.unit.lookup_bytes(slot)?;
+                let actual = actual.borrow_ref()?;
+                *actual == *bytes
+            }
+            _ => false,
+        };
+
+        self.stack.push(Value::Bool(equal));
         Ok(())
     }
 
@@ -3008,7 +3026,7 @@ impl Vm {
                 Inst::EqByte { byte } => {
                     self.op_eq_byte(byte)?;
                 }
-                Inst::EqCharacter { character } => {
+                Inst::EqChar { char: character } => {
                     self.op_eq_character(character)?;
                 }
                 Inst::EqInteger { integer } => {
@@ -3017,8 +3035,11 @@ impl Vm {
                 Inst::EqBool { boolean } => {
                     self.op_eq_bool(boolean)?;
                 }
-                Inst::EqStaticString { slot } => {
-                    self.op_eq_static_string(slot)?;
+                Inst::EqString { slot } => {
+                    self.op_eq_string(slot)?;
+                }
+                Inst::EqBytes { slot } => {
+                    self.op_eq_bytes(slot)?;
                 }
                 Inst::MatchSequence {
                     type_check,

@@ -23,7 +23,6 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
-            target
           key: build-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
       - name: Run tests
         run: cargo test --all
@@ -47,7 +46,6 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
-            target
           key: build_benchmarks-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
       - run: cargo build --benches
 
@@ -68,7 +66,6 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
-            target
           key: build_rune_cli-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
       - run: cargo build --package rune-cli
 
@@ -116,7 +113,6 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
-            target
           key: build_wasm-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
       - run: cargo build --package rune-wasm --target wasm32-unknown-unknown
 
@@ -137,9 +133,5 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
-            target
           key: clippy-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -D warnings
+      - run: cargo clippy --all-features -- -D warnings

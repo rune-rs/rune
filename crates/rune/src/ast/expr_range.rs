@@ -18,7 +18,7 @@ pub struct ExprRange {
     /// Start of range.
     #[rune(iter)]
     pub from: Option<Box<ast::Expr>>,
-    /// `..`.
+    /// The range limits.
     pub limits: ExprRangeLimits,
     /// End of range.
     #[rune(iter)]

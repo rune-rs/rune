@@ -64,10 +64,10 @@ impl Expander {
         let spanned = &self.tokens.spanned;
         let span = &self.tokens.span;
 
-        let generics = &input.generics;
+        let (impl_gen, type_gen, where_gen) = input.generics.split_for_impl();
 
         Some(quote! {
-            impl #generics #spanned for #ident #generics {
+            impl #impl_gen #spanned for #ident #type_gen #where_gen {
                 fn span(&self) -> #span {
                     #inner
                 }
@@ -89,8 +89,10 @@ impl Expander {
         let spanned = &self.tokens.spanned;
         let span = &self.tokens.span;
 
+        let (impl_gen, type_gen, where_gen) = input.generics.split_for_impl();
+
         Some(quote_spanned! { input.span() =>
-            impl #spanned for #ident {
+            impl #impl_gen #spanned for #ident #type_gen #where_gen {
                 fn span(&self) -> #span {
                     match self {
                         #(#impl_spanned,)*

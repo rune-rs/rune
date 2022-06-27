@@ -97,7 +97,10 @@ impl<'a> MacroContext<'a> {
         T: IrEval,
     {
         let mut ctx = IrEvalContext {
-            c: IrCompiler { q: self.q.borrow() },
+            c: IrCompiler {
+                source_id: self.item.location.source_id,
+                q: self.q.borrow(),
+            },
             item: &self.item,
         };
 

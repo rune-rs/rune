@@ -1,6 +1,44 @@
 use rune_tests::*;
 
 #[test]
+fn test_match_primitives() {
+    let out: bool = rune! {
+        pub fn main() { match false { false => true, _ => false } }
+    };
+    assert!(out);
+
+    let out: bool = rune! {
+        pub fn main() { match b'a' { b'a' => true, _ => false } }
+    };
+    assert!(out);
+
+    let out: bool = rune! {
+        pub fn main() { match 'a' { 'a' => true, _ => false } }
+    };
+    assert!(out);
+
+    let out: bool = rune! {
+        pub fn main() { match "hello world" { "hello world" => true, _ => false } }
+    };
+    assert!(out);
+
+    let out: bool = rune! {
+        pub fn main() { match b"hello world" { b"hello world" => true, _ => false } }
+    };
+    assert!(out);
+
+    let out: bool = rune! {
+        pub fn main() { match 42 { 42 => true, _ => false } }
+    };
+    assert!(out);
+
+    let out: bool = rune! {
+        pub fn main() { match -42 { -42 => true, _ => false } }
+    };
+    assert!(out);
+}
+
+#[test]
 fn test_path_type_match() {
     let out: bool = rune! {
         enum Custom { A, B(a) }

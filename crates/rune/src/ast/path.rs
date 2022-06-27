@@ -36,9 +36,9 @@ pub struct Path {
 
 impl Path {
     /// Identify the kind of the path.
-    pub(crate) fn as_kind(&self) -> Option<PathKind> {
+    pub(crate) fn as_kind(&self) -> Option<PathKind<'_>> {
         if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
-            match self.first {
+            match &self.first {
                 PathSegment::SelfValue(..) => Some(PathKind::SelfValue),
                 PathSegment::Ident(ident) => Some(PathKind::Ident(ident)),
                 _ => None,
@@ -58,28 +58,6 @@ impl Path {
         } else {
             None
         }
-    }
-
-    /// Borrow ident and generics at the same time.
-    pub(crate) fn try_as_ident_generics(
-        &self,
-    ) -> Option<(
-        &ast::Ident,
-        Option<&ast::AngleBracketed<PathSegmentExpr, T![,]>>,
-    )> {
-        if self.trailing.is_none() && self.global.is_none() {
-            if let Some(ident) = self.first.try_as_ident() {
-                let generics = if let [(_, PathSegment::Generics(generics))] = &self.rest[..] {
-                    Some(generics)
-                } else {
-                    None
-                };
-
-                return Some((ident, generics));
-            }
-        }
-
-        None
     }
 
     /// Borrow as an identifier used for field access calls.
@@ -187,13 +165,13 @@ impl<'a> Resolve<'a> for Path {
 }
 
 /// An identified path kind.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum PathKind {
+pub enum PathKind<'a> {
     /// A path that is the `self` value.
     SelfValue,
     /// A path that is the identifier.
-    Ident(ast::Ident),
+    Ident(&'a ast::Ident),
 }
 
 /// Part of a `::` separated path.
