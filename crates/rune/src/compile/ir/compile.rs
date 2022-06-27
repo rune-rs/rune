@@ -240,7 +240,7 @@ fn expr_lit(hir: &hir::ExprLit<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, Ir
     })
 }
 
-fn expr_tuple(hir: &hir::ExprTuple<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
+fn expr_tuple(hir: &hir::ExprSeq<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
     let span = hir.span();
 
     if hir.items.is_empty() {
@@ -262,7 +262,7 @@ fn expr_tuple(hir: &hir::ExprTuple<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir
     ))
 }
 
-fn expr_vec(hir: &hir::ExprVec<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrVec, IrError> {
+fn expr_vec(hir: &hir::ExprSeq<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrVec, IrError> {
     let mut items = Vec::new();
 
     for e in hir.items {
@@ -397,12 +397,12 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError
     let span = hir.span();
 
     let name = loop {
-        match hir.pat {
-            hir::Pat::PatIgnore(_) => {
+        match hir.pat.kind {
+            hir::PatKind::PatIgnore => {
                 return expr(hir.expr, c);
             }
-            hir::Pat::PatPath(path) => {
-                if let Some(ident) = path.path.try_as_ident() {
+            hir::PatKind::PatPath(path) => {
+                if let Some(ident) = path.try_as_ident() {
                     break ident;
                 }
             }

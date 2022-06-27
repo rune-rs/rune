@@ -267,11 +267,11 @@ pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir
                 assign: option!(ctx, ast; &ast.assign, |(_, ast)| expr(ctx, ast)?),
             })
         }))),
-        ast::Expr::Tuple(ast) => Ok(hir::Expr::Tuple(alloc!(ctx, ast; hir::ExprTuple {
+        ast::Expr::Tuple(ast) => Ok(hir::Expr::Tuple(alloc!(ctx, ast; hir::ExprSeq {
             span: ast.span(),
             items: iter!(ctx, ast; &ast.items, |(ast, _)| expr(ctx, ast)?),
         }))),
-        ast::Expr::Vec(ast) => Ok(hir::Expr::Vec(alloc!(ctx, ast; hir::ExprVec {
+        ast::Expr::Vec(ast) => Ok(hir::Expr::Vec(alloc!(ctx, ast; hir::ExprSeq {
             span: ast.span(),
             items: iter!(ctx, ast; &ast.items, |(ast, _)| expr(ctx, ast)?),
         }))),
@@ -378,36 +378,33 @@ fn stmt<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Stmt) -> Result<hir::Stmt<'hir>, H
 }
 
 fn pat<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Pat) -> Result<hir::Pat<'hir>, HirError> {
-    Ok(match ast {
-        ast::Pat::PatIgnore(ast) => hir::Pat::PatIgnore(ast.span()),
-        ast::Pat::PatRest(ast) => hir::Pat::PatRest(ast.span()),
-        ast::Pat::PatPath(ast) => hir::Pat::PatPath(alloc!(ctx, ast; hir::PatPath {
-            span: ast.span(),
-            path: alloc!(ctx, ast; path(ctx, &ast.path)?),
-        })),
-        ast::Pat::PatLit(ast) => hir::Pat::PatLit(alloc!(ctx, ast; hir::PatLit {
-            span: ast.span(),
-            expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
-        })),
-        ast::Pat::PatVec(ast) => hir::Pat::PatVec(alloc!(ctx, ast; hir::PatVec {
-            span: ast.span(),
-            items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
-        })),
-        ast::Pat::PatTuple(ast) => hir::Pat::PatTuple(alloc!(ctx, ast; hir::PatTuple {
-            span: ast.span(),
-            path: option!(ctx, ast; &ast.path, |ast| path(ctx, ast)?),
-            items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
-        })),
-        ast::Pat::PatObject(ast) => hir::Pat::PatObject(alloc!(ctx, ast; hir::PatObject {
-            span: ast.span(),
-            ident: alloc!(ctx, ast; object_ident(ctx, &ast.ident)?),
-            items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
-        })),
-        ast::Pat::PatBinding(ast) => hir::Pat::PatBinding(alloc!(ctx, ast; hir::PatBinding {
-            span: ast.span(),
-            key: alloc!(ctx, ast; object_key(ctx, &ast.key)?),
-            pat: alloc!(ctx, ast; pat(ctx, &ast.pat)?),
-        })),
+    Ok(hir::Pat {
+        span: ast.span(),
+        kind: match ast {
+            ast::Pat::PatIgnore(..) => hir::PatKind::PatIgnore,
+            ast::Pat::PatRest(..) => hir::PatKind::PatRest,
+            ast::Pat::PatPath(ast) => {
+                hir::PatKind::PatPath(alloc!(ctx, ast; path(ctx, &ast.path)?))
+            }
+            ast::Pat::PatLit(ast) => hir::PatKind::PatLit(alloc!(ctx, ast; expr(ctx, &ast.expr)?)),
+            ast::Pat::PatVec(ast) => {
+                hir::PatKind::PatVec(iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?))
+            }
+            ast::Pat::PatTuple(ast) => hir::PatKind::PatTuple(alloc!(ctx, ast; hir::PatTuple {
+                path: option!(ctx, ast; &ast.path, |ast| path(ctx, ast)?),
+                items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
+            })),
+            ast::Pat::PatObject(ast) => hir::PatKind::PatObject(alloc!(ctx, ast; hir::PatObject {
+                ident: alloc!(ctx, ast; object_ident(ctx, &ast.ident)?),
+                items: iter!(ctx, ast; &ast.items, |(ast, _)| pat(ctx, ast)?),
+            })),
+            ast::Pat::PatBinding(ast) => {
+                hir::PatKind::PatBinding(alloc!(ctx, ast; hir::PatBinding {
+                    key: alloc!(ctx, ast; object_key(ctx, &ast.key)?),
+                    pat: alloc!(ctx, ast; pat(ctx, &ast.pat)?),
+                }))
+            }
+        },
     })
 }
 

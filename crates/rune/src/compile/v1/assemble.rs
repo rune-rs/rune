@@ -266,11 +266,17 @@ fn pat(
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<bool> {
-    match hir {
-        hir::Pat::PatPath(p) => {
-            let span = p.span();
+    let span = hir.span();
 
-            let named = c.convert_path(p.path)?;
+    match hir.kind {
+        hir::PatKind::PatIgnore => {
+            // ignore binding, but might still have side effects, so must
+            // call the load generator.
+            load(c, Needs::None)?;
+            Ok(false)
+        }
+        hir::PatKind::PatPath(path) => {
+            let named = c.convert_path(path)?;
             named.assert_not_generic()?;
 
             if let Some(meta) = c.try_lookup_meta(span, &named.item)? {
@@ -290,27 +296,21 @@ fn pat(
                 CompileErrorKind::UnsupportedBinding,
             ))
         }
-        hir::Pat::PatIgnore(..) => {
-            // ignore binding, but might still have side effects, so must
-            // call the load generator.
-            load(c, Needs::None)?;
-            Ok(false)
-        }
-        hir::Pat::PatLit(p) => Ok(pat_lit(p, c, false_label, load)?),
-        hir::Pat::PatVec(p) => {
-            pat_vec(p, c, false_label, &load)?;
+        hir::PatKind::PatLit(hir) => Ok(pat_lit(hir, c, false_label, load)?),
+        hir::PatKind::PatVec(hir) => {
+            pat_vec(span, c, hir, false_label, &load)?;
             Ok(true)
         }
-        hir::Pat::PatTuple(p) => {
-            pat_tuple(p, c, false_label, &load)?;
+        hir::PatKind::PatTuple(hir) => {
+            pat_tuple(span, c, hir, false_label, &load)?;
             Ok(true)
         }
-        hir::Pat::PatObject(object) => {
-            pat_object(object, c, false_label, &load)?;
+        hir::PatKind::PatObject(hir) => {
+            pat_object(span, c, hir, false_label, &load)?;
             Ok(true)
         }
-        pat => Err(CompileError::new(
-            pat,
+        _ => Err(CompileError::new(
+            hir,
             CompileErrorKind::UnsupportedPatternExpr,
         )),
     }
@@ -319,65 +319,62 @@ fn pat(
 /// Assemble a pattern literal.
 #[instrument]
 fn pat_lit(
-    pat_lit: &hir::PatLit<'_>,
+    hir: &hir::Expr<'_>,
     c: &mut Assembler<'_>,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<bool> {
     loop {
-        match pat_lit.expr {
+        match hir {
             hir::Expr::Unary(hir::ExprUnary {
                 op: ast::UnOp::Neg(..),
                 expr:
                     hir::Expr::Lit(hir::ExprLit {
-                        lit: ast::Lit::Number(lit_number),
+                        lit: ast::Lit::Number(lit),
                         ..
                     }),
                 ..
             }) => {
-                let span = lit_number.span();
-                let integer = lit_number
+                let span = lit.span();
+                let integer = lit
                     .resolve(resolve_context!(c.q))?
-                    .as_i64(pat_lit.span(), true)?;
+                    .as_i64(lit.span(), true)?;
                 load(c, Needs::Value)?;
                 c.asm.push(Inst::EqInteger { integer }, span);
                 break;
             }
             hir::Expr::Lit(expr_lit) => match expr_lit.lit {
-                ast::Lit::Byte(lit_byte) => {
-                    let byte = lit_byte.resolve(resolve_context!(c.q))?;
+                ast::Lit::Byte(lit) => {
+                    let byte = lit.resolve(resolve_context!(c.q))?;
                     load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqByte { byte }, lit_byte.span());
+                    c.asm.push(Inst::EqByte { byte }, lit.span());
                     break;
                 }
-                ast::Lit::Char(lit_char) => {
-                    let character = lit_char.resolve(resolve_context!(c.q))?;
+                ast::Lit::Char(lit) => {
+                    let character = lit.resolve(resolve_context!(c.q))?;
                     load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqCharacter { character }, lit_char.span());
+                    c.asm.push(Inst::EqCharacter { character }, lit.span());
                     break;
                 }
-                ast::Lit::Str(pat_string) => {
-                    let span = pat_string.span();
-                    let string = pat_string.resolve(resolve_context!(c.q))?;
-                    let slot = c.q.unit.new_static_string(span, string.as_ref())?;
+                ast::Lit::Str(lit) => {
+                    let string = lit.resolve(resolve_context!(c.q))?;
+                    let slot = c.q.unit.new_static_string(lit.span(), string.as_ref())?;
                     load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqStaticString { slot }, span);
+                    c.asm.push(Inst::EqStaticString { slot }, lit.span());
                     break;
                 }
-                ast::Lit::Number(lit_number) => {
-                    let span = lit_number.span();
-                    let integer = lit_number
+                ast::Lit::Number(lit) => {
+                    let integer = lit
                         .resolve(resolve_context!(c.q))?
-                        .as_i64(pat_lit.span(), false)?;
+                        .as_i64(lit.span(), false)?;
                     load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqInteger { integer }, span);
+                    c.asm.push(Inst::EqInteger { integer }, lit.span());
                     break;
                 }
-                ast::Lit::Bool(lit_bool) => {
-                    let span = lit_bool.span();
-                    let boolean = lit_bool.value;
+                ast::Lit::Bool(lit) => {
+                    let boolean = lit.value;
                     load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqBool { boolean }, span);
+                    c.asm.push(Inst::EqBool { boolean }, lit.span());
                     break;
                 }
                 ast::Lit::ByteStr(_) => {}
@@ -386,12 +383,12 @@ fn pat_lit(
         }
 
         return Err(CompileError::new(
-            pat_lit,
+            hir,
             CompileErrorKind::UnsupportedPatternExpr,
         ));
     }
 
-    let span = pat_lit.span();
+    let span = hir.span();
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
     Ok(true)
@@ -442,13 +439,12 @@ fn condition(
 /// Encode a vector pattern match.
 #[instrument]
 fn pat_vec(
-    hir: &hir::PatVec<'_>,
+    span: Span,
     c: &mut Assembler<'_>,
+    hir: &[hir::Pat<'_>],
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
-    let span = hir.span();
-
     // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
     // interact with it multiple times.
     load(c, Needs::Value)?;
@@ -458,7 +454,7 @@ fn pat_vec(
     // that it is indeed a vector.
     c.asm.push(Inst::Copy { offset }, span);
 
-    let (is_open, count) = pat_items_count(hir.items)?;
+    let (is_open, count) = pat_items_count(hir)?;
 
     c.asm.push(
         Inst::MatchSequence {
@@ -472,18 +468,17 @@ fn pat_vec(
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
 
-    for (index, p) in hir.items.iter().take(count).enumerate() {
-        let span = p.span();
-
+    for (index, hir) in hir.iter().take(count).enumerate() {
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
             if needs.value() {
-                c.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+                c.asm
+                    .push(Inst::TupleIndexGetAt { offset, index }, hir.span());
             }
 
             Ok(())
         };
 
-        pat(p, c, false_label, &load)?;
+        pat(hir, c, false_label, &load)?;
     }
 
     Ok(())
@@ -573,13 +568,12 @@ fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &PrivMeta) -> Option<(us
 /// Encode a vector pattern match.
 #[instrument]
 fn pat_tuple(
-    hir: &hir::PatTuple<'_>,
+    span: Span,
     c: &mut Assembler<'_>,
+    hir: &hir::PatTuple<'_>,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
-    let span = hir.span();
-
     load(c, Needs::Value)?;
 
     if hir.items.is_empty() {
@@ -663,13 +657,12 @@ fn pat_tuple(
 /// Assemble an object pattern.
 #[instrument]
 fn pat_object(
-    hir: &hir::PatObject<'_>,
+    span: Span,
     c: &mut Assembler<'_>,
+    hir: &hir::PatObject<'_>,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
-    let span = hir.span();
-
     // NB: bind the loaded variable (once) to an anonymous var.
     // We reduce the number of copy operations by having specialized
     // operations perform the load from the given offset.
@@ -687,18 +680,18 @@ fn pat_object(
         let span = pat.span();
         let cow_key;
 
-        let key = match pat {
-            hir::Pat::PatBinding(binding) => {
+        let key = match pat.kind {
+            hir::PatKind::PatBinding(binding) => {
                 cow_key = binding.key.resolve(resolve_context!(c.q))?;
                 bindings.push(Binding::Binding(
-                    binding.span(),
+                    pat.span(),
                     cow_key.as_ref().into(),
                     binding.pat,
                 ));
                 cow_key.as_ref()
             }
-            hir::Pat::PatPath(path) => {
-                let ident = match path.path.try_as_ident() {
+            hir::PatKind::PatPath(path) => {
+                let ident = match path.try_as_ident() {
                     Some(ident) => ident,
                     None => {
                         return Err(CompileError::new(
@@ -709,7 +702,7 @@ fn pat_object(
                 };
 
                 let key = ident.resolve(resolve_context!(c.q))?;
-                bindings.push(Binding::Ident(path.span(), key.into()));
+                bindings.push(Binding::Ident(pat.span(), key.into()));
                 key
             }
             _ => {
@@ -727,7 +720,7 @@ fn pat_object(
                 span,
                 CompileErrorKind::DuplicateObjectKey {
                     existing,
-                    object: hir.span(),
+                    object: span,
                 },
             ));
         }
@@ -777,7 +770,7 @@ fn pat_object(
                 fields.sort();
 
                 return Err(CompileError::new(
-                    hir.span(),
+                    span,
                     CompileErrorKind::PatternMissingFields {
                         item: meta.item.item.clone(),
                         fields,
@@ -2964,9 +2957,9 @@ fn expr_select(
         // NB: loop is actually useful.
         #[allow(clippy::never_loop)]
         loop {
-            match &branch.pat {
-                hir::Pat::PatPath(path) => {
-                    let named = c.convert_path(path.path)?;
+            match branch.pat.kind {
+                hir::PatKind::PatPath(path) => {
+                    let named = c.convert_path(path)?;
                     named.assert_not_generic()?;
 
                     if let Some(local) = named.as_local() {
@@ -2974,7 +2967,7 @@ fn expr_select(
                         break;
                     }
                 }
-                hir::Pat::PatIgnore(..) => {
+                hir::PatKind::PatIgnore => {
                     c.asm.push(Inst::Pop, span);
                     break;
                 }
@@ -3040,7 +3033,7 @@ fn expr_try(hir: &hir::ExprTry<'_>, c: &mut Assembler<'_>, needs: Needs) -> Comp
 
 /// Assemble a literal tuple.
 #[instrument]
-fn expr_tuple(hir: &hir::ExprTuple<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn expr_tuple(hir: &hir::ExprSeq<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     macro_rules! tuple {
         ($variant:ident, $c:ident, $span:expr, $($var:ident),*) => {{
             let guard = $c.scopes.push_child($span)?;
@@ -3165,7 +3158,7 @@ fn expr_unary(hir: &hir::ExprUnary<'_>, c: &mut Assembler<'_>, needs: Needs) -> 
 
 /// Assemble a literal vector.
 #[instrument]
-fn expr_vec(hir: &hir::ExprVec<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn expr_vec(hir: &hir::ExprSeq<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
     let span = hir.span();
 
     let count = hir.items.len();
@@ -3444,7 +3437,7 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> Result<(bool, usize), CompileError
 
     let (is_open, mut count) = match it.next_back() {
         Some(pat) => {
-            if matches!(pat, hir::Pat::PatRest(..)) {
+            if matches!(pat.kind, hir::PatKind::PatRest) {
                 (true, 0)
             } else {
                 (false, 1)
@@ -3454,9 +3447,9 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> Result<(bool, usize), CompileError
     };
 
     for pat in it {
-        if let hir::Pat::PatRest(span) = pat {
+        if let hir::PatKind::PatRest = pat.kind {
             return Err(CompileError::new(
-                *span,
+                pat.span(),
                 CompileErrorKind::UnsupportedPatternRest,
             ));
         }

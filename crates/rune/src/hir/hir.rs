@@ -28,17 +28,27 @@ pub enum Visibility<'hir> {
 /// A pattern.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
-pub enum Pat<'hir> {
+pub struct Pat<'hir> {
+    /// The span of the pattern.
+    #[rune(span)]
+    pub span: Span,
+    /// The kind of the pattern.
+    pub kind: PatKind<'hir>,
+}
+
+/// The kind of a [Pat].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PatKind<'hir> {
     /// An ignored binding.
-    PatIgnore(Span),
+    PatIgnore,
     /// The rest pattern `..`.
-    PatRest(Span),
+    PatRest,
     /// A path pattern.
-    PatPath(&'hir PatPath<'hir>),
+    PatPath(&'hir Path<'hir>),
     /// A literal pattern. This is represented as an expression.
-    PatLit(&'hir PatLit<'hir>),
+    PatLit(&'hir Expr<'hir>),
     /// A vector pattern.
-    PatVec(&'hir PatVec<'hir>),
+    PatVec(&'hir [Pat<'hir>]),
     /// A tuple pattern.
     PatTuple(&'hir PatTuple<'hir>),
     /// An object pattern.
@@ -47,46 +57,10 @@ pub enum Pat<'hir> {
     PatBinding(&'hir PatBinding<'hir>),
 }
 
-/// A path pattern.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct PatPath<'hir> {
-    /// The span of the pattern.
-    #[rune(span)]
-    pub span: Span,
-    /// The path of the pattern.
-    pub path: &'hir Path<'hir>,
-}
-
-/// A literal pattern.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct PatLit<'hir> {
-    /// The span of the pattern.
-    #[rune(span)]
-    pub span: Span,
-    /// The literal expression.
-    pub expr: &'hir Expr<'hir>,
-}
-
-/// An array pattern.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct PatVec<'hir> {
-    /// The span of the pattern.
-    #[rune(span)]
-    pub span: Span,
-    /// Bracketed patterns.
-    pub items: &'hir [Pat<'hir>],
-}
-
 /// A tuple pattern.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PatTuple<'hir> {
-    /// The span of the pattern.
-    #[rune(span)]
-    pub span: Span,
     /// The path, if the tuple is typed.
     pub path: Option<&'hir Path<'hir>>,
     /// The items in the tuple.
@@ -94,12 +68,9 @@ pub struct PatTuple<'hir> {
 }
 
 /// An object pattern.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PatObject<'hir> {
-    /// The span of the pattern.
-    #[rune(span)]
-    pub span: Span,
     /// The identifier of the object pattern.
     pub ident: &'hir ObjectIdent<'hir>,
     /// The fields matched against.
@@ -107,12 +78,9 @@ pub struct PatObject<'hir> {
 }
 
 /// An object item.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PatBinding<'hir> {
-    /// The span of the pattern.
-    #[rune(span)]
-    pub span: Span,
     /// The key of an object.
     pub key: &'hir ObjectKey<'hir>,
     /// What the binding is to.
@@ -146,8 +114,8 @@ pub enum Expr<'hir> {
     Closure(&'hir ExprClosure<'hir>),
     Lit(&'hir ExprLit<'hir>),
     Object(&'hir ExprObject<'hir>),
-    Tuple(&'hir ExprTuple<'hir>),
-    Vec(&'hir ExprVec<'hir>),
+    Tuple(&'hir ExprSeq<'hir>),
+    Vec(&'hir ExprSeq<'hir>),
     Range(&'hir ExprRange<'hir>),
     Group(&'hir Expr<'hir>),
     MacroCall(&'hir MacroCall<'hir>),
@@ -690,21 +658,10 @@ pub enum ObjectIdent<'hir> {
     Named(&'hir Path<'hir>),
 }
 
-/// An expression to construct a literal tuple.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprTuple<'hir> {
-    /// The span of the expression.
-    #[rune(span)]
-    pub span: Span,
-    /// Items in the tuple.
-    pub items: &'hir [Expr<'hir>],
-}
-
 /// A literal vector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
-pub struct ExprVec<'hir> {
+pub struct ExprSeq<'hir> {
     /// The span of the expression.
     #[rune(span)]
     pub span: Span,

@@ -188,8 +188,12 @@ impl IrFn {
         let mut args = Vec::new();
 
         for arg in hir.args {
-            if let hir::FnArg::Pat(hir::Pat::PatPath(path)) = arg {
-                if let Some(ident) = path.path.try_as_ident() {
+            if let hir::FnArg::Pat(hir::Pat {
+                kind: hir::PatKind::PatPath(path),
+                ..
+            }) = arg
+            {
+                if let Some(ident) = path.try_as_ident() {
                     args.push(c.resolve(ident)?.into());
                     continue;
                 }
@@ -332,10 +336,10 @@ pub enum IrPat {
 
 impl IrPat {
     fn compile_ast(hir: &hir::Pat<'_>, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
-        match hir {
-            hir::Pat::PatIgnore(..) => return Ok(ir::IrPat::Ignore),
-            hir::Pat::PatPath(path) => {
-                if let Some(ident) = path.path.try_as_ident() {
+        match hir.kind {
+            hir::PatKind::PatIgnore => return Ok(ir::IrPat::Ignore),
+            hir::PatKind::PatPath(path) => {
+                if let Some(ident) = path.try_as_ident() {
                     let name = c.resolve(ident)?;
                     return Ok(ir::IrPat::Binding(name.into()));
                 }
