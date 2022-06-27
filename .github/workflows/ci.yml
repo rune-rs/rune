@@ -139,7 +139,4 @@ jobs:
             ~/.cargo/bin
             target
           key: clippy-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -D warnings
+      - run: cargo clippy --all-features -- -D warnings
