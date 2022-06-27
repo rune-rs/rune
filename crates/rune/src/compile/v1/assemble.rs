@@ -1,3 +1,9 @@
+use std::convert::TryFrom;
+use std::ops::Neg;
+
+use num::ToPrimitive;
+use rune_macros::__instrument_ast as instrument;
+
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
@@ -15,8 +21,6 @@ use crate::runtime::{
     InstVariant, Label, PanicReason, Protocol, TypeCheck,
 };
 use crate::Hash;
-use rune_macros::__instrument_ast as instrument;
-use std::convert::TryFrom;
 
 /// `self` variable.
 const SELF: &str = "self";
@@ -326,69 +330,73 @@ fn pat_lit(
 ) -> CompileResult<bool> {
     let span = hir.span();
 
-    loop {
-        match hir.kind {
-            hir::ExprKind::Unary(hir::ExprUnary {
-                op: ast::UnOp::Neg(..),
-                expr:
-                    hir::Expr {
-                        kind: hir::ExprKind::Lit(ast::Lit::Number(lit)),
-                        ..
-                    },
-                ..
-            }) => {
-                let integer = lit.resolve(resolve_context!(c.q))?.as_i64(span, true)?;
-                load(c, Needs::Value)?;
-                c.asm.push(Inst::EqInteger { integer }, span);
-                break;
-            }
-            hir::ExprKind::Lit(lit) => match lit {
-                ast::Lit::Byte(lit) => {
-                    let byte = lit.resolve(resolve_context!(c.q))?;
-                    load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqByte { byte }, span);
-                    break;
-                }
-                ast::Lit::Char(lit) => {
-                    let character = lit.resolve(resolve_context!(c.q))?;
-                    load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqCharacter { character }, span);
-                    break;
-                }
-                ast::Lit::Str(lit) => {
-                    let string = lit.resolve(resolve_context!(c.q))?;
-                    let slot = c.q.unit.new_static_string(span, string.as_ref())?;
-                    load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqStaticString { slot }, span);
-                    break;
-                }
-                ast::Lit::Number(lit) => {
-                    let integer = lit.resolve(resolve_context!(c.q))?.as_i64(span, false)?;
-                    load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqInteger { integer }, span);
-                    break;
-                }
-                ast::Lit::Bool(lit) => {
-                    let boolean = lit.value;
-                    load(c, Needs::Value)?;
-                    c.asm.push(Inst::EqBool { boolean }, span);
-                    break;
-                }
-                ast::Lit::ByteStr(_) => {}
-            },
-            _ => (),
+    let inst = match pat_lit_inst(span, c, hir)? {
+        Some(inst) => inst,
+        None => {
+            return Err(CompileError::new(
+                hir,
+                CompileErrorKind::UnsupportedPatternExpr,
+            ));
         }
+    };
 
-        return Err(CompileError::new(
-            hir,
-            CompileErrorKind::UnsupportedPatternExpr,
-        ));
-    }
-
-    let span = hir.span();
+    load(c, Needs::Value)?;
+    c.asm.push(inst, span);
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
     Ok(true)
+}
+
+#[instrument]
+fn pat_lit_inst(
+    span: Span,
+    c: &mut Assembler<'_>,
+    hir: &hir::Expr<'_>,
+) -> CompileResult<Option<Inst>> {
+    match hir.kind {
+        hir::ExprKind::Unary(hir::ExprUnary {
+            op: ast::UnOp::Neg(..),
+            expr:
+                hir::Expr {
+                    kind: hir::ExprKind::Lit(ast::Lit::Number(lit)),
+                    ..
+                },
+            ..
+        }) => {
+            let integer = lit.resolve(resolve_context!(c.q))?.as_i64(span, true)?;
+            return Ok(Some(Inst::EqInteger { integer }));
+        }
+        hir::ExprKind::Lit(lit) => match lit {
+            ast::Lit::Byte(lit) => {
+                let byte = lit.resolve(resolve_context!(c.q))?;
+                return Ok(Some(Inst::EqByte { byte }));
+            }
+            ast::Lit::Char(lit) => {
+                let char = lit.resolve(resolve_context!(c.q))?;
+                return Ok(Some(Inst::EqChar { char }));
+            }
+            ast::Lit::Str(lit) => {
+                let string = lit.resolve(resolve_context!(c.q))?;
+                let slot = c.q.unit.new_static_string(span, string.as_ref())?;
+                return Ok(Some(Inst::EqString { slot }));
+            }
+            ast::Lit::ByteStr(lit) => {
+                let bytes = lit.resolve(resolve_context!(c.q))?;
+                let slot = c.q.unit.new_static_bytes(span, bytes.as_ref())?;
+                return Ok(Some(Inst::EqBytes { slot }));
+            }
+            ast::Lit::Number(lit) => {
+                let integer = lit.resolve(resolve_context!(c.q))?.as_i64(span, false)?;
+                return Ok(Some(Inst::EqInteger { integer }));
+            }
+            ast::Lit::Bool(lit) => {
+                return Ok(Some(Inst::EqBool { boolean: lit.value }));
+            }
+        },
+        _ => (),
+    }
+
+    Ok(None)
 }
 
 /// Assemble an [hir::Condition<'_>].
@@ -1068,8 +1076,6 @@ fn const_(
     value: &ConstValue,
     needs: Needs,
 ) -> CompileResult<()> {
-    use num::ToPrimitive;
-
     if !needs.value() {
         c.diagnostics.not_used(c.source_id, span, c.context());
         return Ok(());
@@ -1546,7 +1552,7 @@ fn expr_block(
         return block(hir.block, c, needs);
     }
 
-    let item = c.q.item_for(&hir.block)?;
+    let item = c.q.item_for(hir.block)?;
     let meta = c.lookup_meta(span, &item.item)?;
 
     match (hir.kind, &meta.kind) {
@@ -2791,8 +2797,8 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResu
     }
 
     if let (Needs::Value, Some(local)) = (needs, named.as_local()) {
-        // light heuristics, treat it as a type error in case the
-        // first character is uppercase.
+        // light heuristics, treat it as a type error in case the first
+        // character is uppercase.
         if !local.starts_with(char::is_uppercase) {
             return Err(CompileError::new(
                 span,
@@ -2822,7 +2828,7 @@ fn expr_range(
     let guard = c.scopes.push_child(span)?;
 
     if needs.value() {
-        let from = if let Some(from) = &hir.from {
+        let from = if let Some(from) = hir.from {
             expr(from, c, needs)?.apply(c)?;
             c.asm.push(
                 Inst::Variant {
@@ -2843,7 +2849,7 @@ fn expr_range(
 
         c.scopes.decl_anon(from)?;
 
-        let to = if let Some(to) = &hir.to {
+        let to = if let Some(to) = hir.to {
             expr(to, c, needs)?.apply(c)?;
             c.asm.push(
                 Inst::Variant {
@@ -2864,7 +2870,7 @@ fn expr_range(
 
         c.scopes.decl_anon(to)?;
 
-        let limits = match &hir.limits {
+        let limits = match hir.limits {
             hir::ExprRangeLimits::HalfOpen => InstRangeLimits::HalfOpen,
             hir::ExprRangeLimits::Closed => InstRangeLimits::Closed,
         };
@@ -2872,11 +2878,11 @@ fn expr_range(
         c.asm.push(Inst::Range { limits }, span);
         c.scopes.undecl_anon(span, 2)?;
     } else {
-        if let Some(from) = &hir.from {
+        if let Some(from) = hir.from {
             expr(from, c, needs)?.apply(c)?;
         }
 
-        if let Some(to) = &hir.to {
+        if let Some(to) = hir.to {
             expr(to, c, needs)?.apply(c)?;
         }
     }
@@ -3139,9 +3145,6 @@ fn expr_unary(
                 c.asm.push(Inst::float(-n), span);
             }
             ast::Number::Integer(int) => {
-                use num::ToPrimitive as _;
-                use std::ops::Neg as _;
-
                 let n = match int.neg().to_i64() {
                     Some(n) => n,
                     None => {
@@ -3396,8 +3399,6 @@ fn lit_str(hir: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileRes
 /// Assemble a literal number.
 #[instrument]
 fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
-    use num::ToPrimitive;
-
     let span = hir.span();
 
     // Elide the entire literal if it's not needed.
