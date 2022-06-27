@@ -1,14 +1,18 @@
 //! Lazy query system, used to compile and build items on demand and keep track
 //! of what's being used and not.
 
+use std::collections::VecDeque;
+use std::fmt;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::collections::{HashMap, HashSet};
-use crate::compile::ir;
+use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::{
-    CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ImportStep,
+    ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ImportStep,
     IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemMeta, Location, ModMeta, Names,
-    PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta,
+    Prelude, PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta,
     UnitBuilder, Visibility,
 };
 use crate::hir;
@@ -18,10 +22,6 @@ use crate::runtime::format;
 use crate::runtime::Call;
 use crate::shared::{Consts, Gen, Items};
 use crate::{Context, Hash, SourceId, Sources};
-use std::collections::VecDeque;
-use std::fmt;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
 
 /// The permitted number of import recursions when constructing a path.
 const IMPORT_RECURSION_LIMIT: usize = 128;
@@ -119,9 +119,14 @@ pub(crate) struct QueryInner {
     modules: HashMap<Item, Arc<ModMeta>>,
 }
 
+/// Query system of the rune compiler.
+///
+/// Once an item is queried for it is queued up for compilation.
 pub(crate) struct Query<'a> {
     /// The current unit being built.
     pub(crate) unit: &'a mut UnitBuilder,
+    /// The prelude in effect.
+    prelude: &'a Prelude,
     /// Cache of constants that have been expanded.
     pub(crate) consts: &'a mut Consts,
     /// Storage associated with the query.
@@ -140,6 +145,7 @@ impl<'a> Query<'a> {
     /// Construct a new compilation context.
     pub(crate) fn new(
         unit: &'a mut UnitBuilder,
+        prelude: &'a Prelude,
         consts: &'a mut Consts,
         storage: &'a mut Storage,
         sources: &'a mut Sources,
@@ -149,6 +155,7 @@ impl<'a> Query<'a> {
     ) -> Self {
         Self {
             unit,
+            prelude,
             consts,
             storage,
             sources,
@@ -162,6 +169,7 @@ impl<'a> Query<'a> {
     pub(crate) fn borrow(&mut self) -> Query<'_> {
         Query {
             unit: self.unit,
+            prelude: self.prelude,
             consts: self.consts,
             storage: self.storage,
             sources: self.sources,
@@ -173,18 +181,21 @@ impl<'a> Query<'a> {
 
     /// Insert the given compile meta.
     pub(crate) fn insert_meta(&mut self, span: Span, meta: PrivMeta) -> Result<(), QueryError> {
-        let item = meta.item.item.clone();
-
         self.visitor.register_meta(meta.info_ref());
 
-        if let Some(existing) = self.inner.meta.insert(item, meta.clone()) {
-            return Err(QueryError::new(
-                span,
-                QueryErrorKind::MetaConflict {
-                    current: meta.info(),
-                    existing: existing.info(),
-                },
-            ));
+        match self.inner.meta.entry(meta.item.item.clone()) {
+            hash_map::Entry::Occupied(e) => {
+                return Err(QueryError::new(
+                    span,
+                    QueryErrorKind::MetaConflict {
+                        current: meta.info(),
+                        existing: e.get().info(),
+                    },
+                ));
+            }
+            hash_map::Entry::Vacant(e) => {
+                e.insert(meta);
+            }
         }
 
         Ok(())
@@ -1239,7 +1250,7 @@ impl<'a> Query<'a> {
             }
         }
 
-        if let Some(item) = self.unit.prelude().get(local) {
+        if let Some(item) = self.prelude.get(local) {
             return Ok(item.clone());
         }
 

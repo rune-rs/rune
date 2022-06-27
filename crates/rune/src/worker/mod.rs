@@ -3,7 +3,7 @@
 use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::{CompileVisitor, Item, Options, SourceLoader, UnitBuilder};
+use crate::compile::{CompileVisitor, Item, Options, Prelude, SourceLoader, UnitBuilder};
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
 use crate::macros::Storage;
@@ -44,6 +44,7 @@ impl<'a> Worker<'a> {
         sources: &'a mut Sources,
         options: &'a Options,
         unit: &'a mut UnitBuilder,
+        prelude: &'a Prelude,
         diagnostics: &'a mut Diagnostics,
         visitor: &'a mut dyn CompileVisitor,
         source_loader: &'a mut dyn SourceLoader,
@@ -55,7 +56,7 @@ impl<'a> Worker<'a> {
             options,
             diagnostics,
             source_loader,
-            q: Query::new(unit, consts, storage, sources, visitor, gen, inner),
+            q: Query::new(unit, prelude, consts, storage, sources, visitor, gen, inner),
             gen,
             loaded: HashMap::new(),
             queue: VecDeque::new(),

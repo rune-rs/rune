@@ -48,7 +48,7 @@ pub enum PatKind<'hir> {
     /// A literal pattern. This is represented as an expression.
     PatLit(&'hir Expr<'hir>),
     /// A vector pattern.
-    PatVec(&'hir [Pat<'hir>]),
+    PatVec(&'hir PatItems<'hir>),
     /// A tuple pattern.
     PatTuple(&'hir PatItems<'hir>),
     /// An object pattern.
@@ -65,6 +65,10 @@ pub struct PatItems<'hir> {
     pub path: Option<&'hir Path<'hir>>,
     /// The items in the tuple.
     pub items: &'hir [Pat<'hir>],
+    /// If the pattern is open.
+    pub is_open: bool,
+    /// The number of elements in the pattern.
+    pub count: usize,
 }
 
 /// An object item.

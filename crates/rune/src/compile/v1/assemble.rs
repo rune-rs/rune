@@ -446,7 +446,7 @@ fn condition(
 fn pat_vec(
     span: Span,
     c: &mut Assembler<'_>,
-    hir: &[hir::Pat<'_>],
+    hir: &hir::PatItems<'_>,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<()> {
@@ -459,13 +459,11 @@ fn pat_vec(
     // that it is indeed a vector.
     c.asm.push(Inst::Copy { offset }, span);
 
-    let (is_open, count) = pat_items_count(hir)?;
-
     c.asm.push(
         Inst::MatchSequence {
             type_check: TypeCheck::Vec,
-            len: count,
-            exact: !is_open,
+            len: hir.count,
+            exact: !hir.is_open,
         },
         span,
     );
@@ -473,7 +471,7 @@ fn pat_vec(
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
 
-    for (index, hir) in hir.iter().take(count).enumerate() {
+    for (index, hir) in hir.items.iter().take(hir.count).enumerate() {
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
             if needs.value() {
                 c.asm
@@ -593,8 +591,6 @@ fn pat_tuple(
     // interact with it multiple times.
     let offset = c.scopes.decl_anon(span)?;
 
-    let (is_open, count) = pat_items_count(hir.items)?;
-
     if let Some(path) = hir.path {
         let named = c.convert_path(path)?;
         named.assert_not_generic()?;
@@ -614,13 +610,13 @@ fn pat_tuple(
             }
         };
 
-        if !(args == count || count < args && is_open) {
+        if !(args == hir.count || hir.count < args && hir.is_open) {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
                     meta: meta.info(),
                     expected: args,
-                    actual: count,
+                    actual: hir.count,
                 },
             ));
         }
@@ -632,8 +628,8 @@ fn pat_tuple(
         c.asm.push(
             Inst::MatchSequence {
                 type_check: TypeCheck::Tuple,
-                len: count,
-                exact: !is_open,
+                len: hir.count,
+                exact: !hir.is_open,
             },
             span,
         );
@@ -642,7 +638,7 @@ fn pat_tuple(
     c.asm
         .pop_and_jump_if_not(c.scopes.local_var_count(span)?, false_label, span);
 
-    for (index, p) in hir.items.iter().take(count).enumerate() {
+    for (index, p) in hir.items.iter().take(hir.count).enumerate() {
         let span = p.span();
 
         let load = move |c: &mut Assembler<'_>, needs: Needs| {
@@ -679,9 +675,7 @@ fn pat_object(
     let mut keys = Vec::new();
     let mut bindings = Vec::new();
 
-    let (has_rest, count) = pat_items_count(hir.items)?;
-
-    for pat in hir.items.iter().take(count) {
+    for pat in hir.items.iter().take(hir.count) {
         let span = pat.span();
         let cow_key;
 
@@ -767,7 +761,7 @@ fn pat_object(
                 }
             }
 
-            if !has_rest && !fields.is_empty() {
+            if !hir.is_open && !fields.is_empty() {
                 let mut fields = fields
                     .into_iter()
                     .map(Box::<str>::from)
@@ -795,7 +789,7 @@ fn pat_object(
             c.asm.push(
                 Inst::MatchObject {
                     slot: keys,
-                    exact: !has_rest,
+                    exact: !hir.is_open,
                 },
                 span,
             );
@@ -3468,33 +3462,4 @@ fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileRe
     }
 
     Ok(Asm::top(span))
-}
-
-/// Test if the given pattern is open or not.
-fn pat_items_count(items: &[hir::Pat<'_>]) -> Result<(bool, usize), CompileError> {
-    let mut it = items.iter();
-
-    let (is_open, mut count) = match it.next_back() {
-        Some(pat) => {
-            if matches!(pat.kind, hir::PatKind::PatRest) {
-                (true, 0)
-            } else {
-                (false, 1)
-            }
-        }
-        None => return Ok((false, 0)),
-    };
-
-    for pat in it {
-        if let hir::PatKind::PatRest = pat.kind {
-            return Err(CompileError::new(
-                pat.span(),
-                CompileErrorKind::UnsupportedPatternRest,
-            ));
-        }
-
-        count += 1;
-    }
-
-    Ok((is_open, count))
 }

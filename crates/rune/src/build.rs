@@ -137,10 +137,12 @@ impl<'a> Build<'a> {
             }
         };
 
-        let mut unit = if context.has_default_modules() {
-            compile::UnitBuilder::with_default_prelude()
+        let mut unit = compile::UnitBuilder::default();
+
+        let prelude = if context.has_default_modules() {
+            compile::Prelude::with_default_prelude()
         } else {
-            compile::UnitBuilder::default()
+            compile::Prelude::default()
         };
 
         let mut default_diagnostics;
@@ -185,6 +187,7 @@ impl<'a> Build<'a> {
 
         let result = compile::compile(
             &mut unit,
+            &prelude,
             self.sources,
             context,
             diagnostics,

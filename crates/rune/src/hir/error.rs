@@ -23,6 +23,8 @@ pub enum HirErrorKind {
     ArenaWriteSliceOutOfBounds { index: usize },
     #[error("allocation error for {requested} bytes")]
     ArenaAllocError { requested: usize },
+    #[error("`..` is not supported in this location")]
+    UnsupportedPatternRest,
     #[error("{error}")]
     QueryError {
         #[source]

@@ -164,8 +164,6 @@ pub enum CompileErrorKind {
     },
     #[error("{meta} is not supported here")]
     UnsupportedPattern { meta: Meta },
-    #[error("`..` is not supported in this location")]
-    UnsupportedPatternRest,
     #[error("this kind of expression is not supported as a pattern")]
     UnsupportedPatternExpr,
     #[error("not a valid binding")]
