@@ -410,7 +410,10 @@ impl<'a> Query<'a> {
     ) -> Result<(), QueryError> {
         tracing::trace!("new const: {:?}", item.item);
 
-        let mut c = IrCompiler { q: self.borrow() };
+        let mut c = IrCompiler {
+            source_id: item.location.source_id,
+            q: self.borrow(),
+        };
         let ir = f(value, &mut c)?;
 
         self.index(IndexedEntry {
@@ -434,7 +437,10 @@ impl<'a> Query<'a> {
 
         self.index(IndexedEntry {
             item: item.clone(),
-            indexed: Indexed::ConstFn(ConstFn { item_fn }),
+            indexed: Indexed::ConstFn(ConstFn {
+                location: item.location,
+                item_fn,
+            }),
         });
 
         Ok(())
@@ -1038,7 +1044,10 @@ impl<'a> Query<'a> {
                     let arena = crate::hir::Arena::new();
                     let ctx = crate::hir::lowering::Ctx::new(&arena, self.borrow());
                     let hir = crate::hir::lowering::item_fn(&ctx, &c.item_fn)?;
-                    let mut c = IrCompiler { q: self.borrow() };
+                    let mut c = IrCompiler {
+                        source_id: c.location.source_id,
+                        q: self.borrow(),
+                    };
                     ir::IrFn::compile_ast(&hir, &mut c)?
                 };
 
@@ -1102,12 +1111,12 @@ impl<'a> Query<'a> {
         id: NonZeroId,
         item: &Item,
         source_id: SourceId,
-        spanned: Span,
+        span: Span,
         module: &Arc<ModMeta>,
         visibility: Visibility,
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let query_item = Arc::new(ItemMeta {
-            location: Location::new(source_id, spanned),
+            location: Location::new(source_id, span),
             id: Id::new(id),
             item: item.clone(),
             module: module.clone(),
@@ -1431,6 +1440,8 @@ pub(crate) struct Const {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ConstFn {
+    /// The source of the constant function.
+    pub(crate) location: Location,
     /// The const fn ast.
     pub(crate) item_fn: Box<ast::ItemFn>,
 }

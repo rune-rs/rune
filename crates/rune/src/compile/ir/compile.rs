@@ -1,14 +1,18 @@
-use crate::ast;
-use crate::ast::Spanned;
-use crate::compile::ir;
-use crate::compile::{IrError, IrValue};
+use crate::ast::{self, Span, Spanned};
+use crate::compile::ir::{self, IrError, IrValue};
 use crate::hir;
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::runtime::{Bytes, Shared};
+use crate::SourceId;
+
+use rune_macros::__instrument_ast as instrument;
 
 /// A c that compiles AST into Rune IR.
 pub(crate) struct IrCompiler<'a> {
+    /// The source id of the source.
+    pub(crate) source_id: SourceId,
+    /// Query associated with the compiler.
     pub(crate) q: Query<'a>,
 }
 
@@ -23,8 +27,8 @@ impl IrCompiler<'_> {
 
     /// Resolve an ir target from an expression.
     fn ir_target(&self, expr: &hir::Expr<'_>) -> Result<ir::IrTarget, IrError> {
-        match *expr {
-            hir::Expr::Path(path) => {
+        match expr.kind {
+            hir::ExprKind::Path(path) => {
                 if let Some(ident) = path.try_as_ident() {
                     let name = self.resolve(ident)?;
 
@@ -34,7 +38,7 @@ impl IrCompiler<'_> {
                     });
                 }
             }
-            hir::Expr::FieldAccess(expr_field_access) => {
+            hir::ExprKind::FieldAccess(expr_field_access) => {
                 let target = self.ir_target(expr_field_access.expr)?;
 
                 match *expr_field_access.expr_field {
@@ -67,24 +71,27 @@ impl IrCompiler<'_> {
     }
 }
 
+#[instrument]
 pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
-    Ok(match hir {
-        hir::Expr::Vec(e) => ir::Ir::new(e.span(), expr_vec(e, c)?),
-        hir::Expr::Tuple(e) => expr_tuple(e, c)?,
-        hir::Expr::Object(e) => ir::Ir::new(e.span(), expr_object(e, c)?),
-        hir::Expr::Group(e) => expr(e, c)?,
-        hir::Expr::Binary(e) => expr_binary(e, c)?,
-        hir::Expr::Assign(e) => expr_assign(e, c)?,
-        hir::Expr::Call(e) => ir::Ir::new(e.span(), expr_call(e, c)?),
-        hir::Expr::If(e) => ir::Ir::new(e.span(), expr_if(e, c)?),
-        hir::Expr::Loop(e) => ir::Ir::new(e.span(), expr_loop(e, c)?),
-        hir::Expr::While(e) => ir::Ir::new(e.span(), expr_while(e, c)?),
-        hir::Expr::Lit(e) => expr_lit(e, c)?,
-        hir::Expr::Block(e) => expr_block(e, c)?,
-        hir::Expr::Path(e) => path(e, c)?,
-        hir::Expr::FieldAccess(..) => ir::Ir::new(hir.span(), c.ir_target(hir)?),
-        hir::Expr::Break(e) => ir::Ir::new(e, ir::IrBreak::compile_ast(e, c)?),
-        hir::Expr::MacroCall(macro_call) => match macro_call {
+    let span = hir.span();
+
+    Ok(match hir.kind {
+        hir::ExprKind::Vec(hir) => ir::Ir::new(span, expr_vec(span, c, hir)?),
+        hir::ExprKind::Tuple(hir) => expr_tuple(span, c, hir)?,
+        hir::ExprKind::Object(hir) => ir::Ir::new(span, expr_object(span, c, hir)?),
+        hir::ExprKind::Group(hir) => expr(hir, c)?,
+        hir::ExprKind::Binary(hir) => expr_binary(span, c, hir)?,
+        hir::ExprKind::Assign(hir) => expr_assign(span, c, hir)?,
+        hir::ExprKind::Call(hir) => ir::Ir::new(span, expr_call(span, c, hir)?),
+        hir::ExprKind::If(hir) => ir::Ir::new(span, expr_if(span, c, hir)?),
+        hir::ExprKind::Loop(hir) => ir::Ir::new(span, expr_loop(span, c, hir)?),
+        hir::ExprKind::While(hir) => ir::Ir::new(span, expr_while(span, c, hir)?),
+        hir::ExprKind::Lit(hir) => lit(hir, c)?,
+        hir::ExprKind::Block(hir) => expr_block(span, c, hir)?,
+        hir::ExprKind::Path(hir) => path(hir, c)?,
+        hir::ExprKind::FieldAccess(..) => ir::Ir::new(span, c.ir_target(hir)?),
+        hir::ExprKind::Break(hir) => ir::Ir::new(span, ir::IrBreak::compile_ast(span, c, hir)?),
+        hir::ExprKind::MacroCall(macro_call) => match macro_call {
             hir::MacroCall::Template(template) => {
                 let ir_template = builtin_template(template, c)?;
                 ir::Ir::new(hir.span(), ir_template)
@@ -111,8 +118,12 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir
     })
 }
 
-fn expr_assign(hir: &hir::ExprAssign<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
-    let span = hir.span();
+#[instrument]
+fn expr_assign(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprAssign<'_>,
+) -> Result<ir::Ir, IrError> {
     let target = c.ir_target(hir.lhs)?;
 
     Ok(ir::Ir::new(
@@ -125,16 +136,19 @@ fn expr_assign(hir: &hir::ExprAssign<'_>, c: &mut IrCompiler<'_>) -> Result<ir::
     ))
 }
 
-fn expr_call(hir: &hir::ExprCall<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrCall, IrError> {
-    let span = hir.span();
-
+#[instrument]
+fn expr_call(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprCall<'_>,
+) -> Result<ir::IrCall, IrError> {
     let mut args = Vec::with_capacity(hir.args.len());
 
     for e in hir.args {
         args.push(expr(e, c)?);
     }
 
-    if let hir::Expr::Path(path) = &*hir.expr {
+    if let hir::ExprKind::Path(path) = hir.expr.kind {
         if let Some(ident) = path.try_as_ident() {
             let target = c.resolve(ident)?;
 
@@ -149,9 +163,12 @@ fn expr_call(hir: &hir::ExprCall<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrCa
     Err(IrError::msg(span, "call not supported"))
 }
 
-fn expr_binary(hir: &hir::ExprBinary<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
-    let span = hir.span();
-
+#[instrument]
+fn expr_binary(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprBinary<'_>,
+) -> Result<ir::Ir, IrError> {
     if hir.op.is_assign() {
         let op = match hir.op {
             ast::BinOp::AddAssign(..) => ir::IrAssignOp::Add,
@@ -195,7 +212,7 @@ fn expr_binary(hir: &hir::ExprBinary<'_>, c: &mut IrCompiler<'_>) -> Result<ir::
     };
 
     Ok(ir::Ir::new(
-        hir.span(),
+        span,
         ir::IrBinary {
             span,
             op,
@@ -205,10 +222,11 @@ fn expr_binary(hir: &hir::ExprBinary<'_>, c: &mut IrCompiler<'_>) -> Result<ir::
     ))
 }
 
-fn expr_lit(hir: &hir::ExprLit<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
+#[instrument]
+fn lit(hir: &ast::Lit, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
     let span = hir.span();
 
-    Ok(match hir.lit {
+    Ok(match hir {
         ast::Lit::Bool(b) => ir::Ir::new(span, IrValue::Bool(b.value)),
         ast::Lit::Str(s) => {
             let s = c.resolve(s)?;
@@ -240,9 +258,12 @@ fn expr_lit(hir: &hir::ExprLit<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, Ir
     })
 }
 
-fn expr_tuple(hir: &hir::ExprSeq<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
-    let span = hir.span();
-
+#[instrument]
+fn expr_tuple(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprSeq<'_>,
+) -> Result<ir::Ir, IrError> {
     if hir.items.is_empty() {
         return Ok(ir::Ir::new(span, IrValue::Unit));
     }
@@ -256,13 +277,18 @@ fn expr_tuple(hir: &hir::ExprSeq<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, 
     Ok(ir::Ir::new(
         span,
         ir::IrTuple {
-            span: hir.span(),
+            span,
             items: items.into_boxed_slice(),
         },
     ))
 }
 
-fn expr_vec(hir: &hir::ExprSeq<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrVec, IrError> {
+#[instrument]
+fn expr_vec(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprSeq<'_>,
+) -> Result<ir::IrVec, IrError> {
     let mut items = Vec::new();
 
     for e in hir.items {
@@ -270,12 +296,17 @@ fn expr_vec(hir: &hir::ExprSeq<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrVec,
     }
 
     Ok(ir::IrVec {
-        span: hir.span(),
+        span,
         items: items.into_boxed_slice(),
     })
 }
 
-fn expr_object(hir: &hir::ExprObject<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrObject, IrError> {
+#[instrument]
+fn expr_object(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprObject<'_>,
+) -> Result<ir::IrObject, IrError> {
     let mut assignments = Vec::new();
 
     for assign in hir.assignments {
@@ -297,18 +328,21 @@ fn expr_object(hir: &hir::ExprObject<'_>, c: &mut IrCompiler<'_>) -> Result<ir::
     }
 
     Ok(ir::IrObject {
-        span: hir.span(),
+        span,
         assignments: assignments.into_boxed_slice(),
     })
 }
 
+#[instrument]
 pub(crate) fn expr_block(
-    hir: &hir::ExprBlock<'_>,
+    span: Span,
     c: &mut IrCompiler<'_>,
+    hir: &hir::ExprBlock<'_>,
 ) -> Result<ir::Ir, IrError> {
-    Ok(ir::Ir::new(hir.span(), block(hir.block, c)?))
+    Ok(ir::Ir::new(span, block(hir.block, c)?))
 }
 
+#[instrument]
 pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrScope, IrError> {
     let span = hir.span();
 
@@ -353,6 +387,7 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> Result<ir::
     })
 }
 
+#[instrument]
 fn builtin_template(
     template: &hir::BuiltInTemplate,
     c: &mut IrCompiler<'_>,
@@ -361,11 +396,7 @@ fn builtin_template(
     let mut components = Vec::new();
 
     for e in template.exprs {
-        if let hir::Expr::Lit(hir::ExprLit {
-            lit: ast::Lit::Str(s),
-            ..
-        }) = e
-        {
+        if let hir::ExprKind::Lit(ast::Lit::Str(s)) = e.kind {
             let s = s.resolve_template_string(resolve_context!(c.q))?;
 
             components.push(ir::IrTemplateComponent::String(
@@ -382,6 +413,7 @@ fn builtin_template(
     Ok(ir::IrTemplate { span, components })
 }
 
+#[instrument]
 fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
     let span = hir.span();
 
@@ -393,6 +425,7 @@ fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> 
     Err(IrError::msg(span, "not supported yet"))
 }
 
+#[instrument]
 fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
     let span = hir.span();
 
@@ -422,6 +455,7 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError
     ))
 }
 
+#[instrument]
 fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrCondition, IrError> {
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
@@ -438,7 +472,12 @@ fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrC
     }
 }
 
-fn expr_if(hir: &hir::ExprIf<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrBranches, IrError> {
+#[instrument]
+fn expr_if(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprIf<'_>,
+) -> Result<ir::IrBranches, IrError> {
     let mut branches = Vec::new();
     let mut default_branch = None;
 
@@ -458,14 +497,20 @@ fn expr_if(hir: &hir::ExprIf<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrBranch
     }
 
     Ok(ir::IrBranches {
+        span,
         branches,
         default_branch,
     })
 }
 
-fn expr_while(hir: &hir::ExprWhile<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrLoop, IrError> {
+#[instrument]
+fn expr_while(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprWhile<'_>,
+) -> Result<ir::IrLoop, IrError> {
     Ok(ir::IrLoop {
-        span: hir.span(),
+        span,
         label: match hir.label {
             Some(label) => Some(c.resolve(label)?.into()),
             None => None,
@@ -475,9 +520,14 @@ fn expr_while(hir: &hir::ExprWhile<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir
     })
 }
 
-fn expr_loop(hir: &hir::ExprLoop<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrLoop, IrError> {
+#[instrument]
+fn expr_loop(
+    span: Span,
+    c: &mut IrCompiler<'_>,
+    hir: &hir::ExprLoop<'_>,
+) -> Result<ir::IrLoop, IrError> {
     Ok(ir::IrLoop {
-        span: hir.span(),
+        span,
         label: match hir.label {
             Some(label) => Some(c.resolve(label)?.into()),
             None => None,

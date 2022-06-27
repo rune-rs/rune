@@ -96,7 +96,6 @@ pub fn expr_closure<'hir>(
 ) -> Result<hir::ExprClosure<'hir>, HirError> {
     Ok(hir::ExprClosure {
         id: ast.id,
-        span: ast.span(),
         args: match &ast.args {
             ast::ExprClosureArgs::Empty { .. } => &[],
             ast::ExprClosureArgs::List { args, .. } => {
@@ -118,41 +117,35 @@ pub fn block<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Block) -> Result<hir::Block<'
 
 /// Lower an expression.
 pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir>, HirError> {
-    match ast {
-        ast::Expr::Path(ast) => Ok(hir::Expr::Path(alloc!(ctx, ast; path(ctx, ast)?))),
-        ast::Expr::Assign(ast) => Ok(hir::Expr::Assign(alloc!(ctx, ast; hir::ExprAssign {
-            span: ast.span(),
+    let kind = match ast {
+        ast::Expr::Path(ast) => hir::ExprKind::Path(alloc!(ctx, ast; path(ctx, ast)?)),
+        ast::Expr::Assign(ast) => hir::ExprKind::Assign(alloc!(ctx, ast; hir::ExprAssign {
             lhs: alloc!(ctx, ast; expr(ctx, &ast.lhs)?),
             rhs: alloc!(ctx, ast; expr(ctx, &ast.rhs)?),
-        }))),
+        })),
         // TODO: lower all of these loop constructs to the same loop-like
         // representation. We only do different ones here right now since it's
         // easier when refactoring.
-        ast::Expr::While(ast) => Ok(hir::Expr::While(alloc!(ctx, ast; hir::ExprWhile {
-            span: ast.span(),
+        ast::Expr::While(ast) => hir::ExprKind::While(alloc!(ctx, ast; hir::ExprWhile {
             label: option!(ctx, ast; &ast.label, |(ast, _)| label(ctx, ast)?),
             condition: alloc!(ctx, ast; condition(ctx, &ast.condition)?),
             body: alloc!(ctx, ast; block(ctx, &ast.body)?),
-        }))),
-        ast::Expr::Loop(ast) => Ok(hir::Expr::Loop(alloc!(ctx, ast; hir::ExprLoop {
-            span: ast.span(),
+        })),
+        ast::Expr::Loop(ast) => hir::ExprKind::Loop(alloc!(ctx, ast; hir::ExprLoop {
             label: option!(ctx, ast; &ast.label, |(ast, _)| label(ctx, ast)?),
             body: alloc!(ctx, ast; block(ctx, &ast.body)?),
-        }))),
-        ast::Expr::For(ast) => Ok(hir::Expr::For(alloc!(ctx, ast; hir::ExprFor {
-            span: ast.span(),
+        })),
+        ast::Expr::For(ast) => hir::ExprKind::For(alloc!(ctx, ast; hir::ExprFor {
             label: option!(ctx, ast; &ast.label, |(ast, _)| label(ctx, ast)?),
             binding: alloc!(ctx, ast; pat(ctx, &ast.binding)?),
             iter: alloc!(ctx, ast; expr(ctx, &ast.iter)?),
             body: alloc!(ctx, ast; block(ctx, &ast.body)?),
-        }))),
-        ast::Expr::Let(ast) => Ok(hir::Expr::Let(alloc!(ctx, ast; hir::ExprLet {
-            span: ast.span(),
+        })),
+        ast::Expr::Let(ast) => hir::ExprKind::Let(alloc!(ctx, ast; hir::ExprLet {
             pat: alloc!(ctx, ast; pat(ctx, &ast.pat)?),
             expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
-        }))),
-        ast::Expr::If(ast) => Ok(hir::Expr::If(alloc!(ctx, ast; hir::ExprIf {
-            span: ast.span(),
+        })),
+        ast::Expr::If(ast) => hir::ExprKind::If(alloc!(ctx, ast; hir::ExprIf {
             condition: alloc!(ctx, ast; condition(ctx, &ast.condition)?),
             block: alloc!(ctx, ast; block(ctx, &ast.block)?),
             expr_else_ifs: iter!(ctx, ast; &ast.expr_else_ifs, |ast| hir::ExprElseIf {
@@ -164,9 +157,8 @@ pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir
                 span: ast.span(),
                 block: alloc!(ctx, ast; block(ctx, &ast.block)?)
             }),
-        }))),
-        ast::Expr::Match(ast) => Ok(hir::Expr::Match(alloc!(ctx, ast; hir::ExprMatch {
-            span: ast.span(),
+        })),
+        ast::Expr::Match(ast) => hir::ExprKind::Match(alloc!(ctx, ast; hir::ExprMatch {
             expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
             branches: iter!(ctx, ast; &ast.branches, |(ast, _)| hir::ExprMatchBranch {
                 span: ast.span(),
@@ -174,70 +166,54 @@ pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir
                 condition: option!(ctx, ast; &ast.condition, |(_, ast)| expr(ctx, ast)?),
                 body: alloc!(ctx, ast; expr(ctx, &ast.body)?),
             }),
-        }))),
-        ast::Expr::Call(ast) => Ok(hir::Expr::Call(alloc!(ctx, ast; hir::ExprCall {
+        })),
+        ast::Expr::Call(ast) => hir::ExprKind::Call(alloc!(ctx, ast; hir::ExprCall {
             id: ast.id,
-            span: ast.span(),
             expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
             args: iter!(ctx, ast; &ast.args, |(ast, _)| expr(ctx, ast)?),
-        }))),
-        ast::Expr::FieldAccess(ast) => Ok(hir::Expr::FieldAccess(
-            alloc!(ctx, ast; hir::ExprFieldAccess {
-                span: ast.span(),
+        })),
+        ast::Expr::FieldAccess(ast) => {
+            hir::ExprKind::FieldAccess(alloc!(ctx, ast; hir::ExprFieldAccess {
                 expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
                 expr_field: alloc!(ctx, ast; match &ast.expr_field {
                     ast::ExprField::Path(ast) => hir::ExprField::Path(alloc!(ctx, ast; path(ctx, ast)?)),
                     ast::ExprField::LitNumber(ast) => hir::ExprField::LitNumber(alloc!(ctx, ast; *ast)),
                 }),
-            }),
-        )),
-        ast::Expr::Empty(ast) => Ok(hir::Expr::Group(alloc!(ctx, ast; expr(ctx, &ast.expr)?))),
-        ast::Expr::Binary(ast) => Ok(hir::Expr::Binary(alloc!(ctx, ast; hir::ExprBinary {
-            span: ast.span(),
+            }))
+        }
+        ast::Expr::Empty(ast) => hir::ExprKind::Group(alloc!(ctx, ast; expr(ctx, &ast.expr)?)),
+        ast::Expr::Binary(ast) => hir::ExprKind::Binary(alloc!(ctx, ast; hir::ExprBinary {
             lhs: alloc!(ctx, ast; expr(ctx, &ast.lhs)?),
             op: ast.op,
             rhs: alloc!(ctx, ast; expr(ctx, &ast.rhs)?),
-        }))),
-        ast::Expr::Unary(ast) => Ok(hir::Expr::Unary(alloc!(ctx, ast; hir::ExprUnary {
-            span: ast.span(),
+        })),
+        ast::Expr::Unary(ast) => hir::ExprKind::Unary(alloc!(ctx, ast; hir::ExprUnary {
             op: ast.op,
             expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
-        }))),
-        ast::Expr::Index(ast) => Ok(hir::Expr::Index(alloc!(ctx, ast; hir::ExprIndex {
-            span: ast.span(),
+        })),
+        ast::Expr::Index(ast) => hir::ExprKind::Index(alloc!(ctx, ast; hir::ExprIndex {
             target: alloc!(ctx, ast; expr(ctx, &ast.target)?),
             index: alloc!(ctx, ast; expr(ctx, &ast.index)?),
-        }))),
-        ast::Expr::Break(ast) => Ok(hir::Expr::Break(alloc!(ctx, ast; hir::ExprBreak {
-            span: ast.span(),
-            expr: option!(ctx, ast; ast.expr.as_deref(), |ast| match ast {
+        })),
+        ast::Expr::Block(ast) => hir::ExprKind::Block(alloc!(ctx, ast; expr_block(ctx, ast)?)),
+        ast::Expr::Break(ast) => {
+            hir::ExprKind::Break(option!(ctx, ast; ast.expr.as_deref(), |ast| match ast {
                 ast::ExprBreakValue::Expr(ast) => hir::ExprBreakValue::Expr(alloc!(ctx, ast; expr(ctx, ast)?)),
                 ast::ExprBreakValue::Label(ast) => hir::ExprBreakValue::Label(alloc!(ctx, ast; label(ctx, ast)?)),
-            }),
-        }))),
-        ast::Expr::Continue(ast) => Ok(hir::Expr::Continue(alloc!(ctx, ast; hir::ExprContinue {
-            span: ast.span(),
-            label: option!(ctx, ast; &ast.label, |ast| label(ctx, ast)?),
-        }))),
-        ast::Expr::Yield(ast) => Ok(hir::Expr::Yield(alloc!(ctx, ast; hir::ExprYield {
-            span: ast.span(),
-            expr: option!(ctx, ast; &ast.expr, |ast| expr(ctx, ast)?),
-        }))),
-        ast::Expr::Block(ast) => Ok(hir::Expr::Block(alloc!(ctx, ast; expr_block(ctx, ast)?))),
-        ast::Expr::Return(ast) => Ok(hir::Expr::Return(alloc!(ctx, ast; hir::ExprReturn {
-            span: ast.span(),
-            expr: option!(ctx, ast; &ast.expr, |ast| expr(ctx, ast)?),
-        }))),
-        ast::Expr::Await(ast) => Ok(hir::Expr::Await(alloc!(ctx, ast; hir::ExprAwait {
-            span: ast.span(),
-            expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
-        }))),
-        ast::Expr::Try(ast) => Ok(hir::Expr::Try(alloc!(ctx, ast; hir::ExprTry {
-            span: ast.span(),
-            expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
-        }))),
-        ast::Expr::Select(ast) => Ok(hir::Expr::Select(alloc!(ctx, ast; hir::ExprSelect {
-            span: ast.span(),
+            }))
+        }
+        ast::Expr::Continue(ast) => {
+            hir::ExprKind::Continue(option!(ctx, ast; &ast.label, |ast| label(ctx, ast)?))
+        }
+        ast::Expr::Yield(ast) => {
+            hir::ExprKind::Yield(option!(ctx, ast; &ast.expr, |ast| expr(ctx, ast)?))
+        }
+        ast::Expr::Return(ast) => {
+            hir::ExprKind::Return(option!(ctx, ast; &ast.expr, |ast| expr(ctx, ast)?))
+        }
+        ast::Expr::Await(ast) => hir::ExprKind::Await(alloc!(ctx, ast; expr(ctx, &ast.expr)?)),
+        ast::Expr::Try(ast) => hir::ExprKind::Try(alloc!(ctx, ast; expr(ctx, &ast.expr)?)),
+        ast::Expr::Select(ast) => hir::ExprKind::Select(alloc!(ctx, ast; hir::ExprSelect {
             branches: iter!(ctx, ast; &ast.branches, |(ast, _)| {
                 match ast {
                     ast::ExprSelectBranch::Pat(ast) => hir::ExprSelectBranch::Pat(alloc!(ctx, ast; hir::ExprSelectPatBranch {
@@ -245,48 +221,39 @@ pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir
                         expr: alloc!(ctx, &ast.expr; expr(ctx, &ast.expr)?),
                         body: alloc!(ctx, &ast.body; expr(ctx, &ast.body)?),
                     })),
-                    ast::ExprSelectBranch::Default(ast) => hir::ExprSelectBranch::Default(alloc!(ctx, ast; hir::ExprDefaultBranch {
-                        body: alloc!(ctx, &ast.body; expr(ctx, &ast.body)?),
-                    })),
+                    ast::ExprSelectBranch::Default(ast) => hir::ExprSelectBranch::Default(alloc!(ctx, &ast.body; expr(ctx, &ast.body)?)),
                 }
             })
-        }))),
-        ast::Expr::Closure(ast) => Ok(hir::Expr::Closure(
-            alloc!(ctx, ast; expr_closure(ctx, ast)?),
-        )),
-        ast::Expr::Lit(ast) => Ok(hir::Expr::Lit(alloc!(ctx, ast; hir::ExprLit {
-            span: ast.span(),
-            lit: alloc!(ctx, &ast.lit; ast.lit),
-        }))),
-        ast::Expr::Object(ast) => Ok(hir::Expr::Object(alloc!(ctx, ast; hir::ExprObject {
-            span: ast.span(),
+        })),
+        ast::Expr::Closure(ast) => {
+            hir::ExprKind::Closure(alloc!(ctx, ast; expr_closure(ctx, ast)?))
+        }
+        ast::Expr::Lit(ast) => hir::ExprKind::Lit(alloc!(ctx, &ast.lit; ast.lit)),
+        ast::Expr::Object(ast) => hir::ExprKind::Object(alloc!(ctx, ast; hir::ExprObject {
             path: object_ident(ctx, &ast.ident)?,
             assignments: iter!(ctx, ast; &ast.assignments, |(ast, _)| hir::FieldAssign {
                 span: ast.span(),
                 key: alloc!(ctx, ast; object_key(ctx, &ast.key)?),
                 assign: option!(ctx, ast; &ast.assign, |(_, ast)| expr(ctx, ast)?),
             })
-        }))),
-        ast::Expr::Tuple(ast) => Ok(hir::Expr::Tuple(alloc!(ctx, ast; hir::ExprSeq {
-            span: ast.span(),
+        })),
+        ast::Expr::Tuple(ast) => hir::ExprKind::Tuple(alloc!(ctx, ast; hir::ExprSeq {
             items: iter!(ctx, ast; &ast.items, |(ast, _)| expr(ctx, ast)?),
-        }))),
-        ast::Expr::Vec(ast) => Ok(hir::Expr::Vec(alloc!(ctx, ast; hir::ExprSeq {
-            span: ast.span(),
+        })),
+        ast::Expr::Vec(ast) => hir::ExprKind::Vec(alloc!(ctx, ast; hir::ExprSeq {
             items: iter!(ctx, ast; &ast.items, |(ast, _)| expr(ctx, ast)?),
-        }))),
-        ast::Expr::Range(ast) => Ok(hir::Expr::Range(alloc!(ctx, ast; hir::ExprRange {
-            span: ast.span(),
+        })),
+        ast::Expr::Range(ast) => hir::ExprKind::Range(alloc!(ctx, ast; hir::ExprRange {
             from: option!(ctx, ast; &ast.from, |ast| expr(ctx, ast)?),
             limits: match ast.limits {
                 ast::ExprRangeLimits::HalfOpen(_) => hir::ExprRangeLimits::HalfOpen,
                 ast::ExprRangeLimits::Closed(_) => hir::ExprRangeLimits::Closed,
             },
             to: option!(ctx, ast; &ast.to, |ast| expr(ctx, ast)?),
-        }))),
-        ast::Expr::Group(ast) => Ok(hir::Expr::Group(alloc!(ctx, ast; expr(ctx, &ast.expr)?))),
-        ast::Expr::MacroCall(ast) => Ok(hir::Expr::MacroCall(
-            alloc!(ctx, ast; match ctx.q.builtin_macro_for(ast)? {
+        })),
+        ast::Expr::Group(ast) => hir::ExprKind::Group(alloc!(ctx, ast; expr(ctx, &ast.expr)?)),
+        ast::Expr::MacroCall(ast) => {
+            hir::ExprKind::MacroCall(alloc!(ctx, ast; match ctx.q.builtin_macro_for(ast)? {
                 query::BuiltInMacro::Template(ast) => hir::MacroCall::Template(alloc!(ctx, ast; hir::BuiltInTemplate {
                     span: ast.span,
                     from_literal: ast.from_literal,
@@ -311,9 +278,14 @@ pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir
                     value: ast.value,
                 })),
             }
-            ),
-        )),
-    }
+            ))
+        }
+    };
+
+    Ok(hir::Expr {
+        span: ast.span(),
+        kind,
+    })
 }
 
 /// Lower a block expression.
@@ -322,7 +294,6 @@ pub fn expr_block<'hir>(
     ast: &ast::ExprBlock,
 ) -> Result<hir::ExprBlock<'hir>, HirError> {
     Ok(hir::ExprBlock {
-        span: ast.span(),
         kind: match (&ast.async_token, &ast.const_token) {
             (Some(..), None) => hir::ExprBlockKind::Async,
             (None, Some(..)) => hir::ExprBlockKind::Const,
@@ -476,7 +447,6 @@ fn condition<'hir>(
     Ok(match ast {
         ast::Condition::Expr(ast) => hir::Condition::Expr(alloc!(ctx, ast; expr(ctx, ast)?)),
         ast::Condition::ExprLet(ast) => hir::Condition::ExprLet(alloc!(ctx, ast; hir::ExprLet {
-            span: ast.span(),
             pat: alloc!(ctx, ast; pat(ctx, &ast.pat)?),
             expr: alloc!(ctx, ast; expr(ctx, &ast.expr)?),
         })),

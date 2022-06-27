@@ -285,7 +285,7 @@ impl CompileBuildEntry<'_> {
                 let ctx = hir::lowering::Ctx::new(&arena, self.q.borrow());
                 let hir = hir::lowering::expr_closure(&ctx, &closure.ast)?;
                 let mut c = self.compiler1(location, span, &mut asm);
-                assemble::closure_from_expr_closure(&hir, &mut c, &closure.captures)?;
+                assemble::closure_from_expr_closure(span, &mut c, &hir, &closure.captures)?;
 
                 if used.is_unused() {
                     c.diagnostics

@@ -77,9 +77,21 @@ pub struct PatBinding<'hir> {
     pub pat: &'hir Pat<'hir>,
 }
 
-/// An hir expression.
+/// An expression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-pub enum Expr<'hir> {
+#[non_exhaustive]
+pub struct Expr<'hir> {
+    /// Span of the expression.
+    #[rune(span)]
+    pub span: Span,
+    /// The kind of the expression.
+    pub kind: ExprKind<'hir>,
+}
+
+/// The kind of an [Expr].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ExprKind<'hir> {
     Path(&'hir Path<'hir>),
     Assign(&'hir ExprAssign<'hir>),
     While(&'hir ExprWhile<'hir>),
@@ -93,16 +105,16 @@ pub enum Expr<'hir> {
     Binary(&'hir ExprBinary<'hir>),
     Unary(&'hir ExprUnary<'hir>),
     Index(&'hir ExprIndex<'hir>),
-    Break(&'hir ExprBreak<'hir>),
-    Continue(&'hir ExprContinue<'hir>),
-    Yield(&'hir ExprYield<'hir>),
     Block(&'hir ExprBlock<'hir>),
-    Return(&'hir ExprReturn<'hir>),
-    Await(&'hir ExprAwait<'hir>),
-    Try(&'hir ExprTry<'hir>),
+    Break(Option<&'hir ExprBreakValue<'hir>>),
+    Continue(Option<&'hir ast::Label>),
+    Yield(Option<&'hir Expr<'hir>>),
+    Return(Option<&'hir Expr<'hir>>),
+    Await(&'hir Expr<'hir>),
+    Try(&'hir Expr<'hir>),
     Select(&'hir ExprSelect<'hir>),
     Closure(&'hir ExprClosure<'hir>),
-    Lit(&'hir ExprLit<'hir>),
+    Lit(&'hir ast::Lit),
     Object(&'hir ExprObject<'hir>),
     Tuple(&'hir ExprSeq<'hir>),
     Vec(&'hir ExprSeq<'hir>),
@@ -182,12 +194,9 @@ pub struct BuiltInLine {
 }
 
 /// An assign expression `a = b`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprAssign<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The expression being assigned to.
     pub lhs: &'hir Expr<'hir>,
     /// The value.
@@ -195,12 +204,9 @@ pub struct ExprAssign<'hir> {
 }
 
 /// A `while` loop: `while [expr] { ... }`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprWhile<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// A label for the while loop.
     pub label: Option<&'hir ast::Label>,
     /// The name of the binding.
@@ -210,12 +216,9 @@ pub struct ExprWhile<'hir> {
 }
 
 /// A `loop` expression: `loop { ... }`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprLoop<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// A label.
     pub label: Option<&'hir ast::Label>,
     /// The body of the loop.
@@ -223,12 +226,9 @@ pub struct ExprLoop<'hir> {
 }
 
 /// A `for` loop over an iterator: `for i in [1, 2, 3] {}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprFor<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The label of the loop.
     pub label: Option<&'hir ast::Label>,
     /// The pattern binding to use.
@@ -244,9 +244,6 @@ pub struct ExprFor<'hir> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct ExprLet<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The name of the binding.
     pub pat: &'hir Pat<'hir>,
     /// The expression the binding is assigned to.
@@ -254,12 +251,9 @@ pub struct ExprLet<'hir> {
 }
 
 /// An if statement: `if cond { true } else { false }`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprIf<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The condition to the if statement.
     pub condition: &'hir Condition<'hir>,
     /// The body of the if statement.
@@ -295,12 +289,9 @@ pub struct ExprElse<'hir> {
 }
 
 /// A match expression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprMatch<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The expression who's result we match over.
     pub expr: &'hir Expr<'hir>,
     /// Branches.
@@ -323,15 +314,12 @@ pub struct ExprMatchBranch<'hir> {
 }
 
 /// A function call `<expr>(<args>)`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Opaque, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Opaque)]
 #[non_exhaustive]
 pub struct ExprCall<'hir> {
     /// Opaque identifier related with call.
     #[rune(id)]
     pub(crate) id: Id,
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The name of the function being called.
     pub expr: &'hir Expr<'hir>,
     /// The arguments of the function call.
@@ -341,7 +329,7 @@ pub struct ExprCall<'hir> {
 impl<'hir> ExprCall<'hir> {
     /// Get the target of the call expression.
     pub(crate) fn target(&self) -> &Expr {
-        if let Expr::FieldAccess(access) = self.expr {
+        if let ExprKind::FieldAccess(access) = self.expr.kind {
             return access.expr;
         }
 
@@ -350,12 +338,9 @@ impl<'hir> ExprCall<'hir> {
 }
 
 /// A field access `<expr>.<field>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprFieldAccess<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The expr where the field is being accessed.
     pub expr: &'hir Expr<'hir>,
     /// The field being accessed.
@@ -373,12 +358,9 @@ pub enum ExprField<'hir> {
 }
 
 /// A binary expression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprBinary<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The left-hand side of a binary operation.
     pub lhs: &'hir Expr<'hir>,
     /// The operator.
@@ -388,12 +370,9 @@ pub struct ExprBinary<'hir> {
 }
 
 /// A unary expression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprUnary<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The operation to apply.
     pub op: ast::UnOp,
     /// The expression of the operation.
@@ -401,27 +380,13 @@ pub struct ExprUnary<'hir> {
 }
 
 /// An index get operation `<t>[<index>]`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprIndex<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The target of the index set.
     pub target: &'hir Expr<'hir>,
     /// The indexing expression.
     pub index: &'hir Expr<'hir>,
-}
-
-/// A `break` statement: `break [expr]`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprBreak<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
-    /// An optional expression to break with.
-    pub expr: Option<&'hir ExprBreakValue<'hir>>,
 }
 
 /// Things that we can break on.
@@ -434,35 +399,10 @@ pub enum ExprBreakValue<'hir> {
     Label(&'hir ast::Label),
 }
 
-/// A `continue` statement: `continue [label]`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprContinue<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
-    /// An optional label to continue to.
-    pub label: Option<&'hir ast::Label>,
-}
-
-/// A `yield [expr]` expression to return a value from a generator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprYield<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
-    /// An optional expression to yield.
-    pub expr: Option<&'hir Expr<'hir>>,
-}
-
 /// A block expression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprBlock<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The kind of the block.
     pub kind: ExprBlockKind,
     /// The optional move token.
@@ -480,46 +420,10 @@ pub enum ExprBlockKind {
     Const,
 }
 
-/// A return expression `return [expr]`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprReturn<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
-    /// An optional expression to return.
-    pub expr: Option<&'hir Expr<'hir>>,
-}
-
-/// A return statement `<expr>.await`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprAwait<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
-    /// The expression being awaited.
-    pub expr: &'hir Expr<'hir>,
-}
-
-/// A try expression `<expr>?`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprTry<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
-    /// The expression being awaited.
-    pub expr: &'hir Expr<'hir>,
-}
-
 /// A `select` expression that selects over a collection of futures.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprSelect<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// The branches of the select.
     pub branches: &'hir [ExprSelectBranch<'hir>],
 }
@@ -531,15 +435,7 @@ pub enum ExprSelectBranch<'hir> {
     /// A patterned branch.
     Pat(&'hir ExprSelectPatBranch<'hir>),
     /// A default branch.
-    Default(&'hir ExprDefaultBranch<'hir>),
-}
-
-/// A single selection branch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprDefaultBranch<'hir> {
-    /// The body of the expression.
-    pub body: &'hir Expr<'hir>,
+    Default(&'hir Expr<'hir>),
 }
 
 /// A single selection branch.
@@ -555,40 +451,22 @@ pub struct ExprSelectPatBranch<'hir> {
 }
 
 /// A closure expression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Opaque, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Opaque)]
 #[non_exhaustive]
 pub struct ExprClosure<'hir> {
     /// Opaque identifier for the closure.
     #[rune(id)]
     pub(crate) id: Id,
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// Arguments to the closure.
     pub args: &'hir [FnArg<'hir>],
     /// The body of the closure.
     pub body: &'hir Expr<'hir>,
 }
 
-/// A literal expression. With the addition of being able to receive attributes,
-/// this is identical to [ast::Lit].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
-#[non_exhaustive]
-pub struct ExprLit<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
-    /// The literal in the expression.
-    pub lit: &'hir ast::Lit,
-}
-
 /// An object expression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprObject<'hir> {
-    /// Span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// An object identifier.
     pub path: Option<&'hir Path<'hir>>,
     /// Assignments in the object.
@@ -639,23 +517,17 @@ impl<'a, 'hir> Resolve<'a> for ObjectKey<'hir> {
 }
 
 /// A literal vector.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprSeq<'hir> {
-    /// The span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// Items in the vector.
     pub items: &'hir [Expr<'hir>],
 }
 
 /// A range expression `a .. b` or `a ..= b`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprRange<'hir> {
-    /// The span of the expression.
-    #[rune(span)]
-    pub span: Span,
     /// Start of range.
     pub from: Option<&'hir Expr<'hir>>,
     /// The range limits.

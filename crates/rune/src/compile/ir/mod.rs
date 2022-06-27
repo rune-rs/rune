@@ -296,8 +296,11 @@ pub enum IrTemplateComponent {
 }
 
 /// Branch conditions in intermediate representation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrBranches {
+    /// Span associated with branches.
+    #[rune(span)]
+    pub span: Span,
     /// branches and their associated conditions.
     pub(crate) branches: Vec<(IrCondition, IrScope)>,
     /// The default fallback branch.
@@ -394,10 +397,12 @@ pub struct IrBreak {
 }
 
 impl IrBreak {
-    fn compile_ast(hir: &hir::ExprBreak, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
-        let span = hir.span();
-
-        let kind = match hir.expr {
+    fn compile_ast(
+        span: Span,
+        c: &mut IrCompiler<'_>,
+        hir: Option<&hir::ExprBreakValue>,
+    ) -> Result<Self, IrError> {
+        let kind = match hir {
             Some(expr) => match *expr {
                 hir::ExprBreakValue::Expr(e) => ir::IrBreakKind::Ir(Box::new(compile::expr(e, c)?)),
                 hir::ExprBreakValue::Label(label) => {
