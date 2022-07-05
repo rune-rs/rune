@@ -64,7 +64,7 @@ See each module for documentation:
 
 ### Features
 
-* `core` for the [core module][toml]
+* `core` for the [core module][core]
 * `experiments` for the [experiments module][experiments]
 * `fmt` for the [fmt module][fmt]
 * `fs` for the [fs module][fs]
