@@ -35,7 +35,7 @@ const SELF: &str = "self";
 struct IsUsed(bool);
 
 const IS_USED: IsUsed = IsUsed(true);
-const NOT_USED: IsUsed = IsUsed(true);
+const NOT_USED: IsUsed = IsUsed(false);
 
 pub(crate) struct Indexer<'a> {
     /// The root URL that the indexed file originated from.
