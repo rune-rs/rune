@@ -259,8 +259,8 @@ fn main() -> Result<()> {
                 Eof,
                 #("/// A single-line comment.")
                 Comment,
-                #("/// A multiline comment.")
-                MultilineComment,
+                #("/// A multiline comment where the boolean indicates if it's been terminated correctly.")
+                MultilineComment(bool),
                 #("/// En error marker.")
                 Error,
                 #("/// The special initial line of a file shebang.")
@@ -335,7 +335,7 @@ fn main() -> Result<()> {
                 fn into_expectation(self) -> #expectation {
                     match self {
                         Self::Eof => #expectation::Description("eof"),
-                        Self::Comment | Self::MultilineComment => #expectation::Comment,
+                        Self::Comment | Self::MultilineComment(..) => #expectation::Comment,
                         Self::Error => #expectation::Description("error"),
                         Self::Shebang { .. } => #expectation::Description("shebang"),
                         Self::Ident(..) => #expectation::Description("ident"),
