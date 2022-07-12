@@ -302,6 +302,8 @@ pub enum BuiltIn {
     BuiltIn,
     /// `literal`.
     Literal,
+    /// `doc`.
+    Doc,
 }
 
 impl BuiltIn {
@@ -312,6 +314,7 @@ impl BuiltIn {
             Self::Format => "formatspec",
             Self::BuiltIn => "builtin",
             Self::Literal => "literal",
+            Self::Doc => "doc",
         }
     }
 }

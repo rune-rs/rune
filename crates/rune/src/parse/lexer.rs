@@ -37,6 +37,46 @@ impl<'a> Lexer<'a> {
         self.iter.span_to_len(0)
     }
 
+    fn emit_doc_attribute(&mut self, inner: bool, span: Span, docstring_span: Span) {
+        // outer: #[doc = ...]
+        // inner: #![doc = ...]
+
+        self.buffer.push_back(ast::Token { kind: K![#], span });
+
+        if inner {
+            self.buffer.push_back(ast::Token { kind: K![!], span });
+        }
+
+        self.buffer.push_back(ast::Token {
+            kind: K!['['],
+            span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Doc)),
+            span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: K![=],
+            span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                source_id: self.source_id,
+                escaped: false,
+                wrapped: false,
+            })),
+            span: docstring_span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: K![']'],
+            span,
+        });
+    }
+
     fn emit_builtin_attribute(&mut self, span: Span) {
         self.buffer.push_back(ast::Token { kind: K![#], span });
 
@@ -559,12 +599,58 @@ impl<'a> Lexer<'a> {
                             break ast::Kind::PipeEq;
                         }
                         ('/', '/') => {
+                            let (doc, inner) = match self.iter.peek2() {
+                                Some('/') => {
+                                    (true, false)
+                                }
+                                Some('!') => {
+                                    (true, true)
+                                }
+                                _ => {
+                                    (false, false)
+                                }
+                            };
+
                             self.consume_line();
-                            break ast::Kind::Comment;
+                            if doc {
+                                // docstring span drops the first 3 characters (/// or //!)
+                                let span = self.iter.span_to_pos(start);
+                                self.emit_doc_attribute(inner, span, span.clone().trim_start(3));
+                                continue 'outer;
+                            } else {
+                                break ast::Kind::Comment;
+                            }
                         }
                         ('/', '*') => {
+                            let (doc, inner) = match self.iter.peek2() {
+                                Some('*') => {
+                                    (true, false)
+                                }
+                                Some('!') => {
+                                    (true, true)
+                                }
+                                _ => {
+                                    (false, false)
+                                }
+                            };
+
                             let term = self.consume_multiline_comment();
-                            break ast::Kind::MultilineComment(term);
+                            if !term {
+                                return Err(ParseError::new(
+                                    self.iter.span_to_pos(start),
+                                    ParseErrorKind::ExpectedMultilineCommentTerm,
+                                ));
+                            }
+
+                            if doc {
+                                // docstring drops the first 3 characters (/** or /*!)
+                                // drop the last two characters to remove */
+                                let span = self.iter.span_to_pos(start);
+                                self.emit_doc_attribute(inner, span, span.clone().trim_start(3).trim_end(2));
+                                continue 'outer;
+                            } else {
+                                break ast::Kind::MultilineComment;
+                            }
                         }
                         (':', ':') => {
                             self.iter.next();
@@ -1134,6 +1220,151 @@ mod tests {
             ast::Token {
                 span: span!(16, 17),
                 kind: ast::Kind::Close(ast::Delimiter::Parenthesis),
+            },
+        };
+    }
+
+    #[test]
+    fn test_doc_strings() {
+        test_lexer! {
+            "//! inner\n\
+             /// \"quoted\"",
+            ast::Token {
+                kind: K![#],
+                span: span!(0, 10)
+            },
+            ast::Token {
+                kind: K![!],
+                span: span!(0, 10)
+            },
+            ast::Token {
+                kind: K!['['],
+                span: span!(0, 10)
+            },
+            ast::Token {
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Doc)),
+                span: span!(0, 10)
+            },
+            ast::Token {
+                kind: K![=],
+                span: span!(0, 10)
+            },
+            ast::Token {
+                kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
+                    escaped: false,
+                    wrapped: false,
+                })),
+                span: span!(3, 10)
+            },
+            ast::Token {
+                kind: K![']'],
+                span: span!(0, 10)
+            },
+            ast::Token {
+                kind: K![#],
+                span: span!(10, 22)
+            },
+            ast::Token {
+                kind: K!['['],
+                span: span!(10, 22)
+            },
+            ast::Token {
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Doc)),
+                span: span!(10, 22)
+            },
+            ast::Token {
+                kind: K![=],
+                span: span!(10, 22)
+            },
+            ast::Token {
+                kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
+                    escaped: false,
+                    wrapped: false,
+                })),
+                span: span!(13, 22)
+            },
+            ast::Token {
+                kind: K![']'],
+                span: span!(10, 22)
+            },
+        };
+    }
+
+    #[test]
+    fn test_multiline_docstring() {
+        test_lexer! {
+            // /*!
+            //  * inner docstr
+            //  */
+            // /**
+            //  * docstr
+            //  */
+            "/*!\n * inner docstr\n */\n/**\n * docstr\n */",
+            ast::Token {
+                kind: K![#],
+                span: span!(0, 23)
+            },
+            ast::Token {
+                kind: K![!],
+                span: span!(0, 23)
+            },
+            ast::Token {
+                kind: K!['['],
+                span: span!(0, 23)
+            },
+            ast::Token {
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Doc)),
+                span: span!(0, 23)
+            },
+            ast::Token {
+                kind: K![=],
+                span: span!(0, 23)
+            },
+            ast::Token {
+                kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
+                    escaped: false,
+                    wrapped: false,
+                })),
+                span: span!(3, 21)
+            },
+            ast::Token {
+                kind: K![']'],
+                span: span!(0, 23)
+            },
+            ast::Token {
+                kind: ast::Kind::Whitespace,
+                span: span!(23, 24)
+            },
+            ast::Token {
+                kind: K![#],
+                span: span!(24, 41)
+            },
+            ast::Token {
+                kind: K!['['],
+                span: span!(24, 41)
+            },
+            ast::Token {
+                kind: ast::Kind::Ident(ast::LitSource::BuiltIn(ast::BuiltIn::Doc)),
+                span: span!(24, 41)
+            },
+            ast::Token {
+                kind: K![=],
+                span: span!(24, 41)
+            },
+            ast::Token {
+                kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
+                    source_id: SourceId::EMPTY,
+                    escaped: false,
+                    wrapped: false,
+                })),
+                span: span!(27, 39)
+            },
+            ast::Token {
+                kind: K![']'],
+                span: span!(24, 41)
             },
         };
     }
