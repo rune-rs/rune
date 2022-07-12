@@ -293,19 +293,9 @@ impl<'a> Peeker<'a> {
             };
 
             match token.kind {
-                Kind::Comment | Kind::Whitespace => {
+                Kind::Comment | Kind::Whitespace | Kind::MultilineComment => {
                     continue;
-                }
-                Kind::MultilineComment(term) => {
-                    if !term {
-                        return Err(ParseError::new(
-                            token.span,
-                            ParseErrorKind::ExpectedMultilineCommentTerm,
-                        ));
-                    }
-
-                    continue;
-                }
+                },
                 _ => (),
             }
 

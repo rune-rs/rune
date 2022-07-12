@@ -3,7 +3,7 @@ use crate::macros;
 use crate::parse;
 use std::fmt;
 
-/// This file has been generated from `assets\tokens.yaml`
+/// This file has been generated from `assets/tokens.yaml`
 /// DO NOT modify by hand!
 
 /// The `abstract` keyword.
@@ -4333,8 +4333,8 @@ pub enum Kind {
     Eof,
     /// A single-line comment.
     Comment,
-    /// A multiline comment where the boolean indicates if it's been terminated correctly.
-    MultilineComment(bool),
+    /// A multiline comment.
+    MultilineComment,
     /// En error marker.
     Error,
     /// The special initial line of a file shebang.
@@ -4747,7 +4747,7 @@ impl parse::IntoExpectation for Kind {
     fn into_expectation(self) -> parse::Expectation {
         match self {
             Self::Eof => parse::Expectation::Description("eof"),
-            Self::Comment | Self::MultilineComment(..) => parse::Expectation::Comment,
+            Self::Comment | Self::MultilineComment => parse::Expectation::Comment,
             Self::Error => parse::Expectation::Description("error"),
             Self::Shebang { .. } => parse::Expectation::Description("shebang"),
             Self::Ident(..) => parse::Expectation::Description("ident"),
