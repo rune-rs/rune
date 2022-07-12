@@ -599,9 +599,16 @@ impl<'a> Lexer<'a> {
                             break ast::Kind::PipeEq;
                         }
                         ('/', '/') => {
-                            let (doc, inner) = match self.iter.peek2() {
+                            self.iter.next();
+                            let (doc, inner) = match self.iter.peek() {
                                 Some('/') => {
-                                    (true, false)
+                                    // The character following this must not be another /.
+                                    // If it is, it's probably a separator, not a doc comment.
+                                    if let Some('/') = self.iter.peek2() {
+                                        (false, false)
+                                    } else {
+                                        (true, false)
+                                    }
                                 }
                                 Some('!') => {
                                     (true, true)
@@ -622,9 +629,16 @@ impl<'a> Lexer<'a> {
                             }
                         }
                         ('/', '*') => {
-                            let (doc, inner) = match self.iter.peek2() {
+                            self.iter.next();
+                            let (doc, inner) = match self.iter.peek() {
                                 Some('*') => {
-                                    (true, false)
+                                    // The character following this must not be another *.
+                                    // If it is, it's probably a separator, not a doc comment.
+                                    if let Some('*') = self.iter.peek2() {
+                                        (false, false)
+                                    } else {
+                                        (true, false)
+                                    }
                                 }
                                 Some('!') => {
                                     (true, true)
@@ -1365,6 +1379,33 @@ mod tests {
             ast::Token {
                 kind: K![']'],
                 span: span!(24, 41)
+            },
+        };
+    }
+
+    #[test]
+    fn test_comment_separators() {
+        test_lexer! {
+            "///////////////////////////////////\n\
+            /*********************************/\n\
+            /**********************************\n\
+            *                                 *\n\
+            ***********************************/",
+            ast::Token {
+                kind: ast::Kind::Comment,
+                span: span!(0, 36)
+            },
+            ast::Token {
+                kind: ast::Kind::MultilineComment,
+                span: span!(36, 71)
+            },
+            ast::Token {
+                kind: ast::Kind::Whitespace,
+                span: span!(71, 72)
+            },
+            ast::Token {
+                kind: ast::Kind::MultilineComment,
+                span: span!(72, 180)
             },
         };
     }
