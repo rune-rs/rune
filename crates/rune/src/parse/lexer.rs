@@ -37,6 +37,32 @@ impl<'a> Lexer<'a> {
         self.iter.span_to_len(0)
     }
 
+    /// Denote whether the next sequence of characters begin a doc comment.
+    ///
+    /// The lexer should have just identified a regular comment (`//_`, `/*_`, where _ is the
+    /// cursor's current position).
+    ///
+    /// Returns a tuple (doc, inner), referring to if a doc comment was found and if the ! character
+    /// was used to denote an inner comment.
+    fn check_doc_comment(&mut self, ch: char) -> (bool, bool) {
+        match self.iter.peek() {
+            Some(c) if c == ch => {
+                // The character following this must not be another of the provided character.
+                // If it is, it's probably a separator, not a doc comment.
+                match self.iter.peek2() {
+                    Some(c) if c == ch => (false, false),
+                    _ => (true, false)
+                }
+            }
+            Some('!') => {
+                (true, true)
+            }
+            _ => {
+                (false, false)
+            }
+        }
+    }
+
     fn emit_doc_attribute(&mut self, inner: bool, span: Span, docstring_span: Span) {
         // outer: #[doc = ...]
         // inner: #![doc = ...]
@@ -650,10 +676,7 @@ impl<'a> Lexer<'a> {
 
                             let term = self.consume_multiline_comment();
                             if !term {
-                                return Err(ParseError::new(
-                                    self.iter.span_to_pos(start),
-                                    ParseErrorKind::ExpectedMultilineCommentTerm,
-                                ));
+                                break ast::Kind::MultilineComment(false);
                             }
 
                             if doc {
