@@ -626,24 +626,7 @@ impl<'a> Lexer<'a> {
                         }
                         ('/', '/') => {
                             self.iter.next();
-                            let (doc, inner) = match self.iter.peek() {
-                                Some('/') => {
-                                    // The character following this must not be another /.
-                                    // If it is, it's probably a separator, not a doc comment.
-                                    if let Some('/') = self.iter.peek2() {
-                                        (false, false)
-                                    } else {
-                                        (true, false)
-                                    }
-                                }
-                                Some('!') => {
-                                    (true, true)
-                                }
-                                _ => {
-                                    (false, false)
-                                }
-                            };
-
+                            let (doc, inner) = self.check_doc_comment('/');
                             self.consume_line();
                             if doc {
                                 // docstring span drops the first 3 characters (/// or //!)
@@ -656,37 +639,20 @@ impl<'a> Lexer<'a> {
                         }
                         ('/', '*') => {
                             self.iter.next();
-                            let (doc, inner) = match self.iter.peek() {
-                                Some('*') => {
-                                    // The character following this must not be another *.
-                                    // If it is, it's probably a separator, not a doc comment.
-                                    if let Some('*') = self.iter.peek2() {
-                                        (false, false)
-                                    } else {
-                                        (true, false)
-                                    }
-                                }
-                                Some('!') => {
-                                    (true, true)
-                                }
-                                _ => {
-                                    (false, false)
-                                }
-                            };
-
+                            let (doc, inner) = self.check_doc_comment('*');
                             let term = self.consume_multiline_comment();
                             if !term {
                                 break ast::Kind::MultilineComment(false);
                             }
 
                             if doc {
-                                // docstring drops the first 3 characters (/** or /*!)
+                                // docstring span drops the first 3 characters (/** or /*!)
                                 // drop the last two characters to remove */
                                 let span = self.iter.span_to_pos(start);
                                 self.emit_doc_attribute(inner, span, span.clone().trim_start(3).trim_end(2));
                                 continue 'outer;
                             } else {
-                                break ast::Kind::MultilineComment;
+                                break ast::Kind::MultilineComment(true);
                             }
                         }
                         (':', ':') => {
@@ -1419,7 +1385,7 @@ mod tests {
                 span: span!(0, 36)
             },
             ast::Token {
-                kind: ast::Kind::MultilineComment,
+                kind: ast::Kind::MultilineComment(true),
                 span: span!(36, 71)
             },
             ast::Token {
@@ -1427,7 +1393,7 @@ mod tests {
                 span: span!(71, 72)
             },
             ast::Token {
-                kind: ast::Kind::MultilineComment,
+                kind: ast::Kind::MultilineComment(true),
                 span: span!(72, 180)
             },
         };
