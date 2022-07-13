@@ -1,8 +1,9 @@
 use crate::ast;
 use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::collections::HashMap;
-use crate::compile::attrs;
+use crate::compile::attrs::Attributes;
 use crate::compile::ir;
+use crate::compile::{attrs, Doc};
 use crate::compile::{
     CompileError, CompileErrorKind, CompileResult, Item, Location, ModMeta, Options, PrivMeta,
     PrivMetaKind, SourceLoader, SourceMeta, Visibility,
@@ -521,7 +522,11 @@ impl<'a> Indexer<'a> {
     }
 
     /// Handle a filesystem module.
-    pub(crate) fn handle_file_mod(&mut self, item_mod: &mut ast::ItemMod) -> CompileResult<()> {
+    pub(crate) fn handle_file_mod(
+        &mut self,
+        item_mod: &mut ast::ItemMod,
+        docs: Arc<Vec<Doc>>,
+    ) -> CompileResult<()> {
         let span = item_mod.span();
         let name = item_mod.name.resolve(resolve_context!(self.q))?;
         let _guard = self.items.push_name(name.as_ref());
@@ -544,6 +549,7 @@ impl<'a> Indexer<'a> {
             item_mod.name_span(),
             &self.mod_item,
             visibility,
+            docs,
         )?;
 
         item_mod.id.set(self.items.id());
@@ -579,7 +585,11 @@ impl<'a> Indexer<'a> {
 }
 
 pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    if let Some(first) = ast.attributes.first() {
+    let mut attrs = Attributes::new(ast.attributes.to_vec());
+    // TODO find a way to hold onto file-level docs?
+    attrs.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
+
+    if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
             first,
             "file attributes are not supported",
@@ -610,9 +620,17 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let _guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
-    let item = idx
-        .q
-        .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
+    let mut attributes = attrs::Attributes::new(ast.attributes.clone());
+    let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attributes)?);
+
+    let item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        visibility,
+        docs,
+    )?;
 
     let kind = match (ast.const_token, ast.async_token) {
         (Some(const_token), Some(async_token)) => {
@@ -680,8 +698,6 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     // NB: it's only a public item in the sense of exporting it if it's not
     // inside of a nested item.
     let is_public = item.is_public() && idx.nested_item.is_none();
-
-    let mut attributes = attrs::Attributes::new(ast.attributes.clone());
 
     let is_test = match attributes.try_parse::<attrs::Test>(resolve_context!(idx.q))? {
         Some((span, _)) => {
@@ -836,6 +852,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         span,
         &idx.mod_item,
         Visibility::default(),
+        Arc::new(Vec::new()),
     )?;
 
     ast.block.id = item.id;
@@ -897,6 +914,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
         span,
         &idx.mod_item,
         Visibility::Inherited,
+        Arc::new(Vec::new()),
     )?;
 
     idx.preprocess_stmts(&mut ast.statements)?;
@@ -1239,8 +1257,10 @@ fn condition(ast: &mut ast::Condition, idx: &mut Indexer<'_>) -> CompileResult<(
 #[instrument]
 fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
+    let mut attrs = Attributes::new(ast.attributes.to_vec());
+    let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attrs)?);
 
-    if let Some(first) = ast.attributes.first() {
+    if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
             first,
             "enum attributes are not supported",
@@ -1251,14 +1271,22 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
     let _guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
-    let enum_item =
-        idx.q
-            .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
+    let enum_item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        visibility,
+        docs,
+    )?;
 
     idx.q.index_enum(&enum_item)?;
 
     for (index, (variant, _)) in ast.variants.iter_mut().enumerate() {
-        if let Some(first) = variant.attributes.first() {
+        let mut attrs = Attributes::new(variant.attributes.to_vec());
+        let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attrs)?);
+
+        if let Some(first) = attrs.remaining() {
             return Err(CompileError::msg(
                 first,
                 "variant attributes are not supported yet",
@@ -1284,6 +1312,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             span,
             &idx.mod_item,
             Visibility::Public,
+            docs,
         )?;
         variant.id = item.id;
 
@@ -1297,8 +1326,10 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
 #[instrument]
 fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
+    let mut attrs = Attributes::new(ast.attributes.to_vec());
+    let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attrs)?);
 
-    if let Some(first) = ast.attributes.first() {
+    if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
             first,
             "struct attributes are not supported",
@@ -1323,9 +1354,14 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     let _guard = idx.items.push_name(ident);
 
     let visibility = ast_to_visibility(&ast.visibility)?;
-    let item = idx
-        .q
-        .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility)?;
+    let item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        visibility,
+        docs,
+    )?;
     ast.id = item.id;
 
     idx.q.index_struct(&item, Box::new(ast.clone()))?;
@@ -1371,7 +1407,10 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
 
 #[instrument]
 fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    if let Some(first) = ast.attributes.first() {
+    let mut attrs = Attributes::new(ast.attributes.to_vec());
+    let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attrs)?);
+
+    if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
             first,
             "module attributes are not supported",
@@ -1382,7 +1421,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
 
     match &mut ast.body {
         ast::ItemModBody::EmptyBody(..) => {
-            idx.handle_file_mod(ast)?;
+            idx.handle_file_mod(ast, docs)?;
         }
         ast::ItemModBody::InlineBody(body) => {
             let name = ast.name.resolve(resolve_context!(idx.q))?;
@@ -1395,6 +1434,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
                 name_span,
                 &idx.mod_item,
                 visibility,
+                docs,
             )?;
 
             ast.id.set(idx.items.id());
@@ -1410,7 +1450,10 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
 
 #[instrument]
 fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    if let Some(first) = ast.attributes.first() {
+    let mut attrs = Attributes::new(ast.attributes.to_vec());
+    let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attrs)?);
+
+    if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
             first,
             "attributes on constants are not supported",
@@ -1427,6 +1470,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
         span,
         &idx.mod_item,
         ast_to_visibility(&ast.visibility)?,
+        docs,
     )?;
 
     ast.id = item.id;
@@ -1487,6 +1531,7 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
         ast::Item::Use(..) => {}
     }
 
+    attributes.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
     if let Some(span) = attributes.remaining() {
         return Err(CompileError::msg(span, "unsupported item attribute"));
     }
@@ -1581,6 +1626,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
         span,
         &idx.mod_item,
         Visibility::Inherited,
+        Arc::new(Vec::new()),
     )?;
 
     ast.id.set(idx.items.id());

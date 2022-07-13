@@ -1,8 +1,10 @@
 //! Compiler metadata for Rune.
 
+use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
+use crate::compile::attrs::Attributes;
 use crate::compile::{Item, Location, Visibility};
-use crate::parse::Id;
+use crate::parse::{Id, ParseError, ResolveContext};
 use crate::runtime::ConstValue;
 use crate::Hash;
 use std::fmt;
@@ -140,6 +142,31 @@ pub struct SourceMeta {
 pub(crate) struct CaptureMeta {
     /// Identity of the captured variable.
     pub(crate) ident: Box<str>,
+}
+
+/// Doc content for a compiled item.
+#[derive(Debug, Clone)]
+pub(crate) struct Doc {
+    /// The span of the whole doc comment.
+    pub(crate) span: Span,
+    /// The string content of the doc comment.
+    pub(crate) doc_string: LitStr,
+}
+
+impl Doc {
+    pub(crate) fn collect_from(
+        ctx: ResolveContext<'_>,
+        attrs: &mut Attributes,
+    ) -> Result<Vec<Doc>, ParseError> {
+        Ok(attrs
+            .try_parse_collect::<crate::compile::attrs::Doc>(ctx)?
+            .into_iter()
+            .map(|(span, doc)| Doc {
+                span,
+                doc_string: doc.doc_string,
+            })
+            .collect())
+    }
 }
 
 /// Metadata about a compiled unit.
@@ -363,6 +390,8 @@ pub(crate) struct ItemMeta {
     pub(crate) visibility: Visibility,
     /// The module associated with the item.
     pub(crate) module: Arc<ModMeta>,
+    /// Doc comment attributes, if any.
+    pub(crate) docs: Arc<Vec<Doc>>,
 }
 
 impl ItemMeta {
@@ -380,6 +409,7 @@ impl From<Item> for ItemMeta {
             item,
             visibility: Default::default(),
             module: Default::default(),
+            docs: Arc::new(Vec::new()),
         }
     }
 }

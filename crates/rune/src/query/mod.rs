@@ -10,7 +10,7 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::{
-    ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ImportStep,
+    ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep,
     IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemMeta, Location, ModMeta, Names,
     Prelude, PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta,
     UnitBuilder, Visibility,
@@ -181,7 +181,20 @@ impl<'a> Query<'a> {
 
     /// Insert the given compile meta.
     pub(crate) fn insert_meta(&mut self, span: Span, meta: PrivMeta) -> Result<(), QueryError> {
-        self.visitor.register_meta(meta.info_ref());
+        let mref = meta.info_ref();
+        self.visitor.register_meta(mref);
+
+        if !meta.item.docs.is_empty() {
+            let ctx = resolve_context!(self);
+            for doc in &*meta.item.docs {
+                self.visitor.visit_doc_comment(
+                    meta.item.location.source_id,
+                    mref,
+                    doc.span,
+                    &*doc.doc_string.resolve(ctx)?,
+                );
+            }
+        }
 
         match self.inner.meta.entry(meta.item.item.clone()) {
             hash_map::Entry::Occupied(e) => {
@@ -245,8 +258,9 @@ impl<'a> Query<'a> {
         span: Span,
         parent: &Arc<ModMeta>,
         visibility: Visibility,
+        docs: Arc<Vec<Doc>>,
     ) -> Result<Arc<ModMeta>, QueryError> {
-        let item = self.insert_new_item(items, source_id, span, parent, visibility)?;
+        let item = self.insert_new_item(items, source_id, span, parent, visibility, docs)?;
 
         let query_mod = Arc::new(ModMeta {
             location: Location::new(source_id, span),
@@ -303,11 +317,12 @@ impl<'a> Query<'a> {
         spanned: Span,
         module: &Arc<ModMeta>,
         visibility: Visibility,
+        docs: Arc<Vec<Doc>>,
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let id = items.id();
         let item = &*items.item();
 
-        self.insert_new_item_with(id, item, source_id, spanned, module, visibility)
+        self.insert_new_item_with(id, item, source_id, spanned, module, visibility, docs)
     }
 
     /// Insert a new expanded internal macro.
@@ -775,7 +790,15 @@ impl<'a> Query<'a> {
         };
 
         let id = self.gen.next();
-        let item = self.insert_new_item_with(id, &item, source_id, span, module, visibility)?;
+        let item = self.insert_new_item_with(
+            id,
+            &item,
+            source_id,
+            span,
+            module,
+            visibility,
+            Arc::new(Vec::new()),
+        )?;
 
         // toplevel public uses are re-exported.
         if item.is_public() {
@@ -1125,6 +1148,7 @@ impl<'a> Query<'a> {
         span: Span,
         module: &Arc<ModMeta>,
         visibility: Visibility,
+        docs: Arc<Vec<Doc>>,
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let query_item = Arc::new(ItemMeta {
             location: Location::new(source_id, span),
@@ -1132,6 +1156,7 @@ impl<'a> Query<'a> {
             item: item.clone(),
             module: module.clone(),
             visibility,
+            docs,
         });
 
         self.inner.items.insert(id, query_item.clone());
