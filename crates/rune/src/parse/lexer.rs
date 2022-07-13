@@ -624,7 +624,7 @@ impl<'a> Lexer<'a> {
                             if doc {
                                 // docstring span drops the first 3 characters (/// or //!)
                                 let span = self.iter.span_to_pos(start);
-                                self.emit_doc_attribute(inner, span, span.clone().trim_start(3));
+                                self.emit_doc_attribute(inner, span, span.trim_start(3));
                                 continue 'outer;
                             } else {
                                 break ast::Kind::Comment;
@@ -645,7 +645,7 @@ impl<'a> Lexer<'a> {
                                 self.emit_doc_attribute(
                                     inner,
                                     span,
-                                    span.clone().trim_start(3).trim_end(2),
+                                    span.trim_start(3).trim_end(2),
                                 );
                                 continue 'outer;
                             } else {

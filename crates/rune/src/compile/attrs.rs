@@ -167,6 +167,7 @@ impl Attribute for Bench {
 #[derive(Parse)]
 pub(crate) struct Doc {
     /// The `=` token.
+    #[allow(dead_code)]
     pub eq_token: T![=],
     /// The doc string.
     pub doc_string: LitStr,
