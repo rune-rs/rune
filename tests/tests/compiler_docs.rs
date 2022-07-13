@@ -11,40 +11,26 @@ struct DocVisitor {
 }
 
 impl CompileVisitor for DocVisitor {
-
     fn visit_doc_comment(&mut self, _: SourceId, meta: MetaRef<'_>, _: Span, doc: &str) {
-        let key = meta.item.to_string();
-        let vec = if let Some(vec) = self.collected.get_mut(&key) {
-            vec
-        } else {
-            self.collected.insert(key.clone(), Vec::new());
-            self.collected.get_mut(&key).unwrap()
-        };
-
-        vec.push(doc.to_string());
+        self.collected.entry(meta.item.to_string()).or_default().push(doc.to_string());
     }
-
 }
 
 impl DocVisitor {
-
     fn assert(&self) {
-        for (k, expected) in &self.expected {
-            let against = if let Some(vec) = self.collected.get(*k) {
+        for (&item, expected) in &self.expected {
+            let against = if let Some(vec) = self.collected.get(item) {
                 vec
             } else {
-                panic!("missing documentation for item {k:?}");
+                panic!("missing documentation for item {item:?}");
             };
 
-            let mut idx: usize = 0;
-            while idx < expected.len() {
-                if let Some(collected) = against.get(idx) {
-                    assert_eq!(collected, expected[idx], "mismatched docstring:\n\tgot: {:?}\n\texp: {:?}", collected, expected[idx]);
+            for (i, expected) in expected.iter().enumerate() {
+                if let Some(collected) = against.get(i) {
+                    assert_eq!(collected, expected, "mismatched docstring");
                 } else {
-                    panic!("missing docstrings, expected: {:?}", expected[idx]);
+                    panic!("missing docstrings, expected: {:?}", expected);
                 }
-
-                idx += 1;
             }
 
             if expected.len() < against.len() {
@@ -58,7 +44,6 @@ impl DocVisitor {
             panic!("encountered more documented items than expected: {vec:?}");
         }
     }
-
 }
 
 macro_rules! expect_docs {
