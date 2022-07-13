@@ -26,18 +26,17 @@ impl Attributes {
         self.unused.clear();
     }
 
-    /// Try to parse the attribute with the given type.
+    /// Try to parse and collect all attributes of a given type.
     ///
-    /// Returns the parsed element and the span it was parsed from if
-    /// successful.
-    pub(crate) fn try_parse<T>(
+    /// The returned Vec may be empty.
+    pub(crate) fn try_parse_collect<T>(
         &mut self,
         ctx: ResolveContext<'_>,
-    ) -> Result<Option<(Span, T)>, ParseError>
+    ) -> Result<Vec<(Span, T)>, ParseError>
     where
         T: Attribute + Parse,
     {
-        let mut matched = None;
+        let mut matched = Vec::new();
 
         for index in self.unused.iter().copied() {
             let a = match self.attributes.get(index) {
@@ -57,24 +56,35 @@ impl Attributes {
             }
 
             let span = a.span();
-
-            if matched.is_some() {
-                return Err(ParseError::new(
-                    span,
-                    ParseErrorKind::MultipleMatchingAttributes { name: T::PATH },
-                ));
-            }
-
             let mut parser = Parser::from_token_stream(&a.input, a.span());
-            matched = Some((index, span, parser.parse::<T>()?));
+            matched.push((index, span, parser.parse::<T>()?));
             parser.eof()?;
         }
 
-        if let Some((index, span, matched)) = matched {
+        Ok(matched.into_iter().map(|(index, span, matched)| {
             self.unused.remove(&index);
-            Ok(Some((span, matched)))
-        } else {
-            Ok(None)
+            (span, matched)
+        }).collect())
+    }
+
+    /// Try to parse a unique attribute with the given type.
+    ///
+    /// Returns the parsed element and the span it was parsed from if
+    /// successful.
+    pub(crate) fn try_parse<T>(
+        &mut self,
+        ctx: ResolveContext<'_>,
+    ) -> Result<Option<(Span, T)>, ParseError>
+    where
+        T: Attribute + Parse,
+    {
+        let mut vec = self.try_parse_collect::<T>(ctx)?;
+        match vec.len() {
+            0 => Ok(None),
+            1 => Ok(Some(vec.swap_remove(0))),
+            _ => Err(ParseError::new(
+                vec.swap_remove(1).0,
+                ParseErrorKind::MultipleMatchingAttributes { name: T::PATH }))
         }
     }
 
