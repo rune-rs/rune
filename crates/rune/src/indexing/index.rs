@@ -858,7 +858,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
 
         block(&mut ast.block, idx)?;
 
-        idx.q.index_const(&item, None, ast, |ast, c| {
+        idx.q.index_const(&item, ast, |ast, c| {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
             let ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
@@ -1266,7 +1266,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         idx.q
             .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility, docs)?;
 
-    idx.q.index_enum(&enum_item, ast.clone())?;
+    idx.q.index_enum(&enum_item)?;
 
     for (index, (variant, _)) in ast.variants.iter_mut().enumerate() {
         let mut attrs = Attributes::new(variant.attributes.to_vec());
@@ -1460,7 +1460,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
     expr(&mut ast.expr, idx, IS_USED)?;
     idx.nested_item = last;
 
-    idx.q.index_const(&item, Some(ast.clone()), &ast.expr, |ast, c| {
+    idx.q.index_const(&item, &ast.expr, |ast, c| {
         // TODO: avoid this arena?
         let arena = crate::hir::Arena::new();
         let hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());

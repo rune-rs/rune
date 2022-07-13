@@ -426,7 +426,6 @@ impl<'a> Query<'a> {
     pub(crate) fn index_const<T>(
         &mut self,
         item: &Arc<ItemMeta>,
-        ast: Option<ast::ItemConst>,
         value: &T,
         f: fn(&T, &mut IrCompiler) -> Result<ir::Ir, ir::IrError>,
     ) -> Result<(), QueryError> {
@@ -441,7 +440,6 @@ impl<'a> Query<'a> {
         self.index(IndexedEntry {
             item: item.clone(),
             indexed: Indexed::Const(Const {
-                ast,
                 module: item.module.clone(),
                 ir,
             }),
@@ -470,12 +468,12 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new enum item.
-    pub(crate) fn index_enum(&mut self, item: &Arc<ItemMeta>, ast: ast::ItemEnum) -> Result<(), QueryError> {
+    pub(crate) fn index_enum(&mut self, item: &Arc<ItemMeta>) -> Result<(), QueryError> {
         tracing::trace!("new enum: {:?}", item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
-            indexed: Indexed::Enum(Enum::new(ast)),
+            indexed: Indexed::Enum,
         });
 
         Ok(())
@@ -971,7 +969,7 @@ impl<'a> Query<'a> {
         } = entry;
 
         let kind = match indexed {
-            Indexed::Enum(_) => PrivMetaKind::Enum {
+            Indexed::Enum => PrivMetaKind::Enum {
                 type_hash: Hash::type_hash(&query_item.item),
             },
             Indexed::Variant(variant) => {
@@ -1357,7 +1355,7 @@ impl Default for Used {
 
 #[derive(Debug, Clone)]
 pub(crate) enum Indexed {
-    Enum(Enum),
+    Enum,
     Struct(Struct),
     Variant(Variant),
     Function(Function),
@@ -1366,19 +1364,6 @@ pub(crate) enum Indexed {
     Const(Const),
     ConstFn(ConstFn),
     Import(Import),
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct Enum {
-    /// The ast of the enum.
-    ast: ast::ItemEnum,
-}
-
-impl Enum {
-    /// Construct a new enum entry.
-    pub(crate) fn new(ast: ast::ItemEnum) -> Self {
-        Self { ast }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -1472,8 +1457,6 @@ pub(crate) struct AsyncBlock {
 pub(crate) struct Const {
     /// The module item the constant is defined in.
     pub(crate) module: Arc<ModMeta>,
-    /// The const ast.
-    pub(crate) ast: Option<ast::ItemConst>,
     /// The intermediate representation of the constant expression.
     pub(crate) ir: ir::Ir,
 }
