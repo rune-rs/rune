@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1657021047794,
+  "lastUpdate": 1657701156325,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -14368,6 +14368,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 6362317,
             "range": "± 15624",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "1240058+Xemiru@users.noreply.github.com",
+            "name": "xemiru",
+            "username": "Xemiru"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4e77a4ce88b2c84c151d96d347169a56ea22f445",
+          "message": "Emit doc attributes from doc comments and expose them to CompileVisitor (#408)\n\nCo-authored-by: John-John Tedro <udoprog@tedro.se>",
+          "timestamp": "2022-07-13T10:25:22+02:00",
+          "tree_id": "61439d720313c4d33252cfb46b7fd0df34fb65be",
+          "url": "https://github.com/rune-rs/rune/commit/4e77a4ce88b2c84c151d96d347169a56ea22f445"
+        },
+        "date": 1657701155691,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 445528024,
+            "range": "± 1510993",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 241588069,
+            "range": "± 2635714",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 350100,
+            "range": "± 41118",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 974467,
+            "range": "± 3478",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 72487901,
+            "range": "± 729432",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1265324,
+            "range": "± 10447",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13666452,
+            "range": "± 42752",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11578165,
+            "range": "± 65947",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 582805,
+            "range": "± 9421",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 6446733,
+            "range": "± 46795",
             "unit": "ns/iter"
           }
         ]
