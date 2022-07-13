@@ -1,6 +1,8 @@
 //! Compiler metadata for Rune.
 
+use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
+use crate::compile::attrs::Attributes;
 use crate::compile::{Item, Location, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::runtime::ConstValue;
@@ -8,8 +10,6 @@ use crate::Hash;
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
-use crate::ast::{LitStr, Span};
-use crate::compile::attrs::Attributes;
 
 /// Provides an owned human-readable description of a meta item.
 #[derive(Debug, Clone)]
@@ -150,20 +150,23 @@ pub(crate) struct Doc {
     /// The span of the whole doc comment.
     pub(crate) span: Span,
     /// The string content of the doc comment.
-    pub(crate) doc_string: LitStr
+    pub(crate) doc_string: LitStr,
 }
 
 impl Doc {
-
-    pub(crate) fn collect_from(ctx: ResolveContext<'_>, attrs: &mut Attributes) -> Result<Vec<Doc>, ParseError> {
-        Ok(attrs.try_parse_collect::<crate::compile::attrs::Doc>(ctx)?
+    pub(crate) fn collect_from(
+        ctx: ResolveContext<'_>,
+        attrs: &mut Attributes,
+    ) -> Result<Vec<Doc>, ParseError> {
+        Ok(attrs
+            .try_parse_collect::<crate::compile::attrs::Doc>(ctx)?
             .into_iter()
             .map(|(span, doc)| Doc {
                 span,
-                doc_string: doc.doc_string
-            }).collect())
+                doc_string: doc.doc_string,
+            })
+            .collect())
     }
-
 }
 
 /// Metadata about a compiled unit.
@@ -406,7 +409,7 @@ impl From<Item> for ItemMeta {
             item,
             visibility: Default::default(),
             module: Default::default(),
-            docs: Arc::new(Vec::new())
+            docs: Arc::new(Vec::new()),
         }
     }
 }

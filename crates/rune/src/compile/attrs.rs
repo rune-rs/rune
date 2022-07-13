@@ -61,10 +61,13 @@ impl Attributes {
             parser.eof()?;
         }
 
-        Ok(matched.into_iter().map(|(index, span, matched)| {
-            self.unused.remove(&index);
-            (span, matched)
-        }).collect())
+        Ok(matched
+            .into_iter()
+            .map(|(index, span, matched)| {
+                self.unused.remove(&index);
+                (span, matched)
+            })
+            .collect())
     }
 
     /// Try to parse a unique attribute with the given type.
@@ -84,7 +87,8 @@ impl Attributes {
             1 => Ok(Some(vec.swap_remove(0))),
             _ => Err(ParseError::new(
                 vec.swap_remove(1).0,
-                ParseErrorKind::MultipleMatchingAttributes { name: T::PATH }))
+                ParseErrorKind::MultipleMatchingAttributes { name: T::PATH },
+            )),
         }
     }
 
@@ -165,7 +169,7 @@ pub(crate) struct Doc {
     /// The `=` token.
     pub eq_token: T![=],
     /// The doc string.
-    pub doc_string: LitStr
+    pub doc_string: LitStr,
 }
 
 impl Attribute for Doc {

@@ -1,8 +1,9 @@
 use crate::ast;
 use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::collections::HashMap;
-use crate::compile::{attrs, Doc};
+use crate::compile::attrs::Attributes;
 use crate::compile::ir;
+use crate::compile::{attrs, Doc};
 use crate::compile::{
     CompileError, CompileErrorKind, CompileResult, Item, Location, ModMeta, Options, PrivMeta,
     PrivMetaKind, SourceLoader, SourceMeta, Visibility,
@@ -25,7 +26,6 @@ use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
-use crate::compile::attrs::Attributes;
 
 /// `self` variable.
 const SELF: &str = "self";
@@ -522,7 +522,11 @@ impl<'a> Indexer<'a> {
     }
 
     /// Handle a filesystem module.
-    pub(crate) fn handle_file_mod(&mut self, item_mod: &mut ast::ItemMod, docs: Arc<Vec<Doc>>) -> CompileResult<()> {
+    pub(crate) fn handle_file_mod(
+        &mut self,
+        item_mod: &mut ast::ItemMod,
+        docs: Arc<Vec<Doc>>,
+    ) -> CompileResult<()> {
         let span = item_mod.span();
         let name = item_mod.name.resolve(resolve_context!(self.q))?;
         let _guard = self.items.push_name(name.as_ref());
@@ -619,9 +623,14 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let mut attributes = attrs::Attributes::new(ast.attributes.clone());
     let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attributes)?);
 
-    let item = idx
-        .q
-        .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility, docs)?;
+    let item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        visibility,
+        docs,
+    )?;
 
     let kind = match (ast.const_token, ast.async_token) {
         (Some(const_token), Some(async_token)) => {
@@ -843,7 +852,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         span,
         &idx.mod_item,
         Visibility::default(),
-        Arc::new(Vec::new())
+        Arc::new(Vec::new()),
     )?;
 
     ast.block.id = item.id;
@@ -905,7 +914,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
         span,
         &idx.mod_item,
         Visibility::Inherited,
-        Arc::new(Vec::new())
+        Arc::new(Vec::new()),
     )?;
 
     idx.preprocess_stmts(&mut ast.statements)?;
@@ -1262,9 +1271,14 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
     let _guard = idx.items.push_name(name.as_ref());
 
     let visibility = ast_to_visibility(&ast.visibility)?;
-    let enum_item =
-        idx.q
-            .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility, docs)?;
+    let enum_item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        visibility,
+        docs,
+    )?;
 
     idx.q.index_enum(&enum_item)?;
 
@@ -1298,7 +1312,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             span,
             &idx.mod_item,
             Visibility::Public,
-            docs
+            docs,
         )?;
         variant.id = item.id;
 
@@ -1340,9 +1354,14 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     let _guard = idx.items.push_name(ident);
 
     let visibility = ast_to_visibility(&ast.visibility)?;
-    let item = idx
-        .q
-        .insert_new_item(&idx.items, idx.source_id, span, &idx.mod_item, visibility, docs)?;
+    let item = idx.q.insert_new_item(
+        &idx.items,
+        idx.source_id,
+        span,
+        &idx.mod_item,
+        visibility,
+        docs,
+    )?;
     ast.id = item.id;
 
     idx.q.index_struct(&item, Box::new(ast.clone()))?;
@@ -1415,7 +1434,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
                 name_span,
                 &idx.mod_item,
                 visibility,
-                docs
+                docs,
             )?;
 
             ast.id.set(idx.items.id());
@@ -1451,7 +1470,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
         span,
         &idx.mod_item,
         ast_to_visibility(&ast.visibility)?,
-        docs
+        docs,
     )?;
 
     ast.id = item.id;
@@ -1607,7 +1626,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
         span,
         &idx.mod_item,
         Visibility::Inherited,
-        Arc::new(Vec::new())
+        Arc::new(Vec::new()),
     )?;
 
     ast.id.set(idx.items.id());

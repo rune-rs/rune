@@ -187,7 +187,12 @@ impl<'a> Query<'a> {
         if !meta.item.docs.is_empty() {
             let ctx = resolve_context!(self);
             for doc in &*meta.item.docs {
-                self.visitor.visit_doc_comment(meta.item.location.source_id, mref, doc.span, &*doc.doc_string.resolve(ctx)?);
+                self.visitor.visit_doc_comment(
+                    meta.item.location.source_id,
+                    mref,
+                    doc.span,
+                    &*doc.doc_string.resolve(ctx)?,
+                );
             }
         }
 
@@ -785,7 +790,15 @@ impl<'a> Query<'a> {
         };
 
         let id = self.gen.next();
-        let item = self.insert_new_item_with(id, &item, source_id, span, module, visibility, Arc::new(Vec::new()))?;
+        let item = self.insert_new_item_with(
+            id,
+            &item,
+            source_id,
+            span,
+            module,
+            visibility,
+            Arc::new(Vec::new()),
+        )?;
 
         // toplevel public uses are re-exported.
         if item.is_public() {

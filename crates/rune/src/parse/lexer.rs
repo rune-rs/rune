@@ -51,15 +51,11 @@ impl<'a> Lexer<'a> {
                 // If it is, it's probably a separator, not a doc comment.
                 match self.iter.peek2() {
                     Some(c) if c == ch => (false, false),
-                    _ => (true, false)
+                    _ => (true, false),
                 }
             }
-            Some('!') => {
-                (true, true)
-            }
-            _ => {
-                (false, false)
-            }
+            Some('!') => (true, true),
+            _ => (false, false),
         }
     }
 
@@ -83,10 +79,7 @@ impl<'a> Lexer<'a> {
             span,
         });
 
-        self.buffer.push_back(ast::Token {
-            kind: K![=],
-            span,
-        });
+        self.buffer.push_back(ast::Token { kind: K![=], span });
 
         self.buffer.push_back(ast::Token {
             kind: ast::Kind::Str(ast::StrSource::Text(ast::StrText {
@@ -649,7 +642,11 @@ impl<'a> Lexer<'a> {
                                 // docstring span drops the first 3 characters (/** or /*!)
                                 // drop the last two characters to remove */
                                 let span = self.iter.span_to_pos(start);
-                                self.emit_doc_attribute(inner, span, span.clone().trim_start(3).trim_end(2));
+                                self.emit_doc_attribute(
+                                    inner,
+                                    span,
+                                    span.clone().trim_start(3).trim_end(2),
+                                );
                                 continue 'outer;
                             } else {
                                 break ast::Kind::MultilineComment(true);

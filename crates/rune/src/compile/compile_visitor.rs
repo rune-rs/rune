@@ -20,8 +20,14 @@ pub trait CompileVisitor {
     ///
     /// This may be called several times for a single item. Each attribute should eventually be
     /// combined for the full doc string.
-    fn visit_doc_comment(&mut self, _source_id: SourceId, _meta: MetaRef<'_>, _span: Span, _docstr: &str) {}
-
+    fn visit_doc_comment(
+        &mut self,
+        _source_id: SourceId,
+        _meta: MetaRef<'_>,
+        _span: Span,
+        _docstr: &str,
+    ) {
+    }
 }
 
 /// A [CompileVisitor] which does nothing.
