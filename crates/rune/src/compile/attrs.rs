@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::ast::{Span, Spanned};
+use crate::ast::{LitStr, Span, Spanned};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveContext};
 use std::collections::BTreeSet;
 
@@ -158,4 +158,17 @@ pub(crate) struct Bench {}
 impl Attribute for Bench {
     /// Must match the specified name.
     const PATH: &'static str = "bench";
+}
+
+#[derive(Parse)]
+pub(crate) struct Doc {
+    /// The `=` token.
+    pub eq_token: T![=],
+    /// The doc string.
+    pub doc_string: LitStr
+}
+
+impl Attribute for Doc {
+    /// Must match the specified name.
+    const PATH: &'static str = "doc";
 }

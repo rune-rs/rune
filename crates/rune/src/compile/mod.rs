@@ -55,7 +55,7 @@ pub use self::location::Location;
 
 mod meta;
 pub(crate) use self::meta::{
-    CaptureMeta, ItemMeta, ModMeta, PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta,
+    CaptureMeta, Doc, ItemMeta, ModMeta, PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta,
     PrivVariantMeta,
 };
 pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
