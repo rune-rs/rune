@@ -73,6 +73,8 @@ pub enum MetaKind {
     ConstFn,
     /// Item describes an import.
     Import,
+    /// Item describes a module.
+    Module,
 }
 
 impl fmt::Display for Meta {
@@ -119,6 +121,9 @@ impl fmt::Display for Meta {
             }
             MetaKind::Import => {
                 write!(fmt, "import {}", self.item)?;
+            }
+            MetaKind::Module => {
+                write!(fmt, "module {}", self.item)?;
             }
         }
 
@@ -216,6 +221,7 @@ impl PrivMeta {
             PrivMetaKind::Const { .. } => None,
             PrivMetaKind::ConstFn { .. } => None,
             PrivMetaKind::Import { .. } => None,
+            PrivMetaKind::Module => None,
         }
     }
 }
@@ -307,6 +313,8 @@ pub(crate) enum PrivMetaKind {
         /// The imported target.
         target: Item,
     },
+    /// A module.
+    Module,
 }
 
 impl PrivMetaKind {
@@ -354,6 +362,7 @@ impl PrivMetaKind {
             PrivMetaKind::Const { .. } => MetaKind::Const,
             PrivMetaKind::ConstFn { .. } => MetaKind::ConstFn,
             PrivMetaKind::Import { .. } => MetaKind::Import,
+            PrivMetaKind::Module => MetaKind::Module,
         }
     }
 }

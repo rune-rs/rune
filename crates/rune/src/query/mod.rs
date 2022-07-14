@@ -273,6 +273,17 @@ impl<'a> Query<'a> {
             .modules
             .insert(item.item.clone(), query_mod.clone());
         self.insert_name(&item.item);
+        self.insert_meta(
+            span,
+            PrivMeta {
+                item,
+                kind: PrivMetaKind::Module,
+                source: Some(SourceMeta {
+                    location: Location::new(source_id, span),
+                    path: self.sources.path(source_id).map(Into::into),
+                }),
+            },
+        )?;
         Ok(query_mod)
     }
 

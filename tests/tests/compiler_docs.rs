@@ -82,18 +82,20 @@ fn harvest_docs() {
         "Enum::B" => { " Enum variant B.\n" }
         "constant" => { " Top-level constant.\n" }
 
-        // Curiously, the module item itself never get registered. This always fails.
-        // The child items of the module are, though.
-        // "Module" => { " Top-level module.\n" }
-
+        "Module" => { " Top-level module.\n" }
         "Module::Enum" => { " Module enum.\n" }
         "Module::Enum::A" => { " Enum variant A.\n" }
         "Module::Enum::B" => { " Enum variant B.\n" }
+
+        "Module::Module" => { " Module in a module.\n" }
+        "Module::Module::Enum" => { " Module enum.\n" }
+        "Module::Module::Enum::A" => { " Enum variant A.\n" }
+        "Module::Module::Enum::B" => { " Enum variant B.\n" }
     };
 
     let mut sources = sources(r#"
-        //! Mod/crate doc.
-        /*! Multiline mod/crate doc.
+        //! Mod/file doc.
+        /*! Multiline mod/file doc.
          *
          *  Both of these comments disappear; we can't hold onto file-level attributes at the moment..
          */
@@ -125,7 +127,7 @@ fn harvest_docs() {
 
         /// Top-level module.
         mod Module {
-            //! Also module doc.
+            //! Also module doc. Inner attributes don't seem to make it to their items, yet..
 
             /// Module enum.
             enum Enum {
@@ -133,6 +135,17 @@ fn harvest_docs() {
                 A,
                 /// Enum variant B.
                 B,
+            }
+
+            /// Module in a module.
+            mod Module {
+                /// Module enum.
+                enum Enum {
+                    /// Enum variant A.
+                    A,
+                    /// Enum variant B.
+                    B,
+                }
             }
         }
     "#);
