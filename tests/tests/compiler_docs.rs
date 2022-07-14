@@ -82,7 +82,10 @@ fn harvest_docs() {
         "Enum::B" => { " Enum variant B.\n" }
         "constant" => { " Top-level constant.\n" }
 
-        "Module" => { " Top-level module.\n" }
+        "Module" => {
+            " Top-level module.\n"
+            " Also module doc.\n"
+        }
         "Module::Enum" => { " Module enum.\n" }
         "Module::Enum::A" => { " Enum variant A.\n" }
         "Module::Enum::B" => { " Enum variant B.\n" }
@@ -127,7 +130,7 @@ fn harvest_docs() {
 
         /// Top-level module.
         mod Module {
-            //! Also module doc. Inner attributes don't seem to make it to their items, yet..
+            //! Also module doc.
 
             /// Module enum.
             enum Enum {

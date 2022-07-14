@@ -1407,7 +1407,17 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
 
 #[instrument]
 fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    let mut attrs = Attributes::new(ast.attributes.to_vec());
+    // Attributes for modules are a combination of their inner and outer attribute declarations.
+    let attrs = match &ast.body {
+        ast::ItemModBody::EmptyBody(_) => ast.attributes.to_vec(),
+        ast::ItemModBody::InlineBody(body) => {
+            let mut vec = ast.attributes.to_vec();
+            vec.extend_from_slice(&body.file.attributes);
+            vec
+        }
+    };
+
+    let mut attrs = Attributes::new(attrs);
     let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attrs)?);
 
     if let Some(first) = attrs.remaining() {
