@@ -586,7 +586,6 @@ impl<'a> Indexer<'a> {
 
 pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let mut attrs = Attributes::new(ast.attributes.to_vec());
-    // TODO find a way to hold onto file-level docs?
     attrs.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
 
     if let Some(first) = attrs.remaining() {

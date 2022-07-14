@@ -14,6 +14,10 @@ impl CompileVisitor for DocVisitor {
     fn visit_doc_comment(&mut self, _: SourceId, meta: MetaRef<'_>, _: Span, doc: &str) {
         self.collected.entry(meta.item.to_string()).or_default().push(doc.to_string());
     }
+
+    fn visit_file_doc_comment(&mut self, _: SourceId, _:Span, doc: &str) {
+        self.collected.entry("".to_string()).or_default().push(doc.to_string());
+    }
 }
 
 impl DocVisitor {
@@ -72,6 +76,10 @@ macro_rules! expect_docs {
 fn harvest_docs() {
     let mut diagnostics = Diagnostics::new();
     let mut vis = expect_docs! {
+        "" => {
+            " Mod/file doc.\n"
+            " Multiline mod/file doc.\n         *  :)\n         "
+        }
         "stuff" => { " Top-level function.\n" }
         "Struct" => {
             " Top-level struct.\n"
@@ -99,8 +107,7 @@ fn harvest_docs() {
     let mut sources = sources(r#"
         //! Mod/file doc.
         /*! Multiline mod/file doc.
-         *
-         *  Both of these comments disappear; we can't hold onto file-level attributes at the moment..
+         *  :)
          */
 
         /// Top-level function.

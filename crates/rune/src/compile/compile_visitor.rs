@@ -28,6 +28,12 @@ pub trait CompileVisitor {
         _docstr: &str,
     ) {
     }
+
+    /// Visit a file's doc comment attribute.
+    ///
+    /// This may be called several times for a single file. Each attribute should eventually be
+    /// combined for the full doc string.
+    fn visit_file_doc_comment(&mut self, _source_id: SourceId, _span: Span, _docstr: &str) {}
 }
 
 /// A [CompileVisitor] which does nothing.
