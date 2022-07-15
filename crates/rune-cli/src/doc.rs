@@ -1,5 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::io::Write;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::io::{self, Write};
 use std::{collections::HashMap, path::Path};
 
 use anyhow::Context;
@@ -60,25 +60,9 @@ pub(crate) fn run(
 
     diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
-    for (item, kind) in &doc_finder.meta {
-        writeln!(io.stdout, "{item}: {kind:?}")?;
-
-        if let Some(doc) = doc_finder.docs.get(item) {
-            for line in doc {
-                writeln!(io.stdout, "{:?}", line)?;
-            }
-        }
-    }
-
-    let mut item = ItemBuf::new();
-
-    if let Some(children) = doc_finder.children.get(&item) {
-        for m in children {
-            item.push(m);
-            dbg!(&item);
-            item.pop();
-        }
-    }
+    let mut queue = VecDeque::new();
+    queue.push_back(ItemBuf::new());
+    walk_items(io, &doc_finder, &mut queue)?;
 
     if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
         Ok(ExitCode::Failure)
@@ -87,21 +71,86 @@ pub(crate) fn run(
     }
 }
 
+/// Walk items.
+fn walk_items(io: &mut Io<'_>, doc: &DocFinder, queue: &mut VecDeque<ItemBuf>) -> io::Result<()> {
+    while let Some(current) = queue.pop_front() {
+        writeln!(io.stdout, "module: {}", &current)?;
+
+        for c in doc.structs.get(&current).into_iter().flatten() {
+            writeln!(io.stdout, "struct {}", c)?;
+        }
+
+        for c in doc.enums.get(&current).into_iter().flatten() {
+            let item = current.join(&[c.as_component_ref()]);
+
+            writeln!(io.stdout, "enum {} {{", c)?;
+
+            for c in doc.variants.get(&item).into_iter().flatten() {
+                writeln!(io.stdout, "  {}", c)?;
+            }
+
+            writeln!(io.stdout, "}}")?;
+        }
+
+        for module in doc.modules.get(&current).into_iter().flatten() {
+            let item = current.join(&[module.as_component_ref()]);
+            queue.push_back(item);
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Default)]
 struct DocFinder {
     meta: BTreeMap<ItemBuf, MetaKind>,
     docs: HashMap<ItemBuf, Vec<String>>,
-    children: BTreeMap<ItemBuf, BTreeSet<Component>>,
+    modules: BTreeMap<ItemBuf, BTreeSet<Component>>,
+    structs: BTreeMap<ItemBuf, BTreeSet<Component>>,
+    enums: BTreeMap<ItemBuf, BTreeSet<Component>>,
+    variants: BTreeMap<ItemBuf, BTreeSet<Component>>,
 }
 
 impl CompileVisitor for DocFinder {
     fn register_meta(&mut self, meta: MetaRef<'_>) {
         self.meta.insert(meta.item.clone(), meta.kind);
 
-        let mut item = meta.item.clone();
+        let parent = meta.item.parent().unwrap_or_default();
 
-        if let Some(name) = item.pop() {
-            self.children.entry(item).or_default().insert(name);
+        match meta.kind {
+            MetaKind::Module => {
+                if let Some(name) = meta.item.last() {
+                    self.modules
+                        .entry(parent.to_owned())
+                        .or_default()
+                        .insert(name.to_owned());
+                }
+            }
+            MetaKind::Enum => {
+                if let Some(name) = meta.item.last() {
+                    self.enums
+                        .entry(parent.to_owned())
+                        .or_default()
+                        .insert(name.to_owned());
+                }
+            }
+            MetaKind::UnitStruct | MetaKind::TupleStruct | MetaKind::Struct => {
+                if let Some(name) = meta.item.last() {
+                    self.structs
+                        .entry(parent.to_owned())
+                        .or_default()
+                        .insert(name.to_owned());
+                }
+            }
+            MetaKind::UnitVariant | MetaKind::TupleVariant | MetaKind::StructVariant => {
+                if let Some(name) = meta.item.last() {
+                    self.variants
+                        .entry(parent.to_owned())
+                        .or_default()
+                        .insert(name.to_owned());
+                }
+            }
+            _ => {}
         }
     }
 

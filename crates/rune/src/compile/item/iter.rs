@@ -21,20 +21,23 @@ impl<'a> Iter<'a> {
     }
 
     /// Check if the iterator is empty.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.content.is_empty()
     }
 
     /// Coerce the iterator into an item.
+    #[inline]
     pub fn as_item(&self) -> &Item {
         // SAFETY: Iterator ensures that content is valid.
-        unsafe { Item::new(self.content) }
+        unsafe { Item::from_raw(self.content) }
     }
 
     /// Coerce the iterator into an item with the lifetime of the iterator.
+    #[inline]
     pub fn into_item(self) -> &'a Item {
         // SAFETY: Iterator ensures that content is valid.
-        unsafe { Item::new(self.content) }
+        unsafe { Item::from_raw(self.content) }
     }
 
     /// Get the next component as a string.
@@ -148,48 +151,12 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
 
 impl PartialEq<ItemBuf> for Iter<'_> {
     fn eq(&self, other: &ItemBuf) -> bool {
-        self.content == other.content.as_ref()
-    }
-}
-
-impl PartialEq<&ItemBuf> for Iter<'_> {
-    fn eq(&self, other: &&ItemBuf) -> bool {
-        self.content == other.content.as_ref()
-    }
-}
-
-impl PartialEq<Iter<'_>> for ItemBuf {
-    fn eq(&self, other: &Iter<'_>) -> bool {
-        self.content.as_ref() == other.content
-    }
-}
-
-impl PartialEq<Iter<'_>> for &ItemBuf {
-    fn eq(&self, other: &Iter<'_>) -> bool {
-        self.content.as_ref() == other.content
+        self.as_item() == other
     }
 }
 
 impl PartialEq<Item> for Iter<'_> {
     fn eq(&self, other: &Item) -> bool {
-        self.content == &other.content
-    }
-}
-
-impl PartialEq<&Item> for Iter<'_> {
-    fn eq(&self, other: &&Item) -> bool {
-        self.content == &other.content
-    }
-}
-
-impl PartialEq<Iter<'_>> for Item {
-    fn eq(&self, other: &Iter<'_>) -> bool {
-        &self.content == other.content
-    }
-}
-
-impl PartialEq<Iter<'_>> for &Item {
-    fn eq(&self, other: &Iter<'_>) -> bool {
-        &self.content == other.content
+        self.as_item() == other
     }
 }
