@@ -1,20 +1,22 @@
+use std::fmt;
+use std::sync::Arc;
+
+use thiserror::Error;
+
 use crate::collections::{HashMap, HashSet};
 use crate::compile::module::{
     AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type,
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, IntoComponent, Item, Meta, Names, PrivMeta, PrivMetaKind, PrivStructMeta,
-    PrivTupleMeta, PrivVariantMeta,
+    ComponentRef, IntoComponent, Item, ItemBuf, Meta, Names, PrivMeta, PrivMetaKind,
+    PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
     TypeInfo, TypeOf, VariantRtti, VmError,
 };
 use crate::{Hash, InstFnKind};
-use std::fmt;
-use std::sync::Arc;
-use thiserror::Error;
 
 /// An error raised when building the context.
 #[derive(Debug, Error)]
@@ -33,9 +35,9 @@ pub enum ContextError {
         hash: Hash,
     },
     #[error("function with name `{name}` already exists")]
-    ConflictingFunctionName { name: Item },
+    ConflictingFunctionName { name: ItemBuf },
     #[error("constant with name `{name}` already exists")]
-    ConflictingConstantName { name: Item },
+    ConflictingConstantName { name: ItemBuf },
     #[error("instance function `{name}` for type `{type_info}` already exists")]
     ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
     #[error("protocol function `{name}` for type `{type_info}` already exists")]
@@ -43,19 +45,19 @@ pub enum ContextError {
     #[error("protocol function with hash `{hash}` for type `{type_info}` already exists")]
     ConflictingInstanceFunctionHash { type_info: TypeInfo, hash: Hash },
     #[error("module `{item}` with hash `{hash}` already exists")]
-    ConflictingModule { item: Item, hash: Hash },
+    ConflictingModule { item: ItemBuf, hash: Hash },
     #[error("type `{item}` already exists `{type_info}`")]
-    ConflictingType { item: Item, type_info: TypeInfo },
+    ConflictingType { item: ItemBuf, type_info: TypeInfo },
     #[error("type `{item}` at `{type_info}` already has a specification")]
-    ConflictingTypeMeta { item: Item, type_info: TypeInfo },
+    ConflictingTypeMeta { item: ItemBuf, type_info: TypeInfo },
     #[error("type `{item}` with info `{type_info}` isn't registered")]
-    MissingType { item: Item, type_info: TypeInfo },
+    MissingType { item: ItemBuf, type_info: TypeInfo },
     #[error("type `{item}` with info `{type_info}` is registered but is not an enum")]
-    MissingEnum { item: Item, type_info: TypeInfo },
+    MissingEnum { item: ItemBuf, type_info: TypeInfo },
     #[error("tried to insert conflicting hash `{hash}` for `{existing}`")]
     ConflictingTypeHash { hash: Hash, existing: Hash },
     #[error("variant with `{item}` already exists")]
-    ConflictingVariant { item: Item },
+    ConflictingVariant { item: ItemBuf },
     #[error("instance `{instance_type}` does not exist in module")]
     MissingInstance { instance_type: TypeInfo },
     #[error("error when converting to constant value: {error}")]
@@ -75,7 +77,7 @@ pub struct ContextTypeInfo {
     /// Complete detailed information on the hash.
     pub(crate) type_info: TypeInfo,
     /// The name of the type.
-    pub item: Item,
+    pub item: ItemBuf,
     /// The hash of the type.
     pub type_hash: Hash,
 }
@@ -95,7 +97,7 @@ pub enum ContextSignature {
         /// The type hash of the function
         type_hash: Hash,
         /// Path to the function.
-        item: Item,
+        item: ItemBuf,
         /// Arguments.
         args: Option<usize>,
     },
@@ -104,7 +106,7 @@ pub enum ContextSignature {
         /// The type hash of the function
         type_hash: Hash,
         /// Path to the instance function.
-        item: Item,
+        item: ItemBuf,
         /// Name of the instance function.
         name: InstFnKind,
         /// Arguments.
@@ -178,7 +180,7 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
-    meta: HashMap<Item, PrivMeta>,
+    meta: HashMap<ItemBuf, PrivMeta>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Registered native macro handlers.
@@ -823,8 +825,8 @@ impl Context {
     /// Add a piece of internal tuple meta.
     fn add_internal_tuple<C, Args>(
         &mut self,
-        enum_item: Option<(Item, Hash, usize)>,
-        item: Item,
+        enum_item: Option<(ItemBuf, Hash, usize)>,
+        item: ItemBuf,
         args: usize,
         constructor: C,
     ) -> Result<(), ContextError>

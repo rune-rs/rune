@@ -1,7 +1,8 @@
+use std::path::Path;
+
 use crate::ast::Span;
 use crate::compile::{CompileError, CompileErrorKind, ComponentRef, Item};
 use crate::Source;
-use std::path::Path;
 
 /// A source loader.
 pub trait SourceLoader {
@@ -39,7 +40,9 @@ impl SourceLoader for FileSourceLoader {
             } else {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::UnsupportedModuleItem { item: item.clone() },
+                    CompileErrorKind::UnsupportedModuleItem {
+                        item: item.to_owned(),
+                    },
                 ));
             }
         }

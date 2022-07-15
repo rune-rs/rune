@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, ModMeta, Visibility};
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, ItemBuf, ModMeta, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
@@ -14,14 +14,14 @@ pub(crate) struct Import {
     pub(crate) kind: ImportKind,
     pub(crate) module: Arc<ModMeta>,
     pub(crate) visibility: Visibility,
-    pub(crate) item: Item,
+    pub(crate) item: ItemBuf,
     pub(crate) source_id: SourceId,
     pub(crate) ast: Box<ast::ItemUse>,
 }
 
 impl Import {
     /// Lookup a local identifier in the current context and query.
-    fn lookup_local(&self, context: &Context, query: &Query, local: &str) -> Item {
+    fn lookup_local(&self, context: &Context, query: &Query, local: &str) -> ItemBuf {
         let item = self.module.item.extended(local);
 
         if let ImportKind::Local = self.kind {
@@ -31,7 +31,7 @@ impl Import {
         }
 
         if context.contains_crate(local) {
-            return Item::with_crate(local);
+            return ItemBuf::with_crate(local);
         }
 
         item
@@ -50,7 +50,7 @@ impl Import {
                     Some(global) => match &self.ast.path.first {
                         ast::ItemUseSegment::PathSegment(ast::PathSegment::Ident(ident)) => {
                             let ident = ident.resolve(resolve_context!(q))?;
-                            (Item::with_crate(ident), None, false)
+                            (ItemBuf::with_crate(ident), None, false)
                         }
                         _ => {
                             return Err(CompileError::new(
@@ -67,7 +67,7 @@ impl Import {
                     }
                 }
             }
-            ImportKind::Local => (Item::new(), Some(&self.ast.path.first), true),
+            ImportKind::Local => (ItemBuf::new(), Some(&self.ast.path.first), true),
         };
 
         let mut queue = VecDeque::new();
@@ -127,7 +127,7 @@ impl Import {
                                 ));
                             }
 
-                            name = Item::new();
+                            name = ItemBuf::new();
                         }
                         ast::PathSegment::Super(super_token) => {
                             if initial {

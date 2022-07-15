@@ -3,7 +3,7 @@
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
-use crate::compile::{Item, Location, Visibility};
+use crate::compile::{ItemBuf, Location, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::runtime::ConstValue;
 use crate::Hash;
@@ -16,7 +16,7 @@ use std::sync::Arc;
 #[non_exhaustive]
 pub struct Meta {
     /// The item being described.
-    pub item: Item,
+    pub item: ItemBuf,
     /// The kind of the item.
     pub kind: MetaKind,
 }
@@ -27,7 +27,7 @@ pub struct Meta {
 #[non_exhaustive]
 pub struct MetaRef<'a> {
     /// The item being described.
-    pub item: &'a Item,
+    pub item: &'a ItemBuf,
     /// The kind of the item.
     pub kind: MetaKind,
     /// The source of the meta.
@@ -252,7 +252,7 @@ pub(crate) enum PrivMetaKind {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
         /// The item of the enum.
-        enum_item: Item,
+        enum_item: ItemBuf,
         /// Type hash of the enum this unit variant belongs to.
         enum_hash: Hash,
         /// The index of the variant.
@@ -311,7 +311,7 @@ pub(crate) enum PrivMetaKind {
         /// The location of the import.
         location: Location,
         /// The imported target.
-        target: Item,
+        target: ItemBuf,
     },
     /// A module.
     Module,
@@ -394,7 +394,7 @@ pub(crate) struct ItemMeta {
     /// The location of the item.
     pub(crate) location: Location,
     /// The name of the item.
-    pub(crate) item: Item,
+    pub(crate) item: ItemBuf,
     /// The visibility of the item.
     pub(crate) visibility: Visibility,
     /// The module associated with the item.
@@ -423,8 +423,8 @@ impl ItemMeta {
     }
 }
 
-impl From<Item> for ItemMeta {
-    fn from(item: Item) -> Self {
+impl From<ItemBuf> for ItemMeta {
+    fn from(item: ItemBuf) -> Self {
         Self {
             id: Default::default(),
             location: Default::default(),
@@ -443,7 +443,7 @@ pub(crate) struct ModMeta {
     /// The location of the module.
     pub(crate) location: Location,
     /// The item of the module.
-    pub(crate) item: Item,
+    pub(crate) item: ItemBuf,
     /// The visibility of the module.
     pub(crate) visibility: Visibility,
     /// The kind of the module.

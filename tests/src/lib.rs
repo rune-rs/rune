@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 pub use ::rune_modules as modules;
-use rune::compile::{IntoComponent, Item};
+use rune::compile::{IntoComponent, ItemBuf};
 use rune::runtime::{Args, VmError};
 use rune::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
 use std::sync::Arc;
@@ -81,7 +81,7 @@ where
         let mut vm = vm(context, sources, diagnostics)?;
 
         let output = vm
-            .execute(&Item::with_item(function), args)
+            .execute(&ItemBuf::with_item(function), args)
             .map_err(RunError::VmError)?
             .async_complete()
             .await

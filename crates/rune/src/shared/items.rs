@@ -1,4 +1,4 @@
-use crate::compile::{ComponentRef, Item};
+use crate::compile::{ComponentRef, ItemBuf};
 use crate::parse::NonZeroId;
 use crate::shared::Gen;
 use std::cell::{Ref, RefCell};
@@ -7,7 +7,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 struct Inner<'a> {
     id: usize,
-    item: Item,
+    item: ItemBuf,
     ids: Vec<NonZeroId>,
     gen: &'a Gen,
 }
@@ -20,7 +20,7 @@ pub(crate) struct Items<'a> {
 
 impl<'a> Items<'a> {
     /// Construct a new items manager.
-    pub(crate) fn new(item: Item, gen: &'a Gen) -> Self {
+    pub(crate) fn new(item: ItemBuf, gen: &'a Gen) -> Self {
         Self {
             inner: Rc::new(RefCell::new(Inner {
                 id: item.last().and_then(ComponentRef::id).unwrap_or_default(),
@@ -37,7 +37,7 @@ impl<'a> Items<'a> {
     }
 
     /// Get the item for the current state of the path.
-    pub(crate) fn item(&self) -> Ref<'_, Item> {
+    pub(crate) fn item(&self) -> Ref<'_, ItemBuf> {
         Ref::map(self.inner.borrow(), |inner| &inner.item)
     }
 

@@ -1,8 +1,8 @@
+mod item_buf;
+pub use self::item_buf::ItemBuf;
+
 mod item;
 pub use self::item::Item;
-
-mod item_ref;
-pub use self::item_ref::ItemRef;
 
 mod iter;
 pub use self::iter::Iter;

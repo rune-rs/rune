@@ -1,231 +1,331 @@
 use core::fmt;
-use core::hash::Hash;
-use core::ops::Deref;
 
-use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
+use smallvec::ToSmallVec;
 
-use crate::compile::item::internal::INLINE;
-use crate::compile::item::{Component, ComponentRef, IntoComponent, ItemRef, Iter};
+use crate::compile::item::{Component, ComponentRef, IntoComponent, ItemBuf, Iter};
 
-/// The name of an item in the Rune Language.
-///
-/// This is made up of a collection of strings, like `["foo", "bar"]`.
-/// This is indicated in rune as `foo::bar`.
-///
-/// An item can also belongs to a crate, which in rune could be indicated as
-/// `::crate::foo::bar`. These items must be constructed using
-/// [Item::with_crate].
-///
-/// Items are inlined if they are smaller than 32 bytes.
-///
-/// # Panics
-///
-/// The max length of a string component is is 2**15 = 32768. Attempting to add
-/// a string larger than that will panic.
-///
-/// # Component encoding
-///
-/// A component is encoded as:
-/// * A two byte tag as a u16 in native endianess, indicating its type (least
-///   significant 2 bits) and data (most significant 15 bits).
-/// * If the type is a `STRING`, the data is treated as the length of the
-///   string. Any other type this the `data` is treated as the numeric id of the
-///   component.
-/// * If the type is a `STRING`, the tag is repeated at the end of it to allow
-///   for seeking backwards. This is **not** the case for other types. Since
-///   they are fixed size its not necessary.
-///
-/// So all in all, a string is encoded as:
-///
-/// ```text
-/// dddddddd dddddddt *string content* dddddddd dddddddt
-/// ```
-///
-/// And any other component is just the two bytes:
-///
-/// ```text
-/// dddddddd dddddddt
-/// ```
-#[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// The reference to an [ItemBuf].
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Item {
-    content: SmallVec<[u8; INLINE]>,
+    pub(super) content: [u8],
 }
 
 impl Item {
-    /// Construct a new empty item.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::compile::Item;
-    ///
-    /// let item = Item::new();
-    /// let mut it = item.iter();
-    ///
-    /// assert_eq!(it.next(), None);
-    /// ```
-    pub const fn new() -> Self {
-        Self {
-            content: SmallVec::new_const(),
-        }
-    }
-
-    /// Internal raw constructor for an item.
+    /// Construct an [Item] from an [ItemBuf].
     ///
     /// # Safety
     ///
-    /// Caller must ensure that its representation is valid.
-    pub(super) const unsafe fn from_raw(content: SmallVec<[u8; INLINE]>) -> Self {
-        Self { content }
+    /// Caller must ensure that content has a valid [ItemBuf] representation.
+    pub(super) unsafe fn new(content: &[u8]) -> &Self {
+        &*(content as *const _ as *const _)
     }
 
-    /// Construct a new item with the given path.
+    /// Get the crate corresponding to the item.
     ///
     /// # Examples
     ///
     /// ```
-    /// use rune::compile::{ComponentRef, Item};
+    /// use rune::compile::ItemBuf;
     ///
-    /// let item = Item::with_item(&["foo", "bar"]);
-    /// let mut it = item.iter();
+    /// let item = ItemBuf::with_crate("std");
+    /// assert_eq!(item.as_crate(), Some("std"));
     ///
-    /// assert_eq!(it.next(), Some(ComponentRef::Str("foo")));
-    /// assert_eq!(it.next(), Some(ComponentRef::Str("bar")));
-    /// assert_eq!(it.next(), None);
+    /// let item = ItemBuf::with_item(&["local"]);
+    /// assert_eq!(item.as_crate(), None);
     /// ```
-    pub fn with_item<I>(iter: I) -> Self
+    pub fn as_crate(&self) -> Option<&str> {
+        if let Some(ComponentRef::Crate(s)) = self.iter().next() {
+            Some(s)
+        } else {
+            None
+        }
+    }
+
+    /// Access the first component of this item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::{ComponentRef, ItemBuf};
+    ///
+    /// let item = ItemBuf::with_item(&["foo", "bar"]);
+    /// assert_eq!(item.first(), Some(ComponentRef::Str("foo")));
+    /// ```
+    pub fn first(&self) -> Option<ComponentRef<'_>> {
+        self.iter().next()
+    }
+
+    /// Check if the item is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::ItemBuf;
+    ///
+    /// let item = ItemBuf::new();
+    /// assert!(item.is_empty());
+    ///
+    /// let item = ItemBuf::with_crate("std");
+    /// assert!(!item.is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.content.is_empty()
+    }
+
+    /// Construct a new vector from the current item.
+    pub fn as_vec(&self) -> Vec<Component> {
+        self.iter()
+            .map(ComponentRef::into_component)
+            .collect::<Vec<_>>()
+    }
+
+    /// If the item only contains one element, return that element.
+    pub fn as_local(&self) -> Option<&str> {
+        let mut it = self.iter();
+
+        match it.next_back_str() {
+            Some(last) if it.is_empty() => Some(last),
+            _ => None,
+        }
+    }
+
+    /// Join this path with another.
+    pub fn join<I>(&self, other: I) -> ItemBuf
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        let mut content = SmallVec::new();
+        let mut content = self.content.to_smallvec();
 
-        for c in iter {
+        for c in other {
             c.write_component(&mut content);
         }
 
-        Self { content }
+        // SAFETY: construction through write_component ensures valid
+        // construction of buffer.
+        unsafe { ItemBuf::from_raw(content) }
     }
 
-    /// Construct item for a crate.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::compile::{ComponentRef, Item};
-    ///
-    /// let mut item = Item::with_crate("std");
-    /// item.push("foo");
-    /// assert_eq!(item.as_crate(), Some("std"));
-    ///
-    /// let mut it = item.iter();
-    /// assert_eq!(it.next(), Some(ComponentRef::Crate("std")));
-    /// assert_eq!(it.next(), Some(ComponentRef::Str("foo")));
-    /// assert_eq!(it.next(), None);
-    /// ```
-    pub fn with_crate(name: &str) -> Self {
-        Self::with_item(&[ComponentRef::Crate(name)])
-    }
-
-    /// Create a crated item with the given name.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::compile::{ComponentRef, Item};
-    ///
-    /// let item = Item::with_crate_item("std", &["option"]);
-    /// assert_eq!(item.as_crate(), Some("std"));
-    ///
-    /// let mut it = item.iter();
-    /// assert_eq!(it.next(), Some(ComponentRef::Crate("std")));
-    /// assert_eq!(it.next(), Some(ComponentRef::Str("option")));
-    /// assert_eq!(it.next(), None);
-    /// ```
-    pub fn with_crate_item<I>(name: &str, iter: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
-        let mut content = SmallVec::new();
-        ComponentRef::Crate(name).write_component(&mut content);
-
-        for c in iter {
-            c.write_component(&mut content);
-        }
-
-        Self { content }
-    }
-
-    /// Push the given component to the current item.
-    pub fn push<C>(&mut self, c: C)
+    /// Clone and extend the item path.
+    pub fn extended<C>(&self, part: C) -> ItemBuf
     where
         C: IntoComponent,
     {
-        c.write_component(&mut self.content);
+        let mut content = self.content.to_smallvec();
+        part.write_component(&mut content);
+
+        // SAFETY: construction through write_component ensures valid
+        // construction of buffer.
+        unsafe { ItemBuf::from_raw(content) }
     }
 
-    /// Push the given component to the current item.
-    pub fn pop(&mut self) -> Option<Component> {
-        let mut it = self.iter();
-        let c = it.next_back()?.into_component();
-        let new_len = it.len();
-        self.content.resize(new_len, 0);
-        Some(c)
+    /// Access the last component in the path.
+    pub fn last(&self) -> Option<ComponentRef<'_>> {
+        self.iter().next_back()
     }
 
-    /// Extend the current item with an iterator.
-    pub fn extend<I>(&mut self, i: I)
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
-        for c in i {
-            self.push(c);
+    /// An iterator over the [Component]s that constitute this item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::{ComponentRef, IntoComponent, ItemBuf};
+    ///
+    /// let mut item = ItemBuf::new();
+    ///
+    /// item.push("start");
+    /// item.push(ComponentRef::Id(1));
+    /// item.push(ComponentRef::Id(2));
+    /// item.push("middle");
+    /// item.push(ComponentRef::Id(3));
+    /// item.push("end");
+    ///
+    /// let mut it = item.iter();
+    ///
+    /// assert_eq!(it.next(), Some("start".as_component_ref()));
+    /// assert_eq!(it.next(), Some(ComponentRef::Id(1)));
+    /// assert_eq!(it.next(), Some(ComponentRef::Id(2)));
+    /// assert_eq!(it.next(), Some("middle".as_component_ref()));
+    /// assert_eq!(it.next(), Some(ComponentRef::Id(3)));
+    /// assert_eq!(it.next(), Some("end".as_component_ref()));
+    /// assert_eq!(it.next(), None);
+    ///
+    /// assert!(!item.is_empty());
+    /// ```
+    pub fn iter(&self) -> Iter<'_> {
+        Iter::new(&self.content)
+    }
+
+    /// Test if current item starts with another.
+    pub fn starts_with(&self, other: &Self) -> bool {
+        self.content.starts_with(&other.content)
+    }
+
+    /// Test if current is immediate super of `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::ItemBuf;
+    ///
+    /// assert!(ItemBuf::new().is_super_of(&ItemBuf::new(), 1));
+    /// assert!(!ItemBuf::with_item(&["a"]).is_super_of(&ItemBuf::new(), 1));
+    ///
+    /// assert!(!ItemBuf::with_item(&["a", "b"]).is_super_of(&ItemBuf::with_item(&["a"]), 1));
+    /// assert!(ItemBuf::with_item(&["a", "b"]).is_super_of(&ItemBuf::with_item(&["a", "b"]), 1));
+    /// assert!(!ItemBuf::with_item(&["a"]).is_super_of(&ItemBuf::with_item(&["a", "b", "c"]), 1));
+    /// ```
+    pub fn is_super_of(&self, other: &Self, n: usize) -> bool {
+        if self == other {
+            return true;
         }
+
+        let mut it = other.iter();
+
+        for _ in 0..n {
+            if it.next_back().is_none() {
+                return false;
+            }
+
+            if self == it {
+                return true;
+            }
+        }
+
+        false
     }
 
-    /// Clear the current item.
-    pub fn clear(&mut self) {
-        self.content.clear();
+    /// Get the ancestry of one module to another.
+    ///
+    /// This returns three things:
+    /// * The shared prefix between the current and the `other` path.
+    /// * The suffix to get to the `other` path from the shared prefix.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::ItemBuf;
+    ///
+    /// assert_eq!(
+    ///     (ItemBuf::new(), ItemBuf::new()),
+    ///     ItemBuf::new().ancestry(&ItemBuf::new())
+    /// );
+    ///
+    /// assert_eq!(
+    ///     (ItemBuf::new(), ItemBuf::with_item(&["a"])),
+    ///     ItemBuf::new().ancestry(&ItemBuf::with_item(&["a"]))
+    /// );
+    ///
+    /// assert_eq!(
+    ///     (ItemBuf::new(), ItemBuf::with_item(&["a", "b"])),
+    ///     ItemBuf::new().ancestry(&ItemBuf::with_item(&["a", "b"]))
+    /// );
+    ///
+    /// assert_eq!(
+    ///     (ItemBuf::with_item(&["a"]), ItemBuf::with_item(&["b"])),
+    ///     ItemBuf::with_item(&["a", "c"]).ancestry(&ItemBuf::with_item(&["a", "b"]))
+    /// );
+    ///
+    /// assert_eq!(
+    ///     (ItemBuf::with_item(&["a", "b"]), ItemBuf::with_item(&["d", "e"])),
+    ///     ItemBuf::with_item(&["a", "b", "c"]).ancestry(&ItemBuf::with_item(&["a", "b", "d", "e"]))
+    /// );
+    /// ```
+    pub fn ancestry(&self, other: &Self) -> (ItemBuf, ItemBuf) {
+        let mut a = self.iter();
+        let mut b = other.iter();
+
+        let mut shared = ItemBuf::new();
+        let mut suffix = ItemBuf::new();
+
+        while let Some(v) = b.next() {
+            if let Some(u) = a.next() {
+                if u == v {
+                    shared.push(v);
+                    continue;
+                } else {
+                    suffix.push(v);
+                    suffix.extend(b);
+                    return (shared, suffix);
+                }
+            }
+
+            suffix.push(v);
+            break;
+        }
+
+        suffix.extend(b);
+        (shared, suffix)
     }
 
-    /// Convert into a vector from the current item.
-    pub fn into_vec(self) -> Vec<Component> {
-        self.into_iter().collect::<Vec<_>>()
+    /// Get the parent item for the current item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::ItemBuf;
+    ///
+    /// let item = ItemBuf::with_item(&["foo", "bar", "baz"]);
+    /// let item2 = ItemBuf::with_item(&["foo", "bar"]);
+    ///
+    /// assert_eq!(item.parent(), Some(&*item2));
+    /// ```
+    pub fn parent(&self) -> Option<&Item> {
+        let mut it = self.iter();
+        it.next_back()?;
+        Some(it.into_item())
     }
 }
 
-impl Deref for Item {
-    type Target = ItemRef;
+impl ToOwned for Item {
+    type Owned = ItemBuf;
 
-    fn deref(&self) -> &Self::Target {
-        // SAFETY: Item ensures that content is valid.
-        unsafe { ItemRef::new(self.content.as_ref()) }
+    fn to_owned(&self) -> Self::Owned {
+        // SAFETY: item ensures that content is valid.
+        unsafe { ItemBuf::from_raw(self.content.to_smallvec()) }
     }
 }
 
-/// Format implementation for an [Item], defers to [ItemRef].
+/// Format implementation for an [ItemBuf].
+///
+/// An empty item is formatted as `{root}`, because it refers to the topmost
+/// root module.
+///
+/// # Examples
+///
+/// ```
+/// use rune::compile::{ComponentRef, ItemBuf};
+///
+/// let root = ItemBuf::new().to_string();
+/// assert_eq!("{root}", root);
+///
+/// let hello = ItemBuf::with_item(&[ComponentRef::Str("hello"), ComponentRef::Id(0)]);
+/// assert_eq!("hello::$0", hello.to_string());
+/// ```
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ItemRef::fmt(self, f)
+        use std::fmt::Write;
+        let mut it = self.iter();
+
+        if let Some(last) = it.next_back() {
+            let mut buf = String::new();
+
+            for p in it {
+                write!(buf, "{}::", p)?;
+            }
+
+            write!(buf, "{}", last)?;
+            f.pad(&buf)
+        } else {
+            f.pad("{root}")
+        }
     }
 }
 
 impl fmt::Debug for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ItemRef::fmt(self, f)
-    }
-}
-
-impl IntoIterator for Item {
-    type IntoIter = std::vec::IntoIter<Component>;
-    type Item = Component;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.as_vec().into_iter()
+        write!(f, "Item({})", self)
     }
 }
 
@@ -238,20 +338,20 @@ impl<'a> IntoIterator for &'a Item {
     }
 }
 
-impl PartialEq<ItemRef> for Item {
-    fn eq(&self, other: &ItemRef) -> bool {
-        self.content.as_ref() == &other.content
+impl PartialEq<ItemBuf> for Item {
+    fn eq(&self, other: &ItemBuf) -> bool {
+        &self.content == other.content.as_ref()
     }
 }
 
-impl PartialEq<ItemRef> for &Item {
-    fn eq(&self, other: &ItemRef) -> bool {
-        self.content.as_ref() == &other.content
+impl PartialEq<&ItemBuf> for Item {
+    fn eq(&self, other: &&ItemBuf) -> bool {
+        &self.content == other.content.as_ref()
     }
 }
 
-impl PartialEq<&ItemRef> for Item {
-    fn eq(&self, other: &&ItemRef) -> bool {
-        self.content.as_ref() == &other.content
+impl PartialEq<ItemBuf> for &Item {
+    fn eq(&self, other: &ItemBuf) -> bool {
+        &self.content == other.content.as_ref()
     }
 }

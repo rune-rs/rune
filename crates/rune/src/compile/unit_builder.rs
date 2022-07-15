@@ -6,8 +6,8 @@
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{
-    Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, Location, PrivMeta, PrivMetaKind,
-    PrivVariantMeta,
+    Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, PrivMeta,
+    PrivMetaKind, PrivVariantMeta,
 };
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
@@ -100,7 +100,7 @@ impl UnitBuilder {
                     return Err(CompileError::new(
                         span,
                         CompileErrorKind::ConstantConflict {
-                            item: Item::with_item(&["unknown"]),
+                            item: ItemBuf::with_item(&["unknown"]),
                             hash: from,
                         },
                     ));
@@ -525,7 +525,7 @@ impl UnitBuilder {
     pub(crate) fn new_function(
         &mut self,
         location: Location,
-        path: Item,
+        path: ItemBuf,
         args: usize,
         assembly: Assembly,
         call: Call,
@@ -582,7 +582,7 @@ impl UnitBuilder {
     pub(crate) fn new_instance_function(
         &mut self,
         location: Location,
-        path: Item,
+        path: ItemBuf,
         type_hash: Hash,
         name: &str,
         args: usize,

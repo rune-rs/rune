@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use rune::compile::Item;
+use rune::compile::ItemBuf;
 use rune::runtime::{Mut, Object, Ref, Shared, Tuple, Value};
 use rune::{Any, Context, ContextError, FromValue, Module, ToValue};
 
@@ -22,7 +22,7 @@ fn test_rename() {
 
     match e {
         ContextError::ConflictingType { item, .. } => {
-            assert_eq!(item, Item::with_item(&["Bar"]));
+            assert_eq!(item, ItemBuf::with_item(&["Bar"]));
         }
         actual => {
             panic!("expected conflicting type but got: {:?}", actual);

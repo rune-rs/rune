@@ -1,9 +1,10 @@
 use crate::compile::item::internal;
-use crate::compile::item::{ComponentRef, Item, ItemRef};
+use crate::compile::item::{ComponentRef, Item, ItemBuf};
 
 /// An item over the iterator.
 ///
 /// Constructed using [Item::iter].
+#[derive(Clone)]
 pub struct Iter<'a> {
     content: &'a [u8],
 }
@@ -25,15 +26,15 @@ impl<'a> Iter<'a> {
     }
 
     /// Coerce the iterator into an item.
-    pub fn as_item(&self) -> &ItemRef {
+    pub fn as_item(&self) -> &Item {
         // SAFETY: Iterator ensures that content is valid.
-        unsafe { ItemRef::new(self.content.as_ref()) }
+        unsafe { Item::new(self.content) }
     }
 
     /// Coerce the iterator into an item with the lifetime of the iterator.
-    pub fn into_item(&self) -> &'a ItemRef {
+    pub fn into_item(self) -> &'a Item {
         // SAFETY: Iterator ensures that content is valid.
-        unsafe { ItemRef::new(self.content.as_ref()) }
+        unsafe { Item::new(self.content) }
     }
 
     /// Get the next component as a string.
@@ -145,49 +146,49 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
     }
 }
 
+impl PartialEq<ItemBuf> for Iter<'_> {
+    fn eq(&self, other: &ItemBuf) -> bool {
+        self.content == other.content.as_ref()
+    }
+}
+
+impl PartialEq<&ItemBuf> for Iter<'_> {
+    fn eq(&self, other: &&ItemBuf) -> bool {
+        self.content == other.content.as_ref()
+    }
+}
+
+impl PartialEq<Iter<'_>> for ItemBuf {
+    fn eq(&self, other: &Iter<'_>) -> bool {
+        self.content.as_ref() == other.content
+    }
+}
+
+impl PartialEq<Iter<'_>> for &ItemBuf {
+    fn eq(&self, other: &Iter<'_>) -> bool {
+        self.content.as_ref() == other.content
+    }
+}
+
 impl PartialEq<Item> for Iter<'_> {
     fn eq(&self, other: &Item) -> bool {
-        self.content == other.content.as_ref()
+        self.content == &other.content
     }
 }
 
 impl PartialEq<&Item> for Iter<'_> {
     fn eq(&self, other: &&Item) -> bool {
-        self.content == other.content.as_ref()
+        self.content == &other.content
     }
 }
 
 impl PartialEq<Iter<'_>> for Item {
     fn eq(&self, other: &Iter<'_>) -> bool {
-        self.content.as_ref() == other.content
-    }
-}
-
-impl PartialEq<Iter<'_>> for &Item {
-    fn eq(&self, other: &Iter<'_>) -> bool {
-        self.content.as_ref() == other.content
-    }
-}
-
-impl PartialEq<ItemRef> for Iter<'_> {
-    fn eq(&self, other: &ItemRef) -> bool {
-        self.content == &other.content
-    }
-}
-
-impl PartialEq<&ItemRef> for Iter<'_> {
-    fn eq(&self, other: &&ItemRef) -> bool {
-        self.content == &other.content
-    }
-}
-
-impl PartialEq<Iter<'_>> for ItemRef {
-    fn eq(&self, other: &Iter<'_>) -> bool {
         &self.content == other.content
     }
 }
 
-impl PartialEq<Iter<'_>> for &ItemRef {
+impl PartialEq<Iter<'_>> for &Item {
     fn eq(&self, other: &Iter<'_>) -> bool {
         &self.content == other.content
     }

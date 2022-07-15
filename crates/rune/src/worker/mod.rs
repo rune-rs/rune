@@ -3,7 +3,7 @@
 use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::{CompileVisitor, Item, Options, Prelude, SourceLoader, UnitBuilder};
+use crate::compile::{CompileVisitor, ItemBuf, Options, Prelude, SourceLoader, UnitBuilder};
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
 use crate::macros::Storage;
@@ -30,7 +30,7 @@ pub(crate) struct Worker<'a> {
     /// Id generator.
     pub(crate) gen: &'a Gen,
     /// Files that have been loaded.
-    pub(crate) loaded: HashMap<Item, (SourceId, Span)>,
+    pub(crate) loaded: HashMap<ItemBuf, (SourceId, Span)>,
     /// Worker queue.
     pub(crate) queue: VecDeque<Task>,
 }

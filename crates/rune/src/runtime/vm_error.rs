@@ -1,4 +1,4 @@
-use crate::compile::Item;
+use crate::compile::ItemBuf;
 use crate::runtime::panic::BoxedPanic;
 use crate::runtime::{
     AccessError, CallFrame, ExecutionState, Key, Panic, Protocol, StackError, TypeInfo, TypeOf,
@@ -187,7 +187,7 @@ pub enum VmErrorKind {
     #[error("missing constant with hash `{hash}`")]
     MissingConst { hash: Hash },
     #[error("missing entry `{item}` with hash `{hash}`")]
-    MissingEntry { item: Item, hash: Hash },
+    MissingEntry { item: ItemBuf, hash: Hash },
     #[error("missing entry with hash `{hash}`")]
     MissingEntryHash { hash: Hash },
     #[error("missing function with hash `{hash}`")]

@@ -1,9 +1,9 @@
 use crate::compile::item::internal::MAX_DATA;
-use crate::compile::item::{Component, ComponentRef, IntoComponent, Item};
+use crate::compile::item::{Component, ComponentRef, IntoComponent, ItemBuf};
 
 #[test]
 fn test_pop() {
-    let mut item = Item::new();
+    let mut item = ItemBuf::new();
 
     item.push("start");
     item.push(ComponentRef::Id(1));
@@ -25,7 +25,7 @@ fn test_pop() {
 
 #[test]
 fn test_next_back_str() {
-    let mut item = Item::new();
+    let mut item = ItemBuf::new();
 
     item.push(ComponentRef::Crate("std"));
     item.push("start");
@@ -49,7 +49,7 @@ fn test_next_back_str() {
 
 #[test]
 fn alternate() {
-    let mut item = Item::new();
+    let mut item = ItemBuf::new();
 
     item.push(ComponentRef::Crate("std"));
     item.push("start");
@@ -74,14 +74,14 @@ fn alternate() {
 
 #[test]
 fn store_max_data() {
-    let mut item = Item::new();
+    let mut item = ItemBuf::new();
     item.push(ComponentRef::Id(MAX_DATA - 1));
     assert_eq!(item.last(), Some(ComponentRef::Id(MAX_DATA - 1)));
 }
 
 #[test]
 fn store_max_string() {
-    let mut item = Item::new();
+    let mut item = ItemBuf::new();
     let s = "x".repeat(MAX_DATA - 1);
     item.push(ComponentRef::Str(&s));
     assert_eq!(item.last(), Some(ComponentRef::Str(&s)));
@@ -90,7 +90,7 @@ fn store_max_string() {
 #[test]
 #[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
 fn store_max_data_overflow() {
-    let mut item = Item::new();
+    let mut item = ItemBuf::new();
     item.push(ComponentRef::Id(MAX_DATA));
     assert_eq!(item.last(), Some(ComponentRef::Id(MAX_DATA)));
 }
@@ -98,7 +98,7 @@ fn store_max_data_overflow() {
 #[test]
 #[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
 fn store_max_string_overflow() {
-    let mut item = Item::new();
+    let mut item = ItemBuf::new();
     let s = "x".repeat(MAX_DATA);
     item.push(ComponentRef::Str(&s));
 }

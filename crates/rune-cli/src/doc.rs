@@ -6,7 +6,7 @@ use anyhow::Context;
 use rune::compile::{Component, MetaKind};
 use rune::{
     ast::Span,
-    compile::{CompileVisitor, FileSourceLoader, Item, MetaRef},
+    compile::{CompileVisitor, FileSourceLoader, Item, ItemBuf, MetaRef},
     Diagnostics, Options, Source, SourceId, Sources,
 };
 use structopt::StructOpt;
@@ -70,7 +70,7 @@ pub(crate) fn run(
         }
     }
 
-    let mut item = Item::new();
+    let mut item = ItemBuf::new();
 
     if let Some(children) = doc_finder.children.get(&item) {
         for m in children {
@@ -89,9 +89,9 @@ pub(crate) fn run(
 
 #[derive(Default)]
 struct DocFinder {
-    meta: BTreeMap<Item, MetaKind>,
-    docs: HashMap<Item, Vec<String>>,
-    children: BTreeMap<Item, BTreeSet<Component>>,
+    meta: BTreeMap<ItemBuf, MetaKind>,
+    docs: HashMap<ItemBuf, Vec<String>>,
+    children: BTreeMap<ItemBuf, BTreeSet<Component>>,
 }
 
 impl CompileVisitor for DocFinder {
@@ -107,7 +107,7 @@ impl CompileVisitor for DocFinder {
 
     fn visit_doc_comment(&mut self, _source_id: SourceId, item: &Item, _span: Span, string: &str) {
         self.docs
-            .entry(item.clone())
+            .entry(item.to_owned())
             .or_default()
             .push(string.to_owned());
     }

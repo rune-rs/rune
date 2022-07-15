@@ -1,5 +1,5 @@
 use crate::collections::{btree_map, BTreeMap};
-use crate::compile::{Item, Named};
+use crate::compile::{ItemBuf, Named};
 use crate::runtime::{
     FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value, Vm,
     VmError,
@@ -226,7 +226,7 @@ impl Object {
 
     /// Debug implementation for a struct. This assumes that all fields
     /// corresponds to identifiers.
-    pub(crate) fn debug_struct<'a>(&'a self, item: &'a Item) -> DebugStruct<'a> {
+    pub(crate) fn debug_struct<'a>(&'a self, item: &'a ItemBuf) -> DebugStruct<'a> {
         DebugStruct { item, st: self }
     }
 
@@ -339,7 +339,7 @@ impl Named for Object {
 impl InstallWith for Object {}
 
 pub struct DebugStruct<'a> {
-    item: &'a Item,
+    item: &'a ItemBuf,
     st: &'a Object,
 }
 

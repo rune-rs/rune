@@ -1,4 +1,4 @@
-use rune::compile::{CompileVisitor, Item, MetaKind, MetaRef};
+use rune::compile::{CompileVisitor, ItemBuf, MetaKind, MetaRef};
 use rune::Hash;
 
 /// Attribute to collect.
@@ -15,7 +15,7 @@ pub(crate) enum Attribute {
 /// A compile visitor that collects functions with a specific attribute.
 pub struct FunctionVisitor {
     attribute: Attribute,
-    functions: Vec<(Hash, Item)>,
+    functions: Vec<(Hash, ItemBuf)>,
 }
 
 impl FunctionVisitor {
@@ -27,7 +27,7 @@ impl FunctionVisitor {
     }
 
     /// Convert visitor into test functions.
-    pub(crate) fn into_functions(self) -> Vec<(Hash, Item)> {
+    pub(crate) fn into_functions(self) -> Vec<(Hash, ItemBuf)> {
         self.functions
     }
 }

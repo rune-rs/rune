@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::{Span, Spanned, SpannedError};
-use crate::compile::{IrError, IrErrorKind, Item, Location, Meta};
+use crate::compile::{IrError, IrErrorKind, ItemBuf, Location, Meta};
 use crate::hir::{HirError, HirErrorKind};
 use crate::parse::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
@@ -111,19 +111,19 @@ pub enum CompileErrorKind {
     ModNotFound { path: PathBuf },
     #[error("module `{item}` has already been loaded")]
     ModAlreadyLoaded {
-        item: Item,
+        item: ItemBuf,
         existing: (SourceId, Span),
     },
     #[error("variable `{name}` conflicts")]
     VariableConflict { name: String, existing_span: Span },
     #[error("missing macro `{item}`")]
-    MissingMacro { item: Item },
+    MissingMacro { item: ItemBuf },
     #[error("{error}")]
-    CallMacroError { item: Item, error: Error },
+    CallMacroError { item: ItemBuf, error: Error },
     #[error("no local variable `{name}`")]
     MissingLocal { name: String },
     #[error("missing item `{item}`")]
-    MissingItem { item: Item },
+    MissingItem { item: ItemBuf },
     #[error("unsupported crate prefix `::`")]
     UnsupportedGlobal,
     #[error("cannot load modules using a source without an associated URL")]
@@ -131,7 +131,7 @@ pub enum CompileErrorKind {
     #[error("cannot load modules relative to `{root}`")]
     UnsupportedModuleRoot { root: PathBuf },
     #[error("cannot load module for `{item}`")]
-    UnsupportedModuleItem { item: Item },
+    UnsupportedModuleItem { item: ItemBuf },
     #[error("wildcard support not supported in this position")]
     UnsupportedWildcard,
     #[error("`self` not supported here")]
@@ -143,9 +143,9 @@ pub enum CompileErrorKind {
     #[error("{meta} is not an object")]
     UnsupportedLitObject { meta: Meta },
     #[error("missing field `{field}` in declaration of `{item}`")]
-    LitObjectMissingField { field: Box<str>, item: Item },
+    LitObjectMissingField { field: Box<str>, item: ItemBuf },
     #[error("`{field}` is not a field in `{item}`")]
-    LitObjectNotField { field: Box<str>, item: Item },
+    LitObjectNotField { field: Box<str>, item: ItemBuf },
     #[error("cannot assign to expression")]
     UnsupportedAssignExpr,
     #[error("unsupported binary expression")]
@@ -179,7 +179,7 @@ pub enum CompileErrorKind {
     #[error("instance function declared outside of `impl` block")]
     InstanceFunctionOutsideImpl,
     #[error("import `{item}` (imported in prelude) does not exist")]
-    MissingPreludeModule { item: Item },
+    MissingPreludeModule { item: ItemBuf },
     #[error("unsupported tuple index `{number}`")]
     UnsupportedTupleIndex { number: ast::Number },
     #[error("break outside of loop")]
@@ -221,9 +221,9 @@ pub enum CompileErrorKind {
     #[error("conflicting function hash already exists `{hash}`")]
     FunctionReExportConflict { hash: Hash },
     #[error("conflicting constant registered for `{item}` on hash `{hash}`")]
-    ConstantConflict { item: Item, hash: Hash },
+    ConstantConflict { item: ItemBuf, hash: Hash },
     #[error("unsupported meta type for item `{existing}`")]
-    UnsupportedMeta { existing: Item },
+    UnsupportedMeta { existing: ItemBuf },
     #[error("missing static string for hash `{hash}` and slot `{slot}`")]
     StaticStringMissing { hash: Hash, slot: usize },
     #[error("missing static byte string for hash `{hash}` and slot `{slot}`")]
@@ -288,7 +288,10 @@ pub enum CompileErrorKind {
     #[error("conflicting function already exists `{hash}`")]
     FunctionConflictHash { hash: Hash },
     #[error("non-exhaustive pattern for `{item}`")]
-    PatternMissingFields { item: Item, fields: Box<[Box<str>]> },
+    PatternMissingFields {
+        item: ItemBuf,
+        fields: Box<[Box<str>]>,
+    },
 }
 
 /// A single step in an import.
@@ -300,5 +303,5 @@ pub struct ImportStep {
     /// The location of the import.
     pub location: Location,
     /// The item being imported.
-    pub item: Item,
+    pub item: ItemBuf,
 }

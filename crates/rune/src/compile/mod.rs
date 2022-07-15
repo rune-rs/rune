@@ -36,7 +36,7 @@ pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, Ir
 pub use self::ir::{IrError, IrErrorKind, IrEval, IrValue};
 
 pub(crate) mod item;
-pub use self::item::{Component, ComponentRef, IntoComponent, Item};
+pub use self::item::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
 
 mod source_loader;
 pub use self::source_loader::{FileSourceLoader, SourceLoader};

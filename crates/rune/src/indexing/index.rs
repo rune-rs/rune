@@ -5,7 +5,7 @@ use crate::compile::attrs::Attributes;
 use crate::compile::ir;
 use crate::compile::{attrs, Doc};
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, Item, Location, ModMeta, Options, PrivMeta,
+    CompileError, CompileErrorKind, CompileResult, ItemBuf, Location, ModMeta, Options, PrivMeta,
     PrivMetaKind, SourceLoader, SourceMeta, Visibility,
 };
 use crate::indexing::locals;
@@ -43,7 +43,7 @@ pub(crate) struct Indexer<'a> {
     /// The root URL that the indexed file originated from.
     pub(crate) root: Option<PathBuf>,
     /// Loaded modules.
-    pub(crate) loaded: &'a mut HashMap<Item, (SourceId, Span)>,
+    pub(crate) loaded: &'a mut HashMap<ItemBuf, (SourceId, Span)>,
     /// Query engine.
     pub(crate) q: Query<'a>,
     /// Imports to process.
@@ -58,7 +58,7 @@ pub(crate) struct Indexer<'a> {
     /// The current module being indexed.
     pub(crate) mod_item: Arc<ModMeta>,
     /// Set if we are inside of an impl self.
-    pub(crate) impl_item: Option<Arc<Item>>,
+    pub(crate) impl_item: Option<Arc<ItemBuf>>,
     /// Source loader to use.
     pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Indicates if indexer is nested privately inside of another item, and if
