@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use rune::compile::{CompileVisitor, MetaRef};
+use rune::compile::{Item, CompileVisitor};
 use rune::{Context, Diagnostics, SourceId};
 use rune::ast::Span;
 use rune::termcolor::{ColorChoice, StandardStream};
@@ -11,12 +11,8 @@ struct DocVisitor {
 }
 
 impl CompileVisitor for DocVisitor {
-    fn visit_doc_comment(&mut self, _: SourceId, meta: MetaRef<'_>, _: Span, doc: &str) {
-        self.collected.entry(meta.item.to_string()).or_default().push(doc.to_string());
-    }
-
-    fn visit_file_doc_comment(&mut self, _: SourceId, _:Span, doc: &str) {
-        self.collected.entry("".to_string()).or_default().push(doc.to_string());
+    fn visit_doc_comment(&mut self, _: SourceId, item: &Item, _:Span, doc: &str) {
+        self.collected.entry(item.to_string()).or_default().push(doc.to_string());
     }
 }
 
@@ -26,7 +22,8 @@ impl DocVisitor {
             let against = if let Some(vec) = self.collected.get(item) {
                 vec
             } else {
-                panic!("missing documentation for item {item:?}");
+                let items = self.collected.iter().map(|(item, _)| item.as_str()).collect::<Vec<_>>().join(", ");
+                panic!("missing documentation for item {item:?}, collected: {items}");
             };
 
             for (i, expected) in expected.iter().enumerate() {
@@ -76,7 +73,7 @@ macro_rules! expect_docs {
 fn harvest_docs() {
     let mut diagnostics = Diagnostics::new();
     let mut vis = expect_docs! {
-        "" => {
+        "{root}" => {
             " Mod/file doc.\n"
             " Multiline mod/file doc.\n         *  :)\n         "
         }
@@ -88,20 +85,20 @@ fn harvest_docs() {
         "Enum" => { "\n         * Top-level enum.\n         " }
         "Enum::A" => { " Enum variant A.\n" }
         "Enum::B" => { " Enum variant B.\n" }
-        "constant" => { " Top-level constant.\n" }
+        "CONSTANT" => { " Top-level constant.\n" }
 
-        "Module" => {
+        "module" => {
             " Top-level module.\n"
             " Also module doc.\n"
         }
-        "Module::Enum" => { " Module enum.\n" }
-        "Module::Enum::A" => { " Enum variant A.\n" }
-        "Module::Enum::B" => { " Enum variant B.\n" }
+        "module::Enum" => { " Module enum.\n" }
+        "module::Enum::A" => { " Enum variant A.\n" }
+        "module::Enum::B" => { " Enum variant B.\n" }
 
-        "Module::Module" => { " Module in a module.\n" }
-        "Module::Module::Enum" => { " Module enum.\n" }
-        "Module::Module::Enum::A" => { " Enum variant A.\n" }
-        "Module::Module::Enum::B" => { " Enum variant B.\n" }
+        "module::Module" => { " Module in a module.\n" }
+        "module::Module::Enum" => { " Module enum.\n" }
+        "module::Module::Enum::A" => { " Enum variant A.\n" }
+        "module::Module::Enum::B" => { " Enum variant B.\n" }
     };
 
     let mut sources = sources(r#"
@@ -133,10 +130,10 @@ fn harvest_docs() {
         }
 
         /// Top-level constant.
-        const constant = 15;
+        const CONSTANT = 15;
 
         /// Top-level module.
-        mod Module {
+        mod module {
             //! Also module doc.
 
             /// Module enum.

@@ -3,12 +3,10 @@
 use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::attrs::Attributes;
-use crate::compile::{CompileVisitor, Doc, Item, Options, Prelude, SourceLoader, UnitBuilder};
+use crate::compile::{CompileVisitor, Item, Options, Prelude, SourceLoader, UnitBuilder};
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
 use crate::macros::Storage;
-use crate::parse::{ParseError, Resolve};
 use crate::query::{Query, QueryInner};
 use crate::shared::{Consts, Gen, Items};
 use crate::{Context, Diagnostics, SourceId, Sources};
@@ -128,25 +126,6 @@ impl<'a> Worker<'a> {
 
                     if let Err(error) = index::file(&mut file, &mut indexer) {
                         indexer.diagnostics.error(source_id, error);
-                    }
-
-                    let docs_result = || -> Result<(), ParseError> {
-                        let mut attrs = Attributes::new(file.attributes);
-                        let docs = Doc::collect_from(resolve_context!(self.q), &mut attrs)?;
-
-                        for doc in docs {
-                            self.q.visitor.visit_file_doc_comment(
-                                source_id,
-                                doc.span,
-                                &*doc.doc_string.resolve(resolve_context!(self.q))?,
-                            );
-                        }
-
-                        Ok(())
-                    };
-
-                    if let Err(error) = docs_result() {
-                        self.diagnostics.error(source_id, error);
                     }
                 }
                 Task::ExpandImport(import) => {

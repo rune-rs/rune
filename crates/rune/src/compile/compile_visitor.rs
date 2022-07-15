@@ -1,5 +1,5 @@
 use crate::ast::Span;
-use crate::compile::MetaRef;
+use crate::compile::{Item, MetaRef};
 use crate::SourceId;
 
 /// A visitor that will be called for every language item compiled.
@@ -16,24 +16,21 @@ pub trait CompileVisitor {
     /// Visit something that is a module.
     fn visit_mod(&mut self, _source_id: SourceId, _span: Span) {}
 
-    /// Visit an item's doc comment attribute.
+    /// Visit anterior `///`-style comments, and interior `//!`-style doc
+    /// comments for an item.
     ///
-    /// This may be called several times for a single item. Each attribute should eventually be
-    /// combined for the full doc string.
+    /// This may be called several times for a single item. Each attribute
+    /// should eventually be combined for the full doc string.
+    ///
+    /// This is always called after [CompileVisitor::visit_meta] for any given item.
     fn visit_doc_comment(
         &mut self,
         _source_id: SourceId,
-        _meta: MetaRef<'_>,
+        _item: &Item,
         _span: Span,
         _docstr: &str,
     ) {
     }
-
-    /// Visit a file's doc comment attribute.
-    ///
-    /// This may be called several times for a single file. Each attribute should eventually be
-    /// combined for the full doc string.
-    fn visit_file_doc_comment(&mut self, _source_id: SourceId, _span: Span, _docstr: &str) {}
 }
 
 /// A [CompileVisitor] which does nothing.

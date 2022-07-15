@@ -522,10 +522,10 @@ impl<'a> Indexer<'a> {
     }
 
     /// Handle a filesystem module.
-    pub(crate) fn handle_file_mod(
+    fn handle_file_mod(
         &mut self,
         item_mod: &mut ast::ItemMod,
-        docs: Arc<Vec<Doc>>,
+        docs: Vec<Doc>,
     ) -> CompileResult<()> {
         let span = item_mod.span();
         let name = item_mod.name.resolve(resolve_context!(self.q))?;
@@ -549,7 +549,7 @@ impl<'a> Indexer<'a> {
             item_mod.name_span(),
             &self.mod_item,
             visibility,
-            docs,
+            Arc::from(docs),
         )?;
 
         item_mod.id.set(self.items.id());
@@ -584,9 +584,22 @@ impl<'a> Indexer<'a> {
     }
 }
 
+/// Index the contents of a module known by its AST as a "file".
 pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let mut attrs = Attributes::new(ast.attributes.to_vec());
-    attrs.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
+    let docs = attrs.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
+
+    let ctx = resolve_context!(idx.q);
+
+    // This part catches comments interior to the module of the form `//!`.
+    for (span, doc) in docs {
+        idx.q.visitor.visit_doc_comment(
+            idx.source_id,
+            &idx.mod_item.item,
+            span,
+            &*doc.doc_string.resolve(ctx)?,
+        );
+    }
 
     if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
@@ -1406,18 +1419,8 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
 
 #[instrument]
 fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    // Attributes for modules are a combination of their inner and outer attribute declarations.
-    let attrs = match &ast.body {
-        ast::ItemModBody::EmptyBody(_) => ast.attributes.to_vec(),
-        ast::ItemModBody::InlineBody(body) => {
-            let mut vec = ast.attributes.to_vec();
-            vec.extend_from_slice(&body.file.attributes);
-            vec
-        }
-    };
-
-    let mut attrs = Attributes::new(attrs);
-    let docs = Arc::new(Doc::collect_from(resolve_context!(idx.q), &mut attrs)?);
+    let mut attrs = Attributes::new(ast.attributes.clone());
+    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
     if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
@@ -1443,7 +1446,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
                 name_span,
                 &idx.mod_item,
                 visibility,
-                docs,
+                Arc::new(docs),
             )?;
 
             ast.id.set(idx.items.id());

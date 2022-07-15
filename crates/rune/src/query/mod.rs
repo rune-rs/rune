@@ -186,10 +186,11 @@ impl<'a> Query<'a> {
 
         if !meta.item.docs.is_empty() {
             let ctx = resolve_context!(self);
+
             for doc in &*meta.item.docs {
                 self.visitor.visit_doc_comment(
                     meta.item.location.source_id,
-                    mref,
+                    mref.item,
                     doc.span,
                     &*doc.doc_string.resolve(ctx)?,
                 );
