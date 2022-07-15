@@ -89,7 +89,9 @@ impl<'a> Assembler<'a> {
 
         Err(CompileError::new(
             spanned,
-            CompileErrorKind::MissingItem { item: item.clone() },
+            CompileErrorKind::MissingItem {
+                item: item.to_owned(),
+            },
         ))
     }
 

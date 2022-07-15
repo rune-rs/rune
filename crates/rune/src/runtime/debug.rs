@@ -2,7 +2,7 @@
 
 use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::Item;
+use crate::compile::ItemBuf;
 use crate::runtime::DebugLabel;
 use crate::{Hash, SourceId};
 use serde::{Deserialize, Serialize};
@@ -81,14 +81,14 @@ pub enum DebugArgs {
 #[non_exhaustive]
 pub struct DebugSignature {
     /// The path of the function.
-    pub path: Item,
+    pub path: ItemBuf,
     /// The number of arguments expected in the function.
     pub args: DebugArgs,
 }
 
 impl DebugSignature {
     /// Construct a new function signature.
-    pub fn new(path: Item, args: DebugArgs) -> Self {
+    pub fn new(path: ItemBuf, args: DebugArgs) -> Self {
         Self { path, args }
     }
 }

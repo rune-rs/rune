@@ -1,4 +1,4 @@
-use crate::compile::{ImportStep, IrError, IrErrorKind, Item, Location, Meta, Visibility};
+use crate::compile::{ImportStep, IrError, IrErrorKind, ItemBuf, Location, Meta, Visibility};
 use crate::hir::{HirError, HirErrorKind};
 use crate::parse::{Id, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
 use crate::runtime::debug::DebugSignature;
@@ -52,19 +52,19 @@ pub enum QueryErrorKind {
     #[error("missing {what} for id {id:?}")]
     MissingId { what: &'static str, id: Id },
     #[error("cannot define conflicting item `{item}`")]
-    ItemConflict { item: Item, other: Location },
+    ItemConflict { item: ItemBuf, other: Location },
     #[error("`{item}` can refer to multiple things")]
     AmbiguousItem {
-        item: Item,
-        locations: Vec<(Location, Item)>,
+        item: ItemBuf,
+        locations: Vec<(Location, ItemBuf)>,
     },
     #[error("`{item}` with {visibility} visibility, is not accessible from module `{from}`")]
     NotVisible {
         chain: Vec<Location>,
         location: Location,
         visibility: Visibility,
-        item: Item,
-        from: Item,
+        item: ItemBuf,
+        from: ItemBuf,
     },
     #[error(
         "module `{item}` with {visibility} visibility, is not accessible from module `{from}`"
@@ -73,13 +73,13 @@ pub enum QueryErrorKind {
         chain: Vec<Location>,
         location: Location,
         visibility: Visibility,
-        item: Item,
-        from: Item,
+        item: ItemBuf,
+        from: ItemBuf,
     },
     #[error("missing item for id {id:?}")]
     MissingRevId { id: Id },
     #[error("missing query meta for module {item}")]
-    MissingMod { item: Item },
+    MissingMod { item: ItemBuf },
     #[error("cycle in import")]
     ImportCycle { path: Vec<ImportStep> },
     #[error("import recursion limit reached ({count})")]
@@ -87,7 +87,7 @@ pub enum QueryErrorKind {
     #[error("missing last use component")]
     LastUseComponent,
     #[error("found indexed entry for `{item}`, but was not an import")]
-    NotIndexedImport { item: Item },
+    NotIndexedImport { item: ItemBuf },
     #[error("{meta} can't be used as an import")]
     UnsupportedImportMeta { meta: Meta },
     /// Tried to add an item that already exists.

@@ -63,6 +63,7 @@ use tracing_subscriber::filter::EnvFilter;
 
 mod benches;
 mod check;
+mod doc;
 mod loader;
 mod run;
 mod tests;
@@ -79,6 +80,8 @@ struct Io<'a> {
 enum Command {
     /// Run checks but do not execute
     Check(check::Flags),
+    /// Build documentation.
+    Doc(doc::Flags),
     /// Run all tests but do not execute
     Test(tests::Flags),
     /// Run the given program as a benchmark
@@ -90,7 +93,8 @@ enum Command {
 impl Command {
     fn propagate_related_flags(&mut self, c: &mut Config) {
         match self {
-            Command::Check(_) => {}
+            Command::Check(..) => {}
+            Command::Doc(..) => {}
             Command::Test(..) => {
                 c.test = true;
             }
@@ -106,6 +110,7 @@ impl Command {
     fn describe(&self) -> &'static str {
         match self {
             Command::Check(..) => "Checking",
+            Command::Doc(..) => "Building documentation",
             Command::Test(..) => "Testing",
             Command::Bench(..) => "Benchmarking",
             Command::Run(..) => "Running",
@@ -115,6 +120,7 @@ impl Command {
     fn shared(&self) -> &SharedFlags {
         match self {
             Command::Check(args) => &args.shared,
+            Command::Doc(args) => &args.shared,
             Command::Test(args) => &args.shared,
             Command::Bench(args) => &args.shared,
             Command::Run(args) => &args.shared,
@@ -122,7 +128,10 @@ impl Command {
     }
 
     fn bins_test(&self) -> Option<WorkspaceFilter<'_>> {
-        if !matches!(self, Command::Run(..) | Command::Check(..)) {
+        if !matches!(
+            self,
+            Command::Run(..) | Command::Check(..) | Command::Doc(..)
+        ) {
             return None;
         }
 
@@ -136,7 +145,10 @@ impl Command {
     }
 
     fn tests_test(&self) -> Option<WorkspaceFilter<'_>> {
-        if !matches!(self, Command::Test(..) | Command::Check(..)) {
+        if !matches!(
+            self,
+            Command::Test(..) | Command::Check(..) | Command::Doc(..)
+        ) {
             return None;
         }
 
@@ -150,7 +162,10 @@ impl Command {
     }
 
     fn examples_test(&self) -> Option<WorkspaceFilter<'_>> {
-        if !matches!(self, Command::Run(..) | Command::Check(..)) {
+        if !matches!(
+            self,
+            Command::Run(..) | Command::Check(..) | Command::Doc(..)
+        ) {
             return None;
         }
 
@@ -164,7 +179,10 @@ impl Command {
     }
 
     fn benches_test(&self) -> Option<WorkspaceFilter<'_>> {
-        if !matches!(self, Command::Bench(..) | Command::Check(..)) {
+        if !matches!(
+            self,
+            Command::Bench(..) | Command::Check(..) | Command::Doc(..)
+        ) {
             return None;
         }
 
@@ -321,7 +339,7 @@ impl Args {
                 options.test(true);
                 options.bytecode(false);
             }
-            Command::Bench(_) | Command::Run(_) => (),
+            Command::Bench(_) | Command::Doc(..) | Command::Run(_) => (),
         }
 
         for option in &self.cmd.shared().compiler_options {
@@ -579,6 +597,7 @@ async fn run_path(
 ) -> Result<ExitCode> {
     match &args.cmd {
         Command::Check(flags) => check::run(io, c, flags, options, path),
+        Command::Doc(flags) => doc::run(io, c, flags, options, path),
         Command::Test(flags) => {
             let capture_io = rune_modules::capture_io::CaptureIo::new();
             let context = flags.shared.context_with_capture(c, &capture_io)?;

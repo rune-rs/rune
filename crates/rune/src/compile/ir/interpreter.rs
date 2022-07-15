@@ -1,6 +1,8 @@
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{IrError, IrErrorKind, IrEvalOutcome, IrValue, Item, ModMeta, PrivMetaKind};
+use crate::compile::{
+    IrError, IrErrorKind, IrEvalOutcome, IrValue, ItemBuf, ModMeta, PrivMetaKind,
+};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
 
@@ -15,7 +17,7 @@ pub struct IrInterpreter<'a> {
     /// The module in which the interpreter is run.
     pub(crate) module: &'a ModMeta,
     /// The item where the constant expression is located.
-    pub(crate) item: &'a Item,
+    pub(crate) item: &'a ItemBuf,
     /// Constant scopes.
     pub(crate) scopes: IrScopes,
     /// Query engine to look for constant expressions.

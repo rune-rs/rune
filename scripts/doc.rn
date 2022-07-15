@@ -1,0 +1,13 @@
+/// Foo documentation.
+struct Foo {
+}
+
+/// Test
+mod module {
+    //! Interior comment 1.
+    //! Interior comment 2.
+
+    /// Bar documentation.
+    struct Bar {
+    }
+}

@@ -4,7 +4,7 @@
 //! native code.
 
 use crate::collections::{HashMap, HashSet};
-use crate::compile::{ContextError, IntoComponent, Item, Named};
+use crate::compile::{ContextError, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
     ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Protocol, Stack,
@@ -45,7 +45,7 @@ pub(crate) struct InternalEnum {
     /// The name of the internal enum.
     pub(crate) name: &'static str,
     /// The result type.
-    pub(crate) base_type: Item,
+    pub(crate) base_type: ItemBuf,
     /// The static type of the enum.
     pub(crate) static_type: &'static StaticType,
     /// Internal variants.
@@ -61,7 +61,7 @@ impl InternalEnum {
     {
         InternalEnum {
             name,
-            base_type: Item::with_item(base_type),
+            base_type: ItemBuf::with_item(base_type),
             static_type,
             variants: Vec::new(),
         }
@@ -242,13 +242,13 @@ pub(crate) struct Macro {
 #[derive(Default)]
 pub struct Module {
     /// The name of the module.
-    pub(crate) item: Item,
+    pub(crate) item: ItemBuf,
     /// Free functions.
-    pub(crate) functions: HashMap<Item, ModuleFn>,
+    pub(crate) functions: HashMap<ItemBuf, ModuleFn>,
     /// MacroHandler handlers.
-    pub(crate) macros: HashMap<Item, Macro>,
+    pub(crate) macros: HashMap<ItemBuf, Macro>,
     /// Constant values.
-    pub(crate) constants: HashMap<Item, ConstValue>,
+    pub(crate) constants: HashMap<ItemBuf, ConstValue>,
     /// Instance functions.
     pub(crate) associated_functions: HashMap<AssocKey, AssocFn>,
     /// Registered types.
@@ -271,12 +271,12 @@ impl Module {
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        Self::inner_new(Item::with_item(iter))
+        Self::inner_new(ItemBuf::with_item(iter))
     }
 
     /// Construct a new module for the given crate.
     pub fn with_crate(name: &str) -> Self {
-        Self::inner_new(Item::with_crate(name))
+        Self::inner_new(ItemBuf::with_crate(name))
     }
 
     /// Construct a new module for the given crate.
@@ -285,10 +285,10 @@ impl Module {
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        Self::inner_new(Item::with_crate_item(name, iter))
+        Self::inner_new(ItemBuf::with_crate_item(name, iter))
     }
 
-    fn inner_new(item: Item) -> Self {
+    fn inner_new(item: ItemBuf) -> Self {
         Self {
             item,
             functions: Default::default(),
@@ -357,7 +357,7 @@ impl Module {
 
         if let Some(old) = self.types.insert(type_hash, ty) {
             return Err(ContextError::ConflictingType {
-                item: Item::with_item(&[T::full_name()]),
+                item: ItemBuf::with_item(&[T::full_name()]),
                 type_info: old.type_info,
             });
         }
@@ -385,7 +385,7 @@ impl Module {
             Some(ty) => ty,
             None => {
                 return Err(ContextError::MissingType {
-                    item: Item::with_item(&[T::full_name()]),
+                    item: ItemBuf::with_item(&[T::full_name()]),
                     type_info: T::type_info(),
                 });
             }
@@ -397,7 +397,7 @@ impl Module {
 
         if old.is_some() {
             return Err(ContextError::ConflictingTypeMeta {
-                item: Item::with_item(&[T::full_name()]),
+                item: ItemBuf::with_item(&[T::full_name()]),
                 type_info: ty.type_info.clone(),
             });
         }
@@ -420,7 +420,7 @@ impl Module {
             Some(ty) => ty,
             None => {
                 return Err(ContextError::MissingType {
-                    item: Item::with_item(&[T::full_name()]),
+                    item: ItemBuf::with_item(&[T::full_name()]),
                     type_info: T::type_info(),
                 });
             }
@@ -435,7 +435,7 @@ impl Module {
 
         if old.is_some() {
             return Err(ContextError::ConflictingTypeMeta {
-                item: Item::with_item(&[T::full_name()]),
+                item: ItemBuf::with_item(&[T::full_name()]),
                 type_info: ty.type_info.clone(),
             });
         }
@@ -459,7 +459,7 @@ impl Module {
             Some(ty) => ty,
             None => {
                 return Err(ContextError::MissingType {
-                    item: Item::with_item(&[T::full_name()]),
+                    item: ItemBuf::with_item(&[T::full_name()]),
                     type_info: T::type_info(),
                 });
             }
@@ -469,7 +469,7 @@ impl Module {
             Some(TypeSpecification::Enum(en)) => en,
             _ => {
                 return Err(ContextError::MissingEnum {
-                    item: Item::with_item(&[T::full_name()]),
+                    item: ItemBuf::with_item(&[T::full_name()]),
                     type_info: T::type_info(),
                 });
             }
@@ -660,7 +660,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = Item::with_item(name);
+        let name = ItemBuf::with_item(name);
 
         if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
@@ -697,7 +697,7 @@ impl Module {
         N::Item: IntoComponent,
         V: ToValue,
     {
-        let name = Item::with_item(name);
+        let name = ItemBuf::with_item(name);
 
         if self.constants.contains_key(&name) {
             return Err(ContextError::ConflictingConstantName { name });
@@ -728,7 +728,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = Item::with_item(name);
+        let name = ItemBuf::with_item(name);
 
         if self.macros.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
@@ -759,7 +759,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = Item::with_item(name);
+        let name = ItemBuf::with_item(name);
 
         if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
@@ -784,7 +784,7 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = Item::with_item(name);
+        let name = ItemBuf::with_item(name);
 
         if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });

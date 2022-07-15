@@ -1,13 +1,15 @@
-use crate::{ExitCode, Io, SharedFlags};
-use rune::compile::Item;
-use rune::runtime::{Function, Unit, Value};
-use rune::{Any, Context, ContextError, Hash, Module, Sources};
-use rune_modules::capture_io::CaptureIo;
 use std::fmt;
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
+
+use rune::compile::{Item, ItemBuf};
+use rune::runtime::{Function, Unit, Value};
+use rune::{Any, Context, ContextError, Hash, Module, Sources};
+use rune_modules::capture_io::CaptureIo;
 use structopt::StructOpt;
+
+use crate::{ExitCode, Io, SharedFlags};
 
 #[derive(StructOpt, Debug, Clone)]
 pub(crate) struct Flags {
@@ -50,7 +52,7 @@ pub(crate) async fn run(
     capture_io: Option<&CaptureIo>,
     unit: Arc<Unit>,
     sources: &Sources,
-    fns: &[(Hash, Item)],
+    fns: &[(Hash, ItemBuf)],
 ) -> anyhow::Result<ExitCode> {
     let runtime = Arc::new(context.runtime());
     let mut vm = rune::Vm::new(runtime, unit);

@@ -755,7 +755,7 @@ fn pat_object(
                         span,
                         CompileErrorKind::LitObjectNotField {
                             field: binding.key().into(),
-                            item: meta.item.item.clone(),
+                            item: meta.item.item.to_owned(),
                         },
                     ));
                 }
@@ -771,7 +771,7 @@ fn pat_object(
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::PatternMissingFields {
-                        item: meta.item.item.clone(),
+                        item: meta.item.item.to_owned(),
                         fields,
                     },
                 ));
@@ -2005,7 +2005,7 @@ fn expr_closure(
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::MissingItem {
-                    item: item.item.clone(),
+                    item: item.item.to_owned(),
                 },
             ))
         }
@@ -2737,7 +2737,7 @@ fn expr_object(
                     span,
                     CompileErrorKind::LitObjectNotField {
                         field,
-                        item: item.clone(),
+                        item: item.to_owned(),
                     },
                 ));
             }
@@ -2748,7 +2748,7 @@ fn expr_object(
                 span,
                 CompileErrorKind::LitObjectMissingField {
                     field,
-                    item: item.clone(),
+                    item: item.to_owned(),
                 },
             ));
         }
@@ -2806,7 +2806,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResu
     Err(CompileError::new(
         span,
         CompileErrorKind::MissingItem {
-            item: named.item.clone(),
+            item: named.item.to_owned(),
         },
     ))
 }

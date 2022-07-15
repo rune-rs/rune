@@ -1,4 +1,4 @@
-use crate::compile::Item;
+use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, Function, Future,
@@ -154,7 +154,7 @@ pub struct VariantRtti {
     /// The type variant hash.
     pub hash: Hash,
     /// The name of the variant.
-    pub item: Item,
+    pub item: ItemBuf,
 }
 
 impl cmp::PartialEq for VariantRtti {
@@ -190,7 +190,7 @@ pub struct Rtti {
     /// The type hash of the type.
     pub hash: Hash,
     /// The item of the type.
-    pub item: Item,
+    pub item: ItemBuf,
 }
 
 impl cmp::PartialEq for Rtti {

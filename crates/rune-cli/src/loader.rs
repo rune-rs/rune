@@ -1,6 +1,6 @@
 use crate::{visitor, Args, Io};
 use anyhow::{anyhow, Context as _, Result};
-use rune::compile::{FileSourceLoader, Item};
+use rune::compile::{FileSourceLoader, ItemBuf};
 use rune::Diagnostics;
 use rune::{Context, Hash, Options, Source, Sources, Unit};
 use std::collections::VecDeque;
@@ -13,7 +13,7 @@ use tracing::{error, trace};
 pub(crate) struct Load {
     pub(crate) unit: Arc<Unit>,
     pub(crate) sources: Sources,
-    pub(crate) functions: Vec<(Hash, Item)>,
+    pub(crate) functions: Vec<(Hash, ItemBuf)>,
 }
 
 /// Load context and code for a given path

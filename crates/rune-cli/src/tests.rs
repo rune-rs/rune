@@ -1,6 +1,6 @@
 use crate::{ExitCode, Io, SharedFlags};
 use anyhow::Result;
-use rune::compile::Item;
+use rune::compile::ItemBuf;
 use rune::runtime::{Unit, Value, Vm, VmError};
 use rune::{Context, Hash, Sources};
 use rune_modules::capture_io::CaptureIo;
@@ -33,13 +33,13 @@ enum FailureReason {
 #[derive(Debug)]
 struct TestCase<'a> {
     hash: Hash,
-    item: &'a Item,
+    item: &'a ItemBuf,
     outcome: Option<FailureReason>,
     buf: Vec<u8>,
 }
 
 impl<'a> TestCase<'a> {
-    fn from_parts(hash: Hash, item: &'a Item) -> Self {
+    fn from_parts(hash: Hash, item: &'a ItemBuf) -> Self {
         Self {
             hash,
             item,
@@ -153,7 +153,7 @@ pub(crate) async fn run(
     capture_io: Option<&CaptureIo>,
     unit: Arc<Unit>,
     sources: &Sources,
-    fns: &[(Hash, Item)],
+    fns: &[(Hash, ItemBuf)],
 ) -> anyhow::Result<ExitCode> {
     let runtime = Arc::new(context.runtime());
 

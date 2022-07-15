@@ -1,4 +1,4 @@
-use crate::compile::Item;
+use crate::compile::ItemBuf;
 use crate::{Hash, InstFnInfo, InstFnKind, InstFnName, IntoTypeHash};
 use std::cmp;
 use std::fmt;
@@ -34,7 +34,7 @@ impl IntoTypeHash for Protocol {
         self.hash
     }
 
-    fn into_item(self) -> Option<Item> {
+    fn into_item(self) -> Option<ItemBuf> {
         None
     }
 

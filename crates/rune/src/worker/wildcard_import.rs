@@ -1,5 +1,7 @@
 use crate::ast::Span;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, ModMeta, Visibility};
+use crate::compile::{
+    CompileError, CompileErrorKind, CompileResult, IntoComponent, ItemBuf, ModMeta, Visibility,
+};
 use crate::query::Query;
 use crate::{Context, SourceId};
 use std::sync::Arc;
@@ -7,8 +9,8 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub(crate) struct WildcardImport {
     pub(crate) visibility: Visibility,
-    pub(crate) from: Item,
-    pub(crate) name: Item,
+    pub(crate) from: ItemBuf,
+    pub(crate) name: ItemBuf,
     pub(crate) source_id: SourceId,
     pub(crate) span: Span,
     pub(crate) module: Arc<ModMeta>,

@@ -1,4 +1,4 @@
-use crate::compile::{IntoComponent, Item};
+use crate::compile::{IntoComponent, ItemBuf};
 use crate::runtime::Protocol;
 use crate::Any;
 use serde::{Deserialize, Serialize};
@@ -175,7 +175,7 @@ pub trait IntoTypeHash: Copy {
     fn into_type_hash(self) -> Hash;
 
     /// Optionally convert into an item, if appropriate.
-    fn into_item(self) -> Option<Item>;
+    fn into_item(self) -> Option<ItemBuf>;
 
     /// Hash the current value.
     fn hash<H>(self, hasher: &mut H)
@@ -188,7 +188,7 @@ impl IntoTypeHash for Hash {
         self
     }
 
-    fn into_item(self) -> Option<Item> {
+    fn into_item(self) -> Option<ItemBuf> {
         None
     }
 
@@ -211,8 +211,8 @@ where
         Hash(hasher.finish())
     }
 
-    fn into_item(self) -> Option<Item> {
-        Some(Item::with_item(self))
+    fn into_item(self) -> Option<ItemBuf> {
+        Some(ItemBuf::with_item(self))
     }
 
     fn hash<H>(self, hasher: &mut H)

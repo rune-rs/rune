@@ -1,4 +1,9 @@
-use crate::Output;
+use std::collections::BTreeMap;
+use std::fmt;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use anyhow::{anyhow, Result};
 use hashbrown::HashMap;
 use lsp::Url;
@@ -10,13 +15,10 @@ use rune::compile::{
 };
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::{Context, Options, SourceId};
-use std::collections::BTreeMap;
-use std::fmt;
-use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tokio::sync::RwLockWriteGuard;
 use tokio::sync::{mpsc, RwLock};
+
+use crate::Output;
 
 /// Shared server state.
 #[derive(Clone)]

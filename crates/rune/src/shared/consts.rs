@@ -4,16 +4,16 @@
 //! detect resolution cycles during constant evaluation.
 
 use crate::collections::{HashMap, HashSet};
-use crate::compile::Item;
+use crate::compile::{Item, ItemBuf};
 use crate::runtime::ConstValue;
 
 /// State for constants processing.
 #[derive(Default)]
 pub(crate) struct Consts {
     /// Const expression that have been resolved.
-    resolved: HashMap<Item, ConstValue>,
+    resolved: HashMap<ItemBuf, ConstValue>,
     /// Constant expressions being processed.
-    processing: HashSet<Item>,
+    processing: HashSet<ItemBuf>,
 }
 
 impl Consts {
@@ -22,7 +22,7 @@ impl Consts {
     /// Returns `true` if the given constant hasn't been marked yet. This is
     /// used to detect cycles during processing.
     pub(crate) fn mark(&mut self, item: &Item) -> bool {
-        self.processing.insert(item.clone())
+        self.processing.insert(item.to_owned())
     }
 
     /// Get the value for the constant at the given item, if present.
@@ -31,7 +31,7 @@ impl Consts {
     }
 
     /// Insert a constant value at the given item.
-    pub(crate) fn insert(&mut self, item: Item, value: ConstValue) -> Option<ConstValue> {
+    pub(crate) fn insert(&mut self, item: ItemBuf, value: ConstValue) -> Option<ConstValue> {
         self.resolved.insert(item, value)
     }
 }
