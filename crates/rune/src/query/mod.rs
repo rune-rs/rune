@@ -259,7 +259,7 @@ impl<'a> Query<'a> {
         span: Span,
         parent: &Arc<ModMeta>,
         visibility: Visibility,
-        docs: Arc<Vec<Doc>>,
+        docs: Arc<[Doc]>,
     ) -> Result<Arc<ModMeta>, QueryError> {
         let item = self.insert_new_item(items, source_id, span, parent, visibility, docs)?;
 
@@ -329,7 +329,7 @@ impl<'a> Query<'a> {
         spanned: Span,
         module: &Arc<ModMeta>,
         visibility: Visibility,
-        docs: Arc<Vec<Doc>>,
+        docs: Arc<[Doc]>,
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let id = items.id();
         let item = &*items.item();
@@ -809,7 +809,7 @@ impl<'a> Query<'a> {
             span,
             module,
             visibility,
-            Arc::new(Vec::new()),
+            Arc::from([]),
         )?;
 
         // toplevel public uses are re-exported.
@@ -1160,7 +1160,7 @@ impl<'a> Query<'a> {
         span: Span,
         module: &Arc<ModMeta>,
         visibility: Visibility,
-        docs: Arc<Vec<Doc>>,
+        docs: Arc<[Doc]>,
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let query_item = Arc::new(ItemMeta {
             location: Location::new(source_id, span),
