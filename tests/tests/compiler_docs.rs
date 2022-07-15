@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
-use rune::compile::{Item, CompileVisitor};
-use rune::{Context, Diagnostics, SourceId};
-use rune::ast::Span;
+use rune::compile::{Location, Item, CompileVisitor};
+use rune::{Context, Diagnostics};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune_tests::{sources};
 
@@ -11,7 +10,7 @@ struct DocVisitor {
 }
 
 impl CompileVisitor for DocVisitor {
-    fn visit_doc_comment(&mut self, _: SourceId, item: &Item, _:Span, doc: &str) {
+    fn visit_doc_comment(&mut self, _: Location, item: &Item, doc: &str) {
         self.collected.entry(item.to_string()).or_default().push(doc.to_string());
     }
 }

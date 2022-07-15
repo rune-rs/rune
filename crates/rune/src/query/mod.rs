@@ -184,19 +184,6 @@ impl<'a> Query<'a> {
         let mref = meta.info_ref();
         self.visitor.register_meta(mref);
 
-        if !meta.item.docs.is_empty() {
-            let ctx = resolve_context!(self);
-
-            for doc in &*meta.item.docs {
-                self.visitor.visit_doc_comment(
-                    meta.item.location.source_id,
-                    mref.item,
-                    doc.span,
-                    &*doc.doc_string.resolve(ctx)?,
-                );
-            }
-        }
-
         match self.inner.meta.entry(meta.item.item.clone()) {
             hash_map::Entry::Occupied(e) => {
                 return Err(QueryError::new(
@@ -255,16 +242,15 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_mod(
         &mut self,
         items: &Items,
-        source_id: SourceId,
-        span: Span,
+        location: Location,
         parent: &Arc<ModMeta>,
         visibility: Visibility,
-        docs: Arc<[Doc]>,
+        docs: &[Doc],
     ) -> Result<Arc<ModMeta>, QueryError> {
-        let item = self.insert_new_item(items, source_id, span, parent, visibility, docs)?;
+        let item = self.insert_new_item(items, location, parent, visibility, docs)?;
 
         let query_mod = Arc::new(ModMeta {
-            location: Location::new(source_id, span),
+            location,
             item: item.item.clone(),
             visibility,
             parent: Some(parent.clone()),
@@ -275,13 +261,13 @@ impl<'a> Query<'a> {
             .insert(item.item.clone(), query_mod.clone());
         self.insert_name(&item.item);
         self.insert_meta(
-            span,
+            location.span,
             PrivMeta {
                 item,
                 kind: PrivMetaKind::Module,
                 source: Some(SourceMeta {
-                    location: Location::new(source_id, span),
-                    path: self.sources.path(source_id).map(Into::into),
+                    location,
+                    path: self.sources.path(location.source_id).map(Into::into),
                 }),
             },
         )?;
@@ -325,16 +311,50 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_new_item(
         &mut self,
         items: &Items,
-        source_id: SourceId,
-        spanned: Span,
+        location: Location,
         module: &Arc<ModMeta>,
         visibility: Visibility,
-        docs: Arc<[Doc]>,
+        docs: &[Doc],
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let id = items.id();
         let item = &*items.item();
+        self.insert_new_item_with(id, item, location, module, visibility, docs)
+    }
 
-        self.insert_new_item_with(id, item, source_id, spanned, module, visibility, docs)
+    /// Insert a new item with the given newly allocated identifier and complete
+    /// `Item`.
+    fn insert_new_item_with(
+        &mut self,
+        id: NonZeroId,
+        item: &Item,
+        location: Location,
+        module: &Arc<ModMeta>,
+        visibility: Visibility,
+        docs: &[Doc],
+    ) -> Result<Arc<ItemMeta>, QueryError> {
+        // Emit documentation comments for the given item.
+        if !docs.is_empty() {
+            let ctx = resolve_context!(self);
+
+            for doc in docs {
+                self.visitor.visit_doc_comment(
+                    Location::new(location.source_id, doc.span),
+                    item,
+                    doc.doc_string.resolve(ctx)?.as_ref(),
+                );
+            }
+        }
+
+        let query_item = Arc::new(ItemMeta {
+            location,
+            id: Id::new(id),
+            item: item.to_owned(),
+            module: module.clone(),
+            visibility,
+        });
+
+        self.inner.items.insert(id, query_item.clone());
+        Ok(query_item)
     }
 
     /// Insert a new expanded internal macro.
@@ -802,15 +822,7 @@ impl<'a> Query<'a> {
         };
 
         let id = self.gen.next();
-        let item = self.insert_new_item_with(
-            id,
-            &item,
-            source_id,
-            span,
-            module,
-            visibility,
-            Arc::from([]),
-        )?;
+        let item = self.insert_new_item_with(id, &item, location, module, visibility, &[])?;
 
         // toplevel public uses are re-exported.
         if item.is_public() {
@@ -1150,29 +1162,6 @@ impl<'a> Query<'a> {
     /// Insert the given name into the unit.
     fn insert_name(&mut self, item: &Item) {
         self.inner.names.insert(item);
-    }
-
-    fn insert_new_item_with(
-        &mut self,
-        id: NonZeroId,
-        item: &Item,
-        source_id: SourceId,
-        span: Span,
-        module: &Arc<ModMeta>,
-        visibility: Visibility,
-        docs: Arc<[Doc]>,
-    ) -> Result<Arc<ItemMeta>, QueryError> {
-        let query_item = Arc::new(ItemMeta {
-            location: Location::new(source_id, span),
-            id: Id::new(id),
-            item: item.to_owned(),
-            module: module.clone(),
-            visibility,
-            docs,
-        });
-
-        self.inner.items.insert(id, query_item.clone());
-        Ok(query_item)
     }
 
     /// Handle an imported indexed entry.
