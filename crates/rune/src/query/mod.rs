@@ -186,10 +186,11 @@ impl<'a> Query<'a> {
 
         if !meta.item.docs.is_empty() {
             let ctx = resolve_context!(self);
+
             for doc in &*meta.item.docs {
                 self.visitor.visit_doc_comment(
                     meta.item.location.source_id,
-                    mref,
+                    mref.item,
                     doc.span,
                     &*doc.doc_string.resolve(ctx)?,
                 );
@@ -258,7 +259,7 @@ impl<'a> Query<'a> {
         span: Span,
         parent: &Arc<ModMeta>,
         visibility: Visibility,
-        docs: Arc<Vec<Doc>>,
+        docs: Arc<[Doc]>,
     ) -> Result<Arc<ModMeta>, QueryError> {
         let item = self.insert_new_item(items, source_id, span, parent, visibility, docs)?;
 
@@ -273,6 +274,17 @@ impl<'a> Query<'a> {
             .modules
             .insert(item.item.clone(), query_mod.clone());
         self.insert_name(&item.item);
+        self.insert_meta(
+            span,
+            PrivMeta {
+                item,
+                kind: PrivMetaKind::Module,
+                source: Some(SourceMeta {
+                    location: Location::new(source_id, span),
+                    path: self.sources.path(source_id).map(Into::into),
+                }),
+            },
+        )?;
         Ok(query_mod)
     }
 
@@ -317,7 +329,7 @@ impl<'a> Query<'a> {
         spanned: Span,
         module: &Arc<ModMeta>,
         visibility: Visibility,
-        docs: Arc<Vec<Doc>>,
+        docs: Arc<[Doc]>,
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let id = items.id();
         let item = &*items.item();
@@ -797,7 +809,7 @@ impl<'a> Query<'a> {
             span,
             module,
             visibility,
-            Arc::new(Vec::new()),
+            Arc::from([]),
         )?;
 
         // toplevel public uses are re-exported.
@@ -1148,7 +1160,7 @@ impl<'a> Query<'a> {
         span: Span,
         module: &Arc<ModMeta>,
         visibility: Visibility,
-        docs: Arc<Vec<Doc>>,
+        docs: Arc<[Doc]>,
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let query_item = Arc::new(ItemMeta {
             location: Location::new(source_id, span),

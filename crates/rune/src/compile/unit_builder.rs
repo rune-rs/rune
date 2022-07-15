@@ -510,6 +510,7 @@ impl UnitBuilder {
             }
             PrivMetaKind::ConstFn { .. } => (),
             PrivMetaKind::Import { .. } => (),
+            PrivMetaKind::Module { .. } => (),
         }
 
         Ok(())

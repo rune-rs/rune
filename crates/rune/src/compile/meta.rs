@@ -73,6 +73,8 @@ pub enum MetaKind {
     ConstFn,
     /// Item describes an import.
     Import,
+    /// Item describes a module.
+    Module,
 }
 
 impl fmt::Display for Meta {
@@ -120,6 +122,9 @@ impl fmt::Display for Meta {
             MetaKind::Import => {
                 write!(fmt, "import {}", self.item)?;
             }
+            MetaKind::Module => {
+                write!(fmt, "module {}", self.item)?;
+            }
         }
 
         Ok(())
@@ -145,7 +150,7 @@ pub(crate) struct CaptureMeta {
 }
 
 /// Doc content for a compiled item.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Doc {
     /// The span of the whole doc comment.
     pub(crate) span: Span,
@@ -216,6 +221,7 @@ impl PrivMeta {
             PrivMetaKind::Const { .. } => None,
             PrivMetaKind::ConstFn { .. } => None,
             PrivMetaKind::Import { .. } => None,
+            PrivMetaKind::Module => None,
         }
     }
 }
@@ -307,6 +313,8 @@ pub(crate) enum PrivMetaKind {
         /// The imported target.
         target: Item,
     },
+    /// A module.
+    Module,
 }
 
 impl PrivMetaKind {
@@ -354,6 +362,7 @@ impl PrivMetaKind {
             PrivMetaKind::Const { .. } => MetaKind::Const,
             PrivMetaKind::ConstFn { .. } => MetaKind::ConstFn,
             PrivMetaKind::Import { .. } => MetaKind::Import,
+            PrivMetaKind::Module => MetaKind::Module,
         }
     }
 }
@@ -377,7 +386,7 @@ pub(crate) struct PrivTupleMeta {
 }
 
 /// Item and the module that the item belongs to.
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub(crate) struct ItemMeta {
     /// The id of the item.
@@ -390,8 +399,21 @@ pub(crate) struct ItemMeta {
     pub(crate) visibility: Visibility,
     /// The module associated with the item.
     pub(crate) module: Arc<ModMeta>,
-    /// Doc comment attributes, if any.
-    pub(crate) docs: Arc<Vec<Doc>>,
+    /// Anterior doc comment attributes, if any.
+    pub(crate) docs: Arc<[Doc]>,
+}
+
+impl Default for ItemMeta {
+    fn default() -> Self {
+        Self {
+            id: Default::default(),
+            location: Default::default(),
+            item: Default::default(),
+            visibility: Default::default(),
+            module: Default::default(),
+            docs: Arc::from([]),
+        }
+    }
 }
 
 impl ItemMeta {
@@ -409,7 +431,7 @@ impl From<Item> for ItemMeta {
             item,
             visibility: Default::default(),
             module: Default::default(),
-            docs: Arc::new(Vec::new()),
+            docs: Arc::from([]),
         }
     }
 }
