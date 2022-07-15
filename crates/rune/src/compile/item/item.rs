@@ -8,17 +8,47 @@ use crate::compile::item::{Component, ComponentRef, IntoComponent, ItemBuf, Iter
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Item {
-    pub(super) content: [u8],
+    content: [u8],
 }
 
 impl Item {
+    /// Construct an [Item] corresponding to the root item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::{Item, ItemBuf};
+    ///
+    /// assert_eq!(Item::new(), &*ItemBuf::new());
+    /// ```
+    pub const fn new() -> &'static Self {
+        // SAFETY: an empty slice is a valid bit pattern for the root.
+        unsafe { Self::from_raw(&[]) }
+    }
+
     /// Construct an [Item] from an [ItemBuf].
     ///
     /// # Safety
     ///
     /// Caller must ensure that content has a valid [ItemBuf] representation.
-    pub(super) unsafe fn new(content: &[u8]) -> &Self {
+    pub(super) const unsafe fn from_raw(content: &[u8]) -> &Self {
         &*(content as *const _ as *const _)
+    }
+
+    /// Return the underlying byte representation of the [Item].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::compile::{Item, ItemBuf};
+    ///
+    /// assert_eq!(Item::new().as_bytes(), &[]);
+    ///
+    /// let item = ItemBuf::with_item(&["foo", "bar"]);
+    /// assert_eq!(item.as_bytes(), b"\x0d\0foo\x0d\0\x0d\0bar\x0d\0");
+    /// ```
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.content
     }
 
     /// Get the crate corresponding to the item.
@@ -278,6 +308,12 @@ impl Item {
     }
 }
 
+impl Default for &Item {
+    fn default() -> Self {
+        Item::new()
+    }
+}
+
 impl ToOwned for Item {
     type Owned = ItemBuf;
 
@@ -344,14 +380,20 @@ impl PartialEq<ItemBuf> for Item {
     }
 }
 
-impl PartialEq<&ItemBuf> for Item {
-    fn eq(&self, other: &&ItemBuf) -> bool {
+impl PartialEq<ItemBuf> for &Item {
+    fn eq(&self, other: &ItemBuf) -> bool {
         &self.content == other.content.as_ref()
     }
 }
 
-impl PartialEq<ItemBuf> for &Item {
-    fn eq(&self, other: &ItemBuf) -> bool {
-        &self.content == other.content.as_ref()
+impl PartialEq<Iter<'_>> for Item {
+    fn eq(&self, other: &Iter<'_>) -> bool {
+        self == other.as_item()
+    }
+}
+
+impl PartialEq<Iter<'_>> for &Item {
+    fn eq(&self, other: &Iter<'_>) -> bool {
+        *self == other.as_item()
     }
 }

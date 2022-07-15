@@ -2,6 +2,8 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::compile::Component;
+
 /// A reference to a component of an item.
 ///
 /// All indexes refer to sibling indexes. So two sibling id components could
@@ -22,6 +24,15 @@ impl ComponentRef<'_> {
         match self {
             Self::Id(n) => Some(n),
             _ => None,
+        }
+    }
+
+    /// Coerce this [ComponentRef] into an owned [Component].
+    pub fn to_owned(&self) -> Component {
+        match *self {
+            ComponentRef::Crate(s) => Component::Crate(s.into()),
+            ComponentRef::Str(s) => Component::Str(s.into()),
+            ComponentRef::Id(id) => Component::Id(id),
         }
     }
 }

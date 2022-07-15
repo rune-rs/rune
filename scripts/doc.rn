@@ -11,3 +11,12 @@ mod module {
     struct Bar {
     }
 }
+
+mod foo {
+    enum Foo {
+        /// This is another test.
+        Hello,
+        /// This is a test.
+        World,
+    }
+}

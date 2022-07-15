@@ -210,7 +210,7 @@ impl Deref for ItemBuf {
 
     fn deref(&self) -> &Self::Target {
         // SAFETY: Item ensures that content is valid.
-        unsafe { Item::new(self.content.as_ref()) }
+        unsafe { Item::from_raw(self.content.as_ref()) }
     }
 }
 
@@ -247,18 +247,30 @@ impl<'a> IntoIterator for &'a ItemBuf {
 
 impl PartialEq<Item> for ItemBuf {
     fn eq(&self, other: &Item) -> bool {
-        self.content.as_ref() == &other.content
+        self.content.as_ref() == other.as_bytes()
     }
 }
 
 impl PartialEq<Item> for &ItemBuf {
     fn eq(&self, other: &Item) -> bool {
-        self.content.as_ref() == &other.content
+        self.content.as_ref() == other.as_bytes()
     }
 }
 
 impl PartialEq<&Item> for ItemBuf {
     fn eq(&self, other: &&Item) -> bool {
-        self.content.as_ref() == &other.content
+        self.content.as_ref() == other.as_bytes()
+    }
+}
+
+impl PartialEq<Iter<'_>> for ItemBuf {
+    fn eq(&self, other: &Iter<'_>) -> bool {
+        self == other.as_item()
+    }
+}
+
+impl PartialEq<Iter<'_>> for &ItemBuf {
+    fn eq(&self, other: &Iter<'_>) -> bool {
+        *self == other.as_item()
     }
 }
