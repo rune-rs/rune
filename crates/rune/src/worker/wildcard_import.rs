@@ -1,5 +1,7 @@
 use crate::ast::Span;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, ModMeta, Visibility};
+use crate::compile::{
+    CompileError, CompileErrorKind, CompileResult, IntoComponent, Item, ModMeta, Visibility,
+};
 use crate::query::Query;
 use crate::{Context, SourceId};
 use std::sync::Arc;

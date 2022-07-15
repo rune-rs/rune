@@ -1,9 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::{collections::HashMap, path::Path};
 
 use anyhow::Context;
-use rune::compile::MetaKind;
+use rune::compile::{Component, MetaKind};
 use rune::{
     ast::Span,
     compile::{CompileVisitor, FileSourceLoader, Item, MetaRef},
@@ -70,6 +70,16 @@ pub(crate) fn run(
         }
     }
 
+    let mut item = Item::new();
+
+    if let Some(children) = doc_finder.children.get(&item) {
+        for m in children {
+            item.push(m);
+            dbg!(&item);
+            item.pop();
+        }
+    }
+
     if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
         Ok(ExitCode::Failure)
     } else {
@@ -81,11 +91,18 @@ pub(crate) fn run(
 struct DocFinder {
     meta: BTreeMap<Item, MetaKind>,
     docs: HashMap<Item, Vec<String>>,
+    children: BTreeMap<Item, BTreeSet<Component>>,
 }
 
 impl CompileVisitor for DocFinder {
     fn register_meta(&mut self, meta: MetaRef<'_>) {
         self.meta.insert(meta.item.clone(), meta.kind);
+
+        let mut item = meta.item.clone();
+
+        if let Some(name) = item.pop() {
+            self.children.entry(item).or_default().insert(name);
+        }
     }
 
     fn visit_doc_comment(&mut self, _source_id: SourceId, item: &Item, _span: Span, string: &str) {
