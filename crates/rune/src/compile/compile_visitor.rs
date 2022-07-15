@@ -24,6 +24,9 @@ pub trait CompileVisitor {
     ///
     /// This can be called in any order, before or after
     /// [CompileVisitor::visit_meta] for any given item.
+    ///
+    /// This may also be called for fields in structs and enum variants
+    /// (though fields themselves are not considered items).
     fn visit_doc_comment(&mut self, _location: Location, _item: &Item, _docstr: &str) {}
 }
 

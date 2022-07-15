@@ -80,9 +80,13 @@ fn harvest_docs() {
             " Top-level struct.\n"
             " Second line!\n"
         }
+        "Struct::a" => { " Struct field A.\n" }
+        "Struct::b" => { " Struct field B.\n" }
         "Enum" => { "\n         * Top-level enum.\n         " }
         "Enum::A" => { " Enum variant A.\n" }
         "Enum::B" => { " Enum variant B.\n" }
+        "Enum::B::a" => { " Enum struct variant B field A.\n" }
+        "Enum::B::b" => { " Enum struct variant B field B.\n" }
         "CONSTANT" => { " Top-level constant.\n" }
 
         "module" => {
@@ -111,9 +115,9 @@ fn harvest_docs() {
         /// Top-level struct.
         /// Second line!
         struct Struct {
-            // note: doc comments on struct fields will cause a compile error
-            // currently unsupported
+            /// Struct field A.
             a,
+            /// Struct field B.
             b,
         }
 
@@ -124,7 +128,12 @@ fn harvest_docs() {
             /// Enum variant A.
             A,
             /// Enum variant B.
-            B,
+            B {
+                /// Enum struct variant B field A.
+                a,
+                /// Enum struct variant B field B.
+                b,
+            },
         }
 
         /// Top-level constant.

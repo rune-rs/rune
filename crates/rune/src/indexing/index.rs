@@ -635,6 +635,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
         &idx.mod_item,
         visibility,
         &docs,
+        &[],
     )?;
 
     let kind = match (ast.const_token, ast.async_token) {
@@ -857,6 +858,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         &idx.mod_item,
         Visibility::default(),
         &[],
+        &[],
     )?;
 
     ast.block.id = item.id;
@@ -917,6 +919,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
         Location::new(idx.source_id, span),
         &idx.mod_item,
         Visibility::Inherited,
+        &[],
         &[],
     )?;
 
@@ -1280,9 +1283,11 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         &idx.mod_item,
         visibility,
         &docs,
+        &[],
     )?;
 
     idx.q.index_enum(&enum_item)?;
+    let mut field_docs = Vec::new();
 
     for (index, (variant, _)) in ast.variants.iter_mut().enumerate() {
         let mut attrs = Attributes::new(variant.attributes.to_vec());
@@ -1296,7 +1301,13 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         }
 
         for (field, _) in variant.body.fields() {
-            if let Some(first) = field.attributes.first() {
+            let mut attrs = Attributes::new(field.attributes.to_vec());
+            let ctx = resolve_context!(idx.q);
+            let docs = Doc::collect_from(ctx, &mut attrs)?;
+            let ident = field.name.resolve(resolve_context!(idx.q))?;
+
+            field_docs.push((ident.to_string(), docs));
+            if let Some(first) = attrs.remaining() {
                 return Err(CompileError::msg(
                     first,
                     "field attributes are not supported",
@@ -1314,6 +1325,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             &idx.mod_item,
             Visibility::Public,
             &docs,
+            &field_docs,
         )?;
         variant.id = item.id;
 
@@ -1337,8 +1349,15 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
         ));
     }
 
+    let mut field_docs = Vec::new();
     for (field, _) in ast.body.fields() {
-        if let Some(first) = field.attributes.first() {
+        let mut attrs = Attributes::new(field.attributes.to_vec());
+        let ctx = resolve_context!(idx.q);
+        let docs = Doc::collect_from(ctx, &mut attrs)?;
+        let ident = field.name.resolve(resolve_context!(idx.q))?;
+
+        field_docs.push((ident.to_string(), docs));
+        if let Some(first) = attrs.remaining() {
             return Err(CompileError::msg(
                 first,
                 "field attributes are not supported",
@@ -1361,6 +1380,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
         &idx.mod_item,
         visibility,
         &docs,
+        &field_docs,
     )?;
     ast.id = item.id;
 
@@ -1469,6 +1489,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
         &idx.mod_item,
         ast_to_visibility(&ast.visibility)?,
         &docs,
+        &[],
     )?;
 
     ast.id = item.id;
@@ -1623,6 +1644,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
         Location::new(idx.source_id, span),
         &idx.mod_item,
         Visibility::Inherited,
+        &[],
         &[],
     )?;
 
