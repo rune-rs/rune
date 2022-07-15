@@ -3,12 +3,10 @@ use std::io::{self, Write};
 use std::{collections::HashMap, path::Path};
 
 use anyhow::Context;
-use rune::compile::{Component, MetaKind};
-use rune::{
-    ast::Span,
-    compile::{CompileVisitor, FileSourceLoader, Item, ItemBuf, MetaRef},
-    Diagnostics, Options, Source, SourceId, Sources,
+use rune::compile::{
+    CompileVisitor, Component, FileSourceLoader, Item, ItemBuf, Location, MetaKind, MetaRef,
 };
+use rune::{Diagnostics, Options, Source, Sources};
 use structopt::StructOpt;
 
 use crate::{Config, ExitCode, Io, SharedFlags};
@@ -154,7 +152,7 @@ impl CompileVisitor for DocFinder {
         }
     }
 
-    fn visit_doc_comment(&mut self, _source_id: SourceId, item: &Item, _span: Span, string: &str) {
+    fn visit_doc_comment(&mut self, _location: Location, item: &Item, string: &str) {
         self.docs
             .entry(item.to_owned())
             .or_default()

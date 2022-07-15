@@ -15,7 +15,7 @@ pub struct Location {
 
 impl Location {
     /// Construct a new location.
-    pub fn new(source_id: SourceId, span: Span) -> Self {
+    pub const fn new(source_id: SourceId, span: Span) -> Self {
         Self { source_id, span }
     }
 }

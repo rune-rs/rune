@@ -386,7 +386,7 @@ pub(crate) struct PrivTupleMeta {
 }
 
 /// Item and the module that the item belongs to.
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 #[non_exhaustive]
 pub(crate) struct ItemMeta {
     /// The id of the item.
@@ -399,21 +399,6 @@ pub(crate) struct ItemMeta {
     pub(crate) visibility: Visibility,
     /// The module associated with the item.
     pub(crate) module: Arc<ModMeta>,
-    /// Anterior doc comment attributes, if any.
-    pub(crate) docs: Arc<[Doc]>,
-}
-
-impl Default for ItemMeta {
-    fn default() -> Self {
-        Self {
-            id: Default::default(),
-            location: Default::default(),
-            item: Default::default(),
-            visibility: Default::default(),
-            module: Default::default(),
-            docs: Arc::from([]),
-        }
-    }
 }
 
 impl ItemMeta {
@@ -431,7 +416,6 @@ impl From<ItemBuf> for ItemMeta {
             item,
             visibility: Default::default(),
             module: Default::default(),
-            docs: Arc::from([]),
         }
     }
 }
