@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
+use crate::collections::LinkedHashMap;
 use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::{
     ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep,
@@ -100,7 +101,7 @@ pub(crate) struct QueryInner {
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
-    indexed: HashMap<ItemBuf, Vec<IndexedEntry>>,
+    indexed: LinkedHashMap<ItemBuf, Vec<IndexedEntry>>,
     /// Compiled constant functions.
     const_fns: HashMap<NonZeroId, Arc<QueryConstFn>>,
     /// Query paths.
@@ -411,8 +412,10 @@ impl<'a> Query<'a> {
     }
 
     /// Insert an item and return its Id.
+    #[tracing::instrument(skip_all)]
     fn insert_const_fn(&mut self, item: &Arc<ItemMeta>, ir_fn: ir::IrFn) -> NonZeroId {
         let id = self.gen.next();
+        tracing::trace!(item = ?item.item, id = ?id);
 
         self.inner.const_fns.insert(
             id,
@@ -448,8 +451,9 @@ impl<'a> Query<'a> {
     }
 
     /// Index the given entry. It is not allowed to overwrite other entries.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn index(&mut self, entry: IndexedEntry) {
-        tracing::trace!("index: {}", entry.item.item);
+        tracing::trace!(item = ?entry.item.item);
 
         self.insert_name(&entry.item.item);
         self.inner
@@ -460,13 +464,14 @@ impl<'a> Query<'a> {
     }
 
     /// Index a constant expression.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn index_const<T>(
         &mut self,
         item: &Arc<ItemMeta>,
         value: &T,
         f: fn(&T, &mut IrCompiler) -> Result<ir::Ir, ir::IrError>,
     ) -> Result<(), QueryError> {
-        tracing::trace!("new const: {:?}", item.item);
+        tracing::trace!(item = ?item.item);
 
         let mut c = IrCompiler {
             source_id: item.location.source_id,
@@ -486,12 +491,13 @@ impl<'a> Query<'a> {
     }
 
     /// Index a constant function.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn index_const_fn(
         &mut self,
         item: &Arc<ItemMeta>,
         item_fn: Box<ast::ItemFn>,
     ) -> Result<(), QueryError> {
-        tracing::trace!("new const fn: {:?}", item.item);
+        tracing::trace!(item = ?item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -505,8 +511,9 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new enum item.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn index_enum(&mut self, item: &Arc<ItemMeta>) -> Result<(), QueryError> {
-        tracing::trace!("new enum: {:?}", item.item);
+        tracing::trace!(item = ?item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -517,12 +524,13 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new struct item that can be queried.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn index_struct(
         &mut self,
         item: &Arc<ItemMeta>,
         ast: Box<ast::ItemStruct>,
     ) -> Result<(), QueryError> {
-        tracing::trace!("new struct: {:?}", item.item);
+        tracing::trace!(item = ?item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -533,6 +541,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new variant item that can be queried.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn index_variant(
         &mut self,
         item: &Arc<ItemMeta>,
@@ -540,7 +549,7 @@ impl<'a> Query<'a> {
         ast: ast::ItemVariant,
         index: usize,
     ) -> Result<(), QueryError> {
-        tracing::trace!("new variant: {:?}", item.item);
+        tracing::trace!(item = ?item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -551,6 +560,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new function that can be queried for.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn index_closure(
         &mut self,
         item: &Arc<ItemMeta>,
@@ -559,7 +569,7 @@ impl<'a> Query<'a> {
         call: Call,
         do_move: bool,
     ) -> Result<(), QueryError> {
-        tracing::trace!("new closure: {:?}", item.item);
+        tracing::trace!(item = ?item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -575,6 +585,7 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new async block.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn index_async_block(
         &mut self,
         item: &Arc<ItemMeta>,
@@ -583,7 +594,7 @@ impl<'a> Query<'a> {
         call: Call,
         do_move: bool,
     ) -> Result<(), QueryError> {
-        tracing::trace!("new closure: {:?}", item.item);
+        tracing::trace!(item = ?item.item);
 
         self.index(IndexedEntry {
             item: item.clone(),
@@ -601,7 +612,10 @@ impl<'a> Query<'a> {
     /// Remove and queue up unused entries for building.
     ///
     /// Returns boolean indicating if any unused entries were queued up.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn queue_unused_entries(&mut self) -> Result<bool, (SourceId, QueryError)> {
+        tracing::trace!("queue unused");
+
         let unused = self
             .inner
             .indexed
@@ -634,29 +648,34 @@ impl<'a> Query<'a> {
 
     /// Query for the given meta by looking up the reverse of the specified
     /// item.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn query_meta(
         &mut self,
         span: Span,
         item: &Item,
         used: Used,
     ) -> Result<Option<PrivMeta>, QueryError> {
-        if let Some(meta) = self.inner.meta.get(item) {
-            return Ok(Some(meta.clone()));
+        // NB: Prioritise removing indexed entries since this can otherwise end
+        // up spinning during `queue_unused_entries`.
+        if let Some(entry) = self.remove_indexed(span, item)? {
+            let meta = self.build_indexed_entry(span, entry, used)?;
+            self.unit.insert_meta(span, &meta)?;
+            self.insert_meta(span, meta.clone())?;
+
+            tracing::trace!(item = ?item, meta = ?meta, "build");
+            return Ok(Some(meta));
         }
 
-        // See if there's an index entry we can construct and insert.
-        let entry = match self.remove_indexed(span, item)? {
-            Some(entry) => entry,
-            None => return Ok(None),
-        };
-
-        let meta = self.build_indexed_entry(span, entry, used)?;
-        self.unit.insert_meta(span, &meta)?;
-        self.insert_meta(span, meta.clone())?;
-        Ok(Some(meta))
+        Ok(if let Some(meta) = self.inner.meta.get(item) {
+            tracing::trace!(item = ?item, meta = ?meta, "cached");
+            Some(meta.clone())
+        } else {
+            None
+        })
     }
 
     /// Perform a path lookup on the current state of the unit.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn convert_path<'hir>(
         &mut self,
         context: &Context,
@@ -788,6 +807,7 @@ impl<'a> Query<'a> {
     }
 
     /// Declare a new import.
+    #[tracing::instrument(skip_all)]
     pub(crate) fn insert_import(
         &mut self,
         source_id: SourceId,
@@ -799,7 +819,7 @@ impl<'a> Query<'a> {
         alias: Option<ast::Ident>,
         wildcard: bool,
     ) -> Result<(), QueryError> {
-        tracing::trace!("insert_import {}", at);
+        tracing::trace!(at = ?at, target = ?target);
 
         let alias = match alias {
             Some(alias) => Some(alias.resolve(resolve_context!(self))?),
