@@ -75,7 +75,17 @@ fn walk_items(io: &mut Io<'_>, doc: &DocFinder, queue: &mut VecDeque<ItemBuf>) -
         writeln!(io.stdout, "module: {}", &current)?;
 
         for c in doc.structs.get(&current).into_iter().flatten() {
-            writeln!(io.stdout, "struct {}", c)?;
+            let struct_key = current.join(&[c.as_component_ref()]);
+            if let Some(docs) = doc.field_docs.get(&struct_key) {
+                writeln!(io.stdout, "struct {} {{", c)?;
+                for field in docs.keys() {
+                    writeln!(io.stdout, "  {}", field)?;
+                }
+
+                writeln!(io.stdout, "}}")?;
+            } else {
+                writeln!(io.stdout, "struct {}", c)?;
+            }
         }
 
         for c in doc.enums.get(&current).into_iter().flatten() {
@@ -84,7 +94,17 @@ fn walk_items(io: &mut Io<'_>, doc: &DocFinder, queue: &mut VecDeque<ItemBuf>) -
             writeln!(io.stdout, "enum {} {{", c)?;
 
             for c in doc.variants.get(&item).into_iter().flatten() {
-                writeln!(io.stdout, "  {}", c)?;
+                let struct_key = item.join(&[c.as_component_ref()]);
+                if let Some(docs) = doc.field_docs.get(&struct_key) {
+                    writeln!(io.stdout, "  {} {{", c)?;
+                    for field in docs.keys() {
+                        writeln!(io.stdout, "    {}", field)?;
+                    }
+
+                    writeln!(io.stdout, "  }}")?;
+                } else {
+                    writeln!(io.stdout, "  {}", c)?;
+                }
             }
 
             writeln!(io.stdout, "}}")?;
@@ -103,6 +123,7 @@ fn walk_items(io: &mut Io<'_>, doc: &DocFinder, queue: &mut VecDeque<ItemBuf>) -
 struct DocFinder {
     meta: BTreeMap<ItemBuf, MetaKind>,
     docs: HashMap<ItemBuf, Vec<String>>,
+    field_docs: HashMap<ItemBuf, HashMap<Box<str>, Vec<String>>>,
     modules: BTreeMap<ItemBuf, BTreeSet<Component>>,
     structs: BTreeMap<ItemBuf, BTreeSet<Component>>,
     enums: BTreeMap<ItemBuf, BTreeSet<Component>>,
@@ -157,5 +178,21 @@ impl CompileVisitor for DocFinder {
             .entry(item.to_owned())
             .or_default()
             .push(string.to_owned());
+    }
+
+    fn visit_field_doc_comment(
+        &mut self,
+        _location: Location,
+        item: &Item,
+        field: &str,
+        string: &str,
+    ) {
+        let map = self.field_docs.entry(item.to_owned()).or_default();
+
+        if let Some(docs) = map.get_mut(field) {
+            docs.push(string.to_owned());
+        } else {
+            map.insert(field.into(), vec![string.to_owned()]);
+        }
     }
 }
