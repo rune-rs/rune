@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 use rune::compile::{Location, Item, CompileVisitor};
 use rune::{Context, Diagnostics};
-use rune::termcolor::{ColorChoice, StandardStream};
-use rune_tests::{sources};
+use rune_tests::sources;
 
 struct DocVisitor {
     expected: BTreeMap<&'static str, Vec<&'static str>>,
@@ -157,16 +156,12 @@ fn harvest_docs() {
     "#);
 
     let context = Context::default();
+
     let result = rune::prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
-        .with_visitor(&mut vis as &mut dyn CompileVisitor)
+        .with_visitor(&mut vis)
         .build();
-
-    if !diagnostics.is_empty() {
-        let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit(&mut writer, &sources).unwrap();
-    }
 
     result.unwrap();
     vis.assert();

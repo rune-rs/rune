@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
+use crate::collections::LinkedHashMap;
 use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::{
     ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep,
@@ -100,7 +101,7 @@ pub(crate) struct QueryInner {
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
-    indexed: HashMap<ItemBuf, Vec<IndexedEntry>>,
+    indexed: LinkedHashMap<ItemBuf, Vec<IndexedEntry>>,
     /// Compiled constant functions.
     const_fns: HashMap<NonZeroId, Arc<QueryConstFn>>,
     /// Query paths.
