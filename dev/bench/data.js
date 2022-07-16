@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1657976514597,
+  "lastUpdate": 1657990735222,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -14872,6 +14872,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 7170795,
             "range": "± 838363",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "1240058+Xemiru@users.noreply.github.com",
+            "name": "xemiru",
+            "username": "Xemiru"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4e3af8cbd2cff36debfe131064f15c44271e3fc5",
+          "message": "Support documentation for fields in structs / struct variants. (#415)\n\n* index: Support documentation for fields in structs / struct variants.\r\n* compile_visitor: Use a new callback specifically for fields instead of sharing with the original.\r\n* cli/doc.rs: Collect and display fields.\r\n* test/compiler_docs: Refer to fields with . to disambiguate from regular items.",
+          "timestamp": "2022-07-16T18:52:11+02:00",
+          "tree_id": "6a05aaa2a9b898e1053db9ff49d9a77e79df147f",
+          "url": "https://github.com/rune-rs/rune/commit/4e3af8cbd2cff36debfe131064f15c44271e3fc5"
+        },
+        "date": 1657990734643,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 433535441,
+            "range": "± 1057885",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 228536899,
+            "range": "± 2444891",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 306739,
+            "range": "± 1928",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 940094,
+            "range": "± 15382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 72579290,
+            "range": "± 284221",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1247838,
+            "range": "± 10050",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 13295599,
+            "range": "± 96325",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 11397083,
+            "range": "± 75262",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 524158,
+            "range": "± 9017",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5814068,
+            "range": "± 4439",
             "unit": "ns/iter"
           }
         ]
