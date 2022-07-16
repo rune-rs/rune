@@ -7,8 +7,8 @@ pub trait CompileVisitor {
     /// Called when a meta item is registered.
     fn register_meta(&mut self, _meta: MetaRef<'_>) {}
 
-    /// Mark that we've encountered a specific compile meta at the given span.
-    fn visit_meta(&mut self, _source_id: SourceId, _meta: MetaRef<'_>, _span: Span) {}
+    /// Mark that we've resolved a specific compile meta at the given location.
+    fn visit_meta(&mut self, _location: Location, _meta: MetaRef<'_>) {}
 
     /// Visit a variable use.
     fn visit_variable_use(&mut self, _source_id: SourceId, _var_span: Span, _span: Span) {}

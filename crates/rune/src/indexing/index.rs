@@ -5,22 +5,22 @@ use crate::compile::attrs::Attributes;
 use crate::compile::ir;
 use crate::compile::{attrs, Doc};
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, ItemBuf, Location, ModMeta, Options, PrivMeta,
-    PrivMetaKind, SourceLoader, SourceMeta, Visibility,
+    CompileError, CompileErrorKind, CompileResult, ItemBuf, Location, ModMeta, Options,
+    SourceLoader, Visibility,
 };
 use crate::indexing::locals;
 use crate::indexing::{IndexFnKind, IndexScopes};
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
 use crate::query::{
-    Build, BuildEntry, BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate,
-    Function, Indexed, IndexedEntry, InstanceFunction, Query, Used,
+    BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Function, Indexed,
+    IndexedEntry, IndexedFunction, InstanceFunction, Query,
 };
 use crate::runtime::format;
 use crate::runtime::Call;
 use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
-use crate::{Context, Diagnostics, Hash, SourceId};
+use crate::{Context, Diagnostics, SourceId};
 use rune_macros::__instrument_ast as instrument;
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -695,7 +695,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
         }
     };
 
-    let fun = Function {
+    let function = Function {
         ast: Box::new(ast.clone()),
         call,
     };
@@ -755,73 +755,33 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
             ));
         }
 
-        let impl_item = idx.impl_item.as_ref().ok_or_else(|| {
+        let impl_item = idx.impl_item.clone().ok_or_else(|| {
             CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
         })?;
 
-        let f = InstanceFunction {
-            ast: fun.ast,
-            impl_item: impl_item.clone(),
-            instance_span: span,
-            call: fun.call,
-        };
-
-        // NB: all instance functions must be pre-emptively built,
-        // because statically we don't know if they will be used or
-        // not.
-        idx.q.push_build_entry(BuildEntry {
-            location: Location::new(idx.source_id, f.ast.span()),
-            item: item.clone(),
-            build: Build::InstanceFunction(f),
-            used: Used::Used,
-        });
-
-        let kind = PrivMetaKind::Function {
-            type_hash: Hash::type_hash(&item.item),
-            is_test: false,
-            is_bench: false,
-        };
-
-        let meta = PrivMeta {
+        idx.q.index_and_build(IndexedEntry {
             item,
-            kind,
-            source: Some(SourceMeta {
-                location: Location::new(idx.source_id, span),
-                path: idx.q.sources.path(idx.source_id).map(Into::into),
+            indexed: Indexed::InstanceFunction(InstanceFunction {
+                function,
+                impl_item,
+                instance_span: span,
             }),
-        };
-
-        idx.q.insert_meta(span, meta)?;
-    } else if is_public || is_test || is_bench {
-        // NB: immediately compile all toplevel functions.
-        idx.q.push_build_entry(BuildEntry {
-            location: Location::new(idx.source_id, fun.ast.descriptive_span()),
-            item: item.clone(),
-            build: Build::Function(fun),
-            used: Used::Used,
         });
-
-        let kind = PrivMetaKind::Function {
-            type_hash: Hash::type_hash(&item.item),
-            is_test,
-            is_bench,
-        };
-
-        let meta = PrivMeta {
-            item,
-            kind,
-            source: Some(SourceMeta {
-                location: Location::new(idx.source_id, span),
-                path: idx.q.sources.path(idx.source_id).map(Into::into),
-            }),
-        };
-
-        idx.q.insert_meta(span, meta)?;
     } else {
-        idx.q.index(IndexedEntry {
+        let entry = IndexedEntry {
             item,
-            indexed: Indexed::Function(fun),
-        });
+            indexed: Indexed::Function(IndexedFunction {
+                function,
+                is_test,
+                is_bench,
+            }),
+        };
+
+        if is_public || is_test || is_bench {
+            idx.q.index_and_build(entry);
+        } else {
+            idx.q.index(entry);
+        }
     }
 
     Ok(())

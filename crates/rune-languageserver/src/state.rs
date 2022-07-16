@@ -583,8 +583,8 @@ impl Visitor {
 }
 
 impl CompileVisitor for Visitor {
-    fn visit_meta(&mut self, source_id: SourceId, meta: MetaRef<'_>, span: Span) {
-        if source_id.into_index() != 0 {
+    fn visit_meta(&mut self, location: Location, meta: MetaRef<'_>) {
+        if location.source_id.into_index() != 0 {
             return;
         }
 
@@ -610,7 +610,7 @@ impl CompileVisitor for Visitor {
             source: DefinitionSource::SourceMeta(source.clone()),
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        if let Some(d) = self.index.definitions.insert(location.span, definition) {
             tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }

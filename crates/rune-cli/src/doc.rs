@@ -188,11 +188,6 @@ impl CompileVisitor for DocFinder {
         string: &str,
     ) {
         let map = self.field_docs.entry(item.to_owned()).or_default();
-
-        if let Some(docs) = map.get_mut(field) {
-            docs.push(string.to_owned());
-        } else {
-            map.insert(field.into(), vec![string.to_owned()]);
-        }
+        map.entry(field.into()).or_default().push(string.to_owned());
     }
 }
