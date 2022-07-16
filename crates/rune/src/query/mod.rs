@@ -1653,7 +1653,8 @@ fn struct_body_meta(
                 id: Id::default(),
                 location: Location::new(item.location.source_id, field.span()),
                 item: buf,
-                visibility: Visibility::from_ast(&field.visibility).unwrap(),
+                visibility: Visibility::from_ast(&field.visibility)
+                    .map_err(|_| QueryError::msg(field, "unsupported visibility"))?,
                 module: item.module.clone(),
             }),
         );

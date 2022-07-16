@@ -763,10 +763,7 @@ fn pat_object(
             }
 
             if !hir.is_open && !fields.is_empty() {
-                let mut fields = fields
-                    .into_iter()
-                    .map(|it| it.0)
-                    .collect::<Box<[_]>>();
+                let mut fields = fields.into_iter().map(|it| it.0).collect::<Box<[_]>>();
                 fields.sort();
 
                 return Err(CompileError::new(
