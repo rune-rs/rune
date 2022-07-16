@@ -393,7 +393,7 @@ impl<'a> Indexer<'a> {
         while let Some((item, semi)) = queue.pop_front() {
             match item {
                 ast::Item::Use(item_use) => {
-                    let visibility = ast_to_visibility(&item_use.visibility)?;
+                    let visibility = Visibility::from_ast(&item_use.visibility)?;
 
                     let import = Import {
                         kind: ImportKind::Global,
@@ -445,7 +445,7 @@ impl<'a> Indexer<'a> {
         while let Some(stmt) = queue.pop_front() {
             match stmt {
                 ast::Stmt::Item(ast::Item::Use(item_use), _) => {
-                    let visibility = ast_to_visibility(&item_use.visibility)?;
+                    let visibility = Visibility::from_ast(&item_use.visibility)?;
 
                     let import = Import {
                         kind: ImportKind::Global,
@@ -537,7 +537,7 @@ impl<'a> Indexer<'a> {
             }
         };
 
-        let visibility = ast_to_visibility(&item_mod.visibility)?;
+        let visibility = Visibility::from_ast(&item_mod.visibility)?;
 
         let mod_item = self.q.insert_mod(
             &self.items,
@@ -625,7 +625,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let name = ast.name.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(name.as_ref());
 
-    let visibility = ast_to_visibility(&ast.visibility)?;
+    let visibility = Visibility::from_ast(&ast.visibility)?;
     let mut attributes = attrs::Attributes::new(ast.attributes.clone());
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attributes)?;
 
@@ -1273,7 +1273,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
     let name = ast.name.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(name.as_ref());
 
-    let visibility = ast_to_visibility(&ast.visibility)?;
+    let visibility = Visibility::from_ast(&ast.visibility)?;
     let enum_item = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
@@ -1354,7 +1354,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     let ident = ast.ident.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(ident);
 
-    let visibility = ast_to_visibility(&ast.visibility)?;
+    let visibility = Visibility::from_ast(&ast.visibility)?;
     let item = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
@@ -1427,7 +1427,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
             let name = ast.name.resolve(resolve_context!(idx.q))?;
             let _guard = idx.items.push_name(name.as_ref());
 
-            let visibility = ast_to_visibility(&ast.visibility)?;
+            let visibility = Visibility::from_ast(&ast.visibility)?;
             let mod_item = idx.q.insert_mod(
                 &idx.items,
                 Location::new(idx.source_id, name_span),
@@ -1467,7 +1467,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
         &idx.items,
         Location::new(idx.source_id, span),
         &idx.mod_item,
-        ast_to_visibility(&ast.visibility)?,
+        Visibility::from_ast(&ast.visibility)?,
         &docs,
     )?;
 
@@ -1852,21 +1852,4 @@ fn expr_range(ast: &mut ast::ExprRange, idx: &mut Indexer<'_>) -> CompileResult<
     }
 
     Ok(())
-}
-
-/// Construct visibility from ast.
-fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility, CompileError> {
-    let span = match vis {
-        ast::Visibility::Inherited => return Ok(Visibility::Inherited),
-        ast::Visibility::Public(..) => return Ok(Visibility::Public),
-        ast::Visibility::Crate(..) => return Ok(Visibility::Crate),
-        ast::Visibility::Super(..) => return Ok(Visibility::Super),
-        ast::Visibility::SelfValue(..) => return Ok(Visibility::SelfValue),
-        ast::Visibility::In(restrict) => restrict.span(),
-    };
-
-    Err(CompileError::new(
-        span,
-        CompileErrorKind::UnsupportedVisibility,
-    ))
 }

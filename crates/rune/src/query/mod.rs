@@ -1017,14 +1017,14 @@ impl<'a> Query<'a> {
                 let enum_hash = Hash::type_hash(&enum_item.item);
 
                 variant_into_item_decl(
-                    &query_item.item,
+                    &query_item,
                     variant.ast.body,
                     Some((&enum_item.item, enum_hash, variant.index)),
                     resolve_context!(self),
                 )?
             }
             Indexed::Struct(st) => {
-                struct_into_item_decl(&query_item.item, st.ast.body, None, resolve_context!(self))?
+                struct_into_item_decl(&query_item, st.ast.body, None, resolve_context!(self))?
             }
             Indexed::Function(f) => {
                 self.inner.queue.push_back(BuildEntry {
@@ -1633,18 +1633,30 @@ fn tuple_body_meta(
 
 /// Construct metadata for a struct body.
 fn struct_body_meta(
-    item: &Item,
+    item: &Arc<ItemMeta>,
     enum_: Option<(&Item, Hash, usize)>,
     ctx: ResolveContext<'_>,
     st: ast::Braced<ast::Field, T![,]>,
 ) -> Result<PrivMetaKind, QueryError> {
-    let type_hash = Hash::type_hash(item);
+    let type_hash = Hash::type_hash(&item.item);
 
-    let mut fields = HashSet::new();
+    let mut fields = HashMap::new();
 
-    for (ast::Field { name, .. }, _) in st {
-        let name = name.resolve(ctx)?;
-        fields.insert(name.into());
+    for (field, _) in st {
+        let mut buf = ItemBuf::with_item(&item.item);
+        let name = field.name.resolve(ctx)?;
+        buf.push(name);
+
+        fields.insert(
+            name.into(),
+            Arc::new(ItemMeta {
+                id: Id::default(),
+                location: Location::new(item.location.source_id, field.span()),
+                item: buf,
+                visibility: Visibility::from_ast(&field.visibility).unwrap(),
+                module: item.module.clone(),
+            }),
+        );
     }
 
     let st = PrivStructMeta { fields };
@@ -1666,28 +1678,28 @@ fn struct_body_meta(
 
 /// Convert an ast declaration into a struct.
 fn variant_into_item_decl(
-    item: &Item,
+    item: &Arc<ItemMeta>,
     body: ast::ItemVariantBody,
     enum_: Option<(&Item, Hash, usize)>,
     ctx: ResolveContext<'_>,
 ) -> Result<PrivMetaKind, QueryError> {
     Ok(match body {
-        ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_),
-        ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
+        ast::ItemVariantBody::UnitBody => unit_body_meta(&item.item, enum_),
+        ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(&item.item, enum_, tuple),
         ast::ItemVariantBody::StructBody(st) => struct_body_meta(item, enum_, ctx, st)?,
     })
 }
 
 /// Convert an ast declaration into a struct.
 fn struct_into_item_decl(
-    item: &Item,
+    item: &Arc<ItemMeta>,
     body: ast::ItemStructBody,
     enum_: Option<(&Item, Hash, usize)>,
     ctx: ResolveContext<'_>,
 ) -> Result<PrivMetaKind, QueryError> {
     Ok(match body {
-        ast::ItemStructBody::UnitBody => unit_body_meta(item, enum_),
-        ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
+        ast::ItemStructBody::UnitBody => unit_body_meta(&item.item, enum_),
+        ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(&item.item, enum_, tuple),
         ast::ItemStructBody::StructBody(st) => struct_body_meta(item, enum_, ctx, st)?,
     })
 }

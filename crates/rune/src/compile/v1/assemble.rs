@@ -1,16 +1,17 @@
 use std::convert::TryFrom;
 use std::ops::Neg;
+use std::sync::Arc;
 
 use num::ToPrimitive;
 use rune_macros::__instrument_ast as instrument;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::collections::{HashMap, HashSet};
+use crate::collections::HashMap;
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
 use crate::compile::{
-    CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, PrivMeta, PrivMetaKind,
-    PrivStructMeta, PrivVariantMeta,
+    CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, ItemMeta, PrivMeta,
+    PrivMetaKind, PrivStructMeta, PrivVariantMeta,
 };
 use crate::hash::ParametersBuilder;
 use crate::hir;
@@ -750,7 +751,7 @@ fn pat_object(
             let mut fields = st.fields.clone();
 
             for binding in &bindings {
-                if !fields.remove(binding.key()) {
+                if fields.remove(binding.key()).is_none() {
                     return Err(CompileError::new(
                         span,
                         CompileErrorKind::LitObjectNotField {
@@ -764,7 +765,7 @@ fn pat_object(
             if !hir.is_open && !fields.is_empty() {
                 let mut fields = fields
                     .into_iter()
-                    .map(Box::<str>::from)
+                    .map(|it| it.0)
                     .collect::<Box<[_]>>();
                 fields.sort();
 
@@ -2678,7 +2679,7 @@ fn expr_object(
                     variant: PrivVariantMeta::Unit,
                     ..
                 } => {
-                    check_object_fields(&HashSet::new(), check_keys, span, &meta.item.item)?;
+                    check_object_fields(&HashMap::new(), check_keys, span, &meta.item.item)?;
 
                     let hash = Hash::type_hash(&meta.item.item);
                     c.asm.push(Inst::UnitStruct { hash }, span);
@@ -2724,7 +2725,7 @@ fn expr_object(
     return Ok(Asm::top(span));
 
     fn check_object_fields(
-        fields: &HashSet<Box<str>>,
+        fields: &HashMap<Box<str>, Arc<ItemMeta>>,
         check_keys: Vec<(Box<str>, Span)>,
         span: Span,
         item: &Item,
@@ -2732,7 +2733,7 @@ fn expr_object(
         let mut fields = fields.clone();
 
         for (field, span) in check_keys {
-            if !fields.remove(&field) {
+            if fields.remove(&field).is_none() {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::LitObjectNotField {
@@ -2743,7 +2744,7 @@ fn expr_object(
             }
         }
 
-        if let Some(field) = fields.into_iter().next() {
+        if let Some((field, _)) = fields.into_iter().next() {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::LitObjectMissingField {

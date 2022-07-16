@@ -9,7 +9,7 @@ use crate::compile::module::{
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, IntoComponent, Item, ItemBuf, Meta, Names, PrivMeta, PrivMetaKind,
+    ComponentRef, IntoComponent, Item, ItemBuf, ItemMeta, Meta, Names, PrivMeta, PrivMetaKind,
     PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
 use crate::runtime::{
@@ -423,7 +423,22 @@ impl Context {
                 TypeSpecification::Struct(st) => PrivMetaKind::Struct {
                     type_hash,
                     variant: PrivVariantMeta::Struct(PrivStructMeta {
-                        fields: st.fields.clone(),
+                        fields: st
+                            .fields
+                            .clone()
+                            .into_iter()
+                            .map(|it| {
+                                let mut item = item.clone();
+                                item.push(&it);
+                                (
+                                    it,
+                                    Arc::new(ItemMeta {
+                                        item,
+                                        ..ItemMeta::default()
+                                    }),
+                                )
+                            })
+                            .collect(),
                     }),
                 },
                 TypeSpecification::Enum(en) => {
@@ -442,7 +457,22 @@ impl Context {
                             ),
                             VariantKind::Struct(st) => (
                                 PrivVariantMeta::Struct(PrivStructMeta {
-                                    fields: st.fields.clone(),
+                                    fields: st
+                                        .fields
+                                        .clone()
+                                        .into_iter()
+                                        .map(|it| {
+                                            let mut item = item.clone();
+                                            item.push(&it);
+                                            (
+                                                it,
+                                                Arc::new(ItemMeta {
+                                                    item,
+                                                    ..ItemMeta::default()
+                                                }),
+                                            )
+                                        })
+                                        .collect(),
                                 }),
                                 None,
                             ),

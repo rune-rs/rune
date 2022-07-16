@@ -1,12 +1,12 @@
 //! Compiler metadata for Rune.
 
 use crate::ast::{LitStr, Span};
-use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
 use crate::compile::{ItemBuf, Location, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::runtime::ConstValue;
 use crate::Hash;
+use hashbrown::HashMap;
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
@@ -372,7 +372,7 @@ impl PrivMetaKind {
 #[non_exhaustive]
 pub(crate) struct PrivStructMeta {
     /// Fields associated with the type.
-    pub(crate) fields: HashSet<Box<str>>,
+    pub(crate) fields: HashMap<Box<str>, Arc<ItemMeta>>,
 }
 
 /// The metadata about a tuple.

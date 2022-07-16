@@ -1,4 +1,6 @@
-use crate::compile::Item;
+use crate::ast;
+use crate::ast::Spanned;
+use crate::compile::{CompileError, CompileErrorKind, Item};
 use std::fmt;
 
 /// Information on the visibility of an item.
@@ -41,6 +43,23 @@ impl Visibility {
             Visibility::Public => true,
             Visibility::Crate => true,
         }
+    }
+
+    /// Create equivalent visiblity from AST representation.
+    pub(crate) fn from_ast(vis: &ast::Visibility) -> Result<Self, CompileError> {
+        let span = match vis {
+            ast::Visibility::Inherited => return Ok(Visibility::Inherited),
+            ast::Visibility::Public(..) => return Ok(Visibility::Public),
+            ast::Visibility::Crate(..) => return Ok(Visibility::Crate),
+            ast::Visibility::Super(..) => return Ok(Visibility::Super),
+            ast::Visibility::SelfValue(..) => return Ok(Visibility::SelfValue),
+            ast::Visibility::In(restrict) => restrict.span(),
+        };
+
+        Err(CompileError::new(
+            span,
+            CompileErrorKind::UnsupportedVisibility,
+        ))
     }
 }
 
