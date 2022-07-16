@@ -15,7 +15,7 @@ impl CompileVisitor for DocVisitor {
 
     fn visit_field_doc_comment(&mut self, _: Location, item: &Item, field: &str, doc: &str) {
         let mut field_item = item.to_string();
-        field_item.push_str("::");
+        field_item.push_str(".");
         field_item.push_str(field);
         self.collected.entry(field_item).or_default().push(doc.to_string());
     }
@@ -87,13 +87,13 @@ fn harvest_docs() {
             " Top-level struct.\n"
             " Second line!\n"
         }
-        "Struct::a" => { " Struct field A.\n" }
-        "Struct::b" => { " Struct field B.\n" }
+        "Struct.a" => { " Struct field A.\n" }
+        "Struct.b" => { " Struct field B.\n" }
         "Enum" => { "\n         * Top-level enum.\n         " }
         "Enum::A" => { " Enum variant A.\n" }
         "Enum::B" => { " Enum variant B.\n" }
-        "Enum::B::a" => { " Enum struct variant B field A.\n" }
-        "Enum::B::b" => { " Enum struct variant B field B.\n" }
+        "Enum::B.a" => { " Enum struct variant B field A.\n" }
+        "Enum::B.b" => { " Enum struct variant B field B.\n" }
         "CONSTANT" => { " Top-level constant.\n" }
 
         "module" => {
