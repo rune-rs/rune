@@ -180,38 +180,10 @@ impl<'a> Query<'a> {
         }
     }
 
-    /// Insert the given compile meta.
-    pub(crate) fn insert_meta(&mut self, span: Span, meta: PrivMeta) -> Result<(), QueryError> {
-        let mref = meta.info_ref();
-        self.visitor.register_meta(mref);
-
-        match self.inner.meta.entry(meta.item.item.clone()) {
-            hash_map::Entry::Occupied(e) => {
-                return Err(QueryError::new(
-                    span,
-                    QueryErrorKind::MetaConflict {
-                        current: meta.info(),
-                        existing: e.get().info(),
-                    },
-                ));
-            }
-            hash_map::Entry::Vacant(e) => {
-                e.insert(meta);
-            }
-        }
-
-        Ok(())
-    }
-
     /// Get the next build entry from the build queue associated with the query
     /// engine.
     pub(crate) fn next_build_entry(&mut self) -> Option<BuildEntry> {
         self.inner.queue.pop_front()
-    }
-
-    /// Push a build entry.
-    pub(crate) fn push_build_entry(&mut self, entry: BuildEntry) {
-        self.inner.queue.push_back(entry)
     }
 
     /// Insert path information.
@@ -260,18 +232,10 @@ impl<'a> Query<'a> {
         self.inner
             .modules
             .insert(item.item.clone(), query_mod.clone());
-        self.insert_name(&item.item);
-        self.insert_meta(
-            location.span,
-            PrivMeta {
-                item,
-                kind: PrivMetaKind::Module,
-                source: Some(SourceMeta {
-                    location,
-                    path: self.sources.path(location.source_id).map(Into::into),
-                }),
-            },
-        )?;
+        self.index_and_build(IndexedEntry {
+            item,
+            indexed: Indexed::Module,
+        });
         Ok(query_mod)
     }
 
@@ -320,6 +284,28 @@ impl<'a> Query<'a> {
         let id = items.id();
         let item = &*items.item();
         self.insert_new_item_with(id, item, location, module, visibility, docs)
+    }
+
+    /// Insert the given compile meta.
+    fn insert_meta(&mut self, span: Span, meta: PrivMeta) -> Result<(), QueryError> {
+        self.visitor.register_meta(meta.as_meta_ref());
+
+        match self.inner.meta.entry(meta.item.item.clone()) {
+            hash_map::Entry::Occupied(e) => {
+                return Err(QueryError::new(
+                    span,
+                    QueryErrorKind::MetaConflict {
+                        current: meta.info(),
+                        existing: e.get().info(),
+                    },
+                ));
+            }
+            hash_map::Entry::Vacant(e) => {
+                e.insert(meta);
+            }
+        }
+
+        Ok(())
     }
 
     /// Insert a new item with the given newly allocated identifier and complete
@@ -461,6 +447,19 @@ impl<'a> Query<'a> {
             .entry(entry.item.item.clone())
             .or_default()
             .push(entry);
+    }
+
+    /// Same as `index`, but also queues the indexed entry up for building.
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn index_and_build(&mut self, entry: IndexedEntry) {
+        self.inner.queue.push_back(BuildEntry {
+            item: entry.item.clone(),
+            location: entry.item.location,
+            used: Used::Used,
+            build: Build::Query,
+        });
+
+        self.index(entry);
     }
 
     /// Index a constant expression.
@@ -628,19 +627,10 @@ impl<'a> Query<'a> {
             return Ok(false);
         }
 
-        for query_item in unused {
-            // NB: recursive queries might remove from `indexed`, so we expect
-            // to miss things here.
-            if let Some(meta) = self
-                .query_meta(query_item.location.span, &query_item.item, Used::Unused)
-                .map_err(|e| (query_item.location.source_id, e))?
-            {
-                self.visitor.visit_meta(
-                    query_item.location.source_id,
-                    meta.info_ref(),
-                    query_item.location.span,
-                );
-            }
+        for item in unused {
+            let _ = self
+                .query_indexed_meta(item.location.span, &item.item, Used::Unused)
+                .map_err(|e| (item.location.source_id, e))?;
         }
 
         Ok(true)
@@ -655,23 +645,34 @@ impl<'a> Query<'a> {
         item: &Item,
         used: Used,
     ) -> Result<Option<PrivMeta>, QueryError> {
-        // NB: Prioritise removing indexed entries since this can otherwise end
-        // up spinning during `queue_unused_entries`.
+        if let Some(meta) = self.inner.meta.get(item) {
+            tracing::trace!(item = ?item, meta = ?meta, "cached");
+            // Ensure that the given item is not indexed, cause if it is
+            // `queue_unused_entries` might end up spinning indefinitely since
+            // it will never be exhausted.
+            debug_assert!(!self.inner.indexed.contains_key(item));
+            return Ok(Some(meta.clone()));
+        }
+
+        self.query_indexed_meta(span, item, used)
+    }
+
+    /// Only try and query for meta among items which have been indexed.
+    fn query_indexed_meta(
+        &mut self,
+        span: Span,
+        item: &Item,
+        used: Used,
+    ) -> Result<Option<PrivMeta>, QueryError> {
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
             self.unit.insert_meta(span, &meta)?;
             self.insert_meta(span, meta.clone())?;
-
             tracing::trace!(item = ?item, meta = ?meta, "build");
             return Ok(Some(meta));
         }
 
-        Ok(if let Some(meta) = self.inner.meta.get(item) {
-            tracing::trace!(item = ?item, meta = ?meta, "cached");
-            Some(meta.clone())
-        } else {
-            None
-        })
+        Ok(None)
     }
 
     /// Perform a path lookup on the current state of the unit.
@@ -1050,7 +1051,21 @@ impl<'a> Query<'a> {
                 self.inner.queue.push_back(BuildEntry {
                     location: query_item.location,
                     item: query_item.clone(),
-                    build: Build::Function(f),
+                    build: Build::Function(f.function),
+                    used,
+                });
+
+                PrivMetaKind::Function {
+                    type_hash: Hash::type_hash(&query_item.item),
+                    is_test: f.is_test,
+                    is_bench: f.is_bench,
+                }
+            }
+            Indexed::InstanceFunction(f) => {
+                self.inner.queue.push_back(BuildEntry {
+                    location: query_item.location,
+                    item: query_item.clone(),
+                    build: Build::InstanceFunction(f),
                     used,
                 });
 
@@ -1162,6 +1177,7 @@ impl<'a> Query<'a> {
                     target,
                 }
             }
+            Indexed::Module => PrivMetaKind::Module,
         };
 
         let source = SourceMeta {
@@ -1389,15 +1405,28 @@ impl Default for Used {
 
 #[derive(Debug, Clone)]
 pub(crate) enum Indexed {
+    /// An enum.
     Enum,
+    /// A struct.
     Struct(Struct),
+    /// A variant.
     Variant(Variant),
-    Function(Function),
+    /// A function.
+    Function(IndexedFunction),
+    /// An instance function.
+    InstanceFunction(InstanceFunction),
+    /// A closure.
     Closure(Closure),
+    /// An async block.
     AsyncBlock(AsyncBlock),
+    /// A constant value.
     Const(Const),
+    /// A constant function.
     ConstFn(ConstFn),
+    /// An import.
     Import(Import),
+    /// An indexed module.
+    Module,
 }
 
 #[derive(Debug, Clone)]
@@ -1448,19 +1477,28 @@ impl Variant {
 pub(crate) struct Function {
     /// Ast for declaration.
     pub(crate) ast: Box<ast::ItemFn>,
+    /// The calling convention of the function.
     pub(crate) call: Call,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct IndexedFunction {
+    /// The underlying indexed function.
+    pub(crate) function: Function,
+    /// If this is a test function.
+    pub(crate) is_test: bool,
+    /// If this is a bench function.
+    pub(crate) is_bench: bool,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct InstanceFunction {
     /// Ast for the instance function.
-    pub(crate) ast: Box<ast::ItemFn>,
+    pub(crate) function: Function,
     /// The item of the instance function.
     pub(crate) impl_item: Arc<ItemBuf>,
     /// The span of the instance function.
     pub(crate) instance_span: Span,
-    /// Calling convention of the instance function.
-    pub(crate) call: Call,
 }
 
 #[derive(Debug, Clone)]
@@ -1514,6 +1552,8 @@ pub(crate) enum Build {
     Import(Import),
     /// A public re-export.
     ReExport,
+    /// A build which simply queries for the item.
+    Query,
 }
 
 /// An entry in the build queue.
@@ -1523,10 +1563,10 @@ pub(crate) struct BuildEntry {
     pub(crate) location: Location,
     /// The item of the build entry.
     pub(crate) item: Arc<ItemMeta>,
-    /// The build entry.
-    pub(crate) build: Build,
     /// If the queued up entry was unused or not.
     pub(crate) used: Used,
+    /// The build entry.
+    pub(crate) build: Build,
 }
 
 #[derive(Debug, Clone)]

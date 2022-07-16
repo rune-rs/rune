@@ -196,7 +196,7 @@ impl PrivMeta {
     }
 
     /// Get the [MetaRef] which describes this [PrivMeta] object.
-    pub(crate) fn info_ref(&self) -> MetaRef<'_> {
+    pub(crate) fn as_meta_ref(&self) -> MetaRef<'_> {
         MetaRef {
             item: &self.item.item,
             kind: self.kind.as_meta_info_kind(),

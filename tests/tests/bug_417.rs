@@ -10,8 +10,8 @@ fn ensure_unambigious_items() {
     assert_errors! {
         r#"enum Foo { Variant } mod Foo { struct Variant; }"#,
         span,
-        QueryError(MetaConflict { .. }) => {
-            assert_eq!(span, span!(0, 20));
+        CompileError(_) => {
+            assert_eq!(span, span!(21, 28));
         },
         QueryError(AmbiguousItem { .. }) => {
             assert_eq!(span, span!(11, 18));

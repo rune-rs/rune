@@ -204,6 +204,22 @@ impl CompileBuildEntry<'_> {
         let mut asm = self.q.unit.new_assembly(location);
 
         match build {
+            Build::Query => {
+                tracing::trace!("query: {}", item.item);
+
+                if self
+                    .q
+                    .query_meta(item.location.span, &item.item, used)?
+                    .is_none()
+                {
+                    return Err(CompileError::new(
+                        item.location.span,
+                        CompileErrorKind::MissingItem {
+                            item: item.item.clone(),
+                        },
+                    ));
+                }
+            }
             Build::Function(f) => {
                 tracing::trace!("function: {}", item.item);
 
@@ -239,11 +255,14 @@ impl CompileBuildEntry<'_> {
 
                 use self::v1::assemble;
 
-                let args =
-                    format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
+                let args = format_fn_args(
+                    self.q.sources,
+                    location,
+                    f.function.ast.args.iter().map(|(a, _)| a),
+                )?;
 
-                let span = f.ast.span();
-                let count = f.ast.args.len();
+                let span = f.function.ast.span();
+                let count = f.function.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
                 let meta = c.lookup_meta(f.instance_span, &f.impl_item)?;
@@ -254,13 +273,13 @@ impl CompileBuildEntry<'_> {
 
                 let arena = hir::Arena::new();
                 let ctx = hir::lowering::Ctx::new(&arena, c.q.borrow());
-                let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
+                let hir = hir::lowering::item_fn(&ctx, &f.function.ast)?;
                 assemble::fn_from_item_fn(&hir, &mut c, true)?;
 
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
                 } else {
-                    let name = f.ast.name.resolve(resolve_context!(self.q))?;
+                    let name = f.function.ast.name.resolve(resolve_context!(self.q))?;
 
                     self.q.unit.new_instance_function(
                         location,
@@ -269,7 +288,7 @@ impl CompileBuildEntry<'_> {
                         name,
                         count,
                         asm,
-                        f.call,
+                        f.function.call,
                         args,
                     )?;
                 }

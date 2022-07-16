@@ -1,7 +1,7 @@
 use crate::ast::Span;
 use crate::compile::{
     ir, Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler,
-    IrInterpreter, Item, ItemMeta, Options, PrivMeta,
+    IrInterpreter, Item, ItemMeta, Location, Options, PrivMeta,
 };
 use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -55,18 +55,14 @@ pub(crate) struct Assembler<'a> {
 
 impl<'a> Assembler<'a> {
     /// Access the meta for the given language item.
-    pub fn try_lookup_meta(
-        &mut self,
-        spanned: Span,
-        item: &Item,
-    ) -> CompileResult<Option<PrivMeta>> {
+    pub fn try_lookup_meta(&mut self, span: Span, item: &Item) -> CompileResult<Option<PrivMeta>> {
         tracing::trace!("lookup meta: {:?}", item);
 
-        if let Some(meta) = self.q.query_meta(spanned, item, Default::default())? {
+        if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
             tracing::trace!("found in query: {:?}", meta);
             self.q
                 .visitor
-                .visit_meta(self.source_id, meta.info_ref(), spanned);
+                .visit_meta(Location::new(self.source_id, span), meta.as_meta_ref());
             return Ok(Some(meta));
         }
 
@@ -74,7 +70,7 @@ impl<'a> Assembler<'a> {
             tracing::trace!("found in context: {:?}", meta);
             self.q
                 .visitor
-                .visit_meta(self.source_id, meta.info_ref(), spanned);
+                .visit_meta(Location::new(self.source_id, span), meta.as_meta_ref());
             return Ok(Some(meta));
         }
 
