@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1657990735222,
+  "lastUpdate": 1657991717659,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -14956,6 +14956,54 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5814068,
             "range": "± 4439",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2d86f90a3725c5962e9fa334510ea4a5859f2452",
+          "message": "Always index when introducing compile meta (#418)\n\n* Minor nits\r\n* Rework so that compile meta is always registered through indexing",
+          "timestamp": "2022-07-16T17:08:59Z",
+          "tree_id": "d940ad1621f0339bd875fa81c30f42d8126ad008",
+          "url": "https://github.com/rune-rs/rune/commit/2d86f90a3725c5962e9fa334510ea4a5859f2452"
+        },
+        "date": 1657991716599,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 436903276,
+            "range": "± 1823615",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 228612795,
+            "range": "± 1773256",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 304013,
+            "range": "± 1212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 909031,
+            "range": "± 9383",
             "unit": "ns/iter"
           }
         ]
