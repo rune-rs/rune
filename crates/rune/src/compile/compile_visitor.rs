@@ -25,6 +25,20 @@ pub trait CompileVisitor {
     /// This can be called in any order, before or after
     /// [CompileVisitor::visit_meta] for any given item.
     fn visit_doc_comment(&mut self, _location: Location, _item: &Item, _docstr: &str) {}
+
+    /// Visit anterior `///`-style comments, and interior `//!`-style doc
+    /// comments for a field contained in a struct / enum variant struct.
+    ///
+    /// This may be called several times for a single field. Each attribute
+    /// should eventually be combined for the full doc string.
+    fn visit_field_doc_comment(
+        &mut self,
+        _location: Location,
+        _item: &Item,
+        _field: &str,
+        _docstr: &str,
+    ) {
+    }
 }
 
 /// A [CompileVisitor] which does nothing.

@@ -1295,18 +1295,33 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             ));
         }
 
+        let ctx = resolve_context!(idx.q);
+        let span = variant.name.span();
+        let name = variant.name.resolve(ctx)?;
+        let _guard = idx.items.push_name(name.as_ref());
+
         for (field, _) in variant.body.fields() {
-            if let Some(first) = field.attributes.first() {
+            let mut attrs = Attributes::new(field.attributes.to_vec());
+            let docs = Doc::collect_from(ctx, &mut attrs)?;
+            let name = field.name.resolve(ctx)?;
+            let item = idx.items.item();
+
+            for doc in docs {
+                idx.q.visitor.visit_field_doc_comment(
+                    Location::new(idx.source_id, doc.span),
+                    &item,
+                    name,
+                    doc.doc_string.resolve(ctx)?.as_ref(),
+                );
+            }
+
+            if let Some(first) = attrs.remaining() {
                 return Err(CompileError::msg(
                     first,
                     "field attributes are not supported",
                 ));
             }
         }
-
-        let span = variant.name.span();
-        let name = variant.name.resolve(resolve_context!(idx.q))?;
-        let _guard = idx.items.push_name(name.as_ref());
 
         let item = idx.q.insert_new_item(
             &idx.items,
@@ -1328,7 +1343,9 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
 fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
     let mut attrs = Attributes::new(ast.attributes.to_vec());
-    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
+
+    let ctx = resolve_context!(idx.q);
+    let docs = Doc::collect_from(ctx, &mut attrs)?;
 
     if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
@@ -1337,8 +1354,25 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
         ));
     }
 
+    let ident = ast.ident.resolve(ctx)?;
+    let _guard = idx.items.push_name(ident);
+
     for (field, _) in ast.body.fields() {
-        if let Some(first) = field.attributes.first() {
+        let mut attrs = Attributes::new(field.attributes.to_vec());
+        let docs = Doc::collect_from(ctx, &mut attrs)?;
+        let name = field.name.resolve(ctx)?;
+        let item = idx.items.item();
+
+        for doc in docs {
+            idx.q.visitor.visit_field_doc_comment(
+                Location::new(idx.source_id, doc.span),
+                &item,
+                name,
+                doc.doc_string.resolve(ctx)?.as_ref(),
+            );
+        }
+
+        if let Some(first) = attrs.remaining() {
             return Err(CompileError::msg(
                 first,
                 "field attributes are not supported",
@@ -1350,9 +1384,6 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
             ));
         }
     }
-
-    let ident = ast.ident.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(ident);
 
     let visibility = ast_to_visibility(&ast.visibility)?;
     let item = idx.q.insert_new_item(

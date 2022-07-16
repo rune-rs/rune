@@ -1,5 +1,11 @@
 /// Foo documentation.
 struct Foo {
+    /// Struct field.
+    /// Field A.
+    a,
+    /// Struct field.
+    /// Field B.
+    b,
 }
 
 /// Test
@@ -17,6 +23,13 @@ mod foo {
         /// This is another test.
         Hello,
         /// This is a test.
-        World,
+        World {
+            /// Variant struct field.
+            /// Field A.
+            a,
+            /// Variant struct field.
+            /// Field B.
+            b,
+        },
     }
 }
