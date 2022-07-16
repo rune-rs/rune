@@ -14,10 +14,7 @@ impl CompileVisitor for DocVisitor {
     }
 
     fn visit_field_doc_comment(&mut self, _: Location, item: &Item, field: &str, doc: &str) {
-        let mut field_item = item.to_string();
-        field_item.push_str(".");
-        field_item.push_str(field);
-        self.collected.entry(field_item).or_default().push(doc.to_string());
+        self.collected.entry(format!("{item}.{field}")).or_default().push(doc.to_string());
     }
 }
 
