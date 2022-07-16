@@ -635,7 +635,6 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
         &idx.mod_item,
         visibility,
         &docs,
-        &[],
     )?;
 
     let kind = match (ast.const_token, ast.async_token) {
@@ -858,7 +857,6 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         &idx.mod_item,
         Visibility::default(),
         &[],
-        &[],
     )?;
 
     ast.block.id = item.id;
@@ -919,7 +917,6 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
         Location::new(idx.source_id, span),
         &idx.mod_item,
         Visibility::Inherited,
-        &[],
         &[],
     )?;
 
@@ -1283,11 +1280,9 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         &idx.mod_item,
         visibility,
         &docs,
-        &[],
     )?;
 
     idx.q.index_enum(&enum_item)?;
-    let mut field_docs = Vec::new();
 
     for (index, (variant, _)) in ast.variants.iter_mut().enumerate() {
         let mut attrs = Attributes::new(variant.attributes.to_vec());
@@ -1300,13 +1295,26 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             ));
         }
 
+        let ctx = resolve_context!(idx.q);
+        let span = variant.name.span();
+        let name = variant.name.resolve(ctx)?;
+        let _guard = idx.items.push_name(name.as_ref());
+
         for (field, _) in variant.body.fields() {
             let mut attrs = Attributes::new(field.attributes.to_vec());
-            let ctx = resolve_context!(idx.q);
             let docs = Doc::collect_from(ctx, &mut attrs)?;
-            let ident = field.name.resolve(resolve_context!(idx.q))?;
+            let name = field.name.resolve(ctx)?;
+            let item = idx.items.item();
 
-            field_docs.push((ident.to_string(), docs));
+            for doc in docs {
+                idx.q.visitor.visit_field_doc_comment(
+                    Location::new(idx.source_id, doc.span),
+                    &item,
+                    name,
+                    doc.doc_string.resolve(ctx)?.as_ref(),
+                );
+            }
+
             if let Some(first) = attrs.remaining() {
                 return Err(CompileError::msg(
                     first,
@@ -1315,17 +1323,12 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             }
         }
 
-        let span = variant.name.span();
-        let name = variant.name.resolve(resolve_context!(idx.q))?;
-        let _guard = idx.items.push_name(name.as_ref());
-
         let item = idx.q.insert_new_item(
             &idx.items,
             Location::new(idx.source_id, span),
             &idx.mod_item,
             Visibility::Public,
             &docs,
-            &field_docs,
         )?;
         variant.id = item.id;
 
@@ -1340,7 +1343,9 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
 fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let span = ast.span();
     let mut attrs = Attributes::new(ast.attributes.to_vec());
-    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
+
+    let ctx = resolve_context!(idx.q);
+    let docs = Doc::collect_from(ctx, &mut attrs)?;
 
     if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
@@ -1349,14 +1354,24 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
         ));
     }
 
-    let mut field_docs = Vec::new();
+    let ident = ast.ident.resolve(ctx)?;
+    let _guard = idx.items.push_name(ident);
+
     for (field, _) in ast.body.fields() {
         let mut attrs = Attributes::new(field.attributes.to_vec());
-        let ctx = resolve_context!(idx.q);
         let docs = Doc::collect_from(ctx, &mut attrs)?;
-        let ident = field.name.resolve(resolve_context!(idx.q))?;
+        let name = field.name.resolve(ctx)?;
+        let item = idx.items.item();
 
-        field_docs.push((ident.to_string(), docs));
+        for doc in docs {
+            idx.q.visitor.visit_field_doc_comment(
+                Location::new(idx.source_id, doc.span),
+                &item,
+                name,
+                doc.doc_string.resolve(ctx)?.as_ref(),
+            );
+        }
+
         if let Some(first) = attrs.remaining() {
             return Err(CompileError::msg(
                 first,
@@ -1370,9 +1385,6 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
         }
     }
 
-    let ident = ast.ident.resolve(resolve_context!(idx.q))?;
-    let _guard = idx.items.push_name(ident);
-
     let visibility = ast_to_visibility(&ast.visibility)?;
     let item = idx.q.insert_new_item(
         &idx.items,
@@ -1380,7 +1392,6 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
         &idx.mod_item,
         visibility,
         &docs,
-        &field_docs,
     )?;
     ast.id = item.id;
 
@@ -1489,7 +1500,6 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
         &idx.mod_item,
         ast_to_visibility(&ast.visibility)?,
         &docs,
-        &[],
     )?;
 
     ast.id = item.id;
@@ -1644,7 +1654,6 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
         Location::new(idx.source_id, span),
         &idx.mod_item,
         Visibility::Inherited,
-        &[],
         &[],
     )?;
 

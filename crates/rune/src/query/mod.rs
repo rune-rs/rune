@@ -248,7 +248,7 @@ impl<'a> Query<'a> {
         visibility: Visibility,
         docs: &[Doc],
     ) -> Result<Arc<ModMeta>, QueryError> {
-        let item = self.insert_new_item(items, location, parent, visibility, docs, &[])?;
+        let item = self.insert_new_item(items, location, parent, visibility, docs)?;
 
         let query_mod = Arc::new(ModMeta {
             location,
@@ -316,11 +316,10 @@ impl<'a> Query<'a> {
         module: &Arc<ModMeta>,
         visibility: Visibility,
         docs: &[Doc],
-        child_docs: &[(String, Vec<Doc>)],
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let id = items.id();
         let item = &*items.item();
-        self.insert_new_item_with(id, item, location, module, visibility, docs, child_docs)
+        self.insert_new_item_with(id, item, location, module, visibility, docs)
     }
 
     /// Insert a new item with the given newly allocated identifier and complete
@@ -333,31 +332,17 @@ impl<'a> Query<'a> {
         module: &Arc<ModMeta>,
         visibility: Visibility,
         docs: &[Doc],
-        child_docs: &[(String, Vec<Doc>)],
     ) -> Result<Arc<ItemMeta>, QueryError> {
         // Emit documentation comments for the given item.
-        let ctx = resolve_context!(self);
-        macro_rules! visit_docs {
-            ($array:expr, $item:expr) => {
-                for doc in $array {
-                    self.visitor.visit_doc_comment(
-                        Location::new(location.source_id, doc.span),
-                        $item,
-                        doc.doc_string.resolve(ctx)?.as_ref(),
-                    );
-                }
-            };
-        }
-
         if !docs.is_empty() {
-            visit_docs!(docs, item);
-        }
+            let ctx = resolve_context!(self);
 
-        if !child_docs.is_empty() {
-            for (child, docs) in child_docs {
-                let mut item = ItemBuf::with_item(item);
-                item.push(child);
-                visit_docs!(docs, &item);
+            for doc in docs {
+                self.visitor.visit_doc_comment(
+                    Location::new(location.source_id, doc.span),
+                    item,
+                    doc.doc_string.resolve(ctx)?.as_ref(),
+                );
             }
         }
 
@@ -857,7 +842,7 @@ impl<'a> Query<'a> {
         };
 
         let id = self.gen.next();
-        let item = self.insert_new_item_with(id, &item, location, module, visibility, &[], &[])?;
+        let item = self.insert_new_item_with(id, &item, location, module, visibility, &[])?;
 
         // toplevel public uses are re-exported.
         if item.is_public() {
