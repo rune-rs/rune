@@ -62,17 +62,17 @@ impl<'a> Assembler<'a> {
             tracing::trace!("found in query: {:?}", meta);
             self.q.visitor.visit_meta(
                 Location::new(self.source_id, span),
-                meta.as_meta_ref(self.q.item_pool),
+                meta.as_meta_ref(self.q.pool),
             );
             return Ok(Some(meta));
         }
 
-        if let Some(meta) = self.context.lookup_meta(self.q.item_pool.get(item)) {
+        if let Some(meta) = self.context.lookup_meta(self.q.pool.item(item)) {
             let meta = self.q.insert_context_meta(span, meta)?;
             tracing::trace!("found in context: {:?}", meta);
             self.q.visitor.visit_meta(
                 Location::new(self.source_id, span),
-                meta.as_meta_ref(self.q.item_pool),
+                meta.as_meta_ref(self.q.pool),
             );
             return Ok(Some(meta));
         }
@@ -89,7 +89,7 @@ impl<'a> Assembler<'a> {
         Err(CompileError::new(
             spanned,
             CompileErrorKind::MissingItem {
-                item: self.q.item_pool.get(item).to_owned(),
+                item: self.q.pool.item(item).to_owned(),
             },
         ))
     }
@@ -165,7 +165,7 @@ impl<'a> Assembler<'a> {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
-                    meta: meta.info(self.q.item_pool),
+                    meta: meta.info(self.q.pool),
                     expected: query_const_fn.ir_fn.args.len(),
                     actual: args.len(),
                 },

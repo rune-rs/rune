@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
-use crate::compile::{Item, ItemBuf, ItemId, ItemPool, Location, ModId, ModPool, Visibility};
+use crate::compile::{Item, ItemBuf, ItemId, Location, ModId, Pool, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::query::ImportEntry;
 use crate::runtime::ConstValue;
@@ -292,17 +292,17 @@ pub(crate) struct PrivMeta {
 
 impl PrivMeta {
     /// Get the [Meta] which describes this [ContextMeta] object.
-    pub(crate) fn info(&self, item_pool: &ItemPool) -> Meta {
+    pub(crate) fn info(&self, pool: &Pool) -> Meta {
         Meta {
-            item: item_pool.get(self.item.item).to_owned(),
+            item: pool.item(self.item.item).to_owned(),
             kind: self.kind.as_meta_info_kind(),
         }
     }
 
     /// Get the [MetaRef] which describes this [PrivMeta] object.
-    pub(crate) fn as_meta_ref<'a>(&'a self, item_pool: &'a ItemPool) -> MetaRef<'a> {
+    pub(crate) fn as_meta_ref<'a>(&'a self, pool: &'a Pool) -> MetaRef<'a> {
         MetaRef {
-            item: item_pool.get(self.item.item),
+            item: pool.item(self.item.item),
             kind: self.kind.as_meta_info_kind(),
             source: self.source.as_ref(),
         }
@@ -503,7 +503,7 @@ pub(crate) struct ItemMeta {
 
 impl ItemMeta {
     /// Test if the item is public (and should be exported).
-    pub(crate) fn is_public(&self, mod_pool: &ModPool) -> bool {
-        self.visibility.is_public() && mod_pool.get(self.module).is_public(mod_pool)
+    pub(crate) fn is_public(&self, pool: &Pool) -> bool {
+        self.visibility.is_public() && pool.get_mod(self.module).is_public(pool)
     }
 }

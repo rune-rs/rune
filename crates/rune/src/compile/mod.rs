@@ -37,7 +37,6 @@ pub use self::ir::{IrError, IrErrorKind, IrEval, IrValue};
 
 pub(crate) mod item;
 pub use self::item::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
-pub(crate) use self::item::{ItemId, ItemPool};
 
 mod source_loader;
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
@@ -64,8 +63,8 @@ pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 mod module;
 pub use self::module::{AssocType, InstallWith, Module, Variant};
 
-mod mod_pool;
-pub(crate) use self::mod_pool::{ModId, ModMeta, ModPool};
+mod pool;
+pub(crate) use self::pool::{ItemId, ModId, ModMeta, Pool};
 
 mod named;
 pub use self::named::Named;
@@ -84,8 +83,7 @@ pub(crate) fn compile(
     unit: &mut UnitBuilder,
     prelude: &Prelude,
     sources: &mut Sources,
-    item_pool: &mut ItemPool,
-    mod_pool: &mut ModPool,
+    pool: &mut Pool,
     context: &Context,
     diagnostics: &mut Diagnostics,
     options: &Options,
@@ -104,8 +102,7 @@ pub(crate) fn compile(
         &mut consts,
         &mut storage,
         sources,
-        item_pool,
-        mod_pool,
+        pool,
         options,
         unit,
         prelude,
@@ -223,7 +220,7 @@ impl CompileBuildEntry<'_> {
                     return Err(CompileError::new(
                         item.location.span,
                         CompileErrorKind::MissingItem {
-                            item: self.q.item_pool.get(item.item).to_owned(),
+                            item: self.q.pool.item(item.item).to_owned(),
                         },
                     ));
                 }
@@ -250,7 +247,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        self.q.item_pool.get(item.item),
+                        self.q.pool.item(item.item),
                         count,
                         asm,
                         f.call,
@@ -276,7 +273,7 @@ impl CompileBuildEntry<'_> {
                 let meta = c.lookup_meta(f.instance_span, f.impl_item)?;
 
                 let type_hash = meta.type_hash_of().ok_or_else(|| {
-                    CompileError::expected_meta(span, meta.info(c.q.item_pool), "instance function")
+                    CompileError::expected_meta(span, meta.info(c.q.pool), "instance function")
                 })?;
 
                 let arena = hir::Arena::new();
@@ -291,7 +288,7 @@ impl CompileBuildEntry<'_> {
 
                     self.q.unit.new_instance_function(
                         location,
-                        self.q.item_pool.get(item.item),
+                        self.q.pool.item(item.item),
                         type_hash,
                         name,
                         count,
@@ -325,7 +322,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        self.q.item_pool.get(item.item),
+                        self.q.pool.item(item.item),
                         closure.ast.args.len(),
                         asm,
                         closure.call,
@@ -354,7 +351,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        self.q.item_pool.get(item.item),
+                        self.q.pool.item(item.item),
                         args,
                         asm,
                         b.call,
@@ -383,7 +380,7 @@ impl CompileBuildEntry<'_> {
 
                 let missing = match result {
                     Some(item_id) => {
-                        let item = self.q.item_pool.get(item_id);
+                        let item = self.q.pool.item(item_id);
 
                         if self.context.contains_prefix(item) || self.q.contains_prefix(item) {
                             None
@@ -398,7 +395,7 @@ impl CompileBuildEntry<'_> {
                     return Err(CompileError::new(
                         location.span,
                         CompileErrorKind::MissingItem {
-                            item: self.q.item_pool.get(item).to_owned(),
+                            item: self.q.pool.item(item).to_owned(),
                         },
                     ));
                 }
@@ -412,7 +409,7 @@ impl CompileBuildEntry<'_> {
                         return Err(CompileError::new(
                             location.span,
                             CompileErrorKind::MissingItem {
-                                item: self.q.item_pool.get(item.item).to_owned(),
+                                item: self.q.pool.item(item.item).to_owned(),
                             },
                         ))
                     }
@@ -420,8 +417,8 @@ impl CompileBuildEntry<'_> {
 
                 self.q.unit.new_function_reexport(
                     location,
-                    self.q.item_pool.get(item.item),
-                    self.q.item_pool.get(import),
+                    self.q.pool.item(item.item),
+                    self.q.pool.item(import),
                 )?;
             }
         }

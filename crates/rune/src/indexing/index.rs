@@ -549,7 +549,7 @@ impl<'a> Indexer<'a> {
 
         let source = self.source_loader.load(
             root,
-            self.q.item_pool.get(self.q.mod_pool.get(mod_item).item),
+            self.q.pool.item(self.q.pool.get_mod(mod_item).item),
             span,
         )?;
 
@@ -559,8 +559,8 @@ impl<'a> Indexer<'a> {
                 CompileErrorKind::ModAlreadyLoaded {
                     item: self
                         .q
-                        .item_pool
-                        .get(self.q.mod_pool.get(mod_item).item)
+                        .pool
+                        .item(self.q.pool.get_mod(mod_item).item)
                         .to_owned(),
                     existing,
                 },
@@ -593,7 +593,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<
     for (span, doc) in docs {
         idx.q.visitor.visit_doc_comment(
             Location::new(idx.source_id, span),
-            idx.q.item_pool.get(idx.q.mod_pool.get(idx.mod_item).item),
+            idx.q.pool.item(idx.q.pool.get_mod(idx.mod_item).item),
             &*doc.doc_string.resolve(ctx)?,
         );
     }
@@ -705,7 +705,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
 
     // NB: it's only a public item in the sense of exporting it if it's not
     // inside of a nested item.
-    let is_public = item.is_public(idx.q.mod_pool) && idx.nested_item.is_none();
+    let is_public = item.is_public(idx.q.pool) && idx.nested_item.is_none();
 
     let is_test = match attributes.try_parse::<attrs::Test>(resolve_context!(idx.q))? {
         Some((span, _)) => {
@@ -1388,7 +1388,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
         guards.push(idx.items.push_name(ident));
     }
 
-    let new = idx.q.item_pool.alloc(&*idx.items.item());
+    let new = idx.q.pool.alloc_item(&*idx.items.item());
     let old = std::mem::replace(&mut idx.impl_item, Some(new));
 
     for i in &mut ast.functions {

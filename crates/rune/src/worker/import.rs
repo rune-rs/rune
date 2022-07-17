@@ -22,8 +22,8 @@ impl Import {
     /// Lookup a local identifier in the current context and query.
     fn lookup_local(&self, context: &Context, query: &Query, local: &str) -> ItemBuf {
         let item = query
-            .item_pool
-            .get(query.mod_pool.get(self.module).item)
+            .pool
+            .item(query.pool.get_mod(self.module).item)
             .extended(local);
 
         if let ImportKind::Local = self.kind {
@@ -119,7 +119,7 @@ impl Import {
                                 ));
                             }
 
-                            name = q.item_pool.get(q.mod_pool.get(self.module).item).to_owned();
+                            name = q.pool.item(q.pool.get_mod(self.module).item).to_owned();
                         }
                         ast::PathSegment::Crate(crate_token) => {
                             if !initial {
@@ -133,7 +133,7 @@ impl Import {
                         }
                         ast::PathSegment::Super(super_token) => {
                             if initial {
-                                name = q.item_pool.get(q.mod_pool.get(self.module).item).to_owned();
+                                name = q.pool.item(q.pool.get_mod(self.module).item).to_owned();
                             }
 
                             name.pop().ok_or_else(|| {

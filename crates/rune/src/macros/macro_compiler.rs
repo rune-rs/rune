@@ -41,7 +41,7 @@ impl MacroCompiler<'_> {
         let path = crate::hir::lowering::path(&ctx, &macro_call.path)?;
         let named = self.query.convert_path(self.context, &path)?;
 
-        let hash = self.query.item_pool.type_hash(named.item);
+        let hash = self.query.pool.item_type_hash(named.item);
 
         let handler = match self.context.lookup_macro(hash) {
             Some(handler) => handler,
@@ -49,7 +49,7 @@ impl MacroCompiler<'_> {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::MissingMacro {
-                        item: self.query.item_pool.get(named.item).to_owned(),
+                        item: self.query.pool.item(named.item).to_owned(),
                     },
                 ));
             }
@@ -93,7 +93,7 @@ impl MacroCompiler<'_> {
                         return Err(CompileError::new(
                             error.span(),
                             CompileErrorKind::CallMacroError {
-                                item: self.query.item_pool.get(named.item).to_owned(),
+                                item: self.query.pool.item(named.item).to_owned(),
                                 error: error.into_inner(),
                             },
                         ));
@@ -104,7 +104,7 @@ impl MacroCompiler<'_> {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::CallMacroError {
-                        item: self.query.item_pool.get(named.item).to_owned(),
+                        item: self.query.pool.item(named.item).to_owned(),
                         error,
                     },
                 ));

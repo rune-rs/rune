@@ -26,7 +26,7 @@ pub struct IrInterpreter<'a> {
 impl IrInterpreter<'_> {
     /// Outer evaluation for an expression which performs caching into `consts`.
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
-        tracing::trace!("processing constant: {}", self.q.item_pool.get(self.item));
+        tracing::trace!("processing constant: {}", self.q.pool.item(self.item));
 
         if let Some(const_value) = self.q.consts.get(self.item) {
             return Ok(const_value.clone());
@@ -93,10 +93,10 @@ impl IrInterpreter<'_> {
             return Ok(ir_value.clone());
         }
 
-        let mut base = self.q.item_pool.get(self.item).to_owned();
+        let mut base = self.q.pool.item(self.item).to_owned();
 
         loop {
-            let item = self.q.item_pool.alloc(base.extended(name));
+            let item = self.q.pool.alloc_item(base.extended(name));
 
             if let Some(const_value) = self.q.consts.get(item) {
                 return Ok(IrValue::from_const(const_value));
@@ -111,7 +111,7 @@ impl IrInterpreter<'_> {
                         return Err(IrError::new(
                             spanned,
                             IrErrorKind::UnsupportedMeta {
-                                meta: meta.info(self.q.item_pool),
+                                meta: meta.info(self.q.pool),
                             },
                         ));
                     }
@@ -149,10 +149,10 @@ impl IrInterpreter<'_> {
         S: Copy + Spanned,
     {
         let span = spanned.span();
-        let mut base = self.q.item_pool.get(self.item).to_owned();
+        let mut base = self.q.pool.item(self.item).to_owned();
 
         let id = loop {
-            let item = self.q.item_pool.alloc(base.extended(target));
+            let item = self.q.pool.alloc_item(base.extended(target));
 
             if let Some(meta) = self.q.query_meta(span, item, used)? {
                 match &meta.kind {
@@ -163,7 +163,7 @@ impl IrInterpreter<'_> {
                         return Err(IrError::new(
                             span,
                             IrErrorKind::UnsupportedMeta {
-                                meta: meta.info(self.q.item_pool),
+                                meta: meta.info(self.q.pool),
                             },
                         ));
                     }

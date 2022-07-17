@@ -3,9 +3,7 @@
 use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::{
-    CompileVisitor, ItemPool, ModId, ModPool, Options, Prelude, SourceLoader, UnitBuilder,
-};
+use crate::compile::{CompileVisitor, ModId, Options, Pool, Prelude, SourceLoader, UnitBuilder};
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
 use crate::macros::Storage;
@@ -44,8 +42,7 @@ impl<'a> Worker<'a> {
         consts: &'a mut Consts,
         storage: &'a mut Storage,
         sources: &'a mut Sources,
-        item_pool: &'a mut ItemPool,
-        mod_pool: &'a mut ModPool,
+        pool: &'a mut Pool,
         options: &'a Options,
         unit: &'a mut UnitBuilder,
         prelude: &'a Prelude,
@@ -61,7 +58,7 @@ impl<'a> Worker<'a> {
             diagnostics,
             source_loader,
             q: Query::new(
-                unit, prelude, consts, storage, sources, item_pool, mod_pool, visitor, gen, inner,
+                unit, prelude, consts, storage, sources, pool, visitor, gen, inner,
             ),
             gen,
             loaded: HashMap::new(),
@@ -82,7 +79,7 @@ impl<'a> Worker<'a> {
                     source_id,
                     mod_item,
                 } => {
-                    let item = self.q.item_pool.get(self.q.mod_pool.get(mod_item).item);
+                    let item = self.q.pool.item(self.q.pool.get_mod(mod_item).item);
                     tracing::trace!("load file: {}", item);
 
                     let source = match self.q.sources.get(source_id) {
