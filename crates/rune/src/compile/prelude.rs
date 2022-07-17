@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::compile::{IntoComponent, ItemBuf};
+use crate::compile::{IntoComponent, Item, ItemBuf};
 
 /// The contents of a prelude.
 #[derive(Default)]
@@ -46,8 +46,8 @@ impl Prelude {
     }
 
     /// Access a value from the prelude.
-    pub(crate) fn get<'a>(&'a self, name: &str) -> Option<&'a ItemBuf> {
-        self.prelude.get(name)
+    pub(crate) fn get<'a>(&'a self, name: &str) -> Option<&'a Item> {
+        Some(self.prelude.get(name)?)
     }
 
     /// Define a prelude item.

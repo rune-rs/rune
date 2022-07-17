@@ -199,7 +199,8 @@ impl<'a> Query<'a> {
     ) -> NonZeroId {
         let item = self.pool.alloc_item(item);
         let id = self.gen.next();
-        self.inner.query_paths.insert(
+
+        let old = self.inner.query_paths.insert(
             id,
             QueryPath {
                 module,
@@ -207,6 +208,8 @@ impl<'a> Query<'a> {
                 item,
             },
         );
+
+        debug_assert!(old.is_none(), "should use a unique identifier");
         id
     }
 

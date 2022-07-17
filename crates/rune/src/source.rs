@@ -16,7 +16,7 @@ pub struct Source {
     /// The path the source was loaded from.
     path: Option<Box<Path>>,
     /// The starting byte indices in the source code.
-    line_starts: Vec<usize>,
+    line_starts: Box<[usize]>,
 }
 
 impl Source {
@@ -39,7 +39,7 @@ impl Source {
         path: Option<impl AsRef<Path>>,
     ) -> Self {
         let source = source.as_ref();
-        let line_starts = line_starts(source).collect::<Vec<_>>();
+        let line_starts = line_starts(source).collect::<Box<[_]>>();
 
         Self {
             name: name.as_ref().into(),
