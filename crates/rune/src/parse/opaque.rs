@@ -1,5 +1,5 @@
 use crate::ast::Spanned;
-use crate::parse::Id;
+use crate::parse::{Id, NonZeroId};
 pub(crate) use rune_macros::Opaque;
 
 pub(crate) trait Opaque {
@@ -13,6 +13,12 @@ impl Opaque for Id {
     }
 }
 
+impl Opaque for NonZeroId {
+    fn id(&self) -> Id {
+        Id::new(*self)
+    }
+}
+
 impl<T> Opaque for &T
 where
     T: Opaque,
@@ -22,11 +28,12 @@ where
     }
 }
 
-impl<S> Opaque for (S, Id)
+impl<S, O> Opaque for (S, O)
 where
     S: Spanned,
+    O: Opaque,
 {
     fn id(&self) -> Id {
-        self.1
+        self.1.id()
     }
 }

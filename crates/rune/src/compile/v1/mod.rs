@@ -197,8 +197,8 @@ impl<'a> Assembler<'a> {
             interpreter.scopes.decl(name, value, span)?;
         }
 
-        interpreter.module = query_const_fn.item.module;
-        interpreter.item = query_const_fn.item.item;
+        interpreter.module = query_const_fn.item_meta.module;
+        interpreter.item = query_const_fn.item_meta.item;
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
         Ok(value.into_const(span)?)
     }

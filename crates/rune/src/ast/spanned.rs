@@ -1,5 +1,5 @@
 use crate::ast::Span;
-use crate::parse::Id;
+use crate::parse::{Id, NonZeroId};
 pub use rune_macros::{OptionSpanned, Spanned};
 
 /// Types for which we can get a span.
@@ -61,6 +61,15 @@ where
 }
 
 impl<S> Spanned for (S, Option<Id>)
+where
+    S: Spanned,
+{
+    fn span(&self) -> Span {
+        self.0.span()
+    }
+}
+
+impl<S> Spanned for (S, NonZeroId)
 where
     S: Spanned,
 {

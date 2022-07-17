@@ -758,7 +758,7 @@ fn pat_object(
                         span,
                         CompileErrorKind::LitObjectNotField {
                             field: binding.key().into(),
-                            item: c.q.pool.item(meta.item.item).to_owned(),
+                            item: c.q.pool.item(meta.item_meta.item).to_owned(),
                         },
                     ));
                 }
@@ -774,7 +774,7 @@ fn pat_object(
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::PatternMissingFields {
-                        item: c.q.pool.item(meta.item.item).to_owned(),
+                        item: c.q.pool.item(meta.item_meta.item).to_owned(),
                         fields,
                     },
                 ));
@@ -1576,7 +1576,7 @@ fn expr_block(
                 }
             }
 
-            let hash = c.q.pool.item_type_hash(meta.item.item);
+            let hash = c.q.pool.item_type_hash(meta.item_meta.item);
             c.asm.push_with_comment(
                 Inst::Call {
                     hash,
@@ -1763,7 +1763,7 @@ fn convert_expr_call(
             }
 
             let meta = c.lookup_meta(path.span(), named.item)?;
-            debug_assert_eq!(meta.item.item, named.item);
+            debug_assert_eq!(meta.item_meta.item, named.item);
 
             match &meta.kind {
                 PrivMetaKind::Struct {
@@ -1833,7 +1833,7 @@ fn convert_expr_call(
                 }
             };
 
-            let hash = c.q.pool.item_type_hash(meta.item.item);
+            let hash = c.q.pool.item_type_hash(meta.item_meta.item);
 
             let hash = if let Some((span, generics)) = named.generics {
                 let parameters = generics_parameters(span, c, generics)?;
@@ -2682,7 +2682,7 @@ fn expr_object(
             named.assert_not_generic()?;
 
             let meta = c.lookup_meta(path.span(), named.item)?;
-            let item = c.q.pool.item(meta.item.item);
+            let item = c.q.pool.item(meta.item_meta.item);
 
             match &meta.kind {
                 PrivMetaKind::Struct {

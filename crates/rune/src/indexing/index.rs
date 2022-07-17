@@ -363,10 +363,10 @@ impl<'a> Indexer<'a> {
             .insert_path(self.mod_item, self.impl_item, &*self.items.item());
         ast.path.id.set(id);
 
-        let item = self.q.get_item(ast.span(), self.items.id())?;
+        let item = self.q.item_for((ast.span(), self.items.id()))?;
 
         let mut compiler = MacroCompiler {
-            item,
+            item_meta: item,
             options: self.options,
             context: self.context,
             query: self.q.borrow(),
@@ -626,7 +626,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let mut attributes = attrs::Attributes::new(ast.attributes.clone());
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attributes)?;
 
-    let item = idx.q.insert_new_item(
+    let item_meta = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
         idx.mod_item,
@@ -673,7 +673,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     idx.nested_item = last;
 
     let f = guard.into_function(span)?;
-    ast.id = item.id;
+    ast.id = item_meta.id;
 
     let call = match Indexer::call(f.generator, f.kind) {
         Some(call) => call,
@@ -686,8 +686,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
                 ));
             }
 
-            idx.q.index_const_fn(&item, Box::new(ast.clone()))?;
-
+            idx.q.index_const_fn(item_meta, Box::new(ast.clone()))?;
             return Ok(());
         }
     };
@@ -699,7 +698,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
 
     // NB: it's only a public item in the sense of exporting it if it's not
     // inside of a nested item.
-    let is_public = item.is_public(idx.q.pool) && idx.nested_item.is_none();
+    let is_public = item_meta.is_public(idx.q.pool) && idx.nested_item.is_none();
 
     let is_test = match attributes.try_parse::<attrs::Test>(resolve_context!(idx.q))? {
         Some((span, _)) => {
@@ -757,7 +756,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
         })?;
 
         idx.q.index_and_build(IndexedEntry {
-            item,
+            item_meta,
             indexed: Indexed::InstanceFunction(InstanceFunction {
                 function,
                 impl_item,
@@ -766,7 +765,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
         });
     } else {
         let entry = IndexedEntry {
-            item,
+            item_meta,
             indexed: Indexed::Function(IndexedFunction {
                 function,
                 is_test,
@@ -808,7 +807,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
 
     let _guard = idx.items.push_id();
 
-    let item = idx.q.insert_new_item(
+    let item_meta = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
         idx.mod_item,
@@ -816,7 +815,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
         &[],
     )?;
 
-    ast.block.id = item.id;
+    ast.block.id = item_meta.id;
 
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
@@ -828,7 +827,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
 
         block(&mut ast.block, idx)?;
 
-        idx.q.index_const(&item, ast, |ast, c| {
+        idx.q.index_const(item_meta, ast, |ast, c| {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
             let ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
@@ -857,7 +856,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
     };
 
     idx.q
-        .index_async_block(&item, ast.block.clone(), captures, call, c.do_move)?;
+        .index_async_block(item_meta, ast.block.clone(), captures, call, c.do_move)?;
 
     Ok(())
 }
@@ -1239,7 +1238,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         &docs,
     )?;
 
-    idx.q.index_enum(&enum_item)?;
+    idx.q.index_enum(enum_item)?;
 
     for (index, (variant, _)) in ast.variants.iter_mut().enumerate() {
         let mut attrs = Attributes::new(variant.attributes.to_vec());
@@ -1280,17 +1279,17 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             }
         }
 
-        let item = idx.q.insert_new_item(
+        let item_meta = idx.q.insert_new_item(
             &idx.items,
             Location::new(idx.source_id, span),
             idx.mod_item,
             Visibility::Public,
             &docs,
         )?;
-        variant.id = item.id;
+        variant.id = item_meta.id;
 
         idx.q
-            .index_variant(&item, enum_item.id, variant.clone(), index)?;
+            .index_variant(item_meta, enum_item.id, variant.clone(), index)?;
     }
 
     Ok(())
@@ -1343,16 +1342,16 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     }
 
     let visibility = ast_to_visibility(&ast.visibility)?;
-    let item = idx.q.insert_new_item(
+    let item_meta = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
         idx.mod_item,
         visibility,
         &docs,
     )?;
-    ast.id = item.id;
+    ast.id = item_meta.id;
 
-    idx.q.index_struct(&item, Box::new(ast.clone()))?;
+    idx.q.index_struct(item_meta, Box::new(ast.clone()))?;
     Ok(())
 }
 
@@ -1451,7 +1450,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
     let name = ast.name.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(name.as_ref());
 
-    let item = idx.q.insert_new_item(
+    let item_meta = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
         idx.mod_item,
@@ -1459,13 +1458,13 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
         &docs,
     )?;
 
-    ast.id = item.id;
+    ast.id = item_meta.id;
 
     let last = idx.nested_item.replace(ast.descriptive_span());
     expr(&mut ast.expr, idx, IS_USED)?;
     idx.nested_item = last;
 
-    idx.q.index_const(&item, &ast.expr, |ast, c| {
+    idx.q.index_const(item_meta, &ast.expr, |ast, c| {
         // TODO: avoid this arena?
         let arena = crate::hir::Arena::new();
         let hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
@@ -1606,7 +1605,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
     let guard = idx.scopes.push_closure(kind, ast.move_token.is_some());
     let span = ast.span();
 
-    let item = idx.q.insert_new_item(
+    let item_meta = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
         idx.mod_item,
@@ -1641,7 +1640,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
     };
 
     idx.q
-        .index_closure(&item, Box::new(ast.clone()), captures, call, c.do_move)?;
+        .index_closure(item_meta, Box::new(ast.clone()), captures, call, c.do_move)?;
 
     Ok(())
 }

@@ -1,7 +1,5 @@
 //! Macro compiler.
 
-use std::sync::Arc;
-
 use crate::ast;
 use crate::ast::{Spanned, SpannedError};
 use crate::compile::{CompileError, CompileErrorKind, CompileResult, IrError, ItemMeta, Options};
@@ -11,7 +9,7 @@ use crate::query::Query;
 use crate::Context;
 
 pub(crate) struct MacroCompiler<'a> {
-    pub(crate) item: Arc<ItemMeta>,
+    pub(crate) item_meta: ItemMeta,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
     pub(crate) query: Query<'a>,
@@ -63,7 +61,7 @@ impl MacroCompiler<'_> {
             let mut macro_context = MacroContext {
                 macro_span: macro_call.span(),
                 stream_span: macro_call.stream_span(),
-                item: self.item.clone(),
+                item_meta: self.item_meta,
                 q: self.query.borrow(),
             };
 

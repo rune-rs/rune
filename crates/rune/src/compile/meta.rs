@@ -283,7 +283,7 @@ impl ContextMetaKind {
 #[non_exhaustive]
 pub(crate) struct PrivMeta {
     /// The item of the returned compile meta.
-    pub(crate) item: Arc<ItemMeta>,
+    pub(crate) item_meta: ItemMeta,
     /// The kind of the compile meta.
     pub(crate) kind: PrivMetaKind,
     /// The source of the meta.
@@ -294,7 +294,7 @@ impl PrivMeta {
     /// Get the [Meta] which describes this [ContextMeta] object.
     pub(crate) fn info(&self, pool: &Pool) -> Meta {
         Meta {
-            item: pool.item(self.item.item).to_owned(),
+            item: pool.item(self.item_meta.item).to_owned(),
             kind: self.kind.as_meta_info_kind(),
         }
     }
@@ -302,7 +302,7 @@ impl PrivMeta {
     /// Get the [MetaRef] which describes this [PrivMeta] object.
     pub(crate) fn as_meta_ref<'a>(&'a self, pool: &'a Pool) -> MetaRef<'a> {
         MetaRef {
-            item: pool.item(self.item.item),
+            item: pool.item(self.item_meta.item),
             kind: self.kind.as_meta_info_kind(),
             source: self.source.as_ref(),
         }
@@ -486,7 +486,7 @@ pub(crate) struct PrivTupleMeta {
 }
 
 /// Item and the module that the item belongs to.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ItemMeta {
     /// The id of the item.
