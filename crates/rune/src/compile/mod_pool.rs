@@ -55,11 +55,11 @@ pub(crate) struct ModPool {
 impl ModPool {
     /// Lookup mod meta by the given identifier.
     pub(crate) fn get(&self, ModId(id): ModId) -> &ModMeta {
-        let id = usize::try_from(id).expect("id overflow");
+        let id = usize::try_from(id).expect("module id overflow");
 
         match self.modules.get(id) {
             Some(item) => item,
-            None => panic!("missing item by id {id}"),
+            None => panic!("missing module by id {id}"),
         }
     }
 

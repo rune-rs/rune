@@ -7,7 +7,7 @@ use crate::Hash;
 macro_rules! get {
     ($slf:expr, $id:expr) => {{
         let ItemId(id) = $id;
-        let id = usize::try_from(id).expect("id overflow");
+        let id = usize::try_from(id).expect("item id overflow");
 
         match $slf.items.get(id) {
             Some(item) => item,
