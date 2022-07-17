@@ -154,7 +154,7 @@ impl Import {
                             name: name.clone(),
                             span: star_token.span(),
                             source_id: self.source_id,
-                            module: self.module.clone(),
+                            module: self.module,
                             found: false,
                         };
 

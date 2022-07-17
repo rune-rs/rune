@@ -56,7 +56,7 @@ impl IrInterpreter<'_> {
         if self
             .q
             .consts
-            .insert(self.item.clone(), const_value.clone())
+            .insert(self.item, const_value.clone())
             .is_some()
         {
             return Err(IrError::new(ir, IrErrorKind::ConstCycle));

@@ -448,7 +448,7 @@ impl<'a> Indexer<'a> {
                     let import = Import {
                         kind: ImportKind::Global,
                         visibility,
-                        module: self.mod_item.clone(),
+                        module: self.mod_item,
                         item: self.items.item().clone(),
                         source_id: self.source_id,
                         ast: Box::new(item_use),
@@ -758,7 +758,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
             ));
         }
 
-        let impl_item = idx.impl_item.clone().ok_or_else(|| {
+        let impl_item = idx.impl_item.ok_or_else(|| {
             CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
         })?;
 

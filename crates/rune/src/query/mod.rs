@@ -238,7 +238,7 @@ impl<'a> Query<'a> {
             location,
             item: item.item,
             visibility,
-            parent: Some(parent.clone()),
+            parent: Some(parent),
         });
 
         self.index_and_build(IndexedEntry {
@@ -1021,19 +1021,11 @@ impl<'a> Query<'a> {
         item: ItemId,
         used: Used,
         path: &mut Vec<ImportStep>,
-    ) -> Result<Option<QueryImportStep>, QueryError> {
+    ) -> Result<Option<ImportEntry>, QueryError> {
         // already resolved query.
         if let Some(meta) = self.inner.meta.get(&item) {
-            return Ok(match &meta.kind {
-                PrivMetaKind::Import {
-                    module,
-                    location,
-                    target,
-                } => Some(QueryImportStep {
-                    module: module.clone(),
-                    location: *location,
-                    target: *target,
-                }),
+            return Ok(match meta.kind {
+                PrivMetaKind::Import { import } => Some(import),
                 _ => None,
             });
         }
@@ -1063,22 +1055,13 @@ impl<'a> Query<'a> {
         };
 
         let meta = PrivMeta {
-            item: entry.item.clone(),
-            kind: PrivMetaKind::Import {
-                module: import.module.clone(),
-                location: import.location,
-                target: import.target.clone(),
-            },
+            item: entry.item,
+            kind: PrivMetaKind::Import { import },
             source: None,
         };
 
         self.insert_meta(span, meta)?;
-
-        Ok(Some(QueryImportStep {
-            module: import.module,
-            location: import.location,
-            target: import.target,
-        }))
+        Ok(Some(import))
     }
 
     /// Build a single, indexed entry and return its metadata.
@@ -1228,10 +1211,6 @@ impl<'a> Query<'a> {
                 PrivMetaKind::ConstFn { id: Id::new(id) }
             }
             Indexed::Import(import) => {
-                let module = import.entry.module.clone();
-                let location = import.entry.location;
-                let target = import.entry.target.clone();
-
                 if !import.wildcard {
                     self.inner.queue.push_back(BuildEntry {
                         location: query_item.location,
@@ -1242,9 +1221,7 @@ impl<'a> Query<'a> {
                 }
 
                 PrivMetaKind::Import {
-                    module,
-                    location,
-                    target,
+                    import: import.entry,
                 }
             }
             Indexed::Module => PrivMetaKind::Module,
@@ -1513,7 +1490,7 @@ pub(crate) enum Indexed {
     Module,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Import {
     /// The import entry.
     pub(crate) entry: ImportEntry,
@@ -1837,7 +1814,7 @@ fn struct_into_item_decl(
 }
 
 /// An imported entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub(crate) struct ImportEntry {
     /// The location of the import.
@@ -1846,12 +1823,6 @@ pub(crate) struct ImportEntry {
     pub(crate) target: ItemId,
     /// The module in which the imports is located.
     pub(crate) module: ModId,
-}
-
-struct QueryImportStep {
-    module: ModId,
-    location: Location,
-    target: ItemId,
 }
 
 fn into_chain(chain: Vec<ImportStep>) -> Vec<Location> {

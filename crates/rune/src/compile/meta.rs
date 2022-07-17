@@ -9,6 +9,7 @@ use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
 use crate::compile::{Item, ItemBuf, ItemId, ItemPool, Location, ModId, ModPool, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
+use crate::query::ImportEntry;
 use crate::runtime::ConstValue;
 use crate::Hash;
 
@@ -409,12 +410,8 @@ pub(crate) enum PrivMetaKind {
     },
     /// Purely an import.
     Import {
-        /// The module of the target.
-        module: ModId,
-        /// The location of the import.
-        location: Location,
-        /// The imported target.
-        target: ItemId,
+        /// The entry being imported.
+        import: ImportEntry,
     },
     /// A module.
     Module,

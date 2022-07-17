@@ -46,18 +46,10 @@ impl ModMeta {
 }
 
 /// A pool of items.
+#[derive(Default)]
 pub(crate) struct ModPool {
     modules: Vec<ModMeta>,
     to_id: HashMap<ItemId, ModId>,
-}
-
-impl Default for ModPool {
-    fn default() -> Self {
-        Self {
-            modules: Default::default(),
-            to_id: Default::default(),
-        }
-    }
 }
 
 impl ModPool {
