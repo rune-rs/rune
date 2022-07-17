@@ -52,6 +52,6 @@ impl CompileVisitor for FunctionVisitor {
             _ => return,
         };
 
-        self.functions.push((*type_hash, meta.item.clone()));
+        self.functions.push((*type_hash, meta.item.to_owned()));
     }
 }

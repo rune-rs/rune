@@ -5,7 +5,7 @@ use crate::compile::attrs::Attributes;
 use crate::compile::ir;
 use crate::compile::{attrs, Doc};
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, ItemBuf, Location, ModMeta, Options,
+    CompileError, CompileErrorKind, CompileResult, ItemId, Location, ModMeta, Options,
     SourceLoader, Visibility,
 };
 use crate::indexing::locals;
@@ -43,7 +43,7 @@ pub(crate) struct Indexer<'a> {
     /// The root URL that the indexed file originated from.
     pub(crate) root: Option<PathBuf>,
     /// Loaded modules.
-    pub(crate) loaded: &'a mut HashMap<ItemBuf, (SourceId, Span)>,
+    pub(crate) loaded: &'a mut HashMap<ItemId, (SourceId, Span)>,
     /// Query engine.
     pub(crate) q: Query<'a>,
     /// Imports to process.
@@ -58,7 +58,7 @@ pub(crate) struct Indexer<'a> {
     /// The current module being indexed.
     pub(crate) mod_item: Arc<ModMeta>,
     /// Set if we are inside of an impl self.
-    pub(crate) impl_item: Option<Arc<ItemBuf>>,
+    pub(crate) impl_item: Option<ItemId>,
     /// Source loader to use.
     pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Indicates if indexer is nested privately inside of another item, and if
@@ -362,7 +362,7 @@ impl<'a> Indexer<'a> {
     {
         let id = self
             .q
-            .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
+            .insert_path(&self.mod_item, self.impl_item, &*self.items.item());
         ast.path.id.set(id);
 
         let item = self.q.get_item(ast.span(), self.items.id())?;
@@ -549,16 +549,15 @@ impl<'a> Indexer<'a> {
 
         item_mod.id.set(self.items.id());
 
-        let source = self.source_loader.load(root, &mod_item.item, span)?;
+        let source = self
+            .source_loader
+            .load(root, self.q.item_pool.get(mod_item.item), span)?;
 
-        if let Some(existing) = self
-            .loaded
-            .insert(mod_item.item.clone(), (self.source_id, span))
-        {
+        if let Some(existing) = self.loaded.insert(mod_item.item, (self.source_id, span)) {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::ModAlreadyLoaded {
-                    item: mod_item.item.clone(),
+                    item: self.q.item_pool.get(mod_item.item).to_owned(),
                     existing,
                 },
             ));
@@ -590,7 +589,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<
     for (span, doc) in docs {
         idx.q.visitor.visit_doc_comment(
             Location::new(idx.source_id, span),
-            &idx.mod_item.item,
+            idx.q.item_pool.get(idx.mod_item.item),
             &*doc.doc_string.resolve(ctx)?,
         );
     }
@@ -1385,7 +1384,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
         guards.push(idx.items.push_name(ident));
     }
 
-    let new = Arc::new(idx.items.item().clone());
+    let new = idx.q.item_pool.alloc(&*idx.items.item());
     let old = std::mem::replace(&mut idx.impl_item, Some(new));
 
     for i in &mut ast.functions {
@@ -1532,7 +1531,7 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
 fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>, is_used: IsUsed) -> CompileResult<()> {
     let id = idx
         .q
-        .insert_path(&idx.mod_item, idx.impl_item.as_ref(), &*idx.items.item());
+        .insert_path(&idx.mod_item, idx.impl_item, &*idx.items.item());
     ast.id.set(id);
 
     path_segment(&mut ast.first, idx)?;

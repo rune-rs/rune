@@ -1,15 +1,16 @@
 //! Compiler metadata for Rune.
 
-use crate::ast::{LitStr, Span};
-use crate::collections::HashSet;
-use crate::compile::attrs::Attributes;
-use crate::compile::{ItemBuf, Location, Visibility};
-use crate::parse::{Id, ParseError, ResolveContext};
-use crate::runtime::ConstValue;
-use crate::Hash;
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
+
+use crate::ast::{LitStr, Span};
+use crate::collections::HashSet;
+use crate::compile::attrs::Attributes;
+use crate::compile::{Item, ItemBuf, ItemId, ItemPool, Location, Visibility};
+use crate::parse::{Id, ParseError, ResolveContext};
+use crate::runtime::ConstValue;
+use crate::Hash;
 
 /// Provides an owned human-readable description of a meta item.
 #[derive(Debug, Clone)]
@@ -27,7 +28,7 @@ pub struct Meta {
 #[non_exhaustive]
 pub struct MetaRef<'a> {
     /// The item being described.
-    pub item: &'a ItemBuf,
+    pub item: &'a Item,
     /// The kind of the item.
     pub kind: MetaKind,
     /// The source of the meta.
@@ -174,6 +175,108 @@ impl Doc {
     }
 }
 
+/// Context metadata.
+#[non_exhaustive]
+pub(crate) struct ContextMeta {
+    /// The item of the returned compile meta.
+    pub(crate) item: ItemBuf,
+    /// The kind of the compile meta.
+    pub(crate) kind: ContextMetaKind,
+}
+
+impl ContextMeta {
+    /// Get the [Meta] which describes this [ContextMeta] object.
+    pub(crate) fn info(&self) -> Meta {
+        Meta {
+            item: self.item.clone(),
+            kind: self.kind.as_meta_info_kind(),
+        }
+    }
+}
+
+/// Compile-time metadata kind about an item in a context.
+#[derive(Debug, Clone)]
+pub(crate) enum ContextMetaKind {
+    /// The type is completely opaque. We have no idea about what it is with the
+    /// exception of it having a type hash.
+    Unknown { type_hash: Hash },
+    /// Metadata about a struct.
+    Struct {
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
+        /// Variant metadata.
+        variant: PrivVariantMeta,
+    },
+    /// Metadata about an empty variant.
+    Variant {
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
+        /// The item of the enum.
+        enum_item: ItemBuf,
+        /// Type hash of the enum this unit variant belongs to.
+        enum_hash: Hash,
+        /// The index of the variant.
+        index: usize,
+        /// Variant metadata.
+        variant: PrivVariantMeta,
+    },
+    /// An enum item.
+    Enum {
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
+    },
+    /// A function declaration.
+    Function {
+        /// The type hash associated with this meta kind.
+        type_hash: Hash,
+    },
+    /// The constant expression.
+    Const {
+        /// The evaluated constant value.
+        const_value: ConstValue,
+    },
+}
+
+impl ContextMetaKind {
+    /// Coerce into a [MetaKind].
+    pub(crate) fn as_meta_info_kind(&self) -> MetaKind {
+        match self {
+            ContextMetaKind::Unknown { .. } => MetaKind::Unknown,
+            ContextMetaKind::Struct {
+                variant: PrivVariantMeta::Unit,
+                ..
+            } => MetaKind::UnitStruct,
+            ContextMetaKind::Struct {
+                variant: PrivVariantMeta::Tuple(..),
+                ..
+            } => MetaKind::TupleStruct,
+            ContextMetaKind::Struct {
+                variant: PrivVariantMeta::Struct(..),
+                ..
+            } => MetaKind::Struct,
+            ContextMetaKind::Variant {
+                variant: PrivVariantMeta::Unit,
+                ..
+            } => MetaKind::UnitVariant,
+            ContextMetaKind::Variant {
+                variant: PrivVariantMeta::Tuple(..),
+                ..
+            } => MetaKind::TupleVariant,
+            ContextMetaKind::Variant {
+                variant: PrivVariantMeta::Struct(..),
+                ..
+            } => MetaKind::StructVariant,
+            ContextMetaKind::Enum { .. } => MetaKind::Enum,
+            ContextMetaKind::Function { type_hash, .. } => MetaKind::Function {
+                type_hash: *type_hash,
+                is_bench: false,
+                is_test: false,
+            },
+            ContextMetaKind::Const { .. } => MetaKind::Const,
+        }
+    }
+}
+
 /// Metadata about a compiled unit.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -187,18 +290,18 @@ pub(crate) struct PrivMeta {
 }
 
 impl PrivMeta {
-    /// Get the [Meta] which describes this [PrivMeta] object.
-    pub(crate) fn info(&self) -> Meta {
+    /// Get the [Meta] which describes this [ContextMeta] object.
+    pub(crate) fn info(&self, item_pool: &ItemPool) -> Meta {
         Meta {
-            item: self.item.item.clone(),
+            item: item_pool.get(self.item.item).to_owned(),
             kind: self.kind.as_meta_info_kind(),
         }
     }
 
     /// Get the [MetaRef] which describes this [PrivMeta] object.
-    pub(crate) fn as_meta_ref(&self) -> MetaRef<'_> {
+    pub(crate) fn as_meta_ref<'a>(&'a self, item_pool: &'a ItemPool) -> MetaRef<'a> {
         MetaRef {
-            item: &self.item.item,
+            item: item_pool.get(self.item.item),
             kind: self.kind.as_meta_info_kind(),
             source: self.source.as_ref(),
         }
@@ -252,7 +355,7 @@ pub(crate) enum PrivMetaKind {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
         /// The item of the enum.
-        enum_item: ItemBuf,
+        enum_item: ItemId,
         /// Type hash of the enum this unit variant belongs to.
         enum_hash: Hash,
         /// The index of the variant.
@@ -311,7 +414,7 @@ pub(crate) enum PrivMetaKind {
         /// The location of the import.
         location: Location,
         /// The imported target.
-        target: ItemBuf,
+        target: ItemId,
     },
     /// A module.
     Module,
@@ -394,7 +497,7 @@ pub(crate) struct ItemMeta {
     /// The location of the item.
     pub(crate) location: Location,
     /// The name of the item.
-    pub(crate) item: ItemBuf,
+    pub(crate) item: ItemId,
     /// The visibility of the item.
     pub(crate) visibility: Visibility,
     /// The module associated with the item.
@@ -408,18 +511,6 @@ impl ItemMeta {
     }
 }
 
-impl From<ItemBuf> for ItemMeta {
-    fn from(item: ItemBuf) -> Self {
-        Self {
-            id: Default::default(),
-            location: Default::default(),
-            item,
-            visibility: Default::default(),
-            module: Default::default(),
-        }
-    }
-}
-
 /// Module, its item and its visibility.
 #[derive(Default, Debug)]
 #[non_exhaustive]
@@ -427,7 +518,7 @@ pub(crate) struct ModMeta {
     /// The location of the module.
     pub(crate) location: Location,
     /// The item of the module.
-    pub(crate) item: ItemBuf,
+    pub(crate) item: ItemId,
     /// The visibility of the module.
     pub(crate) visibility: Visibility,
     /// The kind of the module.

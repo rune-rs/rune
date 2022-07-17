@@ -37,6 +37,7 @@ pub use self::ir::{IrError, IrErrorKind, IrEval, IrValue};
 
 pub(crate) mod item;
 pub use self::item::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
+pub(crate) use self::item::{ItemId, ItemPool};
 
 mod source_loader;
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
@@ -55,8 +56,8 @@ pub use self::location::Location;
 
 mod meta;
 pub(crate) use self::meta::{
-    CaptureMeta, Doc, ItemMeta, ModMeta, PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta,
-    PrivVariantMeta,
+    CaptureMeta, ContextMeta, ContextMetaKind, Doc, ItemMeta, ModMeta, PrivMeta, PrivMetaKind,
+    PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
 pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
@@ -80,6 +81,7 @@ pub(crate) fn compile(
     unit: &mut UnitBuilder,
     prelude: &Prelude,
     sources: &mut Sources,
+    item_pool: &mut ItemPool,
     context: &Context,
     diagnostics: &mut Diagnostics,
     options: &Options,
@@ -98,6 +100,7 @@ pub(crate) fn compile(
         &mut consts,
         &mut storage,
         sources,
+        item_pool,
         options,
         unit,
         prelude,
@@ -209,13 +212,13 @@ impl CompileBuildEntry<'_> {
 
                 if self
                     .q
-                    .query_meta(item.location.span, &item.item, used)?
+                    .query_meta(item.location.span, item.item, used)?
                     .is_none()
                 {
                     return Err(CompileError::new(
                         item.location.span,
                         CompileErrorKind::MissingItem {
-                            item: item.item.clone(),
+                            item: self.q.item_pool.get(item.item).to_owned(),
                         },
                     ));
                 }
@@ -242,7 +245,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        item.item.clone(),
+                        self.q.item_pool.get(item.item),
                         count,
                         asm,
                         f.call,
@@ -265,10 +268,10 @@ impl CompileBuildEntry<'_> {
                 let count = f.function.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                let meta = c.lookup_meta(f.instance_span, &f.impl_item)?;
+                let meta = c.lookup_meta(f.instance_span, f.impl_item)?;
 
                 let type_hash = meta.type_hash_of().ok_or_else(|| {
-                    CompileError::expected_meta(span, meta.info(), "instance function")
+                    CompileError::expected_meta(span, meta.info(c.q.item_pool), "instance function")
                 })?;
 
                 let arena = hir::Arena::new();
@@ -283,7 +286,7 @@ impl CompileBuildEntry<'_> {
 
                     self.q.unit.new_instance_function(
                         location,
-                        item.item.clone(),
+                        self.q.item_pool.get(item.item),
                         type_hash,
                         name,
                         count,
@@ -317,7 +320,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        item.item.clone(),
+                        self.q.item_pool.get(item.item),
                         closure.ast.args.len(),
                         asm,
                         closure.call,
@@ -346,7 +349,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        item.item.clone(),
+                        self.q.item_pool.get(item.item),
                         args,
                         asm,
                         b.call,
@@ -368,28 +371,32 @@ impl CompileBuildEntry<'_> {
                 // Issue the import to check access.
                 let result = self
                     .q
-                    .import(location.span, &item.module, &item.item, used)?;
+                    .import(location.span, &item.module, item.item, used)?;
 
                 if used.is_unused() {
                     self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 }
 
-                let missing = match &result {
-                    Some(item) => {
+                let missing = match result {
+                    Some(item_id) => {
+                        let item = self.q.item_pool.get(item_id);
+
                         if self.context.contains_prefix(item) || self.q.contains_prefix(item) {
                             None
                         } else {
-                            Some(item)
+                            Some(item_id)
                         }
                     }
-                    None => Some(&import.entry.target),
+                    None => Some(import.entry.target),
                 };
 
                 if let Some(item) = missing {
                     return Err(CompileError::new(
                         location.span,
-                        CompileErrorKind::MissingItem { item: item.clone() },
+                        CompileErrorKind::MissingItem {
+                            item: self.q.item_pool.get(item).to_owned(),
+                        },
                     ));
                 }
             }
@@ -398,22 +405,24 @@ impl CompileBuildEntry<'_> {
 
                 let import = match self
                     .q
-                    .import(location.span, &item.module, &item.item, used)?
+                    .import(location.span, &item.module, item.item, used)?
                 {
                     Some(item) => item,
                     None => {
                         return Err(CompileError::new(
                             location.span,
                             CompileErrorKind::MissingItem {
-                                item: item.item.clone(),
+                                item: self.q.item_pool.get(item.item).to_owned(),
                             },
                         ))
                     }
                 };
 
-                self.q
-                    .unit
-                    .new_function_reexport(location, &item.item, &import)?;
+                self.q.unit.new_function_reexport(
+                    location,
+                    self.q.item_pool.get(item.item),
+                    self.q.item_pool.get(import),
+                )?;
             }
         }
 

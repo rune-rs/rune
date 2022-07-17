@@ -132,7 +132,7 @@ struct DocFinder {
 
 impl CompileVisitor for DocFinder {
     fn register_meta(&mut self, meta: MetaRef<'_>) {
-        self.meta.insert(meta.item.clone(), meta.kind);
+        self.meta.insert(meta.item.to_owned(), meta.kind);
 
         let parent = meta.item.parent().unwrap_or_default();
 

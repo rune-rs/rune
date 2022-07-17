@@ -308,6 +308,12 @@ impl Item {
     }
 }
 
+impl AsRef<Item> for &Item {
+    fn as_ref(&self) -> &Item {
+        *self
+    }
+}
+
 impl Default for &Item {
     fn default() -> Self {
         Item::new()

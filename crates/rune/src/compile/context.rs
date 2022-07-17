@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-use crate::collections::{HashMap, HashSet};
+use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::module::{
     AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type,
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, IntoComponent, Item, ItemBuf, Meta, Names, PrivMeta, PrivMetaKind,
+    ComponentRef, ContextMeta, ContextMetaKind, IntoComponent, Item, ItemBuf, Meta, Names,
     PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
 use crate::runtime::{
@@ -180,7 +180,7 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
-    meta: HashMap<ItemBuf, PrivMeta>,
+    meta: HashMap<ItemBuf, ContextMeta>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Registered native macro handlers.
@@ -347,9 +347,9 @@ impl Context {
         self.names.iter_components(iter)
     }
 
-    /// Access the meta for the given item.
-    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<PrivMeta> {
-        self.meta.get(name).cloned()
+    /// Access the context meta for the given item.
+    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<&ContextMeta> {
+        self.meta.get(name)
     }
 
     /// Check if unit contains the given name by prefix.
@@ -387,12 +387,17 @@ impl Context {
     }
 
     /// Install the given meta.
-    fn install_meta(&mut self, meta: PrivMeta) -> Result<(), ContextError> {
-        if let Some(existing) = self.meta.insert(meta.item.item.clone(), meta.clone()) {
-            return Err(ContextError::ConflictingMeta {
-                existing: existing.info(),
-                current: meta.info(),
-            });
+    fn install_meta(&mut self, meta: ContextMeta) -> Result<(), ContextError> {
+        match self.meta.entry(meta.item.clone()) {
+            hash_map::Entry::Occupied(e) => {
+                return Err(ContextError::ConflictingMeta {
+                    existing: e.get().info(),
+                    current: meta.info(),
+                });
+            }
+            hash_map::Entry::Vacant(e) => {
+                e.insert(meta);
+            }
         }
 
         Ok(())
@@ -420,7 +425,7 @@ impl Context {
 
         let kind = if let Some(spec) = &ty.spec {
             match spec {
-                TypeSpecification::Struct(st) => PrivMetaKind::Struct {
+                TypeSpecification::Struct(st) => ContextMetaKind::Struct {
                     type_hash,
                     variant: PrivVariantMeta::Struct(PrivStructMeta {
                         fields: st.fields.clone(),
@@ -480,7 +485,7 @@ impl Context {
                             self.functions.insert(hash, c.clone());
                         }
 
-                        let kind = PrivMetaKind::Variant {
+                        let kind = ContextMetaKind::Variant {
                             type_hash: hash,
                             enum_item: enum_item.clone(),
                             enum_hash,
@@ -488,25 +493,17 @@ impl Context {
                             variant,
                         };
 
-                        self.install_meta(PrivMeta {
-                            item: Arc::new(item.into()),
-                            kind,
-                            source: None,
-                        })?;
+                        self.install_meta(ContextMeta { item, kind })?;
                     }
 
-                    PrivMetaKind::Enum { type_hash }
+                    ContextMetaKind::Enum { type_hash }
                 }
             }
         } else {
-            PrivMetaKind::Unknown { type_hash }
+            ContextMetaKind::Unknown { type_hash }
         };
 
-        self.install_meta(PrivMeta {
-            item: Arc::new(item.into()),
-            kind,
-            source: None,
-        })?;
+        self.install_meta(ContextMeta { item, kind })?;
 
         Ok(())
     }
@@ -566,18 +563,10 @@ impl Context {
 
         self.functions.insert(hash, f.handler.clone());
 
-        self.meta.insert(
-            item.clone(),
-            PrivMeta {
-                item: Arc::new(item.into()),
-                kind: PrivMetaKind::Function {
-                    type_hash: hash,
-                    is_test: false,
-                    is_bench: false,
-                },
-                source: None,
-            },
-        );
+        self.install_meta(ContextMeta {
+            item,
+            kind: ContextMetaKind::Function { type_hash: hash },
+        })?;
 
         Ok(())
     }
@@ -614,16 +603,13 @@ impl Context {
 
         self.constants.insert(hash, v.clone());
 
-        self.meta.insert(
-            item.clone(),
-            PrivMeta {
-                item: Arc::new(item.into()),
-                kind: PrivMetaKind::Const {
-                    const_value: v.clone(),
-                },
-                source: None,
+        self.install_meta(ContextMeta {
+            item,
+            kind: ContextMetaKind::Const {
+                const_value: v.clone(),
             },
-        );
+        })?;
+
         Ok(())
     }
 
@@ -698,18 +684,10 @@ impl Context {
             }
 
             if !self.meta.contains_key(&item) {
-                self.meta.insert(
-                    item.clone(),
-                    PrivMeta {
-                        item: Arc::new(item.into()),
-                        kind: PrivMetaKind::Function {
-                            type_hash,
-                            is_test: false,
-                            is_bench: false,
-                        },
-                        source: None,
-                    },
-                );
+                self.install_meta(ContextMeta {
+                    item,
+                    kind: ContextMetaKind::Function { type_hash },
+                })?;
             }
 
             self.functions.insert(hash, assoc.handler.clone());
@@ -756,12 +734,11 @@ impl Context {
         let enum_item = module.item.join(&internal_enum.base_type);
         let enum_hash = Hash::type_hash(&enum_item);
 
-        self.install_meta(PrivMeta {
-            item: Arc::new(enum_item.clone().into()),
-            kind: PrivMetaKind::Enum {
+        self.install_meta(ContextMeta {
+            item: enum_item.clone(),
+            kind: ContextMetaKind::Enum {
                 type_hash: internal_enum.static_type.hash,
             },
-            source: None,
         })?;
 
         self.install_type_info(
@@ -788,9 +765,9 @@ impl Context {
                 },
             )?;
 
-            self.install_meta(PrivMeta {
-                item: Arc::new(item.clone().into()),
-                kind: PrivMetaKind::Variant {
+            self.install_meta(ContextMeta {
+                item: item.clone(),
+                kind: ContextMetaKind::Variant {
                     type_hash: hash,
                     enum_item: enum_item.clone(),
                     enum_hash,
@@ -800,7 +777,6 @@ impl Context {
                         hash,
                     }),
                 },
-                source: None,
             })?;
 
             let signature = ContextSignature::Function {
@@ -840,24 +816,22 @@ impl Context {
         let tuple = PrivTupleMeta { args, hash };
 
         let meta = match enum_item {
-            Some((enum_item, enum_hash, index)) => PrivMeta {
-                item: Arc::new(item.clone().into()),
-                kind: PrivMetaKind::Variant {
+            Some((enum_item, enum_hash, index)) => ContextMeta {
+                item: item.clone(),
+                kind: ContextMetaKind::Variant {
                     type_hash,
                     enum_item,
                     enum_hash,
                     index,
                     variant: PrivVariantMeta::Tuple(tuple),
                 },
-                source: None,
             },
-            None => PrivMeta {
-                item: Arc::new(item.clone().into()),
-                kind: PrivMetaKind::Struct {
+            None => ContextMeta {
+                item: item.clone(),
+                kind: ContextMetaKind::Struct {
                     type_hash,
                     variant: PrivVariantMeta::Tuple(tuple),
                 },
-                source: None,
             },
         };
 

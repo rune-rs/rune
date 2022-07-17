@@ -10,11 +10,12 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::collections::LinkedHashMap;
 use crate::collections::{hash_map, HashMap, HashSet};
+use crate::compile::item::ItemPool;
 use crate::compile::{
-    ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep,
-    IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemBuf, ItemMeta, Location, ModMeta,
-    Names, Prelude, PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
-    SourceMeta, UnitBuilder, Visibility,
+    ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ContextMeta,
+    ContextMetaKind, Doc, ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item,
+    ItemBuf, ItemId, ItemMeta, Location, ModMeta, Names, Prelude, PrivMeta, PrivMetaKind,
+    PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta, UnitBuilder, Visibility,
 };
 use crate::hir;
 use crate::macros::Storage;
@@ -96,12 +97,12 @@ pub(crate) struct BuiltInLine {
 #[derive(Default)]
 pub(crate) struct QueryInner {
     /// Resolved meta about every single item during a compilation.
-    meta: HashMap<ItemBuf, PrivMeta>,
+    meta: HashMap<ItemId, PrivMeta>,
     /// Build queue.
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
-    indexed: LinkedHashMap<ItemBuf, Vec<IndexedEntry>>,
+    indexed: LinkedHashMap<ItemId, Vec<IndexedEntry>>,
     /// Compiled constant functions.
     const_fns: HashMap<NonZeroId, Arc<QueryConstFn>>,
     /// Query paths.
@@ -117,7 +118,7 @@ pub(crate) struct QueryInner {
     /// All available names in the context.
     names: Names,
     /// Modules and associated metadata.
-    modules: HashMap<ItemBuf, Arc<ModMeta>>,
+    modules: HashMap<ItemId, Arc<ModMeta>>,
 }
 
 /// Query system of the rune compiler.
@@ -134,6 +135,8 @@ pub(crate) struct Query<'a> {
     pub(crate) storage: &'a mut Storage,
     /// Sources available.
     pub(crate) sources: &'a mut Sources,
+    /// Pool of items.
+    pub(crate) item_pool: &'a mut ItemPool,
     /// Visitor for the compiler meta.
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     /// Shared id generator.
@@ -150,6 +153,7 @@ impl<'a> Query<'a> {
         consts: &'a mut Consts,
         storage: &'a mut Storage,
         sources: &'a mut Sources,
+        item_pool: &'a mut ItemPool,
         visitor: &'a mut dyn CompileVisitor,
         gen: &'a Gen,
         inner: &'a mut QueryInner,
@@ -160,6 +164,7 @@ impl<'a> Query<'a> {
             consts,
             storage,
             sources,
+            item_pool,
             visitor,
             gen,
             inner,
@@ -173,6 +178,7 @@ impl<'a> Query<'a> {
             prelude: self.prelude,
             consts: self.consts,
             storage: self.storage,
+            item_pool: self.item_pool,
             sources: self.sources,
             visitor: self.visitor,
             gen: self.gen,
@@ -190,13 +196,15 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_path(
         &mut self,
         module: &Arc<ModMeta>,
-        impl_item: Option<&Arc<ItemBuf>>,
+        impl_item: Option<ItemId>,
         item: &Item,
     ) -> NonZeroId {
+        let item = self.item_pool.alloc(item);
+
         let query_path = Arc::new(QueryPath {
             module: module.clone(),
-            impl_item: impl_item.cloned(),
-            item: item.to_owned(),
+            impl_item,
+            item,
         });
 
         let id = self.gen.next();
@@ -224,14 +232,12 @@ impl<'a> Query<'a> {
 
         let query_mod = Arc::new(ModMeta {
             location,
-            item: item.item.clone(),
+            item: item.item,
             visibility,
             parent: Some(parent.clone()),
         });
 
-        self.inner
-            .modules
-            .insert(item.item.clone(), query_mod.clone());
+        self.inner.modules.insert(item.item, query_mod.clone());
         self.index_and_build(IndexedEntry {
             item,
             indexed: Indexed::Module,
@@ -247,13 +253,15 @@ impl<'a> Query<'a> {
     ) -> Result<Arc<ModMeta>, QueryError> {
         let query_mod = Arc::new(ModMeta {
             location: Location::new(source_id, spanned),
-            item: ItemBuf::new(),
+            item: ItemId::default(),
             visibility: Visibility::Public,
             parent: None,
         });
 
-        self.inner.modules.insert(ItemBuf::new(), query_mod.clone());
-        self.insert_name(&ItemBuf::new());
+        self.inner
+            .modules
+            .insert(ItemId::default(), query_mod.clone());
+        self.insert_name(ItemId::default());
         Ok(query_mod)
     }
 
@@ -282,21 +290,21 @@ impl<'a> Query<'a> {
         docs: &[Doc],
     ) -> Result<Arc<ItemMeta>, QueryError> {
         let id = items.id();
-        let item = &*items.item();
+        let item = self.item_pool.alloc(&*items.item());
         self.insert_new_item_with(id, item, location, module, visibility, docs)
     }
 
     /// Insert the given compile meta.
     fn insert_meta(&mut self, span: Span, meta: PrivMeta) -> Result<(), QueryError> {
-        self.visitor.register_meta(meta.as_meta_ref());
+        self.visitor.register_meta(meta.as_meta_ref(self.item_pool));
 
-        match self.inner.meta.entry(meta.item.item.clone()) {
+        match self.inner.meta.entry(meta.item.item) {
             hash_map::Entry::Occupied(e) => {
                 return Err(QueryError::new(
                     span,
                     QueryErrorKind::MetaConflict {
-                        current: meta.info(),
-                        existing: e.get().info(),
+                        current: meta.info(self.item_pool),
+                        existing: e.get().info(self.item_pool),
                     },
                 ));
             }
@@ -313,7 +321,7 @@ impl<'a> Query<'a> {
     fn insert_new_item_with(
         &mut self,
         id: NonZeroId,
-        item: &Item,
+        item: ItemId,
         location: Location,
         module: &Arc<ModMeta>,
         visibility: Visibility,
@@ -326,7 +334,7 @@ impl<'a> Query<'a> {
             for doc in docs {
                 self.visitor.visit_doc_comment(
                     Location::new(location.source_id, doc.span),
-                    item,
+                    self.item_pool.get(item),
                     doc.doc_string.resolve(ctx)?.as_ref(),
                 );
             }
@@ -335,7 +343,7 @@ impl<'a> Query<'a> {
         let query_item = Arc::new(ItemMeta {
             location,
             id: Id::new(id),
-            item: item.to_owned(),
+            item,
             module: module.clone(),
             visibility,
         });
@@ -441,10 +449,11 @@ impl<'a> Query<'a> {
     pub(crate) fn index(&mut self, entry: IndexedEntry) {
         tracing::trace!(item = ?entry.item.item);
 
-        self.insert_name(&entry.item.item);
+        self.insert_name(entry.item.item);
+
         self.inner
             .indexed
-            .entry(entry.item.item.clone())
+            .entry(entry.item.item)
             .or_default()
             .push(entry);
     }
@@ -629,11 +638,66 @@ impl<'a> Query<'a> {
 
         for item in unused {
             let _ = self
-                .query_indexed_meta(item.location.span, &item.item, Used::Unused)
+                .query_indexed_meta(item.location.span, item.item, Used::Unused)
                 .map_err(|e| (item.location.source_id, e))?;
         }
 
         Ok(true)
+    }
+
+    /// Insert context meta.
+    pub(crate) fn insert_context_meta(
+        &mut self,
+        span: Span,
+        context_meta: &ContextMeta,
+    ) -> Result<PrivMeta, QueryError> {
+        let kind = match context_meta.kind {
+            ContextMetaKind::Unknown { type_hash } => PrivMetaKind::Unknown { type_hash },
+            ContextMetaKind::Struct {
+                type_hash,
+                ref variant,
+            } => PrivMetaKind::Struct {
+                type_hash,
+                variant: variant.clone(),
+            },
+            ContextMetaKind::Variant {
+                type_hash,
+                ref enum_item,
+                enum_hash,
+                index,
+                ref variant,
+            } => PrivMetaKind::Variant {
+                type_hash,
+                enum_item: self.item_pool.alloc(enum_item),
+                enum_hash,
+                index,
+                variant: variant.clone(),
+            },
+            ContextMetaKind::Enum { type_hash } => PrivMetaKind::Enum { type_hash },
+            ContextMetaKind::Function { type_hash } => PrivMetaKind::Function {
+                type_hash,
+                is_test: true,
+                is_bench: true,
+            },
+            ContextMetaKind::Const { ref const_value } => PrivMetaKind::Const {
+                const_value: const_value.clone(),
+            },
+        };
+
+        let meta = PrivMeta {
+            item: Arc::new(ItemMeta {
+                id: Default::default(),
+                location: Default::default(),
+                item: self.item_pool.alloc(&context_meta.item),
+                visibility: Default::default(),
+                module: Default::default(),
+            }),
+            kind,
+            source: None,
+        };
+
+        self.insert_meta(span, meta.clone())?;
+        Ok(meta)
     }
 
     /// Query for the given meta by looking up the reverse of the specified
@@ -642,15 +706,15 @@ impl<'a> Query<'a> {
     pub(crate) fn query_meta(
         &mut self,
         span: Span,
-        item: &Item,
+        item: ItemId,
         used: Used,
     ) -> Result<Option<PrivMeta>, QueryError> {
-        if let Some(meta) = self.inner.meta.get(item) {
+        if let Some(meta) = self.inner.meta.get(&item) {
             tracing::trace!(item = ?item, meta = ?meta, "cached");
             // Ensure that the given item is not indexed, cause if it is
             // `queue_unused_entries` might end up spinning indefinitely since
             // it will never be exhausted.
-            debug_assert!(!self.inner.indexed.contains_key(item));
+            debug_assert!(!self.inner.indexed.contains_key(&item));
             return Ok(Some(meta.clone()));
         }
 
@@ -661,12 +725,12 @@ impl<'a> Query<'a> {
     fn query_indexed_meta(
         &mut self,
         span: Span,
-        item: &Item,
+        item: ItemId,
         used: Used,
     ) -> Result<Option<PrivMeta>, QueryError> {
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
-            self.unit.insert_meta(span, &meta)?;
+            self.unit.insert_meta(span, &meta, self.item_pool)?;
             self.insert_meta(span, meta.clone())?;
             tracing::trace!(item = ?item, meta = ?meta, "build");
             return Ok(Some(meta));
@@ -694,14 +758,16 @@ impl<'a> Query<'a> {
         let mut local = None;
         let mut generics = None;
 
-        let mut item = match (path.global, path.first) {
+        let item = match (path.global, path.first) {
             (
                 Some(..),
                 hir::PathSegment {
                     kind: hir::PathSegmentKind::Ident(ident),
                     ..
                 },
-            ) => ItemBuf::with_crate(ident.resolve(resolve_context!(self))?),
+            ) => self
+                .item_pool
+                .alloc(ItemBuf::with_crate(ident.resolve(resolve_context!(self))?)),
             (Some(span), _) => {
                 return Err(CompileError::new(span, CompileErrorKind::UnsupportedGlobal));
             }
@@ -711,26 +777,22 @@ impl<'a> Query<'a> {
                         local = Some(ident);
                     }
 
-                    self.convert_initial_path(context, &qp.module, &qp.item, ident)?
+                    self.convert_initial_path(context, &qp.module, qp.item, ident)?
                 }
-                hir::PathSegmentKind::Super => {
-                    let mut item = qp.module.item.clone();
-
-                    item.pop()
-                        .ok_or_else(CompileError::unsupported_super(segment.span()))?;
-
-                    item
-                }
+                hir::PathSegmentKind::Super => self
+                    .item_pool
+                    .parent(qp.module.item)
+                    .ok_or_else(CompileError::unsupported_super(segment.span()))?,
                 hir::PathSegmentKind::SelfType => {
-                    let impl_item = qp.impl_item.as_deref().ok_or_else(|| {
+                    let impl_item = qp.impl_item.ok_or_else(|| {
                         CompileError::new(segment.span(), CompileErrorKind::UnsupportedSelfType)
                     })?;
 
                     in_self_type = true;
-                    impl_item.clone()
+                    impl_item
                 }
-                hir::PathSegmentKind::SelfValue => qp.module.item.clone(),
-                hir::PathSegmentKind::Crate => ItemBuf::new(),
+                hir::PathSegmentKind::SelfValue => qp.module.item,
+                hir::PathSegmentKind::Crate => ItemId::default(),
                 hir::PathSegmentKind::Generics(..) => {
                     return Err(CompileError::new(
                         segment.span(),
@@ -739,6 +801,8 @@ impl<'a> Query<'a> {
                 }
             },
         };
+
+        let mut item = self.item_pool.get(item).to_owned();
 
         for segment in path.rest {
             tracing::trace!("item = {}", item);
@@ -792,7 +856,9 @@ impl<'a> Query<'a> {
             None => None,
         };
 
-        if let Some(new) = self.import(span, &qp.module, &item, Used::Used)? {
+        let item = self.item_pool.alloc(item);
+
+        if let Some(new) = self.import(span, &qp.module, item, Used::Used)? {
             return Ok(Named {
                 local,
                 item: new,
@@ -833,17 +899,18 @@ impl<'a> Query<'a> {
             .or_else(|| target.last())
             .ok_or_else(|| QueryError::new(span, QueryErrorKind::LastUseComponent))?;
 
-        let item = at.extended(last);
+        let item = self.item_pool.alloc(at.extended(last));
+        let target = self.item_pool.alloc(target);
         let location = Location::new(source_id, span);
 
         let entry = ImportEntry {
             location,
-            target: target.clone(),
+            target,
             module: module.clone(),
         };
 
         let id = self.gen.next();
-        let item = self.insert_new_item_with(id, &item, location, module, visibility, &[])?;
+        let item = self.insert_new_item_with(id, item, location, module, visibility, &[])?;
 
         // toplevel public uses are re-exported.
         if item.is_public() {
@@ -886,13 +953,13 @@ impl<'a> Query<'a> {
         &mut self,
         span: Span,
         module: &Arc<ModMeta>,
-        item: &Item,
+        item: ItemId,
         used: Used,
-    ) -> Result<Option<ItemBuf>, QueryError> {
-        let mut visited = HashSet::<ItemBuf>::new();
+    ) -> Result<Option<ItemId>, QueryError> {
+        let mut visited = HashSet::<ItemId>::new();
         let mut path = Vec::new();
         let mut module = module.clone();
-        let mut item = item.to_owned();
+        let mut item = self.item_pool.get(item).to_owned();
         let mut any_matched = false;
 
         let mut count = 0usize;
@@ -912,8 +979,9 @@ impl<'a> Query<'a> {
 
             while let Some(c) = it.next() {
                 cur.push(c);
+                let cur = self.item_pool.alloc(&cur);
 
-                let update = self.import_step(span, &module, &cur, used, &mut path)?;
+                let update = self.import_step(span, &module, cur, used, &mut path)?;
 
                 let update = match update {
                     Some(update) => update,
@@ -922,15 +990,15 @@ impl<'a> Query<'a> {
 
                 path.push(ImportStep {
                     location: update.location,
-                    item: update.target.clone(),
+                    item: self.item_pool.get(update.target).to_owned(),
                 });
 
-                if !visited.insert(item.clone()) {
+                if !visited.insert(self.item_pool.alloc(&item)) {
                     return Err(QueryError::new(span, QueryErrorKind::ImportCycle { path }));
                 }
 
                 module = update.module;
-                item = update.target.join(it);
+                item = self.item_pool.get(update.target).join(it);
                 any_matched = true;
                 continue 'outer;
             }
@@ -939,7 +1007,7 @@ impl<'a> Query<'a> {
         }
 
         if any_matched {
-            return Ok(Some(item));
+            return Ok(Some(self.item_pool.alloc(item)));
         }
 
         Ok(None)
@@ -951,12 +1019,12 @@ impl<'a> Query<'a> {
         &mut self,
         span: Span,
         module: &Arc<ModMeta>,
-        item: &Item,
+        item: ItemId,
         used: Used,
         path: &mut Vec<ImportStep>,
     ) -> Result<Option<QueryImportStep>, QueryError> {
         // already resolved query.
-        if let Some(meta) = self.inner.meta.get(item) {
+        if let Some(meta) = self.inner.meta.get(&item) {
             return Ok(match &meta.kind {
                 PrivMetaKind::Import {
                     module,
@@ -965,7 +1033,7 @@ impl<'a> Query<'a> {
                 } => Some(QueryImportStep {
                     module: module.clone(),
                     location: *location,
-                    target: target.clone(),
+                    target: *target,
                 }),
                 _ => None,
             });
@@ -1028,25 +1096,28 @@ impl<'a> Query<'a> {
 
         let kind = match indexed {
             Indexed::Enum => PrivMetaKind::Enum {
-                type_hash: Hash::type_hash(&query_item.item),
+                type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
             },
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((query_item.location.span, variant.enum_id))?;
 
                 // Assert that everything is built for the enum.
-                self.query_meta(span, &enum_item.item, Default::default())?;
-                let enum_hash = Hash::type_hash(&enum_item.item);
+                self.query_meta(span, enum_item.item, Default::default())?;
+                let enum_hash = Hash::type_hash(self.item_pool.get(enum_item.item));
 
                 variant_into_item_decl(
-                    &query_item.item,
+                    self.item_pool.get(query_item.item),
                     variant.ast.body,
-                    Some((&enum_item.item, enum_hash, variant.index)),
+                    Some((enum_item.item, enum_hash, variant.index)),
                     resolve_context!(self),
                 )?
             }
-            Indexed::Struct(st) => {
-                struct_into_item_decl(&query_item.item, st.ast.body, None, resolve_context!(self))?
-            }
+            Indexed::Struct(st) => struct_into_item_decl(
+                self.item_pool.get(query_item.item),
+                st.ast.body,
+                None,
+                resolve_context!(self),
+            )?,
             Indexed::Function(f) => {
                 self.inner.queue.push_back(BuildEntry {
                     location: query_item.location,
@@ -1056,7 +1127,7 @@ impl<'a> Query<'a> {
                 });
 
                 PrivMetaKind::Function {
-                    type_hash: Hash::type_hash(&query_item.item),
+                    type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
                     is_test: f.is_test,
                     is_bench: f.is_bench,
                 }
@@ -1070,7 +1141,7 @@ impl<'a> Query<'a> {
                 });
 
                 PrivMetaKind::Function {
-                    type_hash: Hash::type_hash(&query_item.item),
+                    type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
                     is_test: false,
                     is_bench: false,
                 }
@@ -1087,7 +1158,7 @@ impl<'a> Query<'a> {
                 });
 
                 PrivMetaKind::Closure {
-                    type_hash: Hash::type_hash(&query_item.item),
+                    type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
                     captures,
                     do_move,
                 }
@@ -1104,7 +1175,7 @@ impl<'a> Query<'a> {
                 });
 
                 PrivMetaKind::AsyncBlock {
-                    type_hash: Hash::type_hash(&query_item.item),
+                    type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
                     captures,
                     do_move,
                 }
@@ -1114,7 +1185,7 @@ impl<'a> Query<'a> {
                     budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
                     module: &c.module,
-                    item: &query_item.item,
+                    item: query_item.item,
                     q: self.borrow(),
                 };
 
@@ -1196,7 +1267,8 @@ impl<'a> Query<'a> {
     }
 
     /// Insert the given name into the unit.
-    fn insert_name(&mut self, item: &Item) {
+    fn insert_name(&mut self, item: ItemId) {
+        let item = self.item_pool.get(item);
         self.inner.names.insert(item);
     }
 
@@ -1214,7 +1286,7 @@ impl<'a> Query<'a> {
         let entry = IndexedEntry { item, indexed };
 
         let meta = self.build_indexed_entry(span, entry, used)?;
-        self.unit.insert_meta(span, &meta)?;
+        self.unit.insert_meta(span, &meta, self.item_pool)?;
         self.insert_meta(span, meta)?;
         Ok(())
     }
@@ -1223,10 +1295,10 @@ impl<'a> Query<'a> {
     fn remove_indexed(
         &mut self,
         span: Span,
-        item: &Item,
+        item: ItemId,
     ) -> Result<Option<IndexedEntry>, QueryError> {
         // See if there's an index entry we can construct and insert.
-        let entries = match self.inner.indexed.remove(item) {
+        let entries = match self.inner.indexed.remove(&item) {
             Some(entries) => entries,
             None => return Ok(None),
         };
@@ -1265,8 +1337,11 @@ impl<'a> Query<'a> {
             return Err(QueryError::new(
                 span,
                 QueryErrorKind::AmbiguousItem {
-                    item: cur.item.item.clone(),
-                    locations,
+                    item: self.item_pool.get(cur.item.item).to_owned(),
+                    locations: locations
+                        .into_iter()
+                        .map(|(loc, item)| (loc, self.item_pool.get(item).to_owned()))
+                        .collect(),
                 },
             ));
         }
@@ -1275,8 +1350,11 @@ impl<'a> Query<'a> {
             return Err(QueryError::new(
                 span,
                 QueryErrorKind::AmbiguousItem {
-                    item: cur.item.item.clone(),
-                    locations,
+                    item: self.item_pool.get(cur.item.item).to_owned(),
+                    locations: locations
+                        .into_iter()
+                        .map(|(loc, item)| (loc, self.item_pool.get(item).to_owned()))
+                        .collect(),
                 },
             ));
         }
@@ -1289,19 +1367,20 @@ impl<'a> Query<'a> {
         &mut self,
         context: &Context,
         module: &Arc<ModMeta>,
-        base: &Item,
+        base: ItemId,
         local: &ast::Ident,
-    ) -> Result<ItemBuf, CompileError> {
-        debug_assert!(base.starts_with(&module.item));
-        let mut base = base.to_owned();
+    ) -> Result<ItemId, CompileError> {
+        let mut base = self.item_pool.get(base).to_owned();
+        let module_item = self.item_pool.get(module.item);
+        debug_assert!(base.starts_with(module_item));
 
         let local = local.resolve(resolve_context!(self))?;
 
-        while base.starts_with(&module.item) {
+        while base.starts_with(module_item) {
             base.push(local);
 
             if self.inner.names.contains(&base) {
-                return Ok(base);
+                return Ok(self.item_pool.alloc(base));
             }
 
             let c = base.pop();
@@ -1313,35 +1392,39 @@ impl<'a> Query<'a> {
         }
 
         if let Some(item) = self.prelude.get(local) {
-            return Ok(item.clone());
+            return Ok(self.item_pool.alloc(item));
         }
 
         if context.contains_crate(local) {
-            return Ok(ItemBuf::with_crate(local));
+            return Ok(self.item_pool.alloc(ItemBuf::with_crate(local)));
         }
 
-        Ok(module.item.extended(local))
+        Ok(self.item_pool.alloc(module_item.extended(local)))
     }
 
     /// Check that the given item is accessible from the given module.
     fn check_access_to(
-        &self,
+        &mut self,
         span: Span,
         from: &ModMeta,
-        item: &Item,
+        item: ItemId,
         module: &ModMeta,
         location: Location,
         visibility: Visibility,
         chain: &mut Vec<ImportStep>,
     ) -> Result<(), QueryError> {
-        let (common, tree) = from.item.ancestry(&module.item);
+        let (common, tree) = self
+            .item_pool
+            .get(from.item)
+            .ancestry(self.item_pool.get(module.item));
         let mut current_module = common.clone();
 
         // Check each module from the common ancestrly to the module.
         for c in &tree {
             current_module.push(c);
+            let current_module_id = self.item_pool.alloc(&current_module);
 
-            let m = self.inner.modules.get(&current_module).ok_or_else(|| {
+            let m = self.inner.modules.get(&current_module_id).ok_or_else(|| {
                 QueryError::new(
                     span,
                     QueryErrorKind::MissingMod {
@@ -1358,21 +1441,21 @@ impl<'a> Query<'a> {
                         location: m.location,
                         visibility: m.visibility,
                         item: current_module,
-                        from: from.item.clone(),
+                        from: self.item_pool.get(from.item).to_owned(),
                     },
                 ));
             }
         }
 
-        if !visibility.is_visible_inside(&common, &module.item) {
+        if !visibility.is_visible_inside(&common, self.item_pool.get(module.item)) {
             return Err(QueryError::new(
                 span,
                 QueryErrorKind::NotVisible {
                     chain: into_chain(std::mem::take(chain)),
                     location,
                     visibility,
-                    item: item.to_owned(),
-                    from: from.item.clone(),
+                    item: self.item_pool.get(item).to_owned(),
+                    from: self.item_pool.get(from.item).to_owned(),
                 },
             ));
         }
@@ -1496,7 +1579,7 @@ pub(crate) struct InstanceFunction {
     /// Ast for the instance function.
     pub(crate) function: Function,
     /// The item of the instance function.
-    pub(crate) impl_item: Arc<ItemBuf>,
+    pub(crate) impl_item: ItemId,
     /// The span of the instance function.
     pub(crate) instance_span: Span,
 }
@@ -1579,10 +1662,10 @@ pub(crate) struct IndexedEntry {
 
 impl IndexedEntry {
     /// The item that best describes this indexed entry.
-    pub(crate) fn item(&self) -> &Item {
+    pub(crate) fn item(&self) -> ItemId {
         match &self.indexed {
-            Indexed::Import(Import { entry, .. }) => &entry.target,
-            _ => &self.item.item,
+            Indexed::Import(Import { entry, .. }) => entry.target,
+            _ => self.item.item,
         }
     }
 }
@@ -1591,8 +1674,8 @@ impl IndexedEntry {
 #[derive(Debug)]
 pub(crate) struct QueryPath {
     pub(crate) module: Arc<ModMeta>,
-    pub(crate) impl_item: Option<Arc<ItemBuf>>,
-    pub(crate) item: ItemBuf,
+    pub(crate) impl_item: Option<ItemId>,
+    pub(crate) item: ItemId,
 }
 
 /// An indexed constant function.
@@ -1610,7 +1693,7 @@ pub(crate) struct Named<'hir> {
     /// If the resolved value is local.
     pub(crate) local: Option<Box<str>>,
     /// The path resolved to the given item.
-    pub(crate) item: ItemBuf,
+    pub(crate) item: ItemId,
     /// Generic arguments if any.
     pub(crate) generics: Option<(Span, &'hir [hir::Expr<'hir>])>,
 }
@@ -1645,13 +1728,13 @@ impl fmt::Display for Named<'_> {
 }
 
 /// Construct metadata for an empty body.
-fn unit_body_meta(item: &Item, enum_item: Option<(&Item, Hash, usize)>) -> PrivMetaKind {
+fn unit_body_meta(item: &Item, enum_item: Option<(ItemId, Hash, usize)>) -> PrivMetaKind {
     let type_hash = Hash::type_hash(item);
 
     match enum_item {
         Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
             type_hash,
-            enum_item: enum_item.to_owned(),
+            enum_item,
             enum_hash,
             index,
             variant: PrivVariantMeta::Unit,
@@ -1666,7 +1749,7 @@ fn unit_body_meta(item: &Item, enum_item: Option<(&Item, Hash, usize)>) -> PrivM
 /// Construct metadata for an empty body.
 fn tuple_body_meta(
     item: &Item,
-    enum_: Option<(&Item, Hash, usize)>,
+    enum_: Option<(ItemId, Hash, usize)>,
     tuple: ast::Parenthesized<ast::Field, T![,]>,
 ) -> PrivMetaKind {
     let type_hash = Hash::type_hash(item);
@@ -1679,7 +1762,7 @@ fn tuple_body_meta(
     match enum_ {
         Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
             type_hash,
-            enum_item: enum_item.to_owned(),
+            enum_item,
             enum_hash,
             index,
             variant: PrivVariantMeta::Tuple(tuple),
@@ -1694,7 +1777,7 @@ fn tuple_body_meta(
 /// Construct metadata for a struct body.
 fn struct_body_meta(
     item: &Item,
-    enum_: Option<(&Item, Hash, usize)>,
+    enum_: Option<(ItemId, Hash, usize)>,
     ctx: ResolveContext<'_>,
     st: ast::Braced<ast::Field, T![,]>,
 ) -> Result<PrivMetaKind, QueryError> {
@@ -1712,7 +1795,7 @@ fn struct_body_meta(
     Ok(match enum_ {
         Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
             type_hash,
-            enum_item: enum_item.to_owned(),
+            enum_item,
             enum_hash,
             index,
             variant: PrivVariantMeta::Struct(st),
@@ -1728,7 +1811,7 @@ fn struct_body_meta(
 fn variant_into_item_decl(
     item: &Item,
     body: ast::ItemVariantBody,
-    enum_: Option<(&Item, Hash, usize)>,
+    enum_: Option<(ItemId, Hash, usize)>,
     ctx: ResolveContext<'_>,
 ) -> Result<PrivMetaKind, QueryError> {
     Ok(match body {
@@ -1742,7 +1825,7 @@ fn variant_into_item_decl(
 fn struct_into_item_decl(
     item: &Item,
     body: ast::ItemStructBody,
-    enum_: Option<(&Item, Hash, usize)>,
+    enum_: Option<(ItemId, Hash, usize)>,
     ctx: ResolveContext<'_>,
 ) -> Result<PrivMetaKind, QueryError> {
     Ok(match body {
@@ -1759,7 +1842,7 @@ pub(crate) struct ImportEntry {
     /// The location of the import.
     pub(crate) location: Location,
     /// The item being imported.
-    pub(crate) target: ItemBuf,
+    pub(crate) target: ItemId,
     /// The module in which the imports is located.
     pub(crate) module: Arc<ModMeta>,
 }
@@ -1767,7 +1850,7 @@ pub(crate) struct ImportEntry {
 struct QueryImportStep {
     module: Arc<ModMeta>,
     location: Location,
-    target: ItemBuf,
+    target: ItemId,
 }
 
 fn into_chain(chain: Vec<ImportStep>) -> Vec<Location> {

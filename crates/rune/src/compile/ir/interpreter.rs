@@ -1,8 +1,6 @@
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
-use crate::compile::{
-    IrError, IrErrorKind, IrEvalOutcome, IrValue, ItemBuf, ModMeta, PrivMetaKind,
-};
+use crate::compile::{IrError, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModMeta, PrivMetaKind};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
 
@@ -17,7 +15,7 @@ pub struct IrInterpreter<'a> {
     /// The module in which the interpreter is run.
     pub(crate) module: &'a ModMeta,
     /// The item where the constant expression is located.
-    pub(crate) item: &'a ItemBuf,
+    pub(crate) item: ItemId,
     /// Constant scopes.
     pub(crate) scopes: IrScopes,
     /// Query engine to look for constant expressions.
@@ -27,7 +25,7 @@ pub struct IrInterpreter<'a> {
 impl IrInterpreter<'_> {
     /// Outer evaluation for an expression which performs caching into `consts`.
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
-        tracing::trace!("processing constant: {}", self.item);
+        tracing::trace!("processing constant: {}", self.q.item_pool.get(self.item));
 
         if let Some(const_value) = self.q.consts.get(self.item) {
             return Ok(const_value.clone());
@@ -94,16 +92,16 @@ impl IrInterpreter<'_> {
             return Ok(ir_value.clone());
         }
 
-        let mut base = self.item.clone();
+        let mut base = self.q.item_pool.get(self.item).to_owned();
 
         loop {
-            let item = base.extended(name);
+            let item = self.q.item_pool.alloc(base.extended(name));
 
-            if let Some(const_value) = self.q.consts.get(&item) {
+            if let Some(const_value) = self.q.consts.get(item) {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            if let Some(meta) = self.q.query_meta(spanned, &item, used)? {
+            if let Some(meta) = self.q.query_meta(spanned, item, used)? {
                 match &meta.kind {
                     PrivMetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value));
@@ -111,7 +109,9 @@ impl IrInterpreter<'_> {
                     _ => {
                         return Err(IrError::new(
                             spanned,
-                            IrErrorKind::UnsupportedMeta { meta: meta.info() },
+                            IrErrorKind::UnsupportedMeta {
+                                meta: meta.info(self.q.item_pool),
+                            },
                         ));
                     }
                 }
@@ -148,12 +148,12 @@ impl IrInterpreter<'_> {
         S: Copy + Spanned,
     {
         let span = spanned.span();
-        let mut base = self.item.clone();
+        let mut base = self.q.item_pool.get(self.item).to_owned();
 
         let id = loop {
-            let item = base.extended(target);
+            let item = self.q.item_pool.alloc(base.extended(target));
 
-            if let Some(meta) = self.q.query_meta(span, &item, used)? {
+            if let Some(meta) = self.q.query_meta(span, item, used)? {
                 match &meta.kind {
                     PrivMetaKind::ConstFn { id, .. } => {
                         break *id;
@@ -161,7 +161,9 @@ impl IrInterpreter<'_> {
                     _ => {
                         return Err(IrError::new(
                             span,
-                            IrErrorKind::UnsupportedMeta { meta: meta.info() },
+                            IrErrorKind::UnsupportedMeta {
+                                meta: meta.info(self.q.item_pool),
+                            },
                         ));
                     }
                 }

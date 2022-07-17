@@ -4,6 +4,9 @@ pub use self::item_buf::ItemBuf;
 mod item;
 pub use self::item::Item;
 
+mod item_pool;
+pub(crate) use self::item_pool::{ItemId, ItemPool};
+
 mod iter;
 pub use self::iter::Iter;
 

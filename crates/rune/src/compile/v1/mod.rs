@@ -1,7 +1,7 @@
 use crate::ast::Span;
 use crate::compile::{
     ir, Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler,
-    IrInterpreter, Item, ItemMeta, Location, Options, PrivMeta,
+    IrInterpreter, ItemId, ItemMeta, Location, Options, PrivMeta,
 };
 use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -55,22 +55,25 @@ pub(crate) struct Assembler<'a> {
 
 impl<'a> Assembler<'a> {
     /// Access the meta for the given language item.
-    pub fn try_lookup_meta(&mut self, span: Span, item: &Item) -> CompileResult<Option<PrivMeta>> {
+    pub fn try_lookup_meta(&mut self, span: Span, item: ItemId) -> CompileResult<Option<PrivMeta>> {
         tracing::trace!("lookup meta: {:?}", item);
 
         if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
             tracing::trace!("found in query: {:?}", meta);
-            self.q
-                .visitor
-                .visit_meta(Location::new(self.source_id, span), meta.as_meta_ref());
+            self.q.visitor.visit_meta(
+                Location::new(self.source_id, span),
+                meta.as_meta_ref(self.q.item_pool),
+            );
             return Ok(Some(meta));
         }
 
-        if let Some(meta) = self.context.lookup_meta(item) {
+        if let Some(meta) = self.context.lookup_meta(self.q.item_pool.get(item)) {
+            let meta = self.q.insert_context_meta(span, meta)?;
             tracing::trace!("found in context: {:?}", meta);
-            self.q
-                .visitor
-                .visit_meta(Location::new(self.source_id, span), meta.as_meta_ref());
+            self.q.visitor.visit_meta(
+                Location::new(self.source_id, span),
+                meta.as_meta_ref(self.q.item_pool),
+            );
             return Ok(Some(meta));
         }
 
@@ -78,7 +81,7 @@ impl<'a> Assembler<'a> {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, spanned: Span, item: &Item) -> CompileResult<PrivMeta> {
+    pub fn lookup_meta(&mut self, spanned: Span, item: ItemId) -> CompileResult<PrivMeta> {
         if let Some(meta) = self.try_lookup_meta(spanned, item)? {
             return Ok(meta);
         }
@@ -86,7 +89,7 @@ impl<'a> Assembler<'a> {
         Err(CompileError::new(
             spanned,
             CompileErrorKind::MissingItem {
-                item: item.to_owned(),
+                item: self.q.item_pool.get(item).to_owned(),
             },
         ))
     }
@@ -162,7 +165,7 @@ impl<'a> Assembler<'a> {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
-                    meta: meta.info(),
+                    meta: meta.info(self.q.item_pool),
                     expected: query_const_fn.ir_fn.args.len(),
                     actual: args.len(),
                 },
@@ -185,7 +188,7 @@ impl<'a> Assembler<'a> {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
             module: &from.module,
-            item: &from.item,
+            item: from.item,
             q: self.q.borrow(),
         };
 
@@ -195,7 +198,7 @@ impl<'a> Assembler<'a> {
         }
 
         interpreter.module = &query_const_fn.item.module;
-        interpreter.item = &query_const_fn.item.item;
+        interpreter.item = query_const_fn.item.item;
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
         Ok(value.into_const(span)?)
     }
