@@ -1,6 +1,8 @@
 use crate::ast::Span;
 use crate::compile;
-use crate::compile::{CompileVisitor, FileSourceLoader, NoopCompileVisitor, Options, SourceLoader};
+use crate::compile::{
+    CompileVisitor, FileSourceLoader, NoopCompileVisitor, Options, Pool, SourceLoader,
+};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, SourceId, Sources};
 use thiserror::Error;
@@ -185,10 +187,13 @@ impl<'a> Build<'a> {
             }
         };
 
+        let mut pool = Pool::default();
+
         let result = compile::compile(
             &mut unit,
             &prelude,
             self.sources,
+            &mut pool,
             context,
             diagnostics,
             options,

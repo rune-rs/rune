@@ -113,7 +113,7 @@ fn meta(
                         args: 0,
                     },
                     span,
-                    meta.info().to_string(),
+                    meta.info(c.q.pool).to_string(),
                 );
             }
             PrivMetaKind::Variant {
@@ -131,7 +131,7 @@ fn meta(
                         args: 0,
                     },
                     span,
-                    meta.info().to_string(),
+                    meta.info(c.q.pool).to_string(),
                 );
             }
             PrivMetaKind::Struct {
@@ -142,7 +142,7 @@ fn meta(
                 c.asm.push_with_comment(
                     Inst::LoadFn { hash: tuple.hash },
                     span,
-                    meta.info().to_string(),
+                    meta.info(c.q.pool).to_string(),
                 );
             }
             PrivMetaKind::Variant {
@@ -153,7 +153,7 @@ fn meta(
                 c.asm.push_with_comment(
                     Inst::LoadFn { hash: tuple.hash },
                     span,
-                    meta.info().to_string(),
+                    meta.info(c.q.pool).to_string(),
                 );
             }
             PrivMetaKind::Function { type_hash, .. } => {
@@ -164,8 +164,11 @@ fn meta(
                     *type_hash
                 };
 
-                c.asm
-                    .push_with_comment(Inst::LoadFn { hash }, span, meta.info().to_string());
+                c.asm.push_with_comment(
+                    Inst::LoadFn { hash },
+                    span,
+                    meta.info(c.q.pool).to_string(),
+                );
             }
             PrivMetaKind::Const { const_value, .. } => {
                 named.assert_not_generic()?;
@@ -174,7 +177,7 @@ fn meta(
             _ => {
                 return Err(CompileError::expected_meta(
                     span,
-                    meta.info(),
+                    meta.info(c.q.pool),
                     "something that can be used as a value",
                 ));
             }
@@ -183,7 +186,7 @@ fn meta(
         named.assert_not_generic()?;
 
         let type_hash = meta.type_hash_of().ok_or_else(|| {
-            CompileError::expected_meta(span, meta.info(), "something that has a type")
+            CompileError::expected_meta(span, meta.info(c.q.pool), "something that has a type")
         })?;
 
         c.asm.push(
@@ -283,7 +286,7 @@ fn pat(
             let named = c.convert_path(path)?;
             named.assert_not_generic()?;
 
-            if let Some(meta) = c.try_lookup_meta(span, &named.item)? {
+            if let Some(meta) = c.try_lookup_meta(span, named.item)? {
                 if pat_meta_binding(span, c, &meta, false_label, load)? {
                     return Ok(true);
                 }
@@ -595,7 +598,7 @@ fn pat_tuple(
         let named = c.convert_path(path)?;
         named.assert_not_generic()?;
 
-        let meta = c.lookup_meta(path.span(), &named.item)?;
+        let meta = c.lookup_meta(path.span(), named.item)?;
 
         // Treat the current meta as a tuple and get the number of arguments it
         // should receive and the type check that applies to it.
@@ -604,7 +607,7 @@ fn pat_tuple(
             None => {
                 return Err(CompileError::expected_meta(
                     span,
-                    meta.info(),
+                    meta.info(c.q.pool),
                     "type that can be used in a tuple pattern",
                 ));
             }
@@ -614,7 +617,7 @@ fn pat_tuple(
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
-                    meta: meta.info(),
+                    meta: meta.info(c.q.pool),
                     expected: args,
                     actual: hir.count,
                 },
@@ -734,14 +737,14 @@ fn pat_object(
             let named = c.convert_path(path)?;
             named.assert_not_generic()?;
 
-            let meta = c.lookup_meta(path_span, &named.item)?;
+            let meta = c.lookup_meta(path_span, named.item)?;
 
             let (st, inst) = match struct_match_for(span, c, &meta) {
                 Some(out) => out,
                 None => {
                     return Err(CompileError::expected_meta(
                         path_span,
-                        meta.info(),
+                        meta.info(c.q.pool),
                         "type that can be used in a struct pattern",
                     ));
                 }
@@ -755,7 +758,7 @@ fn pat_object(
                         span,
                         CompileErrorKind::LitObjectNotField {
                             field: binding.key().into(),
-                            item: meta.item.item.to_owned(),
+                            item: c.q.pool.item(meta.item_meta.item).to_owned(),
                         },
                     ));
                 }
@@ -771,7 +774,7 @@ fn pat_object(
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::PatternMissingFields {
-                        item: meta.item.item.to_owned(),
+                        item: c.q.pool.item(meta.item_meta.item).to_owned(),
                         fields,
                     },
                 ));
@@ -1547,7 +1550,7 @@ fn expr_block(
     }
 
     let item = c.q.item_for(hir.block)?;
-    let meta = c.lookup_meta(span, &item.item)?;
+    let meta = c.lookup_meta(span, item.item)?;
 
     match (hir.kind, &meta.kind) {
         (
@@ -1573,14 +1576,14 @@ fn expr_block(
                 }
             }
 
-            let hash = Hash::type_hash(&meta.item.item);
+            let hash = c.q.pool.item_type_hash(meta.item_meta.item);
             c.asm.push_with_comment(
                 Inst::Call {
                     hash,
                     args: captures.len(),
                 },
                 span,
-                meta.info().to_string(),
+                meta.info(c.q.pool).to_string(),
             );
 
             if !needs.value() {
@@ -1594,7 +1597,7 @@ fn expr_block(
         _ => {
             return Err(CompileError::expected_meta(
                 span,
-                meta.info(),
+                meta.info(c.q.pool),
                 "async or const block",
             ));
         }
@@ -1687,7 +1690,7 @@ fn generics_parameters(
         let named = c.convert_path(path)?;
         named.assert_not_generic()?;
 
-        let meta = c.lookup_meta(expr.span(), &named.item)?;
+        let meta = c.lookup_meta(expr.span(), named.item)?;
 
         let hash = match meta.kind {
             PrivMetaKind::Unknown { type_hash, .. } => type_hash,
@@ -1759,8 +1762,8 @@ fn convert_expr_call(
                 }
             }
 
-            let meta = c.lookup_meta(path.span(), &named.item)?;
-            debug_assert_eq!(meta.item.item, named.item);
+            let meta = c.lookup_meta(path.span(), named.item)?;
+            debug_assert_eq!(meta.item_meta.item, named.item);
 
             match &meta.kind {
                 PrivMetaKind::Struct {
@@ -1777,7 +1780,7 @@ fn convert_expr_call(
                         return Err(CompileError::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
-                                meta: meta.info(),
+                                meta: meta.info(c.q.pool),
                                 expected: 0,
                                 actual: hir.args.len(),
                             },
@@ -1798,7 +1801,7 @@ fn convert_expr_call(
                         return Err(CompileError::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
-                                meta: meta.info(),
+                                meta: meta.info(c.q.pool),
                                 expected: tuple.args,
                                 actual: hir.args.len(),
                             },
@@ -1824,13 +1827,13 @@ fn convert_expr_call(
                 _ => {
                     return Err(CompileError::expected_meta(
                         span,
-                        meta.info(),
+                        meta.info(c.q.pool),
                         "something that can be called as a function",
                     ));
                 }
             };
 
-            let hash = Hash::type_hash(&meta.item.item);
+            let hash = c.q.pool.item_type_hash(meta.item_meta.item);
 
             let hash = if let Some((span, generics)) = named.generics {
                 let parameters = generics_parameters(span, c, generics)?;
@@ -1911,8 +1914,11 @@ fn expr_call(
                 c.scopes.decl_anon(span)?;
             }
 
-            c.asm
-                .push_with_comment(Inst::Call { hash, args }, span, meta.info().to_string());
+            c.asm.push_with_comment(
+                Inst::Call { hash, args },
+                span,
+                meta.info(c.q.pool).to_string(),
+            );
 
             c.scopes.undecl_anon(span, args)?;
         }
@@ -1997,15 +2003,15 @@ fn expr_closure(
     }
 
     let item = c.q.item_for((span, hir.id))?;
-    let hash = Hash::type_hash(&item.item);
+    let hash = c.q.pool.item_type_hash(item.item);
 
-    let meta = match c.q.query_meta(span, &item.item, Default::default())? {
+    let meta = match c.q.query_meta(span, item.item, Default::default())? {
         Some(meta) => meta,
         None => {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::MissingItem {
-                    item: item.item.to_owned(),
+                    item: c.q.pool.item(item.item).to_owned(),
                 },
             ))
         }
@@ -2016,7 +2022,11 @@ fn expr_closure(
             captures, do_move, ..
         } => (captures.as_ref(), *do_move),
         _ => {
-            return Err(CompileError::expected_meta(span, meta.info(), "a closure"));
+            return Err(CompileError::expected_meta(
+                span,
+                meta.info(c.q.pool),
+                "a closure",
+            ));
         }
     };
 
@@ -2671,40 +2681,43 @@ fn expr_object(
             let named = c.convert_path(path)?;
             named.assert_not_generic()?;
 
-            let meta = c.lookup_meta(path.span(), &named.item)?;
+            let meta = c.lookup_meta(path.span(), named.item)?;
+            let item = c.q.pool.item(meta.item_meta.item);
 
             match &meta.kind {
                 PrivMetaKind::Struct {
                     variant: PrivVariantMeta::Unit,
                     ..
                 } => {
-                    check_object_fields(&HashSet::new(), check_keys, span, &meta.item.item)?;
+                    check_object_fields(&HashSet::new(), check_keys, span, item)?;
 
-                    let hash = Hash::type_hash(&meta.item.item);
+                    let hash = Hash::type_hash(item);
                     c.asm.push(Inst::UnitStruct { hash }, span);
                 }
                 PrivMetaKind::Struct {
                     variant: PrivVariantMeta::Struct(st),
                     ..
                 } => {
-                    check_object_fields(&st.fields, check_keys, span, &meta.item.item)?;
+                    check_object_fields(&st.fields, check_keys, span, item)?;
 
-                    let hash = Hash::type_hash(&meta.item.item);
+                    let hash = Hash::type_hash(item);
                     c.asm.push(Inst::Struct { hash, slot }, span);
                 }
                 PrivMetaKind::Variant {
                     variant: PrivVariantMeta::Struct(st),
                     ..
                 } => {
-                    check_object_fields(&st.fields, check_keys, span, &meta.item.item)?;
+                    check_object_fields(&st.fields, check_keys, span, item)?;
 
-                    let hash = Hash::type_hash(&meta.item.item);
+                    let hash = Hash::type_hash(item);
                     c.asm.push(Inst::StructVariant { hash, slot }, span);
                 }
                 _ => {
                     return Err(CompileError::new(
                         span,
-                        CompileErrorKind::UnsupportedLitObject { meta: meta.info() },
+                        CompileErrorKind::UnsupportedLitObject {
+                            meta: meta.info(c.q.pool),
+                        },
                     ));
                 }
             };
@@ -2785,7 +2798,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResu
         }
     }
 
-    if let Some(m) = c.try_lookup_meta(span, &named.item)? {
+    if let Some(m) = c.try_lookup_meta(span, named.item)? {
         meta(span, c, &m, needs, named)?;
         return Ok(Asm::top(span));
     }
@@ -2806,7 +2819,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResu
     Err(CompileError::new(
         span,
         CompileErrorKind::MissingItem {
-            item: named.item.to_owned(),
+            item: c.q.pool.item(named.item).to_owned(),
         },
     ))
 }

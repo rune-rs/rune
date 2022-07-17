@@ -76,8 +76,6 @@ pub enum QueryErrorKind {
         item: ItemBuf,
         from: ItemBuf,
     },
-    #[error("missing item for id {id:?}")]
-    MissingRevId { id: Id },
     #[error("missing query meta for module {item}")]
     MissingMod { item: ItemBuf },
     #[error("cycle in import")]

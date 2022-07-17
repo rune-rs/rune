@@ -6,8 +6,8 @@
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{
-    Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, PrivMeta,
-    PrivMetaKind, PrivVariantMeta,
+    Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, Pool,
+    PrivMeta, PrivMetaKind, PrivVariantMeta,
 };
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
@@ -272,14 +272,19 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub(crate) fn insert_meta(&mut self, span: Span, meta: &PrivMeta) -> Result<(), QueryError> {
-        match &meta.kind {
+    pub(crate) fn insert_meta(
+        &mut self,
+        span: Span,
+        meta: &PrivMeta,
+        pool: &mut Pool,
+    ) -> Result<(), QueryError> {
+        match meta.kind {
             PrivMetaKind::Unknown { .. } => {
-                let hash = Hash::type_hash(&meta.item.item);
+                let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
                     hash,
-                    item: meta.item.item.clone(),
+                    item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
                 self.constants.insert(
@@ -299,23 +304,26 @@ impl UnitBuilder {
                 variant: PrivVariantMeta::Unit,
                 ..
             } => {
-                let info = UnitFn::UnitStruct { hash: *type_hash };
+                let info = UnitFn::UnitStruct { hash: type_hash };
 
-                let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
+                let signature = DebugSignature::new(
+                    pool.item(meta.item_meta.item).to_owned(),
+                    DebugArgs::EmptyArgs,
+                );
 
                 let rtti = Arc::new(Rtti {
-                    hash: *type_hash,
-                    item: meta.item.item.clone(),
+                    hash: type_hash,
+                    item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
-                if self.rtti.insert(*type_hash, rtti).is_some() {
+                if self.rtti.insert(type_hash, rtti).is_some() {
                     return Err(QueryError::new(
                         span,
-                        QueryErrorKind::TypeRttiConflict { hash: *type_hash },
+                        QueryErrorKind::TypeRttiConflict { hash: type_hash },
                     ));
                 }
 
-                if self.functions.insert(*type_hash, info).is_some() {
+                if self.functions.insert(type_hash, info).is_some() {
                     return Err(QueryError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
@@ -325,16 +333,14 @@ impl UnitBuilder {
                 }
 
                 self.constants.insert(
-                    Hash::instance_function(*type_hash, Protocol::INTO_TYPE_NAME),
+                    Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(signature.path.to_string()),
                 );
 
-                self.debug_info_mut()
-                    .functions
-                    .insert(*type_hash, signature);
+                self.debug_info_mut().functions.insert(type_hash, signature);
             }
             PrivMetaKind::Struct {
-                variant: PrivVariantMeta::Tuple(tuple),
+                variant: PrivVariantMeta::Tuple(ref tuple),
                 ..
             } => {
                 let info = UnitFn::TupleStruct {
@@ -342,12 +348,14 @@ impl UnitBuilder {
                     args: tuple.args,
                 };
 
-                let signature =
-                    DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
+                let signature = DebugSignature::new(
+                    pool.item(meta.item_meta.item).to_owned(),
+                    DebugArgs::TupleArgs(tuple.args),
+                );
 
                 let rtti = Arc::new(Rtti {
                     hash: tuple.hash,
-                    item: meta.item.item.clone(),
+                    item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
                 if self.rtti.insert(tuple.hash, rtti).is_some() {
@@ -376,11 +384,11 @@ impl UnitBuilder {
                     .insert(tuple.hash, signature);
             }
             PrivMetaKind::Struct { .. } => {
-                let hash = Hash::type_hash(&meta.item.item);
+                let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
                     hash,
-                    item: meta.item.item.clone(),
+                    item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
                 self.constants.insert(
@@ -401,26 +409,29 @@ impl UnitBuilder {
                 variant: PrivVariantMeta::Unit,
                 ..
             } => {
-                let enum_hash = Hash::type_hash(enum_item);
+                let enum_hash = pool.item_type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
-                    hash: *type_hash,
-                    item: meta.item.item.clone(),
+                    hash: type_hash,
+                    item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
-                if self.variant_rtti.insert(*type_hash, rtti).is_some() {
+                if self.variant_rtti.insert(type_hash, rtti).is_some() {
                     return Err(QueryError::new(
                         span,
-                        QueryErrorKind::VariantRttiConflict { hash: *type_hash },
+                        QueryErrorKind::VariantRttiConflict { hash: type_hash },
                     ));
                 }
 
-                let info = UnitFn::UnitVariant { hash: *type_hash };
+                let info = UnitFn::UnitVariant { hash: type_hash };
 
-                let signature = DebugSignature::new(meta.item.item.clone(), DebugArgs::EmptyArgs);
+                let signature = DebugSignature::new(
+                    pool.item(meta.item_meta.item).to_owned(),
+                    DebugArgs::EmptyArgs,
+                );
 
-                if self.functions.insert(*type_hash, info).is_some() {
+                if self.functions.insert(type_hash, info).is_some() {
                     return Err(QueryError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
@@ -429,21 +440,19 @@ impl UnitBuilder {
                     ));
                 }
 
-                self.debug_info_mut()
-                    .functions
-                    .insert(*type_hash, signature);
+                self.debug_info_mut().functions.insert(type_hash, signature);
             }
             PrivMetaKind::Variant {
                 enum_item,
-                variant: PrivVariantMeta::Tuple(tuple),
+                variant: PrivVariantMeta::Tuple(ref tuple),
                 ..
             } => {
-                let enum_hash = Hash::type_hash(enum_item);
+                let enum_hash = pool.item_type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: tuple.hash,
-                    item: meta.item.item.clone(),
+                    item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
                 if self.variant_rtti.insert(tuple.hash, rtti).is_some() {
@@ -458,8 +467,10 @@ impl UnitBuilder {
                     args: tuple.args,
                 };
 
-                let signature =
-                    DebugSignature::new(meta.item.item.clone(), DebugArgs::TupleArgs(tuple.args));
+                let signature = DebugSignature::new(
+                    pool.item(meta.item_meta.item).to_owned(),
+                    DebugArgs::TupleArgs(tuple.args),
+                );
 
                 if self.functions.insert(tuple.hash, info).is_some() {
                     return Err(QueryError::new(
@@ -479,13 +490,13 @@ impl UnitBuilder {
                 variant: PrivVariantMeta::Struct(..),
                 ..
             } => {
-                let hash = Hash::type_hash(&meta.item.item);
-                let enum_hash = Hash::type_hash(enum_item);
+                let hash = pool.item_type_hash(meta.item_meta.item);
+                let enum_hash = pool.item_type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash,
-                    item: meta.item.item.clone(),
+                    item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
                 if self.variant_rtti.insert(hash, rtti).is_some() {
@@ -497,16 +508,18 @@ impl UnitBuilder {
             }
             PrivMetaKind::Enum { type_hash } => {
                 self.constants.insert(
-                    Hash::instance_function(*type_hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(meta.item.item.to_string()),
+                    Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(pool.item(meta.item_meta.item).to_string()),
                 );
             }
             PrivMetaKind::Function { .. } => (),
             PrivMetaKind::Closure { .. } => (),
             PrivMetaKind::AsyncBlock { .. } => (),
-            PrivMetaKind::Const { const_value } => {
-                self.constants
-                    .insert(Hash::type_hash(&meta.item.item), const_value.clone());
+            PrivMetaKind::Const { ref const_value } => {
+                self.constants.insert(
+                    pool.item_type_hash(meta.item_meta.item),
+                    const_value.clone(),
+                );
             }
             PrivMetaKind::ConstFn { .. } => (),
             PrivMetaKind::Import { .. } => (),
@@ -525,18 +538,18 @@ impl UnitBuilder {
     pub(crate) fn new_function(
         &mut self,
         location: Location,
-        path: ItemBuf,
+        item: &Item,
         args: usize,
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
     ) -> Result<(), CompileError> {
         let offset = self.instructions.len();
-        let hash = Hash::type_hash(&path);
+        let hash = Hash::type_hash(item);
 
         self.functions_rev.insert(offset, hash);
         let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(path, DebugArgs::Named(debug_args));
+        let signature = DebugSignature::new(item.to_owned(), DebugArgs::Named(debug_args));
 
         if self.functions.insert(hash, info).is_some() {
             return Err(CompileError::new(
@@ -582,7 +595,7 @@ impl UnitBuilder {
     pub(crate) fn new_instance_function(
         &mut self,
         location: Location,
-        path: ItemBuf,
+        item: &Item,
         type_hash: Hash,
         name: &str,
         args: usize,
@@ -590,14 +603,14 @@ impl UnitBuilder {
         call: Call,
         debug_args: Box<[Box<str>]>,
     ) -> Result<(), CompileError> {
-        tracing::trace!("instance fn: {}", path);
+        tracing::trace!("instance fn: {}", item);
 
         let offset = self.instructions.len();
         let instance_fn = Hash::instance_function(type_hash, name);
-        let hash = Hash::type_hash(&path);
+        let hash = Hash::type_hash(item);
 
         let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(path, DebugArgs::Named(debug_args));
+        let signature = DebugSignature::new(item.to_owned(), DebugArgs::Named(debug_args));
 
         if self.functions.insert(instance_fn, info).is_some() {
             return Err(CompileError::new(

@@ -1,10 +1,9 @@
 use crate::ast::Span;
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, IntoComponent, ItemBuf, ModMeta, Visibility,
+    CompileError, CompileErrorKind, CompileResult, IntoComponent, ItemBuf, ModId, Visibility,
 };
 use crate::query::Query;
 use crate::{Context, SourceId};
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub(crate) struct WildcardImport {
@@ -13,7 +12,7 @@ pub(crate) struct WildcardImport {
     pub(crate) name: ItemBuf,
     pub(crate) source_id: SourceId,
     pub(crate) span: Span,
-    pub(crate) module: Arc<ModMeta>,
+    pub(crate) module: ModId,
     pub(crate) found: bool,
 }
 
@@ -30,7 +29,7 @@ impl WildcardImport {
                 query.insert_import(
                     self.source_id,
                     self.span,
-                    &self.module,
+                    self.module,
                     self.visibility,
                     self.from.clone(),
                     name,
@@ -59,7 +58,7 @@ impl WildcardImport {
                 query.insert_import(
                     self.source_id,
                     self.span,
-                    &self.module,
+                    self.module,
                     self.visibility,
                     self.from.clone(),
                     name,

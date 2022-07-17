@@ -1,18 +1,17 @@
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, ItemBuf, ModMeta, Visibility};
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, ItemBuf, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
 use crate::{Context, SourceId};
 use std::collections::VecDeque;
-use std::sync::Arc;
 
 /// Import to process.
 #[derive(Debug)]
 pub(crate) struct Import {
     pub(crate) kind: ImportKind,
-    pub(crate) module: Arc<ModMeta>,
+    pub(crate) module: ModId,
     pub(crate) visibility: Visibility,
     pub(crate) item: ItemBuf,
     pub(crate) source_id: SourceId,
@@ -22,7 +21,7 @@ pub(crate) struct Import {
 impl Import {
     /// Lookup a local identifier in the current context and query.
     fn lookup_local(&self, context: &Context, query: &Query, local: &str) -> ItemBuf {
-        let item = self.module.item.extended(local);
+        let item = query.pool.module_item(self.module).extended(local);
 
         if let ImportKind::Local = self.kind {
             if query.contains_prefix(&item) {
@@ -117,7 +116,7 @@ impl Import {
                                 ));
                             }
 
-                            name = self.module.item.clone();
+                            name = q.pool.module_item(self.module).to_owned();
                         }
                         ast::PathSegment::Crate(crate_token) => {
                             if !initial {
@@ -131,7 +130,7 @@ impl Import {
                         }
                         ast::PathSegment::Super(super_token) => {
                             if initial {
-                                name = self.module.item.clone();
+                                name = q.pool.module_item(self.module).to_owned();
                             }
 
                             name.pop().ok_or_else(|| {
@@ -152,7 +151,7 @@ impl Import {
                             name: name.clone(),
                             span: star_token.span(),
                             source_id: self.source_id,
-                            module: self.module.clone(),
+                            module: self.module,
                             found: false,
                         };
 
@@ -202,7 +201,7 @@ impl Import {
                 q.insert_import(
                     self.source_id,
                     path.span(),
-                    &self.module,
+                    self.module,
                     self.visibility,
                     self.item.clone(),
                     name,

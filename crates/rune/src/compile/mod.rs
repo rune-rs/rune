@@ -55,13 +55,16 @@ pub use self::location::Location;
 
 mod meta;
 pub(crate) use self::meta::{
-    CaptureMeta, Doc, ItemMeta, ModMeta, PrivMeta, PrivMetaKind, PrivStructMeta, PrivTupleMeta,
-    PrivVariantMeta,
+    CaptureMeta, ContextMeta, ContextMetaKind, Doc, ItemMeta, PrivMeta, PrivMetaKind,
+    PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
 pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
 mod module;
 pub use self::module::{AssocType, InstallWith, Module, Variant};
+
+mod pool;
+pub(crate) use self::pool::{ItemId, ModId, ModMeta, Pool};
 
 mod named;
 pub use self::named::Named;
@@ -80,6 +83,7 @@ pub(crate) fn compile(
     unit: &mut UnitBuilder,
     prelude: &Prelude,
     sources: &mut Sources,
+    pool: &mut Pool,
     context: &Context,
     diagnostics: &mut Diagnostics,
     options: &Options,
@@ -98,6 +102,7 @@ pub(crate) fn compile(
         &mut consts,
         &mut storage,
         sources,
+        pool,
         options,
         unit,
         prelude,
@@ -133,9 +138,8 @@ pub(crate) fn compile(
 
     loop {
         while let Some(entry) = worker.q.next_build_entry() {
-            tracing::trace!("next build entry: {}", entry.item.item);
-
-            let source_id = entry.location.source_id;
+            tracing::trace!("next build entry: {}", entry.item_meta.item);
+            let source_id = entry.item_meta.location.source_id;
 
             let task = CompileBuildEntry {
                 context,
@@ -195,33 +199,34 @@ impl CompileBuildEntry<'_> {
     #[tracing::instrument(skip(self, entry))]
     fn compile(mut self, entry: BuildEntry) -> Result<(), CompileError> {
         let BuildEntry {
-            item,
-            location,
+            item_meta,
             build,
             used,
         } = entry;
+
+        let location = item_meta.location;
 
         let mut asm = self.q.unit.new_assembly(location);
 
         match build {
             Build::Query => {
-                tracing::trace!("query: {}", item.item);
+                tracing::trace!("query: {}", self.q.pool.item(item_meta.item));
 
                 if self
                     .q
-                    .query_meta(item.location.span, &item.item, used)?
+                    .query_meta(item_meta.location.span, item_meta.item, used)?
                     .is_none()
                 {
                     return Err(CompileError::new(
-                        item.location.span,
+                        item_meta.location.span,
                         CompileErrorKind::MissingItem {
-                            item: item.item.clone(),
+                            item: self.q.pool.item(item_meta.item).to_owned(),
                         },
                     ));
                 }
             }
             Build::Function(f) => {
-                tracing::trace!("function: {}", item.item);
+                tracing::trace!("function: {}", self.q.pool.item(item_meta.item));
 
                 use self::v1::assemble;
 
@@ -242,7 +247,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        item.item.clone(),
+                        self.q.pool.item(item_meta.item),
                         count,
                         asm,
                         f.call,
@@ -251,7 +256,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::InstanceFunction(f) => {
-                tracing::trace!("instance function: {}", item.item);
+                tracing::trace!("instance function: {}", self.q.pool.item(item_meta.item));
 
                 use self::v1::assemble;
 
@@ -265,10 +270,10 @@ impl CompileBuildEntry<'_> {
                 let count = f.function.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                let meta = c.lookup_meta(f.instance_span, &f.impl_item)?;
+                let meta = c.lookup_meta(f.instance_span, f.impl_item)?;
 
                 let type_hash = meta.type_hash_of().ok_or_else(|| {
-                    CompileError::expected_meta(span, meta.info(), "instance function")
+                    CompileError::expected_meta(span, meta.info(c.q.pool), "instance function")
                 })?;
 
                 let arena = hir::Arena::new();
@@ -283,7 +288,7 @@ impl CompileBuildEntry<'_> {
 
                     self.q.unit.new_instance_function(
                         location,
-                        item.item.clone(),
+                        self.q.pool.item(item_meta.item),
                         type_hash,
                         name,
                         count,
@@ -294,7 +299,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Closure(closure) => {
-                tracing::trace!("closure: {}", item.item);
+                tracing::trace!("closure: {}", self.q.pool.item(item_meta.item));
 
                 use self::v1::assemble;
 
@@ -317,7 +322,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        item.item.clone(),
+                        self.q.pool.item(item_meta.item),
                         closure.ast.args.len(),
                         asm,
                         closure.call,
@@ -326,7 +331,7 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::AsyncBlock(b) => {
-                tracing::trace!("async block: {}", item.item);
+                tracing::trace!("async block: {}", self.q.pool.item(item_meta.item));
 
                 use self::v1::assemble;
 
@@ -346,7 +351,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.q.unit.new_function(
                         location,
-                        item.item.clone(),
+                        self.q.pool.item(item_meta.item),
                         args,
                         asm,
                         b.call,
@@ -355,65 +360,72 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::Unused => {
-                tracing::trace!("unused: {}", item.item);
+                tracing::trace!("unused: {}", self.q.pool.item(item_meta.item));
 
-                if !item.visibility.is_public() {
+                if !item_meta.visibility.is_public() {
                     self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 }
             }
             Build::Import(import) => {
-                tracing::trace!("import: {}", item.item);
+                tracing::trace!("import: {}", self.q.pool.item(item_meta.item));
 
                 // Issue the import to check access.
-                let result = self
-                    .q
-                    .import(location.span, &item.module, &item.item, used)?;
+                let result =
+                    self.q
+                        .import(location.span, item_meta.module, item_meta.item, used)?;
 
                 if used.is_unused() {
                     self.diagnostics
                         .not_used(location.source_id, location.span, None);
                 }
 
-                let missing = match &result {
-                    Some(item) => {
+                let missing = match result {
+                    Some(item_id) => {
+                        let item = self.q.pool.item(item_id);
+
                         if self.context.contains_prefix(item) || self.q.contains_prefix(item) {
                             None
                         } else {
-                            Some(item)
+                            Some(item_id)
                         }
                     }
-                    None => Some(&import.entry.target),
+                    None => Some(import.entry.target),
                 };
 
                 if let Some(item) = missing {
                     return Err(CompileError::new(
                         location.span,
-                        CompileErrorKind::MissingItem { item: item.clone() },
+                        CompileErrorKind::MissingItem {
+                            item: self.q.pool.item(item).to_owned(),
+                        },
                     ));
                 }
             }
             Build::ReExport => {
-                tracing::trace!("re-export: {}", item.item);
+                tracing::trace!("re-export: {}", self.q.pool.item(item_meta.item));
 
-                let import = match self
-                    .q
-                    .import(location.span, &item.module, &item.item, used)?
-                {
-                    Some(item) => item,
-                    None => {
-                        return Err(CompileError::new(
-                            location.span,
-                            CompileErrorKind::MissingItem {
-                                item: item.item.clone(),
-                            },
-                        ))
-                    }
-                };
+                let import =
+                    match self
+                        .q
+                        .import(location.span, item_meta.module, item_meta.item, used)?
+                    {
+                        Some(item) => item,
+                        None => {
+                            return Err(CompileError::new(
+                                location.span,
+                                CompileErrorKind::MissingItem {
+                                    item: self.q.pool.item(item_meta.item).to_owned(),
+                                },
+                            ))
+                        }
+                    };
 
-                self.q
-                    .unit
-                    .new_function_reexport(location, &item.item, &import)?;
+                self.q.unit.new_function_reexport(
+                    location,
+                    self.q.pool.item(item_meta.item),
+                    self.q.pool.item(import),
+                )?;
             }
         }
 

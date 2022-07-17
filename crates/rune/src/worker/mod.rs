@@ -3,7 +3,7 @@
 use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::{CompileVisitor, ItemBuf, Options, Prelude, SourceLoader, UnitBuilder};
+use crate::compile::{CompileVisitor, ModId, Options, Pool, Prelude, SourceLoader, UnitBuilder};
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
 use crate::macros::Storage;
@@ -30,7 +30,7 @@ pub(crate) struct Worker<'a> {
     /// Id generator.
     pub(crate) gen: &'a Gen,
     /// Files that have been loaded.
-    pub(crate) loaded: HashMap<ItemBuf, (SourceId, Span)>,
+    pub(crate) loaded: HashMap<ModId, (SourceId, Span)>,
     /// Worker queue.
     pub(crate) queue: VecDeque<Task>,
 }
@@ -42,6 +42,7 @@ impl<'a> Worker<'a> {
         consts: &'a mut Consts,
         storage: &'a mut Storage,
         sources: &'a mut Sources,
+        pool: &'a mut Pool,
         options: &'a Options,
         unit: &'a mut UnitBuilder,
         prelude: &'a Prelude,
@@ -56,7 +57,9 @@ impl<'a> Worker<'a> {
             options,
             diagnostics,
             source_loader,
-            q: Query::new(unit, prelude, consts, storage, sources, visitor, gen, inner),
+            q: Query::new(
+                unit, prelude, consts, storage, sources, pool, visitor, gen, inner,
+            ),
             gen,
             loaded: HashMap::new(),
             queue: VecDeque::new(),
@@ -76,7 +79,8 @@ impl<'a> Worker<'a> {
                     source_id,
                     mod_item,
                 } => {
-                    tracing::trace!("load file: {}", mod_item.item);
+                    let item = self.q.pool.module_item(mod_item);
+                    tracing::trace!("load file: {}", item);
 
                     let source = match self.q.sources.get(source_id) {
                         Some(source) => source,
@@ -104,8 +108,8 @@ impl<'a> Worker<'a> {
                         LoadFileKind::Module { root } => root,
                     };
 
-                    tracing::trace!("load file: {}", mod_item.item);
-                    let items = Items::new(mod_item.item.clone(), self.gen);
+                    tracing::trace!("load file: {}", item);
+                    let items = Items::new(item, self.gen);
 
                     let mut indexer = Indexer {
                         root,

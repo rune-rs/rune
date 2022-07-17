@@ -6,11 +6,10 @@ use crate::compile::{CompileError, CompileErrorKind, CompileResult, IrError, Ite
 use crate::macros::MacroContext;
 use crate::parse::{Parse, ParseError, Parser};
 use crate::query::Query;
-use crate::{Context, Hash};
-use std::sync::Arc;
+use crate::Context;
 
 pub(crate) struct MacroCompiler<'a> {
-    pub(crate) item: Arc<ItemMeta>,
+    pub(crate) item_meta: ItemMeta,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
     pub(crate) query: Query<'a>,
@@ -40,14 +39,16 @@ impl MacroCompiler<'_> {
         let path = crate::hir::lowering::path(&ctx, &macro_call.path)?;
         let named = self.query.convert_path(self.context, &path)?;
 
-        let hash = Hash::type_hash(&named.item);
+        let hash = self.query.pool.item_type_hash(named.item);
 
         let handler = match self.context.lookup_macro(hash) {
             Some(handler) => handler,
             None => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::MissingMacro { item: named.item },
+                    CompileErrorKind::MissingMacro {
+                        item: self.query.pool.item(named.item).to_owned(),
+                    },
                 ));
             }
         };
@@ -60,7 +61,7 @@ impl MacroCompiler<'_> {
             let mut macro_context = MacroContext {
                 macro_span: macro_call.span(),
                 stream_span: macro_call.stream_span(),
-                item: self.item.clone(),
+                item_meta: self.item_meta,
                 q: self.query.borrow(),
             };
 
@@ -90,7 +91,7 @@ impl MacroCompiler<'_> {
                         return Err(CompileError::new(
                             error.span(),
                             CompileErrorKind::CallMacroError {
-                                item: named.item,
+                                item: self.query.pool.item(named.item).to_owned(),
                                 error: error.into_inner(),
                             },
                         ));
@@ -101,7 +102,7 @@ impl MacroCompiler<'_> {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::CallMacroError {
-                        item: named.item,
+                        item: self.query.pool.item(named.item).to_owned(),
                         error,
                     },
                 ));

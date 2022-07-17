@@ -1,18 +1,18 @@
 //! Context for a macro.
 
+use std::fmt;
+
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, Prelude,
-    UnitBuilder,
+    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, Pool,
+    Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
 use crate::query::Query;
 use crate::shared::{Consts, Gen};
 use crate::{Source, SourceId, Sources};
-use std::fmt;
-use std::sync::Arc;
 
 /// Context for a running macro.
 pub struct MacroContext<'a> {
@@ -21,7 +21,7 @@ pub struct MacroContext<'a> {
     /// Macro span of the stream.
     pub(crate) stream_span: Span,
     /// The item where the macro is being evaluated.
-    pub(crate) item: Arc<ItemMeta>,
+    pub(crate) item_meta: ItemMeta,
     /// Accessible query required to run the IR interpreter and has access to
     /// storage.
     pub(crate) q: Query<'a>,
@@ -47,6 +47,7 @@ impl<'a> MacroContext<'a> {
         let mut consts = Consts::default();
         let mut storage = Storage::default();
         let mut sources = Sources::default();
+        let mut pool = Pool::default();
         let mut visitor = NoopCompileVisitor::new();
         let mut inner = Default::default();
 
@@ -56,6 +57,7 @@ impl<'a> MacroContext<'a> {
             &mut consts,
             &mut storage,
             &mut sources,
+            &mut pool,
             &mut visitor,
             &gen,
             &mut inner,
@@ -64,7 +66,7 @@ impl<'a> MacroContext<'a> {
         let mut ctx = MacroContext {
             macro_span: Span::empty(),
             stream_span: Span::empty(),
-            item: Default::default(),
+            item_meta: Default::default(),
             q: query.borrow(),
         };
 
@@ -101,10 +103,10 @@ impl<'a> MacroContext<'a> {
     {
         let mut ctx = IrEvalContext {
             c: IrCompiler {
-                source_id: self.item.location.source_id,
+                source_id: self.item_meta.location.source_id,
                 q: self.q.borrow(),
             },
-            item: &self.item,
+            item: &self.item_meta,
         };
 
         target.eval(&mut ctx)
