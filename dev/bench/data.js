@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1657991717659,
+  "lastUpdate": 1658082074492,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15004,6 +15004,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 909031,
             "range": "± 9383",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8bba930d773e662dad2249fe3e5e06aac860d35f",
+          "message": "Item and module pooling during compilation (#419)\n\n* Implement pooling of resources.\r\n* Improve structure of compiler metadata.\r\n* Improve line column calculation.",
+          "timestamp": "2022-07-17T18:15:25Z",
+          "tree_id": "f7df6a0991c3ce3952771baa47abf2e2a1fe0070",
+          "url": "https://github.com/rune-rs/rune/commit/8bba930d773e662dad2249fe3e5e06aac860d35f"
+        },
+        "date": 1658082073542,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 317055705,
+            "range": "± 5378692",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 170550153,
+            "range": "± 4122769",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 237494,
+            "range": "± 1000",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 708042,
+            "range": "± 52662",
             "unit": "ns/iter"
           }
         ]
