@@ -1576,7 +1576,7 @@ fn expr_block(
                 }
             }
 
-            let hash = Hash::type_hash(c.q.item_pool.get(meta.item.item));
+            let hash = c.q.item_pool.type_hash(meta.item.item);
             c.asm.push_with_comment(
                 Inst::Call {
                     hash,
@@ -1833,7 +1833,7 @@ fn convert_expr_call(
                 }
             };
 
-            let hash = Hash::type_hash(c.q.item_pool.get(meta.item.item));
+            let hash = c.q.item_pool.type_hash(meta.item.item);
 
             let hash = if let Some((span, generics)) = named.generics {
                 let parameters = generics_parameters(span, c, generics)?;
@@ -2003,7 +2003,7 @@ fn expr_closure(
     }
 
     let item = c.q.item_for((span, hir.id))?;
-    let hash = Hash::type_hash(c.q.item_pool.get(item.item));
+    let hash = c.q.item_pool.type_hash(item.item);
 
     let meta = match c.q.query_meta(span, item.item, Default::default())? {
         Some(meta) => meta,

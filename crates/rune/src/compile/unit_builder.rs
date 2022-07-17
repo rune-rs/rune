@@ -280,7 +280,7 @@ impl UnitBuilder {
     ) -> Result<(), QueryError> {
         match meta.kind {
             PrivMetaKind::Unknown { .. } => {
-                let hash = Hash::type_hash(item_pool.get(meta.item.item));
+                let hash = item_pool.type_hash(meta.item.item);
 
                 let rtti = Arc::new(Rtti {
                     hash,
@@ -384,7 +384,7 @@ impl UnitBuilder {
                     .insert(tuple.hash, signature);
             }
             PrivMetaKind::Struct { .. } => {
-                let hash = Hash::type_hash(item_pool.get(meta.item.item));
+                let hash = item_pool.type_hash(meta.item.item);
 
                 let rtti = Arc::new(Rtti {
                     hash,
@@ -409,7 +409,7 @@ impl UnitBuilder {
                 variant: PrivVariantMeta::Unit,
                 ..
             } => {
-                let enum_hash = Hash::type_hash(item_pool.get(enum_item));
+                let enum_hash = item_pool.type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
@@ -447,7 +447,7 @@ impl UnitBuilder {
                 variant: PrivVariantMeta::Tuple(ref tuple),
                 ..
             } => {
-                let enum_hash = Hash::type_hash(item_pool.get(enum_item));
+                let enum_hash = item_pool.type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
@@ -490,8 +490,8 @@ impl UnitBuilder {
                 variant: PrivVariantMeta::Struct(..),
                 ..
             } => {
-                let hash = Hash::type_hash(item_pool.get(meta.item.item));
-                let enum_hash = Hash::type_hash(item_pool.get(enum_item));
+                let hash = item_pool.type_hash(meta.item.item);
+                let enum_hash = item_pool.type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
@@ -516,10 +516,8 @@ impl UnitBuilder {
             PrivMetaKind::Closure { .. } => (),
             PrivMetaKind::AsyncBlock { .. } => (),
             PrivMetaKind::Const { ref const_value } => {
-                self.constants.insert(
-                    Hash::type_hash(item_pool.get(meta.item.item)),
-                    const_value.clone(),
-                );
+                self.constants
+                    .insert(item_pool.type_hash(meta.item.item), const_value.clone());
             }
             PrivMetaKind::ConstFn { .. } => (),
             PrivMetaKind::Import { .. } => (),

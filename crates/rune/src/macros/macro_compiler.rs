@@ -40,7 +40,7 @@ impl MacroCompiler<'_> {
         let path = crate::hir::lowering::path(&ctx, &macro_call.path)?;
         let named = self.query.convert_path(self.context, &path)?;
 
-        let hash = Hash::type_hash(self.query.item_pool.get(named.item));
+        let hash = self.query.item_pool.type_hash(named.item);
 
         let handler = match self.context.lookup_macro(hash) {
             Some(handler) => handler,

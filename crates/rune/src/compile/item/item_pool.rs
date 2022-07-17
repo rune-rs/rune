@@ -2,6 +2,7 @@ use core::fmt;
 
 use crate::collections::HashMap;
 use crate::compile::item::{Item, ItemBuf};
+use crate::Hash;
 
 macro_rules! get {
     ($slf:expr, $id:expr) => {{
@@ -21,8 +22,15 @@ macro_rules! alloc {
             *id
         } else {
             let id = ItemId(u32::try_from($slf.items.len()).expect("ran out of item ids"));
+
+            let hash = Hash::type_hash($item);
             let item = $item.to_owned();
-            $slf.items.push(item.clone());
+
+            $slf.items.push(Storage {
+                hash,
+                item: item.clone(),
+            });
+
             $slf.to_id.insert(item, id);
             id
         }
@@ -40,16 +48,24 @@ impl fmt::Display for ItemId {
     }
 }
 
+struct Storage {
+    hash: Hash,
+    item: ItemBuf,
+}
+
 /// A pool of items.
 pub(crate) struct ItemPool {
-    items: Vec<ItemBuf>,
+    items: Vec<Storage>,
     to_id: HashMap<ItemBuf, ItemId>,
 }
 
 impl Default for ItemPool {
     fn default() -> Self {
         Self {
-            items: vec![ItemBuf::new()],
+            items: vec![Storage {
+                hash: Hash::type_hash(Item::new()),
+                item: ItemBuf::new(),
+            }],
             to_id: [(ItemBuf::new(), ItemId(0))].into_iter().collect(),
         }
     }
@@ -58,7 +74,12 @@ impl Default for ItemPool {
 impl ItemPool {
     /// Lookup an item by the given identifier.
     pub(crate) fn get(&self, id: ItemId) -> &Item {
-        get!(self, id)
+        &get!(self, id).item
+    }
+
+    /// Look up the type hash of an item.
+    pub(crate) fn type_hash(&self, id: ItemId) -> Hash {
+        get!(self, id).hash
     }
 
     /// Allocate or return an existing item.
@@ -72,7 +93,7 @@ impl ItemPool {
 
     /// Get the identifier for the parent of the given id.
     pub(crate) fn parent(&mut self, id: ItemId) -> Option<ItemId> {
-        let parent = get!(self, id).parent()?;
+        let parent = get!(self, id).item.parent()?;
         Some(alloc!(self, parent))
     }
 }

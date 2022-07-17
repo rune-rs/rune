@@ -1096,14 +1096,14 @@ impl<'a> Query<'a> {
 
         let kind = match indexed {
             Indexed::Enum => PrivMetaKind::Enum {
-                type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
+                type_hash: self.item_pool.type_hash(query_item.item),
             },
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((query_item.location.span, variant.enum_id))?;
 
                 // Assert that everything is built for the enum.
                 self.query_meta(span, enum_item.item, Default::default())?;
-                let enum_hash = Hash::type_hash(self.item_pool.get(enum_item.item));
+                let enum_hash = self.item_pool.type_hash(enum_item.item);
 
                 variant_into_item_decl(
                     self.item_pool.get(query_item.item),
@@ -1127,7 +1127,7 @@ impl<'a> Query<'a> {
                 });
 
                 PrivMetaKind::Function {
-                    type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
+                    type_hash: self.item_pool.type_hash(query_item.item),
                     is_test: f.is_test,
                     is_bench: f.is_bench,
                 }
@@ -1141,7 +1141,7 @@ impl<'a> Query<'a> {
                 });
 
                 PrivMetaKind::Function {
-                    type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
+                    type_hash: self.item_pool.type_hash(query_item.item),
                     is_test: false,
                     is_bench: false,
                 }
@@ -1158,7 +1158,7 @@ impl<'a> Query<'a> {
                 });
 
                 PrivMetaKind::Closure {
-                    type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
+                    type_hash: self.item_pool.type_hash(query_item.item),
                     captures,
                     do_move,
                 }
@@ -1175,7 +1175,7 @@ impl<'a> Query<'a> {
                 });
 
                 PrivMetaKind::AsyncBlock {
-                    type_hash: Hash::type_hash(self.item_pool.get(query_item.item)),
+                    type_hash: self.item_pool.type_hash(query_item.item),
                     captures,
                     do_move,
                 }
