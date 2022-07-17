@@ -88,69 +88,20 @@ impl Source {
     }
 
     /// Convert the given offset to a utf-16 line and character.
-    pub fn position_to_utf16cu_line_char(&self, offset: usize) -> Option<(usize, usize)> {
-        if offset == 0 {
-            return Some((0, 0));
-        }
-
-        let line = match self.line_starts.binary_search(&offset) {
-            Ok(exact) => exact,
-            Err(0) => return None,
-            Err(n) => n - 1,
-        };
-
-        let line_start = self.line_starts[line];
-
-        let rest = &self.source[line_start..];
-        let offset = offset - line_start;
-        let mut line_count = 0;
-
-        for (n, c) in rest.char_indices() {
-            if n == offset {
-                return Some((line, line_count));
-            }
-
-            if n > offset {
-                break;
-            }
-
-            line_count += c.encode_utf16(&mut [0u16; 2]).len();
-        }
-
-        Some((line, line_count))
+    pub fn pos_to_utf16cu_linecol(&self, offset: usize) -> (usize, usize) {
+        let (line, offset, rest) = self.position(offset);
+        let col = rest
+            .char_indices()
+            .flat_map(|(n, c)| (n < offset).then(|| c.encode_utf16(&mut [0u16; 2]).len()))
+            .sum();
+        (line, col)
     }
 
     /// Convert the given offset to a utf-16 line and character.
-    pub fn position_to_unicode_line_char(&self, offset: usize) -> (usize, usize) {
-        if offset == 0 {
-            return (0, 0);
-        }
-
-        let line = match self.line_starts.binary_search(&offset) {
-            Ok(exact) => exact,
-            Err(0) => return (0, 0),
-            Err(n) => n - 1,
-        };
-
-        let line_start = self.line_starts[line];
-
-        let rest = &self.source[line_start..];
-        let offset = offset - line_start;
-        let mut line_count = 0;
-
-        for (n, _) in rest.char_indices() {
-            if n == offset {
-                return (line, line_count);
-            }
-
-            if n > offset {
-                break;
-            }
-
-            line_count += 1;
-        }
-
-        (line, line_count)
+    pub fn pos_to_utf8_linecol(&self, offset: usize) -> (usize, usize) {
+        let (line, offset, rest) = self.position(offset);
+        let col = rest.char_indices().take_while(|&(n, _)| n < offset).count();
+        (line, col)
     }
 
     /// Get the line index for the given byte.
@@ -163,8 +114,7 @@ impl Source {
     /// Get the range corresponding to the given line index.
     pub fn line_range(&self, line_index: usize) -> Option<Range<usize>> {
         let line_start = self.line_start(line_index)?;
-        let next_line_start = self.line_start(line_index + 1)?;
-
+        let next_line_start = self.line_start(line_index.saturating_add(1))?;
         Some(line_start..next_line_start)
     }
 
@@ -176,10 +126,28 @@ impl Source {
     /// Access the line number of content that starts with the given span.
     pub fn line(&self, span: Span) -> Option<(usize, usize, &str)> {
         let start = span.start.into_usize();
-        let (line, line_count) = self.position_to_unicode_line_char(start);
+        let (line, col) = self.pos_to_utf8_linecol(start);
         let range = self.line_range(line)?;
         let text = self.source.get(range)?;
-        Some((line, line_count, text))
+        Some((line, col, text))
+    }
+
+    fn position(&self, offset: usize) -> (usize, usize, &str) {
+        if offset == 0 {
+            return Default::default();
+        }
+
+        let line = match self.line_starts.binary_search(&offset) {
+            Ok(exact) => exact,
+            Err(0) => return Default::default(),
+            Err(n) => n - 1,
+        };
+
+        let line_start = self.line_starts[line];
+
+        let rest = &self.source[line_start..];
+        let offset = offset.saturating_sub(line_start);
+        (line, offset, rest)
     }
 
     fn line_start(&self, line_index: usize) -> Option<usize> {

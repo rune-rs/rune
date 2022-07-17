@@ -338,8 +338,8 @@ impl<'a> Indexer<'a> {
             .q
             .sources
             .get(self.source_id)
-            .and_then(|s| s.position_to_utf16cu_line_char(ast.open.span.start.into_usize()))
-            .unwrap_or((0, 0));
+            .map(|s| s.pos_to_utf16cu_linecol(ast.open.span.start.into_usize()))
+            .unwrap_or_default();
 
         let id = self.q.storage.insert_number(l + 1); // 1-indexed as that is what most editors will use
         let source = ast::NumberSource::Synthetic(id);
