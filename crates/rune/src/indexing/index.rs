@@ -396,7 +396,7 @@ impl<'a> Indexer<'a> {
                     let import = Import {
                         kind: ImportKind::Global,
                         visibility,
-                        module: self.mod_item.clone(),
+                        module: self.mod_item,
                         item: self.items.item().clone(),
                         source_id: self.source_id,
                         ast: Box::new(item_use),

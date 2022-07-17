@@ -1375,7 +1375,8 @@ impl<'a> Query<'a> {
             return Ok(self.item_pool.alloc(ItemBuf::with_crate(local)));
         }
 
-        Ok(self.item_pool.alloc(module_item.extended(local)))
+        let new_module = module_item.extended(local);
+        Ok(self.item_pool.alloc(new_module))
     }
 
     /// Check that the given item is accessible from the given module.
