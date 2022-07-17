@@ -504,6 +504,6 @@ pub(crate) struct ItemMeta {
 impl ItemMeta {
     /// Test if the item is public (and should be exported).
     pub(crate) fn is_public(&self, pool: &Pool) -> bool {
-        self.visibility.is_public() && pool.get_mod(self.module).is_public(pool)
+        self.visibility.is_public() && pool.module(self.module).is_public(pool)
     }
 }

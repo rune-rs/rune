@@ -21,10 +21,7 @@ pub(crate) struct Import {
 impl Import {
     /// Lookup a local identifier in the current context and query.
     fn lookup_local(&self, context: &Context, query: &Query, local: &str) -> ItemBuf {
-        let item = query
-            .pool
-            .item(query.pool.get_mod(self.module).item)
-            .extended(local);
+        let item = query.pool.module_item(self.module).extended(local);
 
         if let ImportKind::Local = self.kind {
             if query.contains_prefix(&item) {
@@ -119,7 +116,7 @@ impl Import {
                                 ));
                             }
 
-                            name = q.pool.item(q.pool.get_mod(self.module).item).to_owned();
+                            name = q.pool.module_item(self.module).to_owned();
                         }
                         ast::PathSegment::Crate(crate_token) => {
                             if !initial {
@@ -133,7 +130,7 @@ impl Import {
                         }
                         ast::PathSegment::Super(super_token) => {
                             if initial {
-                                name = q.pool.item(q.pool.get_mod(self.module).item).to_owned();
+                                name = q.pool.module_item(self.module).to_owned();
                             }
 
                             name.pop().ok_or_else(|| {

@@ -547,21 +547,15 @@ impl<'a> Indexer<'a> {
 
         item_mod.id.set(self.items.id());
 
-        let source = self.source_loader.load(
-            root,
-            self.q.pool.item(self.q.pool.get_mod(mod_item).item),
-            span,
-        )?;
+        let source = self
+            .source_loader
+            .load(root, self.q.pool.module_item(mod_item), span)?;
 
         if let Some(existing) = self.loaded.insert(mod_item, (self.source_id, span)) {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::ModAlreadyLoaded {
-                    item: self
-                        .q
-                        .pool
-                        .item(self.q.pool.get_mod(mod_item).item)
-                        .to_owned(),
+                    item: self.q.pool.module_item(mod_item).to_owned(),
                     existing,
                 },
             ));
@@ -593,7 +587,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<
     for (span, doc) in docs {
         idx.q.visitor.visit_doc_comment(
             Location::new(idx.source_id, span),
-            idx.q.pool.item(idx.q.pool.get_mod(idx.mod_item).item),
+            idx.q.pool.module_item(idx.mod_item),
             &*doc.doc_string.resolve(ctx)?,
         );
     }

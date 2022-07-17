@@ -228,7 +228,7 @@ impl<'a> Query<'a> {
     ) -> Result<ModId, QueryError> {
         let item = self.insert_new_item(items, location, parent, visibility, docs)?;
 
-        let query_mod = self.pool.alloc_mod(ModMeta {
+        let query_mod = self.pool.alloc_module(ModMeta {
             location,
             item: item.item,
             visibility,
@@ -248,7 +248,7 @@ impl<'a> Query<'a> {
         source_id: SourceId,
         spanned: Span,
     ) -> Result<ModId, QueryError> {
-        let query_mod = self.pool.alloc_mod(ModMeta {
+        let query_mod = self.pool.alloc_module(ModMeta {
             location: Location::new(source_id, spanned),
             item: ItemId::default(),
             visibility: Visibility::Public,
@@ -775,7 +775,7 @@ impl<'a> Query<'a> {
                 }
                 hir::PathSegmentKind::Super => self
                     .pool
-                    .try_map_alloc(self.pool.get_mod(qp.module).item, Item::parent)
+                    .try_map_alloc(self.pool.module(qp.module).item, Item::parent)
                     .ok_or_else(CompileError::unsupported_super(segment.span()))?,
                 hir::PathSegmentKind::SelfType => {
                     let impl_item = qp.impl_item.ok_or_else(|| {
@@ -785,7 +785,7 @@ impl<'a> Query<'a> {
                     in_self_type = true;
                     impl_item
                 }
-                hir::PathSegmentKind::SelfValue => self.pool.get_mod(qp.module).item,
+                hir::PathSegmentKind::SelfValue => self.pool.module(qp.module).item,
                 hir::PathSegmentKind::Crate => ItemId::default(),
                 hir::PathSegmentKind::Generics(..) => {
                     return Err(CompileError::new(
@@ -1341,7 +1341,7 @@ impl<'a> Query<'a> {
         local: &ast::Ident,
     ) -> Result<ItemId, CompileError> {
         let mut base = self.pool.item(base).to_owned();
-        let module_item = self.pool.item(self.pool.get_mod(module).item);
+        let module_item = self.pool.module_item(module);
         debug_assert!(base.starts_with(module_item));
 
         let local = local.resolve(resolve_context!(self))?;
@@ -1386,8 +1386,8 @@ impl<'a> Query<'a> {
     ) -> Result<(), QueryError> {
         let (common, tree) = self
             .pool
-            .item(self.pool.get_mod(from).item)
-            .ancestry(self.pool.item(self.pool.get_mod(module).item));
+            .module_item(from)
+            .ancestry(self.pool.module_item(module));
         let mut current_module = common.clone();
 
         // Check each module from the common ancestrly to the module.
@@ -1395,17 +1395,14 @@ impl<'a> Query<'a> {
             current_module.push(c);
             let current_module_id = self.pool.alloc_item(&current_module);
 
-            let m = self
-                .pool
-                .get_mod_by_item(current_module_id)
-                .ok_or_else(|| {
-                    QueryError::new(
-                        span,
-                        QueryErrorKind::MissingMod {
-                            item: current_module.clone(),
-                        },
-                    )
-                })?;
+            let m = self.pool.module_by_item(current_module_id).ok_or_else(|| {
+                QueryError::new(
+                    span,
+                    QueryErrorKind::MissingMod {
+                        item: current_module.clone(),
+                    },
+                )
+            })?;
 
             if !m.visibility.is_visible(&common, &current_module) {
                 return Err(QueryError::new(
@@ -1415,13 +1412,13 @@ impl<'a> Query<'a> {
                         location: m.location,
                         visibility: m.visibility,
                         item: current_module,
-                        from: self.pool.item(self.pool.get_mod(from).item).to_owned(),
+                        from: self.pool.module_item(from).to_owned(),
                     },
                 ));
             }
         }
 
-        if !visibility.is_visible_inside(&common, self.pool.item(self.pool.get_mod(module).item)) {
+        if !visibility.is_visible_inside(&common, self.pool.module_item(module)) {
             return Err(QueryError::new(
                 span,
                 QueryErrorKind::NotVisible {
@@ -1429,7 +1426,7 @@ impl<'a> Query<'a> {
                     location,
                     visibility,
                     item: self.pool.item(item).to_owned(),
-                    from: self.pool.item(self.pool.get_mod(from).item).to_owned(),
+                    from: self.pool.module_item(from).to_owned(),
                 },
             ));
         }

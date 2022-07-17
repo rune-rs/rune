@@ -50,7 +50,7 @@ impl ModMeta {
                 return false;
             }
 
-            current = m.parent.map(|id| pool.get_mod(id));
+            current = m.parent.map(|id| pool.module(id));
         }
 
         true
@@ -89,33 +89,6 @@ pub(crate) struct Pool {
 }
 
 impl Pool {
-    /// Lookup mod meta by the given identifier.
-    pub(crate) fn get_mod(&self, ModId(id): ModId) -> &ModMeta {
-        let id = usize::try_from(id).expect("module id overflow");
-
-        match self.modules.get(id) {
-            Some(item) => item,
-            None => panic!("missing module by id {id}"),
-        }
-    }
-
-    /// Get by item id.
-    pub(crate) fn get_mod_by_item(&self, id: ItemId) -> Option<&ModMeta> {
-        Some(self.get_mod(*self.item_to_mod.get(&id)?))
-    }
-
-    /// Allocate or return an existing module identifier.
-    pub(crate) fn alloc_mod(&mut self, item: ModMeta) -> ModId {
-        if let Some(id) = self.item_to_mod.get(&item.item) {
-            return *id;
-        }
-
-        let id = ModId(u32::try_from(self.modules.len()).expect("ran out of item ids"));
-        self.item_to_mod.insert(item.item, id);
-        self.modules.push(item);
-        id
-    }
-
     /// Lookup an item by the given identifier.
     pub(crate) fn item(&self, id: ItemId) -> &Item {
         &self.item_storage(id).item
@@ -124,6 +97,39 @@ impl Pool {
     /// Look up the type hash of an item.
     pub(crate) fn item_type_hash(&self, id: ItemId) -> Hash {
         self.item_storage(id).hash
+    }
+
+    /// Lookup mod meta by the given identifier.
+    pub(crate) fn module(&self, ModId(id): ModId) -> &ModMeta {
+        let id = usize::try_from(id).expect("module id overflow");
+
+        match self.modules.get(id) {
+            Some(item) => item,
+            None => panic!("missing module by id {id}"),
+        }
+    }
+
+    /// Get the item associated with a module.
+    pub(crate) fn module_item(&self, id: ModId) -> &Item {
+        let id = self.module(id).item;
+        self.item(id)
+    }
+
+    /// Get by item id.
+    pub(crate) fn module_by_item(&self, id: ItemId) -> Option<&ModMeta> {
+        Some(self.module(*self.item_to_mod.get(&id)?))
+    }
+
+    /// Allocate or return an existing module identifier.
+    pub(crate) fn alloc_module(&mut self, item: ModMeta) -> ModId {
+        if let Some(id) = self.item_to_mod.get(&item.item) {
+            return *id;
+        }
+
+        let id = ModId(u32::try_from(self.modules.len()).expect("ran out of item ids"));
+        self.item_to_mod.insert(item.item, id);
+        self.modules.push(item);
+        id
     }
 
     /// Allocate or return an existing item.

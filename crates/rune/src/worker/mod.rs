@@ -79,7 +79,7 @@ impl<'a> Worker<'a> {
                     source_id,
                     mod_item,
                 } => {
-                    let item = self.q.pool.item(self.q.pool.get_mod(mod_item).item);
+                    let item = self.q.pool.module_item(mod_item);
                     tracing::trace!("load file: {}", item);
 
                     let source = match self.q.sources.get(source_id) {
