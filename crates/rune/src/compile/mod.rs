@@ -56,13 +56,16 @@ pub use self::location::Location;
 
 mod meta;
 pub(crate) use self::meta::{
-    CaptureMeta, ContextMeta, ContextMetaKind, Doc, ItemMeta, ModMeta, PrivMeta, PrivMetaKind,
+    CaptureMeta, ContextMeta, ContextMetaKind, Doc, ItemMeta, PrivMeta, PrivMetaKind,
     PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
 pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
 mod module;
 pub use self::module::{AssocType, InstallWith, Module, Variant};
+
+mod mod_pool;
+pub(crate) use self::mod_pool::{ModId, ModMeta, ModPool};
 
 mod named;
 pub use self::named::Named;
@@ -82,6 +85,7 @@ pub(crate) fn compile(
     prelude: &Prelude,
     sources: &mut Sources,
     item_pool: &mut ItemPool,
+    mod_pool: &mut ModPool,
     context: &Context,
     diagnostics: &mut Diagnostics,
     options: &Options,
@@ -101,6 +105,7 @@ pub(crate) fn compile(
         &mut storage,
         sources,
         item_pool,
+        mod_pool,
         options,
         unit,
         prelude,
@@ -369,9 +374,7 @@ impl CompileBuildEntry<'_> {
                 tracing::trace!("import: {}", item.item);
 
                 // Issue the import to check access.
-                let result = self
-                    .q
-                    .import(location.span, &item.module, item.item, used)?;
+                let result = self.q.import(location.span, item.module, item.item, used)?;
 
                 if used.is_unused() {
                     self.diagnostics
@@ -403,10 +406,7 @@ impl CompileBuildEntry<'_> {
             Build::ReExport => {
                 tracing::trace!("re-export: {}", item.item);
 
-                let import = match self
-                    .q
-                    .import(location.span, &item.module, item.item, used)?
-                {
+                let import = match self.q.import(location.span, item.module, item.item, used)? {
                     Some(item) => item,
                     None => {
                         return Err(CompileError::new(

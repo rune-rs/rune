@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
-use crate::compile::{Item, ItemBuf, ItemId, ItemPool, Location, Visibility};
+use crate::compile::{Item, ItemBuf, ItemId, ItemPool, Location, ModId, ModPool, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::runtime::ConstValue;
 use crate::Hash;
@@ -410,7 +410,7 @@ pub(crate) enum PrivMetaKind {
     /// Purely an import.
     Import {
         /// The module of the target.
-        module: Arc<ModMeta>,
+        module: ModId,
         /// The location of the import.
         location: Location,
         /// The imported target.
@@ -501,43 +501,12 @@ pub(crate) struct ItemMeta {
     /// The visibility of the item.
     pub(crate) visibility: Visibility,
     /// The module associated with the item.
-    pub(crate) module: Arc<ModMeta>,
+    pub(crate) module: ModId,
 }
 
 impl ItemMeta {
     /// Test if the item is public (and should be exported).
-    pub(crate) fn is_public(&self) -> bool {
-        self.visibility.is_public() && self.module.is_public()
-    }
-}
-
-/// Module, its item and its visibility.
-#[derive(Default, Debug)]
-#[non_exhaustive]
-pub(crate) struct ModMeta {
-    /// The location of the module.
-    pub(crate) location: Location,
-    /// The item of the module.
-    pub(crate) item: ItemId,
-    /// The visibility of the module.
-    pub(crate) visibility: Visibility,
-    /// The kind of the module.
-    pub(crate) parent: Option<Arc<ModMeta>>,
-}
-
-impl ModMeta {
-    /// Test if the module recursively is public.
-    pub(crate) fn is_public(&self) -> bool {
-        let mut current = Some(self);
-
-        while let Some(m) = current.take() {
-            if !m.visibility.is_public() {
-                return false;
-            }
-
-            current = m.parent.as_deref();
-        }
-
-        true
+    pub(crate) fn is_public(&self, mod_pool: &ModPool) -> bool {
+        self.visibility.is_public() && mod_pool.get(self.module).is_public(mod_pool)
     }
 }

@@ -1,6 +1,7 @@
 use crate::ast::{Span, Spanned};
-use crate::compile::ir;
-use crate::compile::{IrError, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModMeta, PrivMetaKind};
+use crate::compile::{
+    ir, IrError, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId, PrivMetaKind,
+};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
 
@@ -13,7 +14,7 @@ pub struct IrInterpreter<'a> {
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
     /// The module in which the interpreter is run.
-    pub(crate) module: &'a ModMeta,
+    pub(crate) module: ModId,
     /// The item where the constant expression is located.
     pub(crate) item: ItemId,
     /// Constant scopes.

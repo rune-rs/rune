@@ -3,8 +3,8 @@
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, ItemPool, NoopCompileVisitor,
-    Prelude, UnitBuilder,
+    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, ItemPool, ModPool,
+    NoopCompileVisitor, Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
@@ -48,6 +48,7 @@ impl<'a> MacroContext<'a> {
         let mut storage = Storage::default();
         let mut sources = Sources::default();
         let mut item_pool = ItemPool::default();
+        let mut mod_pool = ModPool::default();
         let mut visitor = NoopCompileVisitor::new();
         let mut inner = Default::default();
 
@@ -58,6 +59,7 @@ impl<'a> MacroContext<'a> {
             &mut storage,
             &mut sources,
             &mut item_pool,
+            &mut mod_pool,
             &mut visitor,
             &gen,
             &mut inner,

@@ -14,8 +14,9 @@ use crate::compile::item::ItemPool;
 use crate::compile::{
     ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ContextMeta,
     ContextMetaKind, Doc, ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item,
-    ItemBuf, ItemId, ItemMeta, Location, ModMeta, Names, Prelude, PrivMeta, PrivMetaKind,
-    PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta, UnitBuilder, Visibility,
+    ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta, ModPool, Names, Prelude, PrivMeta,
+    PrivMetaKind, PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta, UnitBuilder,
+    Visibility,
 };
 use crate::hir;
 use crate::macros::Storage;
@@ -117,8 +118,6 @@ pub(crate) struct QueryInner {
     items: HashMap<NonZeroId, Arc<ItemMeta>>,
     /// All available names in the context.
     names: Names,
-    /// Modules and associated metadata.
-    modules: HashMap<ItemId, Arc<ModMeta>>,
 }
 
 /// Query system of the rune compiler.
@@ -137,6 +136,8 @@ pub(crate) struct Query<'a> {
     pub(crate) sources: &'a mut Sources,
     /// Pool of items.
     pub(crate) item_pool: &'a mut ItemPool,
+    /// Pool of modules.
+    pub(crate) mod_pool: &'a mut ModPool,
     /// Visitor for the compiler meta.
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     /// Shared id generator.
@@ -154,6 +155,7 @@ impl<'a> Query<'a> {
         storage: &'a mut Storage,
         sources: &'a mut Sources,
         item_pool: &'a mut ItemPool,
+        mod_pool: &'a mut ModPool,
         visitor: &'a mut dyn CompileVisitor,
         gen: &'a Gen,
         inner: &'a mut QueryInner,
@@ -165,6 +167,7 @@ impl<'a> Query<'a> {
             storage,
             sources,
             item_pool,
+            mod_pool,
             visitor,
             gen,
             inner,
@@ -179,6 +182,7 @@ impl<'a> Query<'a> {
             consts: self.consts,
             storage: self.storage,
             item_pool: self.item_pool,
+            mod_pool: self.mod_pool,
             sources: self.sources,
             visitor: self.visitor,
             gen: self.gen,
@@ -195,14 +199,14 @@ impl<'a> Query<'a> {
     /// Insert path information.
     pub(crate) fn insert_path(
         &mut self,
-        module: &Arc<ModMeta>,
+        module: ModId,
         impl_item: Option<ItemId>,
         item: &Item,
     ) -> NonZeroId {
         let item = self.item_pool.alloc(item);
 
         let query_path = Arc::new(QueryPath {
-            module: module.clone(),
+            module,
             impl_item,
             item,
         });
@@ -224,20 +228,19 @@ impl<'a> Query<'a> {
         &mut self,
         items: &Items,
         location: Location,
-        parent: &Arc<ModMeta>,
+        parent: ModId,
         visibility: Visibility,
         docs: &[Doc],
-    ) -> Result<Arc<ModMeta>, QueryError> {
+    ) -> Result<ModId, QueryError> {
         let item = self.insert_new_item(items, location, parent, visibility, docs)?;
 
-        let query_mod = Arc::new(ModMeta {
+        let query_mod = self.mod_pool.alloc(ModMeta {
             location,
             item: item.item,
             visibility,
             parent: Some(parent.clone()),
         });
 
-        self.inner.modules.insert(item.item, query_mod.clone());
         self.index_and_build(IndexedEntry {
             item,
             indexed: Indexed::Module,
@@ -250,17 +253,14 @@ impl<'a> Query<'a> {
         &mut self,
         source_id: SourceId,
         spanned: Span,
-    ) -> Result<Arc<ModMeta>, QueryError> {
-        let query_mod = Arc::new(ModMeta {
+    ) -> Result<ModId, QueryError> {
+        let query_mod = self.mod_pool.alloc(ModMeta {
             location: Location::new(source_id, spanned),
             item: ItemId::default(),
             visibility: Visibility::Public,
             parent: None,
         });
 
-        self.inner
-            .modules
-            .insert(ItemId::default(), query_mod.clone());
         self.insert_name(ItemId::default());
         Ok(query_mod)
     }
@@ -285,7 +285,7 @@ impl<'a> Query<'a> {
         &mut self,
         items: &Items,
         location: Location,
-        module: &Arc<ModMeta>,
+        module: ModId,
         visibility: Visibility,
         docs: &[Doc],
     ) -> Result<Arc<ItemMeta>, QueryError> {
@@ -323,7 +323,7 @@ impl<'a> Query<'a> {
         id: NonZeroId,
         item: ItemId,
         location: Location,
-        module: &Arc<ModMeta>,
+        module: ModId,
         visibility: Visibility,
         docs: &[Doc],
     ) -> Result<Arc<ItemMeta>, QueryError> {
@@ -344,7 +344,7 @@ impl<'a> Query<'a> {
             location,
             id: Id::new(id),
             item,
-            module: module.clone(),
+            module,
             visibility,
         });
 
@@ -490,7 +490,7 @@ impl<'a> Query<'a> {
         self.index(IndexedEntry {
             item: item.clone(),
             indexed: Indexed::Const(Const {
-                module: item.module.clone(),
+                module: item.module,
                 ir,
             }),
         });
@@ -777,11 +777,11 @@ impl<'a> Query<'a> {
                         local = Some(ident);
                     }
 
-                    self.convert_initial_path(context, &qp.module, qp.item, ident)?
+                    self.convert_initial_path(context, qp.module, qp.item, ident)?
                 }
                 hir::PathSegmentKind::Super => self
                     .item_pool
-                    .parent(qp.module.item)
+                    .parent(self.mod_pool.get(qp.module).item)
                     .ok_or_else(CompileError::unsupported_super(segment.span()))?,
                 hir::PathSegmentKind::SelfType => {
                     let impl_item = qp.impl_item.ok_or_else(|| {
@@ -791,7 +791,7 @@ impl<'a> Query<'a> {
                     in_self_type = true;
                     impl_item
                 }
-                hir::PathSegmentKind::SelfValue => qp.module.item,
+                hir::PathSegmentKind::SelfValue => self.mod_pool.get(qp.module).item,
                 hir::PathSegmentKind::Crate => ItemId::default(),
                 hir::PathSegmentKind::Generics(..) => {
                     return Err(CompileError::new(
@@ -858,7 +858,7 @@ impl<'a> Query<'a> {
 
         let item = self.item_pool.alloc(item);
 
-        if let Some(new) = self.import(span, &qp.module, item, Used::Used)? {
+        if let Some(new) = self.import(span, qp.module, item, Used::Used)? {
             return Ok(Named {
                 local,
                 item: new,
@@ -879,7 +879,7 @@ impl<'a> Query<'a> {
         &mut self,
         source_id: SourceId,
         span: Span,
-        module: &Arc<ModMeta>,
+        module: ModId,
         visibility: Visibility,
         at: ItemBuf,
         target: ItemBuf,
@@ -906,14 +906,14 @@ impl<'a> Query<'a> {
         let entry = ImportEntry {
             location,
             target,
-            module: module.clone(),
+            module,
         };
 
         let id = self.gen.next();
         let item = self.insert_new_item_with(id, item, location, module, visibility, &[])?;
 
         // toplevel public uses are re-exported.
-        if item.is_public() {
+        if item.is_public(self.mod_pool) {
             self.inner.queue.push_back(BuildEntry {
                 location,
                 item: item.clone(),
@@ -952,13 +952,12 @@ impl<'a> Query<'a> {
     pub(crate) fn import(
         &mut self,
         span: Span,
-        module: &Arc<ModMeta>,
+        mut module: ModId,
         item: ItemId,
         used: Used,
     ) -> Result<Option<ItemId>, QueryError> {
         let mut visited = HashSet::<ItemId>::new();
         let mut path = Vec::new();
-        let mut module = module.clone();
         let mut item = self.item_pool.get(item).to_owned();
         let mut any_matched = false;
 
@@ -981,7 +980,7 @@ impl<'a> Query<'a> {
                 cur.push(c);
                 let cur = self.item_pool.alloc(&cur);
 
-                let update = self.import_step(span, &module, cur, used, &mut path)?;
+                let update = self.import_step(span, module, cur, used, &mut path)?;
 
                 let update = match update {
                     Some(update) => update,
@@ -1018,7 +1017,7 @@ impl<'a> Query<'a> {
     fn import_step(
         &mut self,
         span: Span,
-        module: &Arc<ModMeta>,
+        module: ModId,
         item: ItemId,
         used: Used,
         path: &mut Vec<ImportStep>,
@@ -1049,7 +1048,7 @@ impl<'a> Query<'a> {
             span,
             module,
             item,
-            &entry.item.module,
+            entry.item.module,
             entry.item.location,
             entry.item.visibility,
             path,
@@ -1184,7 +1183,7 @@ impl<'a> Query<'a> {
                 let mut const_compiler = IrInterpreter {
                     budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
-                    module: &c.module,
+                    module: c.module,
                     item: query_item.item,
                     q: self.borrow(),
                 };
@@ -1366,12 +1365,12 @@ impl<'a> Query<'a> {
     fn convert_initial_path(
         &mut self,
         context: &Context,
-        module: &Arc<ModMeta>,
+        module: ModId,
         base: ItemId,
         local: &ast::Ident,
     ) -> Result<ItemId, CompileError> {
         let mut base = self.item_pool.get(base).to_owned();
-        let module_item = self.item_pool.get(module.item);
+        let module_item = self.item_pool.get(self.mod_pool.get(module).item);
         debug_assert!(base.starts_with(module_item));
 
         let local = local.resolve(resolve_context!(self))?;
@@ -1406,17 +1405,17 @@ impl<'a> Query<'a> {
     fn check_access_to(
         &mut self,
         span: Span,
-        from: &ModMeta,
+        from: ModId,
         item: ItemId,
-        module: &ModMeta,
+        module: ModId,
         location: Location,
         visibility: Visibility,
         chain: &mut Vec<ImportStep>,
     ) -> Result<(), QueryError> {
         let (common, tree) = self
             .item_pool
-            .get(from.item)
-            .ancestry(self.item_pool.get(module.item));
+            .get(self.mod_pool.get(from).item)
+            .ancestry(self.item_pool.get(self.mod_pool.get(module).item));
         let mut current_module = common.clone();
 
         // Check each module from the common ancestrly to the module.
@@ -1424,7 +1423,7 @@ impl<'a> Query<'a> {
             current_module.push(c);
             let current_module_id = self.item_pool.alloc(&current_module);
 
-            let m = self.inner.modules.get(&current_module_id).ok_or_else(|| {
+            let m = self.mod_pool.by_item(current_module_id).ok_or_else(|| {
                 QueryError::new(
                     span,
                     QueryErrorKind::MissingMod {
@@ -1441,13 +1440,15 @@ impl<'a> Query<'a> {
                         location: m.location,
                         visibility: m.visibility,
                         item: current_module,
-                        from: self.item_pool.get(from.item).to_owned(),
+                        from: self.item_pool.get(self.mod_pool.get(from).item).to_owned(),
                     },
                 ));
             }
         }
 
-        if !visibility.is_visible_inside(&common, self.item_pool.get(module.item)) {
+        if !visibility
+            .is_visible_inside(&common, self.item_pool.get(self.mod_pool.get(module).item))
+        {
             return Err(QueryError::new(
                 span,
                 QueryErrorKind::NotVisible {
@@ -1455,7 +1456,7 @@ impl<'a> Query<'a> {
                     location,
                     visibility,
                     item: self.item_pool.get(item).to_owned(),
-                    from: self.item_pool.get(from.item).to_owned(),
+                    from: self.item_pool.get(self.mod_pool.get(from).item).to_owned(),
                 },
             ));
         }
@@ -1611,7 +1612,7 @@ pub(crate) struct AsyncBlock {
 #[derive(Debug, Clone)]
 pub(crate) struct Const {
     /// The module item the constant is defined in.
-    pub(crate) module: Arc<ModMeta>,
+    pub(crate) module: ModId,
     /// The intermediate representation of the constant expression.
     pub(crate) ir: ir::Ir,
 }
@@ -1673,7 +1674,7 @@ impl IndexedEntry {
 /// Query information for a path.
 #[derive(Debug)]
 pub(crate) struct QueryPath {
-    pub(crate) module: Arc<ModMeta>,
+    pub(crate) module: ModId,
     pub(crate) impl_item: Option<ItemId>,
     pub(crate) item: ItemId,
 }
@@ -1844,11 +1845,11 @@ pub(crate) struct ImportEntry {
     /// The item being imported.
     pub(crate) target: ItemId,
     /// The module in which the imports is located.
-    pub(crate) module: Arc<ModMeta>,
+    pub(crate) module: ModId,
 }
 
 struct QueryImportStep {
-    module: Arc<ModMeta>,
+    module: ModId,
     location: Location,
     target: ItemId,
 }

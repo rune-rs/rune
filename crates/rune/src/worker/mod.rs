@@ -4,7 +4,7 @@ use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{
-    CompileVisitor, ItemId, ItemPool, Options, Prelude, SourceLoader, UnitBuilder,
+    CompileVisitor, ItemPool, ModId, ModPool, Options, Prelude, SourceLoader, UnitBuilder,
 };
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
@@ -32,7 +32,7 @@ pub(crate) struct Worker<'a> {
     /// Id generator.
     pub(crate) gen: &'a Gen,
     /// Files that have been loaded.
-    pub(crate) loaded: HashMap<ItemId, (SourceId, Span)>,
+    pub(crate) loaded: HashMap<ModId, (SourceId, Span)>,
     /// Worker queue.
     pub(crate) queue: VecDeque<Task>,
 }
@@ -45,6 +45,7 @@ impl<'a> Worker<'a> {
         storage: &'a mut Storage,
         sources: &'a mut Sources,
         item_pool: &'a mut ItemPool,
+        mod_pool: &'a mut ModPool,
         options: &'a Options,
         unit: &'a mut UnitBuilder,
         prelude: &'a Prelude,
@@ -60,7 +61,7 @@ impl<'a> Worker<'a> {
             diagnostics,
             source_loader,
             q: Query::new(
-                unit, prelude, consts, storage, sources, item_pool, visitor, gen, inner,
+                unit, prelude, consts, storage, sources, item_pool, mod_pool, visitor, gen, inner,
             ),
             gen,
             loaded: HashMap::new(),
@@ -81,7 +82,8 @@ impl<'a> Worker<'a> {
                     source_id,
                     mod_item,
                 } => {
-                    tracing::trace!("load file: {}", mod_item.item);
+                    let item = self.q.item_pool.get(self.q.mod_pool.get(mod_item).item);
+                    tracing::trace!("load file: {}", item);
 
                     let source = match self.q.sources.get(source_id) {
                         Some(source) => source,
@@ -109,7 +111,6 @@ impl<'a> Worker<'a> {
                         LoadFileKind::Module { root } => root,
                     };
 
-                    let item = self.q.item_pool.get(mod_item.item);
                     tracing::trace!("load file: {}", item);
                     let items = Items::new(item, self.gen);
 

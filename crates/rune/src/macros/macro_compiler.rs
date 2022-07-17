@@ -1,13 +1,14 @@
 //! Macro compiler.
 
+use std::sync::Arc;
+
 use crate::ast;
 use crate::ast::{Spanned, SpannedError};
 use crate::compile::{CompileError, CompileErrorKind, CompileResult, IrError, ItemMeta, Options};
 use crate::macros::MacroContext;
 use crate::parse::{Parse, ParseError, Parser};
 use crate::query::Query;
-use crate::{Context, Hash};
-use std::sync::Arc;
+use crate::Context;
 
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) item: Arc<ItemMeta>,

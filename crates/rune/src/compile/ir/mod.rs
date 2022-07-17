@@ -54,7 +54,7 @@ impl IrEval for ast::Expr {
         let mut ir_interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            module: &ctx.item.module,
+            module: ctx.item.module,
             item: ctx.item.item,
             q: ctx.c.q.borrow(),
         };

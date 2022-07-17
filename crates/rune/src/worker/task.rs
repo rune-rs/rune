@@ -1,8 +1,7 @@
-use crate::compile::ModMeta;
+use crate::compile::ModId;
 use crate::worker::{Import, WildcardImport};
 use crate::SourceId;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// A single task that can be fed to the worker.
 #[derive(Debug)]
@@ -14,7 +13,7 @@ pub(crate) enum Task {
         /// The source id of the item being loaded.
         source_id: SourceId,
         /// The item of the file to load.
-        mod_item: Arc<ModMeta>,
+        mod_item: ModId,
     },
     /// Expand a single import.
     ExpandImport(Import),

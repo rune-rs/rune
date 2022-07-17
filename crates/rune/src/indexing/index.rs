@@ -2,11 +2,9 @@ use crate::ast;
 use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::collections::HashMap;
 use crate::compile::attrs::Attributes;
-use crate::compile::ir;
-use crate::compile::{attrs, Doc};
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, ItemId, Location, ModMeta, Options,
-    SourceLoader, Visibility,
+    attrs, ir, CompileError, CompileErrorKind, CompileResult, Doc, ItemId, Location, ModId,
+    Options, SourceLoader, Visibility,
 };
 use crate::indexing::locals;
 use crate::indexing::{IndexFnKind, IndexScopes};
@@ -43,7 +41,7 @@ pub(crate) struct Indexer<'a> {
     /// The root URL that the indexed file originated from.
     pub(crate) root: Option<PathBuf>,
     /// Loaded modules.
-    pub(crate) loaded: &'a mut HashMap<ItemId, (SourceId, Span)>,
+    pub(crate) loaded: &'a mut HashMap<ModId, (SourceId, Span)>,
     /// Query engine.
     pub(crate) q: Query<'a>,
     /// Imports to process.
@@ -56,7 +54,7 @@ pub(crate) struct Indexer<'a> {
     pub(crate) items: Items<'a>,
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
-    pub(crate) mod_item: Arc<ModMeta>,
+    pub(crate) mod_item: ModId,
     /// Set if we are inside of an impl self.
     pub(crate) impl_item: Option<ItemId>,
     /// Source loader to use.
@@ -362,7 +360,7 @@ impl<'a> Indexer<'a> {
     {
         let id = self
             .q
-            .insert_path(&self.mod_item, self.impl_item, &*self.items.item());
+            .insert_path(self.mod_item, self.impl_item, &*self.items.item());
         ast.path.id.set(id);
 
         let item = self.q.get_item(ast.span(), self.items.id())?;
@@ -542,22 +540,28 @@ impl<'a> Indexer<'a> {
         let mod_item = self.q.insert_mod(
             &self.items,
             Location::new(self.source_id, item_mod.name_span()),
-            &self.mod_item,
+            self.mod_item,
             visibility,
             docs,
         )?;
 
         item_mod.id.set(self.items.id());
 
-        let source = self
-            .source_loader
-            .load(root, self.q.item_pool.get(mod_item.item), span)?;
+        let source = self.source_loader.load(
+            root,
+            self.q.item_pool.get(self.q.mod_pool.get(mod_item).item),
+            span,
+        )?;
 
-        if let Some(existing) = self.loaded.insert(mod_item.item, (self.source_id, span)) {
+        if let Some(existing) = self.loaded.insert(mod_item, (self.source_id, span)) {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::ModAlreadyLoaded {
-                    item: self.q.item_pool.get(mod_item.item).to_owned(),
+                    item: self
+                        .q
+                        .item_pool
+                        .get(self.q.mod_pool.get(mod_item).item)
+                        .to_owned(),
                     existing,
                 },
             ));
@@ -589,7 +593,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<
     for (span, doc) in docs {
         idx.q.visitor.visit_doc_comment(
             Location::new(idx.source_id, span),
-            idx.q.item_pool.get(idx.mod_item.item),
+            idx.q.item_pool.get(idx.q.mod_pool.get(idx.mod_item).item),
             &*doc.doc_string.resolve(ctx)?,
         );
     }
@@ -631,7 +635,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
     let item = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
-        &idx.mod_item,
+        idx.mod_item,
         visibility,
         &docs,
     )?;
@@ -701,7 +705,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> CompileResult<()> {
 
     // NB: it's only a public item in the sense of exporting it if it's not
     // inside of a nested item.
-    let is_public = item.is_public() && idx.nested_item.is_none();
+    let is_public = item.is_public(idx.q.mod_pool) && idx.nested_item.is_none();
 
     let is_test = match attributes.try_parse::<attrs::Test>(resolve_context!(idx.q))? {
         Some((span, _)) => {
@@ -813,7 +817,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> CompileResult<
     let item = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
-        &idx.mod_item,
+        idx.mod_item,
         Visibility::default(),
         &[],
     )?;
@@ -874,7 +878,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> CompileResult<()> {
     idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
-        &idx.mod_item,
+        idx.mod_item,
         Visibility::Inherited,
         &[],
     )?;
@@ -1236,7 +1240,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
     let enum_item = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
-        &idx.mod_item,
+        idx.mod_item,
         visibility,
         &docs,
     )?;
@@ -1285,7 +1289,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
         let item = idx.q.insert_new_item(
             &idx.items,
             Location::new(idx.source_id, span),
-            &idx.mod_item,
+            idx.mod_item,
             Visibility::Public,
             &docs,
         )?;
@@ -1348,7 +1352,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     let item = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
-        &idx.mod_item,
+        idx.mod_item,
         visibility,
         &docs,
     )?;
@@ -1421,7 +1425,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
             let mod_item = idx.q.insert_mod(
                 &idx.items,
                 Location::new(idx.source_id, name_span),
-                &idx.mod_item,
+                idx.mod_item,
                 visibility,
                 &docs,
             )?;
@@ -1456,7 +1460,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> CompileResult<
     let item = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
-        &idx.mod_item,
+        idx.mod_item,
         ast_to_visibility(&ast.visibility)?,
         &docs,
     )?;
@@ -1531,7 +1535,7 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
 fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>, is_used: IsUsed) -> CompileResult<()> {
     let id = idx
         .q
-        .insert_path(&idx.mod_item, idx.impl_item, &*idx.items.item());
+        .insert_path(idx.mod_item, idx.impl_item, &*idx.items.item());
     ast.id.set(id);
 
     path_segment(&mut ast.first, idx)?;
@@ -1611,7 +1615,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
     let item = idx.q.insert_new_item(
         &idx.items,
         Location::new(idx.source_id, span),
-        &idx.mod_item,
+        idx.mod_item,
         Visibility::Inherited,
         &[],
     )?;
