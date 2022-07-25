@@ -25,7 +25,7 @@ pub struct Hash(u64);
 
 impl Hash {
     /// The empty hash.
-    pub(crate) const EMPTY: Self = Self(0);
+    pub const EMPTY: Self = Self(0);
 
     /// Construct a new raw hash.
     pub(crate) const fn new(hash: u64) -> Self {
