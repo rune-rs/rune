@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658082074492,
+  "lastUpdate": 1658785501519,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15052,6 +15052,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 708042,
             "range": "± 52662",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "860d26501c9e0cfc8e2aea3d64681e31ae95ccac",
+          "message": "Allow constructing Function instances from closures (#420)",
+          "timestamp": "2022-07-25T21:38:37Z",
+          "tree_id": "f9e8d3462603a09ad6d5f1a8f5fd6536fb03de63",
+          "url": "https://github.com/rune-rs/rune/commit/860d26501c9e0cfc8e2aea3d64681e31ae95ccac"
+        },
+        "date": 1658785500358,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 404091999,
+            "range": "± 16198499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 219064274,
+            "range": "± 14613145",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 279588,
+            "range": "± 64263",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 901840,
+            "range": "± 207232",
             "unit": "ns/iter"
           }
         ]
