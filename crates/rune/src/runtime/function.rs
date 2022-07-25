@@ -14,6 +14,90 @@ use std::sync::Arc;
 pub struct Function(FunctionImpl<Value>);
 
 impl Function {
+    /// Construct a [Function] from a Rust closure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::Function;
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         pub fn main(function) {
+    ///             function(41)
+    ///         }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    ///
+    /// let function = Function::function(|value: u32| value + 1);
+    ///
+    /// assert_eq!(function.type_hash(), Hash::EMPTY);
+    ///
+    /// let value = vm.call(&["main"], (function,))?;
+    /// let value = u32::from_value(value)?;
+    /// assert_eq!(value, 42);
+    /// # Ok(()) }
+    /// ```
+    pub fn function<Func, Args>(f: Func) -> Self
+    where
+        Func: crate::compile::Function<Args>,
+    {
+        Self(FunctionImpl {
+            inner: Inner::FnHandler(FnHandler {
+                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+                hash: Hash::EMPTY,
+            }),
+        })
+    }
+
+    /// Construct an `async` [Function] from a Rust closure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::runtime::Function;
+    /// use std::sync::Arc;
+    ///
+    /// # #[tokio::main] async fn main() -> rune::Result<()> {
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         pub async fn main(function) {
+    ///             function(41).await
+    ///         }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    ///
+    /// let function = Function::async_function(|value: u32| async move { value + 1 });
+    ///
+    /// assert_eq!(function.type_hash(), Hash::EMPTY);
+    ///
+    /// let value = vm.async_call(&["main"], (function,)).await?;
+    /// let value = u32::from_value(value)?;
+    /// assert_eq!(value, 42);
+    /// # Ok(()) }
+    /// ```
+    pub fn async_function<Func, Args>(f: Func) -> Self
+    where
+        Func: crate::compile::AsyncFunction<Args>,
+    {
+        Self(FunctionImpl {
+            inner: Inner::FnHandler(FnHandler {
+                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+                hash: Hash::EMPTY,
+            }),
+        })
+    }
+
     /// Perform an asynchronous call over the function which also implements
     /// [Send].
     pub async fn async_send_call<A, T>(&self, args: A) -> Result<T, VmError>
@@ -76,7 +160,7 @@ impl Function {
     }
 
     /// Create a function pointer from an offset.
-    pub(crate) fn from_offset(
+    pub(crate) fn from_vm_offset(
         context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
         offset: usize,
@@ -90,7 +174,7 @@ impl Function {
     }
 
     /// Create a function pointer from an offset.
-    pub(crate) fn from_closure(
+    pub(crate) fn from_vm_closure(
         context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
         offset: usize,

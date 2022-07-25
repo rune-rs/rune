@@ -2544,7 +2544,7 @@ impl Vm {
     fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
         let function = match self.unit.function(hash) {
             Some(info) => match info {
-                UnitFn::Offset { offset, call, args } => Function::from_offset(
+                UnitFn::Offset { offset, call, args } => Function::from_vm_offset(
                     self.context.clone(),
                     self.unit.clone(),
                     offset,
@@ -2614,7 +2614,7 @@ impl Vm {
 
         let environment = self.stack.pop_sequence(count)?.into_boxed_slice();
 
-        let function = Function::from_closure(
+        let function = Function::from_vm_closure(
             self.context.clone(),
             self.unit.clone(),
             offset,

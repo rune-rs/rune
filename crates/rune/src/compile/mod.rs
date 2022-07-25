@@ -61,7 +61,9 @@ pub(crate) use self::meta::{
 pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
 mod module;
-pub use self::module::{AssocType, InstallWith, Module, Variant};
+pub use self::module::{
+    AssocType, AsyncFunction, AsyncInstFn, Function, InstFn, InstallWith, Module, Variant,
+};
 
 mod pool;
 pub(crate) use self::pool::{ItemId, ModId, ModMeta, Pool};
