@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658785501519,
+  "lastUpdate": 1658924852205,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15100,6 +15100,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 901840,
             "range": "± 207232",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e0e0778e1dd4b921f0ca8609e80145d37e169f73",
+          "message": "Bump follow-redirects from 1.14.5 to 1.14.8 in /crates/rune-wasm (#394)\n\nBumps [follow-redirects](https://github.com/follow-redirects/follow-redirects) from 1.14.5 to 1.14.8.\r\n- [Release notes](https://github.com/follow-redirects/follow-redirects/releases)\r\n- [Commits](https://github.com/follow-redirects/follow-redirects/compare/v1.14.5...v1.14.8)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: follow-redirects\r\n  dependency-type: indirect\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2022-07-27T14:19:46+02:00",
+          "tree_id": "56cb6224d91a8e083318fc0da38de5b36bbc652d",
+          "url": "https://github.com/rune-rs/rune/commit/e0e0778e1dd4b921f0ca8609e80145d37e169f73"
+        },
+        "date": 1658924851128,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 532065668,
+            "range": "± 1274099",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 280513490,
+            "range": "± 1294045",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 382552,
+            "range": "± 40290",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1127383,
+            "range": "± 12730",
             "unit": "ns/iter"
           }
         ]
