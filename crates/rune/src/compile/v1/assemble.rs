@@ -1178,7 +1178,6 @@ fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResu
 
     let asm = match hir.kind {
         hir::ExprKind::Path(p) => path(p, c, needs)?,
-        hir::ExprKind::While(hir) => expr_while(span, c, hir, needs)?,
         hir::ExprKind::For(hir) => expr_for(span, c, hir, needs)?,
         hir::ExprKind::Loop(hir) => expr_loop(span, c, hir, needs)?,
         hir::ExprKind::Let(hir) => expr_let(hir, c, needs)?,
@@ -2504,37 +2503,6 @@ fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> Comp
     Ok(Asm::top(span))
 }
 
-/// Compile a loop.
-#[instrument]
-fn expr_loop(
-    span: Span,
-    c: &mut Assembler<'_>,
-    hir: &hir::ExprLoop<'_>,
-    needs: Needs,
-) -> CompileResult<Asm> {
-    let continue_label = c.asm.new_label("loop_continue");
-    let break_label = c.asm.new_label("loop_break");
-
-    let var_count = c.scopes.total_var_count(span)?;
-
-    let _guard = c.loops.push(Loop {
-        label: hir.label.copied(),
-        continue_label,
-        continue_var_count: var_count,
-        break_label,
-        break_var_count: var_count,
-        needs,
-        drop: None,
-    });
-
-    c.asm.label(continue_label)?;
-    block(hir.body, c, Needs::None)?.apply(c)?;
-    c.asm.jump(continue_label, span);
-    c.asm.label(break_label)?;
-
-    Ok(Asm::top(span))
-}
-
 #[instrument]
 fn expr_match(
     span: Span,
@@ -3225,10 +3193,10 @@ fn expr_vec(
 
 /// Assemble a while loop.
 #[instrument]
-fn expr_while(
+fn expr_loop(
     span: Span,
     c: &mut Assembler<'_>,
-    hir: &hir::ExprWhile<'_>,
+    hir: &hir::ExprLoop<'_>,
     needs: Needs,
 ) -> CompileResult<Asm> {
     let continue_label = c.asm.new_label("while_continue");
@@ -3250,14 +3218,22 @@ fn expr_while(
 
     c.asm.label(continue_label)?;
 
-    let then_scope = condition(hir.condition, c, then_label)?;
-    let expected = c.scopes.push(then_scope);
+    let expected = if let Some(hir) = hir.condition {
+        let then_scope = condition(hir, c, then_label)?;
+        let expected = c.scopes.push(then_scope);
 
-    c.asm.jump(end_label, span);
-    c.asm.label(then_label)?;
+        c.asm.jump(end_label, span);
+        c.asm.label(then_label)?;
+        Some(expected)
+    } else {
+        None
+    };
 
     block(hir.body, c, Needs::None)?.apply(c)?;
-    c.clean_last_scope(span, expected, Needs::None)?;
+
+    if let Some(expected) = expected {
+        c.clean_last_scope(span, expected, Needs::None)?;
+    }
 
     c.asm.jump(continue_label, span);
     c.asm.label(end_label)?;

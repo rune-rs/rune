@@ -98,7 +98,6 @@ pub struct Expr<'hir> {
 pub enum ExprKind<'hir> {
     Path(&'hir Path<'hir>),
     Assign(&'hir ExprAssign<'hir>),
-    While(&'hir ExprWhile<'hir>),
     Loop(&'hir ExprLoop<'hir>),
     For(&'hir ExprFor<'hir>),
     Let(&'hir ExprLet<'hir>),
@@ -207,24 +206,14 @@ pub struct ExprAssign<'hir> {
     pub rhs: &'hir Expr<'hir>,
 }
 
-/// A `while` loop: `while [expr] { ... }`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct ExprWhile<'hir> {
-    /// A label for the while loop.
-    pub label: Option<&'hir ast::Label>,
-    /// The name of the binding.
-    pub condition: &'hir Condition<'hir>,
-    /// The body of the while loop.
-    pub body: &'hir Block<'hir>,
-}
-
 /// A `loop` expression: `loop { ... }`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExprLoop<'hir> {
     /// A label.
     pub label: Option<&'hir ast::Label>,
+    /// A condition to execute the loop, if a condition is necessary.
+    pub condition: Option<&'hir Condition<'hir>>,
     /// The body of the loop.
     pub body: &'hir Block<'hir>,
 }

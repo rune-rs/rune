@@ -126,13 +126,14 @@ pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir
         // TODO: lower all of these loop constructs to the same loop-like
         // representation. We only do different ones here right now since it's
         // easier when refactoring.
-        ast::Expr::While(ast) => hir::ExprKind::While(alloc!(ctx, ast; hir::ExprWhile {
+        ast::Expr::While(ast) => hir::ExprKind::Loop(alloc!(ctx, ast; hir::ExprLoop {
             label: option!(ctx, ast; &ast.label, |(ast, _)| label(ctx, ast)?),
-            condition: alloc!(ctx, ast; condition(ctx, &ast.condition)?),
+            condition: Some(alloc!(ctx, ast; condition(ctx, &ast.condition)?)),
             body: alloc!(ctx, ast; block(ctx, &ast.body)?),
         })),
         ast::Expr::Loop(ast) => hir::ExprKind::Loop(alloc!(ctx, ast; hir::ExprLoop {
             label: option!(ctx, ast; &ast.label, |(ast, _)| label(ctx, ast)?),
+            condition: None,
             body: alloc!(ctx, ast; block(ctx, &ast.body)?),
         })),
         ast::Expr::For(ast) => hir::ExprKind::For(alloc!(ctx, ast; hir::ExprFor {

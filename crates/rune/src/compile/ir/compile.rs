@@ -85,7 +85,6 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir
         hir::ExprKind::Call(hir) => ir::Ir::new(span, expr_call(span, c, hir)?),
         hir::ExprKind::If(hir) => ir::Ir::new(span, expr_if(span, c, hir)?),
         hir::ExprKind::Loop(hir) => ir::Ir::new(span, expr_loop(span, c, hir)?),
-        hir::ExprKind::While(hir) => ir::Ir::new(span, expr_while(span, c, hir)?),
         hir::ExprKind::Lit(hir) => lit(hir, c)?,
         hir::ExprKind::Block(hir) => expr_block(span, c, hir)?,
         hir::ExprKind::Path(hir) => path(hir, c)?,
@@ -504,23 +503,6 @@ fn expr_if(
 }
 
 #[instrument]
-fn expr_while(
-    span: Span,
-    c: &mut IrCompiler<'_>,
-    hir: &hir::ExprWhile<'_>,
-) -> Result<ir::IrLoop, IrError> {
-    Ok(ir::IrLoop {
-        span,
-        label: match hir.label {
-            Some(label) => Some(c.resolve(label)?.into()),
-            None => None,
-        },
-        condition: Some(Box::new(condition(hir.condition, c)?)),
-        body: block(hir.body, c)?,
-    })
-}
-
-#[instrument]
 fn expr_loop(
     span: Span,
     c: &mut IrCompiler<'_>,
@@ -532,7 +514,10 @@ fn expr_loop(
             Some(label) => Some(c.resolve(label)?.into()),
             None => None,
         },
-        condition: None,
+        condition: match hir.condition {
+            Some(hir) => Some(Box::new(condition(hir, c)?)),
+            None => None,
+        },
         body: block(hir.body, c)?,
     })
 }
