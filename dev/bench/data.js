@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658924852205,
+  "lastUpdate": 1659014385780,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15148,6 +15148,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 1127383,
             "range": "± 12730",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "38ec66c60e63e1648e7400a1fb3a82ca74d7f2aa",
+          "message": "Re-use lowering between ExprWhile and ExprLoop (#421)",
+          "timestamp": "2022-07-28T15:13:13+02:00",
+          "tree_id": "55e0f4379262dea2a8e6ceefd9dc167d28785259",
+          "url": "https://github.com/rune-rs/rune/commit/38ec66c60e63e1648e7400a1fb3a82ca74d7f2aa"
+        },
+        "date": 1659014384870,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 436698005,
+            "range": "± 2013288",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 235255709,
+            "range": "± 1401607",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 311818,
+            "range": "± 2332",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 920271,
+            "range": "± 3722",
             "unit": "ns/iter"
           }
         ]
