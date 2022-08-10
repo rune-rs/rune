@@ -118,8 +118,7 @@ impl State {
 
         let mut builds = Vec::new();
 
-        let sources = std::mem::take(&mut inner.sources);
-        let mut source_loader = SourceLoader::new(sources);
+        let mut source_loader = SourceLoader::new(&inner.sources);
 
         for (url, source) in &inner.sources {
             tracing::trace!("build: {}", url);
@@ -224,8 +223,6 @@ impl State {
 
             builds.push((url.clone(), sources, visitor.into_index()));
         }
-
-        inner.sources = source_loader.into_sources();
 
         for (url, build_sources, index) in builds {
             if let Some(source) = inner.sources.get_mut(&url) {
@@ -646,23 +643,18 @@ impl CompileVisitor for Visitor {
     }
 }
 
-struct SourceLoader {
-    sources: HashMap<Url, Source>,
+struct SourceLoader<'a> {
+    sources: &'a HashMap<Url, Source>,
     base: FileSourceLoader,
 }
 
-impl SourceLoader {
+impl<'a> SourceLoader<'a> {
     /// Construct a new source loader.
-    pub fn new(sources: HashMap<Url, Source>) -> Self {
+    pub fn new(sources: &'a HashMap<Url, Source>) -> Self {
         Self {
             sources,
             base: FileSourceLoader::new(),
         }
-    }
-
-    /// Convert into sources.
-    fn into_sources(self) -> HashMap<Url, Source> {
-        self.sources
     }
 
     /// Generate a collection of URl candidates.
@@ -705,7 +697,7 @@ impl SourceLoader {
     }
 }
 
-impl rune::compile::SourceLoader for SourceLoader {
+impl<'a> rune::compile::SourceLoader for SourceLoader<'a> {
     fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<rune::Source, CompileError> {
         tracing::trace!("load {} (root: {})", item, root.display());
 

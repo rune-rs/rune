@@ -55,6 +55,7 @@ impl Server {
         use lsp::request::Request as _;
 
         let method = std::mem::take(&mut incoming.method);
+        tracing::trace!("incoming message: method = `{}`", method);
 
         // If server is not initialized, reject incoming requests.
         if !self.state.is_initialized() && method != lsp::request::Initialize::METHOD {
