@@ -52,12 +52,12 @@ impl From<ParseError> for SpannedError {
 }
 
 /// Error when parsing.
-#[derive(Debug, Clone, Copy, Error)]
+#[derive(Debug, Clone, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum ParseErrorKind {
     #[error("{message}")]
-    Custom { message: &'static str },
+    Custom { message: Box<str> },
     #[error("{error}")]
     ResolveError { error: ResolveErrorKind },
     #[error("expected end of file, but got `{actual}`")]

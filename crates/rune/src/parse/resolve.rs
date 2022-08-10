@@ -36,12 +36,12 @@ impl From<ResolveError> for SpannedError {
 }
 
 /// The kind of a resolve error.
-#[derive(Debug, Clone, Copy, Error)]
+#[derive(Debug, Clone, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum ResolveErrorKind {
     #[error("{message}")]
-    Custom { message: &'static str },
+    Custom { message: Box<str> },
     #[error("expected {expected}, but got {actual}")]
     Expected {
         actual: Expectation,

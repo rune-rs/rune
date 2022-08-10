@@ -57,7 +57,7 @@ impl From<IrError> for SpannedError {
 #[non_exhaustive]
 pub enum IrErrorKind {
     #[error("{message}")]
-    Custom { message: &'static str },
+    Custom { message: Box<str> },
     /// An access error raised during compilation.
     #[error("access error: {error}")]
     AccessError {

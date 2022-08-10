@@ -274,7 +274,7 @@ impl<'a> Query<'a> {
         visibility: Visibility,
         docs: &[Doc],
     ) -> Result<ItemMeta, QueryError> {
-        let id = items.id();
+        let id = items.id().map_err(|e| QueryError::msg(location.span, e))?;
         let item = self.pool.alloc_item(&*items.item());
         self.insert_new_item_with(id, item, location, module, visibility, docs)
     }

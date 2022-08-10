@@ -9,6 +9,6 @@ pub(crate) use self::assert_send::AssertSend;
 pub(crate) use self::consts::Consts;
 pub(crate) use self::custom::Custom;
 pub(crate) use self::gen::Gen;
-pub(crate) use self::items::Items;
+pub(crate) use self::items::{Items, MissingLastId};
 pub(crate) use self::scopes::Scopes;
 pub(crate) use self::scopes::{ScopeError, ScopeErrorKind};

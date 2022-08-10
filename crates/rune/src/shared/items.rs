@@ -2,7 +2,17 @@ use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::parse::NonZeroId;
 use crate::shared::Gen;
 use std::cell::{Ref, RefCell};
+use std::fmt;
 use std::rc::Rc;
+
+#[non_exhaustive]
+pub(crate) struct MissingLastId;
+
+impl fmt::Display for MissingLastId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "missing last inserted id into the items stack")
+    }
+}
 
 #[derive(Debug)]
 struct Inner<'a> {
@@ -32,8 +42,8 @@ impl<'a> Items<'a> {
     }
 
     /// Access the last added id.
-    pub(crate) fn id(&self) -> NonZeroId {
-        *self.inner.borrow().ids.last().expect("last id not present")
+    pub(crate) fn id(&self) -> Result<NonZeroId, MissingLastId> {
+        self.inner.borrow().ids.last().copied().ok_or(MissingLastId)
     }
 
     /// Get the item for the current state of the path.

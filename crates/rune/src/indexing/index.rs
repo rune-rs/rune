@@ -16,7 +16,7 @@ use crate::query::{
 };
 use crate::runtime::format;
 use crate::runtime::Call;
-use crate::shared::Items;
+use crate::shared::{Items, MissingLastId};
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{Context, Diagnostics, SourceId};
 use rune_macros::__instrument_ast as instrument;
@@ -363,7 +363,12 @@ impl<'a> Indexer<'a> {
             .insert_path(self.mod_item, self.impl_item, &*self.items.item());
         ast.path.id.set(id);
 
-        let item = self.q.item_for((ast.span(), self.items.id()))?;
+        let id = self
+            .items
+            .id()
+            .map_err(|e| CompileError::msg(ast.span(), e))?;
+
+        let item = self.q.item_for((ast.span(), id))?;
 
         let mut compiler = MacroCompiler {
             item_meta: item,
@@ -545,7 +550,9 @@ impl<'a> Indexer<'a> {
             docs,
         )?;
 
-        item_mod.id.set(self.items.id());
+        item_mod
+            .id
+            .set(self.items.id().map_err(missing_last_id(span))?);
 
         let source = self
             .source_loader
@@ -1423,7 +1430,8 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
                 &docs,
             )?;
 
-            ast.id.set(idx.items.id());
+            ast.id
+                .set(idx.items.id().map_err(missing_last_id(name_span))?);
 
             let replaced = std::mem::replace(&mut idx.mod_item, mod_item);
             file(&mut body.file, idx)?;
@@ -1613,7 +1621,8 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> CompileRes
         &[],
     )?;
 
-    ast.id.set(idx.items.id());
+    ast.id
+        .set(idx.items.id().map_err(missing_last_id(ast.span()))?);
 
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
@@ -1758,7 +1767,8 @@ fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> CompileResul
 
 #[instrument]
 fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> CompileResult<()> {
-    ast.id.set(idx.items.id());
+    ast.id
+        .set(idx.items.id().map_err(missing_last_id(ast.span()))?);
 
     for (e, _) in &mut ast.args {
         expr(e, idx, IS_USED)?;
@@ -1856,4 +1866,9 @@ fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility, CompileError> 
         span,
         CompileErrorKind::UnsupportedVisibility,
     ))
+}
+
+/// Coerce an internal MissingLastId into an internal diagnostical message.
+fn missing_last_id(span: Span) -> impl FnOnce(MissingLastId) -> CompileError {
+    move |e| CompileError::msg(span, e)
 }

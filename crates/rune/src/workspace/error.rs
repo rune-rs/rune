@@ -33,7 +33,7 @@ pub enum WorkspaceErrorKind {
     #[error("failed to read `{path}`: {error}")]
     SourceError { path: Box<Path>, error: std::io::Error },
     #[error("custom: {message}")]
-    Custom { message: &'static str },
+    Custom { message: Box<str> },
     #[error("missing source id `{source_id}`")]
     MissingSourceId { source_id: SourceId },
     #[error("missing required field `{field}`")]
