@@ -1,13 +1,8 @@
-// adapted from https://github.com/rust-analyzer/rust-analyzer/blob/ab432b36de5d6a370dbaad923f9a475a00fbf220/editors/code/src/util.ts#L16 under the MIT license.
-// Copyright rust-analyzer developers.
-
-import * as vscode from 'vscode';
-import { promises as fs, PathLike } from 'fs';
-import { inspect } from "util";
-import { spawnSync } from "child_process";
+import * as vscode from "vscode";
 import { strict as nativeAssert } from "assert";
+import { exec, ExecOptions, spawnSync } from "child_process";
+import { inspect } from "util";
 
-/** assert wrapper that logs failures */
 export function assert(condition: boolean, explanation: string): asserts condition {
     try {
         nativeAssert(condition, explanation);
@@ -17,10 +12,9 @@ export function assert(condition: boolean, explanation: string): asserts conditi
     }
 }
 
-/** logging plumbing */
-export const log = new class {
+export const log = new (class {
     private enabled = true;
-    private readonly output = vscode.window.createOutputChannel("Rune (Client)");
+    private readonly output = vscode.window.createOutputChannel("Rune Extension");
 
     setEnabled(yes: boolean): void {
         log.enabled = yes;
@@ -28,15 +22,13 @@ export const log = new class {
 
     // Hint: the type [T, ...T[]] means a non-empty array
     debug(...msg: [unknown, ...unknown[]]): void {
-        if (!log.enabled) return;
+        if (!log.enabled) {
+            return;
+        }
         log.write("DEBUG", ...msg);
     }
 
     info(...msg: [unknown, ...unknown[]]): void {
-        log.write("INFO", ...msg);
-    }
-
-    log(...msg: [unknown, ...unknown[]]): void {
         log.write("INFO", ...msg);
     }
 
@@ -58,27 +50,49 @@ export const log = new class {
     }
 
     private stringify(val: unknown): string {
-        if (typeof val === "string") return val;
+        if (typeof val === "string") {
+            return val;
+        }
         return inspect(val, {
             colors: false,
             depth: 6, // heuristic
         });
     }
-};
+})();
 
-/** Test if the given path is a valid language server executable */
 export function isValidExecutable(path: string): boolean {
     log.debug("Checking availability of a binary at", path);
 
-    const res = spawnSync(path, ["--version"], { encoding: 'utf8' });
+    const res = spawnSync(path, ["--version"], { encoding: "utf8" });
 
-    const printOutput = res.error && (res.error as any).code !== 'ENOENT' ? log.warn : log.debug;
+    const printOutput = res.error && (res.error as any).code !== "ENOENT" ? log.warn : log.debug;
     printOutput(path, "--version:", res);
 
     return res.status === 0;
 }
 
-/** Test if the given path exists or not */
-export async function pathExists(p: PathLike): Promise<boolean> {
-    return fs.stat(p).then(() => true, () => false);
+/** Awaitable wrapper around `child_process.exec` */
+export function execute(command: string, options: ExecOptions): Promise<string> {
+    return new Promise((resolve, reject) => {
+        exec(command, options, (err, stdout, stderr) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+
+            if (stderr) {
+                reject(new Error(stderr));
+                return;
+            }
+
+            resolve(stdout.trimEnd());
+        });
+    });
+}
+
+export async function uriExists(uri: vscode.Uri) {
+    return await vscode.workspace.fs.stat(uri).then(
+        () => true,
+        () => false
+    );
 }
