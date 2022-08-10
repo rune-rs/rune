@@ -2,13 +2,16 @@ import * as vscode from "vscode";
 import * as lc from "vscode-languageclient/node";
 import * as os from "os";
 
-import { log, isValidExecutable, assert, uriExists } from "./util";
+import { log, isValidExecutable, assert, uriExists, setContextValue } from "./util";
 import { PersistentState } from "./persistent_state";
 import { createClient } from "./client";
 import { Config } from "./config";
 import { download, fetchRelease } from "./net";
 
 let client: lc.LanguageClient | undefined;
+let reload: lc.Disposable | undefined;
+
+const RUNE_PROJECT_CONTEXT_NAME = "inRuneProject";
 
 let TRACE_OUTPUT_CHANNEL: vscode.OutputChannel | null = null;
 export function traceOutputChannel() {
@@ -54,6 +57,19 @@ async function tryActivate(context: vscode.ExtensionContext): Promise<lc.Languag
 	client = createClient(serverPath, config.serverExtraEnv);
 	await client.start();
 
+	await setContextValue(RUNE_PROJECT_CONTEXT_NAME, true);
+
+	// Reloading is inspired by @DanTup maneuver: https://github.com/microsoft/vscode/issues/45774#issuecomment-373423895
+	reload = vscode.commands.registerCommand("rune-vscode.reload", async () => {
+		void vscode.window.showInformationMessage("Reloading Rune Language Server...");
+		try {
+			await doDeactivate();
+		} catch (exception) {
+			log.warn("doDeactivate failed", exception);
+		}
+		await activate(context).catch(log.error);
+	});
+
 	return client;
 }
 
@@ -62,10 +78,13 @@ export async function deactivate() {
 	TRACE_OUTPUT_CHANNEL = null;
 	OUTPUT_CHANNEL?.dispose();
 	OUTPUT_CHANNEL = null;
+	reload?.dispose();
+	reload = undefined;
 	await doDeactivate();
 }
 
 async function doDeactivate() {
+	await setContextValue(RUNE_PROJECT_CONTEXT_NAME, undefined);
 	await client?.stop();
 	client = undefined;
 }

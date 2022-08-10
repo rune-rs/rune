@@ -71,6 +71,11 @@ export function isValidExecutable(path: string): boolean {
     return res.status === 0;
 }
 
+/** Sets ['when'](https://code.visualstudio.com/docs/getstarted/keybindings#_when-clause-contexts) clause contexts */
+export function setContextValue(key: string, value: any): Thenable<void> {
+    return vscode.commands.executeCommand("setContext", key, value);
+}
+
 /** Awaitable wrapper around `child_process.exec` */
 export function execute(command: string, options: ExecOptions): Promise<string> {
     return new Promise((resolve, reject) => {
