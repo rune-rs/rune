@@ -31,11 +31,12 @@ macro_rules! error {
             ///
             /// This should be used for programming invariants of the encoder which are
             /// broken for some reason.
-            pub fn msg<S>(spanned: S, message: &'static str) -> Self
+            pub fn msg<S, M>(spanned: S, message: M) -> Self
             where
                 S: $crate::ast::Spanned,
+                M: ::core::fmt::Display,
             {
-                Self::new(spanned, $kind::Custom { message })
+                Self::new(spanned, $kind::Custom { message: message.to_string().into() })
             }
 
             /// Get the kind of the error.
@@ -72,7 +73,7 @@ macro_rules! error {
                 Self::new(
                     $crate::ast::Spanned::span(&error),
                     $kind::Custom {
-                        message: error.message(),
+                        message: error.message().into(),
                     },
                 )
             }

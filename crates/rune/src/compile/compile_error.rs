@@ -66,7 +66,7 @@ impl CompileError {
 #[non_exhaustive]
 pub enum CompileErrorKind {
     #[error("{message}")]
-    Custom { message: &'static str },
+    Custom { message: Box<str> },
     #[error("{error}")]
     IrError {
         #[source]

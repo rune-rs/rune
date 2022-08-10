@@ -24,7 +24,7 @@ error! {
 #[non_exhaustive]
 pub enum QueryErrorKind {
     #[error("{message}")]
-    Custom { message: &'static str },
+    Custom { message: Box<str> },
     #[error("{error}")]
     IrError {
         #[source]

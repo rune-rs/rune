@@ -186,7 +186,7 @@ error! {
 #[non_exhaustive]
 pub enum ScopeErrorKind {
     #[error("{message}")]
-    Custom { message: &'static str },
+    Custom { message: Box<str> },
     #[error("missing local {name}")]
     MissingLocal { name: Box<str> },
 }

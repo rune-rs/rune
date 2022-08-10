@@ -18,7 +18,7 @@ error! {
 #[non_exhaustive]
 pub enum HirErrorKind {
     #[error("{message}")]
-    Custom { message: &'static str },
+    Custom { message: Box<str> },
     #[error("writing arena slice out of bounds for index {index}")]
     ArenaWriteSliceOutOfBounds { index: usize },
     #[error("allocation error for {requested} bytes")]

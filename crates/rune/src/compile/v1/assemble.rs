@@ -3052,7 +3052,7 @@ fn expr_tuple(
             let mut it = hir.items.iter();
 
             $(
-            let $var = it.next().ok_or_else(|| CompileError::new($span, CompileErrorKind::Custom { message: "items ended unexpectedly" }))?;
+            let $var = it.next().ok_or_else(|| CompileError::msg($span, "items ended unexpectedly"))?;
             let $var = expr($var, $c, Needs::Value)?.apply_targeted($c)?;
             )*
 
