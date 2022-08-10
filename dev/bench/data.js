@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1659014385780,
+  "lastUpdate": 1660153762182,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15196,6 +15196,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 920271,
             "range": "± 3722",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@simon-woerner.de",
+            "name": "Simon Wörner",
+            "username": "SWW13"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c8e5b955e095e09d2f676cfb9a743954f1000f5c",
+          "message": "Fix language server (#423, relates #407)",
+          "timestamp": "2022-08-10T19:42:51+02:00",
+          "tree_id": "e25e18bf33f1ac66e9a18ec4c4bf7b04d551d0b2",
+          "url": "https://github.com/rune-rs/rune/commit/c8e5b955e095e09d2f676cfb9a743954f1000f5c"
+        },
+        "date": 1660153761552,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 429466441,
+            "range": "± 1852570",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 228721286,
+            "range": "± 1157147",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 306299,
+            "range": "± 1248",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 910533,
+            "range": "± 11716",
             "unit": "ns/iter"
           }
         ]
