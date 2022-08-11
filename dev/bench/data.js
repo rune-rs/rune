@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1660155058780,
+  "lastUpdate": 1660219896000,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15292,6 +15292,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 976563,
             "range": "± 14809",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@simon-woerner.de",
+            "name": "Simon Wörner",
+            "username": "SWW13"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "023ce84f50c26ac4b914911b18406c18c1a099c3",
+          "message": "Rework vscode extension (#425)\n\nCo-authored-by: John-John Tedro <udoprog@tedro.se>",
+          "timestamp": "2022-08-11T12:03:49Z",
+          "tree_id": "41f3017c5a5b8a311710d33f203313a30de90e5a",
+          "url": "https://github.com/rune-rs/rune/commit/023ce84f50c26ac4b914911b18406c18c1a099c3"
+        },
+        "date": 1660219893982,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 514360274,
+            "range": "± 8312744",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 260931661,
+            "range": "± 15349544",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 359524,
+            "range": "± 17007",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1087253,
+            "range": "± 6447",
             "unit": "ns/iter"
           }
         ]
