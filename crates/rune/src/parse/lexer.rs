@@ -174,7 +174,9 @@ impl<'a> Lexer<'a> {
 
         while let Some(c) = self.iter.peek() {
             match c {
-                'e' if !has_exponent => {
+                // NB: We need to avoid exponent check for hex number bases,
+                // since 'e' is a legal hex literal.
+                'e' if !has_exponent && !matches!(base, ast::NumberBase::Hex) => {
                     self.iter.next();
                     has_exponent = true;
                     is_fractional = true;
@@ -197,6 +199,12 @@ impl<'a> Lexer<'a> {
 
                     self.iter.next();
                     is_fractional = true;
+                }
+                // NB: Allows for underscores to pass through number literals,
+                // so that they can be used to break up large numbers in a
+                // natural manner.
+                '_' => {
+                    self.iter.next();
                 }
                 c if c.is_alphanumeric() => {
                     self.iter.next();
@@ -1017,7 +1025,6 @@ mod tests {
         ($source:expr $(, $pat:pat)* $(,)?) => {{
             let mut it = Lexer::new($source, SourceId::empty(), false);
 
-            #[allow(never_used)]
             #[allow(unused_assignments)]
             {
                 let mut n = 0;
