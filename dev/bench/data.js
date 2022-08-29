@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1661768259626,
+  "lastUpdate": 1661769603233,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15388,6 +15388,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 1071895,
             "range": "± 51417",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8bf46598e4e5b0c386e4a49b2ff50e11c0c80511",
+          "message": "Improve numerical lexing (fixes #422, relates #429) (#432)",
+          "timestamp": "2022-08-29T12:32:52+02:00",
+          "tree_id": "26751b33337154285765d0cefe03a21e59178f15",
+          "url": "https://github.com/rune-rs/rune/commit/8bf46598e4e5b0c386e4a49b2ff50e11c0c80511"
+        },
+        "date": 1661769601569,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 456799004,
+            "range": "± 2824614",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 236258247,
+            "range": "± 7340151",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 335636,
+            "range": "± 2687",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 975994,
+            "range": "± 78059",
             "unit": "ns/iter"
           }
         ]
