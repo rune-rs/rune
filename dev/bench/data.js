@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1660219896000,
+  "lastUpdate": 1661768259626,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15340,6 +15340,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 1087253,
             "range": "± 6447",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "db60f417d4b955a642efdadbb7b97f08d2dd3bfd",
+          "message": "Clear buffer between string-concat arguments (fixes #428) (#431)",
+          "timestamp": "2022-08-29T10:10:00Z",
+          "tree_id": "c17f090bfaf652e01204f9c730573519bb4b2b3a",
+          "url": "https://github.com/rune-rs/rune/commit/db60f417d4b955a642efdadbb7b97f08d2dd3bfd"
+        },
+        "date": 1661768258958,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 502976494,
+            "range": "± 18825696",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 271584530,
+            "range": "± 6983658",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 369871,
+            "range": "± 18640",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1071895,
+            "range": "± 51417",
             "unit": "ns/iter"
           }
         ]
