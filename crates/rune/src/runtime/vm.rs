@@ -2243,6 +2243,8 @@ impl Vm {
         let mut buf = String::with_capacity(16);
 
         for value in values {
+            buf.clear();
+
             if let Err(fmt::Error) = value.string_display_with(&mut out, &mut buf, &mut *self)? {
                 return Err(VmError::from(VmErrorKind::FormatError));
             }
