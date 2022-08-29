@@ -17,49 +17,6 @@ fn test_literals() {
     );
     assert_eq!(out, b"Hello World"[..]);
 
-    let out: i64 = rune!(
-        pub fn main() {
-            0xff
-        }
-    );
-    assert_eq!(out, 0xff);
-    let out: i64 = rune!(
-        pub fn main() {
-            -0xff
-        }
-    );
-    assert_eq!(out, -0xff);
-    let out: i64 = rune!(
-        pub fn main() {
-            -42
-        }
-    );
-    assert_eq!(out, -42);
-    let out: i64 = rune!(
-        pub fn main() {
-            0b10010001
-        }
-    );
-    assert_eq!(out, 0b10010001);
-    let out: i64 = rune!(
-        pub fn main() {
-            -0b10010001
-        }
-    );
-    assert_eq!(out, -0b10010001);
-    let out: i64 = rune!(
-        pub fn main() {
-            0o77
-        }
-    );
-    assert_eq!(out, 0o77);
-    let out: i64 = rune!(
-        pub fn main() {
-            -0o77
-        }
-    );
-    assert_eq!(out, -0o77);
-
     let out: u8 = rune!(
         pub fn main() {
             b'0'
@@ -91,31 +48,6 @@ fn test_literals() {
         }
     );
     assert_eq!(out, '💯');
-
-    let out: f64 = rune!(
-        pub fn main() {
-            42.42
-        }
-    );
-    assert_eq!(out, 42.42);
-    let out: f64 = rune!(
-        pub fn main() {
-            -42.42
-        }
-    );
-    assert_eq!(out, -42.42);
-    let out: f64 = rune!(
-        pub fn main() {
-            1.9e10
-        }
-    );
-    assert_eq!(out, 1.9e10);
-    let out: f64 = rune!(
-        pub fn main() {
-            1e10
-        }
-    );
-    assert_eq!(out, 1e10);
 }
 
 #[test]
@@ -174,4 +106,61 @@ fn test_byte_string_literals() {
         }
     );
     assert_eq!(out, b"a b"[..]);
+}
+
+#[test]
+fn test_number_literals() {
+    macro_rules! test_case {
+        ($lit:expr) => {
+            test_case!($lit, i64);
+        };
+
+        ($lit:expr, $ty:ty) => {
+
+            let out: $ty = rune!(pub fn main() { $lit });
+            assert_eq!(out, $lit);
+        };
+    }
+
+    test_case!(0xff);
+    test_case!(-0xff);
+
+    test_case!(0xf_f);
+    test_case!(-0xf_f);
+
+    test_case!(42);
+    test_case!(-42);
+
+    test_case!(4_2);
+    test_case!(-4_2);
+
+    test_case!(0b1001_0001);
+    test_case!(-0b1001_0001);
+
+    test_case!(0b10010001);
+    test_case!(-0b10010001);
+
+    test_case!(0o77);
+    test_case!(0o7_7);
+
+    test_case!(-0o77);
+    test_case!(-0o7_7);
+
+    test_case!(42.42, f32);
+    test_case!(-42.42, f32);
+
+    // TODO: we need a different float parsing routine to support _ in floats.
+    // test_case!(42_.42, f32);
+    // test_case!(4_2.42, f32);
+    // test_case!(42.4_2, f32);
+    // test_case!(4_2.4_2, f32);
+
+    test_case!(1.9e10, f64);
+    test_case!(-1.9e10, f64);
+
+    // TODO: we need a different float parsing routine to support _ in floats.
+    // test_case!(1_.9e10, f64);
+    // test_case!(1.9e1_0, f64);
+
+    test_case!(1e10, f64);
 }
