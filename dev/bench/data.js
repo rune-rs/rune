@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1661769603233,
+  "lastUpdate": 1666087460491,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15436,6 +15436,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 975994,
             "range": "± 78059",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c2aa9786b7d9b6a2d9ebe7aca6b232bab29af2f9",
+          "message": "Introduce Vm::lookup_function (#439)",
+          "timestamp": "2022-10-18T11:57:13+02:00",
+          "tree_id": "8b3ad91af6a17c4d51ad0a1cb0308d8b64b15f9f",
+          "url": "https://github.com/rune-rs/rune/commit/c2aa9786b7d9b6a2d9ebe7aca6b232bab29af2f9"
+        },
+        "date": 1666087459817,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 456754089,
+            "range": "± 1568568",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 234710303,
+            "range": "± 1864406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 346805,
+            "range": "± 10955",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1065189,
+            "range": "± 17678",
             "unit": "ns/iter"
           }
         ]
