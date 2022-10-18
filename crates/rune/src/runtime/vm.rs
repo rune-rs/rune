@@ -179,6 +179,61 @@ impl Vm {
         Ok(())
     }
 
+    /// Look up a function in the virtual machine by its name.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Context, Vm, Unit, FromValue};
+    /// use rune::compile::ItemBuf;
+    ///
+    /// use std::sync::Arc;
+    ///
+    /// # fn main() -> rune::Result<()> {
+    /// let context = Context::with_default_modules()?;
+    /// let context = Arc::new(context.runtime());
+    ///
+    /// let mut sources = rune::sources! {
+    ///     entry => {
+    ///         pub fn max(a, b) {
+    ///             if a > b {
+    ///                 a
+    ///             } else {
+    ///                 b
+    ///             }
+    ///         }
+    ///     }
+    /// };
+    ///
+    /// let unit = rune::prepare(&mut sources).build()?;
+    /// let unit = Arc::new(unit);
+    ///
+    /// let vm = Vm::new(context, unit);
+    ///
+    /// // Looking up an item from the source.
+    /// let dynamic_max = vm.lookup_function(&["max"])?;
+    ///
+    /// let value = i64::from_value(dynamic_max.call((10, 20))?)?;
+    /// assert_eq!(value, 20);
+    ///
+    /// // Building an item buffer to lookup an `::std` item.
+    /// let mut item = ItemBuf::with_crate("std");
+    /// item.push("int");
+    /// item.push("max");
+    ///
+    /// let max = vm.lookup_function(&item)?;
+    ///
+    /// let value = i64::from_value(max.call((10, 20))?)?;
+    /// assert_eq!(value, 20);
+    /// # Ok(()) }
+    /// ```
+    pub fn lookup_function<N>(&self, name: N) -> Result<Function, VmError>
+    where
+        N: IntoTypeHash,
+    {
+        self.lookup_function_by_hash(name.into_type_hash())
+    }
+
     /// Run the given vm to completion.
     ///
     /// If any async instructions are encountered, this will error.
@@ -2544,7 +2599,13 @@ impl Vm {
     /// Load a function as a value onto the stack.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
-        let function = match self.unit.function(hash) {
+        let function = self.lookup_function_by_hash(hash)?;
+        self.stack.push(Value::Function(Shared::new(function)));
+        Ok(())
+    }
+
+    fn lookup_function_by_hash(&self, hash: Hash) -> Result<Function, VmError> {
+        Ok(match self.unit.function(hash) {
             Some(info) => match info {
                 UnitFn::Offset { offset, call, args } => Function::from_vm_offset(
                     self.context.clone(),
@@ -2595,10 +2656,7 @@ impl Vm {
 
                 Function::from_handler(handler.clone(), hash)
             }
-        };
-
-        self.stack.push(Value::Function(Shared::new(function)));
-        Ok(())
+        })
     }
 
     /// Construct a closure on the top of the stack.
