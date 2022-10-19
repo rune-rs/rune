@@ -82,14 +82,14 @@ impl Protocol {
     };
 
     /// The function to access a field by name when Protocol::GET fails.
-    pub const GET_FALLBACK: Protocol = Protocol {
-        name: "get_fallback",
+    pub const FALLBACK_GET: Protocol = Protocol {
+        name: "fallback_get",
         hash: Hash::new(0x6dda58b140dfeaf9),
     };
 
     /// The function to set a field by name when Protocol::SET fails.
-    pub const SET_FALLBACK: Protocol = Protocol {
-        name: "set_fallback",
+    pub const FALLBACK_SET: Protocol = Protocol {
+        name: "fallback_set",
         hash: Hash::new(0xbe28c02896ca0b64),
     };
 
