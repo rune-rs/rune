@@ -931,7 +931,7 @@ impl Vm {
                     .call_field_fn(Protocol::GET, target, index.hash(), ())?
                     {
                         CallResult::Ok(()) => return Ok(CallResult::Ok(self.stack.pop()?)),
-                        CallResult::Unsupported(target) => match self.call_instance_fn(target, Protocol::INDEX_GET, (index,))? {
+                        CallResult::Unsupported(target) => match self.call_instance_fn(target, Protocol::GET_FALLBACK, (index,))? {
                             CallResult::Ok(()) => CallResult::Ok(self.stack.pop()?),
                             CallResult::Unsupported(target) => CallResult::Unsupported(target),
                         },
@@ -996,7 +996,7 @@ impl Vm {
                             CallResult::Ok(())
                         }
                         CallResult::Unsupported(target) => {
-                            match self.call_instance_fn(target, Protocol::INDEX_SET, (index, value))? {
+                            match self.call_instance_fn(target, Protocol::SET_FALLBACK, (index, value))? {
                                 CallResult::Ok(()) => {
                                     self.stack.pop()?;
                                     CallResult::Ok(())
