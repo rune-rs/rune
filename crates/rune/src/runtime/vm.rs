@@ -533,28 +533,6 @@ impl Vm {
         Ok(CallResult::Unsupported(target))
     }
 
-    /// Helper to call a field function which has been prechecked to exist.
-    #[inline(always)]
-    fn call_field_fn_prechecked<A>(
-        &mut self,
-        target: Value,
-        handler: &Arc<dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync>,
-        args: A,
-    ) -> Result<CallResult<()>, VmError>
-    where
-        A: Args,
-    {
-        let count = args.count();
-        let full_count = count + 1;
-
-        self.stack.push(target);
-        args.into_stack(&mut self.stack)?;
-
-        handler(&mut self.stack, full_count)?;
-
-        Ok(CallResult::Ok(()))
-    }
-
     /// Helper to call an index function.
     #[inline(always)]
     fn call_index_fn<A>(
@@ -948,28 +926,16 @@ impl Vm {
                 }
             }
             target => {
-                let hash = index.hash();
-                let type_hash =
-                    Hash::field_fn(Protocol::GET, target.type_hash()?, hash.into_type_hash());
-                return Ok(if let Some(handler) = self.context.function(type_hash) {
-                    match unsafe {
-                        //Unsafe block required to avoid cloning index if it isn't needed.
-                        (self as *const Self as *mut Self)
-                            .as_mut()
-                            .unwrap_unchecked()
-                    }
-                    .call_field_fn_prechecked(target, handler, ())?
+                let index = index.clone();
+                return Ok(match self
+                    .call_field_fn(Protocol::GET, target, index.hash(), ())?
                     {
                         CallResult::Ok(()) => return Ok(CallResult::Ok(self.stack.pop()?)),
-                        CallResult::Unsupported(target) => CallResult::Unsupported(target),
-                    }
-                } else {
-                    let index = index.clone();
-                    match self.call_instance_fn(target, Protocol::INDEX_GET, (index,))? {
-                        CallResult::Ok(()) => CallResult::Ok(self.stack.pop()?),
-                        CallResult::Unsupported(target) => CallResult::Unsupported(target),
-                    }
-                });
+                        CallResult::Unsupported(target) => match self.call_instance_fn(target, Protocol::INDEX_GET, (index,))? {
+                            CallResult::Ok(()) => CallResult::Ok(self.stack.pop()?),
+                            CallResult::Unsupported(target) => CallResult::Unsupported(target),
+                        },
+                    });
             }
         }
 
@@ -1021,34 +987,24 @@ impl Vm {
                 }));
             }
             target => {
-                let hash = field.hash();
-                let type_hash =
-                    Hash::field_fn(Protocol::SET, target.type_hash()?, hash.into_type_hash());
-                return Ok(if let Some(handler) = self.context.function(type_hash) {
-                    match unsafe {
-                        //Unsafe block required to avoid cloning index if it isn't needed.
-                        (self as *const Self as *mut Self)
-                            .as_mut()
-                            .unwrap_unchecked()
-                    }
-                    .call_field_fn_prechecked(target, handler, (value,))?
+                let index = field.clone();
+                return Ok(match self
+                    .call_field_fn(Protocol::SET, target, index.hash(), (value.clone(),))?
                     {
-                        CallResult::Ok(()) => {
-                            self.stack.pop()?;
-                            return Ok(CallResult::Ok(()));
-                        }
-                        CallResult::Unsupported(target) => CallResult::Unsupported(target),
-                    }
-                } else {
-                    let index = field.clone();
-                    match self.call_instance_fn(target, Protocol::INDEX_SET, (index, value))? {
                         CallResult::Ok(()) => {
                             self.stack.pop()?;
                             CallResult::Ok(())
                         }
-                        CallResult::Unsupported(target) => CallResult::Unsupported(target),
-                    }
-                });
+                        CallResult::Unsupported(target) => {
+                            match self.call_instance_fn(target, Protocol::INDEX_SET, (index, value))? {
+                                CallResult::Ok(()) => {
+                                    self.stack.pop()?;
+                                    CallResult::Ok(())
+                                }
+                                CallResult::Unsupported(target) => CallResult::Unsupported(target),
+                            }
+                        }
+                    });
             }
         })
     }
