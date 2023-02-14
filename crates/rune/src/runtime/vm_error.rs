@@ -334,6 +334,8 @@ pub enum VmErrorKind {
         expected: ExecutionState,
         actual: ExecutionState,
     },
+    #[error("future already completed")]
+    FutureCompleted,
 }
 
 impl VmErrorKind {

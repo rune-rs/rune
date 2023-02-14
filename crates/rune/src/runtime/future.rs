@@ -1,6 +1,7 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value, VmError,
+    VmErrorKind,
 };
 use pin_project::pin_project;
 use std::fmt;
@@ -46,14 +47,20 @@ impl future::Future for Future {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Value, VmError>> {
         let this = self.get_mut();
-        let mut future = this.future.take().expect("futures can only be polled once");
+
+        let future = match &mut this.future {
+            Some(future) => future,
+            None => {
+                return Poll::Ready(Err(VmError::from(VmErrorKind::FutureCompleted)));
+            }
+        };
 
         match future.as_mut().poll(cx) {
-            Poll::Ready(result) => Poll::Ready(result),
-            Poll::Pending => {
-                this.future = Some(future);
-                Poll::Pending
+            Poll::Ready(result) => {
+                this.future = None;
+                Poll::Ready(result)
             }
+            Poll::Pending => Poll::Pending,
         }
     }
 }
@@ -62,7 +69,7 @@ impl fmt::Debug for Future {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Future")
             .field("is_completed", &self.future.is_none())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
