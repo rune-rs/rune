@@ -1,6 +1,6 @@
 [package]
 name = "rune-languageserver"
-version = "0.12.0"
+version = "0.12.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2021"
@@ -29,8 +29,8 @@ tracing-appender = "0.2.2"
 tracing-subscriber = "0.3.15"
 ropey = "1.5.0"
 
-rune = {version = "0.12.0", path = "../rune"}
-rune-modules = {version = "0.12.0", path = "../rune-modules", features = ["full", "experiments"]}
+rune = {version = "0.12.1", path = "../rune"}
+rune-modules = {version = "0.12.1", path = "../rune-modules", features = ["full", "experiments"]}
 
 [build-dependencies]
 anyhow = "1.0.60"
