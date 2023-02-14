@@ -36,6 +36,7 @@ pub trait IntoComponent: Sized {
 }
 
 impl IntoComponent for ComponentRef<'_> {
+    #[inline]
     fn as_component_ref(&self) -> ComponentRef<'_> {
         *self
     }
@@ -47,30 +48,36 @@ impl IntoComponent for ComponentRef<'_> {
 }
 
 impl IntoComponent for &ComponentRef<'_> {
+    #[inline]
     fn as_component_ref(&self) -> ComponentRef<'_> {
         **self
     }
 
+    #[inline]
     fn into_component(self) -> Component {
         into_component(*self)
     }
 }
 
 impl IntoComponent for Component {
+    #[inline]
     fn as_component_ref(&self) -> ComponentRef<'_> {
         Component::as_component_ref(self)
     }
 
+    #[inline]
     fn into_component(self) -> Component {
         self
     }
 }
 
 impl IntoComponent for &Component {
+    #[inline]
     fn as_component_ref(&self) -> ComponentRef<'_> {
-        Component::as_component_ref(*self)
+        Component::as_component_ref(self)
     }
 
+    #[inline]
     fn into_component(self) -> Component {
         self.clone()
     }

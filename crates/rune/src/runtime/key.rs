@@ -70,7 +70,7 @@ impl Key {
             }
             Value::Tuple(tuple) => {
                 let tuple = tuple.borrow_ref()?;
-                Self::Tuple(tuple_from_value(&*tuple)?)
+                Self::Tuple(tuple_from_value(&tuple)?)
             }
             Value::Variant(variant) => {
                 let variant = variant.borrow_ref()?;

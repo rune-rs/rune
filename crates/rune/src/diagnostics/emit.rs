@@ -362,10 +362,10 @@ pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
 }
 
 /// Helper to emit diagnostics for a warning.
-fn warning_diagnostics_emit<'a, O>(
+fn warning_diagnostics_emit<O>(
     this: &WarningDiagnostic,
     out: &mut O,
-    sources: &'a Sources,
+    sources: &Sources,
     config: &codespan_reporting::term::Config,
 ) -> Result<(), EmitError>
 where
@@ -607,7 +607,7 @@ where
 
                 labels.push(
                     d::Label::secondary(this.source_id(), error_span.range())
-                        .with_message(&format!("missing {}: {}", pl, fields)),
+                        .with_message(format!("missing {}: {}", pl, fields)),
                 );
 
                 notes.push("You can also make the pattern non-exhaustive by adding `..`".to_string());

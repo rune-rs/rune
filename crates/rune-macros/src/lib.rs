@@ -272,6 +272,6 @@ pub fn __instrument_ast(
 }
 
 fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
-    let compile_errors = errors.iter().map(syn::Error::to_compile_error);
+    let compile_errors = errors.into_iter().map(syn::Error::into_compile_error);
     ::quote::quote!(#(#compile_errors)*)
 }

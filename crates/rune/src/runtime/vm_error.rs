@@ -57,7 +57,7 @@ impl VmError {
 
     /// Access the underlying error kind.
     pub fn kind(&self) -> &VmErrorKind {
-        &*self.kind
+        &self.kind
     }
 
     /// Access the underlying error kind while consuming the error.

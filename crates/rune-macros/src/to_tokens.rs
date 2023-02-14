@@ -127,7 +127,7 @@ impl Expander {
         match fields {
             syn::Fields::Named(named) => self.expand_variant_named(variant, named),
             syn::Fields::Unnamed(unnamed) => self.expand_variant_unnamed(variant, unnamed),
-            syn::Fields::Unit => self.expand_variant_unit(variant),
+            syn::Fields::Unit => Some(self.expand_variant_unit(variant)),
         }
     }
 
@@ -232,12 +232,12 @@ impl Expander {
     }
 
     /// Expand unit variant.
-    fn expand_variant_unit(&mut self, variant: &syn::Variant) -> Option<TokenStream> {
+    fn expand_variant_unit(&mut self, variant: &syn::Variant) -> TokenStream {
         let ident = &variant.ident;
 
-        Some(quote_spanned! { variant.span() =>
+        quote_spanned! { variant.span() =>
             Self::#ident => ()
-        })
+        }
     }
 }
 
@@ -249,7 +249,7 @@ fn generic_bounds(generics: &syn::Generics, to_tokens: &TokenStream) -> Option<T
     let mut bound = Vec::new();
 
     for param in &generics.params {
-        bound.push(quote_spanned!(param.span() => #param: #to_tokens))
+        bound.push(quote_spanned!(param.span() => #param: #to_tokens));
     }
 
     Some(quote_spanned! { generics.span() => where

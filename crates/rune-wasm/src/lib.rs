@@ -348,7 +348,7 @@ async fn inner_compile(
 
     let mut vm = rune::Vm::new(Arc::new(context.runtime()), unit);
 
-    let mut execution = match vm.execute(&["main"], ()) {
+    let mut execution = match vm.execute(["main"], ()) {
         Ok(execution) => execution,
         Err(error) => {
             error

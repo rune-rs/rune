@@ -192,7 +192,7 @@ impl IrInterpreter<'_> {
         let guard = self.scopes.isolate();
 
         for (name, value) in const_fn.ir_fn.args.iter().zip(args) {
-            self.scopes.decl(&**name, value, spanned)?;
+            self.scopes.decl(name, value, spanned)?;
         }
 
         let value = self.eval_value(&const_fn.ir_fn.ir, used)?;

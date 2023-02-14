@@ -360,7 +360,7 @@ impl<'a> Indexer<'a> {
     {
         let id = self
             .q
-            .insert_path(self.mod_item, self.impl_item, &*self.items.item());
+            .insert_path(self.mod_item, self.impl_item, &self.items.item());
         ast.path.id.set(id);
 
         let id = self
@@ -595,7 +595,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<
         idx.q.visitor.visit_doc_comment(
             Location::new(idx.source_id, span),
             idx.q.pool.module_item(idx.mod_item),
-            &*doc.doc_string.resolve(ctx)?,
+            &doc.doc_string.resolve(ctx)?,
         );
     }
 
@@ -1342,7 +1342,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
             ));
         } else if !field.visibility.is_inherited() {
             return Err(CompileError::msg(
-                &field,
+                field,
                 "field visibility levels are not supported",
             ));
         }
@@ -1536,7 +1536,7 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> CompileResult<()> {
 fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>, is_used: IsUsed) -> CompileResult<()> {
     let id = idx
         .q
-        .insert_path(idx.mod_item, idx.impl_item, &*idx.items.item());
+        .insert_path(idx.mod_item, idx.impl_item, &idx.items.item());
     ast.id.set(id);
 
     path_segment(&mut ast.first, idx)?;

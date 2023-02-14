@@ -11,13 +11,13 @@ fn main() -> anyhow::Result<()> {
         rune_version
     } else {
         let output = Command::new("git")
-            .args(&["rev-parse", "--short", "HEAD"])
+            .args(["rev-parse", "--short", "HEAD"])
             .output()?;
 
         let rev = std::str::from_utf8(&output.stdout)?.trim();
         format!("git-{}", rev)
     };
 
-    fs::write(out_dir.join("version.txt"), &version).context("writing version.txt")?;
+    fs::write(out_dir.join("version.txt"), version).context("writing version.txt")?;
     Ok(())
 }

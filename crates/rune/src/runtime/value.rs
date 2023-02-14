@@ -968,22 +968,22 @@ impl Value {
             (Self::Vec(a), Self::Vec(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                return Vec::value_ptr_eq(vm, &*a, &*b);
+                return Vec::value_ptr_eq(vm, &a, &b);
             }
             (Self::Tuple(a), Self::Tuple(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                return Tuple::value_ptr_eq(vm, &*a, &*b);
+                return Tuple::value_ptr_eq(vm, &a, &b);
             }
             (Self::Object(a), Self::Object(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                return Object::value_ptr_eq(vm, &*a, &*b);
+                return Object::value_ptr_eq(vm, &a, &b);
             }
             (Self::Range(a), Self::Range(b)) => {
                 let a = a.borrow_ref()?;
                 let b = b.borrow_ref()?;
-                return Range::value_ptr_eq(vm, &*a, &*b);
+                return Range::value_ptr_eq(vm, &a, &b);
             }
             (Self::UnitStruct(a), Self::UnitStruct(b)) => {
                 if a.borrow_ref()?.rtti.hash == b.borrow_ref()?.rtti.hash {
@@ -1016,7 +1016,7 @@ impl Value {
                 let b = b.borrow_ref()?;
 
                 if a.rtti().enum_hash == b.rtti().enum_hash {
-                    return Variant::value_ptr_eq(vm, &*a, &*b);
+                    return Variant::value_ptr_eq(vm, &a, &b);
                 }
             }
             (Self::String(a), Self::String(b)) => {
@@ -1298,11 +1298,11 @@ impl ser::Serialize for Value {
             Value::StaticString(string) => serializer.serialize_str(string.as_ref()),
             Value::String(string) => {
                 let string = string.borrow_ref().map_err(ser::Error::custom)?;
-                serializer.serialize_str(&*string)
+                serializer.serialize_str(&string)
             }
             Value::Bytes(bytes) => {
                 let bytes = bytes.borrow_ref().map_err(ser::Error::custom)?;
-                serializer.serialize_bytes(&*bytes)
+                serializer.serialize_bytes(&bytes)
             }
             Value::Vec(vec) => {
                 let vec = vec.borrow_ref().map_err(ser::Error::custom)?;
