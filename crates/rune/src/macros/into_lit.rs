@@ -69,12 +69,14 @@ impl IntoLit for &[u8] {
 }
 
 impl<const N: usize> IntoLit for [u8; N] {
+    #[inline]
     fn into_lit(self, ctx: &mut MacroContext<'_>) -> ast::Lit {
-        <&[u8]>::into_lit(&self, ctx)
+        <&[u8]>::into_lit(&self[..], ctx)
     }
 }
 
 impl<const N: usize> IntoLit for &[u8; N] {
+    #[inline]
     fn into_lit(self, ctx: &mut MacroContext<'_>) -> ast::Lit {
         <&[u8]>::into_lit(self, ctx)
     }

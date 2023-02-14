@@ -195,7 +195,7 @@ impl FormatSpec {
                 self.format_fill(out, buf, self.align, self.fill, None);
             }
             Value::String(s) => {
-                buf.push_str(&*s.borrow_ref()?);
+                buf.push_str(&s.borrow_ref()?);
                 self.format_fill(out, buf, self.align, self.fill, None);
             }
             Value::StaticString(s) => {

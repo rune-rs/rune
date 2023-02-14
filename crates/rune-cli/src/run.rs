@@ -171,7 +171,7 @@ pub(crate) async fn run(
     let last = Instant::now();
 
     let mut vm = Vm::new(runtime, unit);
-    let mut execution: VmExecution<_> = vm.execute(&["main"], ())?;
+    let mut execution: VmExecution<_> = vm.execute(["main"], ())?;
     let result = if args.trace {
         match do_trace(
             io,

@@ -359,7 +359,7 @@ fn eval_ir_template(
                     }
                     IrValue::String(s) => {
                         let s = s.borrow_ref().map_err(IrError::access(ir))?;
-                        buf.push_str(&*s);
+                        buf.push_str(&s);
                     }
                     _ => {
                         return Err(IrEvalOutcome::not_const(ir));

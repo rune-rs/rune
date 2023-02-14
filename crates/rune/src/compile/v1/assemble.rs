@@ -950,7 +950,7 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileRe
 
     c.contexts
         .pop()
-        .ok_or_else(|| CompileError::msg(&span, "missing parent context"))?;
+        .ok_or_else(|| CompileError::msg(span, "missing parent context"))?;
 
     Ok(Asm::top(span))
 }
@@ -1650,7 +1650,7 @@ fn expr_break(
         .scopes
         .total_var_count(span)?
         .checked_sub(last_loop.break_var_count)
-        .ok_or_else(|| CompileError::msg(&span, "var count should be larger"))?;
+        .ok_or_else(|| CompileError::msg(span, "var count should be larger"))?;
 
     if last_loop.needs.value() {
         if has_value {
@@ -2097,7 +2097,7 @@ fn expr_continue(
         .scopes
         .total_var_count(span)?
         .checked_sub(last_loop.continue_var_count)
-        .ok_or_else(|| CompileError::msg(&span, "var count should be larger"))?;
+        .ok_or_else(|| CompileError::msg(span, "var count should be larger"))?;
 
     c.locals_pop(vars, span);
 
@@ -2998,7 +2998,7 @@ fn expr_select(
 
     c.contexts
         .pop()
-        .ok_or_else(|| CompileError::msg(&span, "missing parent context"))?;
+        .ok_or_else(|| CompileError::msg(span, "missing parent context"))?;
 
     Ok(Asm::top(span))
 }

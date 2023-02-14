@@ -134,10 +134,10 @@ impl Expander {
         self.build_inner(named, values)
     }
 
-    fn build_inner<'a>(
+    fn build_inner(
         &mut self,
         tokens: &(impl quote::ToTokens + syn::spanned::Spanned),
-        values: Vec<(Option<TokenStream>, &'a syn::Field)>,
+        values: Vec<(Option<TokenStream>, &syn::Field)>,
     ) -> Option<TokenStream> {
         let (optional, begin) =
             self.ctx

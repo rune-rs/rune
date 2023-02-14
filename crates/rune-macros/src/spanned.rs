@@ -141,10 +141,10 @@ impl Expander {
         self.build_spanned(named, values)
     }
 
-    fn build_spanned<'a>(
+    fn build_spanned(
         &mut self,
         tokens: &(impl quote::ToTokens + syn::spanned::Spanned),
-        values: Vec<(Option<TokenStream>, &'a syn::Field)>,
+        values: Vec<(Option<TokenStream>, &syn::Field)>,
     ) -> Option<TokenStream> {
         let (optional, begin) =
             self.ctx

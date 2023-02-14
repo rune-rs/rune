@@ -49,6 +49,7 @@
 #![allow(clippy::unused_unit)]
 
 use anyhow::Context as _;
+use gloo_utils::format::JsValueSerdeExt;
 use rune::ast::Spanned;
 use rune::compile::LinkerError;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
@@ -194,7 +195,7 @@ async fn inner_compile(
 ) -> Result<WasmCompileResult, anyhow::Error> {
     let instructions = None;
 
-    let config = config.into_serde::<Config>()?;
+    let config: Config = JsValueSerdeExt::into_serde(&config)?;
     let budget = config.budget.unwrap_or(1_000_000);
 
     let source = rune::Source::new("entry", input);
@@ -348,7 +349,7 @@ async fn inner_compile(
 
     let mut vm = rune::Vm::new(Arc::new(context.runtime()), unit);
 
-    let mut execution = match vm.execute(&["main"], ()) {
+    let mut execution = match vm.execute(["main"], ()) {
         Ok(execution) => execution,
         Err(error) => {
             error
@@ -438,5 +439,5 @@ pub async fn compile(input: String, config: JsValue) -> JsValue {
         Err(error) => WasmCompileResult::from_error(&io, error, None, Vec::new(), None),
     };
 
-    JsValue::from_serde(&result).unwrap()
+    <JsValue as JsValueSerdeExt>::from_serde(&result).unwrap()
 }

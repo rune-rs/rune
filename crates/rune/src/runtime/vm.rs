@@ -1003,8 +1003,8 @@ impl Vm {
         use std::slice;
 
         Ok(match (ty, value) {
-            (TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&*tuple.borrow_ref()?)),
-            (TypeCheck::Vec, Value::Vec(vec)) => Some(f(&*vec.borrow_ref()?)),
+            (TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&tuple.borrow_ref()?)),
+            (TypeCheck::Vec, Value::Vec(vec)) => Some(f(&vec.borrow_ref()?)),
             (TypeCheck::Result(v), Value::Result(result)) => {
                 let result = result.borrow_ref()?;
 
@@ -2545,7 +2545,7 @@ impl Vm {
                     .ok_or(VmErrorKind::MissingStaticObjectKeys { slot })?;
 
                 let object = object.borrow_ref()?;
-                test(&*object, keys, exact)
+                test(&object, keys, exact)
             }
             _ => false,
         };

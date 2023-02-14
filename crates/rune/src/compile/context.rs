@@ -28,10 +28,13 @@ pub enum ContextError {
     #[error("`{name}` types are already present")]
     InternalAlreadyPresent { name: &'static str },
     #[error("conflicting meta {existing} while trying to insert {current}")]
-    ConflictingMeta { current: Meta, existing: Meta },
+    ConflictingMeta {
+        current: Box<Meta>,
+        existing: Box<Meta>,
+    },
     #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
-        signature: ContextSignature,
+        signature: Box<ContextSignature>,
         hash: Hash,
     },
     #[error("function with name `{name}` already exists")]
@@ -391,8 +394,8 @@ impl Context {
         match self.meta.entry(meta.item.clone()) {
             hash_map::Entry::Occupied(e) => {
                 return Err(ContextError::ConflictingMeta {
-                    existing: e.get().info(),
-                    current: meta.info(),
+                    existing: Box::new(e.get().info()),
+                    current: Box::new(meta.info()),
                 });
             }
             hash_map::Entry::Vacant(e) => {
@@ -477,7 +480,7 @@ impl Context {
 
                             if let Some(old) = self.functions_info.insert(hash, signature) {
                                 return Err(ContextError::ConflictingFunction {
-                                    signature: old,
+                                    signature: Box::new(old),
                                     hash,
                                 });
                             }
@@ -556,7 +559,7 @@ impl Context {
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
-                signature: old,
+                signature: Box::new(old),
                 hash,
             });
         }
@@ -646,7 +649,7 @@ impl Context {
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
-                signature: old,
+                signature: Box::new(old),
                 hash,
             });
         }
@@ -678,7 +681,7 @@ impl Context {
 
             if let Some(old) = self.functions_info.insert(hash, signature) {
                 return Err(ContextError::ConflictingFunction {
-                    signature: old,
+                    signature: Box::new(old),
                     hash,
                 });
             }
@@ -787,7 +790,7 @@ impl Context {
 
             if let Some(old) = self.functions_info.insert(hash, signature) {
                 return Err(ContextError::ConflictingFunction {
-                    signature: old,
+                    signature: Box::new(old),
                     hash,
                 });
             }
@@ -853,7 +856,7 @@ impl Context {
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
-                signature: old,
+                signature: Box::new(old),
                 hash,
             });
         }

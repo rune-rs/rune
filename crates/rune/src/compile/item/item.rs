@@ -21,6 +21,7 @@ impl Item {
     ///
     /// assert_eq!(Item::new(), &*ItemBuf::new());
     /// ```
+    #[inline]
     pub const fn new() -> &'static Self {
         // SAFETY: an empty slice is a valid bit pattern for the root.
         unsafe { Self::from_raw(&[]) }
@@ -47,6 +48,7 @@ impl Item {
     /// let item = ItemBuf::with_item(&["foo", "bar"]);
     /// assert_eq!(item.as_bytes(), b"\x0d\0foo\x0d\0\x0d\0bar\x0d\0");
     /// ```
+    #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         &self.content
     }
@@ -82,6 +84,7 @@ impl Item {
     /// let item = ItemBuf::with_item(&["foo", "bar"]);
     /// assert_eq!(item.first(), Some(ComponentRef::Str("foo")));
     /// ```
+    #[inline]
     pub fn first(&self) -> Option<ComponentRef<'_>> {
         self.iter().next()
     }
@@ -99,6 +102,7 @@ impl Item {
     /// let item = ItemBuf::with_crate("std");
     /// assert!(!item.is_empty());
     /// ```
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.content.is_empty()
     }
@@ -151,6 +155,7 @@ impl Item {
     }
 
     /// Access the last component in the path.
+    #[inline]
     pub fn last(&self) -> Option<ComponentRef<'_>> {
         self.iter().next_back()
     }
@@ -183,11 +188,13 @@ impl Item {
     ///
     /// assert!(!item.is_empty());
     /// ```
+    #[inline]
     pub fn iter(&self) -> Iter<'_> {
         Iter::new(&self.content)
     }
 
     /// Test if current item starts with another.
+    #[inline]
     pub fn starts_with(&self, other: &Self) -> bool {
         self.content.starts_with(&other.content)
     }
@@ -309,12 +316,14 @@ impl Item {
 }
 
 impl AsRef<Item> for &Item {
+    #[inline]
     fn as_ref(&self) -> &Item {
-        *self
+        self
     }
 }
 
 impl Default for &Item {
+    #[inline]
     fn default() -> Self {
         Item::new()
     }
@@ -323,6 +332,7 @@ impl Default for &Item {
 impl ToOwned for Item {
     type Owned = ItemBuf;
 
+    #[inline]
     fn to_owned(&self) -> Self::Owned {
         // SAFETY: item ensures that content is valid.
         unsafe { ItemBuf::from_raw(self.content.to_smallvec()) }

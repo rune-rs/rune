@@ -97,14 +97,16 @@ impl fmt::Debug for Tuple {
 impl ops::Deref for Tuple {
     type Target = [Value];
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
-        &*self.inner
+        &self.inner
     }
 }
 
 impl ops::DerefMut for Tuple {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.inner
+        &mut self.inner
     }
 }
 

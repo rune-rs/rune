@@ -43,7 +43,7 @@ impl CaptureIo {
         O: Write,
     {
         let mut o = self.inner.lock();
-        out.write_all(&*o)?;
+        out.write_all(&o)?;
         o.clear();
         Ok(())
     }

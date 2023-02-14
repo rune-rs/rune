@@ -73,7 +73,7 @@ impl Manifest {
                 for result in results {
                     let (base, path) = result?;
 
-                    if m.matches(&*base) {
+                    if m.matches(&base) {
                         output.push(Found { path, package });
                     }
                 }

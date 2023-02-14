@@ -15,22 +15,13 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    - name: Run tests
-      run: cargo test --all
-    - name: Run example scripts
-      run: cargo run --release --bin rune -- check --recursive --experimental scripts
-    - name: Build
-      uses: actions-rs/cargo@v1
-      with:
-        command: run
-        args: --manifest-path=tools/builder/Cargo.toml -- --channel nightly
-    - name: Create release
-      uses: softprops/action-gh-release@v1
+    - uses: actions/checkout@v3
+    - run: rustup toolchain install stable --profile minimal
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo test --all
+    - run: cargo run --release --bin rune -- check --recursive --experimental scripts
+    - run: cargo run --manifest-path tools/builder/Cargo.toml -- --channel nightly
+    - uses: softprops/action-gh-release@v1
       with:
         prerelease: true
         tag_name: nightly

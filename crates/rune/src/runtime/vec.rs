@@ -197,14 +197,16 @@ impl fmt::Debug for Vec {
 impl ops::Deref for Vec {
     type Target = [Value];
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
-        &*self.inner
+        &self.inner
     }
 }
 
 impl ops::DerefMut for Vec {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.inner
+        &mut self.inner
     }
 }
 

@@ -456,7 +456,7 @@ fn path_segment<'hir>(
     })
 }
 
-fn label<'hir>(_: &Ctx<'hir, '_>, ast: &ast::Label) -> Result<ast::Label, HirError> {
+fn label(_: &Ctx<'_, '_>, ast: &ast::Label) -> Result<ast::Label, HirError> {
     Ok(ast::Label {
         span: ast.span,
         source: ast.source,
