@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1666087460491,
+  "lastUpdate": 1676354773416,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -15484,6 +15484,54 @@ window.BENCHMARK_DATA = {
             "name": "aoc_2020_1b",
             "value": 1065189,
             "range": "± 17678",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bd8fd4836d778f0f7850d622d143b9887a59a732",
+          "message": "Fix and modernise build (#445)\n\n* Wrong value for NOT_USED\r\n* Don't panic in awaiting future which is already completed\r\n* Fix build\r\n* Fix clippy lints",
+          "timestamp": "2023-02-14T05:58:32Z",
+          "tree_id": "2ca793830d7a2eb6b9784a39cc733d215856baf3",
+          "url": "https://github.com/rune-rs/rune/commit/bd8fd4836d778f0f7850d622d143b9887a59a732"
+        },
+        "date": 1676354772147,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_11a",
+            "value": 515896865,
+            "range": "± 2533430",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 269388952,
+            "range": "± 1751653",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 373463,
+            "range": "± 3109",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1111150,
+            "range": "± 24293",
             "unit": "ns/iter"
           }
         ]
