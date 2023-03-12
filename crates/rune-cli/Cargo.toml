@@ -2,18 +2,18 @@
 name = "rune-cli"
 version = "0.12.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
-license = "MIT/Apache-2.0"
 edition = "2021"
 rust-version = "1.63"
-readme = "README.md"
-repository = "https://github.com/rune-rs/rune"
-homepage = "https://github.com/rune-rs/rune"
-documentation = "https://docs.rs/rune-cli"
-keywords = ["language", "scripting"]
-categories = []
 description = """
 An interpreter for Rune, an embeddable dynamic programming language for Rust. 
 """
+documentation = "https://docs.rs/rune"
+readme = "README.md"
+homepage = "https://github.com/rune-rs/rune"
+repository = "https://github.com/rune-rs/rune"
+license = "MIT/Apache-2.0"
+keywords = ["language", "scripting", "scripting-language"]
+categories = ["parser-implementations"]
 
 [dependencies]
 bincode = "1.3.3"

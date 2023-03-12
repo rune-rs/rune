@@ -1,8 +1,8 @@
 [package]
 name = "rune-benches"
 version = "0.0.0"
-authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
+publish = false
 
 [dependencies]
 tokio = { version = "1.14.0", features = ["macros"] }
