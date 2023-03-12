@@ -15,7 +15,7 @@ fn test_external_function() -> rune::Result<()> {
         fn test() { 42 }
         pub fn main() { test }
         "#,
-        &["main"],
+        ["main"],
         (),
     )?;
 
@@ -24,7 +24,7 @@ fn test_external_function() -> rune::Result<()> {
         r#"
         pub fn main(f) { f() }
         "#,
-        &["main"],
+        ["main"],
         (function,),
     )?;
 
@@ -46,7 +46,7 @@ fn test_external_generator() -> rune::Result<()> {
         fn test() { yield 42; }
         pub fn main() { test }
         "#,
-        &["main"],
+        ["main"],
         (),
     )?;
 
@@ -55,7 +55,7 @@ fn test_external_generator() -> rune::Result<()> {
         r#"
         pub fn main(f) { let gen = f(); (gen.next(), gen.next()) }
         "#,
-        &["main"],
+        ["main"],
         (function,),
     )?;
 

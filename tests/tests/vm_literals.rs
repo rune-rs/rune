@@ -1,3 +1,5 @@
+#![allow(clippy::unusual_byte_groupings)]
+
 use rune::runtime::Bytes;
 use rune_tests::*;
 

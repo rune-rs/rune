@@ -33,7 +33,7 @@ fn main() -> rune::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let input: VecTuple<(i64, String)> = VecTuple::new((1, String::from("Hello")));
-    let output = vm.call(&["calc"], (input,))?;
+    let output = vm.call(["calc"], (input,))?;
     let VecTuple((a, b)) = VecTuple::<(u32, String)>::from_value(output)?;
 
     println!("({:?}, {:?})", a, b);

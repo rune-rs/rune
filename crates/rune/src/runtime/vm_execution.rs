@@ -102,7 +102,7 @@ where
     /// let unit = rune::prepare(&mut sources).build()?;
     ///
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let mut generator = vm.execute(&["main"], ())?.into_generator()?;
+    /// let mut generator = vm.execute(["main"], ())?.into_generator()?;
     ///
     /// let mut n = 1i64;
     ///
@@ -136,7 +136,7 @@ where
     /// let unit = rune::prepare(&mut sources).build()?;
     ///
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let mut stream = vm.execute(&["main"], ())?.into_stream()?;
+    /// let mut stream = vm.execute(["main"], ())?.into_stream()?;
     ///
     /// let mut n = 1i64;
     ///

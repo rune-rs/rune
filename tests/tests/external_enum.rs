@@ -55,19 +55,19 @@ fn test_external_enum() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
-    let output = vm.call(&["main"], (External::First(42),))?;
+    let output = vm.call(["main"], (External::First(42),))?;
     let output = External::from_value(output)?;
     assert_eq!(output, External::Output(42));
 
-    let output = vm.call(&["main"], (External::Second(43),))?;
+    let output = vm.call(["main"], (External::Second(43),))?;
     let output = External::from_value(output)?;
     assert_eq!(output, External::Output(43 * 2));
 
-    let output = vm.call(&["main"], (External::Third,))?;
+    let output = vm.call(["main"], (External::Third,))?;
     let output = External::from_value(output)?;
     assert_eq!(output, External::Output(3));
 
-    let output = vm.call(&["main"], (External::Fourth { a: 2, b: 3 },))?;
+    let output = vm.call(["main"], (External::Fourth { a: 2, b: 3 },))?;
     let output = External::from_value(output)?;
     assert_eq!(output, External::Output(2 * 3 * 4));
     Ok(())

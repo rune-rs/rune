@@ -211,7 +211,7 @@ impl Vm {
     /// let vm = Vm::new(context, unit);
     ///
     /// // Looking up an item from the source.
-    /// let dynamic_max = vm.lookup_function(&["max"])?;
+    /// let dynamic_max = vm.lookup_function(["max"])?;
     ///
     /// let value = i64::from_value(dynamic_max.call((10, 20))?)?;
     /// assert_eq!(value, 20);
@@ -256,7 +256,7 @@ impl Vm {
     /// ```
     /// use rune::Hash;
     ///
-    /// let name = Hash::type_hash(&["main"]);
+    /// let name = Hash::type_hash(["main"]);
     /// ```
     ///
     /// # Examples
@@ -275,7 +275,7 @@ impl Vm {
     ///
     /// let mut vm = rune::Vm::new(context, unit);
     ///
-    /// let output = vm.execute(&["main"], (33i64,))?.complete()?;
+    /// let output = vm.execute(["main"], (33i64,))?.complete()?;
     /// let output = i64::from_value(output)?;
     ///
     /// println!("output: {}", output);
@@ -303,7 +303,7 @@ impl Vm {
     /// args.push(1u32.to_value()?);
     /// args.push(String::from("Hello World").to_value()?);
     ///
-    /// let output = vm.execute(&["main"], args)?.complete()?;
+    /// let output = vm.execute(["main"], args)?.complete()?;
     /// let output = i64::from_value(output)?;
     ///
     /// println!("output: {}", output);
@@ -2861,7 +2861,7 @@ impl Vm {
     ///
     /// let mut vm = rune::Vm::new(context, unit);
     ///
-    /// let output = vm.execute(&["main"], ())?.complete()?;
+    /// let output = vm.execute(["main"], ())?.complete()?;
     ///
     /// // Call the string_display protocol on `output`. This requires
     /// // access to a virtual machine since it might use functions

@@ -512,7 +512,7 @@ impl Module {
     /// use rune::Module;
     ///
     /// # fn main() -> rune::Result<()> {
-    /// let mut module = Module::with_item(&["nonstd"]);
+    /// let mut module = Module::with_item(["nonstd"]);
     /// module.unit("unit")?;
     /// # Ok(()) }
     pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
@@ -544,8 +544,8 @@ impl Module {
     /// use rune::Module;
     ///
     /// # fn main() -> rune::Result<()> {
-    /// let mut module = Module::with_crate_item("nonstd", &["generator"]);
-    /// module.generator_state(&["GeneratorState"])?;
+    /// let mut module = Module::with_crate_item("nonstd", ["generator"]);
+    /// module.generator_state(["GeneratorState"])?;
     /// # Ok(()) }
     pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
     where
@@ -585,8 +585,8 @@ impl Module {
     /// use rune::Module;
     ///
     /// # fn main() -> rune::Result<()> {
-    /// let mut module = Module::with_crate_item("nonstd", &["option"]);
-    /// module.option(&["Option"])?;
+    /// let mut module = Module::with_crate_item("nonstd", ["option"]);
+    /// module.option(["Option"])?;
     /// # Ok(()) }
     pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
     where
@@ -617,8 +617,8 @@ impl Module {
     /// use rune::Module;
     ///
     /// # fn main() -> rune::Result<()> {
-    /// let mut module = Module::with_crate_item("nonstd", &["result"]);
-    /// module.result(&["Result"])?;
+    /// let mut module = Module::with_crate_item("nonstd", ["result"]);
+    /// module.result(["Result"])?;
     /// # Ok(()) }
     pub fn result<N>(&mut self, name: N) -> Result<(), ContextError>
     where
@@ -648,10 +648,10 @@ impl Module {
     /// # fn main() -> rune::Result<()> {
     /// let mut module = rune::Module::default();
     ///
-    /// module.function(&["add_ten"], add_ten)?;
-    /// module.function(&["empty"], || Ok::<_, rune::Error>(()))?;
-    /// module.function(&["string"], |a: String| Ok::<_, rune::Error>(()))?;
-    /// module.function(&["optional"], |a: Option<String>| Ok::<_, rune::Error>(()))?;
+    /// module.function(["add_ten"], add_ten)?;
+    /// module.function(["empty"], || Ok::<_, rune::Error>(()))?;
+    /// module.function(["string"], |a: String| Ok::<_, rune::Error>(()))?;
+    /// module.function(["optional"], |a: Option<String>| Ok::<_, rune::Error>(()))?;
     /// # Ok(()) }
     /// ```
     pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
@@ -686,8 +686,8 @@ impl Module {
     /// # fn main() -> rune::Result<()> {
     /// let mut module = rune::Module::default();
     ///
-    /// module.constant(&["TEN"], 10)?; // a global TEN value
-    /// module.constant(&["MyType", "TEN"], 10)?; // looks like an associated value
+    /// module.constant(["TEN"], 10)?; // a global TEN value
+    /// module.constant(["MyType", "TEN"], 10)?; // looks like an associated value
     ///
     /// # Ok(()) }
     /// ```
@@ -747,10 +747,10 @@ impl Module {
     /// # fn main() -> rune::Result<()> {
     /// let mut module = rune::Module::default();
     ///
-    /// module.async_function(&["empty"], || async { () })?;
-    /// module.async_function(&["empty_fallible"], || async { Ok::<_, rune::Error>(()) })?;
-    /// module.async_function(&["string"], |a: String| async { Ok::<_, rune::Error>(()) })?;
-    /// module.async_function(&["optional"], |a: Option<String>| async { Ok::<_, rune::Error>(()) })?;
+    /// module.async_function(["empty"], || async { () })?;
+    /// module.async_function(["empty_fallible"], || async { Ok::<_, rune::Error>(()) })?;
+    /// module.async_function(["string"], |a: String| async { Ok::<_, rune::Error>(()) })?;
+    /// module.async_function(["optional"], |a: Option<String>| async { Ok::<_, rune::Error>(()) })?;
     /// # Ok(()) }
     /// ```
     pub fn async_function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
@@ -829,7 +829,7 @@ impl Module {
     /// let mut module = rune::Module::default();
     ///
     /// module.ty::<MyBytes>()?;
-    /// module.function(&["MyBytes", "new"], MyBytes::new)?;
+    /// module.function(["MyBytes", "new"], MyBytes::new)?;
     /// module.inst_fn("len", MyBytes::len)?;
     ///
     /// let mut context = rune::Context::new();

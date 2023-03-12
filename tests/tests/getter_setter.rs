@@ -36,7 +36,7 @@ fn test_getter_setter() -> rune::Result<()> {
         string: String::from("Hello"),
     };
 
-    let output = vm.call(&["main"], (&mut foo,))?;
+    let output = vm.call(["main"], (&mut foo,))?;
 
     assert_eq!(foo.number, 43);
     assert_eq!(foo.string, "Hello World");

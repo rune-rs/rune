@@ -5,7 +5,7 @@ use crate::{ContextError, Module, Params};
 
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["iter"]);
+    let mut module = Module::with_crate_item("std", ["iter"]);
     module.ty::<Iterator>()?;
 
     // Sorted for ease of finding
@@ -34,9 +34,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(Protocol::NEXT, Iterator::next)?;
     module.inst_fn(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
 
-    module.function(&["range"], new_range)?;
-    module.function(&["empty"], new_empty)?;
-    module.function(&["once"], new_once)?;
+    module.function(["range"], new_range)?;
+    module.function(["empty"], new_empty)?;
+    module.function(["once"], new_once)?;
     Ok(module)
 }
 

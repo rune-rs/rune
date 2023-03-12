@@ -28,7 +28,7 @@ fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
-    let output = vm.execute(&["main"], (33i64,))?.complete()?;
+    let output = vm.execute(["main"], (33i64,))?.complete()?;
     let output = i64::from_value(output)?;
 
     println!("output: {}", output);

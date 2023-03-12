@@ -34,7 +34,7 @@ fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.call(&["main"], ())?;
+    let output = vm.call(["main"], ())?;
     let output = Function::from_value(output)?;
 
     println!("{}", output.call::<(i64, i64), i64>((1, 3))?);

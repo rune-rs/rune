@@ -20,12 +20,12 @@ fn bug_344_function() -> rune::Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
-    module.function(&["function"], function)?;
+    module.function(["function"], function)?;
 
     context.install(&module)?;
     let runtime = context.runtime();
 
-    let hash = Hash::type_hash(&["function"]);
+    let hash = Hash::type_hash(["function"]);
 
     let function = runtime.function(hash).expect("expect function");
 
@@ -76,12 +76,12 @@ fn bug_344_async_function() -> rune::Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
-    module.async_function(&["function"], function)?;
+    module.async_function(["function"], function)?;
 
     context.install(&module)?;
     let runtime = context.runtime();
 
-    let hash = Hash::type_hash(&["function"]);
+    let hash = Hash::type_hash(["function"]);
 
     let function = runtime.function(hash).expect("expect function");
 

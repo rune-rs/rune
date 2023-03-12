@@ -203,6 +203,7 @@ mod tests {
     use crate::runtime::{Bytes, Shared, Value};
 
     #[test]
+    #[allow(clippy::let_and_return)]
     fn test_clone_issue() -> Result<(), Box<dyn std::error::Error>> {
         let shared = Value::Bytes(Shared::new(Bytes::new()));
 

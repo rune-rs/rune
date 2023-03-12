@@ -45,7 +45,7 @@ fn main() -> rune::Result<()> {
     let input = MyBytes {
         bytes: vec![77, 77, 77, 77],
     };
-    let output = vm.execute(&["passthrough"], (input,))?.complete()?;
+    let output = vm.execute(["passthrough"], (input,))?.complete()?;
     let mut output = Proxy::from_value(output)?;
 
     println!("field: {:?}", output.field);

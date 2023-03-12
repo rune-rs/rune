@@ -234,12 +234,12 @@ fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
 
     if !rune.is_file() {
         println!("building: {}", rune.display());
-        cargo(&["build", "--release", "--bin", "rune"]).context("building rune")?;
+        cargo(["build", "--release", "--bin", "rune"]).context("building rune")?;
     }
 
     if !rune_languageserver.is_file() {
         println!("building: {}", rune_languageserver.display());
-        cargo(&["build", "--release", "--bin", "rune-languageserver"])
+        cargo(["build", "--release", "--bin", "rune-languageserver"])
             .context("building rune-languageserver")?;
     }
 

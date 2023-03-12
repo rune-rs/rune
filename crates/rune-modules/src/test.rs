@@ -28,9 +28,9 @@ use rune::parse::Parser;
 
 /// Construct the `std::test` module.
 pub fn module(_stdio: bool) -> Result<rune::Module, rune::ContextError> {
-    let mut module = rune::Module::with_crate_item("std", &["test"]);
-    module.macro_(&["assert"], assert_macro)?;
-    module.macro_(&["assert_eq"], assert_eq_macro)?;
+    let mut module = rune::Module::with_crate_item("std", ["test"]);
+    module.macro_(["assert"], assert_macro)?;
+    module.macro_(["assert_eq"], assert_eq_macro)?;
     Ok(module)
 }
 

@@ -36,7 +36,7 @@ use rune::{Module, ContextError};
 /// Construct the `fs` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("fs");
-    module.async_function(&["read_to_string"], read_to_string)?;
+    module.async_function(["read_to_string"], read_to_string)?;
     Ok(module)
 }
 

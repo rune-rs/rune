@@ -32,6 +32,9 @@
 #![allow(clippy::single_match)]
 #![allow(clippy::unused_unit)]
 
+use std::fmt;
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use gloo_utils::format::JsValueSerdeExt;
 use rune::ast::Spanned;
@@ -42,8 +45,6 @@ use rune::runtime::Value;
 use rune::{Context, ContextError, Options};
 use rune_modules::capture_io::CaptureIo;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
 mod http;

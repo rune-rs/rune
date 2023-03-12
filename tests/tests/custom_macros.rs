@@ -10,14 +10,14 @@ fn test_parse_in_macro() -> rune::Result<()> {
 
     let string = "1 + 2 + 13 * 3";
 
-    m.macro_(&["string_as_code"], move |ctx, _| {
+    m.macro_(["string_as_code"], move |ctx, _| {
         let id = ctx.insert_source("string_as_code", string);
         let expr = ctx.parse_source::<ast::Expr>(id)?;
 
         Ok(quote!(#expr).into_token_stream(ctx))
     })?;
 
-    m.macro_(&["string_as_code_from_arg"], |ctx, stream| {
+    m.macro_(["string_as_code_from_arg"], |ctx, stream| {
         let mut p = Parser::from_token_stream(stream, ctx.stream_span());
         let s = p.parse_all::<ast::LitStr>()?;
         let s = ctx.resolve(s)?.into_owned();
@@ -43,7 +43,7 @@ fn test_parse_in_macro() -> rune::Result<()> {
     let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
-    let output = vm.execute(&["main"], ())?.complete()?;
+    let output = vm.execute(["main"], ())?.complete()?;
     let output = <(u32, u32)>::from_value(output)?;
 
     assert_eq!(output, (42, 42));

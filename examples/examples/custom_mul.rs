@@ -42,7 +42,7 @@ fn main() -> rune::Result<()> {
         .build()?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.call(&["main"], (Foo { field: 5 },))?;
+    let output = vm.call(["main"], (Foo { field: 5 },))?;
     let output = Foo::from_value(output)?;
 
     println!("output: {:?}", output);
@@ -50,7 +50,7 @@ fn main() -> rune::Result<()> {
 }
 
 fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(&["module"]);
+    let mut m = Module::with_item(["module"]);
     m.ty::<Foo>()?;
     m.inst_fn(Protocol::MUL, Foo::mul)?;
     Ok(m)

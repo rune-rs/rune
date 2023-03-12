@@ -11,8 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - run: rustup toolchain install stable --profile minimal
-    - run: rustup default stable
+    - uses: dtolnay/rust-toolchain@stable
     - uses: actions/setup-node@v1
       with:
         node-version: 12

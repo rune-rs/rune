@@ -36,7 +36,7 @@ fn main() -> rune::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let input = vec![1, 2, 3, 4];
-    let output = vm.call(&["calc"], (input,))?;
+    let output = vm.call(["calc"], (input,))?;
     let output = Vec::<i64>::from_value(output)?;
 
     println!("{:?}", output);

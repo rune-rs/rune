@@ -2,16 +2,13 @@
 //!
 //! Source: https://github.com/tgolsson/aoc-2020
 
-#![feature(test)]
+use criterion::Criterion;
 
-extern crate test;
-
-use test::Bencher;
+criterion::criterion_group!(benches, aoc_2020_11a);
 
 const INPUT: &str = include_str!("data/aoc_2020_11a.txt");
 
-#[bench]
-fn aoc_2020_11a(b: &mut Bencher) -> rune::Result<()> {
+fn aoc_2020_11a(b: &mut Criterion) {
     let input = INPUT
         .split('\n')
         .filter(|v| v != &"")
@@ -241,12 +238,12 @@ fn aoc_2020_11a(b: &mut Bencher) -> rune::Result<()> {
         }
     };
 
-    let entry = rune::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(["main"]);
 
-    b.iter(|| {
-        vm.call(entry, (input.clone(),))
-            .expect("successful execution")
+    b.bench_function("aoc_2020_11a", |b| {
+        b.iter(|| {
+            vm.call(entry, (input.clone(),))
+                .expect("successful execution")
+        });
     });
-
-    Ok(())
 }

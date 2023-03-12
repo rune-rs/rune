@@ -5,8 +5,8 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["option"]);
-    module.option(&["Option"])?;
+    let mut module = Module::with_crate_item("std", ["option"]);
+    module.option(["Option"])?;
     // Sorted for ease of finding
     module.inst_fn("and_then", and_then_impl)?;
     module.inst_fn("expect", expect_impl)?;

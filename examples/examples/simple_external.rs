@@ -46,7 +46,7 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
-    let output = vm.call(&["main"], (External { value: 42 },))?;
+    let output = vm.call(["main"], (External { value: 42 },))?;
     let output = External::from_value(output)?;
     println!("{:?}", output);
     assert_eq!(output.value, 42);

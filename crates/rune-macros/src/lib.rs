@@ -141,7 +141,7 @@ pub fn opaque(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// let unit = rune::prepare(&mut sources).build()?;
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
-/// let foo = vm.call(&["main"], ())?;
+/// let foo = vm.call(["main"], ())?;
 /// let foo = Foo::from_value(foo)?;
 ///
 /// assert_eq!(foo.field, 42);
@@ -181,7 +181,7 @@ pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// let unit = rune::prepare(&mut sources).build()?;
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
-/// let foo = vm.call(&["main"], (Foo { field: 42 },))?;
+/// let foo = vm.call(["main"], (Foo { field: 42 },))?;
 /// let foo = u64::from_value(foo)?;
 ///
 /// assert_eq!(foo, 43);

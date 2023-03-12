@@ -13,7 +13,7 @@ fn test_get_const() -> rune::Result<()> {
     let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
-        unit.constant(Hash::type_hash(&["LEET"]))
+        unit.constant(Hash::type_hash(["LEET"]))
             .expect("successful lookup")
             .clone()
             .into_value()
@@ -41,7 +41,7 @@ fn test_get_const_re_export() -> rune::Result<()> {
     let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
-        unit.constant(Hash::type_hash(&["LEET"]))
+        unit.constant(Hash::type_hash(["LEET"]))
             .expect("successful lookup")
             .clone()
             .into_value()
@@ -67,7 +67,7 @@ fn test_get_const_nested() -> rune::Result<()> {
     let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
-        unit.constant(Hash::type_hash(&["inner", "LEET"]))
+        unit.constant(Hash::type_hash(["inner", "LEET"]))
             .expect("successful lookup")
             .clone()
             .into_value()

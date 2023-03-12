@@ -29,7 +29,7 @@ fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.call(&["calc"], ((1u32, 2u32),))?;
+    let output = vm.call(["calc"], ((1u32, 2u32),))?;
     let output = <(i32, i32)>::from_value(output)?;
 
     println!("{:?}", output);

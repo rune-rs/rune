@@ -507,7 +507,7 @@ pub struct AnyObjVtable {
 }
 
 unsafe fn drop_impl<T>(this: *const ()) {
-    let _ = Box::from_raw(this as *mut () as *mut T);
+    drop(Box::from_raw(this as *mut () as *mut T));
 }
 
 fn as_ptr_impl<T>(this: *const (), expected: Hash) -> Option<*const ()>

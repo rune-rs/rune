@@ -45,7 +45,7 @@ impl Item {
     ///
     /// assert_eq!(Item::new().as_bytes(), &[]);
     ///
-    /// let item = ItemBuf::with_item(&["foo", "bar"]);
+    /// let item = ItemBuf::with_item(["foo", "bar"]);
     /// assert_eq!(item.as_bytes(), b"\x0d\0foo\x0d\0\x0d\0bar\x0d\0");
     /// ```
     #[inline]
@@ -63,7 +63,7 @@ impl Item {
     /// let item = ItemBuf::with_crate("std");
     /// assert_eq!(item.as_crate(), Some("std"));
     ///
-    /// let item = ItemBuf::with_item(&["local"]);
+    /// let item = ItemBuf::with_item(["local"]);
     /// assert_eq!(item.as_crate(), None);
     /// ```
     pub fn as_crate(&self) -> Option<&str> {
@@ -81,7 +81,7 @@ impl Item {
     /// ```
     /// use rune::compile::{ComponentRef, ItemBuf};
     ///
-    /// let item = ItemBuf::with_item(&["foo", "bar"]);
+    /// let item = ItemBuf::with_item(["foo", "bar"]);
     /// assert_eq!(item.first(), Some(ComponentRef::Str("foo")));
     /// ```
     #[inline]
@@ -207,11 +207,11 @@ impl Item {
     /// use rune::compile::ItemBuf;
     ///
     /// assert!(ItemBuf::new().is_super_of(&ItemBuf::new(), 1));
-    /// assert!(!ItemBuf::with_item(&["a"]).is_super_of(&ItemBuf::new(), 1));
+    /// assert!(!ItemBuf::with_item(["a"]).is_super_of(&ItemBuf::new(), 1));
     ///
-    /// assert!(!ItemBuf::with_item(&["a", "b"]).is_super_of(&ItemBuf::with_item(&["a"]), 1));
-    /// assert!(ItemBuf::with_item(&["a", "b"]).is_super_of(&ItemBuf::with_item(&["a", "b"]), 1));
-    /// assert!(!ItemBuf::with_item(&["a"]).is_super_of(&ItemBuf::with_item(&["a", "b", "c"]), 1));
+    /// assert!(!ItemBuf::with_item(["a", "b"]).is_super_of(&ItemBuf::with_item(["a"]), 1));
+    /// assert!(ItemBuf::with_item(["a", "b"]).is_super_of(&ItemBuf::with_item(["a", "b"]), 1));
+    /// assert!(!ItemBuf::with_item(["a"]).is_super_of(&ItemBuf::with_item(["a", "b", "c"]), 1));
     /// ```
     pub fn is_super_of(&self, other: &Self, n: usize) -> bool {
         if self == other {
@@ -250,23 +250,23 @@ impl Item {
     /// );
     ///
     /// assert_eq!(
-    ///     (ItemBuf::new(), ItemBuf::with_item(&["a"])),
-    ///     ItemBuf::new().ancestry(&ItemBuf::with_item(&["a"]))
+    ///     (ItemBuf::new(), ItemBuf::with_item(["a"])),
+    ///     ItemBuf::new().ancestry(&ItemBuf::with_item(["a"]))
     /// );
     ///
     /// assert_eq!(
-    ///     (ItemBuf::new(), ItemBuf::with_item(&["a", "b"])),
-    ///     ItemBuf::new().ancestry(&ItemBuf::with_item(&["a", "b"]))
+    ///     (ItemBuf::new(), ItemBuf::with_item(["a", "b"])),
+    ///     ItemBuf::new().ancestry(&ItemBuf::with_item(["a", "b"]))
     /// );
     ///
     /// assert_eq!(
-    ///     (ItemBuf::with_item(&["a"]), ItemBuf::with_item(&["b"])),
-    ///     ItemBuf::with_item(&["a", "c"]).ancestry(&ItemBuf::with_item(&["a", "b"]))
+    ///     (ItemBuf::with_item(["a"]), ItemBuf::with_item(["b"])),
+    ///     ItemBuf::with_item(["a", "c"]).ancestry(&ItemBuf::with_item(["a", "b"]))
     /// );
     ///
     /// assert_eq!(
-    ///     (ItemBuf::with_item(&["a", "b"]), ItemBuf::with_item(&["d", "e"])),
-    ///     ItemBuf::with_item(&["a", "b", "c"]).ancestry(&ItemBuf::with_item(&["a", "b", "d", "e"]))
+    ///     (ItemBuf::with_item(["a", "b"]), ItemBuf::with_item(["d", "e"])),
+    ///     ItemBuf::with_item(["a", "b", "c"]).ancestry(&ItemBuf::with_item(["a", "b", "d", "e"]))
     /// );
     /// ```
     pub fn ancestry(&self, other: &Self) -> (ItemBuf, ItemBuf) {
@@ -303,8 +303,8 @@ impl Item {
     /// ```
     /// use rune::compile::ItemBuf;
     ///
-    /// let item = ItemBuf::with_item(&["foo", "bar", "baz"]);
-    /// let item2 = ItemBuf::with_item(&["foo", "bar"]);
+    /// let item = ItemBuf::with_item(["foo", "bar", "baz"]);
+    /// let item2 = ItemBuf::with_item(["foo", "bar"]);
     ///
     /// assert_eq!(item.parent(), Some(&*item2));
     /// ```

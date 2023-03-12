@@ -413,10 +413,10 @@ impl VecDeque {
 
 /// The `std::collections` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["collections"]);
+    let mut module = Module::with_crate_item("std", ["collections"]);
     module.ty::<HashMap>()?;
-    module.function(&["HashMap", "new"], HashMap::new)?;
-    module.function(&["HashMap", "from"], hashmap_from)?;
+    module.function(["HashMap", "new"], HashMap::new)?;
+    module.function(["HashMap", "from"], hashmap_from)?;
     module.inst_fn("clear", HashMap::clear)?;
     module.inst_fn("clone", HashMap::clone)?;
     module.inst_fn("contains_key", HashMap::contains_key)?;
@@ -435,8 +435,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(Protocol::STRING_DEBUG, HashMap::string_debug)?;
 
     module.ty::<HashSet>()?;
-    module.function(&["HashSet", "new"], HashSet::new)?;
-    module.function(&["HashSet", "from"], hashset_from)?;
+    module.function(["HashSet", "new"], HashSet::new)?;
+    module.function(["HashSet", "from"], hashset_from)?;
     module.inst_fn("clear", HashSet::clear)?;
     module.inst_fn("clone", HashSet::clone)?;
     module.inst_fn("contains", HashSet::contains)?;
@@ -454,9 +454,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(Protocol::EQ, HashSet::eq)?;
 
     module.ty::<VecDeque>()?;
-    module.function(&["VecDeque", "new"], VecDeque::new)?;
-    module.function(&["VecDeque", "with_capacity"], VecDeque::with_capacity)?;
-    module.function(&["VecDeque", "from"], vecdeque_from)?;
+    module.function(["VecDeque", "new"], VecDeque::new)?;
+    module.function(["VecDeque", "with_capacity"], VecDeque::with_capacity)?;
+    module.function(["VecDeque", "from"], vecdeque_from)?;
 
     module.inst_fn("extend", VecDeque::extend)?;
     module.inst_fn("insert", VecDeque::insert)?;

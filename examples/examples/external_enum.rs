@@ -58,19 +58,19 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
-    let output = vm.call(&["main"], (External::First(42),))?;
+    let output = vm.call(["main"], (External::First(42),))?;
     let output = External::from_value(output)?;
     println!("{:?}", output);
 
-    let output = vm.call(&["main"], (External::Second(42, 12345),))?;
+    let output = vm.call(["main"], (External::Second(42, 12345),))?;
     let output = External::from_value(output)?;
     println!("{:?}", output);
 
-    let output = vm.call(&["main"], (External::Third,))?;
+    let output = vm.call(["main"], (External::Third,))?;
     let output = External::from_value(output)?;
     println!("{:?}", output);
 
-    let output = vm.call(&["main"], (External::Fourth { a: 42, b: 2 },))?;
+    let output = vm.call(["main"], (External::Fourth { a: 42, b: 2 },))?;
     let output = External::from_value(output)?;
     println!("{:?}", output);
     Ok(())

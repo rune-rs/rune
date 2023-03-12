@@ -69,7 +69,7 @@ fn test_external_ops_struct() -> rune::Result<()> {
                 foo.derived = $initial;
                 foo.custom = $initial;
 
-                let output = vm.clone().call(&["type"], (&mut foo,))?;
+                let output = vm.clone().call(["type"], (&mut foo,))?;
 
                 assert_eq!(foo.value, $expected, "{} != {} (value)", foo.value, $expected);
                 assert_eq!(foo.field, $expected, "{} != {} (field)", foo.value, $expected);
@@ -153,7 +153,7 @@ fn test_external_ops_tuple() -> rune::Result<()> {
                 foo.2 = $initial;
                 foo.3 = $initial;
 
-                let output = vm.clone().call(&["type"], (&mut foo,))?;
+                let output = vm.clone().call(["type"], (&mut foo,))?;
 
                 assert_eq!(foo.0, $expected, "{} != {} (value)", foo.0, $expected);
                 assert_eq!(foo.1, $expected, "{} != {} (field)", foo.0, $expected);

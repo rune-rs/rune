@@ -100,7 +100,7 @@ impl UnitBuilder {
                     return Err(CompileError::new(
                         span,
                         CompileErrorKind::ConstantConflict {
-                            item: ItemBuf::with_item(&["unknown"]),
+                            item: ItemBuf::with_item(["unknown"]),
                             hash: from,
                         },
                     ));

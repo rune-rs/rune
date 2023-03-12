@@ -1,6 +1,6 @@
 #![allow(
     clippy::bool_assert_comparison,
-    clippy::blacklisted_name,
+    clippy::disallowed_names,
     clippy::approx_constant,
     clippy::identity_op,
     clippy::bool_assert_comparison,

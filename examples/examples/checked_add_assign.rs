@@ -55,7 +55,7 @@ fn main() -> rune::Result<()> {
     let input = External {
         value: i64::max_value(),
     };
-    let err = vm.call(&["main"], (input,)).unwrap_err();
+    let err = vm.call(["main"], (input,)).unwrap_err();
     let (kind, _) = err.as_unwound();
     println!("{:?}", kind);
     Ok(())

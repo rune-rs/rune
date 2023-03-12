@@ -37,7 +37,7 @@ pub fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.execute(&["main"], ())?.complete()?;
+    let output = vm.execute(["main"], ())?.complete()?;
     let output = <(u32, u32)>::from_value(output)?;
 
     println!("{:?}", output);
@@ -49,14 +49,14 @@ fn module() -> Result<Module, ContextError> {
 
     let string = "1 + 2 + 13 * 3";
 
-    m.macro_(&["string_as_code"], move |ctx, _| {
+    m.macro_(["string_as_code"], move |ctx, _| {
         let id = ctx.insert_source("string_as_code", string);
         let expr = ctx.parse_source::<ast::Expr>(id)?;
 
         Ok(quote!(#expr).into_token_stream(ctx))
     })?;
 
-    m.macro_(&["string_as_code_from_arg"], |ctx, stream| {
+    m.macro_(["string_as_code_from_arg"], |ctx, stream| {
         let mut p = Parser::from_token_stream(stream, ctx.stream_span());
         let s = p.parse_all::<ast::LitStr>()?;
         let s = ctx.resolve(s)?.into_owned();

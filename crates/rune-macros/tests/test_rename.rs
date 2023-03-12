@@ -22,7 +22,7 @@ fn test_rename() {
 
     match e {
         ContextError::ConflictingType { item, .. } => {
-            assert_eq!(item, ItemBuf::with_item(&["Bar"]));
+            assert_eq!(item, ItemBuf::with_item(["Bar"]));
         }
         actual => {
             panic!("expected conflicting type but got: {:?}", actual);

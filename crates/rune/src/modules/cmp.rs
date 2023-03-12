@@ -4,7 +4,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::cmp` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["cmp"]);
+    let mut module = Module::with_crate_item("std", ["cmp"]);
 
     module.ty::<std::cmp::Ordering>()?;
 

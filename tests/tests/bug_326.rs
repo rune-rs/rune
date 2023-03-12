@@ -31,12 +31,12 @@ fn bug_326() -> rune::Result<()> {
     let unit = result?;
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
-    vm.call(&["test_multiline_template"], ())?;
+    vm.call(["test_multiline_template"], ())?;
     Ok(())
 }
 
 fn trim_module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(&["mymodule"]);
+    let mut m = Module::with_item(["mymodule"]);
     m.inst_fn("trim_indent", trim_indent)?;
     Ok(m)
 }

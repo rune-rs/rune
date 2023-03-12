@@ -5,7 +5,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::ops` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["ops"]);
+    let mut module = Module::with_crate_item("std", ["ops"]);
     module.ty::<Range>()?;
     module.struct_meta::<Range, 2>(["start", "end"])?;
     module.field_fn(Protocol::GET, "start", |r: &Range| r.start.clone())?;

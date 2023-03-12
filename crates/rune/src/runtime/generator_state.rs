@@ -24,7 +24,7 @@ use crate::{compile::Named, InstallWith};
 /// let unit = rune::prepare(&mut sources).build()?;
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
-/// let mut execution = vm.execute(&["main"], ())?;
+/// let mut execution = vm.execute(["main"], ())?;
 ///
 /// // Initial resume doesn't take a value.
 /// let first = match execution.resume()? {

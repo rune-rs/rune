@@ -5,13 +5,13 @@ use crate::{Any, ContextError, Module};
 
 /// Construct the `std::string` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["string"]);
+    let mut module = Module::with_crate_item("std", ["string"]);
 
     module.ty::<String>()?;
 
-    module.function(&["String", "from_str"], <String as From<&str>>::from)?;
-    module.function(&["String", "new"], String::new)?;
-    module.function(&["String", "with_capacity"], String::with_capacity)?;
+    module.function(["String", "from_str"], <String as From<&str>>::from)?;
+    module.function(["String", "new"], String::new)?;
+    module.function(["String", "with_capacity"], String::with_capacity)?;
 
     module.inst_fn("cmp", str::cmp)?;
     module.inst_fn("len", String::len)?;
@@ -41,8 +41,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("get", string_get)?;
 
     // TODO: parameterize once generics are available.
-    module.function(&["parse_int"], parse_int)?;
-    module.function(&["parse_char"], parse_char)?;
+    module.function(["parse_int"], parse_int)?;
+    module.function(["parse_char"], parse_char)?;
 
     Ok(module)
 }

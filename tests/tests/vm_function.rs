@@ -60,7 +60,7 @@ fn test_function() {
     let function: Function = run(
         &context,
         r#"pub fn main(a, b) { || a + b }"#,
-        &["main"],
+        ["main"],
         (1i64, 2i64),
     )
     .unwrap();

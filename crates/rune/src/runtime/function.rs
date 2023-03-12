@@ -39,7 +39,7 @@ impl Function {
     ///
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
-    /// let value = vm.call(&["main"], (function,))?;
+    /// let value = vm.call(["main"], (function,))?;
     /// let value = u32::from_value(value)?;
     /// assert_eq!(value, 42);
     /// # Ok(()) }
@@ -81,7 +81,7 @@ impl Function {
     ///
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
-    /// let value = vm.async_call(&["main"], (function,)).await?;
+    /// let value = vm.async_call(["main"], (function,)).await?;
     /// let value = u32::from_value(value)?;
     /// assert_eq!(value, 42);
     /// # Ok(()) }
@@ -130,7 +130,7 @@ impl Function {
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let value = vm.call(&["main"], ())?;
+    /// let value = vm.call(["main"], ())?;
     ///
     /// let value = Function::from_value(value)?;
     /// assert_eq!(value.call::<_, u32>((1, 2))?, 3);
@@ -237,10 +237,10 @@ impl Function {
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let pony = vm.call(&["main"], ())?;
+    /// let pony = vm.call(["main"], ())?;
     /// let pony = Function::from_value(pony)?;
     ///
-    /// assert_eq!(pony.type_hash(), Hash::type_hash(&["pony"]));
+    /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
     /// # Ok(()) }
     /// ```
     pub fn type_hash(&self) -> Hash {
@@ -269,13 +269,13 @@ impl Function {
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let pony = vm.call(&["main"], ())?;
+    /// let pony = vm.call(["main"], ())?;
     /// let pony = Function::from_value(pony)?;
     ///
     /// // This is fine, since `pony` is a free function.
     /// let pony = pony.into_sync()?;
     ///
-    /// assert_eq!(pony.type_hash(), Hash::type_hash(&["pony"]));
+    /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
     /// # Ok(()) }
     /// ```
     ///
@@ -307,7 +307,7 @@ impl Function {
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let closure = vm.call(&["main"], ())?;
+    /// let closure = vm.call(["main"], ())?;
     /// let closure = Function::from_value(closure)?;
     ///
     /// // This is *not* fine since the returned closure has captured a
@@ -351,7 +351,7 @@ impl SyncFunction {
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let add = vm.call(&["main"], ())?;
+    /// let add = vm.call(["main"], ())?;
     /// let add = SyncFunction::from_value(add)?;
     ///
     /// let value = add.async_send_call::<_, u32>((1, 2)).await?;
@@ -388,7 +388,7 @@ impl SyncFunction {
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let add = vm.call(&["main"], ())?;
+    /// let add = vm.call(["main"], ())?;
     /// let add = SyncFunction::from_value(add)?;
     ///
     /// assert_eq!(add.call::<_, u32>((1, 2))?, 3);
@@ -425,10 +425,10 @@ impl SyncFunction {
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let pony = vm.call(&["main"], ())?;
+    /// let pony = vm.call(["main"], ())?;
     /// let pony = SyncFunction::from_value(pony)?;
     ///
-    /// assert_eq!(pony.type_hash(), Hash::type_hash(&["pony"]));
+    /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
     /// # Ok(()) }
     /// ```
     pub fn type_hash(&self) -> Hash {

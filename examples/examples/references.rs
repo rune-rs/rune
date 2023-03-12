@@ -14,7 +14,7 @@ impl Foo {
     }
 }
 
-#[allow(clippy::blacklisted_name)]
+#[allow(clippy::disallowed_names)]
 fn main() -> rune::Result<()> {
     let mut module = Module::new();
     module.ty::<Foo>()?;
@@ -50,7 +50,7 @@ fn main() -> rune::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let mut foo = Foo::default();
-    let _ = vm.call(&["main"], (&mut foo,))?;
+    let _ = vm.call(["main"], (&mut foo,))?;
     println!("{:?}", foo);
     Ok(())
 }

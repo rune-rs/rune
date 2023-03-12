@@ -17,7 +17,7 @@ fn test_reference_error() -> rune::Result<()> {
     }
 
     let mut module = Module::new();
-    module.function(&["take_it"], take_it)?;
+    module.function(["take_it"], take_it)?;
 
     let mut context = Context::new();
     context.install(&module)?;
@@ -37,6 +37,6 @@ fn test_reference_error() -> rune::Result<()> {
 
     // This should error, because we're trying to acquire an `Ref` out of a
     // passed in reference.
-    assert!(vm.call(&["main"], (&mut foo,)).is_err());
+    assert!(vm.call(["main"], (&mut foo,)).is_err());
     Ok(())
 }

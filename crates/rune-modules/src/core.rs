@@ -27,8 +27,8 @@ use rune::macros::{quote, FormatArgs, MacroContext, TokenStream};
 /// Construct the `std::core` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("std");
-    module.macro_(&["stringify"], stringify_macro)?;
-    module.macro_(&["panic"], panic_macro)?;
+    module.macro_(["stringify"], stringify_macro)?;
+    module.macro_(["panic"], panic_macro)?;
     Ok(module)
 }
 

@@ -26,8 +26,8 @@ use rune::macros::{MacroContext, TokenStream, FormatArgs};
 
 /// Construct the supplemental `std::io` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["fmt"]);
-    module.macro_(&["format"], format_macro)?;
+    let mut module = Module::with_crate_item("std", ["fmt"]);
+    module.macro_(["format"], format_macro)?;
     Ok(module)
 }
 

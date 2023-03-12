@@ -1,13 +1,10 @@
-#![feature(test)]
+use criterion::Criterion;
 
-extern crate test;
-
-use test::Bencher;
+criterion::criterion_group!(benches, aoc_2020_19b);
 
 const INPUT: &str = include_str!("data/aoc_2020_19b.txt");
 
-#[bench]
-fn aoc_2020_19b(b: &mut Bencher) -> rune::Result<()> {
+fn aoc_2020_19b(b: &mut Criterion) {
     let mut data = rune::runtime::Vec::new();
 
     for line in INPUT.split('\n').filter(|s| !s.is_empty()) {
@@ -234,12 +231,12 @@ fn aoc_2020_19b(b: &mut Bencher) -> rune::Result<()> {
         }
     };
 
-    let entry = rune::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(["main"]);
 
-    b.iter(|| {
-        vm.call(entry, (data.clone(),))
-            .expect("successful execution")
+    b.bench_function("aoc_2020_19b", |b| {
+        b.iter(|| {
+            vm.call(entry, (data.clone(),))
+                .expect("successful execution")
+        });
     });
-
-    Ok(())
 }

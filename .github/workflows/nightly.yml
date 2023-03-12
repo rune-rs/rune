@@ -16,9 +16,10 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
     - uses: actions/checkout@v3
-    - run: rustup toolchain install stable --profile minimal
+    - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-    - run: cargo test --all
+    - run: cargo test --workspace --all-targets
+    - run: cargo test --workspace --doc
     - run: cargo run --release --bin rune -- check --recursive --experimental scripts
     - run: cargo run --manifest-path tools/builder/Cargo.toml -- --channel nightly
     - uses: softprops/action-gh-release@v1

@@ -1,11 +1,8 @@
-#![feature(test)]
+use criterion::Criterion;
 
-extern crate test;
+criterion::criterion_group!(benches, fib_15, fib_20);
 
-use test::Bencher;
-
-#[bench]
-fn fib_15(b: &mut Bencher) -> rune::Result<()> {
+fn fib_15(b: &mut Criterion) {
     let mut vm = rune_tests::rune_vm! {
         fn fib(n) {
             if n <= 1 {
@@ -20,14 +17,14 @@ fn fib_15(b: &mut Bencher) -> rune::Result<()> {
         }
     };
 
-    let entry = rune::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(["main"]);
 
-    b.iter(|| vm.call(entry, (15,)).expect("successful execution"));
-    Ok(())
+    b.bench_function("fib_15", |b| {
+        b.iter(|| vm.call(entry, (15,)).expect("successful execution"));
+    });
 }
 
-#[bench]
-fn fib_20(b: &mut Bencher) -> rune::Result<()> {
+fn fib_20(b: &mut Criterion) {
     let mut vm = rune_tests::rune_vm! {
         fn fib(n) {
             if n <= 1 {
@@ -42,8 +39,9 @@ fn fib_20(b: &mut Bencher) -> rune::Result<()> {
         }
     };
 
-    let entry = rune::Hash::type_hash(&["main"]);
+    let entry = rune::Hash::type_hash(["main"]);
 
-    b.iter(|| vm.call(entry, (20,)).expect("successful execution"));
-    Ok(())
+    b.bench_function("fib_20", |b| {
+        b.iter(|| vm.call(entry, (20,)).expect("successful execution"));
+    });
 }

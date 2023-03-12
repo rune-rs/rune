@@ -35,7 +35,7 @@ async fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.execute(&["main"], (33i64,))?.complete()?;
+    let output = vm.execute(["main"], (33i64,))?.complete()?;
     let output = i64::from_value(output)?;
 
     println!("output: {}", output);
@@ -43,7 +43,7 @@ async fn main() -> rune::Result<()> {
 }
 
 fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(&["mymodule"]);
+    let mut m = Module::with_item(["mymodule"]);
     m.inst_fn("divide_by_three", divide_by_three)?;
     Ok(m)
 }

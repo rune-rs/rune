@@ -36,8 +36,8 @@ use rune::{Any, ContextError, Module};
 /// Construct the `time` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("time");
-    module.function(&["Duration", "from_secs"], Duration::from_secs)?;
-    module.async_function(&["sleep"], sleep)?;
+    module.function(["Duration", "from_secs"], Duration::from_secs)?;
+    module.async_function(["sleep"], sleep)?;
     Ok(module)
 }
 

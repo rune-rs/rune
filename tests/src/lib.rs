@@ -165,7 +165,7 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 ///
 /// # fn main() {
 /// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
-/// let result = vm.execute(&["main"], ()).unwrap().complete().unwrap();
+/// let result = vm.execute(["main"], ()).unwrap().complete().unwrap();
 /// assert_eq!(result.into_bool().unwrap(), true);
 /// # }
 #[macro_export]
@@ -190,7 +190,7 @@ macro_rules! rune_vm {
 ///
 /// # fn main() {
 /// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
-/// let result = vm.execute(&["main"], ()).unwrap().complete().unwrap();
+/// let result = vm.execute(["main"], ()).unwrap().complete().unwrap();
 /// assert_eq!(result.into_bool().unwrap(), true);
 /// # }
 #[macro_export]
@@ -223,7 +223,7 @@ macro_rules! rune_vm_capture {
 macro_rules! rune {
     ($($tt:tt)*) => {{
         let context = $crate::modules::default_context().expect("failed to build context");
-        $crate::run(&context, stringify!($($tt)*), &["main"], ()).expect("program to run successfully")
+        $crate::run(&context, stringify!($($tt)*), ["main"], ()).expect("program to run successfully")
     }};
 }
 
@@ -243,7 +243,7 @@ macro_rules! rune {
 macro_rules! rune_s {
     ($source:expr) => {{
         let context = $crate::modules::default_context().expect("failed to build context");
-        $crate::run(&context, $source, &["main"], ()).expect("program to run successfully")
+        $crate::run(&context, $source, ["main"], ()).expect("program to run successfully")
     }};
 }
 
@@ -271,7 +271,7 @@ macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
         let mut context = $crate::modules::default_context().expect("failed to build context");
         context.install(&$module).expect("failed to install native module");
-        $crate::run::<_, _, $ty>(&context, stringify!($($tt)*), &["main"], $args).expect("program to run successfully")
+        $crate::run::<_, _, $ty>(&context, stringify!($($tt)*), ["main"], $args).expect("program to run successfully")
     }};
 }
 
@@ -289,7 +289,7 @@ macro_rules! assert_vm_error {
         let mut diagnostics = Default::default();
 
         let mut sources = $crate::sources($source);
-        let e = match $crate::run_helper::<_, _, $ty>(&context, &mut sources, &mut diagnostics, &["main"], ()) {
+        let e = match $crate::run_helper::<_, _, $ty>(&context, &mut sources, &mut diagnostics, ["main"], ()) {
             Err(e) => e,
             Ok(value) => {
                 panic!("expected error but program completed with: {:?}", value);

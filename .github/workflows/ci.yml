@@ -9,73 +9,56 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: ["1.61", stable]
     steps:
       - uses: actions/checkout@v3
-      - run: rustup toolchain install stable --profile minimal
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{matrix.rust}}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all
+      - run: cargo test --workspace --all-targets
+      - run: cargo test --workspace --doc
       - run: cargo run --bin rune -- check --recursive --experimental scripts
 
-  build_msrv:
+  docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: rustup toolchain install 1.61.0 --profile minimal
-      - run: rustup default 1.61.0
+      - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --all
-
-  build_stable:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: rustup toolchain install stable --profile minimal
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo build --all
-
-  build_benchmarks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: rustup toolchain install nightly --profile minimal
-      - run: rustup default nightly
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo build --benches
-
-  build_documentation:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: rustup toolchain install nightly --profile minimal
-      - run: rustup default nightly
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo +nightly doc -p rune
+      - run: cargo doc -p rune
         env:
           RUSTFLAGS: --cfg docsrs
           RUSTDOCFLAGS: --cfg docsrs
 
-  build_wasm:
+  wasm:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo build -p rune-wasm --target wasm32-unknown-unknown
 
-  formatting:
+  rustfmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: rustup toolchain install 1.67.1 --profile minimal --component rustfmt
-      - run: rustup default 1.67.1
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - run: cargo fmt --all -- --check
 
   clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: rustup toolchain install 1.67.1 --profile minimal --component clippy
-      - run: rustup default 1.67.1
+      - uses: dtolnay/rust-toolchain@1.68
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all-features -- -D warnings
+      - run: cargo clippy --all-features --all-targets -- -D warnings

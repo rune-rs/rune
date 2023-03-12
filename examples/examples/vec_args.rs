@@ -37,7 +37,7 @@ fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.call(&["main"], ())?;
+    let output = vm.call(["main"], ())?;
     let output = u32::from_value(output)?;
 
     println!("{}", output);
@@ -45,10 +45,10 @@ fn main() -> rune::Result<()> {
 }
 
 fn module() -> Result<Module, ContextError> {
-    let mut m = Module::with_item(&["mymodule"]);
+    let mut m = Module::with_item(["mymodule"]);
 
     m.function(
-        &["pass_along"],
+        ["pass_along"],
         |func: Function, args: Vec<Value>| -> Result<Value, VmError> { func.call(args) },
     )?;
 

@@ -5,11 +5,11 @@ use std::num::ParseIntError;
 
 /// Construct the `std::int` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["int"]);
+    let mut module = Module::with_crate_item("std", ["int"]);
 
     module.ty::<ParseIntError>()?;
 
-    module.function(&["parse"], parse)?;
+    module.function(["parse"], parse)?;
     module.inst_fn("to_float", to_float)?;
 
     module.inst_fn("max", i64::max)?;

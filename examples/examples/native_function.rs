@@ -33,7 +33,7 @@ fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.call(&["main"], (1u32,))?;
+    let output = vm.call(["main"], (1u32,))?;
     let output = i64::from_value(output)?;
 
     println!("{}", output);
@@ -42,6 +42,6 @@ fn main() -> rune::Result<()> {
 
 fn module() -> Result<Module, ContextError> {
     let mut m = Module::new();
-    m.function(&["add"], |a: i64| a + 1)?;
+    m.function(["add"], |a: i64| a + 1)?;
     Ok(m)
 }

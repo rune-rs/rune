@@ -114,18 +114,18 @@ mod tests {
     #[test]
     fn insert() {
         let mut names = Names::default();
-        assert!(!names.contains(&["test"]));
-        assert!(!names.insert(&["test"]));
-        assert!(names.contains(&["test"]));
-        assert!(names.insert(&["test"]));
+        assert!(!names.contains(["test"]));
+        assert!(!names.insert(["test"]));
+        assert!(names.contains(["test"]));
+        assert!(names.insert(["test"]));
     }
 
     #[test]
     fn contains() {
         let mut names = Names::default();
-        assert!(!names.contains(&["test"]));
-        assert!(!names.insert(&["test"]));
-        assert!(names.contains(&["test"]));
-        assert!(names.insert(&["test"]));
+        assert!(!names.contains(["test"]));
+        assert!(!names.insert(["test"]));
+        assert!(names.contains(["test"]));
+        assert!(names.insert(["test"]));
     }
 }

@@ -30,10 +30,10 @@ mod stringy_math_macro;
 
 /// Construct the `std::experiments` module, which contains experiments.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["experiments"]);
-    module.macro_(&["passthrough"], passthrough_impl)?;
-    module.macro_(&["stringy_math"], stringy_math_macro::stringy_math)?;
-    module.macro_(&["make_function"], make_function)?;
+    let mut module = Module::with_crate_item("std", ["experiments"]);
+    module.macro_(["passthrough"], passthrough_impl)?;
+    module.macro_(["stringy_math"], stringy_math_macro::stringy_math)?;
+    module.macro_(["make_function"], make_function)?;
     Ok(module)
 }
 

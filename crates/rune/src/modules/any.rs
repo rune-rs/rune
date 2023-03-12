@@ -21,12 +21,12 @@ fn format_type_id(item: &TypeId, buf: &mut String) -> fmt::Result {
 
 /// Construct the `std::any` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["any"]);
+    let mut module = Module::with_crate_item("std", ["any"]);
 
-    module.function(&["type_name_of_val"], Value::into_type_name)?;
+    module.function(["type_name_of_val"], Value::into_type_name)?;
 
     module.ty::<TypeId>()?;
-    module.function(&["TypeId", "of_val"], type_id_of_val)?;
+    module.function(["TypeId", "of_val"], type_id_of_val)?;
     module.inst_fn(Protocol::STRING_DISPLAY, format_type_id)?;
     Ok(module)
 }

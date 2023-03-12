@@ -24,7 +24,7 @@ impl DocVisitor {
             let against = if let Some(vec) = self.collected.get(item) {
                 vec
             } else {
-                let items = self.collected.iter().map(|(item, _)| item.as_str()).collect::<Vec<_>>().join(", ");
+                let items = self.collected.keys().map(|item| item.as_str()).collect::<Vec<_>>().join(", ");
                 panic!("missing documentation for item {item:?}, collected: {items}");
             };
 
@@ -55,12 +55,7 @@ macro_rules! expect_docs {
             let mut expected = BTreeMap::new();
 
             $(
-            #[allow(unused_mut)]
-            let mut vec = Vec::new();
-            $(vec.push($docstr);
-            )*
-
-            expected.insert($typename, vec);
+            expected.insert($typename, vec![$($docstr),*]);
             )+
 
             DocVisitor {

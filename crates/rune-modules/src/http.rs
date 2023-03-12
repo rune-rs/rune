@@ -65,8 +65,8 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<StatusCode>()?;
     module.ty::<Error>()?;
 
-    module.function(&["Client", "new"], Client::new)?;
-    module.async_function(&["get"], get)?;
+    module.function(["Client", "new"], Client::new)?;
+    module.async_function(["get"], get)?;
 
     module.async_inst_fn("get", Client::get)?;
     module.async_inst_fn("post", Client::post)?;

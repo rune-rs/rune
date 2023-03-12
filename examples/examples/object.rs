@@ -36,7 +36,7 @@ fn main() -> rune::Result<()> {
     let mut object = Object::new();
     object.insert(String::from("key"), Value::from(42i64));
 
-    let output = vm.call(&["calc"], (object,))?;
+    let output = vm.call(["calc"], (object,))?;
     let output = Object::from_value(output)?;
 
     println!("{:?}", output.get("key"));

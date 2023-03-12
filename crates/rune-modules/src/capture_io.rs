@@ -57,23 +57,23 @@ impl CaptureIo {
 
 /// Provide a bunch of `std` functions that can be used during tests to capture output.
 pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["io"]);
+    let mut module = Module::with_crate_item("std", ["io"]);
 
     let o = io.clone();
 
-    module.function(&["print"], move |m: &str| {
+    module.function(["print"], move |m: &str| {
         write!(o.inner.lock(), "{}", m).map_err(Panic::custom)
     })?;
 
     let o = io.clone();
 
-    module.function(&["println"], move |m: &str| {
+    module.function(["println"], move |m: &str| {
         writeln!(o.inner.lock(), "{}", m).map_err(Panic::custom)
     })?;
 
     let o = io.clone();
 
-    module.raw_fn(&["dbg"], move |stack, args| {
+    module.raw_fn(["dbg"], move |stack, args| {
         let mut o = o.inner.lock();
         dbg_impl(&mut *o, stack, args)
     })?;

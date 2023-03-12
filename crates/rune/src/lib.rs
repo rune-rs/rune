@@ -113,7 +113,7 @@
 //!     let unit = result?;
 //!     let mut vm = Vm::new(runtime, Arc::new(unit));
 //!
-//!     let output = vm.call(&["add"], (10i64, 20i64))?;
+//!     let output = vm.call(["add"], (10i64, 20i64))?;
 //!     let output = i64::from_value(output)?;
 //!
 //!     println!("{}", output);

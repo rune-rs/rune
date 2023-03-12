@@ -5,12 +5,12 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::bytes` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["bytes"]);
+    let mut module = Module::with_crate_item("std", ["bytes"]);
 
     module.ty::<Bytes>()?;
-    module.function(&["Bytes", "new"], Bytes::new)?;
-    module.function(&["Bytes", "with_capacity"], Bytes::with_capacity)?;
-    module.function(&["Bytes", "from_vec"], Bytes::from_vec)?;
+    module.function(["Bytes", "new"], Bytes::new)?;
+    module.function(["Bytes", "with_capacity"], Bytes::with_capacity)?;
+    module.function(["Bytes", "from_vec"], Bytes::from_vec)?;
 
     module.inst_fn("into_vec", Bytes::into_vec)?;
     module.inst_fn("extend", Bytes::extend)?;

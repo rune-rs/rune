@@ -47,7 +47,7 @@ impl StatusCode {
 }
 
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["http"]);
+    let mut module = Module::new(["http"]);
     module.inst_fn(Protocol::STRING_DISPLAY, StatusCode::display)?;
     Ok(module)
 }

@@ -45,7 +45,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<ExitStatus>()?;
     module.ty::<Output>()?;
 
-    module.function(&["Command", "new"], Command::new)?;
+    module.function(["Command", "new"], Command::new)?;
     module.inst_fn("spawn", Command::spawn)?;
     module.inst_fn("arg", Command::arg)?;
     module.inst_fn("args", Command::args)?;

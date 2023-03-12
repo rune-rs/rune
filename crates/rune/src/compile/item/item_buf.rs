@@ -89,7 +89,7 @@ impl ItemBuf {
     /// ```
     /// use rune::compile::{ComponentRef, ItemBuf};
     ///
-    /// let item = ItemBuf::with_item(&["foo", "bar"]);
+    /// let item = ItemBuf::with_item(["foo", "bar"]);
     /// let mut it = item.iter();
     ///
     /// assert_eq!(it.next(), Some(ComponentRef::Str("foo")));
@@ -137,7 +137,7 @@ impl ItemBuf {
     /// ```
     /// use rune::compile::{ComponentRef, ItemBuf};
     ///
-    /// let item = ItemBuf::with_crate_item("std", &["option"]);
+    /// let item = ItemBuf::with_crate_item("std", ["option"]);
     /// assert_eq!(item.as_crate(), Some("std"));
     ///
     /// let mut it = item.iter();

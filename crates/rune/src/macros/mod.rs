@@ -39,7 +39,7 @@
 //!
 //! # fn main() -> rune::Result<()> {
 //! let mut m = Module::new();
-//! m.macro_(&["concat_idents"], concat_idents)?;
+//! m.macro_(["concat_idents"], concat_idents)?;
 //!
 //! let mut context = Context::new();
 //! context.install(&m)?;
@@ -62,7 +62,7 @@
 //! let unit = Arc::new(unit);
 //!
 //! let mut vm = Vm::new(runtime, unit);
-//! let value = vm.call(&["main"], ())?;
+//! let value = vm.call(["main"], ())?;
 //! let value = u32::from_value(value)?;
 //!
 //! assert_eq!(value, 42);

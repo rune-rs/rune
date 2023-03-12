@@ -5,11 +5,11 @@ use crate::{ContextError, Module, Params};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["vec"]);
+    let mut module = Module::with_crate_item("std", ["vec"]);
 
     module.ty::<Vec>()?;
 
-    module.function(&["Vec", "new"], Vec::new)?;
+    module.function(["Vec", "new"], Vec::new)?;
     module.inst_fn("clear", Vec::clear)?;
     module.inst_fn("clone", Vec::clone)?;
     module.inst_fn("extend", Vec::extend)?;

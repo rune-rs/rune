@@ -5,9 +5,9 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::result` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["result"]);
+    let mut module = Module::with_crate_item("std", ["result"]);
     // Sorted for ease of finding
-    module.result(&["Result"])?;
+    module.result(["Result"])?;
     module.inst_fn("ok", ok)?;
     module.inst_fn("is_ok", is_ok)?;
     module.inst_fn("is_err", is_err)?;

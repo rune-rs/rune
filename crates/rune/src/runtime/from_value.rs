@@ -29,7 +29,7 @@ pub use rune_macros::FromValue;
 /// let unit = rune::prepare(&mut sources).build()?;
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
-/// let foo = vm.call(&["main"], ())?;
+/// let foo = vm.call(["main"], ())?;
 /// let foo = Foo::from_value(foo)?;
 ///
 /// assert_eq!(foo.field, 42);

@@ -34,9 +34,9 @@ use rune::macros::{quote, MacroContext, TokenStream};
 
 /// Construct the supplemental `std::macros` module.
 pub fn module(_unused: bool) -> Result<Module, ContextError> {
-    let mut builtins = Module::with_crate_item("std", &["macros", "builtin"]);
-    builtins.macro_(&["file"], emit_file)?;
-    builtins.macro_(&["line"], emit_line)?;
+    let mut builtins = Module::with_crate_item("std", ["macros", "builtin"]);
+    builtins.macro_(["file"], emit_file)?;
+    builtins.macro_(["line"], emit_line)?;
     Ok(builtins)
 }
 

@@ -14,9 +14,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<f64>()?;
     module.ty::<i64>()?;
 
-    module.function(&["panic"], panic_impl)?;
-    module.function(&["is_readable"], is_readable)?;
-    module.function(&["is_writable"], is_writable)?;
+    module.function(["panic"], panic_impl)?;
+    module.function(["is_readable"], is_readable)?;
+    module.function(["is_writable"], is_writable)?;
     Ok(module)
 }
 

@@ -5,7 +5,7 @@ use crate::{ContextError, Module};
 
 /// Construct the `std::object` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", &["object"]);
+    let mut module = Module::with_crate_item("std", ["object"]);
 
     module.ty::<Object>()?;
 
