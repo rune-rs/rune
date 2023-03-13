@@ -5,7 +5,7 @@ authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.63"
 description = """
-An interpreter for Rune, an embeddable dynamic programming language for Rust. 
+An interpreter for the Rune Language, an embeddable dynamic programming language for Rust. 
 """
 documentation = "https://docs.rs/rune"
 readme = "README.md"
