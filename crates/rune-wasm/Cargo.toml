@@ -3,9 +3,7 @@ name = "rune-wasm"
 version = "0.12.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-description = """
-A WASM module for the Rune Language, an embeddable dynamic programming language for Rust.
-"""
+description = "A WASM module for the Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
 homepage = "https://github.com/rune-rs/rune"
