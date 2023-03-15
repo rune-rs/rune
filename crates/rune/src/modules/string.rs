@@ -19,6 +19,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("ends_with", str::ends_with::<&str>)?;
     module.inst_fn("capacity", String::capacity)?;
     module.inst_fn("clear", String::clear)?;
+    module.inst_fn("contains", str::contains::<&str>)?;
     module.inst_fn("push", String::push)?;
     module.inst_fn("push_str", String::push_str)?;
     module.inst_fn("reserve", String::reserve)?;
