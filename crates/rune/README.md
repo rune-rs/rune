@@ -12,7 +12,6 @@
 <a href="https://github.com/rune-rs/rune/actions?query=branch%3Amain"><img alt="build status" src="https://img.shields.io/github/actions/workflow/status/rune-rs/rune/ci.yml?branch=main&style=for-the-badge" height="20"></a>
 <a href="https://discord.gg/v5AeNkT"><img alt="chat on discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square" height="20"></a>
 <br>
-
 <br>
 
 The Rune Language, an embeddable dynamic programming language for Rust.
