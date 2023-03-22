@@ -1,6 +1,6 @@
 [package]
 name = "rune-macros"
-version = "0.12.1"
+version = "0.12.2"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.63"
@@ -19,7 +19,7 @@ quote = "1.0.10"
 proc-macro2 = { version = "1.0.32", features = ["span-locations"] }
 
 [dev-dependencies]
-rune = {version = "0.12.1", path = "../rune"}
+rune = { version = "0.12.2", path = "../rune" }
 
 [lib]
 proc-macro = true

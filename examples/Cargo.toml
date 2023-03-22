@@ -12,5 +12,5 @@ default = ["full"]
 [dependencies]
 tokio = { version = "1.14.0", features = ["macros"] }
 
-rune = {path = "../crates/rune"}
-rune-modules = {path = "../crates/rune-modules"}
+rune = { path = "../crates/rune" }
+rune-modules = { path = "../crates/rune-modules" }
