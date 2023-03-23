@@ -644,10 +644,14 @@ impl<'a> Query<'a> {
                 variant: variant.clone(),
             },
             ContextMetaKind::Enum { type_hash } => PrivMetaKind::Enum { type_hash },
-            ContextMetaKind::Function { type_hash } => PrivMetaKind::Function {
+            ContextMetaKind::Function {
+                type_hash,
+                instance_function,
+            } => PrivMetaKind::Function {
                 type_hash,
                 is_test: true,
                 is_bench: true,
+                instance_function,
             },
             ContextMetaKind::Const { ref const_value } => PrivMetaKind::Const {
                 const_value: const_value.clone(),
@@ -672,7 +676,7 @@ impl<'a> Query<'a> {
 
     /// Query for the given meta by looking up the reverse of the specified
     /// item.
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self, span, item), fields(item = ?self.pool.item(item)))]
     pub(crate) fn query_meta(
         &mut self,
         span: Span,
@@ -1076,6 +1080,7 @@ impl<'a> Query<'a> {
                     type_hash: self.pool.item_type_hash(item_meta.item),
                     is_test: f.is_test,
                     is_bench: f.is_bench,
+                    instance_function: false,
                 }
             }
             Indexed::InstanceFunction(f) => {
@@ -1089,6 +1094,7 @@ impl<'a> Query<'a> {
                     type_hash: self.pool.item_type_hash(item_meta.item),
                     is_test: false,
                     is_bench: false,
+                    instance_function: true,
                 }
             }
             Indexed::Closure(c) => {
@@ -1297,6 +1303,7 @@ impl<'a> Query<'a> {
     }
 
     /// Walk the names to find the first one that is contained in the unit.
+    #[tracing::instrument(skip_all, fields(module = ?self.pool.module_item(module), base = ?self.pool.item(base)))]
     fn convert_initial_path(
         &mut self,
         context: &Context,
@@ -1304,17 +1311,33 @@ impl<'a> Query<'a> {
         base: ItemId,
         local: &ast::Ident,
     ) -> Result<ItemId, CompileError> {
+        let span = local.span;
         let mut base = self.pool.item(base).to_owned();
-        let module_item = self.pool.module_item(module);
-        debug_assert!(base.starts_with(module_item));
+        debug_assert!(base.starts_with(self.pool.module_item(module)));
 
-        let local = local.resolve(resolve_context!(self))?;
+        let local = local.resolve(resolve_context!(self))?.to_owned();
 
-        while base.starts_with(module_item) {
-            base.push(local);
+        while base.starts_with(self.pool.module_item(module)) {
+            base.push(&local);
+
+            tracing::trace!(?base, "testing");
 
             if self.inner.names.contains(&base) {
-                return Ok(self.pool.alloc_item(base));
+                let item = self.pool.alloc_item(&base);
+
+                // TODO: We probably should not engage the whole query meta
+                // machinery here.
+                if let Some(meta) = self.query_meta(span, item, Used::Used)? {
+                    if !matches!(
+                        meta.kind,
+                        PrivMetaKind::Function {
+                            instance_function: true,
+                            ..
+                        }
+                    ) {
+                        return Ok(self.pool.alloc_item(base));
+                    }
+                }
             }
 
             let c = base.pop();
@@ -1325,15 +1348,15 @@ impl<'a> Query<'a> {
             }
         }
 
-        if let Some(item) = self.prelude.get(local) {
+        if let Some(item) = self.prelude.get(&local) {
             return Ok(self.pool.alloc_item(item));
         }
 
-        if context.contains_crate(local) {
-            return Ok(self.pool.alloc_item(ItemBuf::with_crate(local)));
+        if context.contains_crate(&local) {
+            return Ok(self.pool.alloc_item(ItemBuf::with_crate(&local)));
         }
 
-        let new_module = module_item.extended(local);
+        let new_module = self.pool.module_item(module).extended(&local);
         Ok(self.pool.alloc_item(new_module))
     }
 

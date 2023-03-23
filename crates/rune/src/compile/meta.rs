@@ -230,6 +230,8 @@ pub(crate) enum ContextMetaKind {
     Function {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
+        /// Indicates if the function is an instance function or not.
+        instance_function: bool,
     },
     /// The constant expression.
     Const {
@@ -373,12 +375,12 @@ pub(crate) enum PrivMetaKind {
     Function {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
-
         /// Whether this function has a `#[test]` annotation
         is_test: bool,
-
         /// Whether this function has a `#[bench]` annotation.
         is_bench: bool,
+        /// Indicates that the function is an instance function.
+        instance_function: bool,
     },
     /// A closure.
     Closure {

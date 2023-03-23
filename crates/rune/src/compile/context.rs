@@ -568,7 +568,10 @@ impl Context {
 
         self.install_meta(ContextMeta {
             item,
-            kind: ContextMetaKind::Function { type_hash: hash },
+            kind: ContextMetaKind::Function {
+                type_hash: hash,
+                instance_function: f.instance_function,
+            },
         })?;
 
         Ok(())
@@ -689,7 +692,10 @@ impl Context {
             if !self.meta.contains_key(&item) {
                 self.install_meta(ContextMeta {
                     item,
-                    kind: ContextMetaKind::Function { type_hash },
+                    kind: ContextMetaKind::Function {
+                        type_hash,
+                        instance_function: true,
+                    },
                 })?;
             }
 

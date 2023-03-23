@@ -152,7 +152,7 @@ fn make_vm() -> Result<(Vm, CaptureIo)> {
             fn new(code, inputs) { Program { ops: parse(code), inputs } }
             fn run(self) {
                 let tape = Tape::new();
-                crate::run(self.ops, tape, self.inputs);
+                run(self.ops, tape, self.inputs);
             }
         }
 

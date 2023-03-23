@@ -377,7 +377,7 @@ impl fmt::Display for Item {
 
 impl fmt::Debug for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Item({})", self)
+        write!(f, "{}", self)
     }
 }
 
