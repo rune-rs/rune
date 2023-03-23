@@ -229,6 +229,7 @@ pub(crate) struct AssocKey {
 pub(crate) struct ModuleFn {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
+    pub(crate) instance_function: bool,
 }
 
 pub(crate) struct Macro {
@@ -671,6 +672,7 @@ impl Module {
             ModuleFn {
                 handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
                 args: Some(Func::args()),
+                instance_function: false,
             },
         );
 
@@ -770,6 +772,7 @@ impl Module {
             ModuleFn {
                 handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
                 args: Some(Func::args()),
+                instance_function: false,
             },
         );
 
@@ -795,6 +798,7 @@ impl Module {
             ModuleFn {
                 handler: Arc::new(move |stack, args| f(stack, args)),
                 args: None,
+                instance_function: false,
             },
         );
 
