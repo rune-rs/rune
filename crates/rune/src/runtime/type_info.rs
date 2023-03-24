@@ -5,6 +5,7 @@ use std::sync::Arc;
 /// Type information about a value, that can be printed for human consumption
 /// through its [Display][fmt::Display] implementation.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum TypeInfo {
     /// The static type of a value.
     StaticType(&'static StaticType),

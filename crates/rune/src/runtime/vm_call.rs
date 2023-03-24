@@ -18,14 +18,16 @@ impl VmCall {
     where
         T: AsMut<Vm>,
     {
+        let mut vm = self.vm;
+
         let value = match self.call {
-            Call::Async => Value::from(Future::new(self.vm.async_complete())),
+            Call::Async => Value::from(Future::new(async move { vm.async_complete().await })),
             Call::Immediate => {
-                execution.push_vm(self.vm);
+                execution.push_vm(vm);
                 return Ok(());
             }
-            Call::Stream => Value::from(Stream::new(self.vm)),
-            Call::Generator => Value::from(Generator::new(self.vm)),
+            Call::Stream => Value::from(Stream::new(vm)),
+            Call::Generator => Value::from(Generator::new(vm)),
         };
 
         let vm = execution.vm_mut();
