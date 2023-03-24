@@ -60,10 +60,13 @@ pub(crate) use self::meta::{
 };
 pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
+mod function_meta;
+pub(crate) use self::function_meta::{AssocFnData, FunctionData};
+pub use self::function_meta::{FunctionMeta, FunctionMetaData, FunctionMetaKind};
+
 mod module;
 pub use self::module::{
-    AssocType, AsyncFunction, AsyncInstFn, Function, FunctionMetaData, FunctionMetaKind, InstFn,
-    InstallWith, Module, Variant,
+    AssocType, AsyncFunction, AsyncInstFn, Function, InstFn, InstallWith, Module, Variant,
 };
 
 mod pool;
