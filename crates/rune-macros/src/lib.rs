@@ -27,6 +27,7 @@ extern crate proc_macro;
 mod any;
 mod context;
 mod from_value;
+mod function;
 mod instrument;
 mod internals;
 mod opaque;
@@ -65,6 +66,40 @@ pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let parser = crate::quote::Quote::new();
 
     let output = match parser.parse(input) {
+        Ok(output) => output,
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+    };
+
+    output.into()
+}
+
+/// Macro used to annotate native functions which can be loaded into rune.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{Module, ContextError};
+///
+/// /// This is a pretty neat function.
+/// #[rune::function]
+/// fn to_string(string: &str) -> String {
+///     string.to_string()
+/// }
+///
+/// fn module() -> Result<Module, ContextError> {
+///     let mut m = Module::new();
+///     m.function2(to_string)?;
+///     Ok(m)
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn function(
+    _: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let function = syn::parse_macro_input!(item with crate::function::Function::parse);
+
+    let output = match function.expand() {
         Ok(output) => output,
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
     };

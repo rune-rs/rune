@@ -244,6 +244,7 @@ pub mod testing;
 
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
+pub use rune_macros::function;
 
 /// Internal collection re-export.
 mod collections {
