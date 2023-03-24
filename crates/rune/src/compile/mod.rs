@@ -62,7 +62,8 @@ pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
 
 mod module;
 pub use self::module::{
-    AssocType, AsyncFunction, AsyncInstFn, Function, InstFn, InstallWith, Module, Variant,
+    AssocType, AsyncFunction, AsyncInstFn, Function, FunctionMetaData, FunctionMetaKind, InstFn,
+    InstallWith, Module, Variant,
 };
 
 mod pool;

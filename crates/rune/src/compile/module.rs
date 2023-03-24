@@ -15,6 +15,157 @@ use std::fmt;
 use std::future;
 use std::sync::Arc;
 
+/// Runtime data for a function.
+#[derive(Clone)]
+pub struct FunctionData {
+    name: ItemBuf,
+    handler: Arc<FunctionHandler>,
+    args: Option<usize>,
+}
+
+impl FunctionData {
+    #[inline]
+    fn new<Func, Args, N>(name: N, f: Func) -> Self
+    where
+        Func: Function<Args>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        Self {
+            name: ItemBuf::with_item(name),
+            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            args: Some(Func::args()),
+        }
+    }
+
+    #[inline]
+    fn new_async<Func, Args, N>(name: N, f: Func) -> Self
+    where
+        Func: AsyncFunction<Args>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        Self {
+            name: ItemBuf::with_item(name),
+            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            args: Some(Func::args()),
+        }
+    }
+}
+
+/// Runtime data for an associated function.
+#[derive(Clone)]
+pub struct AssocFnData {
+    name: InstFnInfo,
+    handler: Arc<FunctionHandler>,
+    ty: AssocType,
+    args: Option<usize>,
+    kind: AssocKind,
+}
+
+impl AssocFnData {
+    #[inline]
+    fn new<Func, Args>(name: InstFnInfo, f: Func, kind: AssocKind) -> Self
+    where
+        Func: InstFn<Args>,
+    {
+        Self {
+            name,
+            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            ty: Func::ty(),
+            args: Some(Func::args()),
+            kind,
+        }
+    }
+
+    #[inline]
+    fn new_async<Func, Args>(name: InstFnInfo, f: Func, kind: AssocKind) -> Self
+    where
+        Func: AsyncInstFn<Args>,
+    {
+        Self {
+            name,
+            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            ty: Func::ty(),
+            args: Some(Func::args()),
+            kind,
+        }
+    }
+}
+
+/// The kind of a [`FunctionMeta`].
+#[derive(Clone)]
+pub enum FunctionMetaKind {
+    #[doc(hidden)]
+    Function(FunctionData),
+    #[doc(hidden)]
+    AssocFn(AssocFnData),
+}
+
+impl FunctionMetaKind {
+    #[doc(hidden)]
+    #[inline]
+    pub fn function<N, Func, Args>(name: N, f: Func) -> Self
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+        Func: Function<Args>,
+    {
+        Self::Function(FunctionData::new(name, f))
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn async_function<N, Func, Args>(name: N, f: Func) -> Self
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+        Func: AsyncFunction<Args>,
+    {
+        Self::Function(FunctionData::new_async(name, f))
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn instance<N, Func, Args>(name: N, f: Func) -> Self
+    where
+        N: InstFnName,
+        Func: InstFn<Args>,
+    {
+        Self::AssocFn(AssocFnData::new(name.info(), f, AssocKind::Instance))
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn async_instance<N, Func, Args>(name: N, f: Func) -> Self
+    where
+        N: InstFnName,
+        Func: AsyncInstFn<Args>,
+    {
+        Self::AssocFn(AssocFnData::new_async(name.info(), f, AssocKind::Instance))
+    }
+}
+
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct FunctionMetaData {
+    #[doc(hidden)]
+    pub kind: FunctionMetaKind,
+    #[doc(hidden)]
+    pub name: &'static str,
+    #[doc(hidden)]
+    pub docs: &'static [&'static str],
+    #[doc(hidden)]
+    pub arguments: &'static [&'static str],
+}
+
+/// Type used to collect and store function metadata through the
+/// `#[rune::function]` macro.
+///
+/// Fields in the returned type are not public API and might be subject to
+/// change. Neither is capturing or defining its signature.
+pub type FunctionMeta = fn() -> FunctionMetaData;
+
 /// Trait to handle the installation of auxilliary functions for a type
 /// installed into a module.
 pub trait InstallWith {
@@ -336,7 +487,6 @@ impl Module {
     ///     }
     /// }
     ///
-    /// # fn main() -> rune::Result<()> {
     /// // Register `len` without registering a type.
     /// let mut module = rune::Module::default();
     /// // Note: cannot do this until we have registered a type.
@@ -353,7 +503,7 @@ impl Module {
     ///
     /// let mut context = rune::Context::new();
     /// assert!(context.install(module).is_ok());
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn ty<T>(&mut self) -> Result<(), ContextError>
     where
@@ -524,10 +674,9 @@ impl Module {
     /// ```
     /// use rune::Module;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut module = Module::with_item(["nonstd"]);
     /// module.unit("unit")?;
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: AsRef<str>,
@@ -556,10 +705,9 @@ impl Module {
     /// ```
     /// use rune::Module;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut module = Module::with_crate_item("nonstd", ["generator"]);
     /// module.generator_state(["GeneratorState"])?;
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -597,10 +745,9 @@ impl Module {
     /// ```
     /// use rune::Module;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut module = Module::with_crate_item("nonstd", ["option"]);
     /// module.option(["Option"])?;
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -629,10 +776,9 @@ impl Module {
     /// ```
     /// use rune::Module;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut module = Module::with_crate_item("nonstd", ["result"]);
     /// module.result(["Result"])?;
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     pub fn result<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -649,61 +795,18 @@ impl Module {
         Ok(())
     }
 
-    /// Register a function that cannot error internally.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// fn add_ten(value: i64) -> i64 {
-    ///     value + 10
-    /// }
-    ///
-    /// # fn main() -> rune::Result<()> {
-    /// let mut module = rune::Module::default();
-    ///
-    /// module.function(["add_ten"], add_ten)?;
-    /// module.function(["empty"], || Ok::<_, rune::Error>(()))?;
-    /// module.function(["string"], |a: String| Ok::<_, rune::Error>(()))?;
-    /// module.function(["optional"], |a: Option<String>| Ok::<_, rune::Error>(()))?;
-    /// # Ok(()) }
-    /// ```
-    pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
-    where
-        Func: Function<Args>,
-        N: IntoIterator,
-        N::Item: IntoComponent,
-    {
-        let name = ItemBuf::with_item(name);
-
-        if self.functions.contains_key(&name) {
-            return Err(ContextError::ConflictingFunctionName { name });
-        }
-
-        self.functions.insert(
-            name,
-            ModuleFn {
-                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-                args: Some(Func::args()),
-                instance_function: false,
-            },
-        );
-
-        Ok(())
-    }
-
     /// Register a constant value, at a crate, module or associated level.
     ///
     /// # Examples
     ///
     /// ```
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut module = rune::Module::default();
     ///
     /// module.constant(["TEN"], 10)?; // a global TEN value
     /// module.constant(["MyType", "TEN"], 10)?; // looks like an associated value
     ///
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn constant<N, V>(&mut self, name: N, value: V) -> Result<(), ContextError>
     where
@@ -753,19 +856,140 @@ impl Module {
         Ok(())
     }
 
-    /// Register a function.
+    /// Register a function from its meta information.
+    ///
+    /// The metadata must be provided by annotating the function with
+    /// [`#[rune::function]`][crate::function].
     ///
     /// # Examples
     ///
     /// ```
-    /// # fn main() -> rune::Result<()> {
+    /// use rune::{Module, ContextError};
+    ///
+    /// /// This is a pretty neat function.
+    /// #[rune::function]
+    /// fn to_string(string: &str) -> String {
+    ///     string.to_string()
+    /// }
+    ///
+    /// /// This is a pretty neat download function
+    /// #[rune::function]
+    /// async fn download(url: &str) -> rune::Result<String> {
+    ///     todo!()
+    /// }
+    ///
+    /// fn module() -> Result<Module, ContextError> {
+    ///     let mut m = Module::new();
+    ///     m.function2(to_string)?;
+    ///     m.function2(download)?;
+    ///     Ok(m)
+    /// }
+    /// ```
+    ///
+    /// Registering instance functions:
+    ///
+    /// ```
+    /// use rune::Any;
+    ///
+    /// #[derive(Any)]
+    /// struct MyBytes {
+    ///     queue: Vec<String>,
+    /// }
+    ///
+    /// impl MyBytes {
+    ///     fn new() -> Self {
+    ///         Self {
+    ///             queue: Vec::new(),
+    ///         }
+    ///     }
+    ///
+    ///     #[rune::function]
+    ///     fn len(&self) -> usize {
+    ///         self.queue.len()
+    ///     }
+    ///
+    ///     #[rune::function]
+    ///     async fn download(&self, url: &str) -> rune::Result<()> {
+    ///         todo!()
+    ///     }
+    /// }
+    ///
     /// let mut module = rune::Module::default();
     ///
-    /// module.async_function(["empty"], || async { () })?;
-    /// module.async_function(["empty_fallible"], || async { Ok::<_, rune::Error>(()) })?;
-    /// module.async_function(["string"], |a: String| async { Ok::<_, rune::Error>(()) })?;
-    /// module.async_function(["optional"], |a: Option<String>| async { Ok::<_, rune::Error>(()) })?;
-    /// # Ok(()) }
+    /// module.ty::<MyBytes>()?;
+    /// module.function2(MyBytes::len)?;
+    /// module.function2(MyBytes::download)?;
+    /// # Ok::<_, rune::Error>(())
+    /// ```
+    #[inline]
+    pub fn function2(&mut self, meta: FunctionMeta) -> Result<(), ContextError> {
+        let meta = meta();
+
+        match meta.kind {
+            FunctionMetaKind::Function(meta) => self.function_inner(meta),
+            FunctionMetaKind::AssocFn(meta) => self.assoc_fn(meta),
+        }
+    }
+
+    /// Register a function.
+    ///
+    /// If possible, [`Module::function2`] should be used since it includes more
+    /// useful information about the function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// fn add_ten(value: i64) -> i64 {
+    ///     value + 10
+    /// }
+    ///
+    /// let mut module = rune::Module::default();
+    ///
+    /// module.function(["add_ten"], add_ten)?;
+    /// module.function(["empty"], || Ok::<_, rune::Error>(()))?;
+    /// module.function(["string"], |a: String| Ok::<_, rune::Error>(()))?;
+    /// module.function(["optional"], |a: Option<String>| Ok::<_, rune::Error>(()))?;
+    /// # Ok::<_, rune::Error>(())
+    /// ```
+    pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    where
+        Func: Function<Args>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        self.function_inner(FunctionData::new(name, f))
+    }
+
+    /// Register an asynchronous function.
+    ///
+    /// If possible, [`Module::function2`] should be used since it includes more
+    /// useful information about the function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut module = rune::Module::default();
+    ///
+    /// async fn empty() {
+    /// }
+    ///
+    /// async fn empty_fallible() -> rune::Result<()> {
+    ///     Ok(())
+    /// }
+    ///
+    /// async fn string(a: String) -> rune::Result<()> {
+    ///     Ok(())
+    /// }
+    ///
+    /// async fn optional(a: Option<String>) -> rune::Result<()> {
+    ///     Ok(())
+    /// }
+    ///
+    /// module.async_function(["empty"], empty)?;
+    /// module.async_function(["empty_fallible"], empty_fallible)?;
+    /// module.async_function(["string"], string)?;
+    /// module.async_function(["optional"], optional)?;
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn async_function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
@@ -773,22 +997,124 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = ItemBuf::with_item(name);
+        self.function_inner(FunctionData::new_async(name, f))
+    }
 
-        if self.functions.contains_key(&name) {
-            return Err(ContextError::ConflictingFunctionName { name });
-        }
+    /// Register an instance function.
+    ///
+    /// If possible, [`Module::function2`] should be used since it includes more
+    /// useful information about the function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Any;
+    ///
+    /// #[derive(Any)]
+    /// struct MyBytes {
+    ///     queue: Vec<String>,
+    /// }
+    ///
+    /// impl MyBytes {
+    ///     fn new() -> Self {
+    ///         Self {
+    ///             queue: Vec::new(),
+    ///         }
+    ///     }
+    ///
+    ///     fn len(&self) -> usize {
+    ///         self.queue.len()
+    ///     }
+    /// }
+    ///
+    /// let mut module = rune::Module::default();
+    ///
+    /// module.ty::<MyBytes>()?;
+    /// module.function(["MyBytes", "new"], MyBytes::new)?;
+    /// module.inst_fn("len", MyBytes::len)?;
+    ///
+    /// let mut context = rune::Context::new();
+    /// context.install(module)?;
+    /// # Ok::<_, rune::Error>(())
+    /// ```
+    pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    where
+        N: InstFnName,
+        Func: InstFn<Args>,
+    {
+        self.assoc_fn(AssocFnData::new(name.info(), f, AssocKind::Instance))
+    }
 
-        self.functions.insert(
-            name,
-            ModuleFn {
-                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-                args: Some(Func::args()),
-                instance_function: false,
-            },
-        );
+    /// Register an asynchronous instance function.
+    ///
+    /// If possible, [`Module::function2`] should be used since it includes more
+    /// useful information about the function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::sync::atomic::AtomicU32;
+    /// use std::sync::Arc;
+    /// use rune::Any;
+    ///
+    /// #[derive(Clone, Debug, Any)]
+    /// struct MyType {
+    ///     value: Arc<AtomicU32>,
+    /// }
+    ///
+    /// impl MyType {
+    ///     async fn test(&self) -> rune::Result<()> {
+    ///         Ok(())
+    ///     }
+    /// }
+    ///
+    /// let mut module = rune::Module::default();
+    ///
+    /// module.ty::<MyType>()?;
+    /// module.async_inst_fn("test", MyType::test)?;
+    /// # Ok::<_, rune::Error>(())
+    /// ```
+    pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    where
+        N: InstFnName,
+        Func: AsyncInstFn<Args>,
+    {
+        self.assoc_fn(AssocFnData::new_async(name.info(), f, AssocKind::Instance))
+    }
 
-        Ok(())
+    /// Install a protocol function that interacts with the given field.
+    pub fn field_fn<N, Func, Args>(
+        &mut self,
+        protocol: Protocol,
+        name: N,
+        f: Func,
+    ) -> Result<(), ContextError>
+    where
+        N: InstFnName,
+        Func: InstFn<Args>,
+    {
+        self.assoc_fn(AssocFnData::new(
+            name.info(),
+            f,
+            AssocKind::FieldFn(protocol),
+        ))
+    }
+
+    /// Install a protocol function that interacts with the given index.
+    ///
+    /// An index can either be a field inside a tuple, or a variant inside of an
+    /// enum as configured with [Module::enum_meta].
+    pub fn index_fn<Func, Args>(
+        &mut self,
+        protocol: Protocol,
+        index: usize,
+        f: Func,
+    ) -> Result<(), ContextError>
+    where
+        Func: InstFn<Args>,
+    {
+        let name = InstFnInfo::index(protocol, index);
+        self.assoc_fn(AssocFnData::new(name, f, AssocKind::IndexFn(protocol)))
     }
 
     /// Register a raw function which interacts directly with the virtual
@@ -817,168 +1143,54 @@ impl Module {
         Ok(())
     }
 
-    /// Register an instance function.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::Any;
-    ///
-    /// #[derive(Any)]
-    /// struct MyBytes {
-    ///     queue: Vec<String>,
-    /// }
-    ///
-    /// impl MyBytes {
-    ///     fn new() -> Self {
-    ///         Self {
-    ///             queue: Vec::new(),
-    ///         }
-    ///     }
-    ///
-    ///     fn len(&self) -> usize {
-    ///         self.queue.len()
-    ///     }
-    /// }
-    ///
-    /// # fn main() -> rune::Result<()> {
-    /// let mut module = rune::Module::default();
-    ///
-    /// module.ty::<MyBytes>()?;
-    /// module.function(["MyBytes", "new"], MyBytes::new)?;
-    /// module.inst_fn("len", MyBytes::len)?;
-    ///
-    /// let mut context = rune::Context::new();
-    /// context.install(module)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
-    where
-        N: InstFnName,
-        Func: InstFn<Args>,
-    {
-        let name = name.info();
-        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
-        let ty = Func::ty();
-        let args = Some(Func::args());
-        self.assoc_fn(name, handler, ty, args, AssocKind::Instance)
-    }
+    fn function_inner(&mut self, meta: FunctionData) -> Result<(), ContextError> {
+        if self.functions.contains_key(&meta.name) {
+            return Err(ContextError::ConflictingFunctionName { name: meta.name });
+        }
 
-    /// Install a protocol function that interacts with the given field.
-    pub fn field_fn<N, Func, Args>(
-        &mut self,
-        protocol: Protocol,
-        name: N,
-        f: Func,
-    ) -> Result<(), ContextError>
-    where
-        N: InstFnName,
-        Func: InstFn<Args>,
-    {
-        let name = name.info();
-        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
-        let ty = Func::ty();
-        let args = Some(Func::args());
-        self.assoc_fn(name, handler, ty, args, AssocKind::FieldFn(protocol))
-    }
+        self.functions.insert(
+            meta.name,
+            ModuleFn {
+                handler: meta.handler,
+                args: meta.args,
+                instance_function: false,
+            },
+        );
 
-    /// Install a protocol function that interacts with the given index.
-    ///
-    /// An index can either be a field inside a tuple, or a variant inside of an
-    /// enum as configured with [Module::enum_meta].
-    pub fn index_fn<Func, Args>(
-        &mut self,
-        protocol: Protocol,
-        index: usize,
-        f: Func,
-    ) -> Result<(), ContextError>
-    where
-        Func: InstFn<Args>,
-    {
-        let name = InstFnInfo::index(protocol, index);
-        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
-        let ty = Func::ty();
-        let args = Some(Func::args());
-        self.assoc_fn(name, handler, ty, args, AssocKind::IndexFn(protocol))
-    }
-
-    /// Register an instance function.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::sync::atomic::AtomicU32;
-    /// use std::sync::Arc;
-    /// use rune::Any;
-    ///
-    /// #[derive(Clone, Debug, Any)]
-    /// struct MyType {
-    ///     value: Arc<AtomicU32>,
-    /// }
-    ///
-    /// impl MyType {
-    ///     async fn test(&self) -> rune::Result<()> {
-    ///         Ok(())
-    ///     }
-    /// }
-    ///
-    /// # fn main() -> rune::Result<()> {
-    /// let mut module = rune::Module::default();
-    ///
-    /// module.ty::<MyType>()?;
-    /// module.async_inst_fn("test", MyType::test)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
-    where
-        N: InstFnName,
-        Func: AsyncInstFn<Args>,
-    {
-        let name = name.info();
-        let handler: Arc<FunctionHandler> = Arc::new(move |stack, args| f.fn_call(stack, args));
-        let ty = Func::ty();
-        let args = Some(Func::args());
-        self.assoc_fn(name, handler, ty, args, AssocKind::Instance)
+        Ok(())
     }
 
     /// Install an associated function.
-    fn assoc_fn(
-        &mut self,
-        name: InstFnInfo,
-        handler: Arc<FunctionHandler>,
-        ty: AssocType,
-        args: Option<usize>,
-        kind: AssocKind,
-    ) -> Result<(), ContextError> {
+    fn assoc_fn(&mut self, meta: AssocFnData) -> Result<(), ContextError> {
         let key = AssocKey {
-            type_hash: ty.hash,
-            hash: name.hash,
-            kind,
-            parameters: name.parameters,
+            type_hash: meta.ty.hash,
+            hash: meta.name.hash,
+            kind: meta.kind,
+            parameters: meta.name.parameters,
         };
 
         if self.associated_functions.contains_key(&key) {
-            return Err(match name.kind {
+            return Err(match meta.name.kind {
                 InstFnKind::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
-                    type_info: ty.type_info,
+                    type_info: meta.ty.type_info,
                     name: protocol.name.into(),
                 },
                 InstFnKind::Instance(name) => ContextError::ConflictingInstanceFunction {
-                    type_info: ty.type_info,
+                    type_info: meta.ty.type_info,
                     name,
                 },
                 InstFnKind::Hash(hash) => ContextError::ConflictingInstanceFunctionHash {
-                    type_info: ty.type_info,
+                    type_info: meta.ty.type_info,
                     hash,
                 },
             });
         }
 
         let assoc_fn = AssocFn {
-            handler,
-            args,
-            type_info: ty.type_info,
-            name: name.kind,
+            handler: meta.handler,
+            args: meta.args,
+            type_info: meta.ty.type_info,
+            name: meta.name.kind,
         };
 
         self.associated_functions.insert(key, assoc_fn);
