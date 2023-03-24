@@ -1,11 +1,13 @@
 //! The core `std` module.
 
+use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
+use crate::parse::Parser;
 use crate::runtime::{Panic, Value};
 use crate::{ContextError, Module};
 
 /// Construct the `std` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("std");
+    let mut module = Module::with_crate("std").with_unique("std");
 
     module.unit("unit")?;
     module.ty::<bool>()?;
@@ -17,6 +19,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.function(["panic"], panic_impl)?;
     module.function(["is_readable"], is_readable)?;
     module.function(["is_writable"], is_writable)?;
+
+    module.macro_(["stringify"], stringify_macro)?;
+    module.macro_(["panic"], panic_macro)?;
     Ok(module)
 }
 
@@ -54,4 +59,28 @@ fn is_writable(value: Value) -> bool {
         Value::Variant(variant) => variant.is_writable(),
         _ => true,
     }
+}
+
+/// Implementation for the `stringify!` macro.
+pub(crate) fn stringify_macro(
+    ctx: &mut MacroContext<'_>,
+    stream: &TokenStream,
+) -> crate::Result<TokenStream> {
+    use crate as rune;
+
+    let lit = ctx.stringify(stream).to_string();
+    let lit = ctx.lit(lit);
+    Ok(quote!(#lit).into_token_stream(ctx))
+}
+
+pub(crate) fn panic_macro(
+    ctx: &mut MacroContext<'_>,
+    stream: &TokenStream,
+) -> crate::Result<TokenStream> {
+    use crate as rune;
+
+    let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    let args = p.parse_all::<FormatArgs>()?;
+    let expanded = args.expand(ctx)?;
+    Ok(quote!(::std::panic(#expanded)).into_token_stream(ctx))
 }

@@ -180,6 +180,8 @@ impl fmt::Display for ContextSignature {
 /// * And native type definitions.
 #[derive(Default)]
 pub struct Context {
+    /// Unique modules installed in the context.
+    unique: HashSet<&'static str>,
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
@@ -206,6 +208,7 @@ pub struct Context {
 
 impl Context {
     /// Construct a new empty [Context].
+    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
@@ -238,6 +241,7 @@ impl Context {
         this.install(&crate::modules::int::module()?)?;
         this.install(&crate::modules::io::module(stdio)?)?;
         this.install(&crate::modules::iter::module()?)?;
+        this.install(&crate::modules::macros::module()?)?;
         this.install(&crate::modules::mem::module()?)?;
         this.install(&crate::modules::object::module()?)?;
         this.install(&crate::modules::ops::module()?)?;
@@ -245,6 +249,7 @@ impl Context {
         this.install(&crate::modules::result::module()?)?;
         this.install(&crate::modules::stream::module()?)?;
         this.install(&crate::modules::string::module()?)?;
+        this.install(&crate::modules::test::module()?)?;
         this.install(&crate::modules::vec::module()?)?;
         this.has_default_modules = true;
         Ok(this)
@@ -283,6 +288,12 @@ impl Context {
     /// and ensures that they are compatible with the overall context, like
     /// ensuring that a given type is only declared once.
     pub fn install(&mut self, module: &Module) -> Result<(), ContextError> {
+        if let Some(id) = module.unique {
+            if !self.unique.insert(id) {
+                return Ok(());
+            }
+        }
+
         if let Some(ComponentRef::Crate(name)) = module.item.first() {
             self.crates.insert(name.into());
         }

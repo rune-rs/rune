@@ -242,6 +242,8 @@ pub(crate) struct Macro {
 /// [Context::install][crate::compile::Context::install].
 #[derive(Default)]
 pub struct Module {
+    /// A special identifier for this module, which will cause it to not conflict if installed multiple times.
+    pub(crate) unique: Option<&'static str>,
     /// The name of the module.
     pub(crate) item: ItemBuf,
     /// Free functions.
@@ -264,6 +266,15 @@ impl Module {
     /// Create an empty module for the root path.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Modify the current module to utilise a special identifier.
+    #[doc(hidden)]
+    pub fn with_unique(self, id: &'static str) -> Self {
+        Self {
+            unique: Some(id),
+            ..self
+        }
     }
 
     /// Construct a new module for the given item.
@@ -291,6 +302,7 @@ impl Module {
 
     fn inner_new(item: ItemBuf) -> Self {
         Self {
+            unique: None,
             item,
             functions: Default::default(),
             macros: Default::default(),
