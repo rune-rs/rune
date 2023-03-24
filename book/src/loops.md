@@ -20,7 +20,6 @@ currently in and continue running right after it.
 ```text
 $> cargo run --bin rune -- run scripts/book/loops/while_loop.rn
 The value is 50
-== () (501.1µs)
 ```
 
 ## `loop` Expressions
@@ -58,5 +57,4 @@ By default, this is simply a unit `()`.
 ```text
 $> cargo run --bin rune -- run scripts/book/loops/loop_break.rn
 The final count is: 11
-== () (281.5µs)
 ```

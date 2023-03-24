@@ -23,7 +23,6 @@ represents the operation you want another function to use.
 $> cargo run --bin rune -- run scripts/book/closures/function_pointers.rn
 Result: 3
 Result: -1
-== () (5.4354ms)
 ```
 
 ## Closures
@@ -40,7 +39,6 @@ them to be used when the function is being called.
 $> cargo run --bin rune -- run scripts/book/closures/basic_closure.rn
 Result: 4
 Result: 3
-== () (5.4354ms)
 ```
 
 > Hint: Closures which do not capture their environment are *identical* in

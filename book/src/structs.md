@@ -15,7 +15,6 @@ struct.
 $> cargo run --bin rune -- run scripts/book/structs/user_database.rn
 setbac is inactive
 setbac is active
-== () (6.2095ms)
 ```
 
 Structs can also be pattern matched, like most types.
@@ -31,5 +30,4 @@ ensure that you're only using fields which are defined.
 $> cargo run --bin rune -- run scripts/book/structs/struct_matching.rn
 Yep, it's setbac.
 Other user: newt.
-== () (1.0652ms)
 ```

@@ -26,7 +26,6 @@ variable, because a separate copy of the value will be used automatically.
 $> cargo run --bin rune -- run scripts/book/primitives/copy.rn
 2
 1
-== () (691.3µs)
 ```
 
 Other types like *strings* are stored by reference. Assigning them to a
@@ -41,5 +40,4 @@ same underlying data.
 $> cargo run --bin rune -- run scripts/book/primitives/primitives.rn
 Hello World
 Hello World
-== () (9.7406ms)
 ```

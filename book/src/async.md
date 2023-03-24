@@ -19,7 +19,6 @@ A typical example would be if we want to perform multiple HTTP requests at once:
 $> cargo run --bin rune -- run scripts/book/async/async_http.rn
 200 OK
 200 OK
-== () (591.0319ms)
 ```
 
 In the above code we send two requests *concurrently*. They are both processed
@@ -41,7 +40,6 @@ timeout:
 $> cargo run --bin rune -- run scripts/book/async/async_http_timeout.rn
 200 OK
 Request timed out!
-== () (3.2231404s)
 ```
 
 But wait, this is taking three seconds. We're not running the requests
@@ -68,7 +66,6 @@ is only permitted inside of `async` functions and closures.
 $> cargo run --bin rune -- run scripts/book/async/async_http_concurrent.rn
 Result: 200 OK
 Request timed out!
-== () (2.0028603s)
 ```
 
 ## `async` closures
@@ -83,7 +80,6 @@ produce a future.
 ```text
 $> cargo run --bin rune -- run scripts/book/async/async_closure.rn
 Status: 200 OK
-== () (165.4817ms)
 ```
 
 ## `async` blocks
@@ -98,5 +94,4 @@ can capture variables the same way as closures do, but take no arguments.
 ```text
 $> cargo run --bin rune -- run scripts/book/async/async_blocks.rn
 Status: 200 OK
-== () (179.9381ms)
 ```

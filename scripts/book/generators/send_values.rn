@@ -1,13 +1,18 @@
 fn printer() {
-    loop {
+    let collected = [];
+
+    for _ in 0..2 {
         let out = yield;
         println!("{:?}", out);
+        collected.push(out);
     }
+
+    assert_eq!(collected, ["John", (1, 2, 3)]);
 }
 
 pub fn main() {
     let printer = printer();
-    printer.resume(1);
+    printer.resume(());
     printer.resume("John");
     printer.resume((1, 2, 3));
 }

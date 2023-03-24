@@ -13,10 +13,9 @@ be provided to it, and it will do its best to describe it.
 $> cargo run --bin rune -- run scripts/book/getting_started/dbg.rn
 [1, 2, 3]
 '今'
+dynamic function (at: 0x1a)
+native function (0x1bd03b8ee40)
 dynamic function (at: 0x17)
-native function (0x2959efc1c70)
-Type(0x9aa62663879132fb)
-== () (8.3679ms)
 ```
 
 The default `dbg` implementation outputs information on its arguments to stdout.
@@ -39,20 +38,7 @@ So for a more formal introduction, here is the official Rune `"Hello World"`:
 ```text
 $> cargo run --bin rune -- run scripts/book/getting_started/hello_world.rn
 Hello World
-== () (1.0864ms)
 ```
-
-At the end of the script's output, you see this rather odd looking line:
-
-```text
-== () (1.0864ms)
-```
-
-This simply means that the script evaluated to a unit, or a `()`.
-And that the script took `1.0864` milliseconds to run.
-
-> Cool hint:
-> Any function that doesn't have a return value returns a unit.
 
 So now you know how to run Rune scripts. Well done! Let's move on to the next
 chapter.

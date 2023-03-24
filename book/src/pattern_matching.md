@@ -19,7 +19,6 @@ Another number: 2.
 A vector starting with one and two, followed by 42.
 One, but this time as a string.
 Something else. Can I go eat now?
-== () (5.691ms)
 ```
 
 We will be covering each of these variants in detail in the coming sections.
@@ -68,7 +67,6 @@ This is called a *rest pattern*.
 
 ```text
 $> cargo run --bin rune -- run scripts/book/pattern_matching/rest_pattern.rn
-== () (89.8µs)
 ```
 
 ## Binding and ignoring
@@ -85,7 +83,6 @@ what it is.
 ```text
 $> cargo run --bin rune -- run scripts/book/pattern_matching/ignore.rn
 Second item in vector is 2.
-== () (281.3µs)
 ```
 
 In contrast to ignoring, we can also *bind* the value to a variable that is then
@@ -99,7 +96,6 @@ give us access to it in the match arm.
 ```text
 $> cargo run --bin rune -- run scripts/book/pattern_matching/bind.rn
 Second item in vector is 2.
-== () (6.25ms)
 ```
 
 Here are some more examples:
@@ -117,5 +113,4 @@ $> cargo run --bin rune -- run scripts/book/pattern_matching/fast_cars.rn
 Pretty fast!
 Can't tell 😞
 What, where did you get that?
-== () (5.3533ms)
 ```

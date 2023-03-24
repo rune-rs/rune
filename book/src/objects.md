@@ -14,7 +14,6 @@ $> cargo run --bin rune -- run scripts/book/objects/objects.rn
 key did not exist
 ("second", 42)
 ("first", "bar")
-== () (3.3527ms)
 ```
 
 These are useful because they allow their data to be specified dynamically,
@@ -35,7 +34,6 @@ cba225dad143779a0a9543cfb05cde9710083af5
 15133745237c014ff8bae53d8ff8f3c137c732c7
 39ac97ab4ebe26118e807eb91c7656ab95b1fcac
 3f6310eeeaca22d0373cc11d8b34d346bd12a364
-== () (331.3324ms)
 ```
 
 ## Using objects from Rust

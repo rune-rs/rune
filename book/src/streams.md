@@ -14,5 +14,4 @@ the generator.
 $> cargo run --bin rune -- run scripts/book/streams/basic_stream.rn
 200 OK
 200 OK
-== () (754.3946ms)
 ```

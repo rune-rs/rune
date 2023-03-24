@@ -23,7 +23,6 @@ simply what the Rune cli looks for when deciding what to execute.
 ```text
 $> cargo run --bin rune -- run scripts/book/functions/main_function.rn
 Hello World
-== () (277.8µs)
 ```
 
 In Rune, you don't have to specify the return type of a function. Given that
@@ -38,7 +37,6 @@ anything, even completely distinct types.
 $> cargo run --bin rune -- run scripts/book/functions/return_value.rn
 Hello
 1
-== () (8.437ms)
 ```
 
 Depending on who you talk to, this is either the best thing since sliced bread

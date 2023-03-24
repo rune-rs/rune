@@ -1,5 +1,5 @@
 use std::iter::range;
 
 pub fn main() {
-    range(0, 10)
+    dbg!(range(0, 10));
 }

@@ -14,7 +14,6 @@ environment.
 ```text
 $> cargo run --bin rune -- run scripts/book/template_literals/basic_template.rn
 "I am 30 years old!"
-== () (4.5678ms)
 ```
 
 Template strings are accelerated by the Vm, each argument uses a *display
