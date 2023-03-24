@@ -4,21 +4,21 @@ use rune::Context;
 #[allow(deprecated)]
 fn test_456_backwards() -> rune::Result<()> {
     let mut context = Context::default();
-    context.install(&rune::modules::bytes::module()?)?;
-    assert!(context.install(&rune::modules::bytes::module()?).is_err());
+    context.install(rune::modules::bytes::module()?)?;
+    assert!(context.install(rune::modules::bytes::module()?).is_err());
 
     macro_rules! test_module {
         ($name:ident $(, $extra:expr)?) => {
             let mut context = Context::default();
             // NB: this should not cause an error, since they're running under the
             // special non-conflict mode.
-            context.install(&rune::modules::$name::module($($extra)*)?)?;
-            assert!(!context.install(&rune_modules::$name::module(false)?).is_err());
+            context.install(rune::modules::$name::module($($extra)*)?)?;
+            assert!(!context.install(rune_modules::$name::module(false)?).is_err());
         
             let mut context = Context::with_default_modules()?;
             // NB: this should not cause an error, since they're running under the
             // special non-conflict mode.
-            assert!(!context.install(&rune_modules::$name::module(false)?).is_err());
+            assert!(!context.install(rune_modules::$name::module(false)?).is_err());
         }
     }
 

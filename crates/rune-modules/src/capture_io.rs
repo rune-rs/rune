@@ -7,8 +7,8 @@
 //! # fn main() -> Result<(), ContextError> {
 //! let io = CaptureIo::new();
 //!
-//! let mut c = rune_modules::with_config(false)?;
-//! c.install(&capture_io::module(&io)?)?;
+//! let mut context = rune_modules::with_config(false)?;
+//! context.install(capture_io::module(&io)?)?;
 //! # Ok(()) }
 //! ```
 

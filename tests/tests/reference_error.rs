@@ -20,7 +20,7 @@ fn test_reference_error() -> rune::Result<()> {
     module.function(["take_it"], take_it)?;
 
     let mut context = Context::new();
-    context.install(&module)?;
+    context.install(module)?;
 
     let mut sources = rune::sources! {
         entry => {

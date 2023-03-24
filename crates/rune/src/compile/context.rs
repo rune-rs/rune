@@ -228,29 +228,29 @@ impl Context {
     /// * `::std::io::println`
     pub fn with_config(stdio: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
-        this.install(&crate::modules::any::module()?)?;
-        this.install(&crate::modules::bytes::module()?)?;
-        this.install(&crate::modules::char::module()?)?;
-        this.install(&crate::modules::cmp::module()?)?;
-        this.install(&crate::modules::collections::module()?)?;
-        this.install(&crate::modules::core::module()?)?;
-        this.install(&crate::modules::float::module()?)?;
-        this.install(&crate::modules::fmt::module()?)?;
-        this.install(&crate::modules::future::module()?)?;
-        this.install(&crate::modules::generator::module()?)?;
-        this.install(&crate::modules::int::module()?)?;
-        this.install(&crate::modules::io::module(stdio)?)?;
-        this.install(&crate::modules::iter::module()?)?;
-        this.install(&crate::modules::macros::module()?)?;
-        this.install(&crate::modules::mem::module()?)?;
-        this.install(&crate::modules::object::module()?)?;
-        this.install(&crate::modules::ops::module()?)?;
-        this.install(&crate::modules::option::module()?)?;
-        this.install(&crate::modules::result::module()?)?;
-        this.install(&crate::modules::stream::module()?)?;
-        this.install(&crate::modules::string::module()?)?;
-        this.install(&crate::modules::test::module()?)?;
-        this.install(&crate::modules::vec::module()?)?;
+        this.install(crate::modules::any::module()?)?;
+        this.install(crate::modules::bytes::module()?)?;
+        this.install(crate::modules::char::module()?)?;
+        this.install(crate::modules::cmp::module()?)?;
+        this.install(crate::modules::collections::module()?)?;
+        this.install(crate::modules::core::module()?)?;
+        this.install(crate::modules::float::module()?)?;
+        this.install(crate::modules::fmt::module()?)?;
+        this.install(crate::modules::future::module()?)?;
+        this.install(crate::modules::generator::module()?)?;
+        this.install(crate::modules::int::module()?)?;
+        this.install(crate::modules::io::module(stdio)?)?;
+        this.install(crate::modules::iter::module()?)?;
+        this.install(crate::modules::macros::module()?)?;
+        this.install(crate::modules::mem::module()?)?;
+        this.install(crate::modules::object::module()?)?;
+        this.install(crate::modules::ops::module()?)?;
+        this.install(crate::modules::option::module()?)?;
+        this.install(crate::modules::result::module()?)?;
+        this.install(crate::modules::stream::module()?)?;
+        this.install(crate::modules::string::module()?)?;
+        this.install(crate::modules::test::module()?)?;
+        this.install(crate::modules::vec::module()?)?;
         this.has_default_modules = true;
         Ok(this)
     }
@@ -287,7 +287,12 @@ impl Context {
     /// This installs everything that has been declared in the given [Module]
     /// and ensures that they are compatible with the overall context, like
     /// ensuring that a given type is only declared once.
-    pub fn install(&mut self, module: &Module) -> Result<(), ContextError> {
+    pub fn install<M>(&mut self, module: M) -> Result<(), ContextError>
+    where
+        M: AsRef<Module>,
+    {
+        let module = module.as_ref();
+
         if let Some(id) = module.unique {
             if !self.unique.insert(id) {
                 return Ok(());

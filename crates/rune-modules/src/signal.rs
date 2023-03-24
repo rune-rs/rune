@@ -15,7 +15,7 @@
 //! ```rust
 //! # fn main() -> rune::Result<()> {
 //! let mut context = rune::Context::with_default_modules()?;
-//! context.install(&rune_modules::signal::module(true)?)?;
+//! context.install(rune_modules::signal::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```

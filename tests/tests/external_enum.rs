@@ -34,7 +34,7 @@ fn test_external_enum() -> Result<(), Box<dyn std::error::Error>> {
     let m = module()?;
 
     let mut context = Context::new();
-    context.install(&m)?;
+    context.install(m)?;
     let runtime = Arc::new(context.runtime());
 
     let mut sources = rune::sources! {

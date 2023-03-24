@@ -343,7 +343,7 @@ impl Module {
     /// module.inst_fn("len", MyBytes::len)?;
     ///
     /// let mut context = rune::Context::new();
-    /// assert!(context.install(&module).is_err());
+    /// assert!(context.install(module).is_err());
     ///
     /// // Register `len` properly.
     /// let mut module = rune::Module::default();
@@ -352,7 +352,7 @@ impl Module {
     /// module.inst_fn("len", MyBytes::len)?;
     ///
     /// let mut context = rune::Context::new();
-    /// assert!(context.install(&module).is_ok());
+    /// assert!(context.install(module).is_ok());
     /// # Ok(()) }
     /// ```
     pub fn ty<T>(&mut self) -> Result<(), ContextError>
@@ -849,7 +849,7 @@ impl Module {
     /// module.inst_fn("len", MyBytes::len)?;
     ///
     /// let mut context = rune::Context::new();
-    /// context.install(&module)?;
+    /// context.install(module)?;
     /// # Ok(()) }
     /// ```
     pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
@@ -983,6 +983,13 @@ impl Module {
 
         self.associated_functions.insert(key, assoc_fn);
         Ok(())
+    }
+}
+
+impl AsRef<Module> for Module {
+    #[inline]
+    fn as_ref(&self) -> &Module {
+        self
     }
 }
 

@@ -106,7 +106,7 @@ macro_rules! modules {
                 #[allow(deprecated)]
                 #[cfg(feature = $name)]
                 {
-                    context.install(&self::$ident::module(stdio)?)?;
+                    context.install(self::$ident::module(stdio)?)?;
                 }
             )*
 

@@ -21,7 +21,7 @@ fn main() -> rune::Result<()> {
     module.inst_fn(Protocol::ADD_ASSIGN, Foo::add_assign)?;
 
     let mut context = rune_modules::default_context()?;
-    context.install(&module)?;
+    context.install(module)?;
 
     let runtime = Arc::new(context.runtime());
 

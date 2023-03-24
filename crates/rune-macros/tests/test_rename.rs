@@ -18,7 +18,7 @@ fn test_rename() {
     module.ty::<Bar>().unwrap();
 
     let mut context = Context::new();
-    let e = context.install(&module).unwrap_err();
+    let e = context.install(module).unwrap_err();
 
     match e {
         ContextError::ConflictingType { item, .. } => {
