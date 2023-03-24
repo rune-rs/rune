@@ -97,9 +97,7 @@ eyeballs that takes a look can bring fresh perspective and ideas, making the
 project better for me and everyone else.
 
 I really want to thank Jonathan Turner and all the contributors to the Rhai
-project. They have been an an immense inspiration to me. If you need an embedded
-scripting engine that is more mature right now than *Rune*, please do take
-*Rhai* for a spin.
+project. They have been an an immense inspiration to me.
 
 You can find the project [on its GitHub page][github]. I hope you'll enjoy using
 it as much as I've enjoyed making it!
