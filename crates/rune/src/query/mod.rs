@@ -649,8 +649,8 @@ impl<'a> Query<'a> {
                 instance_function,
             } => PrivMetaKind::Function {
                 type_hash,
-                is_test: true,
-                is_bench: true,
+                is_test: false,
+                is_bench: false,
                 instance_function,
             },
             ContextMetaKind::Const { ref const_value } => PrivMetaKind::Const {

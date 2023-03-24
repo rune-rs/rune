@@ -103,6 +103,7 @@ macro_rules! modules {
             let mut context = rune::Context::with_config(stdio)?;
 
             $(
+                #[allow(deprecated)]
                 #[cfg(feature = $name)]
                 {
                     context.install(&self::$ident::module(stdio)?)?;
