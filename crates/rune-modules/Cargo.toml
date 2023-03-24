@@ -16,12 +16,12 @@ categories = ["parser-implementations"]
 [features]
 default = ["test", "core", "io", "fmt", "macros", "disable-io"]
 full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand", "io", "fmt", "macros"]
-time = ["tokio", "tokio/time"]
-fs = ["tokio", "tokio/fs"]
+time = ["tokio", "tokio?/time"]
+fs = ["tokio", "tokio?/fs"]
 http = ["reqwest"]
 json = ["serde_json"]
-process = ["tokio/process"]
-signal = ["tokio/signal"]
+process = ["tokio?/process"]
+signal = ["tokio?/signal"]
 rand = ["nanorand"]
 experiments = []
 capture-io = ["parking_lot"]
@@ -31,15 +31,14 @@ core = []
 io = []
 fmt = []
 macros = []
-wasm-bindgen = ["parking_lot/wasm-bindgen"]
 
 [dependencies]
-reqwest = { version = "0.11.6", optional = true, default-features = false, features = ["rustls-tls", "gzip", "json"] }
-tokio = { version = "1.14.0", optional = true }
-serde_json = { version = "1.0.72", optional = true }
-toml = { version = "0.5.8", optional = true }
-nanorand = { version = "0.6.1", optional = true, features = ["getrandom"] }
-parking_lot = { version = "0.11.2", optional = true }
+reqwest = { version = "0.11.15", optional = true, default-features = false, features = ["rustls-tls", "gzip", "json"] }
+tokio = { version = "1.26.0", optional = true }
+serde_json = { version = "1.0.94", optional = true }
+toml = { version = "0.5.11", optional = true }
+nanorand = { version = "0.7.0", optional = true, features = ["getrandom"] }
+parking_lot = { version = "0.12.1", optional = true }
 
 rune = { version = "0.12.3", path = "../rune" }
 

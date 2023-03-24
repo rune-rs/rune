@@ -14,21 +14,21 @@ keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
 [dependencies]
-tokio = { version = "1.20.1", features = ["full"] }
-tokio-util = { version = "0.7.3", features = ["codec"] }
-lsp = { version = "0.93.0", package = "lsp-types" }
-futures-core = "0.3.21"
-anyhow = "1.0.60"
-serde = { version = "1.0.143", features = ["derive"] }
-serde_json = "1.0.83"
-hashbrown = "0.12.3"
-tracing = "0.1.36"
+tokio = { version = "1.26.0", features = ["full"] }
+tokio-util = { version = "0.7.7", features = ["codec"] }
+lsp = { version = "0.94.0", package = "lsp-types" }
+futures-core = "0.3.27"
+anyhow = "1.0.70"
+serde = { version = "1.0.158", features = ["derive"] }
+serde_json = "1.0.94"
+hashbrown = "0.13.2"
+tracing = "0.1.37"
 tracing-appender = "0.2.2"
-tracing-subscriber = "0.3.15"
-ropey = "1.5.0"
+tracing-subscriber = "0.3.16"
+ropey = "1.6.0"
 
 rune = { version = "0.12.3", path = "../rune" }
 rune-modules = { version = "0.12.3", path = "../rune-modules", features = ["full", "experiments"] }
 
 [build-dependencies]
-anyhow = "1.0.60"
+anyhow = "1.0.70"

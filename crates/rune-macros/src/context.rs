@@ -3,11 +3,9 @@ use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 use quote::{quote, ToTokens};
+use syn::parse::ParseStream;
 use syn::spanned::Spanned as _;
-use syn::Lit;
-use syn::Meta::*;
-use syn::MetaNameValue;
-use syn::NestedMeta::*;
+use syn::Token;
 
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
@@ -150,32 +148,6 @@ impl Context {
         }
     }
 
-    /// Parse the toplevel component of the attribute, which must be `#[parse(..)]`.
-    fn get_meta_items(
-        &mut self,
-        attr: &syn::Attribute,
-        symbol: Symbol,
-    ) -> Option<Vec<syn::NestedMeta>> {
-        if attr.path != symbol {
-            return Some(Vec::new());
-        }
-
-        match attr.parse_meta() {
-            Ok(List(meta)) => Some(meta.nested.into_iter().collect()),
-            Ok(other) => {
-                self.errors.push(syn::Error::new_spanned(
-                    other,
-                    format!("expected #[{}(...)]", symbol),
-                ));
-                None
-            }
-            Err(error) => {
-                self.errors.push(syn::Error::new(Span::call_site(), error));
-                None
-            }
-        }
-    }
-
     /// Parse field attributes.
     pub(crate) fn field_attrs(&mut self, input: &[syn::Attribute]) -> Option<FieldAttrs> {
         macro_rules! generate_op {
@@ -223,200 +195,184 @@ impl Context {
             };
         }
 
+        let mut error = false;
         let mut attrs = FieldAttrs::default();
 
         for attr in input {
-            #[allow(clippy::never_loop)] // I guess this is on purpose?
-            for meta in self.get_meta_items(attr, RUNE)? {
-                let span = meta.span();
-
-                match meta {
-                    // Parse `#[rune(id)]`
-                    Meta(Path(word)) if word == ID => {
-                        attrs.id = Some(span);
-                    }
-                    // Parse `#[rune(iter)]`.
-                    Meta(Path(word)) if word == ITER => {
-                        attrs.iter = Some(span);
-                    }
-                    // Parse `#[rune(skip)]`.
-                    Meta(Path(word)) if word == SKIP => {
-                        attrs.skip = Some(span);
-                    }
-                    // Parse `#[rune(optional)]`.
-                    Meta(Path(word)) if word == OPTIONAL => {
-                        attrs.optional = Some(span);
-                    }
-                    // Parse `#[rune(attributes)]`
-                    Meta(Path(word)) if word == META => {
-                        attrs.meta = Some(span);
-                    }
-                    // Parse `#[rune(span)]`
-                    Meta(Path(word)) if word == SPAN => {
-                        attrs.span = Some(span);
-                    }
-                    // Parse `#[rune(parse_with = "..")]`.
-                    Meta(NameValue(MetaNameValue {
-                        path,
-                        lit: syn::Lit::Str(s),
-                        ..
-                    })) if path == PARSE_WITH => {
-                        if let Some(old) = attrs.parse_with {
-                            let mut error = syn::Error::new_spanned(
-                                path,
-                                "#[rune(parse_with = \"..\")] can only be used once",
-                            );
-
-                            error.combine(syn::Error::new_spanned(old, "previously defined here"));
-                            self.errors.push(error);
-                            return None;
-                        }
-
-                        attrs.parse_with = Some(syn::Ident::new(&s.value(), s.span()));
-                    }
-                    Meta(Path(path)) if path == COPY => {
-                        attrs.copy = true;
-                    }
-                    Meta(meta) if meta.path() == GET => {
-                        attrs.field = true;
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: |g| {
-                                let Generate {
-                                    target,
-                                    ..
-                                } = g;
-
-                                match target {
-                                    GenerateTarget::Named { field_ident, field_name } => {
-                                        let access = if g.attrs.copy {
-                                            quote!(s.#field_ident)
-                                        } else {
-                                            quote!(Clone::clone(&s.#field_ident))
-                                        };
-
-                                        let protocol = g.tokens.protocol(PROTOCOL_GET);
-
-                                        quote_spanned! { g.field.span() =>
-                                            module.field_fn(#protocol, #field_name, |s: &Self| #access)?;
-                                        }
-                                    }
-                                    GenerateTarget::Numbered { field_index } => {
-                                        let access = if g.attrs.copy {
-                                            quote!(s.#field_index)
-                                        } else {
-                                            quote!(Clone::clone(&s.#field_index))
-                                        };
-
-                                        let protocol = g.tokens.protocol(PROTOCOL_GET);
-
-                                        quote_spanned! { g.field.span() =>
-                                            module.index_fn(#protocol, #field_index, |s: &Self| #access)?;
-                                        }
-                                    }
-                                }
-                            },
-                        });
-                    }
-                    Meta(meta) if meta.path() == SET => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: |g| {
-                                let Generate {
-                                    ty,
-                                    target,
-                                    ..
-                                } = g;
-
-                                let protocol = g.tokens.protocol(PROTOCOL_SET);
-
-                                match target {
-                                    GenerateTarget::Named { field_ident, field_name } => {
-                                        quote_spanned! { g.field.span() =>
-                                            module.field_fn(#protocol, #field_name, |s: &mut Self, value: #ty| {
-                                                s.#field_ident = value;
-                                            })?;
-                                        }
-                                    }
-                                    GenerateTarget::Numbered { field_index } => {
-                                        quote_spanned! { g.field.span() =>
-                                            module.index_fn(#protocol, #field_index, |s: &mut Self, value: #ty| {
-                                                s.#field_index = value;
-                                            })?;
-                                        }
-                                    }
-                                }
-                            },
-                        });
-                    }
-                    Meta(meta) if meta.path() == ADD_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_ADD_ASSIGN, +=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == SUB_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_SUB_ASSIGN, -=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == DIV_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_DIV_ASSIGN, /=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == MUL_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_MUL_ASSIGN, *=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == BIT_AND_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_BIT_AND_ASSIGN, &=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == BIT_OR_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_BIT_OR_ASSIGN, |=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == BIT_XOR_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_BIT_XOR_ASSIGN, ^=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == SHL_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_SHL_ASSIGN, <<=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == SHR_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_SHR_ASSIGN, >>=),
-                        });
-                    }
-                    Meta(meta) if meta.path() == REM_ASSIGN => {
-                        attrs.protocols.push(FieldProtocol {
-                            custom: self.parse_field_custom(meta)?,
-                            generate: generate_op!(PROTOCOL_REM_ASSIGN, %=),
-                        });
-                    }
-                    _ => {
-                        self.errors
-                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
-
-                        return None;
-                    }
-                }
+            if attr.path() != RUNE {
+                continue;
             }
+
+            if let Err(e) = attr.parse_nested_meta(|meta| {
+                if meta.path == ID {
+                    // Parse `#[rune(id)]`
+                    attrs.id = Some(meta.path.span());
+                } else if meta.path == ITER {
+                    // `#[rune(iter)]`.
+                    attrs.iter = Some(meta.path.span());
+                } else if meta.path == SKIP {
+                    // `#[rune(skip)]`.
+                    attrs.skip = Some(meta.path.span());
+                } else if meta.path == OPTIONAL {
+                    // `#[rune(optional)]`.
+                    attrs.optional = Some(meta.path.span());
+                } else if meta.path == META {
+                    // `#[rune(meta)]`.
+                    attrs.meta = Some(meta.path.span());
+                } else if meta.path == SPAN {
+                    // `#[rune(span)]`.
+                    attrs.span = Some(meta.path.span());
+                } else if meta.path == COPY {
+                    // `#[rune(copy)]`.
+                    attrs.copy = true;
+                } else if meta.path == PARSE_WITH {
+                    // Parse `#[rune(parse_with = "..")]`.
+                    if let Some(old) = &attrs.parse_with {
+                        let mut error = syn::Error::new_spanned(
+                            &meta.path,
+                            "#[rune(parse_with = \"..\")] can only be used once",
+                        );
+
+                        error.combine(syn::Error::new_spanned(old, "previously defined here"));
+                        return Err(error);
+                    }
+
+                    meta.input.parse::<Token![=]>()?;
+                    let s = meta.input.parse::<syn::LitStr>()?;
+                    attrs.parse_with = Some(syn::Ident::new(&s.value(), s.span()));
+                } else if meta.path == GET {
+                    attrs.field = true;
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: |g| {
+                            let Generate {
+                                target,
+                                ..
+                            } = g;
+
+                            match target {
+                                GenerateTarget::Named { field_ident, field_name } => {
+                                    let access = if g.attrs.copy {
+                                        quote!(s.#field_ident)
+                                    } else {
+                                        quote!(Clone::clone(&s.#field_ident))
+                                    };
+
+                                    let protocol = g.tokens.protocol(PROTOCOL_GET);
+
+                                    quote_spanned! { g.field.span() =>
+                                        module.field_fn(#protocol, #field_name, |s: &Self| #access)?;
+                                    }
+                                }
+                                GenerateTarget::Numbered { field_index } => {
+                                    let access = if g.attrs.copy {
+                                        quote!(s.#field_index)
+                                    } else {
+                                        quote!(Clone::clone(&s.#field_index))
+                                    };
+
+                                    let protocol = g.tokens.protocol(PROTOCOL_GET);
+
+                                    quote_spanned! { g.field.span() =>
+                                        module.index_fn(#protocol, #field_index, |s: &Self| #access)?;
+                                    }
+                                }
+                            }
+                        },
+                    });
+                } else if meta.path == SET {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: |g| {
+                            let Generate {
+                                ty,
+                                target,
+                                ..
+                            } = g;
+
+                            let protocol = g.tokens.protocol(PROTOCOL_SET);
+
+                            match target {
+                                GenerateTarget::Named { field_ident, field_name } => {
+                                    quote_spanned! { g.field.span() =>
+                                        module.field_fn(#protocol, #field_name, |s: &mut Self, value: #ty| {
+                                            s.#field_ident = value;
+                                        })?;
+                                    }
+                                }
+                                GenerateTarget::Numbered { field_index } => {
+                                    quote_spanned! { g.field.span() =>
+                                        module.index_fn(#protocol, #field_index, |s: &mut Self, value: #ty| {
+                                            s.#field_index = value;
+                                        })?;
+                                    }
+                                }
+                            }
+                        },
+                    });
+                } else if meta.path == ADD_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_ADD_ASSIGN, +=),
+                    });
+                } else if meta.path == SUB_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_SUB_ASSIGN, -=),
+                    });
+                } else if meta.path == DIV_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_DIV_ASSIGN, /=),
+                    });
+                } else if meta.path == MUL_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_MUL_ASSIGN, *=),
+                    });
+                } else if meta.path == BIT_AND_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_BIT_AND_ASSIGN, &=),
+                    });
+                } else if meta.path == BIT_OR_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_BIT_OR_ASSIGN, |=),
+                    });
+                } else if meta.path == BIT_XOR_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_BIT_XOR_ASSIGN, ^=),
+                    });
+                } else if meta.path == SHL_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_SHL_ASSIGN, <<=),
+                    });
+                } else if meta.path == SHR_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_SHR_ASSIGN, >>=),
+                    });
+                } else if meta.path == REM_ASSIGN {
+                    attrs.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_op!(PROTOCOL_REM_ASSIGN, %=),
+                    });
+                } else {
+                    return Err(syn::Error::new_spanned(&meta.path, "unsupported attribute"));
+                }
+
+                Ok(())
+            }) {
+                error = true;
+                self.errors.push(e);
+            }
+        }
+
+        if error {
+            return None;
         }
 
         Some(attrs)
@@ -424,83 +380,63 @@ impl Context {
 
     /// Parse field attributes.
     pub(crate) fn type_attrs(&mut self, input: &[syn::Attribute]) -> Option<TypeAttrs> {
+        let mut error = false;
         let mut attrs = TypeAttrs::default();
 
         for attr in input {
-            for meta in self.get_meta_items(attr, RUNE)? {
-                let span = meta.span();
-
-                match meta {
-                    // Parse `#[rune(parse = "..")]`
-                    Meta(NameValue(MetaNameValue {
-                        path,
-                        lit: syn::Lit::Str(s),
-                        ..
-                    })) if path == PARSE => {
-                        let parse = match s.value().as_str() {
-                            "meta_only" => ParseKind::MetaOnly,
-                            other => {
-                                self.errors.push(syn::Error::new(
-                                    span,
-                                    format!(
-                                        "unsupported `#[rune(parse = ..)]` argument `{}`",
-                                        other
-                                    ),
-                                ));
-                                return None;
-                            }
-                        };
-
-                        attrs.parse = parse;
-                    }
-                    // Parse `#[rune(name = "..")]`.
-                    Meta(NameValue(syn::MetaNameValue {
-                        path,
-                        lit: Lit::Str(name),
-                        ..
-                    })) if path == NAME => {
-                        attrs.name = Some(name);
-                    }
-                    // Parse `#[rune(module = "..")]`.
-                    Meta(NameValue(syn::MetaNameValue {
-                        path,
-                        lit: Lit::Str(s),
-                        ..
-                    })) if path == MODULE => {
-                        let module = match s.parse_with(syn::Path::parse_mod_style) {
-                            Ok(module) => module,
-                            Err(e) => {
-                                self.errors.push(e);
-                                return None;
-                            }
-                        };
-
-                        attrs.module = Some(module);
-                    }
-                    // Parse `#[rune(install_with = "..")]`.
-                    Meta(NameValue(syn::MetaNameValue {
-                        path,
-                        lit: Lit::Str(s),
-                        ..
-                    })) if path == INSTALL_WITH => {
-                        let install_with = match s.parse_with(syn::Path::parse_mod_style) {
-                            Ok(install_with) => install_with,
-                            Err(e) => {
-                                self.errors.push(e);
-                                return None;
-                            }
-                        };
-
-                        attrs.install_with = Some(install_with);
-                    }
-                    meta => {
-                        self.errors
-                            .push(syn::Error::new_spanned(meta, "unsupported type attribute"));
-
-                        return None;
-                    }
-                }
+            if attr.path() != RUNE {
+                continue;
             }
+
+            if let Err(e) = attr.parse_nested_meta(|meta| {
+                if meta.path == PARSE {
+                    // Parse `#[rune(parse = "..")]`
+                    meta.input.parse::<Token![=]>()?;
+                    let s: syn::LitStr = meta.input.parse()?;
+
+                    match s.value().as_str() {
+                        "meta_only" => {
+                            attrs.parse = ParseKind::MetaOnly;
+                        }
+                        other => {
+                            return Err(syn::Error::new(
+                                meta.input.span(),
+                                format!("unsupported `#[rune(parse = ..)]` argument `{}`", other),
+                            ));
+                        }
+                    };
+                } else if meta.path == NAME {
+                    // Parse `#[rune(name = "..")]`
+                    meta.input.parse::<Token![=]>()?;
+                    attrs.name = Some(meta.input.parse()?);
+                } else if meta.path == MODULE {
+                    // Parse `#[rune(module = "..")]`
+                    meta.input.parse::<Token![=]>()?;
+                    let s: syn::LitStr = meta.input.parse()?;
+                    let module = s.parse_with(syn::Path::parse_mod_style)?;
+                    attrs.module = Some(module);
+                } else if meta.path == INSTALL_WITH {
+                    // Parse `#[rune(install_with = "..")]`
+                    meta.input.parse::<Token![=]>()?;
+                    let s: syn::LitStr = meta.input.parse()?;
+                    let install_with = s.parse_with(syn::Path::parse_mod_style)?;
+                    attrs.install_with = Some(install_with);
+                } else {
+                    return Err(syn::Error::new_spanned(
+                        &meta.path,
+                        "unsupported type attribute",
+                    ));
+                }
+
+                Ok(())
+            }) {
+                error = true;
+                self.errors.push(e);
+            };
+        }
+
+        if error {
+            return None;
         }
 
         Some(attrs)
@@ -512,27 +448,29 @@ impl Context {
         let mut error = false;
 
         for attr in input {
-            for meta in self.get_meta_items(attr, RUNE)? {
-                match meta {
-                    Meta(meta) if meta.path() == CONSTRUCTOR => {
-                        if attrs.constructor {
-                            self.errors.push(syn::Error::new_spanned(
-                                meta,
-                                "#[rune(constructor)] must only be used once",
-                            ));
-                            error = true;
-                        }
-
-                        attrs.constructor = true;
-                    }
-                    _ => {
-                        self.errors
-                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
-
-                        return None;
-                    }
-                }
+            if attr.path() != RUNE {
+                continue;
             }
+
+            if let Err(e) = attr.parse_nested_meta(|meta| {
+                if meta.path == CONSTRUCTOR {
+                    if attrs.constructor {
+                        return Err(syn::Error::new_spanned(
+                            &meta.path,
+                            "#[rune(constructor)] must only be used once",
+                        ));
+                    }
+
+                    attrs.constructor = true;
+                } else {
+                    return Err(syn::Error::new_spanned(&meta.path, "unsupported attribute"));
+                }
+
+                Ok(())
+            }) {
+                error = true;
+                self.errors.push(e);
+            };
         }
 
         if error {
@@ -543,27 +481,17 @@ impl Context {
     }
 
     /// Parse path to custom field function.
-    fn parse_field_custom(&mut self, meta: syn::Meta) -> Option<Option<syn::Path>> {
-        let s = match meta {
-            Path(..) => return Some(None),
-            NameValue(syn::MetaNameValue {
-                lit: syn::Lit::Str(s),
-                ..
-            }) => s,
-            _ => {
-                self.errors
-                    .push(syn::Error::new(meta.span(), "unsupported meta"));
-                return None;
-            }
+    fn parse_field_custom(
+        &mut self,
+        input: ParseStream<'_>,
+    ) -> Result<Option<syn::Path>, syn::Error> {
+        if !input.peek(Token![=]) {
+            return Ok(None);
         };
 
-        match s.parse_with(syn::Path::parse_mod_style) {
-            Ok(path) => Some(Some(path)),
-            Err(error) => {
-                self.errors.push(error);
-                None
-            }
-        }
+        input.parse::<Token![=]>()?;
+        let s: syn::LitStr = input.parse()?;
+        Ok(Some(s.parse_with(syn::Path::parse_mod_style)?))
     }
 
     /// Build an inner spanned decoder from an iterator.

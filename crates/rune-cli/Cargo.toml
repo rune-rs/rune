@@ -16,18 +16,18 @@ categories = ["parser-implementations"]
 [dependencies]
 bincode = "1.3.3"
 atty = "0.2.14"
-tracing = "0.1.29"
-tracing-subscriber = { version = "0.3.3", features = ["env-filter"] }
-tokio = { version = "1.14.0", features = ["rt-multi-thread", "net", "fs", "macros"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+tokio = { version = "1.26.0", features = ["rt-multi-thread", "net", "fs", "macros"] }
 codespan-reporting = "0.11.1"
-anyhow = { version = "1.0.49", features = ["std"] }
-structopt = { version = "0.3.25", default-features = false, features = ["wrap_help", "suggestions", "color"] }
+anyhow = { version = "1.0.70", features = ["std"] }
+structopt = { version = "0.3.26", default-features = false, features = ["wrap_help", "suggestions", "color"] }
 
 rune = { version = "0.12.3", path = "../rune", features = ["workspace"] }
 rune-modules = { version = "0.12.3", path = "../rune-modules", features = ["full", "experiments", "capture-io"] }
 
 [build-dependencies]
-anyhow = "1.0.49"
+anyhow = "1.0.70"
 
 [[bin]]
 name = "rune"

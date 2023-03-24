@@ -392,13 +392,13 @@ impl<'a> IntoIterator for &'a Item {
 
 impl PartialEq<ItemBuf> for Item {
     fn eq(&self, other: &ItemBuf) -> bool {
-        &self.content == other.content.as_ref()
+        self.content == other.content
     }
 }
 
 impl PartialEq<ItemBuf> for &Item {
     fn eq(&self, other: &ItemBuf) -> bool {
-        &self.content == other.content.as_ref()
+        self.content == other.content
     }
 }
 

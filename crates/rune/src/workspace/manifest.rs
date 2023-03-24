@@ -47,6 +47,7 @@ impl WorkspaceFilter<'_> {
 }
 
 impl<T> Spanned for toml::Spanned<T> {
+    #[inline]
     fn span(&self) -> Span {
         let (start, end) = toml::Spanned::span(self);
         Span::new(start, end)
