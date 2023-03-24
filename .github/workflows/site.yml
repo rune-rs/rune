@@ -14,9 +14,6 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: wasm32-unknown-unknown
-    - uses: actions/setup-node@v1
-      with:
-        node-version: 16
     - uses: peaceiris/actions-mdbook@v1
       with:
         mdbook-version: latest
