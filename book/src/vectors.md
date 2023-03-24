@@ -13,7 +13,6 @@ Hello
 42
 Hello
 42
-== () (5.0674ms)
 ```
 
 As you can see, you can iterate over a vector because it implements the iterator
@@ -28,7 +27,6 @@ protocol. It is also possible to create and use an iterator manually using
 $> cargo run --bin rune -- run scripts/book/vectors/vectors_rev.rn
 42
 Hello
-== () (2.9116ms)
 ```
 
 ## Using vectors from Rust

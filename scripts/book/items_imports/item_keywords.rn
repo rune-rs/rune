@@ -1,0 +1,24 @@
+mod first {
+    pub fn number() {
+        crate::number() + 2
+    }
+}
+
+mod second {
+    pub fn number() {
+        super::first::number() + 4
+    }
+}
+
+pub fn number() {
+    1
+}
+
+#[test]
+fn item_keywords() {
+    assert_eq!(self::second::number(), 7);
+}
+
+pub fn main() {
+    dbg(self::second::number());
+}

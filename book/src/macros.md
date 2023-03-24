@@ -53,7 +53,6 @@ With this module installed, we can now take `stringy_math!` for a spin.
 ```text
 $> cargo run --bin rune -- run scripts/book/macros/stringy_math.rn -O macros=true --experimental
 200
-== () (2.9737ms)
 ```
 
 To access the `std::experimental`, you have to specify the `--experimental`

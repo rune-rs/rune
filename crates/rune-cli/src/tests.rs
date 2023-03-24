@@ -162,6 +162,10 @@ pub(crate) async fn run(
         .map(|v| TestCase::from_parts(v.0, &v.1))
         .collect::<Vec<_>>();
 
+    if cases.is_empty() {
+        return Ok(ExitCode::Success);
+    }
+
     writeln!(io.stdout, "Found {} tests...", cases.len())?;
 
     let start = Instant::now();

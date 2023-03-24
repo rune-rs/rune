@@ -13,5 +13,4 @@ variant.
 ```text
 $> cargo run --bin rune -- run scripts/book/try_operator/basic_try.rn
 Result: 2, 1
-== () (7.4912ms)
 ```

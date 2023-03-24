@@ -12,7 +12,6 @@ tuple.
 $> cargo run --bin rune -- run scripts/book/tuples/tuple_masquerade.rn
 ("Now", "You", "See", "Me")
 ("Now", "You", "Don\'t", "!")
-== () (38.3136ms)
 ```
 
 The following is a simple example of a function returning a tuple:
@@ -24,7 +23,6 @@ The following is a simple example of a function returning a tuple:
 ```text
 $> cargo run --bin rune -- run scripts/book/tuples/basic_tuples.rn
 (1, "test")
-== () (387.6µs)
 ```
 
 Tuples can also be pattern matched:
@@ -37,7 +35,6 @@ Tuples can also be pattern matched:
 $> cargo run --bin rune -- run scripts/book/tuples/tuple_patterns.rn
 "the first part was a number:"
 1
-== () (7.7892ms)
 ```
 
 ## Using tuples from Rust

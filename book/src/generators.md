@@ -28,7 +28,6 @@ $> cargo run --bin rune -- run scripts/book/generators/fib_generator.rn
 55
 89
 144
-== () (14.9441ms)
 ```
 
 ## Advanced generators with `GeneratorState`
@@ -48,7 +47,6 @@ allowing the calling procedure to send values to the generator.
 $> cargo run --bin rune -- run scripts/book/generators/send_values.rn
 "John"
 (1, 2, 3)
-== () (883.2µs)
 ```
 
 But wait, what happened to the first value we sent, `1`?
@@ -71,7 +69,6 @@ ready to go!
 waiting for value...
 (1, 2, 3)
 waiting for value...
-== () (8.8014ms)
 ```
 
 Ok, so we understand how to *send* values into a generator.
@@ -90,7 +87,6 @@ $> cargo run --bin rune -- run scripts/book/generators/states.rn
 Yielded(1)
 "John"
 Complete(2)
-== () (712.7µs)
 ```
 
 After the first call to resume, we see that the generator produced `Yielded(1)`.

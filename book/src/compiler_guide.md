@@ -106,23 +106,22 @@ script:
 ```
 
 ```text
-$> cargo run --bin rune -- run scripts/book/compiler_guide/closures.rn --dump-instructions --dump-functions
+$> cargo run --bin rune -- run scripts/book/compiler_guide/closures.rn --emit-instructions --dump-functions
 # instructions
-fn main() (0xa76ee18c7fed2b52):
-  0000 = load-fn 0xca35663d3c51a903 // closure `main::$0::$0`
-  0001 = copy 0 // var `callable`
-  0002 = call-fn 0
+fn main() (0x1c69d5964e831fc1):
+  0000 = load-fn hash=0xbef6d5f6276cd45e // closure `3`
+  0001 = copy offset=0 // var `callable`
+  0002 = call-fn args=0
   0003 = pop
   0004 = pop
   0005 = return-unit
 
-fn main::$0::$0() (0xca35663d3c51a903):
-  0006 = push 42
-  0007 = return
+fn main::$0::$0() (0xbef6d5f6276cd45e):
+  0006 = push value=42
+  0007 = return address=top, clean=0
 # dynamic functions
-0xca35663d3c51a903 = main::$0::$0()
-0xa76ee18c7fed2b52 = main()
-== () (173µs)
+0xbef6d5f6276cd45e = main::$0::$0()
+0x1c69d5964e831fc1 = main()
 ```
 
 A function pointer is pushed on the stack `load-fn 0xca35663d3c51a903`, then

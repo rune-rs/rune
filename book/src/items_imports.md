@@ -23,7 +23,7 @@ statement:
 
 ```text
 $> cargo run --bin rune -- run scripts/book/items_imports/example_import.rn
-== Iterator (60µs)
+std::iter::Range
 ```
 
 Trying to use an item which doesn't exist results in a compile error:
@@ -59,7 +59,7 @@ The following is an example of an *inline* module:
 
 ```text
 $> cargo run --bin rune -- run scripts/book/items_imports/inline_modules.rn
-== 3 (33.2µs)
+3
 ```
 
 And this is the equivalent modules loaded from the filesystem. These are three
@@ -81,7 +81,27 @@ separate files:
 
 ```text
 $> cargo run --bin rune -- run scripts/book/items_imports/modules.rn
-== 3 (37.5µs)
+3
+```
+
+# Disambiguating imports
+
+Normally an item would simply be used through its local name, such as
+`foo::number` above. But what happens if we need to reference a module which is
+not a direct descendent of the current one or there is some ambiguation?
+
+To this end Rune supports the following Rust keywords:
+* `self` - which will resolve items from the root of the *current* module.
+* `crate` - which will look up items from the entrypoint of the current project.
+* `super` - which will look up items from the *parent* of the current module.
+
+```rune
+{{#include ../../scripts/book/items_imports/item_keywords.rn}}
+```
+
+```text
+$> cargo run --bin rune -- run scripts/book/items_imports/item_keywords.rn
+7
 ```
 
 # Visibility

@@ -57,6 +57,10 @@ pub(crate) async fn run(
     let runtime = Arc::new(context.runtime());
     let mut vm = rune::Vm::new(runtime, unit);
 
+    if fns.is_empty() {
+        return Ok(ExitCode::Success);
+    }
+
     writeln!(io.stdout, "Found {} benches...", fns.len())?;
 
     let mut any_error = false;

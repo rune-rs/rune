@@ -38,7 +38,6 @@ variables:
 $> cargo run --bin rune -- run scripts/book/variables/shared_ownership.rn
 1
 2
-== () (913.4µs)
 ```
 
 This can cause issues if we call an external function which expects to take
@@ -77,7 +76,6 @@ to functions which need to move the value, like `drop`.
 $> cargo run --bin rune -- run scripts/book/variables/is_readable.rn
 field: 1
 object is no longer readable 😢
-== () (943.8µs)
 ```
 
 [`Shared<T>`]: https://docs.rs/rune/0/rune/struct.Shared.html

@@ -13,7 +13,6 @@ not` operations, like this:
 
 ```text
 $> cargo run --bin rune -- run scripts/book/types/types.rn
-== () (120µs)
 ```
 
 Conversely, the type check would fail if you're providing a value which is not
@@ -45,7 +44,6 @@ $> cargo run --bin rune -- run scripts/book/types/type_check.rn
 n is a String
 n is a vector
 n is unknown
-== () (1.0544ms)
 ```
 
 A tighter way to accomplish this would be by using pattern matching, a mechanism
@@ -61,5 +59,4 @@ $> cargo run --bin rune -- run scripts/book/types/type_check_patterns.rn
 n is a String
 n is a vector
 n is unknown
-== () (1.0341ms)
 ```
