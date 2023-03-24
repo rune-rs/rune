@@ -13,6 +13,14 @@ highlight_code = true
 build_search_index = false
 extra_syntaxes = ["syntaxes"]
 
+taxonomies = [
+  { name = "categories", feed = true, render = false },
+  { name = "tags", feed = true, render = false },
+]
+
+[markdown]
+highlight_code = true
+
 [extra]
 profile = "logo.png"
 github = "rune-rs"

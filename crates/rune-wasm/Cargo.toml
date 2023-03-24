@@ -13,11 +13,11 @@ keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
 [dependencies]
-serde = { version = "1.0.155", features = ["derive"] }
+serde = { version = "1.0.158", features = ["derive"] }
 wasm-bindgen = { version = "0.2.84", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.34"
 js-sys = "0.3.61"
-anyhow = "1.0.69"
+anyhow = "1.0.70"
 gloo-utils = "0.1.6"
 
 rune = { version = "0.12.2", path = "../rune" }

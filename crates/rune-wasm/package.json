@@ -1,12 +1,12 @@
 {
   "name": "rune-wasm",
   "version": "0.0.0",
-  "description": "",
-  "main": "rollup.config.js",
+  "description": "A WASM module for the Rune Language, an embeddable dynamic programming language for Rust.",
+  "main": "rollup.config.mjs",
   "dependencies": {},
   "devDependencies": {
-    "@wasm-tool/rollup-plugin-rust": "^1.0.7",
-    "rollup": "^2.62.0"
+    "@wasm-tool/rollup-plugin-rust": "^2.3.3",
+    "rollup": "^3.20.1"
   },
   "scripts": {
     "build": "rollup -c"

@@ -12,18 +12,21 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
     - uses: actions/setup-node@v1
       with:
-        node-version: 12
+        node-version: 16
     - uses: peaceiris/actions-mdbook@v1
-      with: {mdbook-version: latest}
-    - working-directory: crates/rune-wasm
-      run: npm install
-    - working-directory: crates/rune-wasm
-      run: npm run build
+      with:
+        mdbook-version: latest
+    - run: npm install
+      working-directory: crates/rune-wasm
+    - run: npm run build
+      working-directory: crates/rune-wasm
     - run: cargo run --manifest-path tools/site/Cargo.toml -- -r site build -o target/site
       env:
-        ZOLA_URL: "https://github.com/getzola/zola/releases/download/v0.12.0/zola-v0.12.0-x86_64-unknown-linux-gnu.tar.gz"
+        ZOLA_URL: "https://github.com/getzola/zola/releases/download/v0.17.2/zola-v0.17.2-x86_64-unknown-linux-gnu.tar.gz"
     - run: mdbook build -d ../target/site/book book
     - uses: peaceiris/actions-gh-pages@v3
       with:
