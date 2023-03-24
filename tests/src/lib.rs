@@ -199,7 +199,7 @@ macro_rules! rune_vm_capture {
         let mut context = $crate::modules::with_config(false)?;
         let io = $crate::modules::capture_io::CaptureIo::new();
         let m = $crate::modules::capture_io::module(&io)?;
-        context.install(&m)?;
+        context.install(m)?;
         let mut sources = $crate::sources(stringify!($($tt)*));
         let mut diagnostics = Default::default();
         let vm = $crate::vm(&context, &mut sources, &mut diagnostics)?;
@@ -270,7 +270,7 @@ macro_rules! rune_s {
 macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
         let mut context = $crate::modules::default_context().expect("failed to build context");
-        context.install(&$module).expect("failed to install native module");
+        context.install($module).expect("failed to install native module");
         $crate::run::<_, _, $ty>(&context, stringify!($($tt)*), ["main"], $args).expect("program to run successfully")
     }};
 }

@@ -42,7 +42,7 @@
 //! m.macro_(["concat_idents"], concat_idents)?;
 //!
 //! let mut context = Context::new();
-//! context.install(&m)?;
+//! context.install(m)?;
 //!
 //! let runtime = Arc::new(context.runtime());
 //!

@@ -9,7 +9,7 @@ pub fn main() -> rune::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
-    context.install(&m)?;
+    context.install(m)?;
     let runtime = Arc::new(context.runtime());
 
     let mut sources = rune::sources! {

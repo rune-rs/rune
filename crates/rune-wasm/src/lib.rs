@@ -149,15 +149,15 @@ impl WasmCompileResult {
 fn setup_context(experimental: bool, io: &CaptureIo) -> Result<Context, ContextError> {
     let mut context = Context::with_config(false)?;
 
-    context.install(&rune_modules::capture_io::module(io)?)?;
-    context.install(&time::module()?)?;
-    context.install(&http::module()?)?;
-    context.install(&rune_modules::json::module(false)?)?;
-    context.install(&rune_modules::toml::module(false)?)?;
-    context.install(&rune_modules::rand::module(false)?)?;
+    context.install(rune_modules::capture_io::module(io)?)?;
+    context.install(time::module()?)?;
+    context.install(http::module()?)?;
+    context.install(rune_modules::json::module(false)?)?;
+    context.install(rune_modules::toml::module(false)?)?;
+    context.install(rune_modules::rand::module(false)?)?;
 
     if experimental {
-        context.install(&rune_modules::experiments::module(false)?)?;
+        context.install(rune_modules::experiments::module(false)?)?;
     }
 
     Ok(context)

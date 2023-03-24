@@ -25,7 +25,7 @@ fn test_external_field_match() {
 
     assert_eq!(
         rune_n! {
-            m,
+            &m,
             (e,),
             i64 => pub fn main(v) { match v { External { .. } => 2, _ => 0 } }
         },
@@ -34,7 +34,7 @@ fn test_external_field_match() {
 
     assert_eq!(
         rune_n! {
-            m,
+            &m,
             (e,),
             i64 => pub fn main(v) { match v { External { a, .. } => a, _ => 0 } }
         },
@@ -43,7 +43,7 @@ fn test_external_field_match() {
 
     assert_eq!(
         rune_n! {
-            m,
+            &m,
             (e,),
             i64 => pub fn main(v) { match v { External { b, .. } => b, _ => 0 } }
         },
@@ -52,7 +52,7 @@ fn test_external_field_match() {
 
     assert_eq!(
         rune_n! {
-            m,
+            &m,
             (e,),
             i64 => pub fn main(v) { match v { External { a, b } => a + b, _ => 0 } }
         },

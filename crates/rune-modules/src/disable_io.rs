@@ -5,8 +5,8 @@
 //! use rune_modules::disable_io;
 //!
 //! # fn main() -> Result<(), ContextError> {
-//! let mut c = rune_modules::with_config(false)?;
-//! c.install(&disable_io::module()?)?;
+//! let mut context = rune_modules::with_config(false)?;
+//! context.install(disable_io::module()?)?;
 //! # Ok(()) }
 //! ```
 

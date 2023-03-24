@@ -28,7 +28,7 @@ fn test_parse_in_macro() -> rune::Result<()> {
     })?;
 
     let mut context = Context::with_default_modules()?;
-    context.install(&m)?;
+    context.install(m)?;
 
     let mut sources = rune::sources! {
         entry => {

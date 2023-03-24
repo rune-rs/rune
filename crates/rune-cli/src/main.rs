@@ -260,11 +260,11 @@ impl SharedFlags {
         let mut context = rune_modules::default_context()?;
 
         if self.experimental {
-            context.install(&rune_modules::experiments::module(true)?)?;
+            context.install(rune_modules::experiments::module(true)?)?;
         }
 
         if c.test {
-            context.install(&benches::test_module()?)?;
+            context.install(benches::test_module()?)?;
         }
 
         Ok(context)
@@ -274,14 +274,14 @@ impl SharedFlags {
     fn context_with_capture(&self, c: &Config, io: &CaptureIo) -> Result<Context, ContextError> {
         let mut context = rune_modules::with_config(false)?;
 
-        context.install(&rune_modules::capture_io::module(io)?)?;
+        context.install(rune_modules::capture_io::module(io)?)?;
 
         if self.experimental {
-            context.install(&rune_modules::experiments::module(true)?)?;
+            context.install(rune_modules::experiments::module(true)?)?;
         }
 
         if c.test {
-            context.install(&benches::test_module()?)?;
+            context.install(benches::test_module()?)?;
         }
 
         Ok(context)
