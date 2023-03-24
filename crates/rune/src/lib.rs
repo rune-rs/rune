@@ -20,29 +20,29 @@
 //!
 //! ## Contributing
 //!
-//! If you want to help out, there should be a number of optimization tasks
-//! available in [Future Optimizations][future-optimizations]. Or have a look at
-//! [Open Issues].
-//!
-//! Create an issue about the optimization you want to work on and communicate that
-//! you are working on it.
+//! If you want to help out, please have a look at [Open Issues].
 //!
 //! <br>
 //!
 //! ## Highlights of Rune
 //!
+//! * Runs a compact representation of the language on top of an efficient
+//!   [stack-based virtual machine][support-virtual-machine].
 //! * Clean [Rust integration 💻][support-rust-integration].
 //! * Memory safe through [reference counting 📖][support-reference-counted].
+//! * [Awesome macros 📖][support-macros].
 //! * [Template literals 📖][support-templates].
 //! * [Try operators 📖][support-try].
 //! * [Pattern matching 📖][support-patterns].
-//! * [Structs and enums 📖][support-structs] with associated data and functions.
-//! * Dynamic [vectors 📖][support-dynamic-vectors], [objects 📖][support-anon-objects], and [tuples 📖][support-anon-tuples] with built-in [serde support 💻][support-serde].
+//! * [Structs and enums 📖][support-structs] with associated data and
+//!   functions.
+//! * Dynamic [vectors 📖][support-dynamic-vectors], [objects
+//!   📖][support-anon-objects], and [tuples 📖][support-anon-tuples] with
+//!   out-of-the-box [serde support 💻][support-serde].
 //! * First-class [async support 📖][support-async].
 //! * [Generators 📖][support-generators].
 //! * Dynamic [instance functions 📖][support-instance-functions].
 //! * [Stack isolation 📖][support-stack-isolation] between function calls.
-//! * Stack-based C FFI, like Lua's (TBD).
 //!
 //! <br>
 //!
@@ -118,22 +118,23 @@
 //! ```
 //!
 //! [in the `examples` folder]: https://github.com/rune-rs/rune/tree/main/examples/examples
-//! [future-optimizations]: https://github.com/rune-rs/rune/blob/main/FUTURE_OPTIMIZATIONS.md
 //! [Open Issues]: https://github.com/rune-rs/rune/issues
-//! [support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
-//! [support-reference-counted]: https://rune-rs.github.io/book/variables.html
-//! [support-templates]: https://rune-rs.github.io/book/template_literals.html
-//! [support-try]: https://rune-rs.github.io/book/try_operator.html
-//! [support-patterns]: https://rune-rs.github.io/book/pattern_matching.html
-//! [support-structs]: https://rune-rs.github.io/book/structs.html
-//! [support-async]: https://rune-rs.github.io/book/async.html
-//! [support-generators]: https://rune-rs.github.io/book/generators.html
-//! [support-instance-functions]: https://rune-rs.github.io/book/instance_functions.html
-//! [support-stack-isolation]: https://rune-rs.github.io/book/call_frames.html
-//! [support-dynamic-vectors]: https://rune-rs.github.io/book/vectors.html
 //! [support-anon-objects]: https://rune-rs.github.io/book/objects.html
 //! [support-anon-tuples]: https://rune-rs.github.io/book/tuples.html
+//! [support-async]: https://rune-rs.github.io/book/async.html
+//! [support-dynamic-vectors]: https://rune-rs.github.io/book/vectors.html
+//! [support-generators]: https://rune-rs.github.io/book/generators.html
+//! [support-instance-functions]: https://rune-rs.github.io/book/instance_functions.html
+//! [support-macros]: https://rune-rs.github.io/book/macros.html
+//! [support-patterns]: https://rune-rs.github.io/book/pattern_matching.html
+//! [support-reference-counted]: https://rune-rs.github.io/book/variables.html
+//! [support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
 //! [support-serde]: https://github.com/rune-rs/rune/blob/main/crates/rune-modules/src/json.rs
+//! [support-stack-isolation]: https://rune-rs.github.io/book/call_frames.html
+//! [support-structs]: https://rune-rs.github.io/book/structs.html
+//! [support-templates]: https://rune-rs.github.io/book/template_literals.html
+//! [support-try]: https://rune-rs.github.io/book/try_operator.html
+//! [support-virtual-machine]: https://rune-rs.github.io/book/the_stack.html
 
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
