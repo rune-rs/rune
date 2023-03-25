@@ -63,11 +63,17 @@ pub(crate) fn run(
     queue.push_back(ItemBuf::new());
     walk_items(io, &doc_finder, &mut queue)?;
 
+    let root = Path::new("target/rune-doc");
+    rune::doc::write_html(&context, root)?;
+
     let mut it = context.iter_meta().peekable();
 
     while let Some((item, meta)) = it.next() {
         if !meta.docs.is_empty() {
-            let args = meta.docs.args().join(", ");
+            let args = match meta.docs.args() {
+                Some(args) => args.join(", "),
+                None => String::from("?"),
+            };
 
             writeln!(io.stdout, "fn {item}({args}):")?;
             writeln!(io.stdout)?;

@@ -1,0 +1,88 @@
+
+:root {
+    --text-color: #dddddd;
+    --background-color: #353535;
+    --link-color: #d2991d;
+    --headings-border-bottom-color: #d2d2d2;
+    --type-link-color: #2dbfb8;
+    --fn-link-color: #2bab63;
+}
+
+body {
+    color: var(--text-color);
+    background-color: var(--background-color);
+    font: 1rem/1.5 "Source Serif 4",NanumBarunGothic,serif;
+    font-family: "Fira Sans",Arial,NanumBarunGothic,sans-serif;
+    margin: 20px;
+}
+
+a {
+    color: var(--link-color);
+}
+
+pre {
+    line-height: 1.5;
+    font-size: 1em;
+    font-family: "Source Code Pro",monospace;
+    background-color: rgb(42, 42, 42);
+    padding: 14px;
+}
+
+code {
+    font-family: "Source Code Pro",monospace;
+}
+
+.title {
+    font-size: 1.5rem;
+    line-height: 1.25;
+    font-weight: 500;
+    margin: 25px 0 25px 0;
+    padding: 0;
+}
+
+.section-title {
+    font-size: 1.375rem;
+    line-height: 1.25;
+    font-weight: 500;
+    margin: 25px 0 25px 0;
+    padding: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--headings-border-bottom-color);
+}
+
+.item-entry {
+    font-size: 1.2rem;
+    line-height: 1.25;
+    font-weight: 500;
+    margin: 5px 0;
+    padding: 0;
+}
+
+a {
+    text-decoration: none;
+}
+
+.type {
+    color: var(--type-link-color);
+}
+
+.struct {
+    color: var(--type-link-color);
+}
+
+.fn {
+    color: var(--fn-link-color);
+}
+
+.item-title {
+    font-size: 1.2rem;
+    line-height: 1.25;
+    font-weight: 500;
+    margin: 15px 0 15px 0;
+    padding: 0;
+}
+
+.docs h1, .docs h2, .docs h3, .docs h4, .docs h5, .docs h6 {
+    font-size: 1.2rem;
+    color: var(--link-color);
+}

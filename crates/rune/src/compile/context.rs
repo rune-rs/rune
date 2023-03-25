@@ -330,7 +330,7 @@ impl Context {
         }
 
         for (key, inst) in &module.associated_functions {
-            self.install_associated_function(key, inst)?;
+            self.install_associated_function(module, key, inst)?;
         }
 
         Ok(())
@@ -371,6 +371,17 @@ impl Context {
     /// Access the context meta for the given item.
     pub(crate) fn lookup_meta(&self, name: &Item) -> Option<&ContextMeta> {
         self.meta.get(name)
+    }
+
+    /// Lookup function info based on item.
+    pub(crate) fn lookup_function_info(&self, item: &Item) -> Option<&ContextSignature> {
+        let meta = self.meta.get(item)?;
+
+        if let ContextMetaKind::Function { type_hash, .. } = &meta.kind {
+            self.functions_info.get(type_hash)
+        } else {
+            None
+        }
     }
 
     /// Iterate over all metadata in the context.
@@ -520,11 +531,7 @@ impl Context {
                             variant,
                         };
 
-                        self.install_meta(ContextMeta {
-                            item,
-                            kind,
-                            docs: Docs::default(),
-                        })?;
+                        self.install_meta(ContextMeta::new(module, item, kind, Docs::default()))?;
                     }
 
                     ContextMetaKind::Enum { type_hash }
@@ -534,7 +541,7 @@ impl Context {
             ContextMetaKind::Unknown { type_hash }
         };
 
-        self.install_meta(ContextMeta { item, kind, docs })?;
+        self.install_meta(ContextMeta::new(module, item, kind, docs))?;
         Ok(())
     }
 
@@ -593,14 +600,15 @@ impl Context {
 
         self.functions.insert(hash, f.handler.clone());
 
-        self.install_meta(ContextMeta {
+        self.install_meta(ContextMeta::new(
+            module,
             item,
-            kind: ContextMetaKind::Function {
+            ContextMetaKind::Function {
                 type_hash: hash,
                 instance_function: f.instance_function,
             },
-            docs: f.docs.clone(),
-        })?;
+            f.docs.clone(),
+        ))?;
 
         Ok(())
     }
@@ -638,19 +646,21 @@ impl Context {
 
         self.constants.insert(hash, v.clone());
 
-        self.install_meta(ContextMeta {
+        self.install_meta(ContextMeta::new(
+            module,
             item,
-            kind: ContextMetaKind::Const {
+            ContextMetaKind::Const {
                 const_value: v.clone(),
             },
             docs,
-        })?;
+        ))?;
 
         Ok(())
     }
 
     fn install_associated_function(
         &mut self,
+        module: &Module,
         key: &AssocKey,
         assoc: &AssocFn,
     ) -> Result<(), ContextError> {
@@ -697,6 +707,7 @@ impl Context {
         // and plain hashes.
         if let (InstFnKind::Instance(name), AssocKind::Instance) = (&assoc.name, key.kind) {
             let item = info.item.extended(name);
+            self.names.insert(&item);
 
             let type_hash = Hash::type_hash(&item);
             let hash = type_hash.with_parameters(key.parameters);
@@ -720,14 +731,15 @@ impl Context {
             }
 
             if !self.meta.contains_key(&item) {
-                self.install_meta(ContextMeta {
+                self.install_meta(ContextMeta::new(
+                    module,
                     item,
-                    kind: ContextMetaKind::Function {
+                    ContextMetaKind::Function {
                         type_hash,
                         instance_function: true,
                     },
-                    docs: assoc.docs.clone(),
-                })?;
+                    assoc.docs.clone(),
+                ))?;
             }
 
             self.functions.insert(hash, assoc.handler.clone());
@@ -745,7 +757,7 @@ impl Context {
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*unit_type.name);
         let hash = Hash::type_hash(&item);
-        self.add_internal_tuple(None, item.clone(), 0, || (), docs)?;
+        self.add_internal_tuple(module, None, item.clone(), 0, || (), docs)?;
 
         self.install_type_info(
             hash,
@@ -776,13 +788,14 @@ impl Context {
         let enum_item = module.item.join(&internal_enum.base_type);
         let enum_hash = Hash::type_hash(&enum_item);
 
-        self.install_meta(ContextMeta {
-            item: enum_item.clone(),
-            kind: ContextMetaKind::Enum {
+        self.install_meta(ContextMeta::new(
+            module,
+            enum_item.clone(),
+            ContextMetaKind::Enum {
                 type_hash: internal_enum.static_type.hash,
             },
             docs,
-        })?;
+        ))?;
 
         self.install_type_info(
             enum_hash,
@@ -808,9 +821,10 @@ impl Context {
                 },
             )?;
 
-            self.install_meta(ContextMeta {
-                item: item.clone(),
-                kind: ContextMetaKind::Variant {
+            self.install_meta(ContextMeta::new(
+                module,
+                item.clone(),
+                ContextMetaKind::Variant {
                     type_hash: hash,
                     enum_item: enum_item.clone(),
                     enum_hash,
@@ -820,8 +834,8 @@ impl Context {
                         hash,
                     }),
                 },
-                docs: Docs::default(),
-            })?;
+                Docs::default(),
+            ))?;
 
             let signature = ContextSignature::Function {
                 type_hash: hash,
@@ -845,6 +859,7 @@ impl Context {
     /// Add a piece of internal tuple meta.
     fn add_internal_tuple<C, Args>(
         &mut self,
+        module: &Module,
         enum_item: Option<(ItemBuf, Hash, usize)>,
         item: ItemBuf,
         args: usize,
@@ -861,9 +876,10 @@ impl Context {
         let tuple = PrivTupleMeta { args, hash };
 
         let meta = match enum_item {
-            Some((enum_item, enum_hash, index)) => ContextMeta {
-                item: item.clone(),
-                kind: ContextMetaKind::Variant {
+            Some((enum_item, enum_hash, index)) => ContextMeta::new(
+                module,
+                item.clone(),
+                ContextMetaKind::Variant {
                     type_hash,
                     enum_item,
                     enum_hash,
@@ -871,8 +887,10 @@ impl Context {
                     variant: PrivVariantMeta::Tuple(tuple),
                 },
                 docs,
-            },
+            ),
             None => ContextMeta {
+                #[cfg(feature = "doc")]
+                module: module.item.clone(),
                 item: item.clone(),
                 kind: ContextMetaKind::Struct {
                     type_hash,

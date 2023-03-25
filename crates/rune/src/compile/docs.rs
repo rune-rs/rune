@@ -9,11 +9,8 @@ pub struct Docs {
 
 impl Docs {
     /// Get arguments associated with documentation.
-    pub fn args(&self) -> &[String] {
-        self.arguments
-            .as_ref()
-            .map(AsRef::as_ref)
-            .unwrap_or_default()
+    pub fn args(&self) -> Option<&[String]> {
+        self.arguments.as_ref().map(AsRef::as_ref)
     }
 
     /// Iterate over lines in the documentation.

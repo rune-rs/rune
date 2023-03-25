@@ -246,6 +246,9 @@ pub mod testing;
 pub(crate) use rune_macros::__internal_impl_any;
 pub use rune_macros::function;
 
+#[cfg(feature = "doc")]
+pub mod doc;
+
 /// Internal collection re-export.
 mod collections {
     pub use hashbrown::{hash_map, HashMap};

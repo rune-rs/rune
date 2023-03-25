@@ -14,7 +14,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(from_int)?;
     module.function_meta(to_int)?;
     module.function_meta(is_alphabetic)?;
-    module.function(["is_alphanumeric"], char::is_alphanumeric)?;
+    module.function_meta(is_alphanumeric)?;
     module.function(["is_control"], char::is_control)?;
     module.function(["is_lowercase"], char::is_lowercase)?;
     module.function(["is_numeric"], char::is_numeric)?;
@@ -28,7 +28,7 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// # Examples
 ///
-/// ```rune
+/// ```
 /// let c = char::from_int(80)?;
 /// assert_eq!(c.to_int(), 80);
 /// ```
@@ -41,7 +41,7 @@ fn to_int(value: char) -> Result<Value, VmError> {
 ///
 /// # Examples
 ///
-/// ```rune
+/// ```
 /// let c = char::from_int(80);
 /// assert!(c.is_some());
 /// ```
@@ -56,11 +56,18 @@ fn from_int(value: i64) -> Result<Option<Value>, VmError> {
     }
 }
 
-/// Convert a character into an integer.
+/// Returns `true` if this `char` has the `Alphabetic` property.
+///
+/// `Alphabetic` is described in Chapter 4 (Character Properties) of the [Unicode Standard] and
+/// specified in the [Unicode Character Database][ucd] [`DerivedCoreProperties.txt`].
+///
+/// [Unicode Standard]: https://www.unicode.org/versions/latest/
+/// [ucd]: https://www.unicode.org/reports/tr44/
+/// [`DerivedCoreProperties.txt`]: https://www.unicode.org/Public/UCD/latest/ucd/DerivedCoreProperties.txt
 ///
 /// # Examples
 ///
-/// ```rune
+/// ```
 /// assert!('a'.is_alphabetic());
 /// assert!('京'.is_alphabetic());
 ///
@@ -72,6 +79,31 @@ fn from_int(value: i64) -> Result<Option<Value>, VmError> {
 #[inline]
 fn is_alphabetic(c: char) -> bool {
     char::is_alphabetic(c)
+}
+
+/// Returns `true` if this `char` satisfies either [`is_alphabetic()`] or [`is_numeric()`].
+///
+/// [`is_alphabetic()`]: #method.is_alphabetic
+/// [`is_numeric()`]: #method.is_numeric
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// assert!('٣'.is_alphanumeric());
+/// assert!('7'.is_alphanumeric());
+/// assert!('৬'.is_alphanumeric());
+/// assert!('¾'.is_alphanumeric());
+/// assert!('①'.is_alphanumeric());
+/// assert!('K'.is_alphanumeric());
+/// assert!('و'.is_alphanumeric());
+/// assert!('藏'.is_alphanumeric());
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn is_alphanumeric(c: char) -> bool {
+    char::is_alphanumeric(c)
 }
 
 crate::__internal_impl_any!(ParseCharError);

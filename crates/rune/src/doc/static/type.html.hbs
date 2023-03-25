@@ -1,0 +1,20 @@
+<html>
+<head></head>
+{{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
+{{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
+<body>
+<h3 class="title">Type <b>{{item}}</b></h3>
+
+{{#if methods}}
+<h4 class="section-title">Methods</h4>
+
+{{#each methods}}
+    <div class="item item-fn">
+        <div id="method.{{this.name}}" class="item-title">
+        fn <span class="fn">{{this.name}}</span>({{this.args}})
+        </div>
+        {{#if this.doc}}{{literal this.doc}}{{/if}}
+    </div>
+{{/each}}
+{{/if}}
+</body>

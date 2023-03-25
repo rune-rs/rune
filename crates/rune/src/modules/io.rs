@@ -5,6 +5,7 @@ use std::fmt::Write as _;
 use std::io;
 use std::io::Write as _;
 
+use crate as rune;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::{Panic, Protocol, Stack, Value, VmError};
@@ -18,8 +19,8 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
     module.inst_fn(Protocol::STRING_DISPLAY, format_io_error)?;
 
     if stdio {
-        module.function(["print"], print_impl)?;
-        module.function(["println"], println_impl)?;
+        module.function_meta(print_impl)?;
+        module.function_meta(println_impl)?;
         module.raw_fn(["dbg"], dbg_impl)?;
     }
 
@@ -52,7 +53,6 @@ pub(crate) fn dbg_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> crate::Result<TokenStream> {
-    use crate as rune;
     Ok(quote!(::std::io::dbg(#stream)).into_token_stream(ctx))
 }
 
@@ -61,13 +61,23 @@ pub(crate) fn print_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> crate::Result<TokenStream> {
-    use crate as rune;
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;
     Ok(quote!(::std::io::print(#expanded)).into_token_stream(ctx))
 }
 
+/// Print to stdout.
+///
+/// This is provided on top of the [`print!`] macro so that it can be used as
+/// a function.
+///
+/// # Examples
+///
+/// ```rune
+/// print("Hi!");
+/// ```
+#[rune::function(path = print)]
 fn print_impl(m: &str) -> Result<(), Panic> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
@@ -79,15 +89,25 @@ pub(crate) fn println_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> crate::Result<TokenStream> {
-    use crate as rune;
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;
     Ok(quote!(::std::io::println(#expanded)).into_token_stream(ctx))
 }
 
-fn println_impl(m: &str) -> Result<(), Panic> {
+/// Print to stdout adding a newline to what is being printed.
+///
+/// This is provided on top of the [`println!`] macro so that it can be used as
+/// a function.
+///
+/// # Examples
+///
+/// ```rune
+/// println("Hi!");
+/// ```
+#[rune::function(path = println)]
+fn println_impl(message: &str) -> Result<(), Panic> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
-    writeln!(stdout, "{}", m).map_err(Panic::custom)
+    writeln!(stdout, "{}", message).map_err(Panic::custom)
 }

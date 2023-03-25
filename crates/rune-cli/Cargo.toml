@@ -23,7 +23,7 @@ codespan-reporting = "0.11.1"
 anyhow = { version = "1.0.70", features = ["std"] }
 structopt = { version = "0.3.26", default-features = false, features = ["wrap_help", "suggestions", "color"] }
 
-rune = { version = "0.12.3", path = "../rune", features = ["workspace"] }
+rune = { version = "0.12.3", path = "../rune", features = ["workspace", "doc"] }
 rune-modules = { version = "0.12.3", path = "../rune-modules", features = ["full", "experiments", "capture-io"] }
 
 [build-dependencies]

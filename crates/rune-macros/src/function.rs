@@ -175,7 +175,7 @@ impl Function {
     }
 
     /// Expand the function declaration.
-    pub(crate) fn expand(self, attrs: FunctionAttrs) -> Result<TokenStream, Error> {
+    pub(crate) fn expand(mut self, attrs: FunctionAttrs) -> Result<TokenStream, Error> {
         let real_fn_path = if attrs.path.is_self() || self.takes_self {
             let mut segments = Punctuated::default();
 
@@ -264,6 +264,18 @@ impl Function {
             (_, None, false) => "function",
             (_, None, true) => "async_function",
         };
+
+        if instance && !self.takes_self {
+            // Ensure that the first argument is called `self`.
+            if let Some(argument) = self.arguments.elems.first_mut() {
+                let span = argument.span();
+
+                *argument = syn::Expr::Lit(syn::ExprLit {
+                    attrs: Vec::new(),
+                    lit: syn::Lit::Str(syn::LitStr::new("self", span)),
+                });
+            }
+        }
 
         let meta_kind = syn::Ident::new(function, self.sig.span());
         let mut stream = TokenStream::new();

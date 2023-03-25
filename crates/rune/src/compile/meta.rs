@@ -11,7 +11,7 @@ use crate::compile::{Docs, Item, ItemBuf, ItemId, Location, ModId, Pool, Visibil
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::query::ImportEntry;
 use crate::runtime::ConstValue;
-use crate::Hash;
+use crate::{Hash, Module};
 
 /// Provides an owned human-readable description of a meta item.
 #[derive(Debug, Clone)]
@@ -179,6 +179,9 @@ impl Doc {
 /// Context metadata.
 #[non_exhaustive]
 pub struct ContextMeta {
+    /// The module that the declared item belongs to.
+    #[cfg(feature = "doc")]
+    pub module: ItemBuf,
     /// The item of the returned compile meta.
     pub item: ItemBuf,
     /// The kind of the compile meta.
@@ -188,6 +191,16 @@ pub struct ContextMeta {
 }
 
 impl ContextMeta {
+    pub(crate) fn new(module: &Module, item: ItemBuf, kind: ContextMetaKind, docs: Docs) -> Self {
+        Self {
+            #[cfg(feature = "doc")]
+            module: module.item.clone(),
+            item,
+            kind,
+            docs,
+        }
+    }
+
     /// Get the [Meta] which describes this [ContextMeta] object.
     pub(crate) fn info(&self) -> Meta {
         Meta {

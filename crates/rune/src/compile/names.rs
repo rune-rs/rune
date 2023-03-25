@@ -1,4 +1,4 @@
-use crate::collections::HashMap;
+use crate::collections::BTreeMap;
 use crate::compile::{Component, ComponentRef, IntoComponent};
 use std::mem;
 
@@ -104,7 +104,7 @@ struct Node {
     /// If the node is terminating.
     term: bool,
     /// The children of this node.
-    children: HashMap<Component, Node>,
+    children: BTreeMap<Component, Node>,
 }
 
 #[cfg(test)]

@@ -1,0 +1,38 @@
+<html>
+<head></head>
+{{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
+{{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
+<body>
+<h3 class="title">Module <b>{{item}}</b></h3>
+
+{{#if structs}}
+<h4 class="section-title">Types</h4>
+
+{{#each types}}
+    <div class="item-entry">
+    <a class="type" href="{{literal this.path}}">{{this.name}}</a>
+    </div>
+{{/each}}
+{{/if}}
+
+{{#if structs}}
+<h4 class="section-title">Structs</h4>
+
+{{#each structs}}
+    <div class="item-entry">
+    <a class="struct" href="{{literal this.path}}">{{this.name}}</a>
+    </div>
+{{/each}}
+{{/if}}
+
+{{#if functions}}
+<h4 class="section-title">Functions</h4>
+
+{{#each functions}}
+    <div id="fn.{{this.name}}" class="item-entry">
+    <a class="fn">{{this.name}}</a>
+    </div>
+{{/each}}
+{{/if}}
+</body>
+</html>

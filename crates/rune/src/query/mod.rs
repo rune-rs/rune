@@ -647,6 +647,7 @@ impl<'a> Query<'a> {
             ContextMetaKind::Function {
                 type_hash,
                 instance_function,
+                ..
             } => PrivMetaKind::Function {
                 type_hash,
                 is_test: false,

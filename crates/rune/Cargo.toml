@@ -18,6 +18,7 @@ default = ["emit"]
 emit = ["codespan-reporting"]
 bench = []
 workspace = ["toml", "toml-spanned-value", "semver", "relative-path", "serde-hashkey"]
+doc = ["rust-embed", "handlebars", "pulldown-cmark", "syntect"]
 
 [dependencies]
 thiserror = "1.0.40"
@@ -44,6 +45,10 @@ semver = { version = "1.0.17", optional = true, features = ["serde"] }
 relative-path = { version = "1.8.0", optional = true, features = ["serde"] }
 serde-hashkey = { version = "0.4.5", optional = true }
 linked-hash-map = "0.5.6"
+pulldown-cmark = { version = "0.9.2", optional = true }
+rust-embed = { version = "6.6.0", optional = true }
+handlebars = { version = "4.3.6", optional = true }
+syntect = { version = "5.0.0", optional = true }
 
 rune-macros = { version = "=0.12.3", path = "../rune-macros" }
 
