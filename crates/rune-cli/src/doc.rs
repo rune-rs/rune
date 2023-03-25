@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::io::{self, Write};
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use anyhow::Context;
 use rune::compile::{
@@ -61,6 +62,25 @@ pub(crate) fn run(
     let mut queue = VecDeque::new();
     queue.push_back(ItemBuf::new());
     walk_items(io, &doc_finder, &mut queue)?;
+
+    let mut it = context.iter_meta().peekable();
+
+    while let Some((item, meta)) = it.next() {
+        if !meta.docs.is_empty() {
+            let args = meta.docs.args().join(", ");
+
+            writeln!(io.stdout, "fn {item}({args}):")?;
+            writeln!(io.stdout)?;
+
+            for line in meta.docs.lines() {
+                writeln!(io.stdout, "  {line}", line = line.trim())?;
+            }
+
+            if it.peek().is_some() {
+                writeln!(io.stdout)?;
+            }
+        }
+    }
 
     if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
         Ok(ExitCode::Failure)

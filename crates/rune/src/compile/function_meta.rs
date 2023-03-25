@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use crate::compile::module::{AssocKind, AssocType, AsyncFunction, AsyncInstFn, Function, InstFn};
-use crate::compile::{IntoComponent, ItemBuf};
+use crate::compile::module::{
+    AssocKey, AssocKind, AssocType, AsyncFunction, AsyncInstFn, Function, InstFn,
+};
+use crate::compile::{IntoComponent, ItemBuf, Named};
 use crate::runtime::FunctionHandler;
 use crate::{InstFnInfo, InstFnName};
 
@@ -9,7 +11,7 @@ use crate::{InstFnInfo, InstFnName};
 /// `#[rune::function]` macro.
 ///
 /// This is the argument type for
-/// [`Module::function2`][crate::compile::Module::function2], and is from a
+/// [`Module::function_meta`][crate::compile::Module::function_meta], and is from a
 /// public API perspective completely opaque and might change for any release.
 ///
 /// Calling and making use of `FunctionMeta` manually despite this warning might
@@ -92,6 +94,16 @@ impl AssocFnData {
             kind,
         }
     }
+
+    /// Get associated key.
+    pub(crate) fn assoc_key(&self) -> AssocKey {
+        AssocKey {
+            type_hash: self.ty.hash,
+            hash: self.name.hash,
+            kind: self.kind,
+            parameters: self.name.parameters,
+        }
+    }
 }
 
 /// The kind of a [`FunctionMeta`].
@@ -121,12 +133,42 @@ impl FunctionMetaKind {
 
     #[doc(hidden)]
     #[inline]
+    pub fn function_with<T, N, Func, Args>(name: N, f: Func) -> Self
+    where
+        T: Named,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+        Func: Function<Args>,
+    {
+        let name = [IntoComponent::into_component(T::BASE_NAME)]
+            .into_iter()
+            .chain(name.into_iter().map(IntoComponent::into_component));
+        Self::Function(FunctionData::new(name, f))
+    }
+
+    #[doc(hidden)]
+    #[inline]
     pub fn async_function<N, Func, Args>(name: N, f: Func) -> Self
     where
         N: IntoIterator,
         N::Item: IntoComponent,
         Func: AsyncFunction<Args>,
     {
+        Self::Function(FunctionData::new_async(name, f))
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn async_function_with<T, N, Func, Args>(name: N, f: Func) -> Self
+    where
+        T: Named,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+        Func: AsyncFunction<Args>,
+    {
+        let name = [IntoComponent::into_component(T::BASE_NAME)]
+            .into_iter()
+            .chain(name.into_iter().map(IntoComponent::into_component));
         Self::Function(FunctionData::new_async(name, f))
     }
 

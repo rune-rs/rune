@@ -73,10 +73,10 @@ impl Test {
 
 fn module() -> Result<Module, ContextError> {
     let mut m = Module::new();
-    m.function2(add)?;
-    m.function2(add_async)?;
+    m.function_meta(add)?;
+    m.function_meta(add_async)?;
     m.ty::<Test>()?;
-    m.function2(Test::add)?;
-    m.function2(Test::add_async)?;
+    m.function_meta(Test::add)?;
+    m.function_meta(Test::add_async)?;
     Ok(m)
 }

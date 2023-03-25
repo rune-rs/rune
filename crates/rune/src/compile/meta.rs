@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
-use crate::compile::{Item, ItemBuf, ItemId, Location, ModId, Pool, Visibility};
+use crate::compile::{Docs, Item, ItemBuf, ItemId, Location, ModId, Pool, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::query::ImportEntry;
 use crate::runtime::ConstValue;
@@ -178,11 +178,13 @@ impl Doc {
 
 /// Context metadata.
 #[non_exhaustive]
-pub(crate) struct ContextMeta {
+pub struct ContextMeta {
     /// The item of the returned compile meta.
-    pub(crate) item: ItemBuf,
+    pub item: ItemBuf,
     /// The kind of the compile meta.
-    pub(crate) kind: ContextMetaKind,
+    pub kind: ContextMetaKind,
+    /// Documentation associated with a context meta.
+    pub docs: Docs,
 }
 
 impl ContextMeta {
@@ -197,7 +199,7 @@ impl ContextMeta {
 
 /// Compile-time metadata kind about an item in a context.
 #[derive(Debug, Clone)]
-pub(crate) enum ContextMetaKind {
+pub enum ContextMetaKind {
     /// The type is completely opaque. We have no idea about what it is with the
     /// exception of it having a type hash.
     Unknown { type_hash: Hash },
@@ -334,7 +336,7 @@ impl PrivMeta {
 
 /// Private variant metadata.
 #[derive(Debug, Clone)]
-pub(crate) enum PrivVariantMeta {
+pub enum PrivVariantMeta {
     Tuple(PrivTupleMeta),
     Struct(PrivStructMeta),
     Unit,
@@ -472,7 +474,7 @@ impl PrivMetaKind {
 /// The metadata about a struct.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(crate) struct PrivStructMeta {
+pub struct PrivStructMeta {
     /// Fields associated with the type.
     pub(crate) fields: HashSet<Box<str>>,
 }
@@ -480,7 +482,7 @@ pub(crate) struct PrivStructMeta {
 /// The metadata about a tuple.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(crate) struct PrivTupleMeta {
+pub struct PrivTupleMeta {
     /// The number of arguments the variant takes.
     pub(crate) args: usize,
     /// Hash of the constructor function.
