@@ -9,7 +9,7 @@ use crate::compile::module::{
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, ContextMeta, ContextMetaKind, IntoComponent, Item, ItemBuf, Meta, Names,
+    ComponentRef, ContextMeta, ContextMetaKind, Docs, IntoComponent, Item, ItemBuf, Meta, Names,
     PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
 use crate::runtime::{
@@ -228,12 +228,14 @@ impl Context {
     /// * `::std::io::println`
     pub fn with_config(stdio: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
+        // This must go first, because it includes types which are used in other modules.
+        this.install(crate::modules::core::module()?)?;
+
         this.install(crate::modules::any::module()?)?;
         this.install(crate::modules::bytes::module()?)?;
         this.install(crate::modules::char::module()?)?;
         this.install(crate::modules::cmp::module()?)?;
         this.install(crate::modules::collections::module()?)?;
-        this.install(crate::modules::core::module()?)?;
         this.install(crate::modules::float::module()?)?;
         this.install(crate::modules::fmt::module()?)?;
         this.install(crate::modules::future::module()?)?;
@@ -304,7 +306,7 @@ impl Context {
         }
 
         for (type_hash, ty) in &module.types {
-            self.install_type(module, *type_hash, ty)?;
+            self.install_type(module, *type_hash, ty, Docs::default())?;
         }
 
         for (name, f) in &module.functions {
@@ -316,15 +318,15 @@ impl Context {
         }
 
         for (name, m) in &module.constants {
-            self.install_constant(module, name, m)?;
+            self.install_constant(module, name, m, Docs::default())?;
         }
 
         if let Some(unit_type) = &module.unit_type {
-            self.install_unit_type(module, unit_type)?;
+            self.install_unit_type(module, unit_type, Docs::default())?;
         }
 
         for internal_enum in &module.internal_enums {
-            self.install_internal_enum(module, internal_enum)?;
+            self.install_internal_enum(module, internal_enum, Docs::default())?;
         }
 
         for (key, inst) in &module.associated_functions {
@@ -369,6 +371,11 @@ impl Context {
     /// Access the context meta for the given item.
     pub(crate) fn lookup_meta(&self, name: &Item) -> Option<&ContextMeta> {
         self.meta.get(name)
+    }
+
+    /// Iterate over all metadata in the context.
+    pub fn iter_meta(&self) -> impl Iterator<Item = (&Item, &ContextMeta)> + '_ {
+        self.meta.iter().map(|(item, meta)| (item.as_ref(), meta))
     }
 
     /// Check if unit contains the given name by prefix.
@@ -428,6 +435,7 @@ impl Context {
         module: &Module,
         type_hash: Hash,
         ty: &Type,
+        docs: Docs,
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*ty.name);
         let hash = Hash::type_hash(&item);
@@ -512,7 +520,11 @@ impl Context {
                             variant,
                         };
 
-                        self.install_meta(ContextMeta { item, kind })?;
+                        self.install_meta(ContextMeta {
+                            item,
+                            kind,
+                            docs: Docs::default(),
+                        })?;
                     }
 
                     ContextMetaKind::Enum { type_hash }
@@ -522,8 +534,7 @@ impl Context {
             ContextMetaKind::Unknown { type_hash }
         };
 
-        self.install_meta(ContextMeta { item, kind })?;
-
+        self.install_meta(ContextMeta { item, kind, docs })?;
         Ok(())
     }
 
@@ -588,6 +599,7 @@ impl Context {
                 type_hash: hash,
                 instance_function: f.instance_function,
             },
+            docs: f.docs.clone(),
         })?;
 
         Ok(())
@@ -616,6 +628,7 @@ impl Context {
         module: &Module,
         item: &Item,
         v: &ConstValue,
+        docs: Docs,
     ) -> Result<(), ContextError> {
         let item = module.item.join(item);
 
@@ -630,6 +643,7 @@ impl Context {
             kind: ContextMetaKind::Const {
                 const_value: v.clone(),
             },
+            docs,
         })?;
 
         Ok(())
@@ -712,6 +726,7 @@ impl Context {
                         type_hash,
                         instance_function: true,
                     },
+                    docs: assoc.docs.clone(),
                 })?;
             }
 
@@ -726,10 +741,11 @@ impl Context {
         &mut self,
         module: &Module,
         unit_type: &UnitType,
+        docs: Docs,
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*unit_type.name);
         let hash = Hash::type_hash(&item);
-        self.add_internal_tuple(None, item.clone(), 0, || ())?;
+        self.add_internal_tuple(None, item.clone(), 0, || (), docs)?;
 
         self.install_type_info(
             hash,
@@ -749,6 +765,7 @@ impl Context {
         &mut self,
         module: &Module,
         internal_enum: &InternalEnum,
+        docs: Docs,
     ) -> Result<(), ContextError> {
         if !self.internal_enums.insert(internal_enum.static_type) {
             return Err(ContextError::InternalAlreadyPresent {
@@ -764,6 +781,7 @@ impl Context {
             kind: ContextMetaKind::Enum {
                 type_hash: internal_enum.static_type.hash,
             },
+            docs,
         })?;
 
         self.install_type_info(
@@ -802,6 +820,7 @@ impl Context {
                         hash,
                     }),
                 },
+                docs: Docs::default(),
             })?;
 
             let signature = ContextSignature::Function {
@@ -830,6 +849,7 @@ impl Context {
         item: ItemBuf,
         args: usize,
         constructor: C,
+        docs: Docs,
     ) -> Result<(), ContextError>
     where
         C: Function<Args>,
@@ -850,6 +870,7 @@ impl Context {
                     index,
                     variant: PrivVariantMeta::Tuple(tuple),
                 },
+                docs,
             },
             None => ContextMeta {
                 item: item.clone(),
@@ -857,6 +878,7 @@ impl Context {
                     type_hash,
                     variant: PrivVariantMeta::Tuple(tuple),
                 },
+                docs,
             },
         };
 

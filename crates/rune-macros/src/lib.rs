@@ -75,31 +75,118 @@ pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 /// Macro used to annotate native functions which can be loaded into rune.
 ///
+/// This macro automatically performs the following things:
+/// * Rust documentation comments are captured so that it can be used in
+///   generated Rune documentation.
+/// * The name of arguments is captured to improve documentation generation.
+/// * If an instance function is annotated this is detected (if the function
+///   receives `self`). This behavior can be forced using `#[rune(instance)]` if
+///   the function doesn't take `self`.
+///
 /// # Examples
+///
+/// A simple free function:
 ///
 /// ```
 /// use rune::{Module, ContextError};
 ///
-/// /// This is a pretty neat function.
+/// /// This is a pretty neat function which is called `std::str::to_uppercase("hello")`.
 /// #[rune::function]
-/// fn to_string(string: &str) -> String {
-///     string.to_string()
+/// fn to_uppercase(string: &str) -> String {
+///     string.to_uppercase()
 /// }
 ///
 /// fn module() -> Result<Module, ContextError> {
 ///     let mut m = Module::new();
-///     m.function2(to_string)?;
+///     m.function_meta(to_uppercase)?;
+///     Ok(m)
+/// }
+/// ```
+///
+/// A free instance function:
+///
+/// ```
+/// use rune::{Module, ContextError};
+///
+/// /// This is a pretty neat function, which is called like `"hello".to_uppercase()`.
+/// #[rune::function(instance)]
+/// fn to_uppercase(string: &str) -> String {
+///     string.to_uppercase()
+/// }
+///
+/// /// This is a pretty neat function, which is called like `string::to_uppercase2("hello")`.
+/// #[rune::function(path = string)]
+/// fn to_uppercase2(string: &str) -> String {
+///     string.to_uppercase()
+/// }
+///
+/// fn module() -> Result<Module, ContextError> {
+///     let mut m = Module::new();
+///     m.function_meta(to_uppercase)?;
+///     m.function_meta(to_uppercase2)?;
+///     Ok(m)
+/// }
+/// ```
+///
+/// A regular instance function:
+///
+/// ```
+/// use rune::{Any, Module, ContextError};
+///
+/// #[derive(Any)]
+/// struct String {
+///     inner: std::string::String
+/// }
+///
+/// impl String {
+///     /// Construct a new string wrapper.
+///     #[rune::function(path = Self::new)]
+///     fn new(string: &str) -> Self {
+///         Self {
+///             inner: string.into()
+///         }
+///     }
+///
+///     /// Construct a new string wrapper.
+///     #[rune::function(path = Self::new2)]
+///     fn new2(string: &str) -> Self {
+///         Self {
+///             inner: string.into()
+///         }
+///     }
+///
+///     /// Uppercase the string inside of the string wrapper.
+///     ///
+///     /// # Examples
+///     ///
+///     /// ```rune
+///     /// let string = String::new("hello");
+///     /// assert_eq!(string.to_uppercase(), "HELLO");
+///     /// ```
+///     #[rune::function]
+///     fn to_uppercase(&self) -> std::string::String {
+///         self.inner.to_uppercase()
+///     }
+/// }
+///
+/// fn module() -> Result<Module, ContextError> {
+///     let mut m = Module::new();
+///     m.ty::<String>()?;
+///     m.function_meta(String::new)?;
+///     m.function_meta(String::new2)?;
+///     m.function_meta(String::to_uppercase)?;
 ///     Ok(m)
 /// }
 /// ```
 #[proc_macro_attribute]
 pub fn function(
-    _: proc_macro::TokenStream,
+    attrs: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
+    let attrs = syn::parse_macro_input!(attrs with crate::function::FunctionAttrs::parse);
     let function = syn::parse_macro_input!(item with crate::function::Function::parse);
 
-    let output = match function.expand() {
+    let output = match function.expand(attrs) {
         Ok(output) => output,
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
     };

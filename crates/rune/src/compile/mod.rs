@@ -28,6 +28,9 @@ pub(crate) use self::compile_visitor::NoopCompileVisitor;
 pub(crate) mod context;
 pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
 
+mod docs;
+pub use self::docs::Docs;
+
 mod prelude;
 pub(crate) use self::prelude::Prelude;
 

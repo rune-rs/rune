@@ -5,7 +5,7 @@
 
 use crate::collections::{HashMap, HashSet};
 use crate::compile::{
-    AssocFnData, ContextError, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent,
+    AssocFnData, ContextError, Docs, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent,
     ItemBuf, Named,
 };
 use crate::macros::{MacroContext, TokenStream};
@@ -219,6 +219,7 @@ pub(crate) struct AssocFn {
     pub(crate) args: Option<usize>,
     pub(crate) type_info: TypeInfo,
     pub(crate) name: InstFnKind,
+    pub(crate) docs: Docs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -233,6 +234,7 @@ pub(crate) struct ModuleFn {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
     pub(crate) instance_function: bool,
+    pub(crate) docs: Docs,
 }
 
 pub(crate) struct Macro {
@@ -249,13 +251,13 @@ pub struct Module {
     pub(crate) unique: Option<&'static str>,
     /// The name of the module.
     pub(crate) item: ItemBuf,
-    /// Free functions.
+    /// Functions.
     pub(crate) functions: HashMap<ItemBuf, ModuleFn>,
     /// MacroHandler handlers.
     pub(crate) macros: HashMap<ItemBuf, Macro>,
     /// Constant values.
     pub(crate) constants: HashMap<ItemBuf, ConstValue>,
-    /// Instance functions.
+    /// Associated functions.
     pub(crate) associated_functions: HashMap<AssocKey, AssocFn>,
     /// Registered types.
     pub(crate) types: HashMap<Hash, Type>,
@@ -307,13 +309,13 @@ impl Module {
         Self {
             unique: None,
             item,
-            functions: Default::default(),
-            macros: Default::default(),
-            associated_functions: Default::default(),
-            types: Default::default(),
+            functions: HashMap::default(),
+            macros: HashMap::default(),
+            associated_functions: HashMap::default(),
+            types: HashMap::default(),
             unit_type: None,
             internal_enums: Vec::new(),
-            constants: Default::default(),
+            constants: HashMap::default(),
         }
     }
 
@@ -732,8 +734,8 @@ impl Module {
     ///
     /// fn module() -> Result<Module, ContextError> {
     ///     let mut m = Module::new();
-    ///     m.function2(to_string)?;
-    ///     m.function2(download)?;
+    ///     m.function_meta(to_string)?;
+    ///     m.function_meta(download)?;
     ///     Ok(m)
     /// }
     /// ```
@@ -769,23 +771,33 @@ impl Module {
     /// let mut module = rune::Module::default();
     ///
     /// module.ty::<MyBytes>()?;
-    /// module.function2(MyBytes::len)?;
-    /// module.function2(MyBytes::download)?;
+    /// module.function_meta(MyBytes::len)?;
+    /// module.function_meta(MyBytes::download)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
     #[inline]
-    pub fn function2(&mut self, meta: FunctionMeta) -> Result<(), ContextError> {
+    pub fn function_meta(&mut self, meta: FunctionMeta) -> Result<(), ContextError> {
         let meta = meta();
 
         match meta.kind {
-            FunctionMetaKind::Function(meta) => self.function_inner(meta),
-            FunctionMetaKind::AssocFn(meta) => self.assoc_fn(meta),
+            FunctionMetaKind::Function(data) => {
+                let mut docs = Docs::default();
+                docs.set_docs(meta.docs);
+                docs.set_arguments(meta.arguments);
+                self.function_inner(data, docs)
+            }
+            FunctionMetaKind::AssocFn(data) => {
+                let mut docs = Docs::default();
+                docs.set_docs(meta.docs);
+                docs.set_arguments(meta.arguments);
+                self.assoc_fn(data, docs)
+            }
         }
     }
 
     /// Register a function.
     ///
-    /// If possible, [`Module::function2`] should be used since it includes more
+    /// If possible, [`Module::function_meta`] should be used since it includes more
     /// useful information about the function.
     ///
     /// # Examples
@@ -809,12 +821,12 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        self.function_inner(FunctionData::new(name, f))
+        self.function_inner(FunctionData::new(name, f), Docs::default())
     }
 
     /// Register an asynchronous function.
     ///
-    /// If possible, [`Module::function2`] should be used since it includes more
+    /// If possible, [`Module::function_meta`] should be used since it includes more
     /// useful information about the function.
     ///
     /// # Examples
@@ -849,12 +861,12 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        self.function_inner(FunctionData::new_async(name, f))
+        self.function_inner(FunctionData::new_async(name, f), Docs::default())
     }
 
     /// Register an instance function.
     ///
-    /// If possible, [`Module::function2`] should be used since it includes more
+    /// If possible, [`Module::function_meta`] should be used since it includes more
     /// useful information about the function.
     ///
     /// # Examples
@@ -894,12 +906,15 @@ impl Module {
         N: InstFnName,
         Func: InstFn<Args>,
     {
-        self.assoc_fn(AssocFnData::new(name.info(), f, AssocKind::Instance))
+        self.assoc_fn(
+            AssocFnData::new(name.info(), f, AssocKind::Instance),
+            Docs::default(),
+        )
     }
 
     /// Register an asynchronous instance function.
     ///
-    /// If possible, [`Module::function2`] should be used since it includes more
+    /// If possible, [`Module::function_meta`] should be used since it includes more
     /// useful information about the function.
     ///
     /// # Examples
@@ -931,7 +946,10 @@ impl Module {
         N: InstFnName,
         Func: AsyncInstFn<Args>,
     {
-        self.assoc_fn(AssocFnData::new_async(name.info(), f, AssocKind::Instance))
+        self.assoc_fn(
+            AssocFnData::new_async(name.info(), f, AssocKind::Instance),
+            Docs::default(),
+        )
     }
 
     /// Install a protocol function that interacts with the given field.
@@ -945,11 +963,10 @@ impl Module {
         N: InstFnName,
         Func: InstFn<Args>,
     {
-        self.assoc_fn(AssocFnData::new(
-            name.info(),
-            f,
-            AssocKind::FieldFn(protocol),
-        ))
+        self.assoc_fn(
+            AssocFnData::new(name.info(), f, AssocKind::FieldFn(protocol)),
+            Docs::default(),
+        )
     }
 
     /// Install a protocol function that interacts with the given index.
@@ -966,7 +983,10 @@ impl Module {
         Func: InstFn<Args>,
     {
         let name = InstFnInfo::index(protocol, index);
-        self.assoc_fn(AssocFnData::new(name, f, AssocKind::IndexFn(protocol)))
+        self.assoc_fn(
+            AssocFnData::new(name, f, AssocKind::IndexFn(protocol)),
+            Docs::default(),
+        )
     }
 
     /// Register a raw function which interacts directly with the virtual
@@ -989,13 +1009,14 @@ impl Module {
                 handler: Arc::new(move |stack, args| f(stack, args)),
                 args: None,
                 instance_function: false,
+                docs: Docs::default(),
             },
         );
 
         Ok(())
     }
 
-    fn function_inner(&mut self, meta: FunctionData) -> Result<(), ContextError> {
+    fn function_inner(&mut self, meta: FunctionData, docs: Docs) -> Result<(), ContextError> {
         if self.functions.contains_key(&meta.name) {
             return Err(ContextError::ConflictingFunctionName { name: meta.name });
         }
@@ -1006,6 +1027,7 @@ impl Module {
                 handler: meta.handler,
                 args: meta.args,
                 instance_function: false,
+                docs,
             },
         );
 
@@ -1013,13 +1035,8 @@ impl Module {
     }
 
     /// Install an associated function.
-    fn assoc_fn(&mut self, meta: AssocFnData) -> Result<(), ContextError> {
-        let key = AssocKey {
-            type_hash: meta.ty.hash,
-            hash: meta.name.hash,
-            kind: meta.kind,
-            parameters: meta.name.parameters,
-        };
+    fn assoc_fn(&mut self, meta: AssocFnData, docs: Docs) -> Result<(), ContextError> {
+        let key = meta.assoc_key();
 
         if self.associated_functions.contains_key(&key) {
             return Err(match meta.name.kind {
@@ -1043,6 +1060,7 @@ impl Module {
             args: meta.args,
             type_info: meta.ty.type_info,
             name: meta.name.kind,
+            docs,
         };
 
         self.associated_functions.insert(key, assoc_fn);

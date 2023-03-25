@@ -1,23 +1,115 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::Error;
 
+#[derive(Default)]
+enum Path {
+    #[default]
+    None,
+    Path(Span, Option<syn::token::SelfType>, Vec<syn::Ident>),
+}
+
+impl Path {
+    fn is_self(&self) -> bool {
+        match self {
+            Path::Path(_, self_type, _) => self_type.is_some(),
+            _ => false,
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct FunctionAttrs {
+    instance: bool,
+    path: Path,
+}
+
+impl FunctionAttrs {
+    /// Parse the given parse stream.
+    pub(crate) fn parse(input: ParseStream) -> Result<Self, Error> {
+        let span = input.span();
+        let mut out = Self::default();
+
+        let mut last = false;
+
+        while !input.is_empty() {
+            let ident = input.parse::<syn::Ident>()?;
+
+            if ident == "instance" {
+                out.instance = true;
+            } else if ident == "path" {
+                input.parse::<syn::Token![=]>()?;
+
+                let (self_type, head) = if input.peek(syn::token::SelfType) {
+                    let self_type = input.parse()?;
+                    (Some(self_type), None)
+                } else {
+                    (None, Some(input.parse()?))
+                };
+
+                out.path = Path::Path(span, self_type, parse_path(input, head)?);
+            } else {
+                return Err(syn::Error::new_spanned(ident, "unsupported option"));
+            }
+
+            if last {
+                break;
+            }
+
+            if !input.peek(syn::Token![::]) {
+                last = true
+            } else {
+                input.parse::<syn::Token![::]>()?;
+            }
+        }
+
+        Ok(out)
+    }
+}
+
+/// Parse `#[rune::function(path = <value>)]`.
+fn parse_path(input: ParseStream, head: Option<syn::Ident>) -> Result<Vec<syn::Ident>, Error> {
+    let mut array = Vec::new();
+    array.extend(head);
+
+    while input.peek(syn::Token![::]) {
+        input.parse::<syn::Token![::]>()?;
+        array.push(input.parse()?);
+    }
+
+    if input.peek(syn::Ident) {
+        array.push(input.parse()?);
+    }
+
+    Ok(array)
+}
+
 pub(crate) struct Function {
-    stream: TokenStream,
+    attributes: Vec<syn::Attribute>,
+    vis: syn::Visibility,
+    sig: syn::Signature,
+    remainder: TokenStream,
+    name_string: syn::LitStr,
+    docs: syn::ExprArray,
+    arguments: syn::ExprArray,
+    takes_self: bool,
+    meta_vis: syn::Visibility,
+    real_fn: syn::Ident,
+    meta_fn: syn::Ident,
 }
 
 impl Function {
     /// Parse the given parse stream.
     pub(crate) fn parse(input: ParseStream) -> Result<Self, Error> {
-        let attributes = input.call(syn::Attribute::parse_outer)?;
+        let parsed_attributes = input.call(syn::Attribute::parse_outer)?;
         let vis = input.parse::<syn::Visibility>()?;
         let mut sig = input.parse::<syn::Signature>()?;
         let ident = sig.ident.clone();
 
-        let mut stream = TokenStream::new();
+        let mut attributes = Vec::new();
 
         let mut docs = syn::ExprArray {
             attrs: Vec::new(),
@@ -25,14 +117,14 @@ impl Function {
             elems: Punctuated::default(),
         };
 
-        for attr in attributes {
+        for attr in parsed_attributes {
             if attr.path().is_ident("doc") {
                 if let syn::Meta::NameValue(name_value) = &attr.meta {
                     docs.elems.push(name_value.value.clone());
                 }
             }
 
-            stream.extend(attr.into_token_stream());
+            attributes.push(attr);
         }
 
         let name_string = syn::LitStr::new(&ident.to_string(), ident.span());
@@ -45,34 +137,9 @@ impl Function {
 
         let mut takes_self = false;
 
-        let mut segments = Punctuated::default();
-
-        segments.push(syn::PathSegment {
-            ident: syn::Ident::new("Self", sig.span()),
-            arguments: syn::PathArguments::None,
-        });
-
-        let self_elem = syn::TypePath {
-            qself: None,
-            path: syn::Path {
-                leading_colon: None,
-                segments,
-            },
-        };
-
         for arg in &sig.inputs {
             let argument_name = match arg {
-                syn::FnArg::Typed(ty) => {
-                    let argument_name = match ty.pat.as_ref() {
-                        syn::Pat::Path(path) => match path.path.get_ident() {
-                            Some(ident) => syn::LitStr::new(&ident.to_string(), arg.span()),
-                            None => syn::LitStr::new("", arg.span()),
-                        },
-                        _ => syn::LitStr::new("", arg.span()),
-                    };
-
-                    argument_name
-                }
+                syn::FnArg::Typed(ty) => argument_ident(&ty.pat),
                 syn::FnArg::Receiver(..) => {
                     takes_self = true;
                     syn::LitStr::new("self", arg.span())
@@ -90,30 +157,34 @@ impl Function {
         let real_fn = syn::Ident::new(&format!("__rune_fn__{}", sig.ident), sig.ident.span());
         sig.ident = real_fn.clone();
 
-        let (real_fn_path, meta_kind, meta_name) = if takes_self {
-            let mut path = self_elem;
+        let remainder = input.parse::<TokenStream>()?;
 
-            path.path.segments.push(syn::PathSegment {
-                ident: real_fn,
-                arguments: syn::PathArguments::None,
-            });
+        Ok(Self {
+            attributes,
+            vis,
+            sig,
+            remainder,
+            name_string,
+            docs,
+            arguments,
+            takes_self,
+            meta_vis,
+            real_fn,
+            meta_fn,
+        })
+    }
 
-            let meta_kind = if sig.asyncness.is_some() {
-                quote!(async_instance)
-            } else {
-                quote!(instance)
-            };
-
-            (path, meta_kind, quote!(#name_string))
-        } else {
+    /// Expand the function declaration.
+    pub(crate) fn expand(self, attrs: FunctionAttrs) -> Result<TokenStream, Error> {
+        let real_fn_path = if attrs.path.is_self() || self.takes_self {
             let mut segments = Punctuated::default();
 
             segments.push(syn::PathSegment {
-                ident: real_fn,
+                ident: syn::Ident::new("Self", self.sig.span()),
                 arguments: syn::PathArguments::None,
             });
 
-            let path = syn::TypePath {
+            let mut path = syn::TypePath {
                 qself: None,
                 path: syn::Path {
                     leading_colon: None,
@@ -121,19 +192,102 @@ impl Function {
                 },
             };
 
-            let meta_kind = if sig.asyncness.is_some() {
-                quote!(async_function)
-            } else {
-                quote!(function)
-            };
+            path.path.segments.push(syn::PathSegment {
+                ident: self.real_fn,
+                arguments: syn::PathArguments::None,
+            });
 
-            (path, meta_kind, quote!([#name_string]))
+            path
+        } else {
+            let mut segments = Punctuated::default();
+
+            segments.push(syn::PathSegment {
+                ident: self.real_fn,
+                arguments: syn::PathArguments::None,
+            });
+
+            syn::TypePath {
+                qself: None,
+                path: syn::Path {
+                    leading_colon: None,
+                    segments,
+                },
+            }
         };
 
+        let (instance, meta_name, self_type) = if attrs.instance || self.takes_self {
+            match attrs.path {
+                Path::None => (true, self.name_string.to_token_stream(), None),
+                Path::Path(span, self_type, array) => {
+                    if array.is_empty() {
+                        return Err(syn::Error::new(
+                            span,
+                            "paths for instance functions must only take `Self`",
+                        ));
+                    }
+
+                    (true, self.name_string.to_token_stream(), self_type)
+                }
+            }
+        } else {
+            match attrs.path {
+                Path::None => {
+                    let name_string = self.name_string.clone();
+                    (false, quote!([#name_string]), None)
+                }
+                Path::Path(_, self_type, array) => {
+                    let mut out = syn::ExprArray {
+                        attrs: Vec::new(),
+                        bracket_token: syn::token::Bracket::default(),
+                        elems: Punctuated::default(),
+                    };
+
+                    for ident in array {
+                        let ident = syn::LitStr::new(&ident.to_string(), ident.span());
+
+                        out.elems.push(syn::Expr::Lit(syn::ExprLit {
+                            attrs: Vec::new(),
+                            lit: syn::Lit::Str(ident),
+                        }));
+                    }
+
+                    (false, out.into_token_stream(), self_type)
+                }
+            }
+        };
+
+        let function = match (instance, self_type, self.sig.asyncness.is_some()) {
+            (true, _, false) => "instance",
+            (true, _, true) => "async_instance",
+            (_, Some(_), false) => "function_with",
+            (_, Some(_), true) => "async_function_with",
+            (_, None, false) => "function",
+            (_, None, true) => "async_function",
+        };
+
+        let meta_kind = syn::Ident::new(function, self.sig.span());
+        let mut stream = TokenStream::new();
+
+        for attr in self.attributes {
+            stream.extend(attr.into_token_stream());
+        }
+
         stream.extend(quote!(#[allow(non_snake_case)]));
-        stream.extend(vis.into_token_stream());
-        stream.extend(sig.into_token_stream());
-        stream.extend(input.parse::<TokenStream>()?);
+        stream.extend(self.vis.into_token_stream());
+        stream.extend(self.sig.into_token_stream());
+        stream.extend(self.remainder);
+
+        let meta_vis = &self.meta_vis;
+        let meta_fn = &self.meta_fn;
+        let arguments = &self.arguments;
+        let docs = &self.docs;
+        let name_string = self.name_string;
+
+        let meta_kind = if let Some(self_type) = self_type {
+            quote!(#meta_kind::<#self_type, _, _, _>)
+        } else {
+            meta_kind.into_token_stream()
+        };
 
         stream.extend(quote! {
             /// Get function metadata.
@@ -148,11 +302,24 @@ impl Function {
             }
         });
 
-        Ok(Self { stream })
+        Ok(stream)
     }
+}
 
-    /// Expand the function declaration.
-    pub(crate) fn expand(self) -> Result<TokenStream, Error> {
-        Ok(self.stream)
+/// The identifier of an argument.
+fn argument_ident(pat: &syn::Pat) -> syn::LitStr {
+    match pat {
+        syn::Pat::Type(pat) => argument_ident(&pat.pat),
+        syn::Pat::Path(pat) => argument_path_ident(&pat.path),
+        syn::Pat::Ident(pat) => syn::LitStr::new(&pat.ident.to_string(), pat.span()),
+        _ => syn::LitStr::new(&pat.to_token_stream().to_string(), pat.span()),
+    }
+}
+
+/// Argument path identifier.
+fn argument_path_ident(path: &syn::Path) -> syn::LitStr {
+    match path.get_ident() {
+        Some(ident) => syn::LitStr::new(&ident.to_string(), path.span()),
+        None => syn::LitStr::new(&path.to_token_stream().to_string(), path.span()),
     }
 }
