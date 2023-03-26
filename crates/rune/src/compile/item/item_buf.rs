@@ -200,12 +200,14 @@ impl ItemBuf {
 }
 
 impl AsRef<Item> for ItemBuf {
+    #[inline]
     fn as_ref(&self) -> &Item {
         self
     }
 }
 
 impl Borrow<Item> for ItemBuf {
+    #[inline]
     fn borrow(&self) -> &Item {
         self
     }

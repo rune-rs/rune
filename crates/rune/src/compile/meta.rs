@@ -58,6 +58,8 @@ pub enum MetaKind {
     Enum,
     /// Item describes a function.
     Function {
+        /// The number of arguments the function takes.
+        args: Option<usize>,
         /// The type hash of the function.
         type_hash: Hash,
         /// If the function is a test.
@@ -243,6 +245,8 @@ pub enum ContextMetaKind {
     },
     /// A function declaration.
     Function {
+        /// Number of arguments this function takes.
+        args: Option<usize>,
         /// The type hash associated with this meta kind.
         type_hash: Hash,
         /// Indicates if the function is an instance function or not.
@@ -285,7 +289,10 @@ impl ContextMetaKind {
                 ..
             } => MetaKind::StructVariant,
             ContextMetaKind::Enum { .. } => MetaKind::Enum,
-            ContextMetaKind::Function { type_hash, .. } => MetaKind::Function {
+            ContextMetaKind::Function {
+                args, type_hash, ..
+            } => MetaKind::Function {
+                args: *args,
                 type_hash: *type_hash,
                 is_bench: false,
                 is_test: false,
@@ -390,6 +397,8 @@ pub(crate) enum PrivMetaKind {
     Function {
         /// The type hash associated with this meta kind.
         type_hash: Hash,
+        /// The number of arguments the function takes.
+        args: Option<usize>,
         /// Whether this function has a `#[test]` annotation
         is_test: bool,
         /// Whether this function has a `#[bench]` annotation.
@@ -465,11 +474,13 @@ impl PrivMetaKind {
             } => MetaKind::StructVariant,
             PrivMetaKind::Enum { .. } => MetaKind::Enum,
             PrivMetaKind::Function {
+                args,
                 type_hash,
                 is_bench,
                 is_test,
                 ..
             } => MetaKind::Function {
+                args: *args,
                 type_hash: *type_hash,
                 is_bench: *is_bench,
                 is_test: *is_test,

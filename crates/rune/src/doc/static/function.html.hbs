@@ -1,0 +1,9 @@
+<html>
+<head></head>
+{{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
+{{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
+<body>
+<h3 class="title">Function <span class="fn">{{name}}({{args}})</span></h3>
+{{#if this.doc}}{{literal this.doc}}{{/if}}
+</body>
+</html>

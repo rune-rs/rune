@@ -645,10 +645,12 @@ impl<'a> Query<'a> {
             },
             ContextMetaKind::Enum { type_hash } => PrivMetaKind::Enum { type_hash },
             ContextMetaKind::Function {
+                args,
                 type_hash,
                 instance_function,
                 ..
             } => PrivMetaKind::Function {
+                args,
                 type_hash,
                 is_test: false,
                 is_bench: false,
@@ -1071,32 +1073,38 @@ impl<'a> Query<'a> {
                 resolve_context!(self),
             )?,
             Indexed::Function(f) => {
+                let kind = PrivMetaKind::Function {
+                    type_hash: self.pool.item_type_hash(item_meta.item),
+                    args: Some(f.function.ast.args.len()),
+                    is_test: f.is_test,
+                    is_bench: f.is_bench,
+                    instance_function: false,
+                };
+
                 self.inner.queue.push_back(BuildEntry {
                     item_meta,
                     build: Build::Function(f.function),
                     used,
                 });
 
-                PrivMetaKind::Function {
-                    type_hash: self.pool.item_type_hash(item_meta.item),
-                    is_test: f.is_test,
-                    is_bench: f.is_bench,
-                    instance_function: false,
-                }
+                kind
             }
             Indexed::InstanceFunction(f) => {
+                let kind = PrivMetaKind::Function {
+                    type_hash: self.pool.item_type_hash(item_meta.item),
+                    args: Some(f.function.ast.args.len()),
+                    is_test: false,
+                    is_bench: false,
+                    instance_function: true,
+                };
+
                 self.inner.queue.push_back(BuildEntry {
                     item_meta,
                     build: Build::InstanceFunction(f),
                     used,
                 });
 
-                PrivMetaKind::Function {
-                    type_hash: self.pool.item_type_hash(item_meta.item),
-                    is_test: false,
-                    is_bench: false,
-                    instance_function: true,
-                }
+                kind
             }
             Indexed::Closure(c) => {
                 let captures = c.captures.clone();

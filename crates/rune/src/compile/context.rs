@@ -373,15 +373,9 @@ impl Context {
         self.meta.get(name)
     }
 
-    /// Lookup function info based on item.
-    pub(crate) fn lookup_function_info(&self, item: &Item) -> Option<&ContextSignature> {
-        let meta = self.meta.get(item)?;
-
-        if let ContextMetaKind::Function { type_hash, .. } = &meta.kind {
-            self.functions_info.get(type_hash)
-        } else {
-            None
-        }
+    /// Look up signature of function.
+    pub(crate) fn lookup_signature(&self, hash: Hash) -> Option<&ContextSignature> {
+        self.functions_info.get(&hash)
     }
 
     /// Iterate over all metadata in the context.
@@ -605,6 +599,7 @@ impl Context {
             item,
             ContextMetaKind::Function {
                 type_hash: hash,
+                args: f.args,
                 instance_function: f.instance_function,
             },
             f.docs.clone(),
@@ -736,6 +731,7 @@ impl Context {
                     item,
                     ContextMetaKind::Function {
                         type_hash,
+                        args: assoc.args,
                         instance_function: true,
                     },
                     assoc.docs.clone(),

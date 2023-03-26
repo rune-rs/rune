@@ -28,7 +28,7 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let c = char::from_int(80)?;
 /// assert_eq!(c.to_int(), 80);
 /// ```
@@ -41,7 +41,7 @@ fn to_int(value: char) -> Result<Value, VmError> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// let c = char::from_int(80);
 /// assert!(c.is_some());
 /// ```
@@ -67,7 +67,7 @@ fn from_int(value: i64) -> Result<Option<Value>, VmError> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// assert!('a'.is_alphabetic());
 /// assert!('京'.is_alphabetic());
 ///
@@ -90,7 +90,7 @@ fn is_alphabetic(c: char) -> bool {
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rune
 /// assert!('٣'.is_alphanumeric());
 /// assert!('7'.is_alphanumeric());
 /// assert!('৬'.is_alphanumeric());

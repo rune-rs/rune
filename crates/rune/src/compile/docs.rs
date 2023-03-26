@@ -13,9 +13,9 @@ impl Docs {
         self.arguments.as_ref().map(AsRef::as_ref)
     }
 
-    /// Iterate over lines in the documentation.
-    pub fn lines(&self) -> impl Iterator<Item = &str> {
-        self.docs.iter().map(|s| s.as_str())
+    /// Get lines of documentation.
+    pub fn lines(&self) -> &[String] {
+        &self.docs
     }
 
     /// Test if documentation is empty.
