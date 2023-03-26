@@ -174,6 +174,7 @@ fn copy_file<'a>(
 ) -> Result<&'a RelativePath, Error> {
     let path = RelativePath::new(name);
     let file_path = path.to_path(root);
+    ensure_parent_dir(&file_path)?;
     tracing::info!("writing: {}", file_path.display());
     fs::write(&file_path, file.data.as_ref()).with_context(|| file_path.display().to_string())?;
     Ok(path)
