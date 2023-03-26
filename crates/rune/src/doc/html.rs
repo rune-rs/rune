@@ -4,6 +4,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, bail, Context as _, Error, Result};
 use relative_path::{RelativePath, RelativePathBuf};
+use rust_embed::EmbeddedFile;
 use rust_embed::RustEmbed;
 use serde::{Serialize, Serializer};
 use syntect::highlighting::ThemeSet;
@@ -81,9 +82,9 @@ pub fn write_html(
     name: &str,
     root: &Path,
     context: &crate::Context,
-    visitor: &Visitor,
+    visitors: &[Visitor],
 ) -> Result<()> {
-    let context = Context::new(context, visitor);
+    let context = Context::new(context, visitors);
 
     let templating = templating::Templating::new()?;
 
@@ -99,18 +100,12 @@ pub fn write_html(
         match (path.file_name(), path.extension()) {
             (Some(name), Some("woff2")) => {
                 let file = Assets::get(file.as_ref()).context("missing font")?;
-                let path = RelativePath::new(name);
-                tracing::info!("writing: {}", path);
-                fs::write(path.to_path(root), file.data.as_ref())
-                    .with_context(|| path.to_owned())?;
+                let path = copy_file(name, root, file)?;
                 fonts.push(path.to_owned());
             }
             (Some(name), Some("css")) => {
                 let file = Assets::get(file.as_ref()).context("missing font")?;
-                let path = RelativePath::new(name);
-                tracing::info!("writing: {}", path);
-                fs::write(path.to_path(root), file.data.as_ref())
-                    .with_context(|| path.to_owned())?;
+                let path = copy_file(name, root, file)?;
                 css.push(path.to_owned());
             }
             _ => {}
@@ -141,9 +136,6 @@ pub fn write_html(
     // Collect an ordered set of modules, so we have a baseline of what to render when.
     let mut initial = BTreeSet::new();
 
-    // Insert root of project.
-    initial.insert(Build::Module(Item::new()));
-
     for module in cx.context.iter_modules() {
         initial.insert(Build::Module(module));
     }
@@ -172,6 +164,19 @@ pub fn write_html(
 
     index(&cx, root, &modules)?;
     Ok(())
+}
+
+/// Copy an embedded file.
+fn copy_file<'a>(
+    name: &'a str,
+    root: &Path,
+    file: EmbeddedFile,
+) -> Result<&'a RelativePath, Error> {
+    let path = RelativePath::new(name);
+    let file_path = path.to_path(root);
+    tracing::info!("writing: {}", file_path.display());
+    fs::write(&file_path, file.data.as_ref()).with_context(|| file_path.display().to_string())?;
+    Ok(path)
 }
 
 #[tracing::instrument(skip_all)]

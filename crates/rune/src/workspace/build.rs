@@ -43,9 +43,7 @@ impl<'a> Build<'a> {
             }
         };
 
-        let mut manifest = Manifest {
-            packages: Vec::new(),
-        };
+        let mut manifest = Manifest::default();
 
         for id in self.sources.source_ids() {
             let mut l = Loader {
@@ -57,7 +55,7 @@ impl<'a> Build<'a> {
 
             manifest::load_manifest(&mut l);
         }
-    
+
         if diagnostics.has_errors() {
             return Err(BuildError);
         }

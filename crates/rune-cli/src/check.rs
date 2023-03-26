@@ -1,18 +1,20 @@
-use crate::{visitor, Config, ExitCode, Io, SharedFlags};
-use anyhow::{Context, Result};
-use rune::compile::FileSourceLoader;
-use rune::{Diagnostics, Options, Source, Sources};
 use std::io::Write;
 use std::path::Path;
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug, Clone)]
+use anyhow::{Context, Result};
+use clap::Parser;
+use rune::compile::FileSourceLoader;
+use rune::{Diagnostics, Options, Source, Sources};
+
+use crate::{visitor, Config, ExitCode, Io, SharedFlags};
+
+#[derive(Parser, Debug, Clone)]
 pub(crate) struct Flags {
     /// Exit with a non-zero exit-code even for warnings
-    #[structopt(long)]
+    #[arg(long)]
     warnings_are_errors: bool,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub(crate) shared: SharedFlags,
 }
 

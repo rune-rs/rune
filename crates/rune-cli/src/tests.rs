@@ -1,25 +1,27 @@
-use crate::{ExitCode, Io, SharedFlags};
+use std::io::Write;
+use std::sync::Arc;
+use std::time::Instant;
+
 use anyhow::Result;
+use clap::Parser;
 use rune::compile::ItemBuf;
 use rune::runtime::{Unit, Value, Vm, VmError};
 use rune::{Context, Hash, Sources};
 use rune_modules::capture_io::CaptureIo;
-use std::io::Write;
-use std::sync::Arc;
-use std::time::Instant;
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug, Clone)]
+use crate::{ExitCode, Io, SharedFlags};
+
+#[derive(Parser, Debug, Clone)]
 pub(crate) struct Flags {
     /// Display one character per test instead of one line
-    #[structopt(short = "q", long)]
+    #[arg(long, short = 'q')]
     quiet: bool,
 
     /// Run all tests regardless of failure
-    #[structopt(long)]
+    #[arg(long)]
     no_fail_fast: bool,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub(crate) shared: SharedFlags,
 }
 

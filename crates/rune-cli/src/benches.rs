@@ -3,25 +3,25 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
 
+use clap::Parser;
 use rune::compile::{Item, ItemBuf};
 use rune::runtime::{Function, Unit, Value};
 use rune::{Any, Context, ContextError, Hash, Module, Sources};
 use rune_modules::capture_io::CaptureIo;
-use structopt::StructOpt;
 
 use crate::{ExitCode, Io, SharedFlags};
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub(crate) struct Flags {
     /// Rounds of warmup to perform
-    #[structopt(long, default_value = "100")]
+    #[arg(long, default_value = "100")]
     warmup: u32,
 
     /// Iterations to run of the benchmark
-    #[structopt(long, default_value = "100")]
+    #[arg(long, default_value = "100")]
     iterations: u32,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub(crate) shared: SharedFlags,
 }
 

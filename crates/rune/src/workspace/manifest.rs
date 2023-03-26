@@ -32,7 +32,7 @@ pub enum WorkspaceFilter<'a> {
 #[non_exhaustive]
 pub struct Found<'a> {
     /// A found path that can be built.
-    pub path: Box<Path>,
+    pub path: PathBuf,
     /// The package the found path belongs to.
     pub package: &'a Package,
 }
@@ -55,7 +55,7 @@ impl<T> Spanned for toml::Spanned<T> {
 }
 
 /// The manifest of a workspace.
-#[derive(Debug)]
+#[derive(Default, Debug)]
 #[non_exhaustive]
 pub struct Manifest {
     /// List of packages found.
@@ -110,11 +110,11 @@ impl Manifest {
 #[non_exhaustive]
 pub struct Package {
     /// The name of the package.
-    pub name: Box<str>,
+    pub name: String,
     /// The version of the package..
     pub version: Version,
     /// The root of the package.
-    pub root: Option<Box<Path>>,
+    pub root: Option<PathBuf>,
     /// Automatically detect binaries.
     pub auto_bins: bool,
     /// Automatically detect tests.
@@ -136,7 +136,7 @@ pub(crate) struct Loader<'a> {
 pub(crate) fn load_manifest(l: &mut Loader<'_>) {
     let (value, root) = match l.sources.get(l.id) {
         Some(source) => {
-            let root: Option<Box<Path>> = source.path().and_then(|p| p.parent()).map(|p| p.into());
+            let root: Option<PathBuf> = source.path().and_then(|p| p.parent()).map(|p| p.into());
 
             let value: SpannedValue = match toml::from_str(source.as_str()) {
                 Ok(value) => value,
@@ -385,7 +385,7 @@ fn deserialize<T>(value: SpannedValue) -> Result<T, WorkspaceError> where T: for
 }
 
 /// Find all rune files in the given path.
-fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(Box<str>, Box<Path>)>>> {
+fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(String, PathBuf)>>> {
     let mut dir = match fs::read_dir(path) {
         Ok(dir) => Some(dir),
         Err(e) if e.kind() == io::ErrorKind::NotFound => None,
@@ -415,7 +415,7 @@ fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(B
             if let (Some(base), Some(ext)) = (path.file_stem(), path.extension()) {
                 if ext == OsStr::new("rn") {
                     if let Some(base) = base.to_str() {
-                        return Some(Ok((base.into(), path.into())));
+                        return Some(Ok((base.into(), path)));
                     }
                 }
             }

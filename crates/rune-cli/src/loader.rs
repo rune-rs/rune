@@ -1,14 +1,17 @@
-use crate::{visitor, Args, Io};
-use anyhow::{anyhow, Context as _, Result};
-use rune::compile::{FileSourceLoader, ItemBuf};
-use rune::Diagnostics;
-use rune::{Context, Hash, Options, Source, Sources, Unit};
 use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
+use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
+
+use anyhow::{anyhow, Context as _, Result};
+use rune::compile::{FileSourceLoader, ItemBuf};
+use rune::Diagnostics;
+use rune::{Context, Hash, Options, Source, Sources, Unit};
 use tracing::{error, trace};
+
+use crate::{visitor, Args, Io};
 
 pub(crate) struct Load {
     pub(crate) unit: Arc<Unit>,
@@ -112,8 +115,8 @@ fn should_cache_be_used(source: &Path, cached: &Path) -> io::Result<bool> {
 
 pub(crate) fn recurse_paths(
     recursive: bool,
-    first: Box<Path>,
-) -> impl Iterator<Item = io::Result<Box<Path>>> {
+    first: PathBuf,
+) -> impl Iterator<Item = io::Result<PathBuf>> {
     let mut queue = VecDeque::with_capacity(1);
     queue.push_back(first);
 
@@ -143,7 +146,7 @@ pub(crate) fn recurse_paths(
                 Err(error) => return Some(Err(error)),
             };
 
-            queue.push_back(e.path().into());
+            queue.push_back(e.path());
         }
     })
 }

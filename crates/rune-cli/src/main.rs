@@ -29,18 +29,6 @@
 //! [Rune Language]: https://rune-rs.github.io
 //! [rune]: https://github.com/rune-rs/rune
 
-use anyhow::{anyhow, Result};
-use rune::compile::ParseOptionError;
-use rune::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use rune::workspace::WorkspaceFilter;
-use rune::{Context, ContextError, Options};
-use rune_modules::capture_io::CaptureIo;
-use std::error::Error;
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
-use structopt::StructOpt;
-use tracing_subscriber::filter::EnvFilter;
-
 mod benches;
 mod check;
 mod doc;
@@ -49,14 +37,31 @@ mod run;
 mod tests;
 mod visitor;
 
+use anyhow::{bail, Result};
+use clap::{Parser, Subcommand};
+use rune::compile::{ItemBuf, ParseOptionError};
+use rune::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use rune::workspace::WorkspaceFilter;
+use rune::{Context, ContextError, Options};
+use rune_modules::capture_io::CaptureIo;
+use std::error::Error;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+use tracing_subscriber::filter::EnvFilter;
+
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
+
+struct EntryPoint {
+    item: ItemBuf,
+    paths: Vec<PathBuf>,
+}
 
 struct Io<'a> {
     stdout: &'a mut StandardStream,
     stderr: &'a mut StandardStream,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Subcommand, Debug, Clone)]
 enum Command {
     /// Run checks but do not execute
     Check(check::Flags),
@@ -176,20 +181,20 @@ impl Command {
     }
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 struct SharedFlags {
     /// Enable experimental features.
     ///
     /// This makes the `std::experimental` module available to scripts.
-    #[structopt(long)]
+    #[arg(long)]
     experimental: bool,
 
     /// Recursively load all files in the given directory.
-    #[structopt(long)]
+    #[arg(long)]
     recursive: bool,
 
     /// Display warnings.
-    #[structopt(long)]
+    #[arg(long)]
     warnings: bool,
 
     /// Set the given compiler option (see `--help` for available options).
@@ -203,45 +208,44 @@ struct SharedFlags {
     /// macros[=<true/false>] - Enable or disable macros (experimental).
     ///
     /// bytecode[=<true/false>] - Enable or disable bytecode caching (experimental).
-    #[structopt(name = "option", short = "O", number_of_values = 1)]
+    #[arg(name = "option", short = 'O', number_of_values = 1)]
     compiler_options: Vec<String>,
 
     /// Run with the following binary from a loaded manifest. This requires a
     /// `Rune.toml` manifest.
-    #[structopt(long = "bin")]
+    #[arg(long = "bin")]
     bin: Option<String>,
 
     /// Run with the following test from a loaded manifest. This requires a
     /// `Rune.toml` manifest.
-    #[structopt(long = "test")]
+    #[arg(long = "test")]
     test: Option<String>,
 
     /// Run with the following example from a loaded manifest. This requires a
     /// `Rune.toml` manifest.
-    #[structopt(long = "example")]
+    #[arg(long = "example")]
     example: Option<String>,
 
     /// Run with the following benchmark by name from a loaded manifest. This
     /// requires a `Rune.toml` manifest.
-    #[structopt(long = "bench")]
+    #[arg(long = "bench")]
     bench: Option<String>,
 
     /// All paths to include in the command. By default, the tool searches the
     /// current directory and some known files for candidates.
-    #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
 }
 
 struct Package {
     /// The name of the package the path belongs to.
-    name: Box<str>,
+    name: String,
 }
 
 enum Entry {
     /// A plain path entry.
-    Path(Box<Path>),
+    Path(PathBuf),
     /// A path from a specific package.
-    PackagePath(Package, Box<Path>),
+    PackagePath(Package, PathBuf),
 }
 
 #[derive(Default)]
@@ -250,6 +254,8 @@ struct Config {
     test: bool,
     /// Whether or not to use verbose output.
     verbose: bool,
+    /// Manifest root directory.
+    manifest_root: Option<PathBuf>,
     /// The explicit paths to load.
     entries: Vec<Entry>,
 }
@@ -288,8 +294,8 @@ impl SharedFlags {
     }
 }
 
-#[derive(Debug, Clone, StructOpt)]
-#[structopt(name = "rune", about = "The Rune Language Interpreter", version = VERSION)]
+#[derive(Parser, Debug, Clone)]
+#[command(name = "rune", about = "The Rune Language Interpreter", version = VERSION)]
 struct Args {
     /// Control if output is colored or not.
     ///
@@ -299,11 +305,11 @@ struct Args {
     /// * `always` - always enabled.
     ///
     /// Anything else will disable coloring.
-    #[structopt(short = "C", long, default_value = "auto")]
+    #[arg(short = 'C', long, default_value = "auto")]
     color: String,
 
     /// The command to execute
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     cmd: Command,
 }
 
@@ -381,7 +387,7 @@ where
 }
 
 async fn try_main() -> Result<ExitCode, io::Error> {
-    let args = match Args::from_args_safe() {
+    let args = match Args::try_parse() {
         Ok(args) => args,
         Err(e) => {
             let code = if e.use_stderr() {
@@ -437,6 +443,27 @@ async fn try_main() -> Result<ExitCode, io::Error> {
     }
 }
 
+fn find_manifest() -> Result<(PathBuf, PathBuf)> {
+    let mut path = PathBuf::new();
+
+    loop {
+        let manifest_path = path.join(rune::workspace::MANIFEST_FILE);
+
+        if manifest_path.is_file() {
+            return Ok((path, manifest_path));
+        }
+
+        path.push("..");
+
+        if !path.is_dir() {
+            bail!(
+                "coult not find {} in this or parent directories",
+                rune::workspace::MANIFEST_FILE
+            )
+        }
+    }
+}
+
 fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
     c.entries.extend(
         args.cmd
@@ -459,20 +486,15 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
         }
     }
 
-    let path = Path::new(rune::workspace::MANIFEST_FILE);
-
-    if !path.is_file() {
-        return Err(anyhow!(
-            "Invalid usage: No input file nor project (`Rune.toml`) found"
-        ));
-    }
+    let (manifest_root, manifest_path) = find_manifest()?;
 
     // When building or running a workspace we need to be more verbose so that
     // users understand what exactly happens.
     c.verbose = true;
+    c.manifest_root = Some(manifest_root);
 
     let mut sources = rune::Sources::new();
-    sources.insert(rune::Source::from_path(path)?);
+    sources.insert(rune::Source::from_path(&manifest_path)?);
 
     let mut diagnostics = rune::workspace::Diagnostics::new();
 
@@ -535,9 +557,11 @@ async fn main_with_out(io: &mut Io<'_>, mut args: Args) -> Result<ExitCode> {
     let verbose = c.verbose;
     let recursive = args.cmd.shared().recursive;
 
-    for entry in entries {
-        let path = match entry {
-            Entry::Path(path) => path,
+    let mut entrys = Vec::new();
+
+    for entry in &entries {
+        let (item, path) = match entry {
+            Entry::Path(path) => (ItemBuf::new(), path),
             Entry::PackagePath(p, path) => {
                 if verbose {
                     let mut o = io.stderr.lock();
@@ -548,19 +572,23 @@ async fn main_with_out(io: &mut Io<'_>, mut args: Args) -> Result<ExitCode> {
                     writeln!(o, " `{}` (from {})", path.display(), p.name)?;
                 }
 
-                path
+                (ItemBuf::with_crate(&p.name), path)
             }
         };
 
-        for path in loader::recurse_paths(recursive, path) {
-            let path = path?;
+        let mut paths = Vec::new();
 
-            match run_path(io, &c, &args, &options, &path).await? {
-                ExitCode::Success => (),
-                other => {
-                    return Ok(other);
-                }
-            }
+        for path in loader::recurse_paths(recursive, path.clone()) {
+            paths.push(path?);
+        }
+
+        entrys.push(EntryPoint { item, paths });
+    }
+
+    match run_path(io, &c, &args, &options, entrys).await? {
+        ExitCode::Success => (),
+        other => {
+            return Ok(other);
         }
     }
 
@@ -568,54 +596,96 @@ async fn main_with_out(io: &mut Io<'_>, mut args: Args) -> Result<ExitCode> {
 }
 
 /// Run a single path.
-async fn run_path(
+async fn run_path<I>(
     io: &mut Io<'_>,
     c: &Config,
     args: &Args,
     options: &Options,
-    path: &Path,
-) -> Result<ExitCode> {
+    entrys: I,
+) -> Result<ExitCode>
+where
+    I: IntoIterator<Item = EntryPoint>,
+{
     match &args.cmd {
-        Command::Check(flags) => check::run(io, c, flags, options, path),
-        Command::Doc(flags) => doc::run(io, c, flags, options, path),
+        Command::Check(flags) => {
+            for e in entrys {
+                for path in &e.paths {
+                    match check::run(io, c, flags, options, path)? {
+                        ExitCode::Success => (),
+                        other => return Ok(other),
+                    }
+                }
+            }
+        }
+        Command::Doc(flags) => return doc::run(io, c, flags, options, entrys),
         Command::Test(flags) => {
-            let capture_io = rune_modules::capture_io::CaptureIo::new();
-            let context = flags.shared.context_with_capture(c, &capture_io)?;
+            for e in entrys {
+                for path in &e.paths {
+                    let capture_io = rune_modules::capture_io::CaptureIo::new();
+                    let context = flags.shared.context_with_capture(c, &capture_io)?;
 
-            let load = loader::load(io, &context, args, options, path, visitor::Attribute::Test)?;
+                    let load =
+                        loader::load(io, &context, args, options, path, visitor::Attribute::Test)?;
 
-            tests::run(
-                io,
-                flags,
-                &context,
-                Some(&capture_io),
-                load.unit,
-                &load.sources,
-                &load.functions,
-            )
-            .await
+                    match tests::run(
+                        io,
+                        flags,
+                        &context,
+                        Some(&capture_io),
+                        load.unit,
+                        &load.sources,
+                        &load.functions,
+                    )
+                    .await?
+                    {
+                        ExitCode::Success => (),
+                        other => return Ok(other),
+                    }
+                }
+            }
         }
         Command::Bench(flags) => {
-            let capture_io = rune_modules::capture_io::CaptureIo::new();
-            let context = flags.shared.context_with_capture(c, &capture_io)?;
+            for e in entrys {
+                for path in &e.paths {
+                    let capture_io = rune_modules::capture_io::CaptureIo::new();
+                    let context = flags.shared.context_with_capture(c, &capture_io)?;
 
-            let load = loader::load(io, &context, args, options, path, visitor::Attribute::Bench)?;
+                    let load =
+                        loader::load(io, &context, args, options, path, visitor::Attribute::Bench)?;
 
-            benches::run(
-                io,
-                flags,
-                &context,
-                Some(&capture_io),
-                load.unit,
-                &load.sources,
-                &load.functions,
-            )
-            .await
+                    match benches::run(
+                        io,
+                        flags,
+                        &context,
+                        Some(&capture_io),
+                        load.unit,
+                        &load.sources,
+                        &load.functions,
+                    )
+                    .await?
+                    {
+                        ExitCode::Success => (),
+                        other => return Ok(other),
+                    }
+                }
+            }
         }
         Command::Run(flags) => {
             let context = flags.shared.context(c)?;
-            let load = loader::load(io, &context, args, options, path, visitor::Attribute::None)?;
-            run::run(io, c, flags, &context, load.unit, &load.sources).await
+
+            for e in entrys {
+                for path in &e.paths {
+                    let load =
+                        loader::load(io, &context, args, options, path, visitor::Attribute::None)?;
+
+                    match run::run(io, c, flags, &context, load.unit, &load.sources).await? {
+                        ExitCode::Success => (),
+                        other => return Ok(other),
+                    }
+                }
+            }
         }
     }
+
+    Ok(ExitCode::Success)
 }

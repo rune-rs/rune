@@ -1,56 +1,52 @@
-use crate::{Config, ExitCode, Io, SharedFlags};
-use anyhow::Result;
-use rune::runtime::{VmError, VmExecution};
-use rune::{Context, Sources, Unit, Value, Vm};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug, Clone)]
+use anyhow::Result;
+use clap::Parser;
+use rune::runtime::{VmError, VmExecution};
+use rune::{Context, Sources, Unit, Value, Vm};
+
+use crate::{Config, ExitCode, Io, SharedFlags};
+
+#[derive(Parser, Debug, Clone)]
 pub(crate) struct Flags {
     /// Provide detailed tracing for each instruction executed.
-    #[structopt(short, long)]
+    #[arg(short, long)]
     trace: bool,
     /// Dump everything.
-    #[structopt(short, long)]
+    #[arg(short, long)]
     dump: bool,
     /// Dump default information about unit.
-    #[structopt(long)]
+    #[arg(long)]
     dump_unit: bool,
     /// Dump constants from the unit.
-    #[structopt(long)]
+    #[arg(long)]
     dump_constants: bool,
     /// Dump unit instructions.
-    #[structopt(long)]
+    #[arg(long)]
     emit_instructions: bool,
     /// Dump the state of the stack after completion.
     ///
     /// If compiled with `--trace` will dump it after each instruction.
-    #[structopt(long)]
+    #[arg(long)]
     dump_stack: bool,
-
     /// Dump dynamic functions.
-    #[structopt(long)]
+    #[arg(long)]
     dump_functions: bool,
-
     /// Dump dynamic types.
-    #[structopt(long)]
+    #[arg(long)]
     dump_types: bool,
-
     /// Dump native functions.
-    #[structopt(long)]
+    #[arg(long)]
     dump_native_functions: bool,
-
     /// Dump native types.
-    #[structopt(long)]
+    #[arg(long)]
     dump_native_types: bool,
-
     /// Include source code references where appropriate (only available if -O debug-info=true).
-    #[structopt(long)]
+    #[arg(long)]
     with_source: bool,
-
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub(crate) shared: SharedFlags,
 }
 

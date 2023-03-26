@@ -35,12 +35,12 @@ pub(crate) enum Signature {
 /// Provides a unified API for querying information about known types.
 pub(crate) struct Context<'a> {
     context: &'a crate::Context,
-    visitor: &'a Visitor,
+    visitors: &'a [Visitor],
 }
 
 impl<'a> Context<'a> {
-    pub(crate) fn new(context: &'a crate::Context, visitor: &'a Visitor) -> Self {
-        Self { context, visitor }
+    pub(crate) fn new(context: &'a crate::Context, visitors: &'a [Visitor]) -> Self {
+        Self { context, visitors }
     }
 
     /// Iterate over known child components of the given name.
@@ -52,39 +52,41 @@ impl<'a> Context<'a> {
         I: Clone + IntoIterator,
         I::Item: IntoComponent,
     {
-        self.visitor
-            .names
-            .iter_components(iter.clone())
-            .chain(self.context.iter_components(iter))
+        let tail = self.context.iter_components(iter.clone());
+        self.visitors
+            .iter()
+            .flat_map(move |v| v.names.iter_components(iter.clone()))
+            .chain(tail)
     }
 
     /// Lookup Meta.
     pub(crate) fn meta(&self, item: &Item) -> Option<Meta<'_>> {
-        if let Some(m) = self.visitor.meta.get(item) {
-            let kind = match m {
-                MetaKind::Unknown => Kind::Unknown,
-                MetaKind::UnitStruct => Kind::Struct,
-                MetaKind::TupleStruct => Kind::Struct,
-                MetaKind::Struct => Kind::Struct,
-                MetaKind::UnitVariant => Kind::Variant,
-                MetaKind::TupleVariant => Kind::Variant,
-                MetaKind::StructVariant => Kind::Variant,
-                MetaKind::Enum => Kind::Enum,
-                MetaKind::Function { args, .. } => Kind::Function {
-                    args: None,
-                    signature: Signature::Function { args: *args },
-                },
-                _ => Kind::Unsupported,
-            };
+        for visitor in self.visitors {
+            if let Some(m) = visitor.meta.get(item) {
+                let kind = match m {
+                    MetaKind::Unknown => Kind::Unknown,
+                    MetaKind::UnitStruct => Kind::Struct,
+                    MetaKind::TupleStruct => Kind::Struct,
+                    MetaKind::Struct => Kind::Struct,
+                    MetaKind::UnitVariant => Kind::Variant,
+                    MetaKind::TupleVariant => Kind::Variant,
+                    MetaKind::StructVariant => Kind::Variant,
+                    MetaKind::Enum => Kind::Enum,
+                    MetaKind::Function { args, .. } => Kind::Function {
+                        args: None,
+                        signature: Signature::Function { args: *args },
+                    },
+                    _ => Kind::Unsupported,
+                };
 
-            let docs = self
-                .visitor
-                .docs
-                .get(item)
-                .map(Vec::as_slice)
-                .unwrap_or_default();
+                let docs = visitor
+                    .docs
+                    .get(item)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default();
 
-            return Some(Meta { docs, kind });
+                return Some(Meta { docs, kind });
+            }
         }
 
         let meta = self.context.lookup_meta(item)?;
@@ -128,6 +130,9 @@ impl<'a> Context<'a> {
 
     /// Iterate over known modules.
     pub(crate) fn iter_modules(&self) -> impl IntoIterator<Item = &Item> {
-        self.context.iter_meta().map(|(_, m)| m.module.as_ref())
+        self.visitors
+            .iter()
+            .map(|v| v.base.as_ref())
+            .chain(self.context.iter_meta().map(|(_, m)| m.module.as_ref()))
     }
 }

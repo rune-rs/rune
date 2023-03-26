@@ -213,6 +213,16 @@ impl Borrow<Item> for ItemBuf {
     }
 }
 
+impl<C> FromIterator<C> for ItemBuf
+where
+    C: IntoComponent,
+{
+    #[inline]
+    fn from_iter<T: IntoIterator<Item = C>>(iter: T) -> Self {
+        Self::with_item(iter)
+    }
+}
+
 impl Deref for ItemBuf {
     type Target = Item;
 

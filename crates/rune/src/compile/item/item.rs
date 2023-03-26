@@ -43,7 +43,7 @@ impl Item {
     /// ```
     /// use rune::compile::{Item, ItemBuf};
     ///
-    /// assert_eq!(Item::new().as_bytes(), &[]);
+    /// assert_eq!(Item::new().as_bytes(), b"");
     ///
     /// let item = ItemBuf::with_item(["foo", "bar"]);
     /// assert_eq!(item.as_bytes(), b"\x0d\0foo\x0d\0\x0d\0bar\x0d\0");
@@ -385,6 +385,7 @@ impl<'a> IntoIterator for &'a Item {
     type IntoIter = Iter<'a>;
     type Item = ComponentRef<'a>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
