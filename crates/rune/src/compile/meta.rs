@@ -10,8 +10,8 @@ use crate::compile::attrs::Attributes;
 use crate::compile::{Docs, Item, ItemBuf, ItemId, Location, ModId, Pool, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::query::ImportEntry;
-use crate::runtime::ConstValue;
-use crate::{Hash, Module};
+use crate::runtime::{ConstValue, TypeInfo};
+use crate::{Hash, InstFnKind, Module};
 
 /// Provides an owned human-readable description of a meta item.
 #[derive(Debug, Clone)]
@@ -533,5 +533,94 @@ impl ItemMeta {
     /// Test if the item is public (and should be exported).
     pub(crate) fn is_public(&self, pool: &Pool) -> bool {
         self.visibility.is_public() && pool.module(self.module).is_public(pool)
+    }
+}
+
+/// Public type information.
+#[non_exhaustive]
+pub struct ContextTypeInfo<'a> {
+    /// The item of the type.
+    pub item: &'a Item,
+}
+
+impl fmt::Display for ContextTypeInfo<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.item.fmt(f)
+    }
+}
+
+/// A description of a function signature.
+#[derive(Debug, Clone)]
+pub enum ContextSignature {
+    /// An unbound or static function
+    Function {
+        /// The type hash of the function
+        type_hash: Hash,
+        /// Path to the function.
+        item: ItemBuf,
+        /// Arguments.
+        args: Option<usize>,
+    },
+    /// An instance function or method
+    Instance {
+        /// The type hash of the function
+        type_hash: Hash,
+        /// Path to the instance function.
+        item: ItemBuf,
+        /// Name of the instance function.
+        name: InstFnKind,
+        /// Arguments.
+        args: Option<usize>,
+        /// Information on the self type.
+        self_type_info: TypeInfo,
+    },
+}
+
+impl fmt::Display for ContextSignature {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Function { item, args, .. } => {
+                write!(fmt, "{}(", item)?;
+
+                if let Some(args) = args {
+                    let mut it = 0..*args;
+                    let last = it.next_back();
+
+                    for n in it {
+                        write!(fmt, "#{}, ", n)?;
+                    }
+
+                    if let Some(n) = last {
+                        write!(fmt, "#{}", n)?;
+                    }
+                } else {
+                    write!(fmt, "...")?;
+                }
+
+                write!(fmt, ")")?;
+            }
+            Self::Instance {
+                item,
+                name,
+                self_type_info,
+                args,
+                ..
+            } => {
+                write!(fmt, "{}::{}(self: {}", item, name, self_type_info)?;
+
+                if let Some(args) = args {
+                    for n in 0..*args {
+                        write!(fmt, ", #{}", n)?;
+                    }
+                } else {
+                    write!(fmt, ", ...")?;
+                }
+
+                write!(fmt, ")")?;
+            }
+        }
+
+        Ok(())
     }
 }

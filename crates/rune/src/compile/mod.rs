@@ -26,7 +26,10 @@ pub use self::compile_visitor::CompileVisitor;
 pub(crate) use self::compile_visitor::NoopCompileVisitor;
 
 pub(crate) mod context;
-pub use self::context::{Context, ContextError, ContextSignature, ContextTypeInfo};
+pub use self::context::Context;
+
+pub(crate) mod context_error;
+pub use self::context_error::ContextError;
 
 mod docs;
 pub use self::docs::Docs;
@@ -61,7 +64,7 @@ pub(crate) use self::meta::{
     CaptureMeta, ContextMeta, ContextMetaKind, Doc, ItemMeta, PrivMeta, PrivMetaKind,
     PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
-pub use self::meta::{Meta, MetaKind, MetaRef, SourceMeta};
+pub use self::meta::{ContextSignature, ContextTypeInfo, Meta, MetaKind, MetaRef, SourceMeta};
 
 mod function_meta;
 pub(crate) use self::function_meta::{AssocFnData, FunctionData};
