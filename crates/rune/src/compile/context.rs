@@ -1,168 +1,38 @@
 use std::fmt;
 use std::sync::Arc;
 
-use thiserror::Error;
-
 use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::module::{
     AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type,
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, ContextMeta, ContextMetaKind, Docs, IntoComponent, Item, ItemBuf, Meta, Names,
-    PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
+    ComponentRef, ContextError, ContextMeta, ContextMetaKind, ContextSignature, ContextTypeInfo,
+    Docs, IntoComponent, Item, ItemBuf, Names, PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
-    TypeInfo, TypeOf, VariantRtti, VmError,
+    TypeInfo, TypeOf, VariantRtti,
 };
 use crate::{Hash, InstFnKind};
-
-/// An error raised when building the context.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub enum ContextError {
-    #[error("`()` types are already present")]
-    UnitAlreadyPresent,
-    #[error("`{name}` types are already present")]
-    InternalAlreadyPresent { name: &'static str },
-    #[error("conflicting meta {existing} while trying to insert {current}")]
-    ConflictingMeta {
-        current: Box<Meta>,
-        existing: Box<Meta>,
-    },
-    #[error("function `{signature}` ({hash}) already exists")]
-    ConflictingFunction {
-        signature: Box<ContextSignature>,
-        hash: Hash,
-    },
-    #[error("function with name `{name}` already exists")]
-    ConflictingFunctionName { name: ItemBuf },
-    #[error("constant with name `{name}` already exists")]
-    ConflictingConstantName { name: ItemBuf },
-    #[error("instance function `{name}` for type `{type_info}` already exists")]
-    ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
-    #[error("protocol function `{name}` for type `{type_info}` already exists")]
-    ConflictingProtocolFunction { type_info: TypeInfo, name: Box<str> },
-    #[error("protocol function with hash `{hash}` for type `{type_info}` already exists")]
-    ConflictingInstanceFunctionHash { type_info: TypeInfo, hash: Hash },
-    #[error("module `{item}` with hash `{hash}` already exists")]
-    ConflictingModule { item: ItemBuf, hash: Hash },
-    #[error("type `{item}` already exists `{type_info}`")]
-    ConflictingType { item: ItemBuf, type_info: TypeInfo },
-    #[error("type `{item}` at `{type_info}` already has a specification")]
-    ConflictingTypeMeta { item: ItemBuf, type_info: TypeInfo },
-    #[error("type `{item}` with info `{type_info}` isn't registered")]
-    MissingType { item: ItemBuf, type_info: TypeInfo },
-    #[error("type `{item}` with info `{type_info}` is registered but is not an enum")]
-    MissingEnum { item: ItemBuf, type_info: TypeInfo },
-    #[error("tried to insert conflicting hash `{hash}` for `{existing}`")]
-    ConflictingTypeHash { hash: Hash, existing: Hash },
-    #[error("variant with `{item}` already exists")]
-    ConflictingVariant { item: ItemBuf },
-    #[error("instance `{instance_type}` does not exist in module")]
-    MissingInstance { instance_type: TypeInfo },
-    #[error("error when converting to constant value: {error}")]
-    ValueError { error: VmError },
-    #[error("missing variant {index} for `{type_info}`")]
-    MissingVariant { type_info: TypeInfo, index: usize },
-    #[error("constructor for variant {index} in `{type_info}` has already been registered")]
-    VariantConstructorConflict { type_info: TypeInfo, index: usize },
-}
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct ContextTypeInfo {
+pub struct PrivTypeInfo {
     /// The type check used for the current type.
-    pub(crate) type_check: Option<TypeCheck>,
+    type_check: Option<TypeCheck>,
     /// Complete detailed information on the hash.
-    pub(crate) type_info: TypeInfo,
+    type_info: TypeInfo,
     /// The name of the type.
-    pub item: ItemBuf,
+    item: ItemBuf,
     /// The hash of the type.
-    pub type_hash: Hash,
+    type_hash: Hash,
 }
 
-impl fmt::Display for ContextTypeInfo {
+impl fmt::Display for PrivTypeInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{} => {}", self.item, self.type_info)?;
-        Ok(())
-    }
-}
-
-/// A description of a function signature.
-#[derive(Debug, Clone)]
-pub enum ContextSignature {
-    /// An unbound or static function
-    Function {
-        /// The type hash of the function
-        type_hash: Hash,
-        /// Path to the function.
-        item: ItemBuf,
-        /// Arguments.
-        args: Option<usize>,
-    },
-    /// An instance function or method
-    Instance {
-        /// The type hash of the function
-        type_hash: Hash,
-        /// Path to the instance function.
-        item: ItemBuf,
-        /// Name of the instance function.
-        name: InstFnKind,
-        /// Arguments.
-        args: Option<usize>,
-        /// Information on the self type.
-        self_type_info: TypeInfo,
-    },
-}
-
-impl fmt::Display for ContextSignature {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Function { item, args, .. } => {
-                write!(fmt, "{}(", item)?;
-
-                if let Some(args) = args {
-                    let mut it = 0..*args;
-                    let last = it.next_back();
-
-                    for n in it {
-                        write!(fmt, "#{}, ", n)?;
-                    }
-
-                    if let Some(n) = last {
-                        write!(fmt, "#{}", n)?;
-                    }
-                } else {
-                    write!(fmt, "...")?;
-                }
-
-                write!(fmt, ")")?;
-            }
-            Self::Instance {
-                item,
-                name,
-                self_type_info,
-                args,
-                ..
-            } => {
-                write!(fmt, "{}::{}(self: {}", item, name, self_type_info)?;
-
-                if let Some(args) = args {
-                    for n in 0..*args {
-                        write!(fmt, ", #{}", n)?;
-                    }
-                } else {
-                    write!(fmt, ", ...")?;
-                }
-
-                write!(fmt, ")")?;
-            }
-        }
-
         Ok(())
     }
 }
@@ -193,8 +63,9 @@ pub struct Context {
     /// Information on functions.
     functions_info: HashMap<Hash, ContextSignature>,
     /// Registered types.
-    types: HashMap<Hash, ContextTypeInfo>,
-    /// Reverse lookup for types.
+    types: HashMap<Hash, PrivTypeInfo>,
+    /// Reverse lookup for types, which maps the item type hash to the internal
+    /// type hash which is usually based on a type id.
     types_rev: HashMap<Hash, Hash>,
     /// Registered internal enums.
     internal_enums: HashSet<&'static StaticType>,
@@ -347,11 +218,14 @@ impl Context {
     }
 
     /// Iterate over all available types in the [Context].
-    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &ContextTypeInfo)> {
+    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, ContextTypeInfo<'_>)> {
         let mut it = self.types.iter();
 
         std::iter::from_fn(move || {
             let (hash, ty) = it.next()?;
+
+            let ty = ContextTypeInfo { item: &ty.item };
+
             Some((*hash, ty))
         })
     }
@@ -447,7 +321,7 @@ impl Context {
 
         self.install_type_info(
             hash,
-            ContextTypeInfo {
+            PrivTypeInfo {
                 type_check: None,
                 item: item.clone(),
                 type_hash,
@@ -488,7 +362,7 @@ impl Context {
 
                         self.install_type_info(
                             hash,
-                            ContextTypeInfo {
+                            PrivTypeInfo {
                                 type_check: None,
                                 item: item.clone(),
                                 type_hash: hash,
@@ -539,7 +413,7 @@ impl Context {
         Ok(())
     }
 
-    fn install_type_info(&mut self, hash: Hash, info: ContextTypeInfo) -> Result<(), ContextError> {
+    fn install_type_info(&mut self, hash: Hash, info: PrivTypeInfo) -> Result<(), ContextError> {
         self.names.insert(&info.item);
 
         // reverse lookup for types.
@@ -757,7 +631,7 @@ impl Context {
 
         self.install_type_info(
             hash,
-            ContextTypeInfo {
+            PrivTypeInfo {
                 type_check: Some(TypeCheck::Unit),
                 item,
                 type_hash: crate::runtime::UNIT_TYPE.hash,
@@ -795,7 +669,7 @@ impl Context {
 
         self.install_type_info(
             enum_hash,
-            ContextTypeInfo {
+            PrivTypeInfo {
                 type_check: None,
                 item: enum_item.clone(),
                 type_hash: internal_enum.static_type.hash,
@@ -809,7 +683,7 @@ impl Context {
 
             self.install_type_info(
                 hash,
-                ContextTypeInfo {
+                PrivTypeInfo {
                     type_check: Some(variant.type_check),
                     item: item.clone(),
                     type_hash: hash,
