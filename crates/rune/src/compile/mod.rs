@@ -59,12 +59,11 @@ pub use self::options::{Options, ParseOptionError};
 mod location;
 pub use self::location::Location;
 
-mod meta;
+pub mod meta;
 pub(crate) use self::meta::{
-    CaptureMeta, ContextMeta, ContextMetaKind, Doc, ItemMeta, PrivMeta, PrivMetaKind,
-    PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
+    CaptureMeta, ContextMeta, Doc, ItemMeta, PrivMeta, PrivStructMeta, PrivTupleMeta, VariantKind,
 };
-pub use self::meta::{ContextSignature, ContextTypeInfo, Meta, MetaKind, MetaRef, SourceMeta};
+pub use self::meta::{ContextSignature, ContextTypeInfo, Meta, MetaRef, SourceMeta};
 
 mod function_meta;
 pub(crate) use self::function_meta::{AssocFnData, FunctionData};

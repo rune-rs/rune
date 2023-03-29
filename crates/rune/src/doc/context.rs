@@ -1,6 +1,4 @@
-use crate::compile::{
-    ComponentRef, ContextMetaKind, ContextSignature, IntoComponent, Item, MetaKind,
-};
+use crate::compile::{meta, ComponentRef, ContextSignature, IntoComponent, Item};
 use crate::doc::Visitor;
 use crate::runtime::ConstValue;
 use crate::Hash;
@@ -74,15 +72,11 @@ impl<'a> Context<'a> {
         for visitor in self.visitors {
             if let Some(m) = visitor.meta.get(item) {
                 let kind = match m {
-                    MetaKind::Unknown => Kind::Unknown,
-                    MetaKind::UnitStruct => Kind::Struct,
-                    MetaKind::TupleStruct => Kind::Struct,
-                    MetaKind::Struct => Kind::Struct,
-                    MetaKind::UnitVariant => Kind::Variant,
-                    MetaKind::TupleVariant => Kind::Variant,
-                    MetaKind::StructVariant => Kind::Variant,
-                    MetaKind::Enum => Kind::Enum,
-                    MetaKind::Function { args, .. } => Kind::Function {
+                    meta::Kind::Unknown { .. } => Kind::Unknown,
+                    meta::Kind::Struct { .. } => Kind::Struct,
+                    meta::Kind::Variant { .. } => Kind::Variant,
+                    meta::Kind::Enum => Kind::Enum,
+                    meta::Kind::Function { args, .. } => Kind::Function {
                         args: None,
                         signature: Signature::Function { args: *args },
                     },
@@ -106,13 +100,14 @@ impl<'a> Context<'a> {
         let meta = self.context.lookup_meta(item)?;
 
         let kind = match &meta.kind {
-            ContextMetaKind::Unknown { .. } => Kind::Unknown,
-            ContextMetaKind::Struct { .. } => Kind::Struct,
-            ContextMetaKind::Variant { .. } => Kind::Variant,
-            ContextMetaKind::Enum { .. } => Kind::Enum,
-            ContextMetaKind::Function {
+            meta::Kind::Unknown { .. } => Kind::Unknown,
+            meta::Kind::Struct { .. } => Kind::Struct,
+            meta::Kind::Variant { .. } => Kind::Variant,
+            meta::Kind::Enum { .. } => Kind::Enum,
+            meta::Kind::Function {
                 args,
                 instance_function,
+                ..
             } => {
                 let f = self.context.lookup_signature(meta.hash)?;
 
@@ -132,7 +127,8 @@ impl<'a> Context<'a> {
                     args: meta.docs.args(),
                 }
             }
-            ContextMetaKind::Const { const_value } => Kind::Const(const_value),
+            meta::Kind::Const { const_value } => Kind::Const(const_value),
+            _ => Kind::Unsupported,
         };
 
         Some(Meta {

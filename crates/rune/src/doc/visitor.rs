@@ -1,13 +1,13 @@
 use crate::collections::{BTreeMap, HashMap};
 use crate::compile::{
-    CompileVisitor, IntoComponent, Item, ItemBuf, Location, MetaKind, MetaRef, Names,
+    meta, CompileVisitor, IntoComponent, Item, ItemBuf, Location, MetaRef, Names,
 };
 
 /// Visitor used to collect documentation from rune sources.
 pub struct Visitor {
     pub(crate) base: ItemBuf,
     pub(crate) names: Names,
-    pub(crate) meta: BTreeMap<ItemBuf, MetaKind>,
+    pub(crate) meta: BTreeMap<ItemBuf, meta::Kind>,
     pub(crate) docs: HashMap<ItemBuf, Vec<String>>,
     pub(crate) field_docs: HashMap<ItemBuf, HashMap<Box<str>, Vec<String>>>,
 }
@@ -32,7 +32,7 @@ impl Visitor {
 impl CompileVisitor for Visitor {
     fn register_meta(&mut self, meta: MetaRef<'_>) {
         let item = self.base.join(meta.item);
-        self.meta.insert(item.to_owned(), meta.kind);
+        self.meta.insert(item.to_owned(), meta.kind.clone());
         self.names.insert(item);
     }
 

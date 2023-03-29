@@ -7,8 +7,8 @@ use crate::compile::module::{
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, ContextError, ContextMeta, ContextMetaKind, ContextSignature, ContextTypeInfo,
-    Docs, IntoComponent, Item, ItemBuf, Names, PrivStructMeta, PrivTupleMeta, PrivVariantMeta,
+    meta, ComponentRef, ContextError, ContextMeta, ContextSignature, ContextTypeInfo, Docs,
+    IntoComponent, Item, ItemBuf, Names, PrivStructMeta, PrivTupleMeta,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -341,16 +341,13 @@ impl Context {
             },
         )?;
 
-        let (hash, kind) = if let Some(spec) = &ty.spec {
+        let kind = if let Some(spec) = &ty.spec {
             match spec {
-                TypeSpecification::Struct(st) => (
-                    type_hash,
-                    ContextMetaKind::Struct {
-                        variant: PrivVariantMeta::Struct(PrivStructMeta {
-                            fields: st.fields.clone(),
-                        }),
-                    },
-                ),
+                TypeSpecification::Struct(st) => meta::Kind::Struct {
+                    variant: meta::VariantKind::Struct(PrivStructMeta {
+                        fields: st.fields.clone(),
+                    }),
+                },
                 TypeSpecification::Enum(en) => {
                     let enum_item = &item;
                     let enum_hash = type_hash;
@@ -362,16 +359,16 @@ impl Context {
 
                         let (variant, args) = match &variant.kind {
                             VariantKind::Tuple(t) => (
-                                PrivVariantMeta::Tuple(PrivTupleMeta { args: t.args, hash }),
+                                meta::VariantKind::Tuple(PrivTupleMeta { args: t.args, hash }),
                                 Some(t.args),
                             ),
                             VariantKind::Struct(st) => (
-                                PrivVariantMeta::Struct(PrivStructMeta {
+                                meta::VariantKind::Struct(PrivStructMeta {
                                     fields: st.fields.clone(),
                                 }),
                                 None,
                             ),
-                            VariantKind::Unit => (PrivVariantMeta::Unit, Some(0)),
+                            VariantKind::Unit => (meta::VariantKind::Unit, Some(0)),
                         };
 
                         self.install_type_info(
@@ -405,8 +402,7 @@ impl Context {
                             self.functions.insert(hash, c.clone());
                         }
 
-                        let kind = ContextMetaKind::Variant {
-                            enum_item: enum_item.clone(),
+                        let kind = meta::Kind::Variant {
                             enum_hash,
                             index,
                             variant,
@@ -421,14 +417,14 @@ impl Context {
                         ))?;
                     }
 
-                    (type_hash, ContextMetaKind::Enum)
+                    meta::Kind::Enum
                 }
             }
         } else {
-            (type_hash, ContextMetaKind::Unknown)
+            meta::Kind::Unknown
         };
 
-        self.install_meta(ContextMeta::new(module, hash, item, kind, docs))?;
+        self.install_meta(ContextMeta::new(module, type_hash, item, kind, docs))?;
         Ok(())
     }
 
@@ -491,8 +487,10 @@ impl Context {
             module,
             hash,
             item,
-            ContextMetaKind::Function {
+            meta::Kind::Function {
                 args: f.args,
+                is_test: false,
+                is_bench: false,
                 instance_function: f.instance_function,
             },
             f.docs.clone(),
@@ -537,7 +535,7 @@ impl Context {
             module,
             hash,
             item,
-            ContextMetaKind::Const {
+            meta::Kind::Const {
                 const_value: v.clone(),
             },
             docs,
@@ -631,8 +629,10 @@ impl Context {
                     module,
                     type_hash,
                     item,
-                    ContextMetaKind::Function {
+                    meta::Kind::Function {
                         args: assoc.args,
+                        is_test: false,
+                        is_bench: false,
                         instance_function: true,
                     },
                     assoc.docs.clone(),
@@ -687,7 +687,7 @@ impl Context {
             module,
             internal_enum.static_type.hash,
             enum_item.clone(),
-            ContextMetaKind::Enum,
+            meta::Kind::Enum,
             docs,
         ))?;
 
@@ -719,11 +719,10 @@ impl Context {
                 module,
                 hash,
                 item.clone(),
-                ContextMetaKind::Variant {
-                    enum_item: enum_item.clone(),
+                meta::Kind::Variant {
                     enum_hash,
                     index,
-                    variant: PrivVariantMeta::Tuple(PrivTupleMeta {
+                    variant: meta::VariantKind::Tuple(PrivTupleMeta {
                         args: variant.args,
                         hash,
                     }),
@@ -754,7 +753,7 @@ impl Context {
     fn add_internal_tuple<C, Args>(
         &mut self,
         module: &Module,
-        enum_item: Option<(ItemBuf, Hash, usize)>,
+        enum_item: Option<(Hash, usize)>,
         item: ItemBuf,
         args: usize,
         constructor: C,
@@ -770,15 +769,14 @@ impl Context {
         let tuple = PrivTupleMeta { args, hash };
 
         let meta = match enum_item {
-            Some((enum_item, enum_hash, index)) => ContextMeta::new(
+            Some((enum_hash, index)) => ContextMeta::new(
                 module,
                 type_hash,
                 item.clone(),
-                ContextMetaKind::Variant {
-                    enum_item,
+                meta::Kind::Variant {
                     enum_hash,
                     index,
-                    variant: PrivVariantMeta::Tuple(tuple),
+                    variant: meta::VariantKind::Tuple(tuple),
                 },
                 docs,
             ),
@@ -786,8 +784,8 @@ impl Context {
                 module,
                 type_hash,
                 item.clone(),
-                ContextMetaKind::Struct {
-                    variant: PrivVariantMeta::Tuple(tuple),
+                meta::Kind::Struct {
+                    variant: meta::VariantKind::Tuple(tuple),
                 },
                 docs,
             ),

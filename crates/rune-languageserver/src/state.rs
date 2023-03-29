@@ -9,9 +9,10 @@ use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
 use rune::ast::{Span, Spanned};
+use rune::compile::meta;
 use rune::compile::{
     CompileError, CompileVisitor, ComponentRef, FileSourceLoader, Item, LinkerError, Location,
-    MetaKind, MetaRef, SourceMeta,
+    MetaRef, SourceMeta,
 };
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::{Context, Options, SourceId};
@@ -591,14 +592,32 @@ impl CompileVisitor for Visitor {
         };
 
         let kind = match &meta.kind {
-            MetaKind::UnitStruct { .. } => DefinitionKind::UnitStruct,
-            MetaKind::TupleStruct { .. } => DefinitionKind::TupleStruct,
-            MetaKind::Struct { .. } => DefinitionKind::Struct,
-            MetaKind::UnitVariant { .. } => DefinitionKind::UnitVariant,
-            MetaKind::TupleVariant { .. } => DefinitionKind::TupleVariant,
-            MetaKind::StructVariant { .. } => DefinitionKind::StructVariant,
-            MetaKind::Enum { .. } => DefinitionKind::Enum,
-            MetaKind::Function { .. } => DefinitionKind::Function,
+            meta::Kind::Struct {
+                variant: meta::VariantKind::Unit,
+                ..
+            } => DefinitionKind::UnitStruct,
+            meta::Kind::Struct {
+                variant: meta::VariantKind::Tuple(..),
+                ..
+            } => DefinitionKind::TupleStruct,
+            meta::Kind::Struct {
+                variant: meta::VariantKind::Struct(..),
+                ..
+            } => DefinitionKind::Struct,
+            meta::Kind::Variant {
+                variant: meta::VariantKind::Unit,
+                ..
+            } => DefinitionKind::UnitVariant,
+            meta::Kind::Variant {
+                variant: meta::VariantKind::Tuple(..),
+                ..
+            } => DefinitionKind::TupleVariant,
+            meta::Kind::Variant {
+                variant: meta::VariantKind::Struct(..),
+                ..
+            } => DefinitionKind::StructVariant,
+            meta::Kind::Enum { .. } => DefinitionKind::Enum,
+            meta::Kind::Function { .. } => DefinitionKind::Function,
             _ => return,
         };
 

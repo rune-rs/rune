@@ -9,8 +9,8 @@ use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
 use crate::compile::{
-    CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, PrivMeta, PrivMetaKind,
-    PrivStructMeta, PrivVariantMeta,
+    meta, CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, PrivMeta,
+    PrivStructMeta, VariantKind,
 };
 use crate::hash::ParametersBuilder;
 use crate::hir;
@@ -96,12 +96,12 @@ fn meta(
 ) -> CompileResult<()> {
     if let Needs::Value = needs {
         match &meta.kind {
-            PrivMetaKind::Struct {
-                variant: PrivVariantMeta::Unit,
+            meta::Kind::Struct {
+                variant: VariantKind::Unit,
                 ..
             }
-            | PrivMetaKind::Variant {
-                variant: PrivVariantMeta::Unit,
+            | meta::Kind::Variant {
+                variant: VariantKind::Unit,
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -114,12 +114,12 @@ fn meta(
                     meta.info(c.q.pool).to_string(),
                 );
             }
-            PrivMetaKind::Variant {
-                variant: PrivVariantMeta::Tuple(tuple),
+            meta::Kind::Variant {
+                variant: VariantKind::Tuple(tuple),
                 ..
             }
-            | PrivMetaKind::Struct {
-                variant: PrivVariantMeta::Tuple(tuple),
+            | meta::Kind::Struct {
+                variant: VariantKind::Tuple(tuple),
                 ..
             } if tuple.args == 0 => {
                 named.assert_not_generic()?;
@@ -132,8 +132,8 @@ fn meta(
                     meta.info(c.q.pool).to_string(),
                 );
             }
-            PrivMetaKind::Struct {
-                variant: PrivVariantMeta::Tuple(tuple),
+            meta::Kind::Struct {
+                variant: VariantKind::Tuple(tuple),
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -143,8 +143,8 @@ fn meta(
                     meta.info(c.q.pool).to_string(),
                 );
             }
-            PrivMetaKind::Variant {
-                variant: PrivVariantMeta::Tuple(tuple),
+            meta::Kind::Variant {
+                variant: VariantKind::Tuple(tuple),
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -154,7 +154,7 @@ fn meta(
                     meta.info(c.q.pool).to_string(),
                 );
             }
-            PrivMetaKind::Function { .. } => {
+            meta::Kind::Function { .. } => {
                 let hash = if let Some((span, generics)) = named.generics {
                     let parameters = generics_parameters(span, c, generics)?;
                     meta.hash.with_parameters(parameters)
@@ -168,7 +168,7 @@ fn meta(
                     meta.info(c.q.pool).to_string(),
                 );
             }
-            PrivMetaKind::Const { const_value, .. } => {
+            meta::Kind::Const { const_value, .. } => {
                 named.assert_not_generic()?;
                 const_(span, c, const_value, Needs::Value)?;
             }
@@ -496,14 +496,14 @@ fn struct_match_for<'a>(
     meta: &'a PrivMeta,
 ) -> Option<(&'a PrivStructMeta, Inst)> {
     Some(match &meta.kind {
-        PrivMetaKind::Struct {
-            variant: PrivVariantMeta::Struct(st),
+        meta::Kind::Struct {
+            variant: VariantKind::Struct(st),
             ..
         } => (st, Inst::MatchType { hash: meta.hash }),
-        PrivMetaKind::Variant {
+        meta::Kind::Variant {
             enum_hash,
             index,
-            variant: PrivVariantMeta::Struct(st),
+            variant: VariantKind::Struct(st),
             ..
         } => {
             let inst = if let Some(type_check) = c.context.type_check_for(meta.hash) {
@@ -528,23 +528,23 @@ fn struct_match_for<'a>(
 #[instrument]
 fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &PrivMeta) -> Option<(usize, Inst)> {
     Some(match &meta.kind {
-        PrivMetaKind::Struct {
-            variant: PrivVariantMeta::Unit,
+        meta::Kind::Struct {
+            variant: VariantKind::Unit,
             ..
         } => (0, Inst::MatchType { hash: meta.hash }),
-        PrivMetaKind::Struct {
-            variant: PrivVariantMeta::Tuple(tuple),
+        meta::Kind::Struct {
+            variant: VariantKind::Tuple(tuple),
             ..
         } => (tuple.args, Inst::MatchType { hash: meta.hash }),
-        PrivMetaKind::Variant {
+        meta::Kind::Variant {
             enum_hash,
             index,
             variant,
             ..
         } => {
             let args = match variant {
-                PrivVariantMeta::Tuple(tuple) => tuple.args,
-                PrivVariantMeta::Unit => 0,
+                VariantKind::Tuple(tuple) => tuple.args,
+                VariantKind::Unit => 0,
                 _ => return None,
             };
 
@@ -1547,7 +1547,7 @@ fn expr_block(
     match (hir.kind, &meta.kind) {
         (
             hir::ExprBlockKind::Async,
-            PrivMetaKind::AsyncBlock {
+            meta::Kind::AsyncBlock {
                 captures, do_move, ..
             },
         ) => {
@@ -1583,7 +1583,7 @@ fn expr_block(
                     .push_with_comment(Inst::Pop, span, "value is not needed");
             }
         }
-        (hir::ExprBlockKind::Const, PrivMetaKind::Const { const_value }) => {
+        (hir::ExprBlockKind::Const, meta::Kind::Const { const_value }) => {
             const_(span, c, const_value, needs)?;
         }
         _ => {
@@ -1685,9 +1685,9 @@ fn generics_parameters(
         let meta = c.lookup_meta(expr.span(), named.item)?;
 
         let hash = match meta.kind {
-            PrivMetaKind::Unknown { .. }
-            | PrivMetaKind::Struct { .. }
-            | PrivMetaKind::Enum { .. } => meta.hash,
+            meta::Kind::Unknown { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. } => {
+                meta.hash
+            }
             _ => {
                 return Err(CompileError::new(
                     span,
@@ -1758,12 +1758,12 @@ fn convert_expr_call(
             debug_assert_eq!(meta.item_meta.item, named.item);
 
             match &meta.kind {
-                PrivMetaKind::Struct {
-                    variant: PrivVariantMeta::Unit,
+                meta::Kind::Struct {
+                    variant: VariantKind::Unit,
                     ..
                 }
-                | PrivMetaKind::Variant {
-                    variant: PrivVariantMeta::Unit,
+                | meta::Kind::Variant {
+                    variant: VariantKind::Unit,
                     ..
                 } => {
                     named.assert_not_generic()?;
@@ -1779,12 +1779,12 @@ fn convert_expr_call(
                         ));
                     }
                 }
-                PrivMetaKind::Struct {
-                    variant: PrivVariantMeta::Tuple(tuple),
+                meta::Kind::Struct {
+                    variant: VariantKind::Tuple(tuple),
                     ..
                 }
-                | PrivMetaKind::Variant {
-                    variant: PrivVariantMeta::Tuple(tuple),
+                | meta::Kind::Variant {
+                    variant: VariantKind::Tuple(tuple),
                     ..
                 } => {
                     named.assert_not_generic()?;
@@ -1810,8 +1810,8 @@ fn convert_expr_call(
                         );
                     }
                 }
-                PrivMetaKind::Function { .. } => (),
-                PrivMetaKind::ConstFn { id, .. } => {
+                meta::Kind::Function { .. } => (),
+                meta::Kind::ConstFn { id, .. } => {
                     named.assert_not_generic()?;
                     let id = *id;
                     return Ok(Call::ConstFn { meta, id });
@@ -2010,7 +2010,7 @@ fn expr_closure(
     };
 
     let (captures, do_move) = match &meta.kind {
-        PrivMetaKind::Closure {
+        meta::Kind::Closure {
             captures, do_move, ..
         } => (captures.as_ref(), *do_move),
         _ => {
@@ -2646,8 +2646,8 @@ fn expr_object(
             let item = c.q.pool.item(meta.item_meta.item);
 
             match &meta.kind {
-                PrivMetaKind::Struct {
-                    variant: PrivVariantMeta::Unit,
+                meta::Kind::Struct {
+                    variant: VariantKind::Unit,
                     ..
                 } => {
                     check_object_fields(&HashSet::new(), check_keys, span, item)?;
@@ -2655,8 +2655,8 @@ fn expr_object(
                     let hash = Hash::type_hash(item);
                     c.asm.push(Inst::UnitStruct { hash }, span);
                 }
-                PrivMetaKind::Struct {
-                    variant: PrivVariantMeta::Struct(st),
+                meta::Kind::Struct {
+                    variant: VariantKind::Struct(st),
                     ..
                 } => {
                     check_object_fields(&st.fields, check_keys, span, item)?;
@@ -2664,8 +2664,8 @@ fn expr_object(
                     let hash = Hash::type_hash(item);
                     c.asm.push(Inst::Struct { hash, slot }, span);
                 }
-                PrivMetaKind::Variant {
-                    variant: PrivVariantMeta::Struct(st),
+                meta::Kind::Variant {
+                    variant: VariantKind::Struct(st),
                     ..
                 } => {
                     check_object_fields(&st.fields, check_keys, span, item)?;
