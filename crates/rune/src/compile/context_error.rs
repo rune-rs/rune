@@ -1,6 +1,7 @@
 use thiserror::Error;
 
-use crate::compile::{ContextSignature, ItemBuf, Meta};
+use crate::compile::meta;
+use crate::compile::{ItemBuf, Meta};
 use crate::runtime::{TypeInfo, VmError};
 use crate::Hash;
 
@@ -20,7 +21,7 @@ pub enum ContextError {
     },
     #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
-        signature: Box<ContextSignature>,
+        signature: Box<meta::Signature>,
         hash: Hash,
     },
     #[error("function with name `{name}` already exists")]

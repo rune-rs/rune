@@ -7,10 +7,10 @@ use rune_macros::__instrument_ast as instrument;
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
+use crate::compile::meta;
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
 use crate::compile::{
-    meta, CaptureMeta, CompileError, CompileErrorKind, CompileResult, Item, PrivMeta,
-    PrivStructMeta, VariantKind,
+    CompileError, CompileErrorKind, CompileResult, Item, PrivMeta, PrivStructMeta, VariantKind,
 };
 use crate::hash::ParametersBuilder;
 use crate::hir;
@@ -869,14 +869,14 @@ fn pat_meta_binding(
 pub(crate) fn closure_from_block(
     hir: &hir::Block<'_>,
     c: &mut Assembler<'_>,
-    captures: &[CaptureMeta],
+    captures: &[String],
 ) -> CompileResult<()> {
     let span = hir.span();
 
     let guard = c.scopes.push_child(span)?;
 
     for capture in captures {
-        c.scopes.new_var(&capture.ident, span)?;
+        c.scopes.new_var(capture, span)?;
     }
 
     return_(c, span, hir, block)?;
@@ -1556,15 +1556,11 @@ fn expr_block(
 
             for ident in captures {
                 if do_move {
-                    let var = c
-                        .scopes
-                        .take_var(c.q.visitor, &ident.ident, c.source_id, span)?;
-                    var.do_move(c.asm, span, format!("captures `{}`", ident.ident));
+                    let var = c.scopes.take_var(c.q.visitor, ident, c.source_id, span)?;
+                    var.do_move(c.asm, span, format!("captures `{}`", ident));
                 } else {
-                    let var = c
-                        .scopes
-                        .get_var(c.q.visitor, &ident.ident, c.source_id, span)?;
-                    var.copy(c, span, format!("captures `{}`", ident.ident));
+                    let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
+                    var.copy(c, span, format!("captures `{}`", ident));
                 }
             }
 
@@ -1948,7 +1944,7 @@ pub(crate) fn closure_from_expr_closure(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprClosure<'_>,
-    captures: &[CaptureMeta],
+    captures: &[String],
 ) -> CompileResult<()> {
     let mut patterns = Vec::new();
 
@@ -1968,7 +1964,7 @@ pub(crate) fn closure_from_expr_closure(
         c.asm.push(Inst::PushTuple, span);
 
         for capture in captures {
-            c.scopes.new_var(&capture.ident, span)?;
+            c.scopes.new_var(capture, span)?;
         }
     }
 
@@ -2036,15 +2032,11 @@ fn expr_closure(
         // Construct a closure environment.
         for capture in captures {
             if do_move {
-                let var = c
-                    .scopes
-                    .take_var(c.q.visitor, &capture.ident, c.source_id, span)?;
-                var.do_move(c.asm, span, format!("capture `{}`", capture.ident));
+                let var = c.scopes.take_var(c.q.visitor, capture, c.source_id, span)?;
+                var.do_move(c.asm, span, format!("capture `{}`", capture));
             } else {
-                let var = c
-                    .scopes
-                    .get_var(c.q.visitor, &capture.ident, c.source_id, span)?;
-                var.copy(c, span, format!("capture `{}`", capture.ident));
+                let var = c.scopes.get_var(c.q.visitor, capture, c.source_id, span)?;
+                var.copy(c, span, format!("capture `{}`", capture));
             }
         }
 

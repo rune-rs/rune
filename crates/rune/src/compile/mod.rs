@@ -61,9 +61,9 @@ pub use self::location::Location;
 
 pub mod meta;
 pub(crate) use self::meta::{
-    CaptureMeta, ContextMeta, Doc, ItemMeta, PrivMeta, PrivStructMeta, PrivTupleMeta, VariantKind,
+    ContextMeta, Doc, ItemMeta, PrivMeta, PrivStructMeta, PrivTupleMeta, VariantKind,
 };
-pub use self::meta::{ContextSignature, ContextTypeInfo, Meta, MetaRef, SourceMeta};
+pub use self::meta::{Meta, MetaRef, SourceMeta};
 
 mod function_meta;
 pub(crate) use self::function_meta::{AssocFnData, FunctionData};

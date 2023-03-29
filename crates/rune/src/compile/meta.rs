@@ -91,14 +91,6 @@ pub struct SourceMeta {
     pub path: Option<Box<Path>>,
 }
 
-/// Metadata about a variable captured by a clsoreu.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct CaptureMeta {
-    /// Identity of the captured variable.
-    pub(crate) ident: Box<str>,
-}
-
 /// Doc content for a compiled item.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Doc {
@@ -265,14 +257,14 @@ pub enum Kind {
     /// A closure.
     Closure {
         /// Sequence of captured variables.
-        captures: Arc<[CaptureMeta]>,
+        captures: Arc<[String]>,
         /// If the closure moves its environment.
         do_move: bool,
     },
     /// An async block.
     AsyncBlock {
         /// Sequence of captured variables.
-        captures: Arc<[CaptureMeta]>,
+        captures: Arc<[String]>,
         /// If the async block moves its environment.
         do_move: bool,
     },
@@ -345,23 +337,9 @@ impl ItemMeta {
     }
 }
 
-/// Public type information.
-#[non_exhaustive]
-pub struct ContextTypeInfo<'a> {
-    /// The item of the type.
-    pub item: &'a Item,
-}
-
-impl fmt::Display for ContextTypeInfo<'_> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.item.fmt(f)
-    }
-}
-
 /// A description of a function signature.
 #[derive(Debug, Clone)]
-pub enum ContextSignature {
+pub enum Signature {
     /// An unbound or static function
     Function {
         /// The type hash of the function
@@ -386,7 +364,7 @@ pub enum ContextSignature {
     },
 }
 
-impl fmt::Display for ContextSignature {
+impl fmt::Display for Signature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Function { item, args, .. } => {

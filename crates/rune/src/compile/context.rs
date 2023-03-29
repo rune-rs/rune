@@ -7,8 +7,8 @@ use crate::compile::module::{
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    meta, ComponentRef, ContextError, ContextMeta, ContextSignature, ContextTypeInfo, Docs,
-    IntoComponent, Item, ItemBuf, Names, PrivStructMeta, PrivTupleMeta,
+    meta, ComponentRef, ContextError, ContextMeta, Docs, IntoComponent, Item, ItemBuf, Names,
+    PrivStructMeta, PrivTupleMeta,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -57,7 +57,7 @@ pub struct Context {
     /// Item metadata in the context.
     meta: HashMap<ItemBuf, ContextMeta>,
     /// Information on functions.
-    functions_info: HashMap<Hash, ContextSignature>,
+    functions_info: HashMap<Hash, meta::Signature>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
@@ -211,7 +211,7 @@ impl Context {
     }
 
     /// Iterate over all available functions in the [Context].
-    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &ContextSignature)> {
+    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &meta::Signature)> {
         let mut it = self.functions_info.iter();
 
         std::iter::from_fn(move || {
@@ -221,15 +221,12 @@ impl Context {
     }
 
     /// Iterate over all available types in the [Context].
-    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, ContextTypeInfo<'_>)> {
+    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &Item)> {
         let mut it = self.types.iter();
 
         std::iter::from_fn(move || {
             let (hash, ty) = it.next()?;
-
-            let ty = ContextTypeInfo { item: &ty.item };
-
-            Some((*hash, ty))
+            Some((*hash, ty.item.as_ref()))
         })
     }
 
@@ -251,7 +248,7 @@ impl Context {
     }
 
     /// Look up signature of function.
-    pub(crate) fn lookup_signature(&self, hash: Hash) -> Option<&ContextSignature> {
+    pub(crate) fn lookup_signature(&self, hash: Hash) -> Option<&meta::Signature> {
         self.functions_info.get(&hash)
     }
 
@@ -386,7 +383,7 @@ impl Context {
                         )?;
 
                         if let (Some(c), Some(args)) = (constructor, args) {
-                            let signature = ContextSignature::Function {
+                            let signature = meta::Signature::Function {
                                 type_hash: hash,
                                 item: item.clone(),
                                 args: Some(args),
@@ -468,7 +465,7 @@ impl Context {
             ConstValue::String(item.to_string()),
         );
 
-        let signature = ContextSignature::Function {
+        let signature = meta::Signature::Function {
             type_hash: hash,
             item: item.clone(),
             args: f.args,
@@ -568,7 +565,7 @@ impl Context {
             .hash(key.type_hash, key.hash)
             .with_parameters(key.parameters);
 
-        let signature = ContextSignature::Instance {
+        let signature = meta::Signature::Instance {
             type_hash: key.type_hash,
             item: info.item.clone(),
             name: assoc.name.clone(),
@@ -609,7 +606,7 @@ impl Context {
                 ConstValue::String(item.to_string()),
             );
 
-            let signature = ContextSignature::Function {
+            let signature = meta::Signature::Function {
                 type_hash: hash,
                 item: item.clone(),
                 args: assoc.args,
@@ -730,7 +727,7 @@ impl Context {
                 Docs::default(),
             ))?;
 
-            let signature = ContextSignature::Function {
+            let signature = meta::Signature::Function {
                 type_hash: hash,
                 item,
                 args: Some(variant.args),
@@ -801,7 +798,7 @@ impl Context {
             ConstValue::String(item.to_string()),
         );
 
-        let signature = ContextSignature::Function {
+        let signature = meta::Signature::Function {
             type_hash,
             item,
             args: Some(args),
