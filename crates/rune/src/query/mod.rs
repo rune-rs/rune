@@ -10,11 +10,13 @@ use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::collections::LinkedHashMap;
 use crate::collections::{hash_map, HashMap, HashSet};
+use crate::compile::context;
+use crate::compile::ir;
+use crate::compile::meta;
 use crate::compile::{
-    ir, meta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ContextMeta, Doc,
-    ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemBuf, ItemId,
-    ItemMeta, Location, ModId, ModMeta, Names, Pool, Prelude, PrivMeta, PrivStructMeta,
-    PrivTupleMeta, SourceMeta, UnitBuilder, VariantKind, Visibility,
+    CompileError, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep, IntoComponent,
+    IrBudget, IrCompiler, IrInterpreter, Item, ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta,
+    Names, Pool, Prelude, SourceMeta, UnitBuilder, Visibility,
 };
 use crate::hir;
 use crate::macros::Storage;
@@ -96,7 +98,7 @@ pub(crate) struct BuiltInLine {
 #[derive(Default)]
 pub(crate) struct QueryInner {
     /// Resolved meta about every single item during a compilation.
-    meta: HashMap<ItemId, PrivMeta>,
+    meta: HashMap<ItemId, meta::Meta>,
     /// Build queue.
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
@@ -279,7 +281,7 @@ impl<'a> Query<'a> {
     }
 
     /// Insert the given compile meta.
-    fn insert_meta(&mut self, span: Span, meta: PrivMeta) -> Result<(), QueryError> {
+    fn insert_meta(&mut self, span: Span, meta: meta::Meta) -> Result<(), QueryError> {
         self.visitor.register_meta(meta.as_meta_ref(self.pool));
 
         match self.inner.meta.entry(meta.item_meta.item) {
@@ -618,9 +620,9 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_context_meta(
         &mut self,
         span: Span,
-        context_meta: &ContextMeta,
-    ) -> Result<PrivMeta, QueryError> {
-        let meta = PrivMeta {
+        context_meta: &context::PrivMeta,
+    ) -> Result<meta::Meta, QueryError> {
+        let meta = meta::Meta {
             hash: context_meta.hash,
             item_meta: ItemMeta {
                 id: Default::default(),
@@ -645,7 +647,7 @@ impl<'a> Query<'a> {
         span: Span,
         item: ItemId,
         used: Used,
-    ) -> Result<Option<PrivMeta>, QueryError> {
+    ) -> Result<Option<meta::Meta>, QueryError> {
         if let Some(meta) = self.inner.meta.get(&item) {
             tracing::trace!(item = ?item, meta = ?meta, "cached");
             // Ensure that the given item is not indexed, cause if it is
@@ -664,7 +666,7 @@ impl<'a> Query<'a> {
         span: Span,
         item: ItemId,
         used: Used,
-    ) -> Result<Option<PrivMeta>, QueryError> {
+    ) -> Result<Option<meta::Meta>, QueryError> {
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
             self.unit.insert_meta(span, &meta, self.pool)?;
@@ -989,7 +991,7 @@ impl<'a> Query<'a> {
             }
         };
 
-        let meta = PrivMeta {
+        let meta = meta::Meta {
             hash: self.pool.item_type_hash(entry.item_meta.item),
             item_meta: entry.item_meta,
             kind: meta::Kind::Import(import),
@@ -1006,7 +1008,7 @@ impl<'a> Query<'a> {
         span: Span,
         entry: IndexedEntry,
         used: Used,
-    ) -> Result<PrivMeta, QueryError> {
+    ) -> Result<meta::Meta, QueryError> {
         let IndexedEntry { item_meta, indexed } = entry;
 
         let (hash, kind) = match indexed {
@@ -1176,7 +1178,7 @@ impl<'a> Query<'a> {
                 .map(Into::into),
         };
 
-        Ok(PrivMeta {
+        Ok(meta::Meta {
             hash,
             item_meta,
             kind,
@@ -1669,10 +1671,10 @@ fn unit_body_meta(item: &Item, enum_item: Option<(Hash, usize)>) -> (Hash, meta:
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: VariantKind::Unit,
+            variant: meta::Variant::Unit,
         },
         None => meta::Kind::Struct {
-            variant: VariantKind::Unit,
+            variant: meta::Variant::Unit,
         },
     };
 
@@ -1687,7 +1689,7 @@ fn tuple_body_meta(
 ) -> (Hash, meta::Kind) {
     let type_hash = Hash::type_hash(item);
 
-    let tuple = PrivTupleMeta {
+    let tuple = meta::Tuple {
         args: tuple.len(),
         hash: Hash::type_hash(item),
     };
@@ -1696,10 +1698,10 @@ fn tuple_body_meta(
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: VariantKind::Tuple(tuple),
+            variant: meta::Variant::Tuple(tuple),
         },
         None => meta::Kind::Struct {
-            variant: VariantKind::Tuple(tuple),
+            variant: meta::Variant::Tuple(tuple),
         },
     };
 
@@ -1722,16 +1724,16 @@ fn struct_body_meta(
         fields.insert(name.into());
     }
 
-    let st = PrivStructMeta { fields };
+    let st = meta::Struct { fields };
 
     let kind = match enum_ {
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: VariantKind::Struct(st),
+            variant: meta::Variant::Struct(st),
         },
         None => meta::Kind::Struct {
-            variant: VariantKind::Struct(st),
+            variant: meta::Variant::Struct(st),
         },
     };
 

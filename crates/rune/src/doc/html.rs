@@ -13,7 +13,7 @@ use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 use crate::collections::{BTreeSet, VecDeque};
 use crate::compile::{ComponentRef, Item, ItemBuf};
-use crate::doc::context::{Kind, Signature};
+use crate::doc::context::{Function, Kind, Signature};
 use crate::doc::templating;
 use crate::doc::{Context, Visitor};
 use crate::Hash;
@@ -302,15 +302,15 @@ fn module(
                     first: meta.docs.first(),
                 });
             }
-            Kind::Function { args, signature } => {
-                if !matches!(signature, Signature::Instance { .. }) {
+            Kind::Function(f) => {
+                if !matches!(f.signature, Signature::Instance { .. }) {
                     queue.push_front(Build::Function(item.clone()));
 
                     functions.push(Function {
                         path: dir.relative(item_path(cx, &item, ItemPath::Function)),
                         item,
                         name,
-                        args: args_to_string(args, signature)?,
+                        args: args_to_string(f.args, f.signature)?,
                         doc: cx.render_docs(meta.docs)?,
                     });
                 }
@@ -378,15 +378,13 @@ fn type_(cx: &Ctxt<'_>, m: &Item, hash: Hash, root: &Path) -> Result<RelativePat
         };
 
         match meta.kind {
-            Kind::Function {
-                args, signature, ..
-            } => {
+            Kind::Function(f) => {
                 let doc = cx.render_docs(meta.docs)?;
 
                 methods.push(Method {
                     item,
                     name,
-                    args: args_to_string(args, signature)?,
+                    args: args_to_string(f.args, f.signature)?,
                     doc,
                 });
             }
@@ -446,15 +444,13 @@ fn struct_(cx: &Ctxt<'_>, m: &Item, root: &Path) -> Result<RelativePathBuf> {
         };
 
         match meta.kind {
-            Kind::Function {
-                args, signature, ..
-            } => {
+            Kind::Function(f) => {
                 let doc = cx.render_docs(meta.docs)?;
 
                 methods.push(Method {
                     item,
                     name,
-                    args: args_to_string(args, signature)?,
+                    args: args_to_string(f.args, f.signature)?,
                     doc,
                 });
             }
@@ -499,11 +495,11 @@ fn function(cx: &Ctxt<'_>, item: &Item, root: &Path) -> Result<RelativePathBuf> 
     let meta = cx.context.meta(item).context("missing function")?;
 
     let (args, signature) = match meta.kind {
-        Kind::Function {
+        Kind::Function(Function {
             args,
             signature: signature @ Signature::Function { .. },
             ..
-        } => (args, signature),
+        }) => (args, signature),
         _ => bail!("found meta, but not a function"),
     };
 

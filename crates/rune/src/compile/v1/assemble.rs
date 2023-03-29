@@ -9,9 +9,7 @@ use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
-use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, Item, PrivMeta, PrivStructMeta, VariantKind,
-};
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::{Id, ParseErrorKind, Resolve};
@@ -90,18 +88,18 @@ impl Asm {
 fn meta(
     span: Span,
     c: &mut Assembler<'_>,
-    meta: &PrivMeta,
+    meta: &meta::Meta,
     needs: Needs,
     named: Named<'_>,
 ) -> CompileResult<()> {
     if let Needs::Value = needs {
         match &meta.kind {
             meta::Kind::Struct {
-                variant: VariantKind::Unit,
+                variant: meta::Variant::Unit,
                 ..
             }
             | meta::Kind::Variant {
-                variant: VariantKind::Unit,
+                variant: meta::Variant::Unit,
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -115,11 +113,11 @@ fn meta(
                 );
             }
             meta::Kind::Variant {
-                variant: VariantKind::Tuple(tuple),
+                variant: meta::Variant::Tuple(tuple),
                 ..
             }
             | meta::Kind::Struct {
-                variant: VariantKind::Tuple(tuple),
+                variant: meta::Variant::Tuple(tuple),
                 ..
             } if tuple.args == 0 => {
                 named.assert_not_generic()?;
@@ -133,7 +131,7 @@ fn meta(
                 );
             }
             meta::Kind::Struct {
-                variant: VariantKind::Tuple(tuple),
+                variant: meta::Variant::Tuple(tuple),
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -144,7 +142,7 @@ fn meta(
                 );
             }
             meta::Kind::Variant {
-                variant: VariantKind::Tuple(tuple),
+                variant: meta::Variant::Tuple(tuple),
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -488,22 +486,22 @@ fn pat_vec(
     Ok(())
 }
 
-/// Construct the appropriate match instruction for the given [PrivMeta].
+/// Construct the appropriate match instruction for the given [meta::Meta].
 #[instrument]
 fn struct_match_for<'a>(
     span: Span,
     c: &Assembler<'_>,
-    meta: &'a PrivMeta,
-) -> Option<(&'a PrivStructMeta, Inst)> {
+    meta: &'a meta::Meta,
+) -> Option<(&'a meta::Struct, Inst)> {
     Some(match &meta.kind {
         meta::Kind::Struct {
-            variant: VariantKind::Struct(st),
+            variant: meta::Variant::Struct(st),
             ..
         } => (st, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Variant {
             enum_hash,
             index,
-            variant: VariantKind::Struct(st),
+            variant: meta::Variant::Struct(st),
             ..
         } => {
             let inst = if let Some(type_check) = c.context.type_check_for(meta.hash) {
@@ -524,16 +522,16 @@ fn struct_match_for<'a>(
     })
 }
 
-/// Construct the appropriate match instruction for the given [PrivMeta].
+/// Construct the appropriate match instruction for the given [meta::Meta].
 #[instrument]
-fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &PrivMeta) -> Option<(usize, Inst)> {
+fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &meta::Meta) -> Option<(usize, Inst)> {
     Some(match &meta.kind {
         meta::Kind::Struct {
-            variant: VariantKind::Unit,
+            variant: meta::Variant::Unit,
             ..
         } => (0, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Struct {
-            variant: VariantKind::Tuple(tuple),
+            variant: meta::Variant::Tuple(tuple),
             ..
         } => (tuple.args, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Variant {
@@ -543,8 +541,8 @@ fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &PrivMeta) -> Option<(us
             ..
         } => {
             let args = match variant {
-                VariantKind::Tuple(tuple) => tuple.args,
-                VariantKind::Unit => 0,
+                meta::Variant::Tuple(tuple) => tuple.args,
+                meta::Variant::Unit => 0,
                 _ => return None,
             };
 
@@ -848,7 +846,7 @@ fn pat_object(
 fn pat_meta_binding(
     span: Span,
     c: &mut Assembler<'_>,
-    meta: &PrivMeta,
+    meta: &meta::Meta,
     false_label: Label,
     load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
 ) -> CompileResult<bool> {
@@ -1710,8 +1708,8 @@ enum Call {
         hash: Hash,
     },
     Meta {
-        /// PrivMeta being called.
-        meta: PrivMeta,
+        /// meta::Meta being called.
+        meta: meta::Meta,
         /// The hash of the meta thing being called.
         hash: Hash,
     },
@@ -1719,8 +1717,8 @@ enum Call {
     Expr,
     /// A constant function call.
     ConstFn {
-        /// PrivMeta of the constand function.
-        meta: PrivMeta,
+        /// meta::Meta of the constand function.
+        meta: meta::Meta,
         /// The identifier of the constant function.
         id: Id,
     },
@@ -1755,11 +1753,11 @@ fn convert_expr_call(
 
             match &meta.kind {
                 meta::Kind::Struct {
-                    variant: VariantKind::Unit,
+                    variant: meta::Variant::Unit,
                     ..
                 }
                 | meta::Kind::Variant {
-                    variant: VariantKind::Unit,
+                    variant: meta::Variant::Unit,
                     ..
                 } => {
                     named.assert_not_generic()?;
@@ -1776,11 +1774,11 @@ fn convert_expr_call(
                     }
                 }
                 meta::Kind::Struct {
-                    variant: VariantKind::Tuple(tuple),
+                    variant: meta::Variant::Tuple(tuple),
                     ..
                 }
                 | meta::Kind::Variant {
-                    variant: VariantKind::Tuple(tuple),
+                    variant: meta::Variant::Tuple(tuple),
                     ..
                 } => {
                     named.assert_not_generic()?;
@@ -2639,7 +2637,7 @@ fn expr_object(
 
             match &meta.kind {
                 meta::Kind::Struct {
-                    variant: VariantKind::Unit,
+                    variant: meta::Variant::Unit,
                     ..
                 } => {
                     check_object_fields(&HashSet::new(), check_keys, span, item)?;
@@ -2648,7 +2646,7 @@ fn expr_object(
                     c.asm.push(Inst::UnitStruct { hash }, span);
                 }
                 meta::Kind::Struct {
-                    variant: VariantKind::Struct(st),
+                    variant: meta::Variant::Struct(st),
                     ..
                 } => {
                     check_object_fields(&st.fields, check_keys, span, item)?;
@@ -2657,7 +2655,7 @@ fn expr_object(
                     c.asm.push(Inst::Struct { hash, slot }, span);
                 }
                 meta::Kind::Variant {
-                    variant: VariantKind::Struct(st),
+                    variant: meta::Variant::Struct(st),
                     ..
                 } => {
                     check_object_fields(&st.fields, check_keys, span, item)?;

@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use crate::compile::meta;
-use crate::compile::{ItemBuf, Meta};
+use crate::compile::{ItemBuf, MetaInfo};
 use crate::runtime::{TypeInfo, VmError};
 use crate::Hash;
 
@@ -16,8 +16,8 @@ pub enum ContextError {
     InternalAlreadyPresent { name: &'static str },
     #[error("conflicting meta {existing} while trying to insert {current}")]
     ConflictingMeta {
-        current: Box<Meta>,
-        existing: Box<Meta>,
+        current: Box<MetaInfo>,
+        existing: Box<MetaInfo>,
     },
     #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {

@@ -31,6 +31,9 @@ pub use self::context::Context;
 pub(crate) mod context_error;
 pub use self::context_error::ContextError;
 
+pub(crate) mod meta_info;
+pub use meta_info::MetaInfo;
+
 mod docs;
 pub use self::docs::Docs;
 
@@ -60,10 +63,8 @@ mod location;
 pub use self::location::Location;
 
 pub mod meta;
-pub(crate) use self::meta::{
-    ContextMeta, Doc, ItemMeta, PrivMeta, PrivStructMeta, PrivTupleMeta, VariantKind,
-};
-pub use self::meta::{Meta, MetaRef, SourceMeta};
+pub(crate) use self::meta::{Doc, ItemMeta};
+pub use self::meta::{MetaRef, SourceMeta};
 
 mod function_meta;
 pub(crate) use self::function_meta::{AssocFnData, FunctionData};

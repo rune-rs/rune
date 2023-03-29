@@ -2,19 +2,58 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::collections::{hash_map, HashMap, HashSet};
+use crate::compile::meta;
 use crate::compile::module::{
     AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type,
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    meta, ComponentRef, ContextError, ContextMeta, Docs, IntoComponent, Item, ItemBuf, Names,
-    PrivStructMeta, PrivTupleMeta,
+    ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
     TypeInfo, TypeOf, VariantRtti,
 };
 use crate::{Hash, InstFnKind};
+
+/// Context metadata.
+#[non_exhaustive]
+pub struct PrivMeta {
+    /// The module that the declared item belongs to.
+    #[cfg(feature = "doc")]
+    pub module: ItemBuf,
+    /// Type hash for the given meta item.
+    pub hash: Hash,
+    /// The item of the returned compile meta.
+    pub item: ItemBuf,
+    /// The kind of the compile meta.
+    pub kind: meta::Kind,
+    /// Documentation associated with a context meta.
+    pub docs: Docs,
+}
+
+impl PrivMeta {
+    pub(crate) fn new(
+        module: &Module,
+        hash: Hash,
+        item: ItemBuf,
+        kind: meta::Kind,
+        docs: Docs,
+    ) -> Self {
+        Self {
+            #[cfg(feature = "doc")]
+            module: module.item.clone(),
+            hash,
+            item,
+            kind,
+            docs,
+        }
+    }
+
+    pub(crate) fn info(&self) -> MetaInfo {
+        MetaInfo::new(&self.kind, &self.item)
+    }
+}
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -24,7 +63,7 @@ pub struct PrivTypeInfo {
     type_check: Option<TypeCheck>,
     /// Complete detailed information on the hash.
     type_info: TypeInfo,
-    /// The name of the type.
+    /// Item of the type.
     item: ItemBuf,
     /// The hash of the type.
     type_hash: Hash,
@@ -55,7 +94,7 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
-    meta: HashMap<ItemBuf, ContextMeta>,
+    meta: HashMap<ItemBuf, PrivMeta>,
     /// Information on functions.
     functions_info: HashMap<Hash, meta::Signature>,
     /// Registered native function handlers.
@@ -243,7 +282,7 @@ impl Context {
     }
 
     /// Access the context meta for the given item.
-    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<&ContextMeta> {
+    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<&PrivMeta> {
         self.meta.get(name)
     }
 
@@ -253,7 +292,7 @@ impl Context {
     }
 
     /// Iterate over all metadata in the context.
-    pub fn iter_meta(&self) -> impl Iterator<Item = (&Item, &ContextMeta)> + '_ {
+    pub fn iter_meta(&self) -> impl Iterator<Item = (&Item, &PrivMeta)> + '_ {
         self.meta.iter().map(|(item, meta)| (item.as_ref(), meta))
     }
 
@@ -301,7 +340,7 @@ impl Context {
     }
 
     /// Install the given meta.
-    fn install_meta(&mut self, meta: ContextMeta) -> Result<(), ContextError> {
+    fn install_meta(&mut self, meta: PrivMeta) -> Result<(), ContextError> {
         match self.meta.entry(meta.item.clone()) {
             hash_map::Entry::Occupied(e) => {
                 return Err(ContextError::ConflictingMeta {
@@ -341,7 +380,7 @@ impl Context {
         let kind = if let Some(spec) = &ty.spec {
             match spec {
                 TypeSpecification::Struct(st) => meta::Kind::Struct {
-                    variant: meta::VariantKind::Struct(PrivStructMeta {
+                    variant: meta::Variant::Struct(meta::Struct {
                         fields: st.fields.clone(),
                     }),
                 },
@@ -356,16 +395,16 @@ impl Context {
 
                         let (variant, args) = match &variant.kind {
                             VariantKind::Tuple(t) => (
-                                meta::VariantKind::Tuple(PrivTupleMeta { args: t.args, hash }),
+                                meta::Variant::Tuple(meta::Tuple { args: t.args, hash }),
                                 Some(t.args),
                             ),
                             VariantKind::Struct(st) => (
-                                meta::VariantKind::Struct(PrivStructMeta {
+                                meta::Variant::Struct(meta::Struct {
                                     fields: st.fields.clone(),
                                 }),
                                 None,
                             ),
-                            VariantKind::Unit => (meta::VariantKind::Unit, Some(0)),
+                            VariantKind::Unit => (meta::Variant::Unit, Some(0)),
                         };
 
                         self.install_type_info(
@@ -405,7 +444,7 @@ impl Context {
                             variant,
                         };
 
-                        self.install_meta(ContextMeta::new(
+                        self.install_meta(PrivMeta::new(
                             module,
                             hash,
                             item,
@@ -421,7 +460,7 @@ impl Context {
             meta::Kind::Unknown
         };
 
-        self.install_meta(ContextMeta::new(module, type_hash, item, kind, docs))?;
+        self.install_meta(PrivMeta::new(module, type_hash, item, kind, docs))?;
         Ok(())
     }
 
@@ -480,7 +519,7 @@ impl Context {
 
         self.functions.insert(hash, f.handler.clone());
 
-        self.install_meta(ContextMeta::new(
+        self.install_meta(PrivMeta::new(
             module,
             hash,
             item,
@@ -528,7 +567,7 @@ impl Context {
         let hash = Hash::type_hash(&item);
         self.constants.insert(hash, v.clone());
 
-        self.install_meta(ContextMeta::new(
+        self.install_meta(PrivMeta::new(
             module,
             hash,
             item,
@@ -622,7 +661,7 @@ impl Context {
             self.functions.insert(hash, assoc.handler.clone());
 
             if !self.meta.contains_key(&item) {
-                self.install_meta(ContextMeta::new(
+                self.install_meta(PrivMeta::new(
                     module,
                     type_hash,
                     item,
@@ -680,7 +719,7 @@ impl Context {
         let enum_item = module.item.join(&internal_enum.base_type);
         let enum_hash = Hash::type_hash(&enum_item);
 
-        self.install_meta(ContextMeta::new(
+        self.install_meta(PrivMeta::new(
             module,
             internal_enum.static_type.hash,
             enum_item.clone(),
@@ -712,14 +751,14 @@ impl Context {
                 },
             )?;
 
-            self.install_meta(ContextMeta::new(
+            self.install_meta(PrivMeta::new(
                 module,
                 hash,
                 item.clone(),
                 meta::Kind::Variant {
                     enum_hash,
                     index,
-                    variant: meta::VariantKind::Tuple(PrivTupleMeta {
+                    variant: meta::Variant::Tuple(meta::Tuple {
                         args: variant.args,
                         hash,
                     }),
@@ -763,26 +802,26 @@ impl Context {
         let type_hash = <C::Return as TypeOf>::type_hash();
         let hash = Hash::type_hash(&item);
 
-        let tuple = PrivTupleMeta { args, hash };
+        let tuple = meta::Tuple { args, hash };
 
         let meta = match enum_item {
-            Some((enum_hash, index)) => ContextMeta::new(
+            Some((enum_hash, index)) => PrivMeta::new(
                 module,
                 type_hash,
                 item.clone(),
                 meta::Kind::Variant {
                     enum_hash,
                     index,
-                    variant: meta::VariantKind::Tuple(tuple),
+                    variant: meta::Variant::Tuple(tuple),
                 },
                 docs,
             ),
-            None => ContextMeta::new(
+            None => PrivMeta::new(
                 module,
                 type_hash,
                 item.clone(),
                 meta::Kind::Struct {
-                    variant: meta::VariantKind::Tuple(tuple),
+                    variant: meta::Variant::Tuple(tuple),
                 },
                 docs,
             ),

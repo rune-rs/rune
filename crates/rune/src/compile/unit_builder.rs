@@ -5,9 +5,9 @@
 
 use crate::ast::Span;
 use crate::collections::HashMap;
+use crate::compile::meta;
 use crate::compile::{
-    meta, Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, Pool,
-    PrivMeta, VariantKind,
+    Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, Pool,
 };
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
@@ -275,7 +275,7 @@ impl UnitBuilder {
     pub(crate) fn insert_meta(
         &mut self,
         span: Span,
-        meta: &PrivMeta,
+        meta: &meta::Meta,
         pool: &mut Pool,
     ) -> Result<(), QueryError> {
         match meta.kind {
@@ -300,7 +300,7 @@ impl UnitBuilder {
                 }
             }
             meta::Kind::Struct {
-                variant: VariantKind::Unit,
+                variant: meta::Variant::Unit,
                 ..
             } => {
                 let info = UnitFn::UnitStruct { hash: meta.hash };
@@ -339,7 +339,7 @@ impl UnitBuilder {
                 self.debug_info_mut().functions.insert(meta.hash, signature);
             }
             meta::Kind::Struct {
-                variant: VariantKind::Tuple(ref tuple),
+                variant: meta::Variant::Tuple(ref tuple),
                 ..
             } => {
                 let info = UnitFn::TupleStruct {
@@ -404,7 +404,7 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                variant: VariantKind::Unit,
+                variant: meta::Variant::Unit,
                 ..
             } => {
                 let rtti = Arc::new(VariantRtti {
@@ -440,7 +440,7 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                variant: VariantKind::Tuple(ref tuple),
+                variant: meta::Variant::Tuple(ref tuple),
                 ..
             } => {
                 let rtti = Arc::new(VariantRtti {
@@ -481,7 +481,7 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                variant: VariantKind::Struct(..),
+                variant: meta::Variant::Struct(..),
                 ..
             } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);

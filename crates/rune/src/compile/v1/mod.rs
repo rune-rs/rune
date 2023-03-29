@@ -1,7 +1,9 @@
 use crate::ast::Span;
+use crate::compile::ir;
+use crate::compile::meta;
 use crate::compile::{
-    ir, Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler,
-    IrInterpreter, ItemId, ItemMeta, Location, Options, PrivMeta,
+    Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler, IrInterpreter,
+    ItemId, ItemMeta, Location, Options,
 };
 use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -55,7 +57,11 @@ pub(crate) struct Assembler<'a> {
 
 impl<'a> Assembler<'a> {
     /// Access the meta for the given language item.
-    pub fn try_lookup_meta(&mut self, span: Span, item: ItemId) -> CompileResult<Option<PrivMeta>> {
+    pub fn try_lookup_meta(
+        &mut self,
+        span: Span,
+        item: ItemId,
+    ) -> CompileResult<Option<meta::Meta>> {
         tracing::trace!("lookup meta: {:?}", item);
 
         if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
@@ -81,7 +87,7 @@ impl<'a> Assembler<'a> {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, spanned: Span, item: ItemId) -> CompileResult<PrivMeta> {
+    pub fn lookup_meta(&mut self, spanned: Span, item: ItemId) -> CompileResult<meta::Meta> {
         if let Some(meta) = self.try_lookup_meta(spanned, item)? {
             return Ok(meta);
         }
@@ -156,7 +162,7 @@ impl<'a> Assembler<'a> {
     pub(crate) fn call_const_fn(
         &mut self,
         span: Span,
-        meta: &PrivMeta,
+        meta: &meta::Meta,
         from: &ItemMeta,
         query_const_fn: &QueryConstFn,
         args: &[hir::Expr<'_>],

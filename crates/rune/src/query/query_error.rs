@@ -1,9 +1,10 @@
-use crate::compile::{ImportStep, IrError, IrErrorKind, ItemBuf, Location, Meta, Visibility};
+use thiserror::Error;
+
+use crate::compile::{ImportStep, IrError, IrErrorKind, ItemBuf, Location, MetaInfo, Visibility};
 use crate::hir::{HirError, HirErrorKind};
 use crate::parse::{Id, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
 use crate::runtime::debug::DebugSignature;
 use crate::Hash;
-use thiserror::Error;
 
 error! {
     /// An error raised during querying.
@@ -87,14 +88,14 @@ pub enum QueryErrorKind {
     #[error("found indexed entry for `{item}`, but was not an import")]
     NotIndexedImport { item: ItemBuf },
     #[error("{meta} can't be used as an import")]
-    UnsupportedImportMeta { meta: Meta },
+    UnsupportedImportMeta { meta: MetaInfo },
     /// Tried to add an item that already exists.
     #[error("trying to insert `{current}` but conflicting meta `{existing}` already exists")]
     MetaConflict {
         /// The meta we tried to insert.
-        current: Meta,
+        current: MetaInfo,
         /// The existing item.
-        existing: Meta,
+        existing: MetaInfo,
     },
     #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
     VariantRttiConflict { hash: Hash },
