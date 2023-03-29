@@ -15,16 +15,19 @@ pub(crate) struct Meta<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub(crate) struct Function<'a> {
+    pub(crate) args: Option<&'a [String]>,
+    pub(crate) signature: Signature,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum Kind<'a> {
     Unsupported,
     Unknown,
     Struct,
     Variant,
     Enum,
-    Function {
-        args: Option<&'a [String]>,
-        signature: Signature,
-    },
+    Function(Function<'a>),
     Const(&'a ConstValue),
 }
 
@@ -77,10 +80,10 @@ impl<'a> Context<'a> {
                     meta::Kind::Struct { .. } => Kind::Struct,
                     meta::Kind::Variant { .. } => Kind::Variant,
                     meta::Kind::Enum => Kind::Enum,
-                    meta::Kind::Function { args, .. } => Kind::Function {
+                    meta::Kind::Function { args, .. } => Kind::Function(Function {
                         args: None,
                         signature: Signature::Function { args: *args },
-                    },
+                    }),
                     _ => Kind::Unsupported,
                 };
 
@@ -123,10 +126,10 @@ impl<'a> Context<'a> {
                     Signature::Function { args: *args }
                 };
 
-                Kind::Function {
+                Kind::Function(Function {
                     signature,
                     args: meta.docs.args(),
-                }
+                })
             }
             meta::Kind::Const { const_value } => Kind::Const(const_value),
             _ => Kind::Unsupported,

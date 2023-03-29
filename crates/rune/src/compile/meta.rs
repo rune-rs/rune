@@ -7,22 +7,10 @@ use std::sync::Arc;
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
-use crate::compile::{Docs, Item, ItemBuf, ItemId, Location, ModId, Pool, Visibility};
+use crate::compile::{Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::runtime::{ConstValue, TypeInfo};
-use crate::{Hash, InstFnKind, Module};
-
-/// Provides an owned human-readable description of a meta item.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct Meta {
-    /// The hash of the item.
-    pub hash: Hash,
-    /// The item being described.
-    pub item: ItemBuf,
-    /// The kind of the item.
-    pub kind: Kind,
-}
+use crate::{Hash, InstFnKind};
 
 /// Provides a human-readable description of a meta item. This is cheaper to use
 /// than [Meta] because it avoids having to clone some data.
@@ -37,48 +25,6 @@ pub struct MetaRef<'a> {
     pub kind: &'a Kind,
     /// The source of the meta.
     pub source: Option<&'a SourceMeta>,
-}
-
-impl fmt::Display for Meta {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            Kind::Unknown => {
-                write!(fmt, "unknown {}", self.item)?;
-            }
-            Kind::Struct { .. } => {
-                write!(fmt, "struct {}", self.item)?;
-            }
-            Kind::Variant { .. } => {
-                write!(fmt, "variant {}", self.item)?;
-            }
-            Kind::Enum => {
-                write!(fmt, "enum {}", self.item)?;
-            }
-            Kind::Function { .. } => {
-                write!(fmt, "fn {}", self.item)?;
-            }
-            Kind::Closure { .. } => {
-                write!(fmt, "closure {}", self.item)?;
-            }
-            Kind::AsyncBlock { .. } => {
-                write!(fmt, "async block {}", self.item)?;
-            }
-            Kind::Const { .. } => {
-                write!(fmt, "const {}", self.item)?;
-            }
-            Kind::ConstFn { .. } => {
-                write!(fmt, "const fn {}", self.item)?;
-            }
-            Kind::Import { .. } => {
-                write!(fmt, "import {}", self.item)?;
-            }
-            Kind::Module => {
-                write!(fmt, "module {}", self.item)?;
-            }
-        }
-
-        Ok(())
-    }
 }
 
 /// Information on a compile sourc.
@@ -116,48 +62,10 @@ impl Doc {
     }
 }
 
-/// Context metadata.
-#[non_exhaustive]
-pub struct ContextMeta {
-    /// The module that the declared item belongs to.
-    #[cfg(feature = "doc")]
-    pub module: ItemBuf,
-    /// Type hash for the given meta item.
-    pub hash: Hash,
-    /// The item of the returned compile meta.
-    pub item: ItemBuf,
-    /// The kind of the compile meta.
-    pub kind: Kind,
-    /// Documentation associated with a context meta.
-    pub docs: Docs,
-}
-
-impl ContextMeta {
-    pub(crate) fn new(module: &Module, hash: Hash, item: ItemBuf, kind: Kind, docs: Docs) -> Self {
-        Self {
-            #[cfg(feature = "doc")]
-            module: module.item.clone(),
-            hash,
-            item,
-            kind,
-            docs,
-        }
-    }
-
-    /// Get the [Meta] which describes this [ContextMeta] object.
-    pub(crate) fn info(&self) -> Meta {
-        Meta {
-            hash: self.hash,
-            item: self.item.clone(),
-            kind: self.kind.clone(),
-        }
-    }
-}
-
 /// Metadata about a compiled unit.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(crate) struct PrivMeta {
+pub(crate) struct Meta {
     /// Hash of the private metadata.
     pub(crate) hash: Hash,
     /// The item of the returned compile meta.
@@ -168,17 +76,13 @@ pub(crate) struct PrivMeta {
     pub(crate) source: Option<SourceMeta>,
 }
 
-impl PrivMeta {
-    /// Get the [Meta] which describes this [ContextMeta] object.
-    pub(crate) fn info(&self, pool: &Pool) -> Meta {
-        Meta {
-            hash: self.hash,
-            item: pool.item(self.item_meta.item).to_owned(),
-            kind: self.kind.clone(),
-        }
+impl Meta {
+    /// Get the [Meta] which describes metadata.
+    pub(crate) fn info(&self, pool: &Pool) -> MetaInfo {
+        MetaInfo::new(&self.kind, pool.item(self.item_meta.item))
     }
 
-    /// Get the [MetaRef] which describes this [PrivMeta] object.
+    /// Get the [MetaRef] which describes this [meta::Meta] object.
     pub(crate) fn as_meta_ref<'a>(&'a self, pool: &'a Pool) -> MetaRef<'a> {
         MetaRef {
             hash: self.hash,
@@ -212,17 +116,18 @@ impl PrivMeta {
 
 /// The kind of a variant.
 #[derive(Debug, Clone)]
-pub enum VariantKind {
+pub enum Variant {
     /// A tuple variant.
-    Tuple(PrivTupleMeta),
+    Tuple(Tuple),
     /// A struct variant.
-    Struct(PrivStructMeta),
+    Struct(Struct),
     /// A unit variant.
     Unit,
 }
 
 /// Compile-time metadata kind about a unit.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Kind {
     /// The type is completely opaque. We have no idea about what it is with the
     /// exception of it having a type hash.
@@ -230,7 +135,7 @@ pub enum Kind {
     /// Metadata about a struct.
     Struct {
         /// Variant metadata.
-        variant: VariantKind,
+        variant: Variant,
     },
     /// Metadata about an empty variant.
     Variant {
@@ -239,7 +144,7 @@ pub enum Kind {
         /// The index of the variant.
         index: usize,
         /// Variant metadata.
-        variant: VariantKind,
+        variant: Variant,
     },
     /// An enum item.
     Enum,
@@ -299,7 +204,7 @@ pub struct Import {
 /// The metadata about a struct.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct PrivStructMeta {
+pub struct Struct {
     /// Fields associated with the type.
     pub(crate) fields: HashSet<Box<str>>,
 }
@@ -307,7 +212,7 @@ pub struct PrivStructMeta {
 /// The metadata about a tuple.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct PrivTupleMeta {
+pub struct Tuple {
     /// The number of arguments the variant takes.
     pub(crate) args: usize,
     /// Hash of the constructor function.

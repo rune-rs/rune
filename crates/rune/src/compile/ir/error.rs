@@ -1,5 +1,5 @@
 use crate::ast::{Spanned, SpannedError};
-use crate::compile::{IrValue, Meta};
+use crate::compile::{IrValue, MetaInfo};
 use crate::hir::{HirError, HirErrorKind};
 use crate::parse::{ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
@@ -107,7 +107,7 @@ pub enum IrErrorKind {
     #[error("{meta} is not supported here")]
     UnsupportedMeta {
         /// Unsupported compile meta.
-        meta: Meta,
+        meta: MetaInfo,
     },
     /// A constant evaluation errored.
     #[error("expected a value of type {expected} but got {actual}")]

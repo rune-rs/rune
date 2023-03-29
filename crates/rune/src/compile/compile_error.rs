@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::{Span, Spanned, SpannedError};
-use crate::compile::{IrError, IrErrorKind, ItemBuf, Location, Meta};
+use crate::compile::{IrError, IrErrorKind, ItemBuf, Location, MetaInfo};
 use crate::hir::{HirError, HirErrorKind};
 use crate::parse::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
@@ -52,7 +52,7 @@ impl CompileError {
     }
 
     /// Error when we got mismatched meta.
-    pub fn expected_meta<S>(spanned: S, meta: Meta, expected: &'static str) -> Self
+    pub fn expected_meta<S>(spanned: S, meta: MetaInfo, expected: &'static str) -> Self
     where
         S: Spanned,
     {
@@ -141,7 +141,7 @@ pub enum CompileErrorKind {
     #[error("unsupported binary operator `{op}`")]
     UnsupportedBinaryOp { op: ast::BinOp },
     #[error("{meta} is not an object")]
-    UnsupportedLitObject { meta: Meta },
+    UnsupportedLitObject { meta: MetaInfo },
     #[error("missing field `{field}` in declaration of `{item}`")]
     LitObjectMissingField { field: Box<str>, item: ItemBuf },
     #[error("`{field}` is not a field in `{item}`")]
@@ -158,12 +158,12 @@ pub enum CompileErrorKind {
     BadFieldAccess,
     #[error("wrong number of arguments, expected `{expected}` but got `{actual}`")]
     UnsupportedArgumentCount {
-        meta: Meta,
+        meta: MetaInfo,
         expected: usize,
         actual: usize,
     },
     #[error("{meta} is not supported here")]
-    UnsupportedPattern { meta: Meta },
+    UnsupportedPattern { meta: MetaInfo },
     #[error("this kind of expression is not supported as a pattern")]
     UnsupportedPatternExpr,
     #[error("not a valid binding")]
@@ -272,7 +272,10 @@ pub enum CompileErrorKind {
     #[error("visibility modifier not supported")]
     UnsupportedVisibility,
     #[error("expected {expected} but got `{meta}`")]
-    ExpectedMeta { expected: &'static str, meta: Meta },
+    ExpectedMeta {
+        expected: &'static str,
+        meta: MetaInfo,
+    },
     #[error("no such built-in macro `{name}`")]
     NoSuchBuiltInMacro { name: Box<str> },
     #[error("variable moved")]
