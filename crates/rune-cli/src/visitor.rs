@@ -1,4 +1,5 @@
-use rune::compile::{CompileVisitor, ItemBuf, MetaKind, MetaRef};
+use rune::compile::meta;
+use rune::compile::{CompileVisitor, ItemBuf, MetaRef};
 use rune::Hash;
 
 /// Attribute to collect.
@@ -35,8 +36,8 @@ impl FunctionVisitor {
 impl CompileVisitor for FunctionVisitor {
     fn register_meta(&mut self, meta: MetaRef<'_>) {
         let type_hash = match (self.attribute, &meta.kind) {
-            (Attribute::Test, MetaKind::Function { is_test, .. }) if *is_test => meta.hash,
-            (Attribute::Bench, MetaKind::Function { is_bench, .. }) if *is_bench => meta.hash,
+            (Attribute::Test, meta::Kind::Function { is_test, .. }) if *is_test => meta.hash,
+            (Attribute::Bench, meta::Kind::Function { is_bench, .. }) if *is_bench => meta.hash,
             _ => return,
         };
 

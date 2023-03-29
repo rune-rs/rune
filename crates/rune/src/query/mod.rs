@@ -11,11 +11,10 @@ use crate::ast::{Span, Spanned};
 use crate::collections::LinkedHashMap;
 use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::{
-    ir, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ContextMeta,
-    ContextMetaKind, Doc, ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item,
+    ir, meta, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef,
+    ContextMeta, Doc, ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item,
     ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta, Names, Pool, Prelude, PrivMeta,
-    PrivMetaKind, PrivStructMeta, PrivTupleMeta, PrivVariantMeta, SourceMeta, UnitBuilder,
-    Visibility,
+    PrivStructMeta, PrivTupleMeta, SourceMeta, UnitBuilder, VariantKind, Visibility,
 };
 use crate::hir;
 use crate::macros::Storage;
@@ -621,38 +620,6 @@ impl<'a> Query<'a> {
         span: Span,
         context_meta: &ContextMeta,
     ) -> Result<PrivMeta, QueryError> {
-        let kind = match context_meta.kind {
-            ContextMetaKind::Unknown => PrivMetaKind::Unknown,
-            ContextMetaKind::Struct { ref variant } => PrivMetaKind::Struct {
-                variant: variant.clone(),
-            },
-            ContextMetaKind::Variant {
-                ref enum_item,
-                enum_hash,
-                index,
-                ref variant,
-            } => PrivMetaKind::Variant {
-                enum_item: self.pool.alloc_item(enum_item),
-                enum_hash,
-                index,
-                variant: variant.clone(),
-            },
-            ContextMetaKind::Enum => PrivMetaKind::Enum,
-            ContextMetaKind::Function {
-                args,
-                instance_function,
-                ..
-            } => PrivMetaKind::Function {
-                args,
-                is_test: false,
-                is_bench: false,
-                instance_function,
-            },
-            ContextMetaKind::Const { ref const_value } => PrivMetaKind::Const {
-                const_value: const_value.clone(),
-            },
-        };
-
         let meta = PrivMeta {
             hash: context_meta.hash,
             item_meta: ItemMeta {
@@ -662,7 +629,7 @@ impl<'a> Query<'a> {
                 visibility: Default::default(),
                 module: Default::default(),
             },
-            kind,
+            kind: context_meta.kind.clone(),
             source: None,
         };
 
@@ -872,7 +839,7 @@ impl<'a> Query<'a> {
         let target = self.pool.alloc_item(target);
         let location = Location::new(source_id, span);
 
-        let entry = ImportEntry {
+        let entry = meta::Import {
             location,
             target,
             module,
@@ -989,11 +956,11 @@ impl<'a> Query<'a> {
         item: ItemId,
         used: Used,
         path: &mut Vec<ImportStep>,
-    ) -> Result<Option<ImportEntry>, QueryError> {
+    ) -> Result<Option<meta::Import>, QueryError> {
         // already resolved query.
         if let Some(meta) = self.inner.meta.get(&item) {
             return Ok(match meta.kind {
-                PrivMetaKind::Import { import } => Some(import),
+                meta::Kind::Import(import) => Some(import),
                 _ => None,
             });
         }
@@ -1025,7 +992,7 @@ impl<'a> Query<'a> {
         let meta = PrivMeta {
             hash: self.pool.item_type_hash(entry.item_meta.item),
             item_meta: entry.item_meta,
-            kind: PrivMetaKind::Import { import },
+            kind: meta::Kind::Import(import),
             source: None,
         };
 
@@ -1045,7 +1012,7 @@ impl<'a> Query<'a> {
         let (hash, kind) = match indexed {
             Indexed::Enum => {
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, PrivMetaKind::Enum)
+                (hash, meta::Kind::Enum)
             }
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((item_meta.location.span, variant.enum_id))?;
@@ -1057,20 +1024,19 @@ impl<'a> Query<'a> {
                 variant_into_item_decl(
                     self.pool.item(item_meta.item),
                     variant.ast.body,
-                    Some((enum_item.item, enum_hash, variant.index)),
+                    Some((enum_hash, variant.index)),
                     resolve_context!(self),
                 )?
             }
             Indexed::Struct(st) => struct_into_item_decl(
                 self.pool.item(item_meta.item),
                 st.ast.body,
-                None,
                 resolve_context!(self),
             )?,
             Indexed::Function(f) => {
                 let hash = self.pool.item_type_hash(item_meta.item);
 
-                let kind = PrivMetaKind::Function {
+                let kind = meta::Kind::Function {
                     args: Some(f.function.ast.args.len()),
                     is_test: f.is_test,
                     is_bench: f.is_bench,
@@ -1088,7 +1054,7 @@ impl<'a> Query<'a> {
             Indexed::InstanceFunction(f) => {
                 let hash = self.pool.item_type_hash(item_meta.item);
 
-                let kind = PrivMetaKind::Function {
+                let kind = meta::Kind::Function {
                     args: Some(f.function.ast.args.len()),
                     is_test: false,
                     is_bench: false,
@@ -1115,7 +1081,7 @@ impl<'a> Query<'a> {
 
                 let hash = self.pool.item_type_hash(item_meta.item);
 
-                let kind = PrivMetaKind::Closure { captures, do_move };
+                let kind = meta::Kind::Closure { captures, do_move };
 
                 (hash, kind)
             }
@@ -1131,7 +1097,7 @@ impl<'a> Query<'a> {
 
                 let hash = self.pool.item_type_hash(item_meta.item);
 
-                let kind = PrivMetaKind::AsyncBlock { captures, do_move };
+                let kind = meta::Kind::AsyncBlock { captures, do_move };
 
                 (hash, kind)
             }
@@ -1155,7 +1121,7 @@ impl<'a> Query<'a> {
                 }
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, PrivMetaKind::Const { const_value })
+                (hash, meta::Kind::Const { const_value })
             }
             Indexed::ConstFn(c) => {
                 let ir_fn = {
@@ -1181,7 +1147,7 @@ impl<'a> Query<'a> {
                 }
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, PrivMetaKind::ConstFn { id: Id::new(id) })
+                (hash, meta::Kind::ConstFn { id: Id::new(id) })
             }
             Indexed::Import(import) => {
                 if !import.wildcard {
@@ -1193,16 +1159,12 @@ impl<'a> Query<'a> {
                 }
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-
-                let kind = PrivMetaKind::Import {
-                    import: import.entry,
-                };
-
+                let kind = meta::Kind::Import(import.entry);
                 (hash, kind)
             }
             Indexed::Module => {
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, PrivMetaKind::Module)
+                (hash, meta::Kind::Module)
             }
         };
 
@@ -1346,7 +1308,7 @@ impl<'a> Query<'a> {
                 if let Some(meta) = self.query_meta(span, item, Used::Used)? {
                     if !matches!(
                         meta.kind,
-                        PrivMetaKind::Function {
+                        meta::Kind::Function {
                             instance_function: true,
                             ..
                         }
@@ -1489,7 +1451,7 @@ pub(crate) enum Indexed {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Import {
     /// The import entry.
-    pub(crate) entry: ImportEntry,
+    pub(crate) entry: meta::Import,
     /// Indicates if the import is a wildcard or not.
     ///
     /// Wildcard imports do not cause unused warnings.
@@ -1700,18 +1662,17 @@ impl fmt::Display for Named<'_> {
 }
 
 /// Construct metadata for an empty body.
-fn unit_body_meta(item: &Item, enum_item: Option<(ItemId, Hash, usize)>) -> (Hash, PrivMetaKind) {
+fn unit_body_meta(item: &Item, enum_item: Option<(Hash, usize)>) -> (Hash, meta::Kind) {
     let type_hash = Hash::type_hash(item);
 
     let kind = match enum_item {
-        Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
-            enum_item,
+        Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: PrivVariantMeta::Unit,
+            variant: VariantKind::Unit,
         },
-        None => PrivMetaKind::Struct {
-            variant: PrivVariantMeta::Unit,
+        None => meta::Kind::Struct {
+            variant: VariantKind::Unit,
         },
     };
 
@@ -1721,9 +1682,9 @@ fn unit_body_meta(item: &Item, enum_item: Option<(ItemId, Hash, usize)>) -> (Has
 /// Construct metadata for an empty body.
 fn tuple_body_meta(
     item: &Item,
-    enum_: Option<(ItemId, Hash, usize)>,
+    enum_: Option<(Hash, usize)>,
     tuple: ast::Parenthesized<ast::Field, T![,]>,
-) -> (Hash, PrivMetaKind) {
+) -> (Hash, meta::Kind) {
     let type_hash = Hash::type_hash(item);
 
     let tuple = PrivTupleMeta {
@@ -1732,14 +1693,13 @@ fn tuple_body_meta(
     };
 
     let kind = match enum_ {
-        Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
-            enum_item,
+        Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: PrivVariantMeta::Tuple(tuple),
+            variant: VariantKind::Tuple(tuple),
         },
-        None => PrivMetaKind::Struct {
-            variant: PrivVariantMeta::Tuple(tuple),
+        None => meta::Kind::Struct {
+            variant: VariantKind::Tuple(tuple),
         },
     };
 
@@ -1749,10 +1709,10 @@ fn tuple_body_meta(
 /// Construct metadata for a struct body.
 fn struct_body_meta(
     item: &Item,
-    enum_: Option<(ItemId, Hash, usize)>,
+    enum_: Option<(Hash, usize)>,
     ctx: ResolveContext<'_>,
     st: ast::Braced<ast::Field, T![,]>,
-) -> Result<(Hash, PrivMetaKind), QueryError> {
+) -> Result<(Hash, meta::Kind), QueryError> {
     let type_hash = Hash::type_hash(item);
 
     let mut fields = HashSet::new();
@@ -1765,14 +1725,13 @@ fn struct_body_meta(
     let st = PrivStructMeta { fields };
 
     let kind = match enum_ {
-        Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
-            enum_item,
+        Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: PrivVariantMeta::Struct(st),
+            variant: VariantKind::Struct(st),
         },
-        None => PrivMetaKind::Struct {
-            variant: PrivVariantMeta::Struct(st),
+        None => meta::Kind::Struct {
+            variant: VariantKind::Struct(st),
         },
     };
 
@@ -1783,9 +1742,9 @@ fn struct_body_meta(
 fn variant_into_item_decl(
     item: &Item,
     body: ast::ItemVariantBody,
-    enum_: Option<(ItemId, Hash, usize)>,
+    enum_: Option<(Hash, usize)>,
     ctx: ResolveContext<'_>,
-) -> Result<(Hash, PrivMetaKind), QueryError> {
+) -> Result<(Hash, meta::Kind), QueryError> {
     Ok(match body {
         ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_),
         ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
@@ -1797,26 +1756,13 @@ fn variant_into_item_decl(
 fn struct_into_item_decl(
     item: &Item,
     body: ast::ItemStructBody,
-    enum_: Option<(ItemId, Hash, usize)>,
     ctx: ResolveContext<'_>,
-) -> Result<(Hash, PrivMetaKind), QueryError> {
+) -> Result<(Hash, meta::Kind), QueryError> {
     Ok(match body {
-        ast::ItemStructBody::UnitBody => unit_body_meta(item, enum_),
-        ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
-        ast::ItemStructBody::StructBody(st) => struct_body_meta(item, enum_, ctx, st)?,
+        ast::ItemStructBody::UnitBody => unit_body_meta(item, None),
+        ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, None, tuple),
+        ast::ItemStructBody::StructBody(st) => struct_body_meta(item, None, ctx, st)?,
     })
-}
-
-/// An imported entry.
-#[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
-pub(crate) struct ImportEntry {
-    /// The location of the import.
-    pub(crate) location: Location,
-    /// The item being imported.
-    pub(crate) target: ItemId,
-    /// The module in which the imports is located.
-    pub(crate) module: ModId,
 }
 
 fn into_chain(chain: Vec<ImportStep>) -> Vec<Location> {

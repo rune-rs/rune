@@ -6,8 +6,8 @@
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{
-    Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, Pool,
-    PrivMeta, PrivMetaKind, PrivVariantMeta,
+    meta, Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, Pool,
+    PrivMeta, VariantKind,
 };
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
@@ -279,7 +279,7 @@ impl UnitBuilder {
         pool: &mut Pool,
     ) -> Result<(), QueryError> {
         match meta.kind {
-            PrivMetaKind::Unknown { .. } => {
+            meta::Kind::Unknown { .. } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
@@ -299,8 +299,8 @@ impl UnitBuilder {
                     ));
                 }
             }
-            PrivMetaKind::Struct {
-                variant: PrivVariantMeta::Unit,
+            meta::Kind::Struct {
+                variant: VariantKind::Unit,
                 ..
             } => {
                 let info = UnitFn::UnitStruct { hash: meta.hash };
@@ -338,8 +338,8 @@ impl UnitBuilder {
 
                 self.debug_info_mut().functions.insert(meta.hash, signature);
             }
-            PrivMetaKind::Struct {
-                variant: PrivVariantMeta::Tuple(ref tuple),
+            meta::Kind::Struct {
+                variant: VariantKind::Tuple(ref tuple),
                 ..
             } => {
                 let info = UnitFn::TupleStruct {
@@ -382,7 +382,7 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            PrivMetaKind::Struct { .. } => {
+            meta::Kind::Struct { .. } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
@@ -402,13 +402,11 @@ impl UnitBuilder {
                     ));
                 }
             }
-            PrivMetaKind::Variant {
-                enum_item,
-                variant: PrivVariantMeta::Unit,
+            meta::Kind::Variant {
+                enum_hash,
+                variant: VariantKind::Unit,
                 ..
             } => {
-                let enum_hash = pool.item_type_hash(enum_item);
-
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: meta.hash,
@@ -440,13 +438,11 @@ impl UnitBuilder {
 
                 self.debug_info_mut().functions.insert(meta.hash, signature);
             }
-            PrivMetaKind::Variant {
-                enum_item,
-                variant: PrivVariantMeta::Tuple(ref tuple),
+            meta::Kind::Variant {
+                enum_hash,
+                variant: VariantKind::Tuple(ref tuple),
                 ..
             } => {
-                let enum_hash = pool.item_type_hash(enum_item);
-
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: tuple.hash,
@@ -483,13 +479,12 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            PrivMetaKind::Variant {
-                enum_item,
-                variant: PrivVariantMeta::Struct(..),
+            meta::Kind::Variant {
+                enum_hash,
+                variant: VariantKind::Struct(..),
                 ..
             } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
-                let enum_hash = pool.item_type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
@@ -504,24 +499,24 @@ impl UnitBuilder {
                     ));
                 }
             }
-            PrivMetaKind::Enum { .. } => {
+            meta::Kind::Enum { .. } => {
                 self.constants.insert(
                     Hash::instance_function(meta.hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(pool.item(meta.item_meta.item).to_string()),
                 );
             }
-            PrivMetaKind::Function { .. } => (),
-            PrivMetaKind::Closure { .. } => (),
-            PrivMetaKind::AsyncBlock { .. } => (),
-            PrivMetaKind::Const { ref const_value } => {
+            meta::Kind::Function { .. } => (),
+            meta::Kind::Closure { .. } => (),
+            meta::Kind::AsyncBlock { .. } => (),
+            meta::Kind::Const { ref const_value } => {
                 self.constants.insert(
                     pool.item_type_hash(meta.item_meta.item),
                     const_value.clone(),
                 );
             }
-            PrivMetaKind::ConstFn { .. } => (),
-            PrivMetaKind::Import { .. } => (),
-            PrivMetaKind::Module { .. } => (),
+            meta::Kind::ConstFn { .. } => (),
+            meta::Kind::Import { .. } => (),
+            meta::Kind::Module { .. } => (),
         }
 
         Ok(())

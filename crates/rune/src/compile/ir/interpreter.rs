@@ -1,7 +1,5 @@
 use crate::ast::{Span, Spanned};
-use crate::compile::{
-    ir, IrError, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId, PrivMetaKind,
-};
+use crate::compile::{ir, meta, IrError, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
 
@@ -104,7 +102,7 @@ impl IrInterpreter<'_> {
 
             if let Some(meta) = self.q.query_meta(spanned, item, used)? {
                 match &meta.kind {
-                    PrivMetaKind::Const { const_value, .. } => {
+                    meta::Kind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value));
                     }
                     _ => {
@@ -156,7 +154,7 @@ impl IrInterpreter<'_> {
 
             if let Some(meta) = self.q.query_meta(span, item, used)? {
                 match &meta.kind {
-                    PrivMetaKind::ConstFn { id, .. } => {
+                    meta::Kind::ConstFn { id, .. } => {
                         break *id;
                     }
                     _ => {

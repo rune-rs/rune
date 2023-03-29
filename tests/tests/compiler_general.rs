@@ -1,5 +1,6 @@
 use rune::compile::CompileErrorKind::*;
-use rune::compile::{Meta, MetaKind};
+use rune::compile::Meta;
+use rune::compile::meta;
 use rune::span;
 use rune_tests::*;
 
@@ -7,7 +8,7 @@ use rune_tests::*;
 fn test_use_variant_as_type() {
     assert_compile_error! {
         r#"pub fn main() { Err(0) is Err }"#,
-        span, ExpectedMeta { meta: Meta { kind: MetaKind::TupleVariant { .. }, .. }, .. } => {
+        span, ExpectedMeta { meta: Meta { kind: meta::Kind::Variant { variant: meta::VariantKind::Tuple(..), .. }, .. }, .. } => {
             assert_eq!(span, span!(26, 29));
         }
     };
