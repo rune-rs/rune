@@ -17,6 +17,8 @@ use crate::{Hash, InstFnKind, Module};
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Meta {
+    /// The hash of the item.
+    pub hash: Hash,
     /// The item being described.
     pub item: ItemBuf,
     /// The kind of the item.
@@ -28,6 +30,8 @@ pub struct Meta {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct MetaRef<'a> {
+    /// The hash of a meta item.
+    pub hash: Hash,
     /// The item being described.
     pub item: &'a Item,
     /// The kind of the item.
@@ -60,8 +64,6 @@ pub enum MetaKind {
     Function {
         /// The number of arguments the function takes.
         args: Option<usize>,
-        /// The type hash of the function.
-        type_hash: Hash,
         /// If the function is a test.
         is_test: bool,
         /// If the function is a benchmark.
@@ -184,6 +186,8 @@ pub struct ContextMeta {
     /// The module that the declared item belongs to.
     #[cfg(feature = "doc")]
     pub module: ItemBuf,
+    /// Type hash for the given meta item.
+    pub hash: Hash,
     /// The item of the returned compile meta.
     pub item: ItemBuf,
     /// The kind of the compile meta.
@@ -193,10 +197,17 @@ pub struct ContextMeta {
 }
 
 impl ContextMeta {
-    pub(crate) fn new(module: &Module, item: ItemBuf, kind: ContextMetaKind, docs: Docs) -> Self {
+    pub(crate) fn new(
+        module: &Module,
+        hash: Hash,
+        item: ItemBuf,
+        kind: ContextMetaKind,
+        docs: Docs,
+    ) -> Self {
         Self {
             #[cfg(feature = "doc")]
             module: module.item.clone(),
+            hash,
             item,
             kind,
             docs,
@@ -206,6 +217,7 @@ impl ContextMeta {
     /// Get the [Meta] which describes this [ContextMeta] object.
     pub(crate) fn info(&self) -> Meta {
         Meta {
+            hash: self.hash,
             item: self.item.clone(),
             kind: self.kind.as_meta_info_kind(),
         }
@@ -217,18 +229,14 @@ impl ContextMeta {
 pub enum ContextMetaKind {
     /// The type is completely opaque. We have no idea about what it is with the
     /// exception of it having a type hash.
-    Unknown { type_hash: Hash },
+    Unknown,
     /// Metadata about a struct.
     Struct {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
         /// Variant metadata.
         variant: PrivVariantMeta,
     },
     /// Metadata about an empty variant.
     Variant {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
         /// The item of the enum.
         enum_item: ItemBuf,
         /// Type hash of the enum this unit variant belongs to.
@@ -239,16 +247,11 @@ pub enum ContextMetaKind {
         variant: PrivVariantMeta,
     },
     /// An enum item.
-    Enum {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
-    },
+    Enum,
     /// A function declaration.
     Function {
         /// Number of arguments this function takes.
         args: Option<usize>,
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
         /// Indicates if the function is an instance function or not.
         instance_function: bool,
     },
@@ -289,11 +292,8 @@ impl ContextMetaKind {
                 ..
             } => MetaKind::StructVariant,
             ContextMetaKind::Enum { .. } => MetaKind::Enum,
-            ContextMetaKind::Function {
-                args, type_hash, ..
-            } => MetaKind::Function {
+            ContextMetaKind::Function { args, .. } => MetaKind::Function {
                 args: *args,
-                type_hash: *type_hash,
                 is_bench: false,
                 is_test: false,
             },
@@ -306,6 +306,8 @@ impl ContextMetaKind {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub(crate) struct PrivMeta {
+    /// Hash of the private metadata.
+    pub(crate) hash: Hash,
     /// The item of the returned compile meta.
     pub(crate) item_meta: ItemMeta,
     /// The kind of the compile meta.
@@ -318,6 +320,7 @@ impl PrivMeta {
     /// Get the [Meta] which describes this [ContextMeta] object.
     pub(crate) fn info(&self, pool: &Pool) -> Meta {
         Meta {
+            hash: self.hash,
             item: pool.item(self.item_meta.item).to_owned(),
             kind: self.kind.as_meta_info_kind(),
         }
@@ -326,6 +329,7 @@ impl PrivMeta {
     /// Get the [MetaRef] which describes this [PrivMeta] object.
     pub(crate) fn as_meta_ref<'a>(&'a self, pool: &'a Pool) -> MetaRef<'a> {
         MetaRef {
+            hash: self.hash,
             item: pool.item(self.item_meta.item),
             kind: self.kind.as_meta_info_kind(),
             source: self.source.as_ref(),
@@ -339,12 +343,12 @@ impl PrivMeta {
     /// compare them against the enum type.
     pub(crate) fn type_hash_of(&self) -> Option<Hash> {
         match &self.kind {
-            PrivMetaKind::Unknown { type_hash, .. } => Some(*type_hash),
-            PrivMetaKind::Struct { type_hash, .. } => Some(*type_hash),
-            PrivMetaKind::Enum { type_hash, .. } => Some(*type_hash),
-            PrivMetaKind::Function { type_hash, .. } => Some(*type_hash),
-            PrivMetaKind::Closure { type_hash, .. } => Some(*type_hash),
-            PrivMetaKind::AsyncBlock { type_hash, .. } => Some(*type_hash),
+            PrivMetaKind::Unknown { .. } => Some(self.hash),
+            PrivMetaKind::Struct { .. } => Some(self.hash),
+            PrivMetaKind::Enum { .. } => Some(self.hash),
+            PrivMetaKind::Function { .. } => Some(self.hash),
+            PrivMetaKind::Closure { .. } => Some(self.hash),
+            PrivMetaKind::AsyncBlock { .. } => Some(self.hash),
             PrivMetaKind::Variant { .. } => None,
             PrivMetaKind::Const { .. } => None,
             PrivMetaKind::ConstFn { .. } => None,
@@ -367,18 +371,14 @@ pub enum PrivVariantMeta {
 pub(crate) enum PrivMetaKind {
     /// The type is completely opaque. We have no idea about what it is with the
     /// exception of it having a type hash.
-    Unknown { type_hash: Hash },
+    Unknown,
     /// Metadata about a struct.
     Struct {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
         /// Variant metadata.
         variant: PrivVariantMeta,
     },
     /// Metadata about an empty variant.
     Variant {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
         /// The item of the enum.
         enum_item: ItemId,
         /// Type hash of the enum this unit variant belongs to.
@@ -389,14 +389,9 @@ pub(crate) enum PrivMetaKind {
         variant: PrivVariantMeta,
     },
     /// An enum item.
-    Enum {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
-    },
+    Enum,
     /// A function declaration.
     Function {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
         /// The number of arguments the function takes.
         args: Option<usize>,
         /// Whether this function has a `#[test]` annotation
@@ -408,8 +403,6 @@ pub(crate) enum PrivMetaKind {
     },
     /// A closure.
     Closure {
-        /// The type hash associated with this meta kind.
-        type_hash: Hash,
         /// Sequence of captured variables.
         captures: Arc<[CaptureMeta]>,
         /// If the closure moves its environment.
@@ -417,8 +410,6 @@ pub(crate) enum PrivMetaKind {
     },
     /// An async block.
     AsyncBlock {
-        /// The span where the async block is declared.
-        type_hash: Hash,
         /// Sequence of captured variables.
         captures: Arc<[CaptureMeta]>,
         /// If the async block moves its environment.
@@ -475,13 +466,11 @@ impl PrivMetaKind {
             PrivMetaKind::Enum { .. } => MetaKind::Enum,
             PrivMetaKind::Function {
                 args,
-                type_hash,
                 is_bench,
                 is_test,
                 ..
             } => MetaKind::Function {
                 args: *args,
-                type_hash: *type_hash,
                 is_bench: *is_bench,
                 is_test: *is_test,
             },

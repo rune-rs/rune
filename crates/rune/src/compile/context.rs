@@ -56,12 +56,15 @@ pub struct Context {
     has_default_modules: bool,
     /// Item metadata in the context.
     meta: HashMap<ItemBuf, ContextMeta>,
-    /// Registered native function handlers.
-    functions: HashMap<Hash, Arc<FunctionHandler>>,
-    /// Registered native macro handlers.
-    macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Information on functions.
     functions_info: HashMap<Hash, ContextSignature>,
+    /// Registered native function handlers.
+    functions: HashMap<Hash, Arc<FunctionHandler>>,
+    /// Information on associated types.
+    #[cfg(feature = "doc")]
+    associated: HashMap<Hash, Vec<ItemBuf>>,
+    /// Registered native macro handlers.
+    macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
     types: HashMap<Hash, PrivTypeInfo>,
     /// Reverse lookup for types, which maps the item type hash to the internal
@@ -267,6 +270,15 @@ impl Context {
         self.functions.get(&hash)
     }
 
+    /// Get all associated types for the given hash.
+    #[cfg(feature = "doc")]
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &Item> {
+        self.associated
+            .get(&hash)
+            .into_iter()
+            .flat_map(|items| items.iter().map(|i| i.as_ref()))
+    }
+
     /// Lookup the given macro handler.
     pub(crate) fn lookup_macro(&self, hash: Hash) -> Option<&Arc<MacroHandler>> {
         self.macros.get(&hash)
@@ -329,14 +341,16 @@ impl Context {
             },
         )?;
 
-        let kind = if let Some(spec) = &ty.spec {
+        let (hash, kind) = if let Some(spec) = &ty.spec {
             match spec {
-                TypeSpecification::Struct(st) => ContextMetaKind::Struct {
+                TypeSpecification::Struct(st) => (
                     type_hash,
-                    variant: PrivVariantMeta::Struct(PrivStructMeta {
-                        fields: st.fields.clone(),
-                    }),
-                },
+                    ContextMetaKind::Struct {
+                        variant: PrivVariantMeta::Struct(PrivStructMeta {
+                            fields: st.fields.clone(),
+                        }),
+                    },
+                ),
                 TypeSpecification::Enum(en) => {
                     let enum_item = &item;
                     let enum_hash = type_hash;
@@ -392,24 +406,29 @@ impl Context {
                         }
 
                         let kind = ContextMetaKind::Variant {
-                            type_hash: hash,
                             enum_item: enum_item.clone(),
                             enum_hash,
                             index,
                             variant,
                         };
 
-                        self.install_meta(ContextMeta::new(module, item, kind, Docs::default()))?;
+                        self.install_meta(ContextMeta::new(
+                            module,
+                            hash,
+                            item,
+                            kind,
+                            Docs::default(),
+                        ))?;
                     }
 
-                    ContextMetaKind::Enum { type_hash }
+                    (type_hash, ContextMetaKind::Enum)
                 }
             }
         } else {
-            ContextMetaKind::Unknown { type_hash }
+            (type_hash, ContextMetaKind::Unknown)
         };
 
-        self.install_meta(ContextMeta::new(module, item, kind, docs))?;
+        self.install_meta(ContextMeta::new(module, hash, item, kind, docs))?;
         Ok(())
     }
 
@@ -470,9 +489,9 @@ impl Context {
 
         self.install_meta(ContextMeta::new(
             module,
+            hash,
             item,
             ContextMetaKind::Function {
-                type_hash: hash,
                 args: f.args,
                 instance_function: f.instance_function,
             },
@@ -512,11 +531,11 @@ impl Context {
         self.names.insert(&item);
 
         let hash = Hash::type_hash(&item);
-
         self.constants.insert(hash, v.clone());
 
         self.install_meta(ContextMeta::new(
             module,
+            hash,
             item,
             ContextMetaKind::Const {
                 const_value: v.clone(),
@@ -578,6 +597,12 @@ impl Context {
             let item = info.item.extended(name);
             self.names.insert(&item);
 
+            #[cfg(feature = "doc")]
+            self.associated
+                .entry(key.type_hash)
+                .or_default()
+                .push(item.clone());
+
             let type_hash = Hash::type_hash(&item);
             let hash = type_hash.with_parameters(key.parameters);
 
@@ -599,20 +624,20 @@ impl Context {
                 });
             }
 
+            self.functions.insert(hash, assoc.handler.clone());
+
             if !self.meta.contains_key(&item) {
                 self.install_meta(ContextMeta::new(
                     module,
+                    type_hash,
                     item,
                     ContextMetaKind::Function {
-                        type_hash,
                         args: assoc.args,
                         instance_function: true,
                     },
                     assoc.docs.clone(),
                 ))?;
             }
-
-            self.functions.insert(hash, assoc.handler.clone());
         }
 
         Ok(())
@@ -660,10 +685,9 @@ impl Context {
 
         self.install_meta(ContextMeta::new(
             module,
+            internal_enum.static_type.hash,
             enum_item.clone(),
-            ContextMetaKind::Enum {
-                type_hash: internal_enum.static_type.hash,
-            },
+            ContextMetaKind::Enum,
             docs,
         ))?;
 
@@ -693,9 +717,9 @@ impl Context {
 
             self.install_meta(ContextMeta::new(
                 module,
+                hash,
                 item.clone(),
                 ContextMetaKind::Variant {
-                    type_hash: hash,
                     enum_item: enum_item.clone(),
                     enum_hash,
                     index,
@@ -748,9 +772,9 @@ impl Context {
         let meta = match enum_item {
             Some((enum_item, enum_hash, index)) => ContextMeta::new(
                 module,
+                type_hash,
                 item.clone(),
                 ContextMetaKind::Variant {
-                    type_hash,
                     enum_item,
                     enum_hash,
                     index,
@@ -758,16 +782,15 @@ impl Context {
                 },
                 docs,
             ),
-            None => ContextMeta {
-                #[cfg(feature = "doc")]
-                module: module.item.clone(),
-                item: item.clone(),
-                kind: ContextMetaKind::Struct {
-                    type_hash,
+            None => ContextMeta::new(
+                module,
+                type_hash,
+                item.clone(),
+                ContextMetaKind::Struct {
                     variant: PrivVariantMeta::Tuple(tuple),
                 },
                 docs,
-            },
+            ),
         };
 
         self.install_meta(meta)?;
