@@ -97,19 +97,17 @@ fn meta(
     if let Needs::Value = needs {
         match &meta.kind {
             PrivMetaKind::Struct {
-                type_hash,
                 variant: PrivVariantMeta::Unit,
                 ..
             }
             | PrivMetaKind::Variant {
-                type_hash,
                 variant: PrivVariantMeta::Unit,
                 ..
             } => {
                 named.assert_not_generic()?;
                 c.asm.push_with_comment(
                     Inst::Call {
-                        hash: *type_hash,
+                        hash: meta.hash,
                         args: 0,
                     },
                     span,
@@ -156,12 +154,12 @@ fn meta(
                     meta.info(c.q.pool).to_string(),
                 );
             }
-            PrivMetaKind::Function { type_hash, .. } => {
+            PrivMetaKind::Function { .. } => {
                 let hash = if let Some((span, generics)) = named.generics {
                     let parameters = generics_parameters(span, c, generics)?;
-                    type_hash.with_parameters(parameters)
+                    meta.hash.with_parameters(parameters)
                 } else {
-                    *type_hash
+                    meta.hash
                 };
 
                 c.asm.push_with_comment(
@@ -499,22 +497,20 @@ fn struct_match_for<'a>(
 ) -> Option<(&'a PrivStructMeta, Inst)> {
     Some(match &meta.kind {
         PrivMetaKind::Struct {
-            type_hash,
             variant: PrivVariantMeta::Struct(st),
             ..
-        } => (st, Inst::MatchType { hash: *type_hash }),
+        } => (st, Inst::MatchType { hash: meta.hash }),
         PrivMetaKind::Variant {
-            type_hash,
             enum_hash,
             index,
             variant: PrivVariantMeta::Struct(st),
             ..
         } => {
-            let inst = if let Some(type_check) = c.context.type_check_for(*type_hash) {
+            let inst = if let Some(type_check) = c.context.type_check_for(meta.hash) {
                 Inst::MatchBuiltIn { type_check }
             } else {
                 Inst::MatchVariant {
-                    variant_hash: *type_hash,
+                    variant_hash: meta.hash,
                     enum_hash: *enum_hash,
                     index: *index,
                 }
@@ -533,18 +529,15 @@ fn struct_match_for<'a>(
 fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &PrivMeta) -> Option<(usize, Inst)> {
     Some(match &meta.kind {
         PrivMetaKind::Struct {
-            type_hash,
             variant: PrivVariantMeta::Unit,
             ..
-        } => (0, Inst::MatchType { hash: *type_hash }),
+        } => (0, Inst::MatchType { hash: meta.hash }),
         PrivMetaKind::Struct {
-            type_hash,
             variant: PrivVariantMeta::Tuple(tuple),
             ..
-        } => (tuple.args, Inst::MatchType { hash: *type_hash }),
+        } => (tuple.args, Inst::MatchType { hash: meta.hash }),
         PrivMetaKind::Variant {
             enum_hash,
-            type_hash,
             index,
             variant,
             ..
@@ -555,12 +548,12 @@ fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &PrivMeta) -> Option<(us
                 _ => return None,
             };
 
-            let inst = if let Some(type_check) = c.context.type_check_for(*type_hash) {
+            let inst = if let Some(type_check) = c.context.type_check_for(meta.hash) {
                 Inst::MatchBuiltIn { type_check }
             } else {
                 Inst::MatchVariant {
                     enum_hash: *enum_hash,
-                    variant_hash: *type_hash,
+                    variant_hash: meta.hash,
                     index: *index,
                 }
             };
@@ -1692,9 +1685,9 @@ fn generics_parameters(
         let meta = c.lookup_meta(expr.span(), named.item)?;
 
         let hash = match meta.kind {
-            PrivMetaKind::Unknown { type_hash, .. } => type_hash,
-            PrivMetaKind::Struct { type_hash, .. } => type_hash,
-            PrivMetaKind::Enum { type_hash, .. } => type_hash,
+            PrivMetaKind::Unknown { .. }
+            | PrivMetaKind::Struct { .. }
+            | PrivMetaKind::Enum { .. } => meta.hash,
             _ => {
                 return Err(CompileError::new(
                     span,

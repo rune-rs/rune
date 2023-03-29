@@ -300,11 +300,10 @@ impl UnitBuilder {
                 }
             }
             PrivMetaKind::Struct {
-                type_hash,
                 variant: PrivVariantMeta::Unit,
                 ..
             } => {
-                let info = UnitFn::UnitStruct { hash: type_hash };
+                let info = UnitFn::UnitStruct { hash: meta.hash };
 
                 let signature = DebugSignature::new(
                     pool.item(meta.item_meta.item).to_owned(),
@@ -312,18 +311,18 @@ impl UnitBuilder {
                 );
 
                 let rtti = Arc::new(Rtti {
-                    hash: type_hash,
+                    hash: meta.hash,
                     item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
-                if self.rtti.insert(type_hash, rtti).is_some() {
+                if self.rtti.insert(meta.hash, rtti).is_some() {
                     return Err(QueryError::new(
                         span,
-                        QueryErrorKind::TypeRttiConflict { hash: type_hash },
+                        QueryErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
 
-                if self.functions.insert(type_hash, info).is_some() {
+                if self.functions.insert(meta.hash, info).is_some() {
                     return Err(QueryError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
@@ -333,11 +332,11 @@ impl UnitBuilder {
                 }
 
                 self.constants.insert(
-                    Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
+                    Hash::instance_function(meta.hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(signature.path.to_string()),
                 );
 
-                self.debug_info_mut().functions.insert(type_hash, signature);
+                self.debug_info_mut().functions.insert(meta.hash, signature);
             }
             PrivMetaKind::Struct {
                 variant: PrivVariantMeta::Tuple(ref tuple),
@@ -404,7 +403,6 @@ impl UnitBuilder {
                 }
             }
             PrivMetaKind::Variant {
-                type_hash,
                 enum_item,
                 variant: PrivVariantMeta::Unit,
                 ..
@@ -413,25 +411,25 @@ impl UnitBuilder {
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
-                    hash: type_hash,
+                    hash: meta.hash,
                     item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
-                if self.variant_rtti.insert(type_hash, rtti).is_some() {
+                if self.variant_rtti.insert(meta.hash, rtti).is_some() {
                     return Err(QueryError::new(
                         span,
-                        QueryErrorKind::VariantRttiConflict { hash: type_hash },
+                        QueryErrorKind::VariantRttiConflict { hash: meta.hash },
                     ));
                 }
 
-                let info = UnitFn::UnitVariant { hash: type_hash };
+                let info = UnitFn::UnitVariant { hash: meta.hash };
 
                 let signature = DebugSignature::new(
                     pool.item(meta.item_meta.item).to_owned(),
                     DebugArgs::EmptyArgs,
                 );
 
-                if self.functions.insert(type_hash, info).is_some() {
+                if self.functions.insert(meta.hash, info).is_some() {
                     return Err(QueryError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
@@ -440,7 +438,7 @@ impl UnitBuilder {
                     ));
                 }
 
-                self.debug_info_mut().functions.insert(type_hash, signature);
+                self.debug_info_mut().functions.insert(meta.hash, signature);
             }
             PrivMetaKind::Variant {
                 enum_item,
@@ -506,9 +504,9 @@ impl UnitBuilder {
                     ));
                 }
             }
-            PrivMetaKind::Enum { type_hash } => {
+            PrivMetaKind::Enum { .. } => {
                 self.constants.insert(
-                    Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
+                    Hash::instance_function(meta.hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(pool.item(meta.item_meta.item).to_string()),
                 );
             }

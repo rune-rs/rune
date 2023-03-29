@@ -622,36 +622,28 @@ impl<'a> Query<'a> {
         context_meta: &ContextMeta,
     ) -> Result<PrivMeta, QueryError> {
         let kind = match context_meta.kind {
-            ContextMetaKind::Unknown { type_hash } => PrivMetaKind::Unknown { type_hash },
-            ContextMetaKind::Struct {
-                type_hash,
-                ref variant,
-            } => PrivMetaKind::Struct {
-                type_hash,
+            ContextMetaKind::Unknown => PrivMetaKind::Unknown,
+            ContextMetaKind::Struct { ref variant } => PrivMetaKind::Struct {
                 variant: variant.clone(),
             },
             ContextMetaKind::Variant {
-                type_hash,
                 ref enum_item,
                 enum_hash,
                 index,
                 ref variant,
             } => PrivMetaKind::Variant {
-                type_hash,
                 enum_item: self.pool.alloc_item(enum_item),
                 enum_hash,
                 index,
                 variant: variant.clone(),
             },
-            ContextMetaKind::Enum { type_hash } => PrivMetaKind::Enum { type_hash },
+            ContextMetaKind::Enum => PrivMetaKind::Enum,
             ContextMetaKind::Function {
                 args,
-                type_hash,
                 instance_function,
                 ..
             } => PrivMetaKind::Function {
                 args,
-                type_hash,
                 is_test: false,
                 is_bench: false,
                 instance_function,
@@ -662,6 +654,7 @@ impl<'a> Query<'a> {
         };
 
         let meta = PrivMeta {
+            hash: context_meta.hash,
             item_meta: ItemMeta {
                 id: Default::default(),
                 location: Default::default(),
@@ -1030,6 +1023,7 @@ impl<'a> Query<'a> {
         };
 
         let meta = PrivMeta {
+            hash: self.pool.item_type_hash(entry.item_meta.item),
             item_meta: entry.item_meta,
             kind: PrivMetaKind::Import { import },
             source: None,
@@ -1048,10 +1042,11 @@ impl<'a> Query<'a> {
     ) -> Result<PrivMeta, QueryError> {
         let IndexedEntry { item_meta, indexed } = entry;
 
-        let kind = match indexed {
-            Indexed::Enum => PrivMetaKind::Enum {
-                type_hash: self.pool.item_type_hash(item_meta.item),
-            },
+        let (hash, kind) = match indexed {
+            Indexed::Enum => {
+                let hash = self.pool.item_type_hash(item_meta.item);
+                (hash, PrivMetaKind::Enum)
+            }
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((item_meta.location.span, variant.enum_id))?;
 
@@ -1073,8 +1068,9 @@ impl<'a> Query<'a> {
                 resolve_context!(self),
             )?,
             Indexed::Function(f) => {
+                let hash = self.pool.item_type_hash(item_meta.item);
+
                 let kind = PrivMetaKind::Function {
-                    type_hash: self.pool.item_type_hash(item_meta.item),
                     args: Some(f.function.ast.args.len()),
                     is_test: f.is_test,
                     is_bench: f.is_bench,
@@ -1087,11 +1083,12 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                kind
+                (hash, kind)
             }
             Indexed::InstanceFunction(f) => {
+                let hash = self.pool.item_type_hash(item_meta.item);
+
                 let kind = PrivMetaKind::Function {
-                    type_hash: self.pool.item_type_hash(item_meta.item),
                     args: Some(f.function.ast.args.len()),
                     is_test: false,
                     is_bench: false,
@@ -1104,7 +1101,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                kind
+                (hash, kind)
             }
             Indexed::Closure(c) => {
                 let captures = c.captures.clone();
@@ -1116,11 +1113,11 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                PrivMetaKind::Closure {
-                    type_hash: self.pool.item_type_hash(item_meta.item),
-                    captures,
-                    do_move,
-                }
+                let hash = self.pool.item_type_hash(item_meta.item);
+
+                let kind = PrivMetaKind::Closure { captures, do_move };
+
+                (hash, kind)
             }
             Indexed::AsyncBlock(b) => {
                 let captures = b.captures.clone();
@@ -1132,11 +1129,11 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                PrivMetaKind::AsyncBlock {
-                    type_hash: self.pool.item_type_hash(item_meta.item),
-                    captures,
-                    do_move,
-                }
+                let hash = self.pool.item_type_hash(item_meta.item);
+
+                let kind = PrivMetaKind::AsyncBlock { captures, do_move };
+
+                (hash, kind)
             }
             Indexed::Const(c) => {
                 let mut const_compiler = IrInterpreter {
@@ -1157,7 +1154,8 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                PrivMetaKind::Const { const_value }
+                let hash = self.pool.item_type_hash(item_meta.item);
+                (hash, PrivMetaKind::Const { const_value })
             }
             Indexed::ConstFn(c) => {
                 let ir_fn = {
@@ -1182,7 +1180,8 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                PrivMetaKind::ConstFn { id: Id::new(id) }
+                let hash = self.pool.item_type_hash(item_meta.item);
+                (hash, PrivMetaKind::ConstFn { id: Id::new(id) })
             }
             Indexed::Import(import) => {
                 if !import.wildcard {
@@ -1193,11 +1192,18 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                PrivMetaKind::Import {
+                let hash = self.pool.item_type_hash(item_meta.item);
+
+                let kind = PrivMetaKind::Import {
                     import: import.entry,
-                }
+                };
+
+                (hash, kind)
             }
-            Indexed::Module => PrivMetaKind::Module,
+            Indexed::Module => {
+                let hash = self.pool.item_type_hash(item_meta.item);
+                (hash, PrivMetaKind::Module)
+            }
         };
 
         let source = SourceMeta {
@@ -1209,6 +1215,7 @@ impl<'a> Query<'a> {
         };
 
         Ok(PrivMeta {
+            hash,
             item_meta,
             kind,
             source: Some(source),
@@ -1693,22 +1700,22 @@ impl fmt::Display for Named<'_> {
 }
 
 /// Construct metadata for an empty body.
-fn unit_body_meta(item: &Item, enum_item: Option<(ItemId, Hash, usize)>) -> PrivMetaKind {
+fn unit_body_meta(item: &Item, enum_item: Option<(ItemId, Hash, usize)>) -> (Hash, PrivMetaKind) {
     let type_hash = Hash::type_hash(item);
 
-    match enum_item {
+    let kind = match enum_item {
         Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
-            type_hash,
             enum_item,
             enum_hash,
             index,
             variant: PrivVariantMeta::Unit,
         },
         None => PrivMetaKind::Struct {
-            type_hash,
             variant: PrivVariantMeta::Unit,
         },
-    }
+    };
+
+    (type_hash, kind)
 }
 
 /// Construct metadata for an empty body.
@@ -1716,7 +1723,7 @@ fn tuple_body_meta(
     item: &Item,
     enum_: Option<(ItemId, Hash, usize)>,
     tuple: ast::Parenthesized<ast::Field, T![,]>,
-) -> PrivMetaKind {
+) -> (Hash, PrivMetaKind) {
     let type_hash = Hash::type_hash(item);
 
     let tuple = PrivTupleMeta {
@@ -1724,19 +1731,19 @@ fn tuple_body_meta(
         hash: Hash::type_hash(item),
     };
 
-    match enum_ {
+    let kind = match enum_ {
         Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
-            type_hash,
             enum_item,
             enum_hash,
             index,
             variant: PrivVariantMeta::Tuple(tuple),
         },
         None => PrivMetaKind::Struct {
-            type_hash,
             variant: PrivVariantMeta::Tuple(tuple),
         },
-    }
+    };
+
+    (type_hash, kind)
 }
 
 /// Construct metadata for a struct body.
@@ -1745,7 +1752,7 @@ fn struct_body_meta(
     enum_: Option<(ItemId, Hash, usize)>,
     ctx: ResolveContext<'_>,
     st: ast::Braced<ast::Field, T![,]>,
-) -> Result<PrivMetaKind, QueryError> {
+) -> Result<(Hash, PrivMetaKind), QueryError> {
     let type_hash = Hash::type_hash(item);
 
     let mut fields = HashSet::new();
@@ -1757,19 +1764,19 @@ fn struct_body_meta(
 
     let st = PrivStructMeta { fields };
 
-    Ok(match enum_ {
+    let kind = match enum_ {
         Some((enum_item, enum_hash, index)) => PrivMetaKind::Variant {
-            type_hash,
             enum_item,
             enum_hash,
             index,
             variant: PrivVariantMeta::Struct(st),
         },
         None => PrivMetaKind::Struct {
-            type_hash,
             variant: PrivVariantMeta::Struct(st),
         },
-    })
+    };
+
+    Ok((type_hash, kind))
 }
 
 /// Convert an ast declaration into a struct.
@@ -1778,7 +1785,7 @@ fn variant_into_item_decl(
     body: ast::ItemVariantBody,
     enum_: Option<(ItemId, Hash, usize)>,
     ctx: ResolveContext<'_>,
-) -> Result<PrivMetaKind, QueryError> {
+) -> Result<(Hash, PrivMetaKind), QueryError> {
     Ok(match body {
         ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_),
         ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
@@ -1792,7 +1799,7 @@ fn struct_into_item_decl(
     body: ast::ItemStructBody,
     enum_: Option<(ItemId, Hash, usize)>,
     ctx: ResolveContext<'_>,
-) -> Result<PrivMetaKind, QueryError> {
+) -> Result<(Hash, PrivMetaKind), QueryError> {
     Ok(match body {
         ast::ItemStructBody::UnitBody => unit_body_meta(item, enum_),
         ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),

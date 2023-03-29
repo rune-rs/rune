@@ -3,10 +3,15 @@ use crate::compile::{
 };
 use crate::doc::Visitor;
 use crate::runtime::ConstValue;
+use crate::Hash;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Meta<'a> {
+    /// Type hash for the meta item.
+    pub(crate) hash: Hash,
+    /// Kind of the meta item.
     pub(crate) kind: Kind<'a>,
+    /// Documentation for the meta item.
     pub(crate) docs: &'a [String],
 }
 
@@ -41,6 +46,11 @@ pub(crate) struct Context<'a> {
 impl<'a> Context<'a> {
     pub(crate) fn new(context: &'a crate::Context, visitors: &'a [Visitor]) -> Self {
         Self { context, visitors }
+    }
+
+    /// Iterate over all types associated with the given hash.
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &Item> {
+        self.context.associated(hash)
     }
 
     /// Iterate over known child components of the given name.
@@ -85,7 +95,11 @@ impl<'a> Context<'a> {
                     .map(Vec::as_slice)
                     .unwrap_or_default();
 
-                return Some(Meta { docs, kind });
+                return Some(Meta {
+                    hash: Hash::type_hash(item),
+                    docs,
+                    kind,
+                });
             }
         }
 
@@ -98,10 +112,9 @@ impl<'a> Context<'a> {
             ContextMetaKind::Enum { .. } => Kind::Enum,
             ContextMetaKind::Function {
                 args,
-                type_hash,
                 instance_function,
             } => {
-                let f = self.context.lookup_signature(*type_hash)?;
+                let f = self.context.lookup_signature(meta.hash)?;
 
                 let instance_function = match *f {
                     ContextSignature::Function { .. } => *instance_function,
@@ -123,6 +136,7 @@ impl<'a> Context<'a> {
         };
 
         Some(Meta {
+            hash: meta.hash,
             docs: meta.docs.lines(),
             kind,
         })

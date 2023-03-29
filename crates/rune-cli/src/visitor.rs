@@ -35,23 +35,11 @@ impl FunctionVisitor {
 impl CompileVisitor for FunctionVisitor {
     fn register_meta(&mut self, meta: MetaRef<'_>) {
         let type_hash = match (self.attribute, &meta.kind) {
-            (
-                Attribute::Test,
-                MetaKind::Function {
-                    is_test, type_hash, ..
-                },
-            ) if *is_test => type_hash,
-            (
-                Attribute::Bench,
-                MetaKind::Function {
-                    is_bench,
-                    type_hash,
-                    ..
-                },
-            ) if *is_bench => type_hash,
+            (Attribute::Test, MetaKind::Function { is_test, .. }) if *is_test => meta.hash,
+            (Attribute::Bench, MetaKind::Function { is_bench, .. }) if *is_bench => meta.hash,
             _ => return,
         };
 
-        self.functions.push((*type_hash, meta.item.to_owned()));
+        self.functions.push((type_hash, meta.item.to_owned()));
     }
 }

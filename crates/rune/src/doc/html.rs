@@ -16,6 +16,7 @@ use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Kind, Signature};
 use crate::doc::templating;
 use crate::doc::{Context, Visitor};
+use crate::Hash;
 
 const RUST_TOKEN: &str = "rust";
 const RUNE_TOKEN: &str = "rune";
@@ -63,7 +64,7 @@ impl Ctxt<'_> {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Build<'a> {
-    Type(ItemBuf),
+    Type(ItemBuf, Hash),
     Struct(ItemBuf),
     Function(ItemBuf),
     Module(&'a Item),
@@ -146,8 +147,8 @@ pub fn write_html(
 
     while let Some(build) = queue.pop_front() {
         match build {
-            Build::Type(m) => {
-                type_(&cx, &m, root)?;
+            Build::Type(m, hash) => {
+                type_(&cx, &m, hash, root)?;
             }
             Build::Struct(m) => {
                 struct_(&cx, &m, root)?;
@@ -282,7 +283,7 @@ fn module(
 
         match meta.kind {
             Kind::Unknown { .. } => {
-                queue.push_front(Build::Type(item.clone()));
+                queue.push_front(Build::Type(item.clone(), meta.hash));
                 let path = dir.relative(item_path(cx, &item, ItemPath::Type));
                 types.push(Type {
                     item,
@@ -338,7 +339,7 @@ fn module(
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-fn type_(cx: &Ctxt<'_>, m: &Item, root: &Path) -> Result<RelativePathBuf> {
+fn type_(cx: &Ctxt<'_>, m: &Item, hash: Hash, root: &Path) -> Result<RelativePathBuf> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -362,6 +363,11 @@ fn type_(cx: &Ctxt<'_>, m: &Item, root: &Path) -> Result<RelativePathBuf> {
     let dir = path.parent().unwrap_or(RelativePath::new(""));
 
     let mut methods = Vec::new();
+
+    for _ in cx.context.associated(hash) {
+        // TODO: actually implement processing of associated types.
+        // dbg!(m, item);
+    }
 
     for name in cx.context.iter_components(m) {
         let item = m.join([name]);
