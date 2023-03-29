@@ -1,4 +1,5 @@
-use crate::compile::{meta, ComponentRef, ContextSignature, IntoComponent, Item};
+use crate::compile::meta;
+use crate::compile::{ComponentRef, IntoComponent, Item};
 use crate::doc::Visitor;
 use crate::runtime::ConstValue;
 use crate::Hash;
@@ -112,8 +113,8 @@ impl<'a> Context<'a> {
                 let f = self.context.lookup_signature(meta.hash)?;
 
                 let instance_function = match *f {
-                    ContextSignature::Function { .. } => *instance_function,
-                    ContextSignature::Instance { .. } => true,
+                    meta::Signature::Function { .. } => *instance_function,
+                    meta::Signature::Instance { .. } => true,
                 };
 
                 let signature = if instance_function {

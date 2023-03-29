@@ -11,10 +11,10 @@ use crate::ast::{Span, Spanned};
 use crate::collections::LinkedHashMap;
 use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::{
-    ir, meta, CaptureMeta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef,
-    ContextMeta, Doc, ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item,
-    ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta, Names, Pool, Prelude, PrivMeta,
-    PrivStructMeta, PrivTupleMeta, SourceMeta, UnitBuilder, VariantKind, Visibility,
+    ir, meta, CompileError, CompileErrorKind, CompileVisitor, ComponentRef, ContextMeta, Doc,
+    ImportStep, IntoComponent, IrBudget, IrCompiler, IrInterpreter, Item, ItemBuf, ItemId,
+    ItemMeta, Location, ModId, ModMeta, Names, Pool, Prelude, PrivMeta, PrivStructMeta,
+    PrivTupleMeta, SourceMeta, UnitBuilder, VariantKind, Visibility,
 };
 use crate::hir;
 use crate::macros::Storage;
@@ -542,7 +542,7 @@ impl<'a> Query<'a> {
         &mut self,
         item_meta: ItemMeta,
         ast: Box<ast::ExprClosure>,
-        captures: Arc<[CaptureMeta]>,
+        captures: Arc<[String]>,
         call: Call,
         do_move: bool,
     ) -> Result<(), QueryError> {
@@ -567,7 +567,7 @@ impl<'a> Query<'a> {
         &mut self,
         item_meta: ItemMeta,
         ast: ast::Block,
-        captures: Arc<[CaptureMeta]>,
+        captures: Arc<[String]>,
         call: Call,
         do_move: bool,
     ) -> Result<(), QueryError> {
@@ -1525,7 +1525,7 @@ pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: Box<ast::ExprClosure>,
     /// Captures.
-    pub(crate) captures: Arc<[CaptureMeta]>,
+    pub(crate) captures: Arc<[String]>,
     /// Calling convention used for closure.
     pub(crate) call: Call,
     /// If the closure moves its captures.
@@ -1537,7 +1537,7 @@ pub(crate) struct AsyncBlock {
     /// Ast for block.
     pub(crate) ast: ast::Block,
     /// Captures.
-    pub(crate) captures: Arc<[CaptureMeta]>,
+    pub(crate) captures: Arc<[String]>,
     /// Calling convention used for async block.
     pub(crate) call: Call,
     /// If the block moves its captures.

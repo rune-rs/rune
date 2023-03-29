@@ -2,7 +2,7 @@
 
 use crate::ast::Span;
 use crate::collections::{HashMap, HashSet};
-use crate::compile::{CaptureMeta, CompileError, CompileErrorKind};
+use crate::compile::{CompileError, CompileErrorKind};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -106,7 +106,7 @@ pub(crate) struct IndexClosure {
     do_move: bool,
     /// Variables which could not be found in the immediate scope, and
     /// marked as needed to be captured from the outer scope.
-    captures: Vec<CaptureMeta>,
+    captures: Vec<String>,
     existing: HashSet<String>,
     scope: IndexScope,
     generator: bool,
@@ -138,7 +138,7 @@ pub(crate) struct Function {
 pub(crate) struct Closure {
     pub(crate) kind: IndexFnKind,
     pub(crate) do_move: bool,
-    pub(crate) captures: Vec<CaptureMeta>,
+    pub(crate) captures: Vec<String>,
     pub(crate) generator: bool,
     #[allow(dead_code)]
     pub(crate) has_await: bool,
@@ -265,7 +265,7 @@ impl IndexScopes {
         if found {
             for (existing, captures) in closures {
                 existing.insert(var.into());
-                captures.push(CaptureMeta { ident: var.into() });
+                captures.push(var.into());
             }
         }
     }
