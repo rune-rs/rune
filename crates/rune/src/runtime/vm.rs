@@ -926,12 +926,18 @@ impl Vm {
                 }
             }
             target => {
-                let hash = index.hash();
-
-                return Ok(match self.call_field_fn(Protocol::GET, target, hash, ())? {
-                    CallResult::Ok(()) => CallResult::Ok(self.stack.pop()?),
-                    CallResult::Unsupported(target) => CallResult::Unsupported(target),
-                });
+                let index = index.clone();
+                return Ok(
+                    match self.call_field_fn(Protocol::GET, target, index.hash(), ())? {
+                        CallResult::Ok(()) => return Ok(CallResult::Ok(self.stack.pop()?)),
+                        CallResult::Unsupported(target) => {
+                            match self.call_instance_fn(target, Protocol::FALLBACK_GET, (index,))? {
+                                CallResult::Ok(()) => CallResult::Ok(self.stack.pop()?),
+                                CallResult::Unsupported(target) => CallResult::Unsupported(target),
+                            }
+                        }
+                    },
+                );
             }
         }
 
@@ -983,15 +989,33 @@ impl Vm {
                 }));
             }
             target => {
-                let hash = field.hash();
-
-                match self.call_field_fn(Protocol::SET, target, hash, (value,))? {
-                    CallResult::Ok(()) => {
-                        self.stack.pop()?;
-                        CallResult::Ok(())
-                    }
-                    result => result,
-                }
+                let index = field.clone();
+                return Ok(
+                    match self.call_field_fn(
+                        Protocol::SET,
+                        target,
+                        index.hash(),
+                        (value.clone(),),
+                    )? {
+                        CallResult::Ok(()) => {
+                            self.stack.pop()?;
+                            CallResult::Ok(())
+                        }
+                        CallResult::Unsupported(target) => {
+                            match self.call_instance_fn(
+                                target,
+                                Protocol::FALLBACK_SET,
+                                (index, value),
+                            )? {
+                                CallResult::Ok(()) => {
+                                    self.stack.pop()?;
+                                    CallResult::Ok(())
+                                }
+                                CallResult::Unsupported(target) => CallResult::Unsupported(target),
+                            }
+                        }
+                    },
+                );
             }
         })
     }
