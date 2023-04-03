@@ -1,9 +1,11 @@
-use crate::Hash;
-use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::fmt;
 use std::hash;
 use std::ops;
+
+use serde::{Deserialize, Serialize};
+
+use crate::hash::{Hash, IntoHash};
 
 /// Struct representing a static string.
 #[derive(Clone, Serialize, Deserialize)]
@@ -45,8 +47,7 @@ impl StaticString {
         S: AsRef<str>,
     {
         let inner = s.as_ref().to_owned();
-        let hash = Hash::of(&inner);
-
+        let hash = s.as_ref().into_hash();
         Self { inner, hash }
     }
 
@@ -79,7 +80,7 @@ impl ops::Deref for StaticString {
 
 impl From<String> for StaticString {
     fn from(inner: String) -> Self {
-        let hash = Hash::of(inner.as_str());
+        let hash = inner.as_str().into_hash();
         Self { inner, hash }
     }
 }

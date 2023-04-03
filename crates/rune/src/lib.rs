@@ -204,7 +204,7 @@ pub mod diagnostics;
 pub use self::diagnostics::Diagnostics;
 
 mod hash;
-pub use self::hash::{Hash, InstFnInfo, InstFnKind, InstFnName, IntoTypeHash, Params};
+pub use self::hash::{Hash, Params, ToTypeHash};
 
 mod hir;
 

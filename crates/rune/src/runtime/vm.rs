@@ -1,3 +1,4 @@
+use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::UnitFn;
@@ -8,7 +9,6 @@ use crate::runtime::{
     Shared, Stack, Stream, Struct, Tuple, TypeCheck, Unit, UnitStruct, Value, Variant, VariantData,
     Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
 };
-use crate::{Hash, IntoTypeHash};
 use std::fmt;
 use std::mem;
 use std::sync::Arc;
@@ -229,9 +229,9 @@ impl Vm {
     /// ```
     pub fn lookup_function<N>(&self, name: N) -> Result<Function, VmError>
     where
-        N: IntoTypeHash,
+        N: ToTypeHash,
     {
-        self.lookup_function_by_hash(name.into_type_hash())
+        self.lookup_function_by_hash(name.to_type_hash())
     }
 
     /// Run the given vm to completion.
@@ -311,7 +311,7 @@ impl Vm {
     /// ```
     pub fn execute<A, N>(&mut self, name: N, args: A) -> Result<VmExecution<&mut Self>, VmError>
     where
-        N: IntoTypeHash,
+        N: ToTypeHash,
         A: Args,
     {
         self.set_entrypoint(name, args.count())?;
@@ -327,7 +327,7 @@ impl Vm {
     /// only support encoding arguments which themselves are `Send`.
     pub fn send_execute<A, N>(mut self, name: N, args: A) -> Result<VmSendExecution, VmError>
     where
-        N: IntoTypeHash,
+        N: ToTypeHash,
         A: Send + Args,
     {
         // Safety: make sure the stack is clear, preventing any values from
@@ -355,7 +355,7 @@ impl Vm {
     /// [`Ref<T>`]: crate::runtime::Ref
     pub fn call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
-        N: IntoTypeHash,
+        N: ToTypeHash,
         A: GuardedArgs,
     {
         self.set_entrypoint(name, args.count())?;
@@ -396,7 +396,7 @@ impl Vm {
     /// [`Ref<T>`]: crate::runtime::Ref
     pub async fn async_call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
-        N: IntoTypeHash,
+        N: ToTypeHash,
         A: GuardedArgs,
     {
         self.set_entrypoint(name, args.count())?;
@@ -424,12 +424,12 @@ impl Vm {
     /// name and check that the number of argument matches.
     fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<(), VmError>
     where
-        N: IntoTypeHash,
+        N: ToTypeHash,
     {
-        let hash = name.into_type_hash();
+        let hash = name.to_type_hash();
 
         let info = self.unit.function(hash).ok_or_else(|| {
-            if let Some(item) = name.into_item() {
+            if let Some(item) = name.to_item() {
                 VmError::from(VmErrorKind::MissingEntry { hash, item })
             } else {
                 VmError::from(VmErrorKind::MissingEntryHash { hash })
@@ -467,7 +467,7 @@ impl Vm {
         args: A,
     ) -> Result<CallResult<()>, VmError>
     where
-        H: IntoTypeHash,
+        H: ToTypeHash,
         A: GuardedArgs,
     {
         let count = args.count();
@@ -478,7 +478,7 @@ impl Vm {
         // Safety: We hold onto the guard for the duration of this call.
         let _guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
 
-        let hash = Hash::instance_function(type_hash, hash.into_type_hash());
+        let hash = Hash::instance_function(type_hash, hash.to_type_hash());
 
         if let Some(UnitFn::Offset {
             offset,
@@ -504,20 +504,20 @@ impl Vm {
 
     /// Helper to call a field function.
     #[inline(always)]
-    fn call_field_fn<H, A>(
+    fn call_field_fn<N, A>(
         &mut self,
         protocol: Protocol,
         target: Value,
-        hash: H,
+        name: N,
         args: A,
     ) -> Result<CallResult<()>, VmError>
     where
-        H: IntoTypeHash,
+        N: IntoHash,
         A: Args,
     {
         let count = args.count();
         let full_count = count + 1;
-        let hash = Hash::field_fn(protocol, target.type_hash()?, hash.into_type_hash());
+        let hash = Hash::field_fn(protocol, target.type_hash()?, name);
 
         self.stack.push(target);
         args.into_stack(&mut self.stack)?;
