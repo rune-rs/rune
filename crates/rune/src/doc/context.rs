@@ -1,5 +1,5 @@
 use crate::compile::meta;
-use crate::compile::{ComponentRef, IntoComponent, Item};
+use crate::compile::{AssociatedFunction, ComponentRef, IntoComponent, Item};
 use crate::doc::Visitor;
 use crate::runtime::ConstValue;
 use crate::Hash;
@@ -51,7 +51,7 @@ impl<'a> Context<'a> {
     }
 
     /// Iterate over all types associated with the given hash.
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &Item> {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &AssociatedFunction> {
         self.context.associated(hash)
     }
 

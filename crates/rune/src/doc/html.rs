@@ -12,7 +12,7 @@ use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 use crate::collections::{BTreeSet, VecDeque};
-use crate::compile::{ComponentRef, Item, ItemBuf};
+use crate::compile::{AssociatedFunctionKind, ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Function, Kind, Signature};
 use crate::doc::templating;
 use crate::doc::{Context, Visitor};
@@ -338,7 +338,7 @@ fn module(
 }
 
 /// Build an unknown type.
-#[tracing::instrument(skip_all)]
+// #[tracing::instrument(skip_all)]
 fn type_(cx: &Ctxt<'_>, m: &Item, hash: Hash, root: &Path) -> Result<RelativePathBuf> {
     #[derive(Serialize)]
     struct Params<'a> {
@@ -351,10 +351,7 @@ fn type_(cx: &Ctxt<'_>, m: &Item, hash: Hash, root: &Path) -> Result<RelativePat
 
     #[derive(Serialize)]
     struct Method<'a> {
-        #[serde(serialize_with = "serialize_item")]
-        item: ItemBuf,
-        #[serde(serialize_with = "serialize_component_ref")]
-        name: ComponentRef<'a>,
+        name: &'a str,
         args: String,
         doc: Option<String>,
     }
@@ -364,32 +361,19 @@ fn type_(cx: &Ctxt<'_>, m: &Item, hash: Hash, root: &Path) -> Result<RelativePat
 
     let mut methods = Vec::new();
 
-    for _ in cx.context.associated(hash) {
-        // TODO: actually implement processing of associated types.
-        // dbg!(m, item);
-    }
-
-    for name in cx.context.iter_components(m) {
-        let item = m.join([name]);
-
-        let meta = match cx.context.meta(&item) {
-            Some(meta) => meta,
-            _ => continue,
-        };
-
-        match meta.kind {
-            Kind::Function(f) => {
-                let doc = cx.render_docs(meta.docs)?;
+    for f in cx.context.associated(hash) {
+        match &f.kind {
+            AssociatedFunctionKind::Protocol(_) => {}
+            AssociatedFunctionKind::FieldFn(_, _) => {}
+            AssociatedFunctionKind::IndexFn(_, _) => {}
+            AssociatedFunctionKind::Instance(name) => {
+                let doc = cx.render_docs(f.docs.lines())?;
 
                 methods.push(Method {
-                    item,
                     name,
-                    args: args_to_string(f.args, f.signature)?,
+                    args: args_to_string(None, Signature::Instance { args: f.args })?,
                     doc,
                 });
-            }
-            _ => {
-                continue;
             }
         }
     }
@@ -762,7 +746,7 @@ fn args_to_string(args: Option<&[String]>, sig: Signature) -> Result<String> {
 
             match args {
                 Some(n) => {
-                    for n in 0..n {
+                    for n in 1..n {
                         write!(string, ", arg{n}")?;
                     }
                 }

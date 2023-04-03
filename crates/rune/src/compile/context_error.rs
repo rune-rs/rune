@@ -32,6 +32,18 @@ pub enum ContextError {
     ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
     #[error("protocol function `{name}` for type `{type_info}` already exists")]
     ConflictingProtocolFunction { type_info: TypeInfo, name: Box<str> },
+    #[error("field function `{name}` for field `{field}` and type `{type_info}` already exists")]
+    ConflictingFieldFunction {
+        type_info: TypeInfo,
+        name: Box<str>,
+        field: Box<str>,
+    },
+    #[error("index function `{name}` for index `{index}` and type `{type_info}` already exists")]
+    ConflictingIndexFunction {
+        type_info: TypeInfo,
+        name: Box<str>,
+        index: usize,
+    },
     #[error("module `{item}` with hash `{hash}` already exists")]
     ConflictingModule { item: ItemBuf, hash: Hash },
     #[error("type `{item}` already exists `{type_info}`")]

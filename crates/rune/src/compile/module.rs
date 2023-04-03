@@ -3,10 +3,15 @@
 //! A native module is one that provides rune with functions and types through
 //! native code.
 
+use std::fmt;
+use std::future;
+use std::sync::Arc;
+
 use crate::collections::{HashMap, HashSet};
 use crate::compile::{
-    AssocFnData, ContextError, Docs, FunctionData, FunctionMeta, FunctionMetaKind, InstFnInfo,
-    InstFnKind, InstFnName, IntoComponent, ItemBuf, Named,
+    AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, ContextError, Docs,
+    FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent, ItemBuf, Named, ToFieldFunction,
+    ToInstance,
 };
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
@@ -14,9 +19,6 @@ use crate::runtime::{
     StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use crate::Hash;
-use std::fmt;
-use std::future;
-use std::sync::Arc;
 
 /// Trait to handle the installation of auxilliary functions for a type
 /// installed into a module.
@@ -196,41 +198,33 @@ pub(crate) enum TypeSpecification {
     Enum(Enum),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum AssocKind {
-    IndexFn(Protocol),
-    FieldFn(Protocol),
-    Instance,
-}
-
-impl AssocKind {
-    /// Convert the kind into a hash function.
-    pub(crate) fn hash(self, instance_type: Hash, key: Hash) -> Hash {
-        match self {
-            Self::IndexFn(protocol) => Hash::index_fn(protocol, instance_type, key),
-            Self::FieldFn(protocol) => Hash::field_fn(protocol, instance_type, key),
-            Self::Instance => Hash::instance_function(instance_type, key),
-        }
-    }
-}
-
-pub(crate) struct AssocFn {
+/// The data of an associated function.
+#[derive(Clone)]
+#[non_exhaustive]
+pub struct AssociatedFunction {
     pub(crate) handler: Arc<FunctionHandler>,
-    pub(crate) args: Option<usize>,
     pub(crate) type_info: TypeInfo,
-    pub(crate) name: InstFnKind,
-    pub(crate) docs: Docs,
+    /// Arguments the function receives.
+    pub args: Option<usize>,
+    /// The kind of the associated function.
+    pub kind: AssociatedFunctionKind,
+    /// The documentation of the associated function.
+    pub docs: Docs,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct AssocKey {
-    pub(crate) type_hash: Hash,
-    pub(crate) hash: Hash,
-    pub(crate) parameters: Hash,
-    pub(crate) kind: AssocKind,
+/// A key that identifies an associated function.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct AssociatedFunctionKey {
+    /// The type the associated function belongs to.
+    pub type_hash: Hash,
+    /// The kind of the associated function.
+    pub kind: AssociatedFunctionKind,
+    /// The type parameters of the associated function.
+    pub parameters: Hash,
 }
 
-pub(crate) struct ModuleFn {
+pub(crate) struct ModuleFunction {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
     pub(crate) instance_function: bool,
@@ -252,13 +246,13 @@ pub struct Module {
     /// The name of the module.
     pub(crate) item: ItemBuf,
     /// Functions.
-    pub(crate) functions: HashMap<ItemBuf, ModuleFn>,
+    pub(crate) functions: HashMap<ItemBuf, ModuleFunction>,
     /// MacroHandler handlers.
     pub(crate) macros: HashMap<ItemBuf, Macro>,
     /// Constant values.
     pub(crate) constants: HashMap<ItemBuf, ConstValue>,
     /// Associated functions.
-    pub(crate) associated_functions: HashMap<AssocKey, AssocFn>,
+    pub(crate) associated_functions: HashMap<AssociatedFunctionKey, AssociatedFunction>,
     /// Registered types.
     pub(crate) types: HashMap<Hash, Type>,
     /// Registered unit type.
@@ -786,7 +780,7 @@ impl Module {
                 docs.set_arguments(meta.arguments);
                 self.function_inner(data, docs)
             }
-            FunctionMetaKind::AssocFn(data) => {
+            FunctionMetaKind::AssociatedFunction(data) => {
                 let mut docs = Docs::default();
                 docs.set_docs(meta.docs);
                 docs.set_arguments(meta.arguments);
@@ -903,11 +897,11 @@ impl Module {
     /// ```
     pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: InstFnName,
+        N: ToInstance,
         Func: InstFn<Args>,
     {
         self.assoc_fn(
-            AssocFnData::new(name.info(), f, AssocKind::Instance),
+            AssociatedFunctionData::new(name.to_instance(), f),
             Docs::default(),
         )
     }
@@ -943,11 +937,11 @@ impl Module {
     /// ```
     pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: InstFnName,
+        N: ToInstance,
         Func: AsyncInstFn<Args>,
     {
         self.assoc_fn(
-            AssocFnData::new_async(name.info(), f, AssocKind::Instance),
+            AssociatedFunctionData::new_async(name.to_instance(), f),
             Docs::default(),
         )
     }
@@ -960,11 +954,11 @@ impl Module {
         f: Func,
     ) -> Result<(), ContextError>
     where
-        N: InstFnName,
+        N: ToFieldFunction,
         Func: InstFn<Args>,
     {
         self.assoc_fn(
-            AssocFnData::new(name.info(), f, AssocKind::FieldFn(protocol)),
+            AssociatedFunctionData::new(name.to_field_function(protocol), f),
             Docs::default(),
         )
     }
@@ -982,11 +976,9 @@ impl Module {
     where
         Func: InstFn<Args>,
     {
-        let name = InstFnInfo::index(protocol, index);
-        self.assoc_fn(
-            AssocFnData::new(name, f, AssocKind::IndexFn(protocol)),
-            Docs::default(),
-        )
+        let name = AssociatedFunctionName::index(protocol, index);
+
+        self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::default())
     }
 
     /// Register a raw function which interacts directly with the virtual
@@ -1005,7 +997,7 @@ impl Module {
 
         self.functions.insert(
             name,
-            ModuleFn {
+            ModuleFunction {
                 handler: Arc::new(move |stack, args| f(stack, args)),
                 args: None,
                 instance_function: false,
@@ -1023,7 +1015,7 @@ impl Module {
 
         self.functions.insert(
             meta.name,
-            ModuleFn {
+            ModuleFunction {
                 handler: meta.handler,
                 args: meta.args,
                 instance_function: false,
@@ -1035,27 +1027,45 @@ impl Module {
     }
 
     /// Install an associated function.
-    fn assoc_fn(&mut self, meta: AssocFnData, docs: Docs) -> Result<(), ContextError> {
-        let key = meta.assoc_key();
+    fn assoc_fn(&mut self, data: AssociatedFunctionData, docs: Docs) -> Result<(), ContextError> {
+        let key = data.assoc_key();
 
         if self.associated_functions.contains_key(&key) {
-            return Err(match meta.name.kind {
-                InstFnKind::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
-                    type_info: meta.ty.type_info,
-                    name: protocol.name.into(),
-                },
-                InstFnKind::Instance(name) => ContextError::ConflictingInstanceFunction {
-                    type_info: meta.ty.type_info,
-                    name,
-                },
+            return Err(match data.name.kind {
+                AssociatedFunctionKind::Protocol(protocol) => {
+                    ContextError::ConflictingProtocolFunction {
+                        type_info: data.ty.type_info,
+                        name: protocol.name.into(),
+                    }
+                }
+                AssociatedFunctionKind::FieldFn(protocol, field) => {
+                    ContextError::ConflictingFieldFunction {
+                        type_info: data.ty.type_info,
+                        name: protocol.name.into(),
+                        field,
+                    }
+                }
+                AssociatedFunctionKind::IndexFn(protocol, index) => {
+                    ContextError::ConflictingIndexFunction {
+                        type_info: data.ty.type_info,
+                        name: protocol.name.into(),
+                        index,
+                    }
+                }
+                AssociatedFunctionKind::Instance(name) => {
+                    ContextError::ConflictingInstanceFunction {
+                        type_info: data.ty.type_info,
+                        name,
+                    }
+                }
             });
         }
 
-        let assoc_fn = AssocFn {
-            handler: meta.handler,
-            args: meta.args,
-            type_info: meta.ty.type_info,
-            name: meta.name.kind,
+        let assoc_fn = AssociatedFunction {
+            handler: data.handler,
+            args: data.args,
+            type_info: data.ty.type_info,
+            kind: data.name.kind,
             docs,
         };
 
