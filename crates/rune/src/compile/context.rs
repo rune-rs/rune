@@ -8,13 +8,13 @@ use crate::compile::module::{
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
+    ComponentRef, ContextError, Docs, InstFnKind, IntoComponent, Item, ItemBuf, MetaInfo, Names,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
     TypeInfo, TypeOf, VariantRtti,
 };
-use crate::{Hash, InstFnKind};
+use crate::Hash;
 
 /// Context metadata.
 #[non_exhaustive]

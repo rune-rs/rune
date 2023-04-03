@@ -1,8 +1,11 @@
-use crate::compile::ItemBuf;
-use crate::{Hash, InstFnInfo, InstFnKind, InstFnName, IntoTypeHash};
 use std::cmp;
 use std::fmt;
 use std::hash;
+use std::hash::Hash as _;
+
+use crate::compile::{InstFnInfo, InstFnKind, InstFnName, ItemBuf};
+use crate::hash::IntoHash;
+use crate::{Hash, ToTypeHash};
 
 /// A built in instance function.
 #[derive(Debug, Clone, Copy)]
@@ -13,12 +16,14 @@ pub struct Protocol {
     pub hash: Hash,
 }
 
-impl InstFnName for Protocol {
+impl IntoHash for Protocol {
     #[inline]
-    fn name_hash(self) -> Hash {
+    fn into_hash(self) -> Hash {
         self.hash
     }
+}
 
+impl InstFnName for Protocol {
     #[inline]
     fn info(self) -> InstFnInfo {
         InstFnInfo {
@@ -29,16 +34,19 @@ impl InstFnName for Protocol {
     }
 }
 
-impl IntoTypeHash for Protocol {
-    fn into_type_hash(self) -> Hash {
+impl ToTypeHash for Protocol {
+    #[inline]
+    fn to_type_hash(&self) -> Hash {
         self.hash
     }
 
-    fn into_item(self) -> Option<ItemBuf> {
+    #[inline]
+    fn to_item(&self) -> Option<ItemBuf> {
         None
     }
 
-    fn hash<H>(self, hasher: &mut H)
+    #[inline]
+    fn hash_type<H>(&self, hasher: &mut H)
     where
         H: hash::Hasher,
     {
@@ -69,6 +77,7 @@ impl cmp::PartialEq for Protocol {
 impl cmp::Eq for Protocol {}
 
 impl hash::Hash for Protocol {
+    #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.hash.hash(state)
     }

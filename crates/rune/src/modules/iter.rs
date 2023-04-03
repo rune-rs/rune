@@ -10,9 +10,12 @@ pub fn module() -> Result<Module, ContextError> {
 
     // Sorted for ease of finding
     module.inst_fn("chain", Iterator::chain)?;
-    module.inst_fn(Params("collect", [Object::type_hash()]), collect_object)?;
-    module.inst_fn(Params("collect", [Vec::type_hash()]), collect_vec)?;
-    module.inst_fn(Params("collect", [Tuple::type_hash()]), collect_tuple)?;
+    module.inst_fn(
+        Params::new("collect", [Object::type_hash()]),
+        collect_object,
+    )?;
+    module.inst_fn(Params::new("collect", [Vec::type_hash()]), collect_vec)?;
+    module.inst_fn(Params::new("collect", [Tuple::type_hash()]), collect_tuple)?;
     module.inst_fn("enumerate", Iterator::enumerate)?;
     module.inst_fn("filter", Iterator::filter)?;
     module.inst_fn("find", Iterator::find)?;

@@ -68,7 +68,9 @@ pub use self::meta::{MetaRef, SourceMeta};
 
 mod function_meta;
 pub(crate) use self::function_meta::{AssocFnData, FunctionData};
-pub use self::function_meta::{FunctionMeta, FunctionMetaData, FunctionMetaKind};
+pub use self::function_meta::{
+    FunctionMeta, FunctionMetaData, FunctionMetaKind, InstFnInfo, InstFnKind, InstFnName,
+};
 
 mod module;
 pub use self::module::{

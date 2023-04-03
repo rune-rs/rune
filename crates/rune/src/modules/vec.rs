@@ -25,7 +25,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
 
     // TODO: parameterize with generics.
-    module.inst_fn(Params("sort", [i64::type_hash()]), sort_int)?;
+    module.inst_fn(Params::new("sort", [i64::type_hash()]), sort_int)?;
     Ok(module)
 }
 

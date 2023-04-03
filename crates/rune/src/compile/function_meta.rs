@@ -1,11 +1,23 @@
+use std::fmt;
 use std::sync::Arc;
 
 use crate::compile::module::{
     AssocKey, AssocKind, AssocType, AsyncFunction, AsyncInstFn, Function, InstFn,
 };
 use crate::compile::{IntoComponent, ItemBuf, Named};
-use crate::runtime::FunctionHandler;
-use crate::{InstFnInfo, InstFnName};
+use crate::hash::{Hash, IntoHash, Params};
+use crate::runtime::{FunctionHandler, Protocol};
+
+mod sealed {
+    use crate::hash::Params;
+    use crate::runtime::Protocol;
+
+    pub trait Sealed {}
+
+    impl Sealed for Protocol {}
+    impl Sealed for &str {}
+    impl<T, P> Sealed for Params<T, P> {}
+}
 
 /// Type used to collect and store function metadata through the
 /// `#[rune::function]` macro.
@@ -52,6 +64,83 @@ impl FunctionData {
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(Func::args()),
+        }
+    }
+}
+
+/// An instance function name.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum InstFnKind {
+    /// The instance function refers to the given protocol.
+    Protocol(Protocol),
+    /// The instance function refers to the given named instance fn.
+    Instance(Box<str>),
+}
+
+impl fmt::Display for InstFnKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InstFnKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
+            InstFnKind::Instance(name) => write!(f, "{}", name),
+        }
+    }
+}
+
+/// Trait used to determine what can be used as an instance function name.
+pub trait InstFnName: self::sealed::Sealed {
+    /// Get information on the naming of the instance function.
+    #[doc(hidden)]
+    fn info(self) -> InstFnInfo;
+}
+
+impl InstFnName for &str {
+    #[inline]
+    fn info(self) -> InstFnInfo {
+        InstFnInfo {
+            hash: self.into_hash(),
+            kind: InstFnKind::Instance(self.into()),
+            parameters: Hash::EMPTY,
+        }
+    }
+}
+
+impl<T, P> InstFnName for Params<T, P>
+where
+    T: InstFnName,
+    P: IntoIterator,
+    P::Item: std::hash::Hash,
+{
+    fn info(self) -> InstFnInfo {
+        let info = self.name.info();
+
+        InstFnInfo {
+            hash: info.hash,
+            kind: info.kind,
+            parameters: Hash::parameters(self.parameters),
+        }
+    }
+}
+
+/// A descriptor for an instance function.
+#[derive(Clone)]
+#[non_exhaustive]
+#[doc(hidden)]
+pub struct InstFnInfo {
+    /// The hash of the instance function.
+    pub hash: Hash,
+    /// The name of the instance function.
+    pub kind: InstFnKind,
+    /// Parameters hash.
+    pub parameters: Hash,
+}
+
+impl InstFnInfo {
+    pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
+        Self {
+            hash: Hash::index(index),
+            kind: InstFnKind::Protocol(protocol),
+            parameters: Hash::EMPTY,
         }
     }
 }

@@ -7,10 +7,12 @@ use std::sync::Arc;
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
-use crate::compile::{Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
+use crate::compile::{
+    InstFnKind, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool, Visibility,
+};
+use crate::hash::Hash;
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::runtime::{ConstValue, TypeInfo};
-use crate::{Hash, InstFnKind};
 
 /// Provides a human-readable description of a meta item. This is cheaper to use
 /// than [Meta] because it avoids having to clone some data.

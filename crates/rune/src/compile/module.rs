@@ -5,15 +5,15 @@
 
 use crate::collections::{HashMap, HashSet};
 use crate::compile::{
-    AssocFnData, ContextError, Docs, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent,
-    ItemBuf, Named,
+    AssocFnData, ContextError, Docs, FunctionData, FunctionMeta, FunctionMetaKind, InstFnInfo,
+    InstFnKind, InstFnName, IntoComponent, ItemBuf, Named,
 };
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
     ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Protocol, Stack,
     StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
 };
-use crate::{Hash, InstFnInfo, InstFnKind, InstFnName};
+use crate::Hash;
 use std::fmt;
 use std::future;
 use std::sync::Arc;
@@ -1047,10 +1047,6 @@ impl Module {
                 InstFnKind::Instance(name) => ContextError::ConflictingInstanceFunction {
                     type_info: meta.ty.type_info,
                     name,
-                },
-                InstFnKind::Hash(hash) => ContextError::ConflictingInstanceFunctionHash {
-                    type_info: meta.ty.type_info,
-                    hash,
                 },
             });
         }

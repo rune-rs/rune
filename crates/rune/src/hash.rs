@@ -1,12 +1,18 @@
-use crate::compile::{IntoComponent, ItemBuf};
-use crate::runtime::Protocol;
-use crate::Any;
+mod into_hash;
+mod to_type_hash;
+
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
 use std::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
 use std::mem;
+
 use twox_hash::XxHash64;
+
+pub use self::into_hash::IntoHash;
+pub use self::to_type_hash::ToTypeHash;
+use crate::runtime::Protocol;
+use crate::Any;
 
 const SEP: u64 = 0x4bc94d6bd06053ad;
 const PARAMS: u64 = 0x19893cc8f39b1371;
@@ -33,7 +39,7 @@ impl Hash {
     }
 
     /// Construct a simple hash from something that is hashable.
-    pub(crate) fn of<T: hash::Hash>(thing: T) -> Self {
+    fn of<T: hash::Hash>(thing: T) -> Self {
         let mut hasher = Self::new_hasher();
         thing.hash(&mut hasher);
         Self(hasher.finish())
@@ -48,9 +54,9 @@ impl Hash {
     /// Get the hash of a type.
     pub fn type_hash<I>(path: I) -> Self
     where
-        I: IntoTypeHash,
+        I: ToTypeHash,
     {
-        path.into_type_hash()
+        path.to_type_hash()
     }
 
     /// Construct a hash from the given type id.
@@ -73,9 +79,9 @@ impl Hash {
     #[inline]
     pub fn instance_function<N>(type_hash: Hash, name: N) -> Self
     where
-        N: InstFnName,
+        N: IntoHash,
     {
-        let name = name.name_hash();
+        let name = name.into_hash();
         Self(INSTANCE_FUNCTION_HASH ^ (type_hash.0 ^ name.0))
     }
 
@@ -83,10 +89,9 @@ impl Hash {
     #[inline]
     pub fn field_fn<N>(protocol: Protocol, type_hash: Hash, name: N) -> Self
     where
-        N: InstFnName,
+        N: IntoHash,
     {
-        let name = name.name_hash();
-        Self(FIELD_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ name.0))
+        Self(FIELD_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ name.into_hash().0))
     }
 
     /// Construct an index function.
@@ -131,7 +136,7 @@ impl Hash {
     pub(crate) fn parameters<I>(parameters: I) -> Self
     where
         I: IntoIterator,
-        I::Item: IntoTypeHash,
+        I::Item: std::hash::Hash,
     {
         let mut hasher = ParametersBuilder::new();
 
@@ -169,174 +174,30 @@ impl fmt::Debug for Hash {
     }
 }
 
-/// Helper conversion into a function hash.
-pub trait IntoTypeHash: Copy {
-    /// Generate a function hash.
-    fn into_type_hash(self) -> Hash;
-
-    /// Optionally convert into an item, if appropriate.
-    fn into_item(self) -> Option<ItemBuf>;
-
-    /// Hash the current value.
-    fn hash<H>(self, hasher: &mut H)
-    where
-        H: Hasher;
-}
-
-impl IntoTypeHash for Hash {
-    fn into_type_hash(self) -> Hash {
-        self
-    }
-
-    fn into_item(self) -> Option<ItemBuf> {
-        None
-    }
-
-    fn hash<H>(self, hasher: &mut H)
-    where
-        H: Hasher,
-    {
-        self.0.hash(hasher);
-    }
-}
-
-impl<I> IntoTypeHash for I
-where
-    I: Copy + IntoIterator,
-    I::Item: IntoComponent,
-{
-    fn into_type_hash(self) -> Hash {
-        let mut hasher = Hash::new_hasher();
-        self.hash(&mut hasher);
-        Hash(hasher.finish())
-    }
-
-    fn into_item(self) -> Option<ItemBuf> {
-        Some(ItemBuf::with_item(self))
-    }
-
-    fn hash<H>(self, hasher: &mut H)
-    where
-        H: Hasher,
-    {
-        TYPE.hash(hasher);
-
-        for c in self {
-            c.hash_component(hasher);
-        }
-    }
-}
-
-/// An instance function name.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum InstFnKind {
-    /// The instance function refers to the given protocol.
-    Protocol(Protocol),
-    /// The instance function refers to the given named instance fn.
-    Instance(Box<str>),
-    /// Instance function only has a hash.
-    Hash(Hash),
-}
-
-impl fmt::Display for InstFnKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            InstFnKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
-            InstFnKind::Instance(name) => write!(f, "{}", name),
-            InstFnKind::Hash(hash) => write!(f, "<{}>", hash),
-        }
-    }
-}
-
-/// A descriptor for an instance function.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct InstFnInfo {
-    /// The hash of the instance function.
-    pub hash: Hash,
-    /// The name of the instance function.
-    pub kind: InstFnKind,
-    /// Parameters hash.
-    pub parameters: Hash,
-}
-
-impl InstFnInfo {
-    pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
-        Self {
-            hash: Hash::index(index),
-            kind: InstFnKind::Protocol(protocol),
-            parameters: Hash::EMPTY,
-        }
-    }
-}
-
-/// Trait used to determine what can be used as an instance function name.
-pub trait InstFnName: Copy {
-    /// Get only the hash of the named instance function.
-    fn name_hash(self) -> Hash;
-
-    /// Get information on the naming of the instance function.
-    fn info(self) -> InstFnInfo;
-}
-
-impl InstFnName for &str {
-    #[inline]
-    fn name_hash(self) -> Hash {
-        Hash::of(self)
-    }
-
-    #[inline]
-    fn info(self) -> InstFnInfo {
-        InstFnInfo {
-            hash: self.name_hash(),
-            kind: InstFnKind::Instance(self.into()),
-            parameters: Hash::EMPTY,
-        }
-    }
-}
-
-impl InstFnName for Hash {
-    #[inline]
-    fn name_hash(self) -> Hash {
-        self
-    }
-
-    #[inline]
-    fn info(self) -> InstFnInfo {
-        InstFnInfo {
-            hash: self,
-            kind: InstFnKind::Hash(self),
-            parameters: Hash::EMPTY,
-        }
-    }
-}
-
 /// Helper to register a parameterized function.
 ///
 /// This is used to wrap the name of the function in order to associated
 /// parameters with it.
 #[derive(Clone, Copy)]
-pub struct Params<T, P>(pub T, pub P);
+pub struct Params<T, P> {
+    pub(crate) name: T,
+    pub(crate) parameters: P,
+}
 
-impl<T, P> InstFnName for Params<T, P>
-where
-    T: InstFnName,
-    P: Copy + IntoIterator,
-    P::Item: IntoTypeHash,
-{
-    fn name_hash(self) -> Hash {
-        self.0.name_hash()
+impl<T, P> Params<T, P> {
+    /// Construct a new parameters wrapper.
+    pub const fn new(name: T, parameters: P) -> Self {
+        Self { name, parameters }
     }
+}
 
-    fn info(self) -> InstFnInfo {
-        let info = self.0.info();
-
-        InstFnInfo {
-            hash: info.hash,
-            kind: info.kind,
-            parameters: Hash::parameters(self.1),
-        }
+impl<T, P> IntoHash for Params<T, P>
+where
+    T: IntoHash,
+{
+    #[inline]
+    fn into_hash(self) -> Hash {
+        self.name.into_hash()
     }
 }
 
@@ -352,7 +213,10 @@ impl ParametersBuilder {
         Self { hasher }
     }
 
-    pub(crate) fn add(&mut self, p: impl IntoTypeHash) {
+    pub(crate) fn add<P>(&mut self, p: P)
+    where
+        P: std::hash::Hash,
+    {
         SEP.hash(&mut self.hasher);
         p.hash(&mut self.hasher);
     }
