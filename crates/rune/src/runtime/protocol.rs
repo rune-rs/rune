@@ -3,7 +3,7 @@ use std::fmt;
 use std::hash;
 use std::hash::Hash as _;
 
-use crate::compile::{InstFnInfo, InstFnKind, InstFnName, ItemBuf};
+use crate::compile::{AssociatedFunctionKind, AssociatedFunctionName, ItemBuf, ToInstance};
 use crate::hash::IntoHash;
 use crate::{Hash, ToTypeHash};
 
@@ -23,12 +23,11 @@ impl IntoHash for Protocol {
     }
 }
 
-impl InstFnName for Protocol {
+impl ToInstance for Protocol {
     #[inline]
-    fn info(self) -> InstFnInfo {
-        InstFnInfo {
-            hash: self.hash,
-            kind: InstFnKind::Protocol(self),
+    fn to_instance(self) -> AssociatedFunctionName {
+        AssociatedFunctionName {
+            kind: AssociatedFunctionKind::Protocol(self),
             parameters: Hash::EMPTY,
         }
     }

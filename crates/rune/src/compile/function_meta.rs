@@ -2,10 +2,10 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::compile::module::{
-    AssocKey, AssocKind, AssocType, AsyncFunction, AsyncInstFn, Function, InstFn,
+    AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn,
 };
 use crate::compile::{IntoComponent, ItemBuf, Named};
-use crate::hash::{Hash, IntoHash, Params};
+use crate::hash::{Hash, Params};
 use crate::runtime::{FunctionHandler, Protocol};
 
 mod sealed {
@@ -14,8 +14,8 @@ mod sealed {
 
     pub trait Sealed {}
 
-    impl Sealed for Protocol {}
     impl Sealed for &str {}
+    impl Sealed for Protocol {}
     impl<T, P> Sealed for Params<T, P> {}
 }
 
@@ -69,53 +69,111 @@ impl FunctionData {
 }
 
 /// An instance function name.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum InstFnKind {
-    /// The instance function refers to the given protocol.
+pub enum AssociatedFunctionKind {
+    /// A protocol function implemented on the type itself.
     Protocol(Protocol),
+    /// A field function with the given protocol.
+    FieldFn(Protocol, Box<str>),
+    /// An index function with the given protocol.
+    IndexFn(Protocol, usize),
     /// The instance function refers to the given named instance fn.
     Instance(Box<str>),
 }
 
-impl fmt::Display for InstFnKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl AssociatedFunctionKind {
+    /// Convert the kind into a hash function.
+    pub(crate) fn hash(&self, instance_type: Hash) -> Hash {
         match self {
-            InstFnKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
-            InstFnKind::Instance(name) => write!(f, "{}", name),
+            Self::Protocol(protocol) => Hash::instance_function(instance_type, protocol.hash),
+            Self::IndexFn(protocol, index) => {
+                Hash::index_fn(*protocol, instance_type, Hash::index(*index))
+            }
+            Self::FieldFn(protocol, field) => {
+                Hash::field_fn(*protocol, instance_type, field.as_ref())
+            }
+            Self::Instance(name) => Hash::instance_function(instance_type, name.as_ref()),
         }
     }
 }
 
-/// Trait used to determine what can be used as an instance function name.
-pub trait InstFnName: self::sealed::Sealed {
-    /// Get information on the naming of the instance function.
-    #[doc(hidden)]
-    fn info(self) -> InstFnInfo;
+impl fmt::Display for AssociatedFunctionKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AssociatedFunctionKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
+            AssociatedFunctionKind::FieldFn(protocol, field) => {
+                write!(f, ".{field}<{}>", protocol.name)
+            }
+            AssociatedFunctionKind::IndexFn(protocol, index) => {
+                write!(f, ".{index}<{}>", protocol.name)
+            }
+            AssociatedFunctionKind::Instance(name) => write!(f, "{}", name),
+        }
+    }
 }
 
-impl InstFnName for &str {
+/// Trait used solely to construct an instance function.
+pub trait ToInstance: self::sealed::Sealed {
+    /// Get information on the naming of the instance function.
+    #[doc(hidden)]
+    fn to_instance(self) -> AssociatedFunctionName;
+}
+
+/// Trait used to determine what can be used as an instance function name.
+pub trait ToFieldFunction: self::sealed::Sealed {
+    #[doc(hidden)]
+    fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName;
+}
+
+impl ToInstance for &str {
     #[inline]
-    fn info(self) -> InstFnInfo {
-        InstFnInfo {
-            hash: self.into_hash(),
-            kind: InstFnKind::Instance(self.into()),
+    fn to_instance(self) -> AssociatedFunctionName {
+        AssociatedFunctionName {
+            kind: AssociatedFunctionKind::Instance(self.into()),
             parameters: Hash::EMPTY,
         }
     }
 }
 
-impl<T, P> InstFnName for Params<T, P>
+impl ToFieldFunction for &str {
+    #[inline]
+    fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
+        AssociatedFunctionName {
+            kind: AssociatedFunctionKind::FieldFn(protocol, self.into()),
+            parameters: Hash::EMPTY,
+        }
+    }
+}
+
+impl<T, P> ToInstance for Params<T, P>
 where
-    T: InstFnName,
+    T: ToInstance,
     P: IntoIterator,
     P::Item: std::hash::Hash,
 {
-    fn info(self) -> InstFnInfo {
-        let info = self.name.info();
+    #[inline]
+    fn to_instance(self) -> AssociatedFunctionName {
+        let info = self.name.to_instance();
 
-        InstFnInfo {
-            hash: info.hash,
+        AssociatedFunctionName {
+            kind: info.kind,
+            parameters: Hash::parameters(self.parameters),
+        }
+    }
+}
+
+impl<T, P> ToFieldFunction for Params<T, P>
+where
+    T: ToFieldFunction,
+    P: IntoIterator,
+    P::Item: std::hash::Hash,
+{
+    #[inline]
+    fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
+        let info = self.name.to_field_function(protocol);
+
+        AssociatedFunctionName {
             kind: info.kind,
             parameters: Hash::parameters(self.parameters),
         }
@@ -126,20 +184,17 @@ where
 #[derive(Clone)]
 #[non_exhaustive]
 #[doc(hidden)]
-pub struct InstFnInfo {
-    /// The hash of the instance function.
-    pub hash: Hash,
+pub struct AssociatedFunctionName {
     /// The name of the instance function.
-    pub kind: InstFnKind,
+    pub kind: AssociatedFunctionKind,
     /// Parameters hash.
     pub parameters: Hash,
 }
 
-impl InstFnInfo {
+impl AssociatedFunctionName {
     pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
         Self {
-            hash: Hash::index(index),
-            kind: InstFnKind::Protocol(protocol),
+            kind: AssociatedFunctionKind::IndexFn(protocol, index),
             parameters: Hash::EMPTY,
         }
     }
@@ -147,17 +202,16 @@ impl InstFnInfo {
 
 /// Runtime data for an associated function.
 #[derive(Clone)]
-pub struct AssocFnData {
-    pub(crate) name: InstFnInfo,
+pub struct AssociatedFunctionData {
+    pub(crate) name: AssociatedFunctionName,
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) ty: AssocType,
     pub(crate) args: Option<usize>,
-    pub(crate) kind: AssocKind,
 }
 
-impl AssocFnData {
+impl AssociatedFunctionData {
     #[inline]
-    pub(crate) fn new<Func, Args>(name: InstFnInfo, f: Func, kind: AssocKind) -> Self
+    pub(crate) fn new<Func, Args>(name: AssociatedFunctionName, f: Func) -> Self
     where
         Func: InstFn<Args>,
     {
@@ -166,12 +220,11 @@ impl AssocFnData {
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             ty: Func::ty(),
             args: Some(Func::args()),
-            kind,
         }
     }
 
     #[inline]
-    pub(crate) fn new_async<Func, Args>(name: InstFnInfo, f: Func, kind: AssocKind) -> Self
+    pub(crate) fn new_async<Func, Args>(name: AssociatedFunctionName, f: Func) -> Self
     where
         Func: AsyncInstFn<Args>,
     {
@@ -180,16 +233,14 @@ impl AssocFnData {
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             ty: Func::ty(),
             args: Some(Func::args()),
-            kind,
         }
     }
 
     /// Get associated key.
-    pub(crate) fn assoc_key(&self) -> AssocKey {
-        AssocKey {
+    pub(crate) fn assoc_key(&self) -> AssociatedFunctionKey {
+        AssociatedFunctionKey {
             type_hash: self.ty.hash,
-            hash: self.name.hash,
-            kind: self.kind,
+            kind: self.name.kind.clone(),
             parameters: self.name.parameters,
         }
     }
@@ -205,7 +256,7 @@ pub enum FunctionMetaKind {
     #[doc(hidden)]
     Function(FunctionData),
     #[doc(hidden)]
-    AssocFn(AssocFnData),
+    AssociatedFunction(AssociatedFunctionData),
 }
 
 impl FunctionMetaKind {
@@ -265,20 +316,20 @@ impl FunctionMetaKind {
     #[inline]
     pub fn instance<N, Func, Args>(name: N, f: Func) -> Self
     where
-        N: InstFnName,
+        N: ToInstance,
         Func: InstFn<Args>,
     {
-        Self::AssocFn(AssocFnData::new(name.info(), f, AssocKind::Instance))
+        Self::AssociatedFunction(AssociatedFunctionData::new(name.to_instance(), f))
     }
 
     #[doc(hidden)]
     #[inline]
     pub fn async_instance<N, Func, Args>(name: N, f: Func) -> Self
     where
-        N: InstFnName,
+        N: ToInstance,
         Func: AsyncInstFn<Args>,
     {
-        Self::AssocFn(AssocFnData::new_async(name.info(), f, AssocKind::Instance))
+        Self::AssociatedFunction(AssociatedFunctionData::new_async(name.to_instance(), f))
     }
 }
 

@@ -8,7 +8,7 @@ use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
 use crate::compile::{
-    InstFnKind, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool, Visibility,
+    AssociatedFunctionKind, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool, Visibility,
 };
 use crate::hash::Hash;
 use crate::parse::{Id, ParseError, ResolveContext};
@@ -263,7 +263,7 @@ pub enum Signature {
         /// Path to the instance function.
         item: ItemBuf,
         /// Name of the instance function.
-        name: InstFnKind,
+        name: AssociatedFunctionKind,
         /// Arguments.
         args: Option<usize>,
         /// Information on the self type.

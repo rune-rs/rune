@@ -4,11 +4,12 @@ use std::sync::Arc;
 use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::module::{
-    AssocFn, AssocKey, AssocKind, Function, InternalEnum, Macro, Module, ModuleFn, Type,
+    AssociatedFunction, Function, InternalEnum, Macro, Module, ModuleFunction, Type,
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
-    ComponentRef, ContextError, Docs, InstFnKind, IntoComponent, Item, ItemBuf, MetaInfo, Names,
+    AssociatedFunctionKey, AssociatedFunctionKind, ComponentRef, ContextError, Docs, IntoComponent,
+    Item, ItemBuf, MetaInfo, Names,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -101,7 +102,7 @@ pub struct Context {
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
-    associated: HashMap<Hash, Vec<ItemBuf>>,
+    associated: HashMap<Hash, Vec<AssociatedFunction>>,
     /// Registered native macro handlers.
     macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
@@ -308,11 +309,11 @@ impl Context {
 
     /// Get all associated types for the given hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &Item> {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &AssociatedFunction> {
         self.associated
             .get(&hash)
             .into_iter()
-            .flat_map(|items| items.iter().map(|i| i.as_ref()))
+            .flat_map(|items| items.iter())
     }
 
     /// Lookup the given macro handler.
@@ -492,7 +493,7 @@ impl Context {
         &mut self,
         module: &Module,
         item: &Item,
-        f: &ModuleFn,
+        f: &ModuleFunction,
     ) -> Result<(), ContextError> {
         let item = module.item.join(item);
         self.names.insert(&item);
@@ -583,8 +584,8 @@ impl Context {
     fn install_associated_function(
         &mut self,
         module: &Module,
-        key: &AssocKey,
-        assoc: &AssocFn,
+        key: &AssociatedFunctionKey,
+        assoc: &AssociatedFunction,
     ) -> Result<(), ContextError> {
         let info = match self
             .types_rev
@@ -599,15 +600,15 @@ impl Context {
             }
         };
 
-        let hash = key
+        let hash = assoc
             .kind
-            .hash(key.type_hash, key.hash)
+            .hash(key.type_hash)
             .with_parameters(key.parameters);
 
         let signature = meta::Signature::Instance {
             type_hash: key.type_hash,
             item: info.item.clone(),
-            name: assoc.name.clone(),
+            name: assoc.kind.clone(),
             args: assoc.args,
             self_type_info: info.type_info.clone(),
         };
@@ -621,21 +622,21 @@ impl Context {
 
         self.functions.insert(hash, assoc.handler.clone());
 
+        #[cfg(feature = "doc")]
+        self.associated
+            .entry(key.type_hash)
+            .or_default()
+            .push(assoc.clone());
+
         // If the associated function is a named instance function - register it
         // under the name of the item it corresponds to unless it's a field
         // function.
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        if let (InstFnKind::Instance(name), AssocKind::Instance) = (&assoc.name, key.kind) {
+        if let AssociatedFunctionKind::Instance(name) = &assoc.kind {
             let item = info.item.extended(name);
             self.names.insert(&item);
-
-            #[cfg(feature = "doc")]
-            self.associated
-                .entry(key.type_hash)
-                .or_default()
-                .push(item.clone());
 
             let type_hash = Hash::type_hash(&item);
             let hash = type_hash.with_parameters(key.parameters);

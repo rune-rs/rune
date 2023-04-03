@@ -67,14 +67,16 @@ pub(crate) use self::meta::{Doc, ItemMeta};
 pub use self::meta::{MetaRef, SourceMeta};
 
 mod function_meta;
-pub(crate) use self::function_meta::{AssocFnData, FunctionData};
+pub(crate) use self::function_meta::{AssociatedFunctionData, FunctionData};
 pub use self::function_meta::{
-    FunctionMeta, FunctionMetaData, FunctionMetaKind, InstFnInfo, InstFnKind, InstFnName,
+    AssociatedFunctionKind, AssociatedFunctionName, FunctionMeta, FunctionMetaData,
+    FunctionMetaKind, ToFieldFunction, ToInstance,
 };
 
 mod module;
 pub use self::module::{
-    AssocType, AsyncFunction, AsyncInstFn, Function, InstFn, InstallWith, Module, Variant,
+    AssocType, AssociatedFunction, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function,
+    InstFn, InstallWith, Module, Variant,
 };
 
 mod pool;
