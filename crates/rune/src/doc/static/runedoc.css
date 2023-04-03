@@ -74,6 +74,10 @@ a {
     color: var(--fn-link-color);
 }
 
+.protocol {
+    color: var(--fn-link-color);
+}
+
 .item-title {
     font-size: 1.2rem;
     line-height: 1.25;

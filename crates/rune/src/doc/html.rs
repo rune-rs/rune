@@ -48,7 +48,6 @@ struct Ctxt<'a> {
     index_template: templating::Template,
     module_template: templating::Template,
     type_template: templating::Template,
-    struct_template: templating::Template,
     function_template: templating::Template,
     syntax_set: SyntaxSet,
 }
@@ -65,7 +64,7 @@ impl Ctxt<'_> {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Build<'a> {
     Type(ItemBuf, Hash),
-    Struct(ItemBuf),
+    Struct(ItemBuf, Hash),
     Function(ItemBuf),
     Module(&'a Item),
 }
@@ -129,7 +128,6 @@ pub fn write_html(
         index_template: compile(&templating, "index.html.hbs")?,
         module_template: compile(&templating, "module.html.hbs")?,
         type_template: compile(&templating, "type.html.hbs")?,
-        struct_template: compile(&templating, "struct.html.hbs")?,
         function_template: compile(&templating, "function.html.hbs")?,
         syntax_set,
     };
@@ -148,10 +146,10 @@ pub fn write_html(
     while let Some(build) = queue.pop_front() {
         match build {
             Build::Type(m, hash) => {
-                type_(&cx, &m, hash, root)?;
+                type_(&cx, "Type", ItemPath::Type, &m, hash, root)?;
             }
-            Build::Struct(m) => {
-                struct_(&cx, &m, root)?;
+            Build::Struct(m, hash) => {
+                type_(&cx, "Struct", ItemPath::Struct, &m, hash, root)?;
             }
             Build::Function(m) => {
                 function(&cx, &m, root)?;
@@ -293,7 +291,7 @@ fn module(
                 });
             }
             Kind::Struct { .. } => {
-                queue.push_front(Build::Struct(item.clone()));
+                queue.push_front(Build::Struct(item.clone(), meta.hash));
                 let path = dir.relative(item_path(cx, &item, ItemPath::Struct));
                 structs.push(Struct {
                     item,
@@ -339,14 +337,30 @@ fn module(
 
 /// Build an unknown type.
 // #[tracing::instrument(skip_all)]
-fn type_(cx: &Ctxt<'_>, m: &Item, hash: Hash, root: &Path) -> Result<RelativePathBuf> {
+fn type_(
+    cx: &Ctxt<'_>,
+    what: &str,
+    path: ItemPath,
+    m: &Item,
+    hash: Hash,
+    root: &Path,
+) -> Result<RelativePathBuf> {
     #[derive(Serialize)]
     struct Params<'a> {
+        what: &'a str,
         #[serde(flatten)]
         shared: Shared,
         #[serde(serialize_with = "serialize_item")]
         item: &'a Item,
         methods: Vec<Method<'a>>,
+        protocols: Vec<Protocol<'a>>,
+    }
+
+    #[derive(Serialize)]
+    struct Protocol<'a> {
+        name: &'a str,
+        repr: Option<String>,
+        doc: Option<String>,
     }
 
     #[derive(Serialize)]
@@ -356,16 +370,31 @@ fn type_(cx: &Ctxt<'_>, m: &Item, hash: Hash, root: &Path) -> Result<RelativePat
         doc: Option<String>,
     }
 
-    let path = item_path(cx, m, ItemPath::Type);
+    let path = item_path(cx, m, path);
     let dir = path.parent().unwrap_or(RelativePath::new(""));
 
+    let mut protocols = Vec::new();
     let mut methods = Vec::new();
 
     for f in cx.context.associated(hash) {
         match &f.kind {
-            AssociatedFunctionKind::Protocol(_) => {}
-            AssociatedFunctionKind::FieldFn(_, _) => {}
-            AssociatedFunctionKind::IndexFn(_, _) => {}
+            AssociatedFunctionKind::Protocol(protocol) => {
+                let doc = if f.docs.lines().is_empty() {
+                    cx.render_docs(protocol.doc)?
+                } else {
+                    cx.render_docs(f.docs.lines())?
+                };
+
+                let repr = protocol.repr.map(|line| cx.render_code([line]));
+
+                protocols.push(Protocol {
+                    name: protocol.name,
+                    repr,
+                    doc,
+                });
+            }
+            AssociatedFunctionKind::FieldFn(..) => {}
+            AssociatedFunctionKind::IndexFn(..) => {}
             AssociatedFunctionKind::Instance(name) => {
                 let doc = cx.render_docs(f.docs.lines())?;
 
@@ -374,71 +403,7 @@ fn type_(cx: &Ctxt<'_>, m: &Item, hash: Hash, root: &Path) -> Result<RelativePat
                     args: args_to_string(None, Signature::Instance { args: f.args })?,
                     doc,
                 });
-            }
-        }
-    }
 
-    let p = path.to_path(root);
-    ensure_parent_dir(&p)?;
-
-    let data = cx.type_template.render(&Params {
-        shared: cx.shared(dir),
-        item: m,
-        methods,
-    })?;
-
-    tracing::info!("writing: {}", p.display());
-    fs::write(&p, data).with_context(|| p.display().to_string())?;
-    Ok(path)
-}
-
-/// Build a single struct.
-#[tracing::instrument(skip_all)]
-fn struct_(cx: &Ctxt<'_>, m: &Item, root: &Path) -> Result<RelativePathBuf> {
-    #[derive(Serialize)]
-    struct Params<'a> {
-        #[serde(flatten)]
-        shared: Shared,
-        #[serde(serialize_with = "serialize_item")]
-        item: &'a Item,
-        methods: Vec<Method<'a>>,
-    }
-
-    #[derive(Serialize)]
-    struct Method<'a> {
-        #[serde(serialize_with = "serialize_item")]
-        item: ItemBuf,
-        #[serde(serialize_with = "serialize_component_ref")]
-        name: ComponentRef<'a>,
-        args: String,
-        doc: Option<String>,
-    }
-
-    let path = item_path(cx, m, ItemPath::Struct);
-    let dir = path.parent().unwrap_or(RelativePath::new(""));
-
-    let mut methods = Vec::new();
-
-    for name in cx.context.iter_components(m) {
-        let item = m.join([name]);
-
-        let meta = match cx.context.meta(&item) {
-            Some(meta) => meta,
-            _ => continue,
-        };
-
-        match meta.kind {
-            Kind::Function(f) => {
-                let doc = cx.render_docs(meta.docs)?;
-
-                methods.push(Method {
-                    item,
-                    name,
-                    args: args_to_string(f.args, f.signature)?,
-                    doc,
-                });
-            }
-            _ => {
                 continue;
             }
         }
@@ -447,10 +412,12 @@ fn struct_(cx: &Ctxt<'_>, m: &Item, root: &Path) -> Result<RelativePathBuf> {
     let p = path.to_path(root);
     ensure_parent_dir(&p)?;
 
-    let data = cx.struct_template.render(&Params {
+    let data = cx.type_template.render(&Params {
+        what,
         shared: cx.shared(dir),
         item: m,
         methods,
+        protocols,
     })?;
 
     tracing::info!("writing: {}", p.display());
@@ -542,8 +509,56 @@ fn item_path(cx: &Ctxt<'_>, item: &Item, kind: ItemPath) -> RelativePathBuf {
 }
 
 impl Ctxt<'_> {
+    /// Render rust code.
+    fn render_code<I>(&self, lines: I) -> String
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let syntax = match self.syntax_set.find_syntax_by_token(RUST_TOKEN) {
+            Some(syntax) => syntax,
+            None => self.syntax_set.find_syntax_plain_text(),
+        };
+
+        self.render_code_by_syntax(lines, syntax)
+    }
+
     /// Render documentation.
-    fn render_docs(&self, docs: &[String]) -> Result<Option<String>> {
+    fn render_code_by_syntax<I>(&self, lines: I, syntax: &SyntaxReference) -> String
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let mut buf = String::new();
+
+        let mut gen = ClassedHTMLGenerator::new_with_class_style(
+            syntax,
+            &self.syntax_set,
+            ClassStyle::Spaced,
+        );
+
+        for line in lines {
+            let line = line.as_ref();
+            let line = line.strip_prefix(' ').unwrap_or(line);
+
+            if line.starts_with('#') {
+                continue;
+            }
+
+            buf.clear();
+            buf.push_str(line);
+            buf.push('\n');
+            let _ = gen.parse_html_for_line_which_includes_newline(&buf);
+        }
+
+        gen.finalize()
+    }
+
+    /// Render documentation.
+    fn render_docs<S>(&self, docs: &[S]) -> Result<Option<String>>
+    where
+        S: AsRef<str>,
+    {
         use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
         use std::fmt::Write;
 
@@ -605,28 +620,7 @@ impl Ctxt<'_> {
                     }
                     (Event::Text(text), syntax) => {
                         if let Some(syntax) = syntax {
-                            let mut buf = String::new();
-
-                            let mut gen = ClassedHTMLGenerator::new_with_class_style(
-                                syntax,
-                                &self.cx.syntax_set,
-                                ClassStyle::Spaced,
-                            );
-
-                            for line in text.lines() {
-                                let line = line.strip_prefix(' ').unwrap_or(line);
-
-                                if line.starts_with('#') {
-                                    continue;
-                                }
-
-                                buf.clear();
-                                buf.push_str(line);
-                                buf.push('\n');
-                                let _ = gen.parse_html_for_line_which_includes_newline(&buf);
-                            }
-
-                            let html = gen.finalize();
+                            let html = self.cx.render_code_by_syntax(text.lines(), syntax);
                             Some(Event::Html(CowStr::Boxed(html.into())))
                         } else {
                             let mut buf = String::new();
@@ -659,6 +653,7 @@ impl Ctxt<'_> {
         let mut input = String::new();
 
         for line in docs {
+            let line = line.as_ref();
             let line = line.strip_prefix(' ').unwrap_or(line);
             input.push_str(line);
             input.push('\n');

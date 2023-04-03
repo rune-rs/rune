@@ -3,7 +3,7 @@
 {{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
 {{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
 <body>
-<h3 class="title">Type <b>{{item}}</b></h3>
+<h3 class="title">{{what}} <b>{{item}}</b></h3>
 
 {{#if methods}}
 <h4 class="section-title">Methods</h4>
@@ -11,8 +11,22 @@
 {{#each methods}}
     <div class="item item-fn">
         <div id="method.{{this.name}}" class="item-title">
-        fn <span class="fn">{{this.name}}</span>({{this.args}})
+        fn <a href="#method.{{this.name}}" class="fn">{{this.name}}</a>({{this.args}})
         </div>
+        {{#if this.doc}}{{literal this.doc}}{{/if}}
+    </div>
+{{/each}}
+{{/if}}
+
+{{#if protocols}}
+<h4 class="section-title">Protocols</h4>
+
+{{#each protocols}}
+    <div class="item item-fn">
+        <div id="protocol.{{this.name}}" class="item-title">
+        protocol <a href="#protocol.{{this.name}}" class="protocol">{{this.name}}</a>
+        </div>
+        {{#if this.repr}}{{literal this.repr}}{{/if}}
         {{#if this.doc}}{{literal this.doc}}{{/if}}
     </div>
 {{/each}}
