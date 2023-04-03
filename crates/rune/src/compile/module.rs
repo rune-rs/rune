@@ -204,6 +204,8 @@ pub(crate) enum TypeSpecification {
 pub struct AssociatedFunction {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) type_info: TypeInfo,
+    /// If the function is asynchronous.
+    pub is_async: bool,
     /// Arguments the function receives.
     pub args: Option<usize>,
     /// The kind of the associated function.
@@ -226,6 +228,7 @@ pub struct AssociatedFunctionKey {
 
 pub(crate) struct ModuleFunction {
     pub(crate) handler: Arc<FunctionHandler>,
+    pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,
     pub(crate) instance_function: bool,
     pub(crate) docs: Docs,
@@ -999,6 +1002,7 @@ impl Module {
             name,
             ModuleFunction {
                 handler: Arc::new(move |stack, args| f(stack, args)),
+                is_async: false,
                 args: None,
                 instance_function: false,
                 docs: Docs::default(),
@@ -1008,16 +1012,17 @@ impl Module {
         Ok(())
     }
 
-    fn function_inner(&mut self, meta: FunctionData, docs: Docs) -> Result<(), ContextError> {
-        if self.functions.contains_key(&meta.name) {
-            return Err(ContextError::ConflictingFunctionName { name: meta.name });
+    fn function_inner(&mut self, data: FunctionData, docs: Docs) -> Result<(), ContextError> {
+        if self.functions.contains_key(&data.name) {
+            return Err(ContextError::ConflictingFunctionName { name: data.name });
         }
 
         self.functions.insert(
-            meta.name,
+            data.name,
             ModuleFunction {
-                handler: meta.handler,
-                args: meta.args,
+                handler: data.handler,
+                is_async: data.is_async,
+                args: data.args,
                 instance_function: false,
                 docs,
             },
@@ -1063,8 +1068,9 @@ impl Module {
 
         let assoc_fn = AssociatedFunction {
             handler: data.handler,
-            args: data.args,
             type_info: data.ty.type_info,
+            is_async: data.is_async,
+            args: data.args,
             kind: data.name.kind,
             docs,
         };

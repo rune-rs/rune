@@ -152,6 +152,8 @@ pub enum Kind {
     Enum,
     /// A function declaration.
     Function {
+        /// If the function is asynchronous.
+        is_async: bool,
         /// The number of arguments the function takes.
         args: Option<usize>,
         /// Whether this function has a `#[test]` annotation
@@ -246,26 +248,27 @@ impl ItemMeta {
 
 /// A description of a function signature.
 #[derive(Debug, Clone)]
-pub enum Signature {
+pub struct Signature {
+    /// Path to the function.
+    pub(crate) item: ItemBuf,
+    /// An asynchronous function.
+    pub(crate) is_async: bool,
+    /// Arguments.
+    pub(crate) args: Option<usize>,
+    /// The kind of a signature.
+    pub(crate) kind: SignatureKind,
+}
+
+/// A description of a function signature.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub(crate) enum SignatureKind {
     /// An unbound or static function
-    Function {
-        /// The type hash of the function
-        type_hash: Hash,
-        /// Path to the function.
-        item: ItemBuf,
-        /// Arguments.
-        args: Option<usize>,
-    },
+    Function,
     /// An instance function or method
     Instance {
-        /// The type hash of the function
-        type_hash: Hash,
-        /// Path to the instance function.
-        item: ItemBuf,
         /// Name of the instance function.
         name: AssociatedFunctionKind,
-        /// Arguments.
-        args: Option<usize>,
         /// Information on the self type.
         self_type_info: TypeInfo,
     },
@@ -273,12 +276,18 @@ pub enum Signature {
 
 impl fmt::Display for Signature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Function { item, args, .. } => {
-                write!(fmt, "{}(", item)?;
+        if self.is_async {
+            write!(fmt, "async fn ")?;
+        } else {
+            write!(fmt, "fn ")?;
+        }
 
-                if let Some(args) = args {
-                    let mut it = 0..*args;
+        match &self.kind {
+            SignatureKind::Function => {
+                write!(fmt, "{}(", self.item)?;
+
+                if let Some(args) = self.args {
+                    let mut it = 0..args;
                     let last = it.next_back();
 
                     for n in it {
@@ -294,17 +303,15 @@ impl fmt::Display for Signature {
 
                 write!(fmt, ")")?;
             }
-            Self::Instance {
-                item,
+            SignatureKind::Instance {
                 name,
                 self_type_info,
-                args,
                 ..
             } => {
-                write!(fmt, "{}::{}(self: {}", item, name, self_type_info)?;
+                write!(fmt, "{}::{}(self: {}", self.item, name, self_type_info)?;
 
-                if let Some(args) = args {
-                    for n in 0..*args {
+                if let Some(args) = self.args {
+                    for n in 0..args {
                         write!(fmt, ", #{}", n)?;
                     }
                 } else {
