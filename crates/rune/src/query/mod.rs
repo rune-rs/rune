@@ -1039,6 +1039,7 @@ impl<'a> Query<'a> {
                 let hash = self.pool.item_type_hash(item_meta.item);
 
                 let kind = meta::Kind::Function {
+                    is_async: f.function.ast.async_token.is_some(),
                     args: Some(f.function.ast.args.len()),
                     is_test: f.is_test,
                     is_bench: f.is_bench,
@@ -1057,6 +1058,7 @@ impl<'a> Query<'a> {
                 let hash = self.pool.item_type_hash(item_meta.item);
 
                 let kind = meta::Kind::Function {
+                    is_async: f.function.ast.async_token.is_some(),
                     args: Some(f.function.ast.args.len()),
                     is_test: false,
                     is_bench: false,

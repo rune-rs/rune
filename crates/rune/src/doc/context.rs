@@ -16,6 +16,7 @@ pub(crate) struct Meta<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Function<'a> {
+    pub(crate) is_async: bool,
     pub(crate) args: Option<&'a [String]>,
     pub(crate) signature: Signature,
 }
@@ -80,7 +81,8 @@ impl<'a> Context<'a> {
                     meta::Kind::Struct { .. } => Kind::Struct,
                     meta::Kind::Variant { .. } => Kind::Variant,
                     meta::Kind::Enum => Kind::Enum,
-                    meta::Kind::Function { args, .. } => Kind::Function(Function {
+                    meta::Kind::Function { is_async, args, .. } => Kind::Function(Function {
+                        is_async: *is_async,
                         args: None,
                         signature: Signature::Function { args: *args },
                     }),
@@ -115,9 +117,9 @@ impl<'a> Context<'a> {
             } => {
                 let f = self.context.lookup_signature(meta.hash)?;
 
-                let instance_function = match *f {
-                    meta::Signature::Function { .. } => *instance_function,
-                    meta::Signature::Instance { .. } => true,
+                let instance_function = match f.kind {
+                    meta::SignatureKind::Function => *instance_function,
+                    meta::SignatureKind::Instance { .. } => true,
                 };
 
                 let signature = if instance_function {
@@ -127,6 +129,7 @@ impl<'a> Context<'a> {
                 };
 
                 Kind::Function(Function {
+                    is_async: f.is_async,
                     signature,
                     args: meta.docs.args(),
                 })

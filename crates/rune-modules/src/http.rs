@@ -65,11 +65,11 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<StatusCode>()?;
     module.ty::<Error>()?;
 
-    module.function(["Client", "new"], Client::new)?;
-    module.async_function(["get"], get)?;
+    module.function_meta(Client::new)?;
+    module.function_meta(get)?;
 
-    module.async_inst_fn("get", Client::get)?;
-    module.async_inst_fn("post", Client::post)?;
+    module.function_meta(Client::get)?;
+    module.function_meta(Client::post)?;
 
     module.async_inst_fn("text", Response::text)?;
     module.async_inst_fn("json", Response::json)?;
@@ -171,19 +171,59 @@ impl RequestBuilder {
 }
 
 impl Client {
+    /// Construct a new http client.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let client = http::Client::new();
+    /// ```
+    #[rune::function(path = Self::new)]
     fn new() -> Self {
         Self {
             client: reqwest::Client::new(),
         }
     }
 
-    /// Construct a builder to GET the given URL.
+    /// Construct a builder to GET the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .await?
+    ///     .body_bytes(body)
+    ///     .await?
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
+    #[rune::function]
     async fn get(&self, url: &str) -> Result<RequestBuilder, Error> {
         let request = self.client.get(url);
         Ok(RequestBuilder { request })
     }
 
-    /// Construct a builder to POST to the given URL.
+    /// Construct a builder to POST to the given `url`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.post("https://postman-echo.com/post")
+    ///     .await?
+    ///     .body_bytes(body)
+    ///     .await?
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.json().await?;
+    /// ```
+    #[rune::function]
     async fn post(&self, url: &str) -> Result<RequestBuilder, Error> {
         let request = self.client.post(url);
         Ok(RequestBuilder { request })
@@ -191,6 +231,16 @@ impl Client {
 }
 
 /// Shorthand for generating a get request.
+///
+/// # Examples
+///
+/// ```rune
+/// let response = http::get("http://worldtimeapi.org/api/ip").await?;
+/// let json = response.json().await?;
+/// 
+/// let timezone = json["timezone"];
+/// ```
+#[rune::function]
 async fn get(url: &str) -> Result<Response, Error> {
     Ok(Response {
         response: reqwest::get(url).await?,

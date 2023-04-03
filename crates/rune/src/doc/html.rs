@@ -255,6 +255,7 @@ fn module(
 
     #[derive(Serialize)]
     struct Function<'a> {
+        is_async: bool,
         path: RelativePathBuf,
         #[serde(serialize_with = "serialize_item")]
         item: ItemBuf,
@@ -305,6 +306,7 @@ fn module(
                     queue.push_front(Build::Function(item.clone()));
 
                     functions.push(Function {
+                        is_async: f.is_async,
                         path: dir.relative(item_path(cx, &item, ItemPath::Function)),
                         item,
                         name,
@@ -365,6 +367,7 @@ fn type_(
 
     #[derive(Serialize)]
     struct Method<'a> {
+        is_async: bool,
         name: &'a str,
         args: String,
         doc: Option<String>,
@@ -375,6 +378,36 @@ fn type_(
 
     let mut protocols = Vec::new();
     let mut methods = Vec::new();
+
+    for name in cx.context.iter_components(m) {
+        let item = m.join([name]);
+
+        let meta = match cx.context.meta(&item) {
+            Some(meta) => meta,
+            _ => continue,
+        };
+
+        let name = match name {
+            ComponentRef::Str(name) => name,
+            _ => continue,
+        };
+
+        match meta.kind {
+            Kind::Function(f) => {
+                if !matches!(f.signature, Signature::Instance { .. }) {
+                    methods.push(Method {
+                        is_async: f.is_async,
+                        name,
+                        args: args_to_string(f.args, f.signature)?,
+                        doc: cx.render_docs(meta.docs)?,
+                    });
+                }
+            }
+            _ => {
+                continue;
+            }
+        }
+    }
 
     for f in cx.context.associated(hash) {
         match &f.kind {
@@ -399,8 +432,9 @@ fn type_(
                 let doc = cx.render_docs(f.docs.lines())?;
 
                 methods.push(Method {
+                    is_async: f.is_async,
                     name,
-                    args: args_to_string(None, Signature::Instance { args: f.args })?,
+                    args: args_to_string(f.docs.args(), Signature::Instance { args: f.args })?,
                     doc,
                 });
 

@@ -423,10 +423,11 @@ impl Context {
                         )?;
 
                         if let (Some(c), Some(args)) = (constructor, args) {
-                            let signature = meta::Signature::Function {
-                                type_hash: hash,
+                            let signature = meta::Signature {
                                 item: item.clone(),
+                                is_async: false,
                                 args: Some(args),
+                                kind: meta::SignatureKind::Function,
                             };
 
                             if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -505,10 +506,11 @@ impl Context {
             ConstValue::String(item.to_string()),
         );
 
-        let signature = meta::Signature::Function {
-            type_hash: hash,
+        let signature = meta::Signature {
             item: item.clone(),
+            is_async: false,
             args: f.args,
+            kind: meta::SignatureKind::Function,
         };
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -525,6 +527,7 @@ impl Context {
             hash,
             item,
             meta::Kind::Function {
+                is_async: f.is_async,
                 args: f.args,
                 is_test: false,
                 is_bench: false,
@@ -605,12 +608,14 @@ impl Context {
             .hash(key.type_hash)
             .with_parameters(key.parameters);
 
-        let signature = meta::Signature::Instance {
-            type_hash: key.type_hash,
+        let signature = meta::Signature {
             item: info.item.clone(),
-            name: assoc.kind.clone(),
+            is_async: assoc.is_async,
             args: assoc.args,
-            self_type_info: info.type_info.clone(),
+            kind: meta::SignatureKind::Instance {
+                name: assoc.kind.clone(),
+                self_type_info: info.type_info.clone(),
+            },
         };
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -646,10 +651,11 @@ impl Context {
                 ConstValue::String(item.to_string()),
             );
 
-            let signature = meta::Signature::Function {
-                type_hash: hash,
+            let signature = meta::Signature {
                 item: item.clone(),
+                is_async: assoc.is_async,
                 args: assoc.args,
+                kind: meta::SignatureKind::Function,
             };
 
             if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -667,6 +673,7 @@ impl Context {
                     type_hash,
                     item,
                     meta::Kind::Function {
+                        is_async: assoc.is_async,
                         args: assoc.args,
                         is_test: false,
                         is_bench: false,
@@ -767,10 +774,11 @@ impl Context {
                 Docs::default(),
             ))?;
 
-            let signature = meta::Signature::Function {
-                type_hash: hash,
+            let signature = meta::Signature {
                 item,
+                is_async: false,
                 args: Some(variant.args),
+                kind: meta::SignatureKind::Function,
             };
 
             if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -838,10 +846,11 @@ impl Context {
             ConstValue::String(item.to_string()),
         );
 
-        let signature = meta::Signature::Function {
-            type_hash,
+        let signature = meta::Signature {
             item,
+            is_async: false,
             args: Some(args),
+            kind: meta::SignatureKind::Function,
         };
 
         if let Some(old) = self.functions_info.insert(hash, signature) {

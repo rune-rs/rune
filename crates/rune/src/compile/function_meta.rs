@@ -33,6 +33,7 @@ pub type FunctionMeta = fn() -> FunctionMetaData;
 /// Runtime data for a function.
 #[derive(Clone)]
 pub struct FunctionData {
+    pub(crate) is_async: bool,
     pub(crate) name: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
@@ -47,6 +48,7 @@ impl FunctionData {
         N::Item: IntoComponent,
     {
         Self {
+            is_async: false,
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(Func::args()),
@@ -61,6 +63,7 @@ impl FunctionData {
         N::Item: IntoComponent,
     {
         Self {
+            is_async: true,
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(Func::args()),
@@ -206,6 +209,7 @@ pub struct AssociatedFunctionData {
     pub(crate) name: AssociatedFunctionName,
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) ty: AssocType,
+    pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,
 }
 
@@ -219,6 +223,7 @@ impl AssociatedFunctionData {
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             ty: Func::ty(),
+            is_async: false,
             args: Some(Func::args()),
         }
     }
@@ -232,6 +237,7 @@ impl AssociatedFunctionData {
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             ty: Func::ty(),
+            is_async: true,
             args: Some(Func::args()),
         }
     }
