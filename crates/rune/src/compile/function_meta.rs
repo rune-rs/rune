@@ -6,8 +6,6 @@ use crate::compile::module::{
 };
 use crate::compile::{IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
-#[cfg(feature = "doc")]
-use crate::runtime::TypeInfo;
 use crate::runtime::{FunctionHandler, Protocol};
 
 mod sealed {
@@ -138,7 +136,7 @@ impl ToInstance for &str {
             kind: AssociatedFunctionKind::Instance(self.into()),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
-            parameter_type_infos: vec![],
+            parameter_types: vec![],
         }
     }
 }
@@ -150,7 +148,7 @@ impl ToFieldFunction for &str {
             kind: AssociatedFunctionKind::FieldFn(protocol, self.into()),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
-            parameter_type_infos: vec![],
+            parameter_types: vec![],
         }
     }
 }
@@ -165,7 +163,7 @@ pub struct AssociatedFunctionName {
     /// Parameters hash.
     pub parameters: Hash,
     #[cfg(feature = "doc")]
-    pub parameter_type_infos: Vec<TypeInfo>,
+    pub parameter_types: Vec<Hash>,
 }
 
 impl AssociatedFunctionName {
@@ -174,7 +172,7 @@ impl AssociatedFunctionName {
             kind: AssociatedFunctionKind::IndexFn(protocol, index),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
-            parameter_type_infos: vec![],
+            parameter_types: vec![],
         }
     }
 }

@@ -40,7 +40,7 @@ impl ToInstance for Protocol {
             kind: AssociatedFunctionKind::Protocol(self),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
-            parameter_type_infos: vec![],
+            parameter_types: vec![],
         }
     }
 }

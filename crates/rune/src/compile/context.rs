@@ -287,6 +287,11 @@ impl Context {
         self.meta.get(name)
     }
 
+    /// Lookup meta by its hash.
+    pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> Option<&PrivMeta> {
+        todo!()
+    }
+
     /// Look up signature of function.
     #[cfg(feature = "doc")]
     pub(crate) fn lookup_signature(&self, hash: Hash) -> Option<&meta::Signature> {

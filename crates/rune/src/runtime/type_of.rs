@@ -5,8 +5,6 @@ use crate::Hash;
 #[derive(Clone)]
 pub struct FullTypeOf {
     pub(crate) hash: Hash,
-    #[cfg(feature = "doc")]
-    pub(crate) type_info: TypeInfo,
 }
 
 /// Trait used for Rust types for which we can determine the runtime type of.
@@ -16,8 +14,6 @@ pub trait TypeOf {
     fn type_of() -> FullTypeOf {
         FullTypeOf {
             hash: Self::type_hash(),
-            #[cfg(feature = "doc")]
-            type_info: Self::type_info(),
         }
     }
 
