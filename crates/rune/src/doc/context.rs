@@ -1,3 +1,4 @@
+use crate::compile::context::PrivMeta;
 use crate::compile::meta;
 use crate::compile::{AssociatedFunction, ComponentRef, IntoComponent, Item};
 use crate::doc::Visitor;
@@ -72,39 +73,31 @@ impl<'a> Context<'a> {
             .chain(tail)
     }
 
+    /// Get a meta item by its hash.
+    pub(crate) fn meta_by_hash(&self, hash: Hash) -> Option<Meta<'_>> {
+        for visitor in self.visitors {
+            if let Some(m) = visitor.get_by_hash(hash) {
+                return Some(visitor_meta_to_meta(m, visitor, hash));
+            }
+        }
+
+        let meta = self.context.lookup_meta_by_hash(hash)?;
+        Some(self.context_meta_to_meta(meta)?)
+    }
+
     /// Lookup Meta.
     pub(crate) fn meta(&self, item: &Item) -> Option<Meta<'_>> {
         for visitor in self.visitors {
-            if let Some(m) = visitor.meta.get(item) {
-                let kind = match m {
-                    meta::Kind::Unknown { .. } => Kind::Unknown,
-                    meta::Kind::Struct { .. } => Kind::Struct,
-                    meta::Kind::Variant { .. } => Kind::Variant,
-                    meta::Kind::Enum => Kind::Enum,
-                    meta::Kind::Function { is_async, args, .. } => Kind::Function(Function {
-                        is_async: *is_async,
-                        args: None,
-                        signature: Signature::Function { args: *args },
-                    }),
-                    _ => Kind::Unsupported,
-                };
-
-                let docs = visitor
-                    .docs
-                    .get(item)
-                    .map(Vec::as_slice)
-                    .unwrap_or_default();
-
-                return Some(Meta {
-                    hash: Hash::type_hash(item),
-                    docs,
-                    kind,
-                });
+            if let Some((hash, m)) = visitor.get(item) {
+                return Some(visitor_meta_to_meta(m, visitor, hash));
             }
         }
 
         let meta = self.context.lookup_meta(item)?;
+        Some(self.context_meta_to_meta(meta)?)
+    }
 
+    fn context_meta_to_meta(&self, meta: &'a PrivMeta) -> Option<Meta<'a>> {
         let kind = match &meta.kind {
             meta::Kind::Unknown { .. } => Kind::Unknown,
             meta::Kind::Struct { .. } => Kind::Struct,
@@ -138,11 +131,13 @@ impl<'a> Context<'a> {
             _ => Kind::Unsupported,
         };
 
-        Some(Meta {
+        let m = Meta {
             hash: meta.hash,
             docs: meta.docs.lines(),
             kind,
-        })
+        };
+
+        Some(m)
     }
 
     /// Iterate over known modules.
@@ -152,4 +147,27 @@ impl<'a> Context<'a> {
             .map(|v| v.base.as_ref())
             .chain(self.context.iter_meta().map(|(_, m)| m.module.as_ref()))
     }
+}
+
+fn visitor_meta_to_meta<'a>(m: &'a meta::Kind, visitor: &'a Visitor, hash: Hash) -> Meta<'a> {
+    let kind = match m {
+        meta::Kind::Unknown { .. } => Kind::Unknown,
+        meta::Kind::Struct { .. } => Kind::Struct,
+        meta::Kind::Variant { .. } => Kind::Variant,
+        meta::Kind::Enum => Kind::Enum,
+        meta::Kind::Function { is_async, args, .. } => Kind::Function(Function {
+            is_async: *is_async,
+            args: None,
+            signature: Signature::Function { args: *args },
+        }),
+        _ => Kind::Unsupported,
+    };
+
+    let docs = visitor
+        .docs
+        .get(&hash)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+
+    Meta { hash, docs, kind }
 }

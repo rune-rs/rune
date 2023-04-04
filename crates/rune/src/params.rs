@@ -41,11 +41,7 @@ where
             kind: info.kind,
             parameters: Hash::parameters(self.parameters.iter().map(|t| t.hash)),
             #[cfg(feature = "doc")]
-            parameter_type_infos: self
-                .parameters
-                .iter()
-                .map(|t| t.type_info.clone())
-                .collect(),
+            parameter_types: self.parameters.iter().map(|t| t.hash).collect(),
         }
     }
 }
@@ -62,11 +58,7 @@ where
             kind: info.kind,
             parameters: Hash::parameters(self.parameters.iter().map(|p| p.hash)),
             #[cfg(feature = "doc")]
-            parameter_type_infos: self
-                .parameters
-                .iter()
-                .map(|p| p.type_info.clone())
-                .collect(),
+            parameter_types: self.parameters.iter().map(|p| p.hash).collect(),
         }
     }
 }

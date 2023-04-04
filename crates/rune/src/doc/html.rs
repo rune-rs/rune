@@ -697,8 +697,12 @@ fn type_(cx: &Ctxt<'_>, what: &str, hash: Hash) -> Result<()> {
 
                 let mut list = Vec::new();
 
-                for p in &f.name.parameter_type_infos {
-                    list.push(p.to_string());
+                for hash in &f.name.parameter_types {
+                    if let Some(meta) = cx.context.meta_by_hash(*hash) {
+                        list.push(String::from("META"));
+                    } else {
+                        list.push(String::from("?"));
+                    }
                 }
 
                 let parameters = (!list.is_empty()).then(|| list.join(", "));
