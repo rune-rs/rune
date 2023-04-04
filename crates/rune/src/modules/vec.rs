@@ -1,5 +1,6 @@
 //! The `std::vec` module.
 
+use crate as rune;
 use crate::runtime::{Function, Protocol, TypeOf, Value, Vec};
 use crate::{ContextError, Module, Params};
 
@@ -13,13 +14,13 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clear", Vec::clear)?;
     module.inst_fn("clone", Vec::clone)?;
     module.inst_fn("extend", Vec::extend)?;
-    module.inst_fn("get", vec_get)?;
+    module.function_meta(get)?;
     module.inst_fn("iter", Vec::into_iterator)?;
     module.inst_fn("len", Vec::len)?;
     module.inst_fn("pop", Vec::pop)?;
     module.inst_fn("push", Vec::push)?;
     module.inst_fn("remove", Vec::remove)?;
-    module.inst_fn("sort_by", sort_by)?;
+    module.function_meta(sort_by)?;
     module.inst_fn("insert", Vec::insert)?;
     module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
     module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
@@ -38,10 +39,29 @@ fn sort_int(vec: &mut Vec) {
     });
 }
 
-fn vec_get(vec: &Vec, index: usize) -> Option<Value> {
+/// Get a value by the specified `index`.
+///
+/// # Examples
+///
+/// ```rune
+/// let values = [1, 2, 3];
+/// assert!(values.get(1).is_some());
+/// assert!(values.get(4).is_none());
+/// ```
+#[rune::function(instance, path = Vec::get)]
+fn get(vec: &Vec, index: usize) -> Option<Value> {
     vec.get(index).cloned()
 }
 
+/// Sort a vector by the specified comparator function.
+///
+/// # Examples
+///
+/// ```rune
+/// let values = [1, 2, 3];
+/// values.sort_by(|a, b| b.cmp(a))
+/// ```
+#[rune::function(instance, path = Vec::sort_by)]
 fn sort_by(vec: &mut Vec, comparator: &Function) {
     vec.sort_by(|a, b| {
         comparator

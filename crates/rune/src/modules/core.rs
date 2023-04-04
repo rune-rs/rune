@@ -2,7 +2,7 @@
 
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Panic, Value};
+use crate::runtime::{Panic, Tuple, Value};
 use crate::{ContextError, Module};
 
 /// Construct the `std` module.
@@ -15,6 +15,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<u8>()?;
     module.ty::<f64>()?;
     module.ty::<i64>()?;
+    module.ty::<Tuple>()?;
 
     module.function(["panic"], panic_impl)?;
     module.function(["is_readable"], is_readable)?;

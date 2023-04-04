@@ -33,8 +33,6 @@ impl FunctionAttrs {
         let span = input.span();
         let mut out = Self::default();
 
-        let mut last = false;
-
         while !input.is_empty() {
             let ident = input.parse::<syn::Ident>()?;
 
@@ -55,15 +53,11 @@ impl FunctionAttrs {
                 return Err(syn::Error::new_spanned(ident, "unsupported option"));
             }
 
-            if last {
+            if !input.peek(syn::Token![,]) {
                 break;
             }
 
-            if !input.peek(syn::Token![::]) {
-                last = true
-            } else {
-                input.parse::<syn::Token![::]>()?;
-            }
+            input.parse::<syn::Token![,]>()?;
         }
 
         Ok(out)
