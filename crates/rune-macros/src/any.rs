@@ -387,6 +387,7 @@ where
         raw_str,
         shared,
         type_info,
+        any_type_info,
         type_of,
         unsafe_from_value,
         unsafe_to_value,
@@ -436,12 +437,17 @@ where
         #impl_named
 
         impl #impl_generics #type_of for #ident #ty_generics #where_clause {
+            #[inline]
             fn type_hash() -> #hash {
                 <Self as #any>::type_hash()
             }
 
+            #[inline]
             fn type_info() -> #type_info {
-                #type_info::Any(#raw_str::from_str(std::any::type_name::<Self>()))
+                #type_info::Any(#any_type_info::new(
+                    #raw_str::from_str(std::any::type_name::<Self>()),
+                    <Self as #any>::type_hash()
+                ))
             }
         }
 

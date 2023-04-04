@@ -3,7 +3,7 @@
 {{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
 {{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
 <body>
-<h3 class="title">{{what}} <b>{{item}}</b></h3>
+<h3 class="title">{{what}} <b>{{literal module}}::{{name}}</b></h3>
 
 {{#if methods}}
 <h4 class="section-title">Methods</h4>
@@ -11,7 +11,7 @@
 {{#each methods}}
     <div class="item item-fn">
         <div id="method.{{this.name}}" class="item-title">
-        {{#if this.is_async}}<span class="async">async</span> {{/if}}fn <a href="#method.{{this.name}}" class="fn">{{this.name}}</a>({{this.args}})
+        {{#if this.is_async}}<span class="async">async</span> {{/if}}fn <a href="#method.{{this.name}}" class="fn">{{this.name}}</a>{{#if this.parameters}}&lt;{{literal this.parameters}}&gt;{{/if}}({{this.args}})
         </div>
         {{#if this.doc}}{{literal this.doc}}{{/if}}
     </div>

@@ -204,7 +204,10 @@ pub mod diagnostics;
 pub use self::diagnostics::Diagnostics;
 
 mod hash;
-pub use self::hash::{Hash, Params, ToTypeHash};
+pub use self::hash::{Hash, ToTypeHash};
+
+mod params;
+pub use self::params::Params;
 
 mod hir;
 

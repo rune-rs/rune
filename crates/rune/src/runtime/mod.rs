@@ -95,8 +95,8 @@ pub use self::static_type::{
 pub use self::stream::Stream;
 pub use self::to_value::{ToValue, UnsafeToValue};
 pub use self::tuple::Tuple;
-pub use self::type_info::TypeInfo;
-pub use self::type_of::TypeOf;
+pub use self::type_info::{AnyTypeInfo, TypeInfo};
+pub use self::type_of::{FullTypeOf, TypeOf};
 pub use self::unit::{Unit, UnitFn};
 pub use self::value::{Rtti, Struct, TupleStruct, UnitStruct, Value, VariantRtti};
 pub use self::variant::{Variant, VariantData};

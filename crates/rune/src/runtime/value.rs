@@ -949,7 +949,7 @@ impl Value {
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.type_info(),
             Self::Struct(object) => object.borrow_ref()?.type_info(),
             Self::Variant(empty) => empty.borrow_ref()?.type_info(),
-            Self::Any(any) => TypeInfo::Any(any.borrow_ref()?.type_name()),
+            Self::Any(any) => any.borrow_ref()?.type_info(),
         })
     }
 

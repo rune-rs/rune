@@ -1,12 +1,16 @@
 //! Helper types for a holder of data.
 
-use crate::runtime::RawStr;
-use crate::{Any, Hash};
 use std::any;
 use std::fmt;
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
+
 use thiserror::Error;
+
+use crate::any::Any;
+use crate::hash::Hash;
+use crate::runtime::AnyTypeInfo;
+use crate::runtime::{RawStr, TypeInfo};
 
 /// Errors raised during casting operations.
 #[derive(Debug, Error)]
@@ -447,6 +451,14 @@ impl AnyObj {
     /// Access the underlying type id for the data.
     pub fn type_hash(&self) -> Hash {
         (self.vtable.type_hash)()
+    }
+
+    /// Access full type info for type.
+    pub fn type_info(&self) -> TypeInfo {
+        TypeInfo::Any(AnyTypeInfo::new_from(
+            (self.vtable.type_name)(),
+            self.vtable.type_hash,
+        ))
     }
 }
 
