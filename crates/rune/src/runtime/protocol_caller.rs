@@ -47,7 +47,7 @@ impl ProtocolCaller for EnvProtocolCaller {
 
             let handler = match context.function(hash) {
                 Some(handler) => handler,
-                None => return VmResult::Err(VmError::from(VmErrorKind::MissingFunction { hash })),
+                None => return VmResult::err(VmErrorKind::MissingFunction { hash }),
             };
 
             let mut stack = Stack::with_capacity(count);
@@ -81,9 +81,9 @@ impl ProtocolCaller for &mut Vm {
     {
         if let CallResult::Unsupported(..) = vm_try!(self.call_instance_fn(target, protocol, args))
         {
-            return VmResult::Err(VmError::from(VmErrorKind::MissingFunction {
+            return VmResult::err(VmErrorKind::MissingFunction {
                 hash: protocol.hash,
-            }));
+            });
         }
 
         VmResult::Ok(vm_try!(self.stack_mut().pop()))

@@ -1,4 +1,4 @@
-use crate::runtime::{FromValue, ToValue, Value, VmError, VmErrorKind, VmResult};
+use crate::runtime::{FromValue, ToValue, Value, VmErrorKind, VmResult};
 
 /// A helper type to deserialize arrays with different interior types.
 ///
@@ -38,10 +38,10 @@ macro_rules! impl_from_value_tuple_vec {
                 let vec = vm_try!(vec.take());
 
                 if vec.len() != $count {
-                    return VmResult::Err(VmError::from(VmErrorKind::ExpectedTupleLength {
+                    return VmResult::err(VmErrorKind::ExpectedTupleLength {
                         actual: vec.len(),
                         expected: $count,
-                    }));
+                    });
                 }
 
                 #[allow(unused_mut, unused_variables)]
@@ -51,7 +51,7 @@ macro_rules! impl_from_value_tuple_vec {
                     let $value: $ty = match it.next() {
                         Some(value) => vm_try!(<$ty>::from_value(value)),
                         None => {
-                            return VmResult::Err(VmError::from(VmErrorKind::IterationError));
+                            return VmResult::err(VmErrorKind::IterationError);
                         },
                     };
                 )*

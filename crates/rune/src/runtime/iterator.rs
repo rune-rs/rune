@@ -36,7 +36,7 @@ trait RuneIterator: fmt::Debug {
         let (lower, upper) = self.size_hint();
 
         if !matches!(upper, Some(upper) if lower == upper) {
-            return VmResult::Err(VmError::panic(format!(
+            return VmResult::err(VmError::panic(format!(
                 "`{:?}` is not an exact-sized iterator",
                 self
             )));
@@ -237,7 +237,7 @@ impl Iterator {
     /// Map the iterator using the given function.
     pub fn rev(self) -> VmResult<Self> {
         if !self.iter.is_double_ended() {
-            return VmResult::Err(VmError::panic(format!(
+            return VmResult::err(VmError::panic(format!(
                 "`{:?}` is not a double-ended iterator",
                 self
             )));
@@ -292,7 +292,7 @@ impl Iterator {
     pub fn peek(&mut self) -> VmResult<Option<Value>> {
         match &mut self.iter {
             IterRepr::Peekable(peekable) => peekable.peek(),
-            _ => VmResult::Err(VmError::panic(format!(
+            _ => VmResult::err(VmError::panic(format!(
                 "`{:?}` is not a peekable iterator",
                 self.iter
             ))),
@@ -460,7 +460,7 @@ impl RuneIterator for IterRepr {
 
     fn next_back(&mut self) -> VmResult<Option<Value>> {
         match self {
-            Self::Iterator(iter) => VmResult::Err(VmError::panic(format!(
+            Self::Iterator(iter) => VmResult::err(VmError::panic(format!(
                 "`{}` is not a double-ended iterator",
                 iter.name
             ))),
@@ -1154,13 +1154,13 @@ where
                 Value::Float(v) => {
                     VmResult::Ok(Value::Float(vm_try!(self.resolve_internal_simple(v))))
                 }
-                _ => VmResult::Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                _ => VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
                     op: "*",
                     lhs: vm_try!(v.type_info()),
                     rhs: vm_try!(v.type_info()),
-                })),
+                }),
             },
-            None => VmResult::Err(VmError::panic(
+            None => VmResult::err(VmError::panic(
                 "cannot take the product of an empty iterator",
             )),
         }
@@ -1213,13 +1213,13 @@ where
                 Value::Float(v) => {
                     VmResult::Ok(Value::Float(vm_try!(self.resolve_internal_simple(v))))
                 }
-                _ => VmResult::Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                _ => VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
                     op: "+",
                     lhs: vm_try!(v.type_info()),
                     rhs: vm_try!(v.type_info()),
-                })),
+                }),
             },
-            None => VmResult::Err(VmError::panic("cannot take the sum of an empty iterator")),
+            None => VmResult::err(VmError::panic("cannot take the sum of an empty iterator")),
         }
     }
 }

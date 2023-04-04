@@ -88,7 +88,7 @@ fn string_split(this: &str, value: Value) -> VmResult<Iterator> {
             .map(String::from)
             .collect::<Vec<String>>(),
         Value::Char(pat) => this.split(pat).map(String::from).collect::<Vec<String>>(),
-        value => return VmResult::Err(vm_try!(VmError::bad_argument::<String>(0, &value))),
+        value => return VmResult::err(vm_try!(VmError::bad_argument::<String>(0, &value))),
     };
 
     VmResult::Ok(Iterator::from_double_ended(
@@ -154,16 +154,16 @@ fn string_get(s: &str, key: Value) -> VmResult<Option<String>> {
                 RangeLimits::Closed => match (start, end) {
                     (Some(start), Some(end)) => s.get(start..=end),
                     (None, Some(end)) => s.get(..=end),
-                    _ => return VmResult::Err(VmError::from(VmErrorKind::UnsupportedRange)),
+                    _ => return VmResult::err(VmErrorKind::UnsupportedRange),
                 },
             };
 
             VmResult::Ok(out.map(|out| out.to_owned()))
         }
-        index => VmResult::Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
+        index => VmResult::err(VmErrorKind::UnsupportedIndexGet {
             target: String::type_info(),
             index: vm_try!(index.type_info()),
-        })),
+        }),
     }
 }
 
@@ -171,6 +171,6 @@ fn string_get(s: &str, key: Value) -> VmResult<Option<String>> {
 fn string_index_get(s: &str, key: Value) -> VmResult<String> {
     match vm_try!(string_get(s, key)) {
         Some(slice) => VmResult::Ok(slice),
-        None => VmResult::Err(VmError::panic("missing string slice")),
+        None => VmResult::err(VmError::panic("missing string slice")),
     }
 }

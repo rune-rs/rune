@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use anyhow::Result;
 use clap::Parser;
-use rune::runtime::{VmError, VmExecution};
+use rune::runtime::{VmErrorWithTrace, VmExecution, VmResult};
 use rune::{Context, Sources, Unit, Value, Vm};
 
 use crate::{Config, ExitCode, Io, SharedFlags};
@@ -80,7 +80,7 @@ impl Flags {
 
 enum TraceError {
     Io(std::io::Error),
-    VmError(VmError),
+    VmError(Box<VmErrorWithTrace>),
 }
 
 impl From<std::io::Error> for TraceError {
@@ -168,6 +168,7 @@ pub(crate) async fn run(
 
     let mut vm = Vm::new(runtime, unit);
     let mut execution: VmExecution<_> = vm.execute(["main"], ()).into_result()?;
+
     let result = if args.trace {
         match do_trace(
             io,
@@ -178,16 +179,16 @@ pub(crate) async fn run(
         )
         .await
         {
-            Ok(value) => Ok(value),
+            Ok(value) => VmResult::Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
-            Err(TraceError::VmError(vm)) => Err(vm),
+            Err(TraceError::VmError(vm)) => VmResult::Err(vm),
         }
     } else {
-        execution.async_complete().await.into_result()
+        execution.async_complete().await
     };
 
     let errored = match result {
-        Ok(result) => {
+        VmResult::Ok(result) => {
             let duration = Instant::now().duration_since(last);
 
             if c.verbose {
@@ -196,7 +197,7 @@ pub(crate) async fn run(
 
             None
         }
-        Err(error) => {
+        VmResult::Err(error) => {
             let duration = Instant::now().duration_since(last);
 
             if c.verbose {
@@ -324,9 +325,9 @@ where
             writeln!(o)?;
         }
 
-        let result = match execution.async_step().await.into_result() {
-            Ok(result) => result,
-            Err(e) => return Err(TraceError::VmError(e)),
+        let result = match execution.async_step().await {
+            VmResult::Ok(result) => result,
+            VmResult::Err(e) => return Err(TraceError::VmError(e)),
         };
 
         let mut o = io.stdout.lock();

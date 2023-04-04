@@ -36,8 +36,7 @@ use gloo_utils::format::JsValueSerdeExt;
 use rune::ast::Spanned;
 use rune::compile::LinkerError;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
-use rune::runtime::budget;
-use rune::runtime::Value;
+use rune::runtime::{budget, Value, VmResult};
 use rune::{Context, ContextError, Options};
 use rune_modules::capture_io::CaptureIo;
 use serde::{Deserialize, Serialize};
@@ -327,8 +326,8 @@ async fn inner_compile(
     let mut vm = rune::Vm::new(Arc::new(context.runtime()), unit);
 
     let mut execution = match vm.execute(["main"], ()) {
-        Ok(execution) => execution,
-        Err(error) => {
+        VmResult::Ok(execution) => execution,
+        VmResult::Err(error) => {
             error
                 .emit(&mut writer, &sources)
                 .context("emitting to buffer should never fail")?;
@@ -346,14 +345,13 @@ async fn inner_compile(
     let future = budget::with(budget, execution.async_complete());
 
     let output = match future.await {
-        Ok(output) => output,
-        Err(error) => {
+        VmResult::Ok(output) => output,
+        VmResult::Err(error) => {
             let vm = execution.vm();
-            let (kind, unwound) = error.as_unwound();
 
-            let (unit, ip, _frames) = match unwound {
-                Some((unit, ip, frames)) => (unit, ip, frames),
-                None => (vm.unit(), vm.ip(), vm.call_frames()),
+            let (unit, ip) = match error.first_location() {
+                Some(loc) => (&loc.unit, loc.ip),
+                None => (vm.unit(), vm.ip()),
             };
 
             // NB: emit diagnostics if debug info is available.
@@ -371,7 +369,7 @@ async fn inner_compile(
                             kind: WasmDiagnosticKind::Error,
                             start,
                             end,
-                            message: kind.to_string(),
+                            message: error.to_string(),
                         });
                     }
                 }

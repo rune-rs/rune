@@ -17,7 +17,7 @@ use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
     ConstValue, FromValue, FullTypeOf, FunctionHandler, Future, GeneratorState, MacroHandler,
     MaybeTypeOf, Protocol, Stack, StaticType, ToValue, TypeCheck, TypeInfo, TypeOf,
-    UnsafeFromValue, Value, VmError, VmErrorKind, VmResult,
+    UnsafeFromValue, Value, VmErrorKind, VmResult,
 };
 use crate::Hash;
 
@@ -681,12 +681,20 @@ impl Module {
 
         let value = match value.to_value() {
             VmResult::Ok(v) => v,
-            VmResult::Err(e) => return Err(ContextError::ValueError { error: e }),
+            VmResult::Err(e) => {
+                return Err(ContextError::ValueError {
+                    error: e.into_error(),
+                })
+            }
         };
 
         let constant_value = match <ConstValue as FromValue>::from_value(value) {
             VmResult::Ok(v) => v,
-            VmResult::Err(e) => return Err(ContextError::ValueError { error: e }),
+            VmResult::Err(e) => {
+                return Err(ContextError::ValueError {
+                    error: e.into_error(),
+                })
+            }
         };
 
         self.constants.insert(name, constant_value);
@@ -1366,45 +1374,29 @@ macro_rules! impl_register {
     };
 
     (@return $stack:ident, $ret:ident, $ty:ty) => {
-        let $ret = match $ret.to_value() {
-            VmResult::Ok($ret) => $ret,
-            VmResult::Err(e) => return VmResult::Err(VmError::from(vm_try!(e.unpack_critical()))),
-        };
-
+        let $ret = vm_try!($ret.to_value());
         $stack.push($ret);
     };
 
     // Expand to function variable bindings.
     (@unsafe-vars $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         $(
-            let $var = match <$ty>::from_value($var) {
-                VmResult::Ok(v) => v,
-                VmResult::Err(e) => return VmResult::Err(VmError::from(VmErrorKind::BadArgument {
-                    error: vm_try!(e.unpack_critical()),
-                    arg: $count - $num,
-                })),
-            };
+            let $var = vm_try!(<$ty>::from_value($var).with_error(|| VmErrorKind::BadArgument {
+                arg: $count - $num,
+            }));
         )*
     };
 
     // Expand to instance variable bindings.
     (@unsafe-inst-vars $inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        let $inst = match Instance::from_value($inst) {
-            VmResult::Ok(v) => v,
-            VmResult::Err(e) => return VmResult::Err(VmError::from(VmErrorKind::BadArgument {
-                error: vm_try!(e.unpack_critical()),
-                arg: 0,
-            })),
-        };
+        let $inst = vm_try!(Instance::from_value($inst).with_error(|| VmErrorKind::BadArgument {
+            arg: 0,
+        }));
 
         $(
-            let $var = match <$ty>::from_value($var) {
-                VmResult::Ok(v) => v,
-                VmResult::Err(e) => return VmResult::Err(VmError::from(VmErrorKind::BadArgument {
-                    error: vm_try!(e.unpack_critical()),
-                    arg: 1 + $count - $num,
-                })),
-            };
+            let $var = vm_try!(<$ty>::from_value($var).with_error(|| VmErrorKind::BadArgument {
+                arg: 1 + $count - $num,
+            }));
         )*
     };
 
@@ -1415,10 +1407,10 @@ macro_rules! impl_register {
 
     (@check-args $expected:expr, $actual:expr) => {
         if $actual != $expected {
-            return VmResult::Err(VmError::from(VmErrorKind::BadArgumentCount {
+            return VmResult::err(VmErrorKind::BadArgumentCount {
                 actual: $actual,
                 expected: $expected,
-            }));
+            });
         }
     };
 }

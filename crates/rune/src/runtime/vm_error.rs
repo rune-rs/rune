@@ -1,10 +1,10 @@
 use crate::compile::ItemBuf;
+use crate::hash::Hash;
 use crate::runtime::panic::BoxedPanic;
 use crate::runtime::{
     AccessError, CallFrame, ExecutionState, FullTypeOf, Key, MaybeTypeOf, Panic, Protocol,
-    StackError, TypeInfo, TypeOf, Unit, Value, VmHaltInfo,
+    StackError, TypeInfo, TypeOf, Unit, Value, Vm, VmHaltInfo,
 };
-use crate::Hash;
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -46,8 +46,47 @@ where
     fn try_from_result(value: Self) -> VmResult<T> {
         match value {
             Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::Err(VmError::from(err)),
+            Err(err) => VmResult::err(err),
         }
+    }
+}
+
+/// A single unit producing errors.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct VmErrorLocation {
+    /// Associated unit.
+    pub unit: Arc<Unit>,
+    /// Frozen instruction pointer.
+    pub ip: usize,
+    /// All lower call frames before the unwind trigger point
+    pub frames: Vec<CallFrame>,
+}
+
+/// A virtual machine error which includes tracing information.
+#[derive(Debug)]
+pub struct VmErrorWithTrace {
+    pub(crate) error: (usize, VmError),
+    pub(crate) chain: Vec<(usize, VmError)>,
+    pub(crate) stacktrace: Vec<VmErrorLocation>,
+}
+
+impl VmErrorWithTrace {
+    /// Get the first error location.
+    pub fn first_location(&self) -> Option<&VmErrorLocation> {
+        self.stacktrace.first()
+    }
+
+    /// Extract root cause error.
+    pub fn into_error(self) -> VmError {
+        self.error.1
+    }
+}
+
+impl fmt::Display for VmErrorWithTrace {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.1.fmt(f)
     }
 }
 
@@ -56,17 +95,71 @@ where
 pub enum VmResult<T> {
     /// A produced value.
     Ok(T),
-    /// A produced error.
-    Err(VmError),
+    /// Multiple errors with locations included.
+    Err(Box<VmErrorWithTrace>),
 }
 
 impl<T> VmResult<T> {
+    /// Construct a new error from a type that can be converted into a
+    /// [`VmError`].
+    pub fn err<E>(error: E) -> Self
+    where
+        VmError: From<E>,
+    {
+        VmResult::Err(Box::new(VmErrorWithTrace {
+            error: (0, VmError::from(error)),
+            chain: Vec::new(),
+            stacktrace: Vec::new(),
+        }))
+    }
+
     /// Convert a [`VmResult`] into a [`Result`].
     #[inline]
     pub fn into_result(self) -> Result<T, VmError> {
         match self {
             VmResult::Ok(value) => Ok(value),
-            VmResult::Err(error) => Err(error),
+            VmResult::Err(error) => Err(error.into_error()),
+        }
+    }
+
+    /// Apply the given frame to the current result.
+    pub(crate) fn with_vm(self, vm: &Vm) -> Self {
+        match self {
+            VmResult::Ok(ok) => VmResult::Ok(ok),
+            VmResult::Err(mut err) => {
+                err.stacktrace.push(VmErrorLocation {
+                    unit: vm.unit().clone(),
+                    ip: vm.ip(),
+                    frames: vm.call_frames().to_vec(),
+                });
+
+                VmResult::Err(err)
+            }
+        }
+    }
+
+    /// Add auxilliary errors if appropriate.
+    #[inline]
+    pub(crate) fn with_error<E, O>(self, error: E) -> Self
+    where
+        E: FnOnce() -> O,
+        VmError: From<O>,
+    {
+        match self {
+            VmResult::Ok(ok) => VmResult::Ok(ok),
+            VmResult::Err(mut err) => {
+                let stack = err.stacktrace.len();
+                err.chain.push((stack, VmError::from(error())));
+                VmResult::Err(err)
+            }
+        }
+    }
+
+    /// Expect a value or panic.
+    pub fn expect(self, msg: &str) -> T {
+        match self {
+            VmResult::Ok(t) => t,
+            VmResult::Err(error) => panic!("{msg}: {error:?}"),
         }
     }
 }
@@ -136,70 +229,6 @@ impl VmError {
     pub fn into_kind(self) -> VmErrorKind {
         *self.kind
     }
-
-    /// Convert into an unwinded vm error.
-    pub(crate) fn into_unwinded(self, unit: &Arc<Unit>, ip: usize, frames: Vec<CallFrame>) -> Self {
-        if let VmErrorKind::Unwound { .. } = &*self.kind {
-            return self;
-        }
-
-        Self::from(VmErrorKind::Unwound {
-            kind: self.kind,
-            unit: unit.clone(),
-            ip,
-            frames,
-        })
-    }
-
-    /// Unpack an unwinded error, if it is present.
-    pub fn as_unwound(&self) -> (&VmErrorKind, Option<(&Arc<Unit>, usize, &[CallFrame])>) {
-        match &*self.kind {
-            VmErrorKind::Unwound {
-                kind,
-                unit,
-                ip,
-                frames,
-            } => (kind, Some((unit, *ip, frames))),
-            kind => (kind, None),
-        }
-    }
-
-    /// Unpack an unwinded error, if it is present.
-    pub fn into_unwound(self) -> (Self, Option<(Arc<Unit>, usize, Vec<CallFrame>)>) {
-        match *self.kind {
-            VmErrorKind::Unwound {
-                kind,
-                unit,
-                ip,
-                frames,
-            } => {
-                let error = Self { kind };
-                (error, Some((unit, ip, frames)))
-            }
-            kind => (Self::from(kind), None),
-        }
-    }
-
-    /// Unsmuggles the vm error, returning Ok(Self) in case the error is
-    /// critical and should be propagated unaltered.
-    pub(crate) fn unpack_critical(self) -> Result<Self, Self> {
-        if self.is_critical() {
-            Err(self)
-        } else {
-            Ok(self)
-        }
-    }
-
-    /// Test if the error is critical and should be propagated unaltered or not.
-    ///
-    /// Returns `true` if the error should be propagated.
-    fn is_critical(&self) -> bool {
-        match &*self.kind {
-            VmErrorKind::Panic { .. } => true,
-            VmErrorKind::Unwound { .. } => true,
-            _ => false,
-        }
-    }
 }
 
 impl<E> From<E> for VmError
@@ -213,25 +242,16 @@ where
     }
 }
 
+impl From<Panic> for VmError {
+    fn from(reason: Panic) -> Self {
+        Self::from(VmErrorKind::Panic { reason })
+    }
+}
+
 /// The kind of error encountered.
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum VmErrorKind {
-    /// A vm error that was propagated from somewhere else.
-    ///
-    /// In order to represent this, we need to preserve the instruction pointer
-    /// and eventually unit from where the error happened.
-    #[error("{kind} (at inst {ip})")]
-    Unwound {
-        /// The wrapper error.
-        kind: Box<VmErrorKind>,
-        /// Associated unit.
-        unit: Arc<Unit>,
-        /// The instruction pointer of where the original error happened.
-        ip: usize,
-        /// All lower call frames before the unwind trigger point
-        frames: Vec<CallFrame>,
-    },
     #[error("{error}")]
     AccessError {
         #[from]
@@ -297,12 +317,8 @@ pub enum VmErrorKind {
         expected: TypeInfo,
         actual: TypeInfo,
     },
-    #[error("bad argument #{arg}: {error}")]
-    BadArgument {
-        #[source]
-        error: VmError,
-        arg: usize,
-    },
+    #[error("bad argument at #{arg}")]
+    BadArgument { arg: usize },
     #[error("the index set operation `{target}[{index}] = {value}` is not supported")]
     UnsupportedIndexSet {
         target: TypeInfo,
@@ -408,21 +424,6 @@ pub enum VmErrorKind {
     },
     #[error("future already completed")]
     FutureCompleted,
-}
-
-impl VmErrorKind {
-    /// Unpack an unwound error, if it is present.
-    pub fn as_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize, Vec<CallFrame>)>) {
-        match self {
-            VmErrorKind::Unwound {
-                kind,
-                unit,
-                ip,
-                frames,
-            } => (kind, Some((unit.clone(), *ip, frames.clone()))),
-            kind => (kind, None),
-        }
-    }
 }
 
 /// A type-erased rust number.

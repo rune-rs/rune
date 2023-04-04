@@ -1,7 +1,7 @@
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, RawRef, Ref, Rtti, RuntimeContext, Shared,
-    Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmErrorKind,
-    VmHalt, VmResult,
+    Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt,
+    VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Hash;
@@ -935,10 +935,7 @@ impl UnsafeFromValue for &Function {
 
 fn check_args(actual: usize, expected: usize) -> VmResult<()> {
     if actual != expected {
-        return VmResult::Err(VmError::from(VmErrorKind::BadArgumentCount {
-            expected,
-            actual,
-        }));
+        return VmResult::err(VmErrorKind::BadArgumentCount { expected, actual });
     }
 
     VmResult::Ok(())

@@ -76,10 +76,10 @@ impl Vec {
     /// Set by index
     pub fn set(&mut self, index: usize, value: Value) -> VmResult<()> {
         if index >= self.len() {
-            VmResult::Err(VmError::from(VmErrorKind::OutOfRange {
+            VmResult::err(VmErrorKind::OutOfRange {
                 index: index.into(),
                 len: self.len().into(),
-            }))
+            })
         } else {
             self.inner[index] = value;
             VmResult::Ok(())

@@ -79,7 +79,7 @@ impl Command {
                     self.inner.arg(&***s);
                 }
                 actual => {
-                    return VmResult::Err(VmError::expected::<String>(rune::vm_try!(actual.type_info().into_result())));
+                    return VmResult::err(VmError::expected::<String>(rune::vm_try!(actual.type_info().into_result())));
                 }
             }
         }
@@ -116,7 +116,7 @@ impl Child {
         let inner = match self.inner {
             Some(inner) => inner,
             None => {
-                return VmResult::Err(VmError::panic("already completed"));
+                return VmResult::err(VmError::panic("already completed"));
             }
         };
 

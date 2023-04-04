@@ -203,7 +203,7 @@ impl FromValue for String {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.borrow_ref()).clone()),
             Value::StaticString(string) => VmResult::Ok((**string).to_owned()),
-            actual => VmResult::Err(VmError::expected::<String>(vm_try!(actual.type_info()))),
+            actual => VmResult::err(VmError::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
 }
@@ -212,7 +212,7 @@ impl FromValue for Mut<String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_mut())),
-            actual => VmResult::Err(VmError::expected::<String>(vm_try!(actual.type_info()))),
+            actual => VmResult::err(VmError::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
 }
@@ -221,7 +221,7 @@ impl FromValue for Ref<String> {
     fn from_value(value: Value) -> VmResult<Self> {
         match value {
             Value::String(string) => VmResult::Ok(vm_try!(string.into_ref())),
-            actual => VmResult::Err(VmError::expected::<String>(vm_try!(actual.type_info()))),
+            actual => VmResult::err(VmError::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
 }
@@ -260,7 +260,7 @@ impl UnsafeFromValue for &str {
                 (string.as_ref().as_str(), StrGuard::StaticString(string))
             }
             actual => {
-                return VmResult::Err(VmError::expected::<String>(vm_try!(actual.type_info())))
+                return VmResult::err(VmError::expected::<String>(vm_try!(actual.type_info())))
             }
         })
     }
@@ -283,7 +283,7 @@ impl UnsafeFromValue for &mut str {
                 // it is live.
                 VmResult::Ok((unsafe { (*s).as_mut_str() }, Some(guard)))
             }
-            actual => VmResult::Err(VmError::expected::<String>(vm_try!(actual.type_info()))),
+            actual => VmResult::err(VmError::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -305,7 +305,7 @@ impl UnsafeFromValue for &String {
             }
             Value::StaticString(string) => (&**string, StrGuard::StaticString(string)),
             actual => {
-                return VmResult::Err(VmError::expected::<String>(vm_try!(actual.type_info())));
+                return VmResult::err(VmError::expected::<String>(vm_try!(actual.type_info())));
             }
         })
     }
@@ -327,7 +327,7 @@ impl UnsafeFromValue for &mut String {
                 (s, guard)
             }
             actual => {
-                return VmResult::Err(VmError::expected::<String>(vm_try!(actual.type_info())));
+                return VmResult::err(VmError::expected::<String>(vm_try!(actual.type_info())));
             }
         })
     }
@@ -413,7 +413,7 @@ macro_rules! impl_number {
                 match integer.try_into() {
                     Ok(number) => VmResult::Ok(number),
                     Err(..) => {
-                        VmResult::Err(VmError::from(VmErrorKind::ValueToIntegerCoercionError {
+                        VmResult::err(VmError::from(VmErrorKind::ValueToIntegerCoercionError {
                             from: VmIntegerRepr::from(integer),
                             to: std::any::type_name::<Self>(),
                         }))

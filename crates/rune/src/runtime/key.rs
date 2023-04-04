@@ -1,6 +1,6 @@
 use crate::runtime::{
     Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Variant,
-    VariantData, VariantRtti, Vec, VmError, VmErrorKind, VmResult,
+    VariantData, VariantRtti, Vec, VmErrorKind, VmResult,
 };
 use serde::{de, ser};
 use std::cmp;
@@ -91,9 +91,9 @@ impl Key {
                 })
             }
             value => {
-                return VmResult::Err(VmError::from(VmErrorKind::KeyNotSupported {
+                return VmResult::err(VmErrorKind::KeyNotSupported {
                     actual: vm_try!(value.type_info()),
-                }))
+                });
             }
         });
 

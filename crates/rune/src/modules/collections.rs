@@ -1,8 +1,6 @@
 //! `std::collections` module.
 
-use crate::runtime::{
-    Iterator, IteratorTrait, Key, Protocol, Ref, Value, VmError, VmErrorKind, VmResult,
-};
+use crate::runtime::{Iterator, IteratorTrait, Key, Protocol, Ref, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 use std::fmt;
 
@@ -377,10 +375,10 @@ impl VecDeque {
 
     fn get(&self, index: usize) -> VmResult<Value> {
         if index > self.inner.len() {
-            return VmResult::Err(VmError::from(VmErrorKind::OutOfRange {
+            return VmResult::err(VmErrorKind::OutOfRange {
                 index: index.into(),
                 len: self.inner.len().into(),
-            }));
+            });
         }
 
         VmResult::Ok(self.inner[index].clone())
@@ -388,10 +386,10 @@ impl VecDeque {
 
     fn set(&mut self, index: usize, value: Value) -> VmResult<()> {
         if index > self.inner.len() {
-            return VmResult::Err(VmError::from(VmErrorKind::OutOfRange {
+            return VmResult::err(VmErrorKind::OutOfRange {
                 index: index.into(),
                 len: self.inner.len().into(),
-            }));
+            });
         }
 
         self.inner[index] = value;

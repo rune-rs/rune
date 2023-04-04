@@ -1,5 +1,5 @@
 use js_sys::Promise;
-use rune::runtime::VmError;
+use rune::runtime::{Panic, VmResult};
 use rune::{Any, ContextError, Module};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
@@ -27,9 +27,13 @@ impl Duration {
     }
 }
 
-async fn delay_for(duration: Duration) -> Result<(), VmError> {
+async fn delay_for(duration: Duration) -> VmResult<()> {
     let promise = sleep(duration.0);
     let js_fut = JsFuture::from(promise);
-    js_fut.await.map_err(|_| VmError::panic("future errored"))?;
-    Ok(())
+
+    if js_fut.await.is_err() {
+        return VmResult::err(Panic::custom("future errored"));
+    }
+
+    VmResult::Ok(())
 }

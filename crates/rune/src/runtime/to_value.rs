@@ -1,6 +1,4 @@
-use crate::runtime::{
-    AnyObj, Object, Panic, Shared, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult,
-};
+use crate::runtime::{AnyObj, Object, Shared, Value, VmErrorKind, VmIntegerRepr, VmResult};
 use crate::Any;
 
 #[doc(inline)]
@@ -114,20 +112,6 @@ impl ToValue for &str {
     }
 }
 
-// Result impls
-
-impl<T> ToValue for Result<T, Panic>
-where
-    T: ToValue,
-{
-    fn to_value(self) -> VmResult<Value> {
-        match self {
-            Ok(value) => VmResult::Ok(vm_try!(value.to_value())),
-            Err(reason) => VmResult::Err(VmError::from(VmErrorKind::Panic { reason })),
-        }
-    }
-}
-
 impl<T> ToValue for VmResult<T>
 where
     T: ToValue,
@@ -170,12 +154,10 @@ macro_rules! number_value_trait {
 
                 match self.try_into() {
                     Ok(number) => VmResult::Ok(Value::Integer(number)),
-                    Err(..) => {
-                        VmResult::Err(VmError::from(VmErrorKind::IntegerToValueCoercionError {
-                            from: VmIntegerRepr::from(self),
-                            to: std::any::type_name::<i64>(),
-                        }))
-                    }
+                    Err(..) => VmResult::err(VmErrorKind::IntegerToValueCoercionError {
+                        from: VmIntegerRepr::from(self),
+                        to: std::any::type_name::<i64>(),
+                    }),
                 }
             }
         }

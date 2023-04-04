@@ -1,7 +1,7 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Iterator, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
-    Vm, VmError, VmErrorKind, VmResult,
+    Vm, VmErrorKind, VmResult,
 };
 use std::fmt;
 use std::ops;
@@ -36,24 +36,24 @@ impl Range {
     }
 
     /// Coerce range into an iterator.
-    pub fn into_iterator(self) -> Result<Iterator, Panic> {
+    pub fn into_iterator(self) -> VmResult<Iterator> {
         match (self.limits, self.start, self.end) {
             (RangeLimits::HalfOpen, Some(Value::Integer(start)), Some(Value::Integer(end))) => {
-                return Ok(Iterator::from_double_ended("std::ops::Range", start..end));
+                return VmResult::Ok(Iterator::from_double_ended("std::ops::Range", start..end));
             }
             (RangeLimits::Closed, Some(Value::Integer(start)), Some(Value::Integer(end))) => {
-                return Ok(Iterator::from_double_ended(
+                return VmResult::Ok(Iterator::from_double_ended(
                     "std::ops::RangeToInclusive",
                     start..=end,
                 ));
             }
             (_, Some(Value::Integer(start)), None) => {
-                return Ok(Iterator::from("std::ops::RangeFrom", start..));
+                return VmResult::Ok(Iterator::from("std::ops::RangeFrom", start..));
             }
             _ => (),
         }
 
-        Err(Panic::custom("not an iterator"))
+        VmResult::err(Panic::custom("not an iterator"))
     }
 
     /// Value pointer equals implementation for a range.
@@ -99,7 +99,7 @@ impl Range {
             RangeLimits::Closed => match (start, end) {
                 (Some(start), Some(end)) => (start..=end).contains(&n),
                 (None, Some(end)) => (..=end).contains(&n),
-                _ => return VmResult::Err(VmError::from(VmErrorKind::UnsupportedRange)),
+                _ => return VmResult::err(VmErrorKind::UnsupportedRange),
             },
         };
 

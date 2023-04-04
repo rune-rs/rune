@@ -78,10 +78,15 @@ pub(crate) fn print_macro(
 /// print("Hi!");
 /// ```
 #[rune::function(path = print)]
-fn print_impl(m: &str) -> Result<(), Panic> {
+fn print_impl(m: &str) -> VmResult<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
-    write!(stdout, "{}", m).map_err(Panic::custom)
+
+    if let Err(error) = write!(stdout, "{}", m) {
+        return VmResult::err(Panic::custom(error));
+    }
+
+    VmResult::Ok(())
 }
 
 /// Implementation for the `println!` macro.
@@ -106,8 +111,13 @@ pub(crate) fn println_macro(
 /// println("Hi!");
 /// ```
 #[rune::function(path = println)]
-fn println_impl(message: &str) -> Result<(), Panic> {
+fn println_impl(message: &str) -> VmResult<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
-    writeln!(stdout, "{}", message).map_err(Panic::custom)
+
+    if let Err(error) = writeln!(stdout, "{}", message) {
+        return VmResult::err(Panic::custom(error));
+    }
+
+    VmResult::Ok(())
 }

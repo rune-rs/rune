@@ -1,7 +1,6 @@
 use crate::runtime::budget;
 use crate::runtime::{
-    Generator, GeneratorState, Stream, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo,
-    VmResult,
+    Generator, GeneratorState, Stream, Value, Vm, VmErrorKind, VmHalt, VmHaltInfo, VmResult,
 };
 use crate::shared::AssertSend;
 use std::fmt;
@@ -171,9 +170,9 @@ where
     pub async fn async_complete(&mut self) -> VmResult<Value> {
         match vm_try!(self.async_resume().await) {
             GeneratorState::Complete(value) => VmResult::Ok(value),
-            GeneratorState::Yielded(..) => VmResult::Err(VmError::from(VmErrorKind::Halted {
+            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
                 halt: VmHaltInfo::Yielded,
-            })),
+            }),
         }
     }
 
@@ -184,9 +183,9 @@ where
     pub fn complete(&mut self) -> VmResult<Value> {
         match vm_try!(self.resume()) {
             GeneratorState::Complete(value) => VmResult::Ok(value),
-            GeneratorState::Yielded(..) => VmResult::Err(VmError::from(VmErrorKind::Halted {
+            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
                 halt: VmHaltInfo::Yielded,
-            })),
+            }),
         }
     }
 
@@ -194,10 +193,10 @@ where
     /// asynchronous execution.
     pub async fn async_resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
         if !matches!(self.state, ExecutionState::Resumed) {
-            return VmResult::Err(VmError::from(VmErrorKind::ExpectedExecutionState {
+            return VmResult::err(VmErrorKind::ExpectedExecutionState {
                 expected: ExecutionState::Resumed,
                 actual: self.state,
-            }));
+            });
         }
 
         vm_mut!(self).stack_mut().push(value);
@@ -238,9 +237,9 @@ where
                     return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
-                    return VmResult::Err(VmError::from(VmErrorKind::Halted {
+                    return VmResult::err(VmErrorKind::Halted {
                         halt: halt.into_info(),
-                    }))
+                    })
                 }
             }
 
@@ -257,10 +256,10 @@ where
     /// execution.
     pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
         if !matches!(self.state, ExecutionState::Resumed) {
-            return VmResult::Err(VmError::from(VmErrorKind::ExpectedExecutionState {
+            return VmResult::err(VmErrorKind::ExpectedExecutionState {
                 expected: ExecutionState::Resumed,
                 actual: self.state,
-            }));
+            });
         }
 
         vm_mut!(self).stack_mut().push(value);
@@ -300,9 +299,9 @@ where
                     return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
-                    return VmResult::Err(VmError::from(VmErrorKind::Halted {
+                    return VmResult::err(VmErrorKind::Halted {
                         halt: halt.into_info(),
-                    }));
+                    });
                 }
             }
 
@@ -331,9 +330,9 @@ where
             }
             VmHalt::Limited => return VmResult::Ok(None),
             halt => {
-                return VmResult::Err(VmError::from(VmErrorKind::Halted {
+                return VmResult::err(VmErrorKind::Halted {
                     halt: halt.into_info(),
-                }))
+                })
             }
         }
 
@@ -364,9 +363,9 @@ where
             }
             VmHalt::Limited => return VmResult::Ok(None),
             halt => {
-                return VmResult::Err(VmError::from(VmErrorKind::Halted {
+                return VmResult::err(VmErrorKind::Halted {
                     halt: halt.into_info(),
-                }))
+                });
             }
         }
 
@@ -411,12 +410,7 @@ where
 
     #[inline]
     fn run(vm: &mut Vm) -> VmResult<VmHalt> {
-        match vm.run() {
-            VmResult::Ok(reason) => VmResult::Ok(reason),
-            VmResult::Err(error) => {
-                VmResult::Err(error.into_unwinded(vm.unit(), vm.ip(), vm.call_frames().to_vec()))
-            }
-        }
+        vm.run().with_vm(vm)
     }
 }
 
@@ -460,9 +454,9 @@ impl VmSendExecution {
 
             match result {
                 GeneratorState::Complete(value) => VmResult::Ok(value),
-                GeneratorState::Yielded(..) => VmResult::Err(VmError::from(VmErrorKind::Halted {
+                GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
                     halt: VmHaltInfo::Yielded,
-                })),
+                }),
             }
         };
 
