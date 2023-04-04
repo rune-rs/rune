@@ -77,6 +77,8 @@ impl_static_type!(u64 => INTEGER_TYPE);
 impl_static_type!(i64 => INTEGER_TYPE);
 impl_static_type!(u128 => INTEGER_TYPE);
 impl_static_type!(i128 => INTEGER_TYPE);
+impl_static_type!(usize => INTEGER_TYPE);
+impl_static_type!(isize => INTEGER_TYPE);
 
 /// The specialized type information for a float type.
 pub static FLOAT_TYPE: &StaticType = &StaticType {
@@ -102,6 +104,7 @@ pub static BYTES_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x957fa73126817683),
 };
 
+impl_static_type!(rt::Shared<rt::Bytes> => BYTES_TYPE);
 impl_static_type!(rt::Bytes => BYTES_TYPE);
 impl_static_type!([u8] => BYTES_TYPE);
 

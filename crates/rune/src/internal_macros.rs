@@ -108,26 +108,27 @@ macro_rules! resolve_context {
 macro_rules! impl_static_type {
     (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
         impl<$($p,)*> $crate::runtime::TypeOf for $ty {
+            #[inline]
             fn type_hash() -> $crate::Hash {
                 $static_type.hash
             }
 
+            #[inline]
             fn type_info() -> $crate::runtime::TypeInfo {
                 $crate::runtime::TypeInfo::StaticType($static_type)
+            }
+        }
+
+        impl<$($p,)*> $crate::runtime::MaybeTypeOf for $ty {
+            #[inline]
+            fn maybe_type_of() -> Option<$crate::runtime::FullTypeOf> {
+                Some(<$ty as $crate::runtime::TypeOf>::type_of())
             }
         }
     };
 
     ($ty:ty => $static_type:expr) => {
-        impl $crate::runtime::TypeOf for $ty {
-            fn type_hash() -> $crate::Hash {
-                $static_type.hash
-            }
-
-            fn type_info() -> $crate::runtime::TypeInfo {
-                $crate::runtime::TypeInfo::StaticType($static_type)
-            }
-        }
+        impl_static_type!(impl <> $ty => $static_type);
     };
 }
 

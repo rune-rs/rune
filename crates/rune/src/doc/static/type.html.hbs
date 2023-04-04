@@ -11,7 +11,7 @@
 {{#each methods}}
     <div class="item item-fn">
         <div id="method.{{this.name}}" class="item-title">
-        {{#if this.is_async}}<span class="async">async</span> {{/if}}fn <a href="#method.{{this.name}}" class="fn">{{this.name}}</a>{{#if this.parameters}}&lt;{{literal this.parameters}}&gt;{{/if}}({{this.args}})
+        {{#if this.is_async}}<span class="async">async</span> {{/if}}fn <a href="#method.{{this.name}}" class="fn">{{this.name}}</a>{{#if this.parameters}}&lt;{{literal this.parameters}}&gt;{{/if}}({{this.args}}){{#if this.return_type}} -&gt; {{literal this.return_type}}{{/if}}
         </div>
         {{#if this.doc}}{{literal this.doc}}{{/if}}
     </div>

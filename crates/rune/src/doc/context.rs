@@ -22,6 +22,7 @@ pub(crate) struct Function<'a> {
     pub(crate) is_async: bool,
     pub(crate) args: Option<&'a [String]>,
     pub(crate) signature: Signature,
+    pub(crate) return_type: Option<Hash>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -127,6 +128,7 @@ impl<'a> Context<'a> {
                     is_async: f.is_async,
                     signature,
                     args: meta.docs.args(),
+                    return_type: f.return_type,
                 })
             }
             meta::Kind::Const { const_value } => Kind::Const(const_value),
@@ -162,6 +164,7 @@ fn visitor_meta_to_meta(data: &VisitorData) -> Meta<'_> {
             is_async: *is_async,
             args: None,
             signature: Signature::Function { args: *args },
+            return_type: None,
         }),
         _ => Kind::Unsupported,
     };

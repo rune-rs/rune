@@ -254,6 +254,8 @@ pub struct Signature {
     pub(crate) is_async: bool,
     /// Arguments.
     pub(crate) args: Option<usize>,
+    /// Return type of the function.
+    pub(crate) return_type: Option<Hash>,
     /// The kind of a signature.
     pub(crate) kind: SignatureKind,
 }

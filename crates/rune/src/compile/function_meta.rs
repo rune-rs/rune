@@ -1,4 +1,5 @@
 use std::fmt;
+use std::future::Future;
 use std::sync::Arc;
 
 use crate::compile::module::{
@@ -6,7 +7,7 @@ use crate::compile::module::{
 };
 use crate::compile::{IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
-use crate::runtime::{FunctionHandler, Protocol};
+use crate::runtime::{FullTypeOf, FunctionHandler, MaybeTypeOf, Protocol};
 
 mod sealed {
     use crate::params::Params;
@@ -37,6 +38,7 @@ pub struct FunctionData {
     pub(crate) name: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
+    pub(crate) return_type: Option<FullTypeOf>,
 }
 
 impl FunctionData {
@@ -44,6 +46,7 @@ impl FunctionData {
     pub(crate) fn new<Func, Args, N>(name: N, f: Func) -> Self
     where
         Func: Function<Args>,
+        Func::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -52,6 +55,7 @@ impl FunctionData {
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(Func::args()),
+            return_type: Func::Return::maybe_type_of(),
         }
     }
 
@@ -59,6 +63,7 @@ impl FunctionData {
     pub(crate) fn new_async<Func, Args, N>(name: N, f: Func) -> Self
     where
         Func: AsyncFunction<Args>,
+        Func::Output: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -67,6 +72,7 @@ impl FunctionData {
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(Func::args()),
+            return_type: Func::Output::maybe_type_of(),
         }
     }
 }
@@ -185,6 +191,7 @@ pub struct AssociatedFunctionData {
     pub(crate) ty: AssocType,
     pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,
+    pub(crate) return_type: Option<FullTypeOf>,
 }
 
 impl AssociatedFunctionData {
@@ -192,6 +199,7 @@ impl AssociatedFunctionData {
     pub(crate) fn new<Func, Args>(name: AssociatedFunctionName, f: Func) -> Self
     where
         Func: InstFn<Args>,
+        Func::Return: MaybeTypeOf,
     {
         Self {
             name,
@@ -199,6 +207,7 @@ impl AssociatedFunctionData {
             ty: Func::ty(),
             is_async: false,
             args: Some(Func::args()),
+            return_type: Func::Return::maybe_type_of(),
         }
     }
 
@@ -206,6 +215,7 @@ impl AssociatedFunctionData {
     pub(crate) fn new_async<Func, Args>(name: AssociatedFunctionName, f: Func) -> Self
     where
         Func: AsyncInstFn<Args>,
+        Func::Output: MaybeTypeOf,
     {
         Self {
             name,
@@ -213,6 +223,7 @@ impl AssociatedFunctionData {
             ty: Func::ty(),
             is_async: true,
             args: Some(Func::args()),
+            return_type: <Func::Return as Future>::Output::maybe_type_of(),
         }
     }
 
@@ -247,6 +258,7 @@ impl FunctionMetaKind {
         N: IntoIterator,
         N::Item: IntoComponent,
         Func: Function<Args>,
+        Func::Return: MaybeTypeOf,
     {
         Self::Function(FunctionData::new(name, f))
     }
@@ -259,6 +271,7 @@ impl FunctionMetaKind {
         N: IntoIterator,
         N::Item: IntoComponent,
         Func: Function<Args>,
+        Func::Return: MaybeTypeOf,
     {
         let name = [IntoComponent::into_component(T::BASE_NAME)]
             .into_iter()
@@ -273,6 +286,7 @@ impl FunctionMetaKind {
         N: IntoIterator,
         N::Item: IntoComponent,
         Func: AsyncFunction<Args>,
+        Func::Output: MaybeTypeOf,
     {
         Self::Function(FunctionData::new_async(name, f))
     }
@@ -285,6 +299,7 @@ impl FunctionMetaKind {
         N: IntoIterator,
         N::Item: IntoComponent,
         Func: AsyncFunction<Args>,
+        Func::Output: MaybeTypeOf,
     {
         let name = [IntoComponent::into_component(T::BASE_NAME)]
             .into_iter()
@@ -298,6 +313,7 @@ impl FunctionMetaKind {
     where
         N: ToInstance,
         Func: InstFn<Args>,
+        Func::Return: MaybeTypeOf,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new(name.to_instance(), f))
     }
@@ -308,6 +324,7 @@ impl FunctionMetaKind {
     where
         N: ToInstance,
         Func: AsyncInstFn<Args>,
+        Func::Output: MaybeTypeOf,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new_async(name.to_instance(), f))
     }

@@ -43,6 +43,7 @@ struct Shared {
 enum ItemPath {
     Type,
     Struct,
+    Enum,
     Module,
     Function,
 }
@@ -65,6 +66,7 @@ fn build_item_path(name: &str, item: &Item, kind: ItemPath, path: &mut RelativeP
     path.set_extension(match kind {
         ItemPath::Type => "type.html",
         ItemPath::Struct => "struct.html",
+        ItemPath::Enum => "enum.html",
         ItemPath::Module => "module.html",
         ItemPath::Function => "fn.html",
     });
@@ -310,6 +312,40 @@ impl Ctxt<'_> {
         }
 
         module.join("::")
+    }
+
+    /// Convert a hash into a link.
+    fn hash_to_link(&self, hash: Hash) -> Result<String> {
+        let link = if let Some(meta) = self.context.meta_by_hash(hash) {
+            match &meta.kind {
+                Kind::Unknown => {
+                    let path = self
+                        .dir()
+                        .relative(self.item_path(meta.item, ItemPath::Type));
+                    let name = meta.item.last().context("missing name")?;
+                    format!("<a class=\"type\" href=\"{path}\">{name}</a>")
+                }
+                Kind::Struct => {
+                    let path = self
+                        .dir()
+                        .relative(self.item_path(meta.item, ItemPath::Struct));
+                    let name = meta.item.last().context("missing name")?;
+                    format!("<a class=\"struct\" href=\"{path}\">{name}</a>")
+                }
+                Kind::Enum => {
+                    let path = self
+                        .dir()
+                        .relative(self.item_path(meta.item, ItemPath::Enum));
+                    let name = meta.item.last().context("missing name")?;
+                    format!("<a class=\"enum\" href=\"{path}\">{name}</a>")
+                }
+                kind => format!("{kind:?}"),
+            }
+        } else {
+            String::from("?")
+        };
+
+        Ok(link)
     }
 }
 
@@ -635,6 +671,7 @@ fn type_(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> 
     struct Protocol<'a> {
         name: &'a str,
         repr: Option<String>,
+        return_type: Option<String>,
         doc: Option<String>,
     }
 
@@ -644,6 +681,7 @@ fn type_(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> 
         name: &'a str,
         args: String,
         parameters: Option<String>,
+        return_type: Option<String>,
         doc: Option<String>,
     }
 
@@ -673,6 +711,10 @@ fn type_(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> 
                         name,
                         args: args_to_string(f.args, f.signature)?,
                         parameters: None,
+                        return_type: match f.return_type {
+                            Some(hash) => Some(cx.hash_to_link(hash)?),
+                            None => None,
+                        },
                         doc: cx.render_docs(meta.docs)?,
                     });
                 }
@@ -702,29 +744,7 @@ fn type_(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> 
                 let mut list = Vec::new();
 
                 for hash in &f.name.parameter_types {
-                    if let Some(meta) = cx.context.meta_by_hash(*hash) {
-                        match &meta.kind {
-                            Kind::Unknown => {
-                                let path =
-                                    cx.dir().relative(cx.item_path(meta.item, ItemPath::Type));
-                                let name = meta.item.last().context("missing name")?;
-                                list.push(format!("<a class=\"type\" href=\"{path}\">{name}</a>"));
-                            }
-                            Kind::Struct => {
-                                let path =
-                                    cx.dir().relative(cx.item_path(meta.item, ItemPath::Struct));
-                                let name = meta.item.last().context("missing name")?;
-                                list.push(format!(
-                                    "<a class=\"struct\" href=\"{path}\">{name}</a>"
-                                ));
-                            }
-                            _ => {
-                                list.push(String::from("?"));
-                            }
-                        }
-                    } else {
-                        list.push(String::from("?"));
-                    }
+                    list.push(cx.hash_to_link(*hash)?);
                 }
 
                 let parameters = (!list.is_empty()).then(|| list.join(", "));
@@ -734,6 +754,10 @@ fn type_(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> 
                     name,
                     args: args_to_string(f.docs.args(), Signature::Instance { args: f.args })?,
                     parameters,
+                    return_type: match &f.return_type {
+                        Some(f) => Some(cx.hash_to_link(f.hash)?),
+                        None => None,
+                    },
                     doc,
                 });
 
@@ -754,6 +778,10 @@ fn type_(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> 
         protocols.push(Protocol {
             name: protocol.name,
             repr,
+            return_type: match &f.return_type {
+                Some(f) => Some(cx.hash_to_link(f.hash)?),
+                None => None,
+            },
             doc,
         });
     }
