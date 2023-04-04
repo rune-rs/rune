@@ -45,7 +45,7 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// use std::iter::empty;
 ///
 /// assert!(empty().next().is_none());
@@ -60,7 +60,7 @@ fn empty() -> Iterator {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// use std::iter::once;
 ///
 /// assert!(once(42).next().is_some());
@@ -76,7 +76,7 @@ fn once(value: Value) -> Iterator {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rune
 /// use std::iter::range;
 ///
 /// assert!(range(0, 3).next().is_some());

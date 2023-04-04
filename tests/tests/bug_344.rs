@@ -181,7 +181,7 @@ impl TypeOf for GuardCheck {
 
     #[inline]
     fn type_info() -> TypeInfo {
-        TypeInfo::Any(AnyTypeInfo::new(<Self as Named>::BASE_NAME, <Self as Any>::type_hash()))
+        TypeInfo::Any(AnyTypeInfo::new(<Self as Named>::BASE_NAME))
     }
 }
 

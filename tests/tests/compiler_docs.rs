@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use rune::compile::{Location, Item, CompileVisitor};
-use rune::{Context, Diagnostics};
+use rune::{Context, Diagnostics, Hash};
 use rune_tests::sources;
 
 struct DocVisitor {
@@ -9,11 +9,11 @@ struct DocVisitor {
 }
 
 impl CompileVisitor for DocVisitor {
-    fn visit_doc_comment(&mut self, _: Location, item: &Item, doc: &str) {
+    fn visit_doc_comment(&mut self, _: Location, item: &Item, _: Hash, doc: &str) {
         self.collected.entry(item.to_string()).or_default().push(doc.to_string());
     }
 
-    fn visit_field_doc_comment(&mut self, _: Location, item: &Item, field: &str, doc: &str) {
+    fn visit_field_doc_comment(&mut self, _: Location, item: &Item, _: Hash, field: &str, doc: &str) {
         self.collected.entry(format!("{item}.{field}")).or_default().push(doc.to_string());
     }
 }

@@ -3,7 +3,7 @@
 {{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
 {{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
 <body>
-<h3 class="title">{{what}} <b>{{literal module}}::{{name}}</b></h3>
+<h3 class="title">{{what}} {{literal module}}::<span class="{{what_class}}">{{name}}</span></h3>
 
 {{#if methods}}
 <h4 class="section-title">Methods</h4>

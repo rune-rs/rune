@@ -115,6 +115,12 @@ impl Pool {
         self.item(id)
     }
 
+    /// Get the hash associated with a module item.
+    pub(crate) fn module_item_hash(&self, id: ModId) -> Hash {
+        let id = self.module(id).item;
+        self.item_type_hash(id)
+    }
+
     /// Get by item id.
     pub(crate) fn module_by_item(&self, id: ItemId) -> Option<&ModMeta> {
         Some(self.module(*self.item_to_mod.get(&id)?))

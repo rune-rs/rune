@@ -95,7 +95,9 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
-    meta: HashMap<ItemBuf, PrivMeta>,
+    meta: HashMap<Hash, PrivMeta>,
+    /// Store item to hash mapping.
+    item_to_hash: HashMap<ItemBuf, Hash>,
     /// Information on functions.
     functions_info: HashMap<Hash, meta::Signature>,
     /// Registered native function handlers.
@@ -283,13 +285,14 @@ impl Context {
     }
 
     /// Access the context meta for the given item.
-    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<&PrivMeta> {
-        self.meta.get(name)
+    pub(crate) fn lookup_meta(&self, item: &Item) -> Option<&PrivMeta> {
+        let hash = self.item_to_hash.get(item)?;
+        self.meta.get(hash)
     }
 
     /// Lookup meta by its hash.
     pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> Option<&PrivMeta> {
-        todo!()
+        self.meta.get(&hash)
     }
 
     /// Look up signature of function.
@@ -299,8 +302,8 @@ impl Context {
     }
 
     /// Iterate over all metadata in the context.
-    pub fn iter_meta(&self) -> impl Iterator<Item = (&Item, &PrivMeta)> + '_ {
-        self.meta.iter().map(|(item, meta)| (item.as_ref(), meta))
+    pub fn iter_meta(&self) -> impl Iterator<Item = &PrivMeta> + '_ {
+        self.meta.values()
     }
 
     /// Check if unit contains the given name by prefix.
@@ -348,7 +351,7 @@ impl Context {
 
     /// Install the given meta.
     fn install_meta(&mut self, meta: PrivMeta) -> Result<(), ContextError> {
-        match self.meta.entry(meta.item.clone()) {
+        match self.meta.entry(meta.hash) {
             hash_map::Entry::Occupied(e) => {
                 return Err(ContextError::ConflictingMeta {
                     existing: Box::new(e.get().info()),
@@ -356,6 +359,7 @@ impl Context {
                 });
             }
             hash_map::Entry::Vacant(e) => {
+                self.item_to_hash.insert(meta.item.clone(), meta.hash);
                 e.insert(meta);
             }
         }
@@ -674,7 +678,7 @@ impl Context {
 
             self.functions.insert(hash, assoc.handler.clone());
 
-            if !self.meta.contains_key(&item) {
+            if !self.item_to_hash.contains_key(&item) {
                 self.install_meta(PrivMeta::new(
                     module,
                     type_hash,

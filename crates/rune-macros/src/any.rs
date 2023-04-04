@@ -444,10 +444,7 @@ where
 
             #[inline]
             fn type_info() -> #type_info {
-                #type_info::Any(#any_type_info::new(
-                    #raw_str::from_str(std::any::type_name::<Self>()),
-                    <Self as #any>::type_hash()
-                ))
+                #type_info::Any(#any_type_info::new(#raw_str::from_str(std::any::type_name::<Self>())))
             }
         }
 

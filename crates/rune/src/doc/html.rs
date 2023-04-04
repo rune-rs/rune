@@ -129,7 +129,10 @@ impl Ctxt<'_> {
             None => self.syntax_set.find_syntax_plain_text(),
         };
 
-        self.render_code_by_syntax(lines, syntax)
+        format!(
+            "<pre><code class=\"language-rune\">{}</code></pre>",
+            self.render_code_by_syntax(lines, syntax)
+        )
     }
 
     /// Render documentation.
@@ -286,7 +289,7 @@ impl Ctxt<'_> {
     }
 
     /// Build banklinks for the current item.
-    fn module_path_html(&self, last: bool) -> String {
+    fn module_path_html(&self, is_module: bool) -> String {
         let mut module = Vec::new();
         let mut iter = self.item.iter();
         let dir = self.dir();
@@ -294,15 +297,15 @@ impl Ctxt<'_> {
         while iter.next_back().is_some() {
             if let Some(name) = iter.as_item().last() {
                 let url = dir.relative(self.item_path(iter.as_item(), ItemPath::Module));
-                module.push(format!("<a href=\"{url}\">{name}</a>"));
+                module.push(format!("<a class=\"module\" href=\"{url}\">{name}</a>"));
             }
         }
 
         module.reverse();
 
-        if last {
+        if is_module {
             if let Some(name) = self.item.last() {
-                module.push(format!("{name}"));
+                module.push(format!("<span class=\"module\">{name}</span>"));
             }
         }
 
@@ -407,11 +410,11 @@ pub fn write_html(
         match build {
             Build::Type(item, hash) => {
                 cx.set_path(item, ItemPath::Type);
-                type_(&cx, "Type", hash)?;
+                type_(&cx, "Type", "type", hash)?;
             }
             Build::Struct(item, hash) => {
                 cx.set_path(item, ItemPath::Struct);
-                type_(&cx, "Struct", hash)?;
+                type_(&cx, "Struct", "struct", hash)?;
             }
             Build::Function(item) => {
                 cx.set_path(item, ItemPath::Function);
@@ -611,11 +614,12 @@ fn module(
 }
 
 /// Build an unknown type.
-#[tracing::instrument(skip_all)]
-fn type_(cx: &Ctxt<'_>, what: &str, hash: Hash) -> Result<()> {
+// #[tracing::instrument(skip_all)]
+fn type_(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         what: &'a str,
+        what_class: &'a str,
         #[serde(flatten)]
         shared: Shared,
         module: String,
@@ -699,7 +703,25 @@ fn type_(cx: &Ctxt<'_>, what: &str, hash: Hash) -> Result<()> {
 
                 for hash in &f.name.parameter_types {
                     if let Some(meta) = cx.context.meta_by_hash(*hash) {
-                        list.push(String::from("META"));
+                        match &meta.kind {
+                            Kind::Unknown => {
+                                let path =
+                                    cx.dir().relative(cx.item_path(meta.item, ItemPath::Type));
+                                let name = meta.item.last().context("missing name")?;
+                                list.push(format!("<a class=\"type\" href=\"{path}\">{name}</a>"));
+                            }
+                            Kind::Struct => {
+                                let path =
+                                    cx.dir().relative(cx.item_path(meta.item, ItemPath::Struct));
+                                let name = meta.item.last().context("missing name")?;
+                                list.push(format!(
+                                    "<a class=\"struct\" href=\"{path}\">{name}</a>"
+                                ));
+                            }
+                            _ => {
+                                list.push(String::from("?"));
+                            }
+                        }
                     } else {
                         list.push(String::from("?"));
                     }
@@ -739,6 +761,7 @@ fn type_(cx: &Ctxt<'_>, what: &str, hash: Hash) -> Result<()> {
     cx.write_file(|cx| {
         cx.type_template.render(&Params {
             what,
+            what_class,
             shared: cx.shared(),
             module,
             name,
