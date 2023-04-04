@@ -32,7 +32,7 @@
 //! ```
 
 use rune::{Any, Module, ContextError};
-use rune::runtime::{Bytes, Shared, Value, VmError, Protocol, VmResult};
+use rune::runtime::{Bytes, Shared, Value, VmErrorKind, Protocol, VmResult, Panic};
 use std::fmt;
 use std::io;
 use tokio::process;
@@ -79,7 +79,7 @@ impl Command {
                     self.inner.arg(&***s);
                 }
                 actual => {
-                    return VmResult::err(VmError::expected::<String>(rune::vm_try!(actual.type_info().into_result())));
+                    return VmResult::err(VmErrorKind::expected::<String>(rune::vm_try!(actual.type_info().into_result())));
                 }
             }
         }
@@ -116,7 +116,7 @@ impl Child {
         let inner = match self.inner {
             Some(inner) => inner,
             None => {
-                return VmResult::err(VmError::panic("already completed"));
+                return VmResult::err(Panic::custom("already completed"));
             }
         };
 

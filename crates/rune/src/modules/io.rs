@@ -8,7 +8,7 @@ use std::io::Write as _;
 use crate as rune;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Panic, Protocol, Stack, Value, VmError, VmResult};
+use crate::runtime::{Panic, Protocol, Stack, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::io` module.
@@ -41,7 +41,7 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
     let mut stdout = stdout.lock();
 
     for value in vm_try!(stack.drain(args)) {
-        vm_try!(writeln!(stdout, "{:?}", value).map_err(VmError::panic));
+        vm_try!(writeln!(stdout, "{:?}", value).map_err(Panic::custom));
     }
 
     stack.push(Value::Unit);

@@ -1,6 +1,6 @@
 //! The `std::string` module.
 
-use crate::runtime::{Bytes, Iterator, Protocol, Value, VmError, VmErrorKind, VmResult};
+use crate::runtime::{Bytes, Iterator, Panic, Protocol, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
 /// Construct the `std::string` module.
@@ -88,7 +88,7 @@ fn string_split(this: &str, value: Value) -> VmResult<Iterator> {
             .map(String::from)
             .collect::<Vec<String>>(),
         Value::Char(pat) => this.split(pat).map(String::from).collect::<Vec<String>>(),
-        value => return VmResult::err(vm_try!(VmError::bad_argument::<String>(0, &value))),
+        value => return VmResult::err(vm_try!(VmErrorKind::bad_argument::<String>(0, &value))),
     };
 
     VmResult::Ok(Iterator::from_double_ended(
@@ -171,6 +171,6 @@ fn string_get(s: &str, key: Value) -> VmResult<Option<String>> {
 fn string_index_get(s: &str, key: Value) -> VmResult<String> {
     match vm_try!(string_get(s, key)) {
         Some(slice) => VmResult::Ok(slice),
-        None => VmResult::err(VmError::panic("missing string slice")),
+        None => VmResult::err(Panic::custom("missing string slice")),
     }
 }

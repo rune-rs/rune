@@ -1,5 +1,5 @@
 use crate::runtime::{
-    ConstValue, FromValue, Mut, Ref, ToValue, Value, Vm, VmError, VmErrorKind, VmResult, TUPLE_TYPE,
+    ConstValue, FromValue, Mut, Ref, ToValue, Value, Vm, VmErrorKind, VmResult, TUPLE_TYPE,
 };
 use std::fmt;
 use std::ops;
@@ -173,7 +173,7 @@ impl FromValue for Tuple {
         match value {
             Value::Unit => VmResult::Ok(Self::empty()),
             Value::Tuple(tuple) => VmResult::Ok(vm_try!(tuple.take())),
-            actual => VmResult::err(VmError::expected::<Self>(vm_try!(actual.type_info()))),
+            actual => VmResult::err(VmErrorKind::expected::<Self>(vm_try!(actual.type_info()))),
         }
     }
 }

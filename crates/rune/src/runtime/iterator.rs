@@ -1,7 +1,7 @@
 use crate::compile::Named;
 use crate::runtime::{
-    FromValue, Function, Mut, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
-    VmError, VmErrorKind, VmResult,
+    FromValue, Function, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
+    VmErrorKind, VmResult,
 };
 use crate::InstallWith;
 use std::fmt;
@@ -36,7 +36,7 @@ trait RuneIterator: fmt::Debug {
         let (lower, upper) = self.size_hint();
 
         if !matches!(upper, Some(upper) if lower == upper) {
-            return VmResult::err(VmError::panic(format!(
+            return VmResult::err(Panic::custom(format!(
                 "`{:?}` is not an exact-sized iterator",
                 self
             )));
@@ -237,7 +237,7 @@ impl Iterator {
     /// Map the iterator using the given function.
     pub fn rev(self) -> VmResult<Self> {
         if !self.iter.is_double_ended() {
-            return VmResult::err(VmError::panic(format!(
+            return VmResult::err(Panic::custom(format!(
                 "`{:?}` is not a double-ended iterator",
                 self
             )));
@@ -292,7 +292,7 @@ impl Iterator {
     pub fn peek(&mut self) -> VmResult<Option<Value>> {
         match &mut self.iter {
             IterRepr::Peekable(peekable) => peekable.peek(),
-            _ => VmResult::err(VmError::panic(format!(
+            _ => VmResult::err(Panic::custom(format!(
                 "`{:?}` is not a peekable iterator",
                 self.iter
             ))),
@@ -460,7 +460,7 @@ impl RuneIterator for IterRepr {
 
     fn next_back(&mut self) -> VmResult<Option<Value>> {
         match self {
-            Self::Iterator(iter) => VmResult::err(VmError::panic(format!(
+            Self::Iterator(iter) => VmResult::err(Panic::custom(format!(
                 "`{}` is not a double-ended iterator",
                 iter.name
             ))),
@@ -1160,7 +1160,7 @@ where
                     rhs: vm_try!(v.type_info()),
                 }),
             },
-            None => VmResult::err(VmError::panic(
+            None => VmResult::err(Panic::custom(
                 "cannot take the product of an empty iterator",
             )),
         }
@@ -1219,7 +1219,7 @@ where
                     rhs: vm_try!(v.type_info()),
                 }),
             },
-            None => VmResult::err(VmError::panic("cannot take the sum of an empty iterator")),
+            None => VmResult::err(Panic::custom("cannot take the sum of an empty iterator")),
         }
     }
 }

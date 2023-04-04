@@ -1,6 +1,5 @@
 use crate::compile::ItemBuf;
 use crate::hash::Hash;
-use crate::runtime::panic::BoxedPanic;
 use crate::runtime::{
     AccessError, CallFrame, ExecutionState, FullTypeOf, Key, MaybeTypeOf, Panic, Protocol,
     StackError, TypeInfo, TypeOf, Unit, Value, Vm, VmHaltInfo,
@@ -38,7 +37,7 @@ impl<T> TryFromResult for VmResult<T> {
 
 impl<T, E> TryFromResult for Result<T, E>
 where
-    VmError: From<E>,
+    VmErrorKind: From<E>,
 {
     type Ok = T;
 
@@ -47,6 +46,18 @@ where
         match value {
             Ok(ok) => VmResult::Ok(ok),
             Err(err) => VmResult::err(err),
+        }
+    }
+}
+
+impl<T> TryFromResult for Result<T, VmError> {
+    type Ok = T;
+
+    #[inline]
+    fn try_from_result(value: Self) -> VmResult<T> {
+        match value {
+            Ok(ok) => VmResult::Ok(ok),
+            Err(err) => VmResult::Err(err),
         }
     }
 }
@@ -63,32 +74,60 @@ pub struct VmErrorLocation {
     pub frames: Vec<CallFrame>,
 }
 
-/// A virtual machine error which includes tracing information.
 #[derive(Debug)]
-pub struct VmErrorWithTrace {
-    pub(crate) error: (usize, VmError),
-    pub(crate) chain: Vec<(usize, VmError)>,
+#[non_exhaustive]
+pub(crate) struct VmErrorAt {
+    pub(crate) index: usize,
+    pub(crate) kind: VmErrorKind,
+}
+
+#[non_exhaustive]
+pub(crate) struct VmErrorInner {
+    pub(crate) error: VmErrorAt,
+    pub(crate) chain: Vec<VmErrorAt>,
     pub(crate) stacktrace: Vec<VmErrorLocation>,
 }
 
-impl VmErrorWithTrace {
+/// A virtual machine error which includes tracing information.
+pub struct VmError {
+    pub(crate) inner: Box<VmErrorInner>,
+}
+
+impl VmError {
     /// Get the first error location.
     pub fn first_location(&self) -> Option<&VmErrorLocation> {
-        self.stacktrace.first()
+        self.inner.stacktrace.first()
     }
 
-    /// Extract root cause error.
-    pub fn into_error(self) -> VmError {
-        self.error.1
+    /// Access the underlying error kind.
+    pub fn kind(&self) -> &VmErrorKind {
+        &self.inner.error.kind
+    }
+
+    /// Access the underlying error kind while consuming the error.
+    pub fn into_kind(self) -> VmErrorKind {
+        self.inner.error.kind
     }
 }
 
-impl fmt::Display for VmErrorWithTrace {
+impl fmt::Display for VmError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.error.1.fmt(f)
+        self.inner.error.kind.fmt(f)
     }
 }
+
+impl fmt::Debug for VmError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VmError")
+            .field("error", &self.inner.error)
+            .field("chain", &self.inner.chain)
+            .field("stacktrace", &self.inner.stacktrace)
+            .finish()
+    }
+}
+
+impl std::error::Error for VmError {}
 
 /// A result produced by the virtual machine.
 #[must_use]
@@ -96,7 +135,7 @@ pub enum VmResult<T> {
     /// A produced value.
     Ok(T),
     /// Multiple errors with locations included.
-    Err(Box<VmErrorWithTrace>),
+    Err(VmError),
 }
 
 impl<T> VmResult<T> {
@@ -104,21 +143,17 @@ impl<T> VmResult<T> {
     /// [`VmError`].
     pub fn err<E>(error: E) -> Self
     where
-        VmError: From<E>,
+        VmErrorKind: From<E>,
     {
-        VmResult::Err(Box::new(VmErrorWithTrace {
-            error: (0, VmError::from(error)),
-            chain: Vec::new(),
-            stacktrace: Vec::new(),
-        }))
+        VmResult::Err(VmError::from(error))
     }
 
     /// Convert a [`VmResult`] into a [`Result`].
-    #[inline]
+    #[inline(always)]
     pub fn into_result(self) -> Result<T, VmError> {
         match self {
             VmResult::Ok(value) => Ok(value),
-            VmResult::Err(error) => Err(error.into_error()),
+            VmResult::Err(error) => Err(error),
         }
     }
 
@@ -127,7 +162,7 @@ impl<T> VmResult<T> {
         match self {
             VmResult::Ok(ok) => VmResult::Ok(ok),
             VmResult::Err(mut err) => {
-                err.stacktrace.push(VmErrorLocation {
+                err.inner.stacktrace.push(VmErrorLocation {
                     unit: vm.unit().clone(),
                     ip: vm.ip(),
                     frames: vm.call_frames().to_vec(),
@@ -143,13 +178,18 @@ impl<T> VmResult<T> {
     pub(crate) fn with_error<E, O>(self, error: E) -> Self
     where
         E: FnOnce() -> O,
-        VmError: From<O>,
+        VmErrorKind: From<O>,
     {
         match self {
             VmResult::Ok(ok) => VmResult::Ok(ok),
             VmResult::Err(mut err) => {
-                let stack = err.stacktrace.len();
-                err.chain.push((stack, VmError::from(error())));
+                let index = err.inner.stacktrace.len();
+
+                err.inner.chain.push(VmErrorAt {
+                    index,
+                    kind: VmErrorKind::from(error()),
+                });
+
                 VmResult::Err(err)
             }
         }
@@ -174,88 +214,45 @@ where
     }
 }
 
-/// Errors raised by the execution of the virtual machine.
-#[derive(Error, Debug)]
-#[error(transparent)]
-pub struct VmError {
-    kind: Box<VmErrorKind>,
-}
-
-impl VmError {
-    /// Return an error encapsulating a panic.
-    pub fn panic<D>(message: D) -> Self
-    where
-        D: BoxedPanic,
-    {
-        Self::from(VmErrorKind::Panic {
-            reason: Panic::custom(message),
-        })
-    }
-
-    /// Bad argument.
-    pub fn bad_argument<T>(arg: usize, value: &Value) -> VmResult<Self>
-    where
-        T: TypeOf,
-    {
-        VmResult::Ok(Self::from(VmErrorKind::BadArgumentAt {
-            arg,
-            expected: T::type_info(),
-            actual: vm_try!(value.type_info()),
-        }))
-    }
-
-    /// Construct an expected error.
-    pub fn expected<T>(actual: TypeInfo) -> Self
-    where
-        T: TypeOf,
-    {
-        Self::from(VmErrorKind::Expected {
-            expected: T::type_info(),
-            actual,
-        })
-    }
-
-    /// Construct an expected any error.
-    pub fn expected_any(actual: TypeInfo) -> Self {
-        Self::from(VmErrorKind::ExpectedAny { actual })
-    }
-
-    /// Access the underlying error kind.
-    pub fn kind(&self) -> &VmErrorKind {
-        &self.kind
-    }
-
-    /// Access the underlying error kind while consuming the error.
-    pub fn into_kind(self) -> VmErrorKind {
-        *self.kind
-    }
-}
-
 impl<E> From<E> for VmError
 where
     VmErrorKind: From<E>,
 {
-    fn from(err: E) -> Self {
+    fn from(error: E) -> Self {
         Self {
-            kind: Box::new(VmErrorKind::from(err)),
+            inner: Box::new(VmErrorInner {
+                error: VmErrorAt {
+                    index: 0,
+                    kind: VmErrorKind::from(error),
+                },
+                chain: Vec::new(),
+                stacktrace: Vec::new(),
+            }),
         }
     }
 }
 
-impl From<Panic> for VmError {
+impl From<Panic> for VmErrorKind {
+    #[inline]
     fn from(reason: Panic) -> Self {
-        Self::from(VmErrorKind::Panic { reason })
+        VmErrorKind::Panic { reason }
     }
 }
 
 /// The kind of error encountered.
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum VmErrorKind {
     #[error("{error}")]
     AccessError {
         #[from]
         error: AccessError,
+    },
+    #[error("stack error: {error}")]
+    StackError {
+        #[from]
+        error: StackError,
     },
     #[error("panicked: {reason}")]
     Panic { reason: Panic },
@@ -265,11 +262,6 @@ pub enum VmErrorKind {
     Halted { halt: VmHaltInfo },
     #[error("failed to format argument")]
     FormatError,
-    #[error("stack error: {error}")]
-    StackError {
-        #[from]
-        error: StackError,
-    },
     #[error("numerical overflow")]
     Overflow,
     #[error("numerical underflow")]
@@ -424,6 +416,36 @@ pub enum VmErrorKind {
     },
     #[error("future already completed")]
     FutureCompleted,
+}
+
+impl VmErrorKind {
+    /// Bad argument.
+    pub fn bad_argument<T>(arg: usize, value: &Value) -> VmResult<Self>
+    where
+        T: TypeOf,
+    {
+        VmResult::Ok(Self::BadArgumentAt {
+            arg,
+            expected: T::type_info(),
+            actual: vm_try!(value.type_info()),
+        })
+    }
+
+    /// Construct an expected error.
+    pub fn expected<T>(actual: TypeInfo) -> Self
+    where
+        T: TypeOf,
+    {
+        Self::Expected {
+            expected: T::type_info(),
+            actual,
+        }
+    }
+
+    /// Construct an expected any error.
+    pub fn expected_any(actual: TypeInfo) -> Self {
+        Self::ExpectedAny { actual }
+    }
 }
 
 /// A type-erased rust number.

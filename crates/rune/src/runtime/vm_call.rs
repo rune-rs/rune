@@ -19,7 +19,10 @@ impl VmCall {
         T: AsMut<Vm>,
     {
         let value = match self.call {
-            Call::Async => Value::from(Future::new(self.vm.async_complete())),
+            Call::Async => {
+                let mut execution = self.vm.into_execution();
+                Value::from(Future::new(async move { execution.async_complete().await }))
+            }
             Call::Immediate => {
                 execution.push_vm(self.vm);
                 return;

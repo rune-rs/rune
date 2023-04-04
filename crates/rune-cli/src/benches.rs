@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use clap::Parser;
 use rune::compile::{Item, ItemBuf};
-use rune::runtime::{Function, Unit, Value, VmResult};
+use rune::runtime::{Function, Unit, Value};
 use rune::{Any, Context, ContextError, Hash, Module, Sources};
 use rune_modules::capture_io::CaptureIo;
 
@@ -68,7 +68,7 @@ pub(crate) async fn run(
     for (hash, item) in fns {
         let mut bencher = Bencher::default();
 
-        if let VmResult::Err(error) = vm.call(*hash, (&mut bencher,)) {
+        if let Err(error) = vm.call(*hash, (&mut bencher,)) {
             writeln!(io.stdout, "{}: Error in benchmark", item)?;
             error.emit(io.stdout, sources)?;
             any_error = true;

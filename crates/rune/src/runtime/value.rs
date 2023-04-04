@@ -4,7 +4,7 @@ use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
     Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, Protocol,
     ProtocolCaller, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple,
-    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmResult,
+    TypeInfo, Variant, Vec, Vm, VmErrorKind, VmResult,
 };
 use crate::{Any, Hash};
 use serde::{de, ser, Deserialize, Serialize};
@@ -21,7 +21,7 @@ use VmResult::Ok;
 // Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
 where
-    VmError: From<E>,
+    VmErrorKind: From<E>,
 {
     VmResult::err(error)
 }
@@ -570,7 +570,7 @@ impl Value {
                 match name {
                     ConstValue::String(s) => return Ok(s.clone()),
                     ConstValue::StaticString(s) => return Ok((*s).to_string()),
-                    _ => return err(VmError::expected::<String>(name.type_info())),
+                    _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
 
@@ -578,7 +578,7 @@ impl Value {
                 match name {
                     ConstValue::String(s) => return Ok(s.clone()),
                     ConstValue::StaticString(s) => return Ok((*s).to_string()),
-                    _ => return err(VmError::expected::<String>(name.type_info())),
+                    _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
 
@@ -658,7 +658,7 @@ impl Value {
     pub fn into_unit(self) -> VmResult<()> {
         match self {
             Value::Unit => Ok(()),
-            actual => err(VmError::expected::<()>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<()>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -667,7 +667,7 @@ impl Value {
     pub fn into_bool(self) -> VmResult<bool> {
         match self {
             Self::Bool(b) => Ok(b),
-            actual => err(VmError::expected::<bool>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<bool>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -676,7 +676,7 @@ impl Value {
     pub fn as_bool(&self) -> VmResult<bool> {
         match self {
             Self::Bool(b) => Ok(*b),
-            actual => err(VmError::expected::<bool>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<bool>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -685,7 +685,7 @@ impl Value {
     pub fn into_byte(self) -> VmResult<u8> {
         match self {
             Self::Byte(b) => Ok(b),
-            actual => err(VmError::expected::<u8>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<u8>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -694,7 +694,7 @@ impl Value {
     pub fn into_char(self) -> VmResult<char> {
         match self {
             Self::Char(c) => Ok(c),
-            actual => err(VmError::expected::<char>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<char>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -703,7 +703,7 @@ impl Value {
     pub fn into_integer(self) -> VmResult<i64> {
         match self {
             Self::Integer(integer) => Ok(integer),
-            actual => err(VmError::expected::<i64>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<i64>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -712,7 +712,7 @@ impl Value {
     pub fn into_float(self) -> VmResult<f64> {
         match self {
             Self::Float(float) => Ok(float),
-            actual => err(VmError::expected::<f64>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<f64>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -721,7 +721,7 @@ impl Value {
     pub fn into_result(self) -> VmResult<Shared<Result<Value, Value>>> {
         match self {
             Self::Result(result) => Ok(result),
-            actual => err(VmError::expected::<Result<Value, Value>>(vm_try!(
+            actual => err(VmErrorKind::expected::<Result<Value, Value>>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -732,7 +732,7 @@ impl Value {
     pub fn as_result(&self) -> VmResult<&Shared<Result<Value, Value>>> {
         match self {
             Self::Result(result) => Ok(result),
-            actual => err(VmError::expected::<Result<Value, Value>>(vm_try!(
+            actual => err(VmErrorKind::expected::<Result<Value, Value>>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -743,7 +743,7 @@ impl Value {
     pub fn into_generator(self) -> VmResult<Shared<Generator<Vm>>> {
         match self {
             Value::Generator(generator) => Ok(generator),
-            actual => err(VmError::expected::<Generator<Vm>>(vm_try!(
+            actual => err(VmErrorKind::expected::<Generator<Vm>>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -754,7 +754,9 @@ impl Value {
     pub fn into_stream(self) -> VmResult<Shared<Stream<Vm>>> {
         match self {
             Value::Stream(stream) => Ok(stream),
-            actual => err(VmError::expected::<Stream<Vm>>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Stream<Vm>>(vm_try!(
+                actual.type_info()
+            ))),
         }
     }
 
@@ -763,7 +765,7 @@ impl Value {
     pub fn into_generator_state(self) -> VmResult<Shared<GeneratorState>> {
         match self {
             Value::GeneratorState(state) => Ok(state),
-            actual => err(VmError::expected::<GeneratorState>(vm_try!(
+            actual => err(VmErrorKind::expected::<GeneratorState>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -774,7 +776,7 @@ impl Value {
     pub fn into_option(self) -> VmResult<Shared<Option<Value>>> {
         match self {
             Self::Option(option) => Ok(option),
-            actual => err(VmError::expected::<Option<Value>>(vm_try!(
+            actual => err(VmErrorKind::expected::<Option<Value>>(vm_try!(
                 actual.type_info()
             ))),
         }
@@ -785,7 +787,7 @@ impl Value {
     pub fn into_string(self) -> VmResult<Shared<String>> {
         match self {
             Self::String(string) => Ok(string),
-            actual => err(VmError::expected::<String>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -794,7 +796,7 @@ impl Value {
     pub fn into_bytes(self) -> VmResult<Shared<Bytes>> {
         match self {
             Self::Bytes(bytes) => Ok(bytes),
-            actual => err(VmError::expected::<Bytes>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Bytes>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -803,7 +805,7 @@ impl Value {
     pub fn into_vec(self) -> VmResult<Shared<Vec>> {
         match self {
             Self::Vec(vec) => Ok(vec),
-            actual => err(VmError::expected::<Vec>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Vec>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -812,7 +814,7 @@ impl Value {
     pub fn into_tuple(self) -> VmResult<Shared<Tuple>> {
         match self {
             Self::Tuple(tuple) => Ok(tuple),
-            actual => err(VmError::expected::<Tuple>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Tuple>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -821,7 +823,7 @@ impl Value {
     pub fn into_object(self) -> VmResult<Shared<Object>> {
         match self {
             Self::Object(object) => Ok(object),
-            actual => err(VmError::expected::<Object>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Object>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -830,7 +832,7 @@ impl Value {
     pub fn into_range(self) -> VmResult<Shared<Range>> {
         match self {
             Self::Range(object) => Ok(object),
-            actual => err(VmError::expected::<Range>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Range>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -839,7 +841,9 @@ impl Value {
     pub fn into_function(self) -> VmResult<Shared<Function>> {
         match self {
             Self::Function(function) => Ok(function),
-            actual => err(VmError::expected::<Function>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Function>(vm_try!(
+                actual.type_info()
+            ))),
         }
     }
 
@@ -848,7 +852,7 @@ impl Value {
     pub fn into_format(self) -> VmResult<Box<Format>> {
         match self {
             Value::Format(format) => Ok(format),
-            actual => err(VmError::expected::<Format>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Format>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -857,7 +861,9 @@ impl Value {
     pub fn into_iterator(self) -> VmResult<Shared<Iterator>> {
         match self {
             Value::Iterator(format) => Ok(format),
-            actual => err(VmError::expected::<Iterator>(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected::<Iterator>(vm_try!(
+                actual.type_info()
+            ))),
         }
     }
 
@@ -866,7 +872,7 @@ impl Value {
     pub fn into_any(self) -> VmResult<Shared<AnyObj>> {
         match self {
             Self::Any(any) => Ok(any),
-            actual => err(VmError::expected_any(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
         }
     }
 
@@ -890,7 +896,7 @@ impl Value {
                 let (data, guard) = Ref::into_raw(any);
                 Ok((data, guard))
             }
-            actual => err(VmError::expected_any(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
         }
     }
 
@@ -914,7 +920,7 @@ impl Value {
                 let (data, guard) = Mut::into_raw(any);
                 Ok((data, guard))
             }
-            actual => err(VmError::expected_any(vm_try!(actual.type_info()))),
+            actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
         }
     }
 
@@ -1090,7 +1096,7 @@ impl Value {
             },
         }
 
-        err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+        err(VmErrorKind::from(VmErrorKind::UnsupportedBinaryOperation {
             op: "==",
             lhs: vm_try!(a.type_info()),
             rhs: vm_try!(b.type_info()),
@@ -1187,7 +1193,7 @@ impl fmt::Debug for Value {
 
                 match value.string_debug(&mut s) {
                     Ok(result) => result?,
-                    Err(error) => return write!(f, "{:?}", error.error),
+                    Err(error) => return write!(f, "{:?}", error),
                 }
 
                 f.write_str(&s)?;

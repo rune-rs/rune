@@ -13,7 +13,7 @@
 //! ```
 
 use parking_lot::Mutex;
-use rune::runtime::{Panic, Stack, VmError, VmResult};
+use rune::runtime::{Panic, Stack, VmResult};
 use rune::{ContextError, Module, Value};
 use std::io::{self, Write};
 use std::string::FromUtf8Error;
@@ -92,7 +92,7 @@ where
     O: Write,
 {
     for value in rune::vm_try!(stack.drain(args)) {
-        rune::vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
+        rune::vm_try!(writeln!(o, "{:?}", value).map_err(Panic::custom));
     }
 
     stack.push(Value::Unit);

@@ -20,7 +20,7 @@ use VmResult::Ok;
 /// Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
 where
-    VmError: From<E>,
+    VmErrorKind: From<E>,
 {
     VmResult::err(error)
 }
@@ -168,12 +168,6 @@ impl Vm {
         self.ip
     }
 
-    /// Advance the instruction pointer.
-    #[inline]
-    pub(crate) fn advance(&mut self) {
-        self.ip = self.ip.wrapping_add(1);
-    }
-
     /// Reset this virtual machine, freeing all memory used.
     pub fn clear(&mut self) {
         self.ip = 0;
@@ -234,29 +228,33 @@ impl Vm {
     ///
     /// let max = vm.lookup_function(&item)?;
     ///
-    /// let value = i64::from_value(max.call((10, 20))?)?;
+    /// let value = i64::from_value(max.call((10, 20)).into_result()?)?;
     /// assert_eq!(value, 20);
     /// # Ok(()) }
     /// ```
-    pub fn lookup_function<N>(&self, name: N) -> VmResult<Function>
+    pub fn lookup_function<N>(&self, name: N) -> Result<Function, VmError>
     where
         N: ToTypeHash,
     {
         self.lookup_function_by_hash(name.to_type_hash())
+            .into_result()
+    }
+
+    /// Convert into an execution.
+    pub(crate) fn into_execution(self) -> VmExecution<Self> {
+        VmExecution::new(self)
     }
 
     /// Run the given vm to completion.
     ///
     /// If any async instructions are encountered, this will error.
-    pub fn complete(self) -> VmResult<Value> {
-        let mut execution = VmExecution::new(self);
-        execution.complete()
+    pub fn complete(self) -> Result<Value, VmError> {
+        self.into_execution().complete().into_result()
     }
 
     /// Run the given vm to completion with support for async functions.
-    pub async fn async_complete(self) -> VmResult<Value> {
-        let mut execution = VmExecution::new(self);
-        execution.async_complete().await
+    pub async fn async_complete(self) -> Result<Value, VmError> {
+        self.into_execution().async_complete().await.into_result()
     }
 
     /// Call the function identified by the given name.
@@ -320,14 +318,14 @@ impl Vm {
     /// println!("output: {}", output);
     /// # Ok(()) }
     /// ```
-    pub fn execute<A, N>(&mut self, name: N, args: A) -> VmResult<VmExecution<&mut Self>>
+    pub fn execute<A, N>(&mut self, name: N, args: A) -> Result<VmExecution<&mut Self>, VmError>
     where
         N: ToTypeHash,
         A: Args,
     {
-        vm_try!(self.set_entrypoint(name, args.count()));
-        vm_try!(args.into_stack(&mut self.stack));
-        Ok(VmExecution::new(self))
+        self.set_entrypoint(name, args.count()).into_result()?;
+        args.into_stack(&mut self.stack).into_result()?;
+        Result::Ok(VmExecution::new(self))
     }
 
     /// An `execute` variant that returns an execution which implements
@@ -336,7 +334,7 @@ impl Vm {
     /// This is accomplished by preventing values escaping from being
     /// non-exclusively sent with the execution or escaping the execution. We
     /// only support encoding arguments which themselves are `Send`.
-    pub fn send_execute<A, N>(mut self, name: N, args: A) -> VmResult<VmSendExecution>
+    pub fn send_execute<A, N>(mut self, name: N, args: A) -> Result<VmSendExecution, VmError>
     where
         N: ToTypeHash,
         A: Send + Args,
@@ -345,9 +343,9 @@ impl Vm {
         // being sent along with the virtual machine.
         self.stack.clear();
 
-        vm_try!(self.set_entrypoint(name, args.count()));
-        vm_try!(args.into_stack(&mut self.stack));
-        Ok(VmSendExecution(VmExecution::new(self)))
+        self.set_entrypoint(name, args.count()).into_result()?;
+        args.into_stack(&mut self.stack).into_result()?;
+        Result::Ok(VmSendExecution(VmExecution::new(self)))
     }
 
     /// Call the given function immediately, returning the produced value.
@@ -364,30 +362,30 @@ impl Vm {
     ///
     /// [`Mut<T>`]: crate::runtime::Mut
     /// [`Ref<T>`]: crate::runtime::Ref
-    pub fn call<A, N>(&mut self, name: N, args: A) -> VmResult<Value>
+    pub fn call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: ToTypeHash,
         A: GuardedArgs,
     {
-        vm_try!(self.set_entrypoint(name, args.count()));
+        self.set_entrypoint(name, args.count()).into_result()?;
 
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
-        let guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+        let guard = unsafe { args.unsafe_into_stack(&mut self.stack).into_result()? };
 
         let value = {
             // Clearing the stack here on panics has safety implications - see
             // above.
             let vm = ClearStack(self);
-            vm_try!(VmExecution::new(&mut *vm.0).complete())
+            VmExecution::new(&mut *vm.0).complete().into_result()?
         };
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
         // take any owned references to values held by this.
         drop(guard);
-        Ok(value)
+        Result::Ok(value)
     }
 
     /// Call the given function immediately asynchronously, returning the
@@ -405,30 +403,33 @@ impl Vm {
     ///
     /// [`Mut<T>`]: crate::runtime::Mut
     /// [`Ref<T>`]: crate::runtime::Ref
-    pub async fn async_call<A, N>(&mut self, name: N, args: A) -> VmResult<Value>
+    pub async fn async_call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: ToTypeHash,
         A: GuardedArgs,
     {
-        vm_try!(self.set_entrypoint(name, args.count()));
+        self.set_entrypoint(name, args.count()).into_result()?;
 
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
-        let guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
+        let guard = unsafe { args.unsafe_into_stack(&mut self.stack).into_result()? };
 
         let value = {
             // Clearing the stack here on panics has safety implications - see
             // above.
             let vm = ClearStack(self);
-            vm_try!(VmExecution::new(&mut *vm.0).async_complete().await)
+            VmExecution::new(&mut *vm.0)
+                .async_complete()
+                .await
+                .into_result()?
         };
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
         // take any owned references to values held by this.
         drop(guard);
-        Ok(value)
+        Result::Ok(value)
     }
 
     /// Update the instruction pointer to match the function matching the given
@@ -1111,7 +1112,9 @@ impl Vm {
         let stack = vm_try!(self.stack.drain(args)).collect::<Stack>();
         let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
-        self.stack.push(Future::new(vm.async_complete()));
+        let mut execution = vm.into_execution();
+        self.stack
+            .push(Future::new(async move { execution.async_complete().await }));
         Ok(())
     }
 
@@ -3162,6 +3165,12 @@ impl Vm {
 
             self.advance();
         }
+    }
+
+    /// Advance the instruction pointer.
+    #[inline]
+    pub(crate) fn advance(&mut self) {
+        self.ip = self.ip.wrapping_add(1);
     }
 }
 
