@@ -61,9 +61,9 @@ impl<'a> TestCase<'a> {
             write!(io.stdout, "Test {:30} ", self.item)?;
         }
 
-        let result = match vm.execute(self.hash, ()) {
+        let result = match vm.execute(self.hash, ()).into_result() {
+            Ok(mut execution) => execution.async_complete().await.into_result(),
             Err(err) => Err(err),
-            Ok(mut execution) => execution.async_complete().await,
         };
 
         if let Some(capture_io) = capture_io {

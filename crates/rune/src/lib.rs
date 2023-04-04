@@ -183,6 +183,9 @@ pub type Error = anyhow::Error;
 mod internal_macros;
 
 #[macro_use]
+mod exported_macros;
+
+#[macro_use]
 pub mod ast;
 
 cfg_emit! {

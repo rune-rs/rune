@@ -1,6 +1,8 @@
 //! `std::collections` module.
 
-use crate::runtime::{Iterator, IteratorTrait, Key, Protocol, Ref, Value, VmError, VmErrorKind};
+use crate::runtime::{
+    Iterator, IteratorTrait, Key, Protocol, Ref, Value, VmError, VmErrorKind, VmResult,
+};
 use crate::{Any, ContextError, Module};
 use std::fmt;
 
@@ -19,17 +21,17 @@ impl HashMap {
 
     /// Extend this hashmap from an iterator.
     #[inline]
-    fn extend(&mut self, value: Value) -> Result<(), VmError> {
+    fn extend(&mut self, value: Value) -> VmResult<()> {
         use crate::runtime::FromValue;
 
-        let mut it = value.into_iter()?;
+        let mut it = vm_try!(value.into_iter());
 
-        while let Some(value) = it.next()? {
-            let (key, value) = <(Key, Value)>::from_value(value)?;
+        while let Some(value) = vm_try!(it.next()) {
+            let (key, value) = vm_try!(<(Key, Value)>::from_value(value));
             self.map.insert(key, value);
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     #[inline]
@@ -71,17 +73,17 @@ impl HashMap {
     }
 
     #[inline]
-    fn index_get(&self, key: Key) -> Result<Value, VmError> {
+    fn index_get(&self, key: Key) -> VmResult<Value> {
         use crate::runtime::TypeOf;
 
-        let value = self.map.get(&key).ok_or_else(|| {
-            VmError::from(VmErrorKind::MissingIndexKey {
+        let value = vm_try!(self.map.get(&key).ok_or_else(|| {
+            VmErrorKind::MissingIndexKey {
                 target: Self::type_info(),
                 index: key,
-            })
-        })?;
+            }
+        }));
 
-        Ok(value.clone())
+        VmResult::Ok(value.clone())
     }
 
     #[inline]
@@ -126,15 +128,15 @@ impl HashSet {
 
     /// Extend this set from an iterator.
     #[inline]
-    fn extend(&mut self, value: Value) -> Result<(), VmError> {
-        let mut it = value.into_iter()?;
+    fn extend(&mut self, value: Value) -> VmResult<()> {
+        let mut it = vm_try!(value.into_iter());
 
-        while let Some(value) = it.next()? {
-            let key = Key::from_value(&value)?;
+        while let Some(value) = vm_try!(it.next()) {
+            let key = vm_try!(Key::from_value(&value));
             self.set.insert(key);
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     #[inline]
@@ -202,17 +204,17 @@ impl HashSet {
     }
 
     #[inline]
-    fn union(zelf: Ref<HashSet>, other: Ref<HashSet>) -> Result<Iterator, VmError> {
+    fn union(zelf: Ref<HashSet>, other: Ref<HashSet>) -> VmResult<Iterator> {
         // use longest as lead and then append any missing that are in second
         let iter = Union {
             iter: if zelf.len() >= other.len() {
-                zelf.iter().chain_raw(other.difference(zelf))?
+                vm_try!(zelf.iter().chain_raw(other.difference(zelf)))
             } else {
-                other.iter().chain_raw(zelf.difference(other))?
+                vm_try!(other.iter().chain_raw(zelf.difference(other)))
             },
         };
 
-        Ok(Iterator::from("std::collections::set::Union", iter))
+        VmResult::Ok(Iterator::from("std::collections::set::Union", iter))
     }
 
     #[inline]
@@ -299,7 +301,7 @@ struct Union {
 }
 
 impl IteratorTrait for Union {
-    fn next(&mut self) -> Result<Option<Value>, VmError> {
+    fn next(&mut self) -> VmResult<Option<Value>> {
         self.iter.next()
     }
 
@@ -327,14 +329,14 @@ impl VecDeque {
 
     /// Extend this VecDeque with something that implements the into_iter
     /// protocol.
-    pub fn extend(&mut self, value: Value) -> Result<(), VmError> {
-        let mut it = value.into_iter()?;
+    pub fn extend(&mut self, value: Value) -> VmResult<()> {
+        let mut it = vm_try!(value.into_iter());
 
-        while let Some(value) = it.next()? {
+        while let Some(value) = vm_try!(it.next()) {
             self.push_back(value);
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     fn rotate_left(&mut self, mid: usize) {
@@ -373,25 +375,27 @@ impl VecDeque {
         self.inner.len()
     }
 
-    fn get(&self, index: usize) -> Result<Value, VmError> {
+    fn get(&self, index: usize) -> VmResult<Value> {
         if index > self.inner.len() {
-            return Err(VmError::from(VmErrorKind::OutOfRange {
+            return VmResult::Err(VmError::from(VmErrorKind::OutOfRange {
                 index: index.into(),
                 len: self.inner.len().into(),
             }));
         }
-        Ok(self.inner[index].clone())
+
+        VmResult::Ok(self.inner[index].clone())
     }
 
-    fn set(&mut self, index: usize, value: Value) -> Result<(), VmError> {
+    fn set(&mut self, index: usize, value: Value) -> VmResult<()> {
         if index > self.inner.len() {
-            return Err(VmError::from(VmErrorKind::OutOfRange {
+            return VmResult::Err(VmError::from(VmErrorKind::OutOfRange {
                 index: index.into(),
                 len: self.inner.len().into(),
             }));
         }
+
         self.inner[index] = value;
-        Ok(())
+        VmResult::Ok(())
     }
 
     fn insert(&mut self, index: usize, value: Value) {
@@ -478,38 +482,38 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn hashmap_from(value: Value) -> Result<HashMap, VmError> {
+fn hashmap_from(value: Value) -> VmResult<HashMap> {
     use crate::runtime::FromValue;
 
     let mut map = HashMap::new();
-    let mut it = value.into_iter()?;
+    let mut it = vm_try!(value.into_iter());
 
-    while let Some(value) = it.next()? {
-        let (key, value) = <(Key, Value)>::from_value(value)?;
+    while let Some(value) = vm_try!(it.next()) {
+        let (key, value) = vm_try!(<(Key, Value)>::from_value(value));
         map.insert(key, value);
     }
 
-    Ok(map)
+    VmResult::Ok(map)
 }
 
-fn vecdeque_from(value: Value) -> Result<VecDeque, VmError> {
+fn vecdeque_from(value: Value) -> VmResult<VecDeque> {
     let mut cont = VecDeque::new();
-    let mut it = value.into_iter()?;
+    let mut it = vm_try!(value.into_iter());
 
-    while let Some(value) = it.next()? {
+    while let Some(value) = vm_try!(it.next()) {
         cont.push_back(value);
     }
 
-    Ok(cont)
+    VmResult::Ok(cont)
 }
 
-fn hashset_from(value: Value) -> Result<HashSet, VmError> {
+fn hashset_from(value: Value) -> VmResult<HashSet> {
     let mut set = HashSet::new();
-    let mut it = value.into_iter()?;
+    let mut it = vm_try!(value.into_iter());
 
-    while let Some(value) = it.next()? {
-        set.insert(Key::from_value(&value)?);
+    while let Some(value) = vm_try!(it.next()) {
+        set.insert(vm_try!(Key::from_value(&value)));
     }
 
-    Ok(set)
+    VmResult::Ok(set)
 }

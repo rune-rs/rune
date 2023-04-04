@@ -167,7 +167,7 @@ pub(crate) async fn run(
     let last = Instant::now();
 
     let mut vm = Vm::new(runtime, unit);
-    let mut execution: VmExecution<_> = vm.execute(["main"], ())?;
+    let mut execution: VmExecution<_> = vm.execute(["main"], ()).into_result()?;
     let result = if args.trace {
         match do_trace(
             io,
@@ -183,7 +183,7 @@ pub(crate) async fn run(
             Err(TraceError::VmError(vm)) => Err(vm),
         }
     } else {
-        execution.async_complete().await
+        execution.async_complete().await.into_result()
     };
 
     let errored = match result {
@@ -324,7 +324,7 @@ where
             writeln!(o)?;
         }
 
-        let result = match execution.async_step().await {
+        let result = match execution.async_step().await.into_result() {
             Ok(result) => result,
             Err(e) => return Err(TraceError::VmError(e)),
         };

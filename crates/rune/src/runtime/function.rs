@@ -1,7 +1,7 @@
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, RawRef, Ref, Rtti, RuntimeContext, Shared,
     Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmErrorKind,
-    VmHalt,
+    VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Hash;
@@ -100,7 +100,7 @@ impl Function {
 
     /// Perform an asynchronous call over the function which also implements
     /// [Send].
-    pub async fn async_send_call<A, T>(&self, args: A) -> Result<T, VmError>
+    pub async fn async_send_call<A, T>(&self, args: A) -> VmResult<T>
     where
         A: Send + Args,
         T: Send + FromValue,
@@ -136,7 +136,7 @@ impl Function {
     /// assert_eq!(value.call::<_, u32>((1, 2))?, 3);
     /// # Ok(()) }
     /// ```
-    pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
+    pub fn call<A, T>(&self, args: A) -> VmResult<T>
     where
         A: Args,
         T: FromValue,
@@ -150,7 +150,7 @@ impl Function {
     ///
     /// A stop reason will be returned in case the function call results in
     /// a need to suspend the execution.
-    pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
+    pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> VmResult<Option<VmHalt>> {
         self.0.call_with_vm(vm, args)
     }
 
@@ -315,8 +315,8 @@ impl Function {
     /// assert!(closure.into_sync().is_err());
     /// # Ok(()) }
     /// ```
-    pub fn into_sync(self) -> Result<SyncFunction, VmError> {
-        Ok(SyncFunction(self.0.into_sync()?))
+    pub fn into_sync(self) -> VmResult<SyncFunction> {
+        VmResult::Ok(SyncFunction(vm_try!(self.0.into_sync())))
     }
 }
 
@@ -358,7 +358,7 @@ impl SyncFunction {
     /// assert_eq!(value, 3);
     /// # Ok(()) }
     /// ```
-    pub async fn async_send_call<A, T>(&self, args: A) -> Result<T, VmError>
+    pub async fn async_send_call<A, T>(&self, args: A) -> VmResult<T>
     where
         A: Send + Args,
         T: Send + FromValue,
@@ -394,7 +394,7 @@ impl SyncFunction {
     /// assert_eq!(add.call::<_, u32>((1, 2))?, 3);
     /// # Ok(()) }
     /// ```
-    pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
+    pub fn call<A, T>(&self, args: A) -> VmResult<T>
     where
         A: Args,
         T: FromValue,
@@ -451,7 +451,7 @@ where
     V: Clone,
     Tuple: From<Box<[V]>>,
 {
-    fn call<A, T>(&self, args: A) -> Result<T, VmError>
+    fn call<A, T>(&self, args: A) -> VmResult<T>
     where
         A: Args,
         T: FromValue,
@@ -460,50 +460,47 @@ where
             Inner::FnHandler(handler) => {
                 let arg_count = args.count();
                 let mut stack = Stack::with_capacity(arg_count);
-                args.into_stack(&mut stack)?;
-                (handler.handler)(&mut stack, arg_count)?;
-                stack.pop()?
+                vm_try!(args.into_stack(&mut stack));
+                vm_try!((handler.handler)(&mut stack, arg_count));
+                vm_try!(stack.pop())
             }
-            Inner::FnOffset(fn_offset) => fn_offset.call(args, ())?,
-            Inner::FnClosureOffset(closure) => closure
+            Inner::FnOffset(fn_offset) => vm_try!(fn_offset.call(args, ())),
+            Inner::FnClosureOffset(closure) => vm_try!(closure
                 .fn_offset
-                .call(args, (Tuple::from(closure.environment.clone()),))?,
+                .call(args, (Tuple::from(closure.environment.clone()),))),
             Inner::FnUnitStruct(empty) => {
-                check_args(args.count(), 0)?;
+                vm_try!(check_args(args.count(), 0));
                 Value::unit_struct(empty.rtti.clone())
             }
             Inner::FnTupleStruct(tuple) => {
-                check_args(args.count(), tuple.args)?;
-                Value::tuple_struct(tuple.rtti.clone(), args.into_vec()?)
+                vm_try!(check_args(args.count(), tuple.args));
+                Value::tuple_struct(tuple.rtti.clone(), vm_try!(args.into_vec()))
             }
             Inner::FnUnitVariant(unit) => {
-                check_args(args.count(), 0)?;
+                vm_try!(check_args(args.count(), 0));
                 Value::unit_variant(unit.rtti.clone())
             }
             Inner::FnTupleVariant(tuple) => {
-                check_args(args.count(), tuple.args)?;
-                Value::tuple_variant(tuple.rtti.clone(), args.into_vec()?)
+                vm_try!(check_args(args.count(), tuple.args));
+                Value::tuple_variant(tuple.rtti.clone(), vm_try!(args.into_vec()))
             }
         };
 
         T::from_value(value)
     }
 
-    fn async_send_call<'a, A, T>(
-        &'a self,
-        args: A,
-    ) -> impl Future<Output = Result<T, VmError>> + Send + 'a
+    fn async_send_call<'a, A, T>(&'a self, args: A) -> impl Future<Output = VmResult<T>> + Send + 'a
     where
         A: 'a + Send + Args,
         T: 'a + Send + FromValue,
     {
         let future = async move {
-            let value = self.call(args)?;
+            let value = vm_try!(self.call(args));
 
             let value = match value {
                 Value::Future(future) => {
-                    let future = future.take()?;
-                    future.await?
+                    let future = vm_try!(future.take());
+                    vm_try!(future.await)
                 }
                 other => other,
             };
@@ -524,61 +521,65 @@ where
     ///
     /// A stop reason will be returned in case the function call results in
     /// a need to suspend the execution.
-    pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
+    pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> VmResult<Option<VmHalt>> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
-                (handler.handler)(vm.stack_mut(), args)?;
+                vm_try!((handler.handler)(vm.stack_mut(), args));
                 None
             }
             Inner::FnOffset(fn_offset) => {
-                if let Some(vm_call) = fn_offset.call_with_vm(vm, args, ())? {
-                    return Ok(Some(VmHalt::VmCall(vm_call)));
+                if let Some(vm_call) = vm_try!(fn_offset.call_with_vm(vm, args, ())) {
+                    return VmResult::Ok(Some(VmHalt::VmCall(vm_call)));
                 }
 
                 None
             }
             Inner::FnClosureOffset(closure) => {
-                if let Some(vm_call) = closure.fn_offset.call_with_vm(
+                if let Some(vm_call) = vm_try!(closure.fn_offset.call_with_vm(
                     vm,
                     args,
                     (Tuple::from(closure.environment.clone()),),
-                )? {
-                    return Ok(Some(VmHalt::VmCall(vm_call)));
+                )) {
+                    return VmResult::Ok(Some(VmHalt::VmCall(vm_call)));
                 }
 
                 None
             }
             Inner::FnUnitStruct(empty) => {
-                check_args(args, 0)?;
+                vm_try!(check_args(args, 0));
                 vm.stack_mut().push(Value::unit_struct(empty.rtti.clone()));
                 None
             }
             Inner::FnTupleStruct(tuple) => {
-                check_args(args, tuple.args)?;
+                vm_try!(check_args(args, tuple.args));
 
-                let value =
-                    Value::tuple_struct(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
+                let value = Value::tuple_struct(
+                    tuple.rtti.clone(),
+                    vm_try!(vm.stack_mut().pop_sequence(args)),
+                );
                 vm.stack_mut().push(value);
                 None
             }
             Inner::FnUnitVariant(tuple) => {
-                check_args(args, 0)?;
+                vm_try!(check_args(args, 0));
 
                 let value = Value::unit_variant(tuple.rtti.clone());
                 vm.stack_mut().push(value);
                 None
             }
             Inner::FnTupleVariant(tuple) => {
-                check_args(args, tuple.args)?;
+                vm_try!(check_args(args, tuple.args));
 
-                let value =
-                    Value::tuple_variant(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
+                let value = Value::tuple_variant(
+                    tuple.rtti.clone(),
+                    vm_try!(vm.stack_mut().pop_sequence(args)),
+                );
                 vm.stack_mut().push(value);
                 None
             }
         };
 
-        Ok(reason)
+        VmResult::Ok(reason)
     }
 
     /// Create a function pointer from a handler.
@@ -679,13 +680,13 @@ where
 
 impl FunctionImpl<Value> {
     /// Try to convert into a [SyncFunction].
-    fn into_sync(self) -> Result<FunctionImpl<ConstValue>, VmError> {
+    fn into_sync(self) -> VmResult<FunctionImpl<ConstValue>> {
         let inner = match self.inner {
             Inner::FnClosureOffset(closure) => {
                 let mut env = Vec::with_capacity(closure.environment.len());
 
                 for value in closure.environment.into_vec() {
-                    env.push(FromValue::from_value(value)?);
+                    env.push(vm_try!(FromValue::from_value(value)));
                 }
 
                 Inner::FnClosureOffset(FnClosureOffset {
@@ -701,7 +702,7 @@ impl FunctionImpl<Value> {
             Inner::FnTupleVariant(inner) => Inner::FnTupleVariant(inner),
         };
 
-        Ok(FunctionImpl { inner })
+        VmResult::Ok(FunctionImpl { inner })
     }
 }
 
@@ -795,18 +796,18 @@ struct FnOffset {
 
 impl FnOffset {
     /// Perform a call into the specified offset and return the produced value.
-    fn call<A, E>(&self, args: A, extra: E) -> Result<Value, VmError>
+    fn call<A, E>(&self, args: A, extra: E) -> VmResult<Value>
     where
         A: Args,
         E: Args,
     {
-        check_args(args.count(), self.args)?;
+        vm_try!(check_args(args.count(), self.args));
 
         let mut vm = Vm::new(self.context.clone(), self.unit.clone());
 
         vm.set_ip(self.offset);
-        args.into_stack(vm.stack_mut())?;
-        extra.into_stack(vm.stack_mut())?;
+        vm_try!(args.into_stack(vm.stack_mut()));
+        vm_try!(extra.into_stack(vm.stack_mut()));
 
         self.call.call_with_vm(vm)
     }
@@ -815,26 +816,26 @@ impl FnOffset {
     ///
     /// This will cause a halt in case the vm being called into isn't the same
     /// as the context and unit of the function.
-    fn call_with_vm<E>(&self, vm: &mut Vm, args: usize, extra: E) -> Result<Option<VmCall>, VmError>
+    fn call_with_vm<E>(&self, vm: &mut Vm, args: usize, extra: E) -> VmResult<Option<VmCall>>
     where
         E: Args,
     {
-        check_args(args, self.args)?;
+        vm_try!(check_args(args, self.args));
 
         // Fast past, just allocate a call frame and keep running.
         if let Call::Immediate = self.call {
             if vm.is_same(&self.context, &self.unit) {
-                vm.push_call_frame(self.offset, args)?;
-                extra.into_stack(vm.stack_mut())?;
-                return Ok(None);
+                vm_try!(vm.push_call_frame(self.offset, args));
+                vm_try!(extra.into_stack(vm.stack_mut()));
+                return VmResult::Ok(None);
             }
         }
 
-        let mut new_stack = vm.stack_mut().drain(args)?.collect::<Stack>();
-        extra.into_stack(&mut new_stack)?;
+        let mut new_stack = vm_try!(vm.stack_mut().drain(args)).collect::<Stack>();
+        vm_try!(extra.into_stack(&mut new_stack));
         let mut vm = Vm::with_stack(self.context.clone(), self.unit.clone(), new_stack);
         vm.set_ip(self.offset);
-        Ok(Some(VmCall::new(self.call, vm)))
+        VmResult::Ok(Some(VmCall::new(self.call, vm)))
     }
 }
 
@@ -887,26 +888,33 @@ struct FnTupleVariant {
 }
 
 impl FromValue for SyncFunction {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        value.into_function()?.take()?.into_sync()
+    fn from_value(value: Value) -> VmResult<Self> {
+        let function = vm_try!(value.into_function());
+        let function = vm_try!(function.take());
+        function.into_sync()
     }
 }
 
 impl FromValue for Function {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_function()?.take()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let function = vm_try!(value.into_function());
+        let function = vm_try!(function.take());
+        VmResult::Ok(function)
     }
 }
 
 impl FromValue for Shared<Function> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
         value.into_function()
     }
 }
 
 impl FromValue for Ref<Function> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_function()?.into_ref()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let function = vm_try!(value.into_function());
+        let function = vm_try!(function.into_ref());
+        VmResult::Ok(function)
     }
 }
 
@@ -914,10 +922,10 @@ impl UnsafeFromValue for &Function {
     type Output = *const Function;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let function = value.into_function()?;
-        let (function, guard) = Ref::into_raw(function.into_ref()?);
-        Ok((function, guard))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let function = vm_try!(value.into_function());
+        let (function, guard) = Ref::into_raw(vm_try!(function.into_ref()));
+        VmResult::Ok((function, guard))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -925,15 +933,15 @@ impl UnsafeFromValue for &Function {
     }
 }
 
-fn check_args(actual: usize, expected: usize) -> Result<(), VmError> {
+fn check_args(actual: usize, expected: usize) -> VmResult<()> {
     if actual != expected {
-        return Err(VmError::from(VmErrorKind::BadArgumentCount {
+        return VmResult::Err(VmError::from(VmErrorKind::BadArgumentCount {
             expected,
             actual,
         }));
     }
 
-    Ok(())
+    VmResult::Ok(())
 }
 
 #[cfg(test)]

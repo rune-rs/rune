@@ -1,7 +1,7 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
-    Vm, VmError, VmErrorKind,
+    Vm, VmError, VmErrorKind, VmResult,
 };
 use std::cmp;
 use std::fmt;
@@ -74,15 +74,15 @@ impl Vec {
     }
 
     /// Set by index
-    pub fn set(&mut self, index: usize, value: Value) -> Result<(), VmError> {
+    pub fn set(&mut self, index: usize, value: Value) -> VmResult<()> {
         if index >= self.len() {
-            Err(VmError::from(VmErrorKind::OutOfRange {
+            VmResult::Err(VmError::from(VmErrorKind::OutOfRange {
                 index: index.into(),
                 len: self.len().into(),
             }))
         } else {
             self.inner[index] = value;
-            Ok(())
+            VmResult::Ok(())
         }
     }
 
@@ -97,7 +97,7 @@ impl Vec {
     where
         T: ToValue,
     {
-        self.inner.push(value.to_value()?);
+        self.inner.push(value.to_value().into_result()?);
         Ok(())
     }
 
@@ -107,16 +107,16 @@ impl Vec {
     }
 
     /// Get the given value at the given index.
-    pub fn get_value<T>(&self, index: usize) -> Result<Option<T>, VmError>
+    pub fn get_value<T>(&self, index: usize) -> VmResult<Option<T>>
     where
         T: FromValue,
     {
         let value = match self.inner.get(index) {
             Some(value) => value.clone(),
-            None => return Ok(None),
+            None => return VmResult::Ok(None),
         };
 
-        Ok(Some(T::from_value(value)?))
+        VmResult::Ok(Some(vm_try!(T::from_value(value))))
     }
 
     /// Get the mutable value at the given index.
@@ -151,14 +151,14 @@ impl Vec {
 
     /// Extend this vector with something that implements the into_iter
     /// protocol.
-    pub fn extend(&mut self, value: Value) -> Result<(), VmError> {
-        let mut it = value.into_iter()?;
+    pub fn extend(&mut self, value: Value) -> VmResult<()> {
+        let mut it = vm_try!(value.into_iter());
 
-        while let Some(value) = it.next()? {
+        while let Some(value) = vm_try!(it.next()) {
             self.push(value);
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     /// Convert into a rune iterator.
@@ -167,18 +167,18 @@ impl Vec {
     }
 
     /// Compare two vectors for equality.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
         if a.len() != b.len() {
-            return Ok(false);
+            return VmResult::Ok(false);
         }
 
         for (a, b) in a.iter().zip(b.iter()) {
-            if !Value::value_ptr_eq(vm, a, b)? {
-                return Ok(false);
+            if !vm_try!(Value::value_ptr_eq(vm, a, b)) {
+                return VmResult::Ok(false);
             }
         }
 
-        Ok(true)
+        VmResult::Ok(true)
     }
 }
 
@@ -252,20 +252,20 @@ impl From<Box<[Value]>> for Vec {
 }
 
 impl FromValue for Mut<Vec> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_vec()?.into_mut()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        VmResult::Ok(vm_try!(vm_try!(value.into_vec()).into_mut()))
     }
 }
 
 impl FromValue for Ref<Vec> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_vec()?.into_ref()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        VmResult::Ok(vm_try!(vm_try!(value.into_vec()).into_ref()))
     }
 }
 
 impl FromValue for Vec {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_vec()?.take()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        VmResult::Ok(vm_try!(vm_try!(value.into_vec()).take()))
     }
 }
 
@@ -273,17 +273,17 @@ impl<T> FromValue for vec::Vec<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        let vec = value.into_vec()?;
-        let vec = vec.take()?;
+    fn from_value(value: Value) -> VmResult<Self> {
+        let vec = vm_try!(value.into_vec());
+        let vec = vm_try!(vec.take());
 
         let mut output = vec::Vec::with_capacity(vec.len());
 
         for value in vec {
-            output.push(T::from_value(value)?);
+            output.push(vm_try!(T::from_value(value)));
         }
 
-        Ok(output)
+        VmResult::Ok(output)
     }
 }
 
@@ -291,12 +291,12 @@ impl<'a> UnsafeFromValue for &'a [Value] {
     type Output = *const [Value];
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let vec = value.into_vec()?;
-        let (vec, guard) = Ref::into_raw(vec.into_ref()?);
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let vec = vm_try!(value.into_vec());
+        let (vec, guard) = Ref::into_raw(vm_try!(vec.into_ref()));
         // Safety: we're holding onto the guard for the vector here, so it is
         // live.
-        Ok((unsafe { &**vec }, guard))
+        VmResult::Ok((unsafe { &**vec }, guard))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -308,9 +308,9 @@ impl<'a> UnsafeFromValue for &'a Vec {
     type Output = *const Vec;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let vec = value.into_vec()?;
-        Ok(Ref::into_raw(vec.into_ref()?))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let vec = vm_try!(value.into_vec());
+        VmResult::Ok(Ref::into_raw(vm_try!(vec.into_ref())))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -322,9 +322,9 @@ impl<'a> UnsafeFromValue for &'a mut Vec {
     type Output = *mut Vec;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let vec = value.into_vec()?;
-        Ok(Mut::into_raw(vec.into_mut()?))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let vec = vm_try!(value.into_vec());
+        VmResult::Ok(Mut::into_raw(vm_try!(vec.into_mut())))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -336,13 +336,13 @@ impl<T> ToValue for vec::Vec<T>
 where
     T: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> VmResult<Value> {
         let mut vec = vec::Vec::with_capacity(self.len());
 
         for value in self {
-            vec.push(value.to_value()?);
+            vec.push(vm_try!(value.to_value()));
         }
 
-        Ok(Value::from(Shared::new(Vec::from(vec))))
+        VmResult::Ok(Value::from(Shared::new(Vec::from(vec))))
     }
 }

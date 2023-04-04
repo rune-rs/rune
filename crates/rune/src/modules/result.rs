@@ -1,6 +1,6 @@
 //! The `std::result` module.
 
-use crate::runtime::{Function, Value, VmError};
+use crate::runtime::{Function, Value, VmError, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::result` module.
@@ -31,34 +31,35 @@ fn is_err(result: &Result<Value, Value>) -> bool {
     result.is_err()
 }
 
-fn unwrap_impl(result: Result<Value, Value>) -> Result<Value, VmError> {
-    result.map_err(|err| {
-        VmError::panic(format!(
+fn unwrap_impl(result: Result<Value, Value>) -> VmResult<Value> {
+    match result {
+        Ok(value) => VmResult::Ok(value),
+        Err(err) => VmResult::Err(VmError::panic(format!(
             "called `Result::unwrap()` on an `Err` value: {:?}",
             err
-        ))
-    })
-}
-
-fn expect_impl(result: Result<Value, Value>, message: &str) -> Result<Value, VmError> {
-    result.map_err(|err| VmError::panic(format!("{}: {:?}", message, err)))
-}
-
-fn and_then_impl(
-    this: &Result<Value, Value>,
-    then: Function,
-) -> Result<Result<Value, Value>, VmError> {
-    match this {
-        // No need to clone v, passing the same reference forward
-        Ok(v) => Ok(then.call::<_, _>((v,))?),
-        Err(e) => Ok(Err(e.clone())),
+        ))),
     }
 }
 
-fn map_impl(this: &Result<Value, Value>, then: Function) -> Result<Result<Value, Value>, VmError> {
+fn expect_impl(result: Result<Value, Value>, message: &str) -> VmResult<Value> {
+    match result {
+        Ok(value) => VmResult::Ok(value),
+        Err(err) => VmResult::Err(VmError::panic(format!("{}: {:?}", message, err))),
+    }
+}
+
+fn and_then_impl(this: &Result<Value, Value>, then: Function) -> VmResult<Result<Value, Value>> {
     match this {
         // No need to clone v, passing the same reference forward
-        Ok(v) => Ok(Ok(then.call::<_, _>((v,))?)),
-        Err(e) => Ok(Err(e.clone())),
+        Ok(v) => VmResult::Ok(vm_try!(then.call::<_, _>((v,)))),
+        Err(e) => VmResult::Ok(Err(e.clone())),
+    }
+}
+
+fn map_impl(this: &Result<Value, Value>, then: Function) -> VmResult<Result<Value, Value>> {
+    match this {
+        // No need to clone v, passing the same reference forward
+        Ok(v) => VmResult::Ok(Ok(vm_try!(then.call::<_, _>((v,))))),
+        Err(e) => VmResult::Ok(Err(e.clone())),
     }
 }

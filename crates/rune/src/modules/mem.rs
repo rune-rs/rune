@@ -1,7 +1,7 @@
 //! The `std::mem` module.
 
 use crate as rune;
-use crate::runtime::{Value, VmError};
+use crate::runtime::{Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std` module.
@@ -25,7 +25,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// drop(v);
 /// ```
 #[rune::function]
-fn drop(value: Value) -> Result<(), VmError> {
-    value.take()?;
-    Ok(())
+fn drop(value: Value) -> VmResult<()> {
+    vm_try!(value.take());
+    VmResult::Ok(())
 }

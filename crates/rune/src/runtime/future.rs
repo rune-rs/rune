@@ -1,7 +1,7 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value, VmError,
-    VmErrorKind,
+    VmErrorKind, VmResult,
 };
 use pin_project::pin_project;
 use std::fmt;
@@ -11,7 +11,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 /// dyn future alias.
-type DynFuture = dyn future::Future<Output = Result<Value, VmError>> + 'static;
+type DynFuture = dyn future::Future<Output = VmResult<Value>> + 'static;
 
 /// A type-erased future that can only be unsafely polled in combination with
 /// the virtual machine that created it.
@@ -23,12 +23,12 @@ impl Future {
     /// Construct a new wrapped future.
     pub fn new<T, O>(future: T) -> Self
     where
-        T: 'static + future::Future<Output = Result<O, VmError>>,
+        T: 'static + future::Future<Output = VmResult<O>>,
         O: ToValue,
     {
         Self {
             future: Some(Box::pin(async move {
-                let value = future.await?;
+                let value = vm_try!(future.await);
                 value.to_value()
             })),
         }
@@ -43,15 +43,15 @@ impl Future {
 }
 
 impl future::Future for Future {
-    type Output = Result<Value, VmError>;
+    type Output = VmResult<Value>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Value, VmError>> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<VmResult<Value>> {
         let this = self.get_mut();
 
         let future = match &mut this.future {
             Some(future) => future,
             None => {
-                return Poll::Ready(Err(VmError::from(VmErrorKind::FutureCompleted)));
+                return Poll::Ready(VmResult::Err(VmError::from(VmErrorKind::FutureCompleted)));
             }
         };
 
@@ -91,9 +91,9 @@ impl<T, F> SelectFuture<T, F> {
 impl<T, F> future::Future for SelectFuture<T, F>
 where
     T: Copy,
-    F: future::Future<Output = Result<Value, VmError>>,
+    F: future::Future<Output = VmResult<Value>>,
 {
-    type Output = Result<(T, Value), VmError>;
+    type Output = VmResult<(T, Value)>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -101,8 +101,8 @@ where
 
         match result {
             Poll::Ready(result) => match result {
-                Ok(value) => Poll::Ready(Ok((*this.data, value))),
-                Err(e) => Poll::Ready(Err(e)),
+                VmResult::Ok(value) => Poll::Ready(VmResult::Ok((*this.data, value))),
+                VmResult::Err(error) => Poll::Ready(VmResult::Err(error)),
             },
             Poll::Pending => Poll::Pending,
         }
@@ -110,13 +110,15 @@ where
 }
 
 impl FromValue for Shared<Future> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
         value.into_shared_future()
     }
 }
 
 impl FromValue for Future {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
         value.into_future()
     }
 }
@@ -125,10 +127,10 @@ impl UnsafeFromValue for &Future {
     type Output = *const Future;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let future = value.into_shared_future()?;
-        let (future, guard) = Ref::into_raw(future.into_ref()?);
-        Ok((future, guard))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let future = vm_try!(value.into_shared_future());
+        let (future, guard) = Ref::into_raw(vm_try!(future.into_ref()));
+        VmResult::Ok((future, guard))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -140,9 +142,10 @@ impl UnsafeFromValue for &mut Future {
     type Output = *mut Future;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let future = value.into_shared_future()?;
-        Ok(Mut::into_raw(future.into_mut()?))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let future = vm_try!(value.into_shared_future());
+        let future = vm_try!(future.into_mut());
+        VmResult::Ok(Mut::into_raw(future))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {

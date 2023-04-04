@@ -2,7 +2,7 @@ use crate::collections::{btree_map, BTreeMap};
 use crate::compile::{ItemBuf, Named};
 use crate::runtime::{
     FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value, Vm,
-    VmError,
+    VmResult,
 };
 use crate::InstallWith;
 use std::borrow;
@@ -120,7 +120,7 @@ impl Object {
     }
 
     /// Get the given value at the given index.
-    pub fn get_value<Q: ?Sized, T>(&self, k: &Q) -> Result<Option<T>, VmError>
+    pub fn get_value<Q: ?Sized, T>(&self, k: &Q) -> VmResult<Option<T>>
     where
         String: borrow::Borrow<Q>,
         Q: hash::Hash + cmp::Eq + cmp::Ord,
@@ -128,10 +128,10 @@ impl Object {
     {
         let value = match self.inner.get(k) {
             Some(value) => value.clone(),
-            None => return Ok(None),
+            None => return VmResult::Ok(None),
         };
 
-        Ok(Some(T::from_value(value)?))
+        VmResult::Ok(Some(vm_try!(T::from_value(value))))
     }
 
     /// Returns a mutable reference to the value corresponding to the key.
@@ -168,12 +168,12 @@ impl Object {
     /// Inserts a key-value pair into the dynamic object, converting it as
     /// necessary through the [`ToValue`] trait.
     #[inline]
-    pub fn insert_value<T>(&mut self, k: String, v: T) -> Result<(), VmError>
+    pub fn insert_value<T>(&mut self, k: String, v: T) -> VmResult<()>
     where
         T: ToValue,
     {
-        self.inner.insert(k, v.to_value()?);
-        Ok(())
+        self.inner.insert(k, vm_try!(v.to_value()));
+        VmResult::Ok(())
     }
 
     /// Inserts a key-value pair into the dynamic object.
@@ -220,7 +220,7 @@ impl Object {
     }
 
     /// Value pointer equals implementation for an Object.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
         map_ptr_eq(vm, &a.inner, &b.inner)
     }
 
@@ -281,24 +281,26 @@ impl std::iter::FromIterator<(String, Value)> for Object {
 }
 
 impl FromValue for Object {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_object()?.take()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let object = vm_try!(value.into_object());
+        let object = vm_try!(object.take());
+        VmResult::Ok(object)
     }
 }
 
 impl FromValue for Mut<Object> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        let object = value.into_object()?;
-        let object = object.into_mut()?;
-        Ok(object)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let object = vm_try!(value.into_object());
+        let object = vm_try!(object.into_mut());
+        VmResult::Ok(object)
     }
 }
 
 impl FromValue for Ref<Object> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        let object = value.into_object()?;
-        let object = object.into_ref()?;
-        Ok(object)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let object = vm_try!(value.into_object());
+        let object = vm_try!(object.into_ref());
+        VmResult::Ok(object)
     }
 }
 
@@ -306,10 +308,10 @@ impl UnsafeFromValue for &Object {
     type Output = *const Object;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let object = value.into_object()?;
-        let object = object.into_ref()?;
-        Ok(Ref::into_raw(object))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let object = vm_try!(value.into_object());
+        let object = vm_try!(object.into_ref());
+        VmResult::Ok(Ref::into_raw(object))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -321,10 +323,10 @@ impl UnsafeFromValue for &mut Object {
     type Output = *mut Object;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let object = value.into_object()?;
-        let object = object.into_mut()?;
-        Ok(Mut::into_raw(object))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let object = vm_try!(value.into_object());
+        let object = vm_try!(object.into_mut());
+        VmResult::Ok(Mut::into_raw(object))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -360,25 +362,25 @@ pub(crate) fn map_ptr_eq<K>(
     vm: &mut Vm,
     a: &BTreeMap<K, Value>,
     b: &BTreeMap<K, Value>,
-) -> Result<bool, VmError>
+) -> VmResult<bool>
 where
     K: cmp::Eq + cmp::Ord,
     K: hash::Hash,
 {
     if a.len() != b.len() {
-        return Ok(false);
+        return VmResult::Ok(false);
     }
 
     for (key, a) in a.iter() {
         let b = match b.get(key) {
             Some(b) => b,
-            None => return Ok(false),
+            None => return VmResult::Ok(false),
         };
 
-        if !Value::value_ptr_eq(vm, a, b)? {
-            return Ok(false);
+        if !vm_try!(Value::value_ptr_eq(vm, a, b)) {
+            return VmResult::Ok(false);
         }
     }
 
-    Ok(true)
+    VmResult::Ok(true)
 }

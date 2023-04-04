@@ -1,6 +1,7 @@
 //! The `std::option` module.
 
-use crate::runtime::{Function, Iterator, Protocol, Shared, Value, VmError};
+use crate as rune;
+use crate::runtime::{Function, Iterator, Protocol, Shared, Value, VmError, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
@@ -18,55 +19,89 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("transpose", transpose_impl)?;
     module.inst_fn("unwrap", unwrap_impl)?;
     module.inst_fn("unwrap_or", Option::<Value>::unwrap_or)?;
-    module.inst_fn("unwrap_or_else", unwrap_or_else_impl)?;
+    module.function_meta(unwrap_or_else)?;
     module.inst_fn(Protocol::INTO_ITER, option_iter)?;
     Ok(module)
 }
 
-fn unwrap_or_else_impl(this: &Option<Value>, default: Function) -> Result<Value, VmError> {
-    if let Some(this) = this {
-        return Ok(this.clone());
-    }
-
-    default.call(())
+/// Returns the contained `Some` value or computes it from a closure.
+///
+/// # Examples
+///
+/// ```rune
+/// let k = 10;
+/// assert_eq!(Some(4).unwrap_or_else(|| 2 * k), 4);
+/// assert_eq!(None.unwrap_or_else(|| 2 * k), 20);
+/// ```
+#[rune::function(instance)]
+fn unwrap_or_else(this: &Option<Value>, default: Function) -> VmResult<Value> {
+    VmResult::Ok(if let Some(this) = this {
+        this.clone()
+    } else {
+        vm_try!(default.call(()))
+    })
 }
 
 /// Transpose functions, translates an Option<Result<T, E>> into a `Result<Option<T>, E>`.
-fn transpose_impl(this: &Option<Value>) -> Result<Value, VmError> {
-    Ok(Value::from(Shared::new(match this.clone() {
-        Some(some) => match some.into_result()?.borrow_ref()?.clone() {
-            Ok(ok) => Ok(Value::from(Shared::new(Some(ok)))),
-            Err(err) => Err(err),
-        },
-        None => Ok(Value::from(Shared::new(None::<Value>))),
-    })))
+fn transpose_impl(this: &Option<Value>) -> VmResult<Value> {
+    let value = match this {
+        Some(value) => value,
+        None => {
+            let none = Value::from(Shared::new(Option::<Value>::None));
+            let result = Value::from(Shared::new(Result::<Value, Value>::Ok(none)));
+            return VmResult::Ok(result);
+        }
+    };
+
+    let result = vm_try!(value.as_result());
+    let result = vm_try!(result.borrow_ref());
+
+    match &*result {
+        Ok(ok) => {
+            let some = Value::from(Shared::new(Option::<Value>::Some(ok.clone())));
+            let result = Value::from(Shared::new(Result::<Value, Value>::Ok(some)));
+            VmResult::Ok(result)
+        }
+        Err(err) => {
+            let result = Value::from(Shared::new(Result::<Value, Value>::Err(err.clone())));
+            VmResult::Ok(result)
+        }
+    }
 }
 
 fn option_iter(option: &Option<Value>) -> Iterator {
     Iterator::from_double_ended("std::option::Iter", option.clone().into_iter())
 }
 
-fn unwrap_impl(option: Option<Value>) -> Result<Value, VmError> {
-    option.ok_or_else(|| VmError::panic("called `Option::unwrap()` on a `None` value"))
-}
-
-fn expect_impl(option: Option<Value>, message: &str) -> Result<Value, VmError> {
-    option.ok_or_else(|| VmError::panic(message.to_owned()))
-}
-
-fn map_impl(option: &Option<Value>, then: Function) -> Result<Option<Value>, VmError> {
+fn unwrap_impl(option: Option<Value>) -> VmResult<Value> {
     match option {
-        // no need to clone v, passing the same reference forward
-        Some(v) => then.call::<_, _>((v,)).map(Some),
-        None => Ok(None),
+        Some(some) => VmResult::Ok(some),
+        None => VmResult::Err(VmError::panic(
+            "called `Option::unwrap()` on a `None` value",
+        )),
     }
 }
 
-fn and_then_impl(option: &Option<Value>, then: Function) -> Result<Option<Value>, VmError> {
+fn expect_impl(option: Option<Value>, message: &str) -> VmResult<Value> {
+    match option {
+        Some(some) => VmResult::Ok(some),
+        None => VmResult::Err(VmError::panic(message.to_owned())),
+    }
+}
+
+fn map_impl(option: &Option<Value>, then: Function) -> VmResult<Option<Value>> {
     match option {
         // no need to clone v, passing the same reference forward
-        Some(v) => then.call::<_, _>((v,)),
-        None => Ok(None),
+        Some(v) => VmResult::Ok(Some(vm_try!(then.call::<_, _>((v,))))),
+        None => VmResult::Ok(None),
+    }
+}
+
+fn and_then_impl(option: &Option<Value>, then: Function) -> VmResult<Option<Value>> {
+    match option {
+        // no need to clone v, passing the same reference forward
+        Some(v) => VmResult::Ok(Some(vm_try!(then.call::<_, _>((v,))))),
+        None => VmResult::Ok(None),
     }
 }
 

@@ -1,6 +1,6 @@
 //! The `std::char` module.
 
-use crate::runtime::{Value, VmError, VmErrorKind};
+use crate::runtime::{Value, VmError, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 use std::char::ParseCharError;
 
@@ -33,8 +33,8 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert_eq!(c.to_int(), 80);
 /// ```
 #[rune::function(instance)]
-fn to_int(value: char) -> Result<Value, VmError> {
-    Ok((value as i64).into())
+fn to_int(value: char) -> Value {
+    (value as i64).into()
 }
 
 /// Try to convert a number into a character.
@@ -46,13 +46,13 @@ fn to_int(value: char) -> Result<Value, VmError> {
 /// assert!(c.is_some());
 /// ```
 #[rune::function]
-fn from_int(value: i64) -> Result<Option<Value>, VmError> {
+fn from_int(value: i64) -> VmResult<Option<Value>> {
     if value < 0 {
-        Err(VmError::from(VmErrorKind::Underflow))
+        VmResult::Err(VmError::from(VmErrorKind::Underflow))
     } else if value > u32::MAX as i64 {
-        Err(VmError::from(VmErrorKind::Overflow))
+        VmResult::Err(VmError::from(VmErrorKind::Overflow))
     } else {
-        Ok(std::char::from_u32(value as u32).map(|v| v.into()))
+        VmResult::Ok(std::char::from_u32(value as u32).map(|v| v.into()))
     }
 }
 

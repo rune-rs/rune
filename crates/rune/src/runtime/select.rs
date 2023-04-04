@@ -1,10 +1,12 @@
-use crate::runtime::future::SelectFuture;
-use crate::runtime::{Future, Mut, Value, VmError};
-use futures_core::Stream;
-use futures_util::stream::FuturesUnordered;
 use std::future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+use futures_core::Stream;
+use futures_util::stream::FuturesUnordered;
+
+use crate::runtime::future::SelectFuture;
+use crate::runtime::{Future, Mut, Value, VmResult};
 
 /// A stored select.
 #[derive(Debug)]
@@ -20,7 +22,7 @@ impl Select {
 }
 
 impl future::Future for Select {
-    type Output = Result<(usize, Value), VmError>;
+    type Output = VmResult<(usize, Value)>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let poll = Pin::new(&mut self.futures).poll_next(cx);

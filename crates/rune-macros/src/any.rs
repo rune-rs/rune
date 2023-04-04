@@ -394,7 +394,7 @@ where
         unsafe_from_value,
         unsafe_to_value,
         value,
-        vm_error,
+        vm_result,
         install_with,
         ..
     } = &tokens;
@@ -461,9 +461,8 @@ where
             type Output = *const #ident #ty_generics;
             type Guard = #raw_into_ref;
 
-            fn from_value(
-                value: #value,
-            ) -> ::std::result::Result<(Self::Output, Self::Guard), #vm_error> {
+            #[inline]
+            fn from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
                 value.into_any_ptr()
             }
 
@@ -476,9 +475,7 @@ where
             type Output = *mut #ident  #ty_generics;
             type Guard = #raw_into_mut;
 
-            fn from_value(
-                value: #value,
-            ) -> ::std::result::Result<(Self::Output, Self::Guard), #vm_error> {
+            fn from_value(value: #value) -> #vm_result<(Self::Output, Self::Guard)> {
                 value.into_any_mut()
             }
 
@@ -490,18 +487,18 @@ where
         impl #impl_generics #unsafe_to_value for &#ident #ty_generics #where_clause {
             type Guard = #pointer_guard;
 
-            unsafe fn unsafe_to_value(self) -> ::std::result::Result<(#value, Self::Guard), #vm_error> {
+            unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
                 let (shared, guard) = #shared::from_ref(self);
-                Ok((#value::from(shared), guard))
+                #vm_result::Ok((#value::from(shared), guard))
             }
         }
 
         impl #impl_generics #unsafe_to_value for &mut #ident #ty_generics #where_clause {
             type Guard = #pointer_guard;
 
-            unsafe fn unsafe_to_value(self) -> ::std::result::Result<(#value, Self::Guard), #vm_error> {
+            unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
                 let (shared, guard) = #shared::from_mut(self);
-                Ok((#value::from(shared), guard))
+                #vm_result::Ok((#value::from(shared), guard))
             }
         }
     })

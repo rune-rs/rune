@@ -1,7 +1,7 @@
 //! The `std::iter` module.
 
 use crate as rune;
-use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, TypeOf, Value, Vec, VmError};
+use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, TypeOf, Value, Vec, VmResult};
 use crate::{ContextError, Module, Params};
 
 /// Construct the `std::iter` module.
@@ -87,22 +87,22 @@ fn range(start: i64, end: i64) -> Iterator {
     Iterator::from_double_ended("std::iter::Range", start..end)
 }
 
-fn collect_vec(it: Iterator) -> Result<Vec, VmError> {
-    Ok(Vec::from(it.collect::<Value>()?))
+fn collect_vec(it: Iterator) -> VmResult<Vec> {
+    VmResult::Ok(Vec::from(vm_try!(it.collect::<Value>())))
 }
 
-fn collect_tuple(it: Iterator) -> Result<Tuple, VmError> {
-    Ok(Tuple::from(it.collect::<Value>()?))
+fn collect_tuple(it: Iterator) -> VmResult<Tuple> {
+    VmResult::Ok(Tuple::from(vm_try!(it.collect::<Value>())))
 }
 
-fn collect_object(mut it: Iterator) -> Result<Object, VmError> {
+fn collect_object(mut it: Iterator) -> VmResult<Object> {
     let (cap, _) = it.size_hint();
     let mut object = Object::with_capacity(cap);
 
-    while let Some(value) = it.next()? {
-        let (key, value) = <(String, Value)>::from_value(value)?;
+    while let Some(value) = vm_try!(it.next()) {
+        let (key, value) = vm_try!(<(String, Value)>::from_value(value));
         object.insert(key, value);
     }
 
-    Ok(object)
+    VmResult::Ok(object)
 }

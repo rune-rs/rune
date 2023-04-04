@@ -1,7 +1,7 @@
 //! The `std::vec` module.
 
 use crate as rune;
-use crate::runtime::{Function, Protocol, TypeOf, Value, Vec};
+use crate::runtime::{Function, Protocol, TypeOf, Value, Vec, VmResult};
 use crate::{ContextError, Module, Params};
 
 /// Construct the `std::vec` module.
@@ -62,10 +62,25 @@ fn get(vec: &Vec, index: usize) -> Option<Value> {
 /// values.sort_by(|a, b| b.cmp(a))
 /// ```
 #[rune::function(instance, path = Vec::sort_by)]
-fn sort_by(vec: &mut Vec, comparator: &Function) {
-    vec.sort_by(|a, b| {
-        comparator
-            .call::<_, std::cmp::Ordering>((a, b))
-            .unwrap_or(std::cmp::Ordering::Equal)
-    })
+fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
+    let mut error = None;
+
+    vec.sort_by(
+        |a, b| match comparator.call::<_, std::cmp::Ordering>((a, b)) {
+            VmResult::Ok(ordering) => ordering,
+            VmResult::Err(e) => {
+                if error.is_none() {
+                    error = Some(e);
+                }
+
+                std::cmp::Ordering::Equal
+            }
+        },
+    );
+
+    if let Some(e) = error {
+        VmResult::Err(e)
+    } else {
+        VmResult::Ok(())
+    }
 }

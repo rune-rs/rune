@@ -1,8 +1,8 @@
 use crate::compile::ItemBuf;
 use crate::runtime::panic::BoxedPanic;
 use crate::runtime::{
-    AccessError, CallFrame, ExecutionState, Key, Panic, Protocol, StackError, TypeInfo, TypeOf,
-    Unit, Value, VmHaltInfo,
+    AccessError, CallFrame, ExecutionState, FullTypeOf, Key, MaybeTypeOf, Panic, Protocol,
+    StackError, TypeInfo, TypeOf, Unit, Value, VmHaltInfo,
 };
 use crate::Hash;
 use std::fmt;
@@ -20,7 +20,10 @@ pub trait TryFromResult {
 }
 
 /// Helper to coerce one result type into [`VmResult`].
-pub fn try_result<T>(result: T) -> VmResult<T::Ok> where T: TryFromResult {
+pub fn try_result<T>(result: T) -> VmResult<T::Ok>
+where
+    T: TryFromResult,
+{
     T::try_from_result(result)
 }
 
@@ -33,7 +36,10 @@ impl<T> TryFromResult for VmResult<T> {
     }
 }
 
-impl<T, E> TryFromResult for Result<T, E> where VmError: From<E> {
+impl<T, E> TryFromResult for Result<T, E>
+where
+    VmError: From<E>,
+{
     type Ok = T;
 
     #[inline]
@@ -46,11 +52,33 @@ impl<T, E> TryFromResult for Result<T, E> where VmError: From<E> {
 }
 
 /// A result produced by the virtual machine.
+#[must_use]
 pub enum VmResult<T> {
     /// A produced value.
     Ok(T),
     /// A produced error.
     Err(VmError),
+}
+
+impl<T> VmResult<T> {
+    /// Convert a [`VmResult`] into a [`Result`].
+    #[inline]
+    pub fn into_result(self) -> Result<T, VmError> {
+        match self {
+            VmResult::Ok(value) => Ok(value),
+            VmResult::Err(error) => Err(error),
+        }
+    }
+}
+
+impl<T> MaybeTypeOf for VmResult<T>
+where
+    T: MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        T::maybe_type_of()
+    }
 }
 
 /// Errors raised by the execution of the virtual machine.
@@ -72,14 +100,14 @@ impl VmError {
     }
 
     /// Bad argument.
-    pub fn bad_argument<T>(arg: usize, value: &Value) -> Result<Self, VmError>
+    pub fn bad_argument<T>(arg: usize, value: &Value) -> VmResult<Self>
     where
         T: TypeOf,
     {
-        Ok(Self::from(VmErrorKind::BadArgumentAt {
+        VmResult::Ok(Self::from(VmErrorKind::BadArgumentAt {
             arg,
             expected: T::type_info(),
-            actual: value.type_info()?,
+            actual: vm_try!(value.type_info()),
         }))
     }
 

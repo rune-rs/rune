@@ -1,4 +1,4 @@
-use crate::runtime::{Future, Select, Shared, ToValue, Vm, VmError};
+use crate::runtime::{Future, Select, Shared, ToValue, Vm, VmResult};
 
 /// A stored await task.
 #[derive(Debug)]
@@ -11,21 +11,21 @@ pub(crate) enum Awaited {
 
 impl Awaited {
     /// Wait for the given awaited into the specified virtual machine.
-    pub(crate) async fn into_vm(self, vm: &mut Vm) -> Result<(), VmError> {
+    pub(crate) async fn into_vm(self, vm: &mut Vm) -> VmResult<()> {
         match self {
             Self::Future(future) => {
-                let value = future.borrow_mut()?.await?;
+                let value = vm_try!(vm_try!(future.borrow_mut()).await);
                 vm.stack_mut().push(value);
                 vm.advance();
             }
             Self::Select(select) => {
-                let (branch, value) = select.await?;
+                let (branch, value) = vm_try!(select.await);
                 vm.stack_mut().push(value);
-                vm.stack_mut().push(ToValue::to_value(branch)?);
+                vm.stack_mut().push(vm_try!(ToValue::to_value(branch)));
                 vm.advance();
             }
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 }

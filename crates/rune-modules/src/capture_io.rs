@@ -13,7 +13,7 @@
 //! ```
 
 use parking_lot::Mutex;
-use rune::runtime::{Panic, Stack, VmError};
+use rune::runtime::{Panic, Stack, VmError, VmResult};
 use rune::{ContextError, Module, Value};
 use std::io::{self, Write};
 use std::string::FromUtf8Error;
@@ -81,14 +81,14 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn dbg_impl<O>(o: &mut O, stack: &mut Stack, args: usize) -> Result<(), VmError>
+fn dbg_impl<O>(o: &mut O, stack: &mut Stack, args: usize) -> VmResult<()>
 where
     O: Write,
 {
-    for value in stack.drain(args)? {
-        writeln!(o, "{:?}", value).map_err(VmError::panic)?;
+    for value in rune::vm_try!(stack.drain(args)) {
+        rune::vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
     }
 
     stack.push(Value::Unit);
-    Ok(())
+    VmResult::Ok(())
 }
