@@ -9,6 +9,50 @@ use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
 
+/// Trait used to convert result types to [`VmResult`].
+#[doc(hidden)]
+pub trait TryFromResult {
+    /// The ok type produced by the conversion.
+    type Ok;
+
+    /// The conversion method itself.
+    fn try_from_result(value: Self) -> VmResult<Self::Ok>;
+}
+
+/// Helper to coerce one result type into [`VmResult`].
+pub fn try_result<T>(result: T) -> VmResult<T::Ok> where T: TryFromResult {
+    T::try_from_result(result)
+}
+
+impl<T> TryFromResult for VmResult<T> {
+    type Ok = T;
+
+    #[inline]
+    fn try_from_result(value: Self) -> VmResult<T> {
+        value
+    }
+}
+
+impl<T, E> TryFromResult for Result<T, E> where VmError: From<E> {
+    type Ok = T;
+
+    #[inline]
+    fn try_from_result(value: Self) -> VmResult<T> {
+        match value {
+            Ok(ok) => VmResult::Ok(ok),
+            Err(err) => VmResult::Err(VmError::from(err)),
+        }
+    }
+}
+
+/// A result produced by the virtual machine.
+pub enum VmResult<T> {
+    /// A produced value.
+    Ok(T),
+    /// A produced error.
+    Err(VmError),
+}
+
 /// Errors raised by the execution of the virtual machine.
 #[derive(Error, Debug)]
 #[error(transparent)]
