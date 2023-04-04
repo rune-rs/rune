@@ -1,7 +1,8 @@
 use crate::hash::Hash;
 
 mod sealed {
-    use crate::hash::{Hash, Params};
+    use crate::hash::Hash;
+    use crate::params::Params;
     use crate::runtime::Protocol;
 
     pub trait Sealed {}
@@ -9,7 +10,7 @@ mod sealed {
     impl Sealed for &str {}
     impl Sealed for Hash {}
     impl Sealed for Protocol {}
-    impl<T, P> Sealed for Params<T, P> {}
+    impl<T, const N: usize> Sealed for Params<T, N> {}
 }
 
 /// Trait for types which can be converted into a [Hash].

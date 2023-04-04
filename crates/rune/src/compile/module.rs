@@ -202,16 +202,18 @@ pub(crate) enum TypeSpecification {
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct AssociatedFunction {
+    /// Handle of the associated function.
     pub(crate) handler: Arc<FunctionHandler>,
+    /// Type information of the associated function.
     pub(crate) type_info: TypeInfo,
     /// If the function is asynchronous.
-    pub is_async: bool,
+    pub(crate) is_async: bool,
     /// Arguments the function receives.
-    pub args: Option<usize>,
-    /// The kind of the associated function.
-    pub kind: AssociatedFunctionKind,
+    pub(crate) args: Option<usize>,
+    /// The full name of the associated function.
+    pub(crate) name: AssociatedFunctionName,
     /// The documentation of the associated function.
-    pub docs: Docs,
+    pub(crate) docs: Docs,
 }
 
 /// A key that identifies an associated function.
@@ -1071,7 +1073,7 @@ impl Module {
             type_info: data.ty.type_info,
             is_async: data.is_async,
             args: data.args,
-            kind: data.name.kind,
+            name: data.name,
             docs,
         };
 

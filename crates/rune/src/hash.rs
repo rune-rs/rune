@@ -174,33 +174,6 @@ impl fmt::Debug for Hash {
     }
 }
 
-/// Helper to register a parameterized function.
-///
-/// This is used to wrap the name of the function in order to associated
-/// parameters with it.
-#[derive(Clone, Copy)]
-pub struct Params<T, P> {
-    pub(crate) name: T,
-    pub(crate) parameters: P,
-}
-
-impl<T, P> Params<T, P> {
-    /// Construct a new parameters wrapper.
-    pub const fn new(name: T, parameters: P) -> Self {
-        Self { name, parameters }
-    }
-}
-
-impl<T, P> IntoHash for Params<T, P>
-where
-    T: IntoHash,
-{
-    #[inline]
-    fn into_hash(self) -> Hash {
-        self.name.into_hash()
-    }
-}
-
 /// Helper to build a parameters hash.
 pub(crate) struct ParametersBuilder {
     hasher: XxHash64,
@@ -222,6 +195,6 @@ impl ParametersBuilder {
     }
 
     pub(crate) fn finish(&self) -> Hash {
-        Hash(self.hasher.finish())
+        Hash::new(self.hasher.finish())
     }
 }

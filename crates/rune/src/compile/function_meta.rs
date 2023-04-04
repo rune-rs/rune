@@ -5,18 +5,20 @@ use crate::compile::module::{
     AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn,
 };
 use crate::compile::{IntoComponent, ItemBuf, Named};
-use crate::hash::{Hash, Params};
+use crate::hash::Hash;
+#[cfg(feature = "doc")]
+use crate::runtime::TypeInfo;
 use crate::runtime::{FunctionHandler, Protocol};
 
 mod sealed {
-    use crate::hash::Params;
+    use crate::params::Params;
     use crate::runtime::Protocol;
 
     pub trait Sealed {}
 
     impl Sealed for &str {}
     impl Sealed for Protocol {}
-    impl<T, P> Sealed for Params<T, P> {}
+    impl<T, const N: usize> Sealed for Params<T, N> {}
 }
 
 /// Type used to collect and store function metadata through the
@@ -135,6 +137,8 @@ impl ToInstance for &str {
         AssociatedFunctionName {
             kind: AssociatedFunctionKind::Instance(self.into()),
             parameters: Hash::EMPTY,
+            #[cfg(feature = "doc")]
+            parameter_type_infos: vec![],
         }
     }
 }
@@ -145,40 +149,8 @@ impl ToFieldFunction for &str {
         AssociatedFunctionName {
             kind: AssociatedFunctionKind::FieldFn(protocol, self.into()),
             parameters: Hash::EMPTY,
-        }
-    }
-}
-
-impl<T, P> ToInstance for Params<T, P>
-where
-    T: ToInstance,
-    P: IntoIterator,
-    P::Item: std::hash::Hash,
-{
-    #[inline]
-    fn to_instance(self) -> AssociatedFunctionName {
-        let info = self.name.to_instance();
-
-        AssociatedFunctionName {
-            kind: info.kind,
-            parameters: Hash::parameters(self.parameters),
-        }
-    }
-}
-
-impl<T, P> ToFieldFunction for Params<T, P>
-where
-    T: ToFieldFunction,
-    P: IntoIterator,
-    P::Item: std::hash::Hash,
-{
-    #[inline]
-    fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
-        let info = self.name.to_field_function(protocol);
-
-        AssociatedFunctionName {
-            kind: info.kind,
-            parameters: Hash::parameters(self.parameters),
+            #[cfg(feature = "doc")]
+            parameter_type_infos: vec![],
         }
     }
 }
@@ -192,6 +164,8 @@ pub struct AssociatedFunctionName {
     pub kind: AssociatedFunctionKind,
     /// Parameters hash.
     pub parameters: Hash,
+    #[cfg(feature = "doc")]
+    pub parameter_type_infos: Vec<TypeInfo>,
 }
 
 impl AssociatedFunctionName {
@@ -199,6 +173,8 @@ impl AssociatedFunctionName {
         Self {
             kind: AssociatedFunctionKind::IndexFn(protocol, index),
             parameters: Hash::EMPTY,
+            #[cfg(feature = "doc")]
+            parameter_type_infos: vec![],
         }
     }
 }

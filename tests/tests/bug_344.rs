@@ -7,13 +7,15 @@
 //!
 //! See: https://github.com/rune-rs/rune/issues/344
 
-use futures_executor::block_on;
-use rune::compile::Named;
-use rune::runtime::{RawRef, RawStr, Stack, TypeInfo, TypeOf, UnsafeFromValue, VmError};
-use rune::{Any, Context, Hash, InstallWith, Module, Value};
 use std::any;
 use std::cell::Cell;
 use std::rc::Rc;
+
+use futures_executor::block_on;
+
+use rune::compile::Named;
+use rune::runtime::{AnyTypeInfo, RawRef, RawStr, Stack, TypeInfo, TypeOf, UnsafeFromValue, VmError};
+use rune::{Any, Context, Hash, InstallWith, Module, Value};
 
 #[test]
 fn bug_344_function() -> rune::Result<()> {
@@ -172,12 +174,14 @@ impl Named for GuardCheck {
 }
 
 impl TypeOf for GuardCheck {
+    #[inline]
     fn type_hash() -> Hash {
         <Self as Any>::type_hash()
     }
 
+    #[inline]
     fn type_info() -> TypeInfo {
-        TypeInfo::Any(<Self as Named>::BASE_NAME)
+        TypeInfo::Any(AnyTypeInfo::new(<Self as Named>::BASE_NAME, <Self as Any>::type_hash()))
     }
 }
 

@@ -1,5 +1,6 @@
 //! The `std::iter` module.
 
+use crate as rune;
 use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, TypeOf, Value, Vec, VmError};
 use crate::{ContextError, Module, Params};
 
@@ -10,12 +11,9 @@ pub fn module() -> Result<Module, ContextError> {
 
     // Sorted for ease of finding
     module.inst_fn("chain", Iterator::chain)?;
-    module.inst_fn(
-        Params::new("collect", [Object::type_hash()]),
-        collect_object,
-    )?;
-    module.inst_fn(Params::new("collect", [Vec::type_hash()]), collect_vec)?;
-    module.inst_fn(Params::new("collect", [Tuple::type_hash()]), collect_tuple)?;
+    module.inst_fn(Params::new("collect", [Object::type_of()]), collect_object)?;
+    module.inst_fn(Params::new("collect", [Vec::type_of()]), collect_vec)?;
+    module.inst_fn(Params::new("collect", [Tuple::type_of()]), collect_tuple)?;
     module.inst_fn("enumerate", Iterator::enumerate)?;
     module.inst_fn("filter", Iterator::filter)?;
     module.inst_fn("find", Iterator::find)?;
@@ -37,21 +35,55 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(Protocol::NEXT, Iterator::next)?;
     module.inst_fn(Protocol::INTO_ITER, <Iterator as From<Iterator>>::from)?;
 
-    module.function(["range"], new_range)?;
-    module.function(["empty"], new_empty)?;
-    module.function(["once"], new_once)?;
+    module.function_meta(range)?;
+    module.function_meta(empty)?;
+    module.function_meta(once)?;
     Ok(module)
 }
 
-fn new_empty() -> Iterator {
+/// Construct an iterator which produces no values.
+///
+/// # Examples
+///
+/// ```
+/// use std::iter::empty;
+///
+/// assert!(empty().next().is_none());
+/// assert_eq!(empty().collect::<Vec>(), []);
+/// ```
+#[rune::function]
+fn empty() -> Iterator {
     Iterator::empty()
 }
 
-fn new_once(v: Value) -> Iterator {
-    Iterator::once(v)
+/// Construct an iterator which produces a single `value` once.
+///
+/// # Examples
+///
+/// ```
+/// use std::iter::once;
+///
+/// assert!(once(42).next().is_some());
+/// assert_eq!(once(42).collect::<Vec>(), [42]);
+/// ```
+#[rune::function]
+fn once(value: Value) -> Iterator {
+    Iterator::once(value)
 }
 
-fn new_range(start: i64, end: i64) -> Iterator {
+/// Produce an iterator which starts at the range `start` and ends at the value
+/// `end` (exclusive).
+///
+/// # Examples
+///
+/// ```
+/// use std::iter::range;
+///
+/// assert!(range(0, 3).next().is_some());
+/// assert_eq!(range(0, 3).collect::<Vec>(), [0, 1, 2]);
+/// ```
+#[rune::function]
+fn range(start: i64, end: i64) -> Iterator {
     Iterator::from_double_ended("std::iter::Range", start..end)
 }
 

@@ -35,7 +35,7 @@ pub struct PrivMeta {
 
 impl PrivMeta {
     pub(crate) fn new(
-        module: &Module,
+        #[cfg_attr(not(feature = "doc"), allow(unused))] module: &Module,
         hash: Hash,
         item: ItemBuf,
         kind: meta::Kind,
@@ -288,6 +288,7 @@ impl Context {
     }
 
     /// Look up signature of function.
+    #[cfg(feature = "doc")]
     pub(crate) fn lookup_signature(&self, hash: Hash) -> Option<&meta::Signature> {
         self.functions_info.get(&hash)
     }
@@ -604,6 +605,7 @@ impl Context {
         };
 
         let hash = assoc
+            .name
             .kind
             .hash(key.type_hash)
             .with_parameters(key.parameters);
@@ -613,7 +615,7 @@ impl Context {
             is_async: assoc.is_async,
             args: assoc.args,
             kind: meta::SignatureKind::Instance {
-                name: assoc.kind.clone(),
+                name: assoc.name.kind.clone(),
                 self_type_info: info.type_info.clone(),
             },
         };
@@ -639,7 +641,7 @@ impl Context {
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        if let AssociatedFunctionKind::Instance(name) = &assoc.kind {
+        if let AssociatedFunctionKind::Instance(name) = &assoc.name.kind {
             let item = info.item.extended(name);
             self.names.insert(&item);
 

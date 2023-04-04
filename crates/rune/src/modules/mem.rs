@@ -11,7 +11,6 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-#[rune::function]
 /// Explicitly drop the given value, freeing up any memory associated with it.
 ///
 /// Normally values are dropped as they go out of scope, but with this method it
@@ -25,6 +24,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// let v = [1, 2, 3];
 /// drop(v);
 /// ```
+#[rune::function]
 fn drop(value: Value) -> Result<(), VmError> {
     value.take()?;
     Ok(())

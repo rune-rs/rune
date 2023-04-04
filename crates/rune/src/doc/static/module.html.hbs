@@ -3,7 +3,7 @@
 {{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
 {{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
 <body>
-<h3 class="title">Module <b>{{item}}</b></h3>
+<h3 class="title">Module {{literal module}}</h3>
 
 {{#if types}}
 <h4 class="section-title">Types</h4>
@@ -31,6 +31,16 @@
 {{#each functions}}
     <div id="fn.{{this.name}}" class="item-entry">
     <a class="fn" href="{{this.path}}">{{this.name}}</a>
+    </div>
+{{/each}}
+{{/if}}
+
+{{#if modules}}
+<h4 class="section-title">Modules</h4>
+
+{{#each modules}}
+    <div id="module.{{this.item}}" class="item-entry">
+    <a class="module" href="{{this.path}}">{{this.name}}</a>
     </div>
 {{/each}}
 {{/if}}
