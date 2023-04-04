@@ -62,13 +62,19 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
     let o = io.clone();
 
     module.function(["print"], move |m: &str| {
-        write!(o.inner.lock(), "{}", m).map_err(Panic::custom)
+        match write!(o.inner.lock(), "{}", m) {
+            Ok(()) => VmResult::Ok(()),
+            Err(error) => VmResult::err(Panic::custom(error)),
+        }
     })?;
 
     let o = io.clone();
 
     module.function(["println"], move |m: &str| {
-        writeln!(o.inner.lock(), "{}", m).map_err(Panic::custom)
+        match writeln!(o.inner.lock(), "{}", m) {
+            Ok(()) => VmResult::Ok(()),
+            Err(error) => VmResult::err(Panic::custom(error)),
+        }
     })?;
 
     let o = io.clone();

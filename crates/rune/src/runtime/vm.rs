@@ -15,8 +15,15 @@ use crate::runtime::{
     Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
 };
 
-use VmResult::Err;
 use VmResult::Ok;
+
+/// Small helper function to build errors.
+fn err<T, E>(error: E) -> VmResult<T>
+where
+    VmError: From<E>,
+{
+    VmResult::err(error)
+}
 
 /// The result from a dynamic call. Indicates if the attempted operation is
 /// supported.
@@ -373,10 +380,7 @@ impl Vm {
             // Clearing the stack here on panics has safety implications - see
             // above.
             let vm = ClearStack(self);
-            match VmExecution::new(&mut *vm.0).complete() {
-                Ok(value) => value,
-                Err(error) => return Err(error),
-            }
+            vm_try!(VmExecution::new(&mut *vm.0).complete())
         };
 
         // Note: this might panic if something in the vm is holding on to a
@@ -417,10 +421,7 @@ impl Vm {
             // Clearing the stack here on panics has safety implications - see
             // above.
             let vm = ClearStack(self);
-            match VmExecution::new(&mut *vm.0).async_complete().await {
-                Ok(value) => value,
-                Err(error) => return Err(error),
-            }
+            vm_try!(VmExecution::new(&mut *vm.0).async_complete().await)
         };
 
         // Note: this might panic if something in the vm is holding on to a
@@ -440,9 +441,9 @@ impl Vm {
 
         let info = vm_try!(self.unit.function(hash).ok_or_else(|| {
             if let Some(item) = name.to_item() {
-                VmError::from(VmErrorKind::MissingEntry { hash, item })
+                VmErrorKind::MissingEntry { hash, item }
             } else {
-                VmError::from(VmErrorKind::MissingEntryHash { hash })
+                VmErrorKind::MissingEntryHash { hash }
             }
         }));
 
@@ -458,7 +459,7 @@ impl Vm {
                 offset
             }
             _ => {
-                return Err(VmError::from(VmErrorKind::MissingFunction { hash }));
+                return err(VmErrorKind::MissingFunction { hash });
             }
         };
 
@@ -588,11 +589,11 @@ impl Vm {
             (Value::Integer(lhs), Value::Integer(rhs)) => int_op(lhs, rhs),
             (Value::Float(lhs), Value::Float(rhs)) => float_op(lhs, rhs),
             (lhs, rhs) => {
-                return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                return err(VmErrorKind::UnsupportedBinaryOperation {
                     op,
                     lhs: vm_try!(lhs.type_info()),
                     rhs: vm_try!(rhs.type_info()),
-                }))
+                });
             }
         };
 
@@ -646,10 +647,10 @@ impl Vm {
         let value = match value {
             Some(value) => value,
             None => {
-                return Err(VmError::from(VmErrorKind::MissingField {
+                return err(VmErrorKind::MissingField {
                     target: vm_try!(target.type_info()),
                     field: field.to_owned(),
-                }));
+                });
             }
         };
 
@@ -707,10 +708,10 @@ impl Vm {
         let value = match value {
             Some(value) => value,
             None => {
-                return Err(VmError::from(VmErrorKind::MissingIndex {
+                return err(VmErrorKind::MissingIndex {
                     target: vm_try!(target.type_info()),
                     index: VmIntegerRepr::from(index),
-                }));
+                });
             }
         };
 
@@ -780,10 +781,10 @@ impl Vm {
         let value = match value {
             Some(value) => value,
             None => {
-                return Err(VmError::from(VmErrorKind::MissingIndex {
+                return err(VmErrorKind::MissingIndex {
                     target: vm_try!(target.type_info()),
                     index: VmIntegerRepr::from(index),
-                }));
+                });
             }
         };
 
@@ -816,10 +817,10 @@ impl Vm {
         let value = match value {
             Some(value) => value,
             None => {
-                return Err(VmError::from(VmErrorKind::MissingField {
+                return err(VmErrorKind::MissingField {
                     target: vm_try!(target.type_info()),
                     field: field.to_owned(),
-                }));
+                });
             }
         };
 
@@ -943,9 +944,7 @@ impl Vm {
             }
         }
 
-        Err(VmError::from(VmErrorKind::ObjectIndexMissing {
-            slot: string_slot,
-        }))
+        err(VmErrorKind::ObjectIndexMissing { slot: string_slot })
     }
 
     fn try_object_slot_index_set(
@@ -970,10 +969,10 @@ impl Vm {
                     return Ok(CallResult::Ok(()));
                 }
 
-                return Err(VmError::from(VmErrorKind::MissingField {
+                return err(VmErrorKind::MissingField {
                     field: field.as_str().to_owned(),
                     target: typed_object.type_info(),
-                }));
+                });
             }
             Value::Variant(variant) => {
                 let mut variant = vm_try!(variant.borrow_mut());
@@ -985,10 +984,10 @@ impl Vm {
                     }
                 }
 
-                return Err(VmError::from(VmErrorKind::MissingField {
+                return err(VmErrorKind::MissingField {
                     field: field.as_str().to_owned(),
                     target: variant.type_info(),
-                }));
+                });
             }
             target => {
                 let hash = field.hash();
@@ -1054,10 +1053,10 @@ impl Vm {
         let hash = match b {
             Value::Type(hash) => hash,
             _ => {
-                return Err(VmError::from(VmErrorKind::UnsupportedIs {
+                return err(VmErrorKind::UnsupportedIs {
                     value: vm_try!(a.type_info()),
                     test_type: vm_try!(b.type_info()),
-                }));
+                });
             }
         };
 
@@ -1077,11 +1076,11 @@ impl Vm {
         let out = match (lhs, rhs) {
             (Value::Bool(lhs), Value::Bool(rhs)) => bool_op(lhs, rhs),
             (lhs, rhs) => {
-                return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                return err(VmErrorKind::UnsupportedBinaryOperation {
                     op,
                     lhs: vm_try!(lhs.type_info()),
                     rhs: vm_try!(rhs.type_info()),
-                }));
+                });
             }
         };
 
@@ -1183,11 +1182,11 @@ impl Vm {
                 match vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,))) {
                     CallResult::Ok(()) => vm_try!(<()>::from_value(vm_try!(self.stack.pop()))),
                     CallResult::Unsupported(lhs) => {
-                        return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
                             op: protocol.name,
                             lhs: vm_try!(lhs.type_info()),
                             rhs: vm_try!(rhs.type_info()),
-                        }));
+                        });
                     }
                 };
 
@@ -1197,20 +1196,18 @@ impl Vm {
                 if let CallResult::Unsupported(lhs) =
                     vm_try!(self.call_field_fn(protocol, lhs.clone(), hash, (rhs,)))
                 {
-                    return Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
+                    return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                         target: vm_try!(lhs.type_info()),
-                    }));
+                    });
                 }
 
                 let value = vm_try!(self.stack.pop());
                 vm_try!(<()>::from_value(value));
                 Ok(())
             }
-            TargetFallback::Index(lhs, ..) => {
-                Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
-                    target: vm_try!(lhs.type_info()),
-                }))
-            }
+            TargetFallback::Index(lhs, ..) => err(VmErrorKind::UnsupportedTupleIndexGet {
+                target: vm_try!(lhs.type_info()),
+            }),
         }
     }
 
@@ -1242,11 +1239,11 @@ impl Vm {
 
         if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
         {
-            Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+            err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: vm_try!(lhs.type_info()),
                 rhs: vm_try!(rhs.type_info()),
-            }))
+            })
         } else {
             Ok(())
         }
@@ -1273,11 +1270,11 @@ impl Vm {
 
         if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
         {
-            Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+            err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: vm_try!(lhs.type_info()),
                 rhs: vm_try!(rhs.type_info()),
-            }))
+            })
         } else {
             Ok(())
         }
@@ -1309,11 +1306,11 @@ impl Vm {
 
         if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
         {
-            Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+            err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: vm_try!(lhs.type_info()),
                 rhs: vm_try!(rhs.type_info()),
-            }))
+            })
         } else {
             Ok(())
         }
@@ -1364,11 +1361,11 @@ impl Vm {
 
         if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(lhs, protocol, (&rhs,)))
         {
-            Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+            err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
                 lhs: vm_try!(lhs.type_info()),
                 rhs: vm_try!(rhs.type_info()),
-            }))
+            })
         } else {
             Ok(())
         }
@@ -1402,10 +1399,10 @@ impl Vm {
     /// Check that arguments matches expected or raise the appropriate error.
     fn check_args(args: usize, expected: usize) -> VmResult<()> {
         if args != expected {
-            return Err(VmError::from(VmErrorKind::BadArgumentCount {
+            return err(VmErrorKind::BadArgumentCount {
                 actual: args,
                 expected,
-            }));
+            });
         }
 
         Ok(())
@@ -1624,10 +1621,7 @@ impl Vm {
             Value::Integer(value) => Value::from(!value),
             other => {
                 let operand = vm_try!(other.type_info());
-                return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
-                    op: "!",
-                    operand,
-                }));
+                return err(VmErrorKind::UnsupportedUnaryOperation { op: "!", operand });
             }
         };
 
@@ -1644,10 +1638,7 @@ impl Vm {
             Value::Integer(value) => Value::from(-value),
             other => {
                 let operand = vm_try!(other.type_info());
-                return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
-                    op: "-",
-                    operand,
-                }));
+                return err(VmErrorKind::UnsupportedUnaryOperation { op: "-", operand });
             }
         };
 
@@ -1927,10 +1918,10 @@ impl Vm {
                         return Ok(());
                     }
 
-                    return Err(VmError::from(VmErrorKind::MissingField {
+                    return err(VmErrorKind::MissingField {
                         field: field.to_owned(),
                         target: typed_object.type_info(),
-                    }));
+                    });
                 }
                 Value::Variant(variant) => {
                     let mut variant = vm_try!(variant.borrow_mut());
@@ -1942,10 +1933,10 @@ impl Vm {
                         }
                     }
 
-                    return Err(VmError::from(VmErrorKind::MissingField {
+                    return err(VmErrorKind::MissingField {
                         field: field.to_owned(),
                         target: variant.type_info(),
-                    }));
+                    });
                 }
                 _ => {
                     break;
@@ -1956,11 +1947,11 @@ impl Vm {
         if let CallResult::Unsupported(target) =
             vm_try!(self.call_instance_fn(target, Protocol::INDEX_SET, (&index, &value)))
         {
-            Err(VmError::from(VmErrorKind::UnsupportedIndexSet {
+            err(VmErrorKind::UnsupportedIndexSet {
                 target: vm_try!(target.type_info()),
                 index: vm_try!(index.type_info()),
                 value: vm_try!(value.type_info()),
-            }))
+            })
         } else {
             // Calling index set should not produce a value on the stack, but all
             // handler functions to produce a value. So pop it here.
@@ -2034,10 +2025,10 @@ impl Vm {
                 let index = match (*index).try_into() {
                     Result::Ok(index) => index,
                     Result::Err(..) => {
-                        return Err(VmError::from(VmErrorKind::MissingIndex {
+                        return err(VmErrorKind::MissingIndex {
                             target: vm_try!(target.type_info()),
                             index: VmIntegerRepr::from(*index),
-                        }));
+                        });
                     }
                 };
 
@@ -2054,10 +2045,10 @@ impl Vm {
         if let CallResult::Unsupported(target) =
             vm_try!(self.call_instance_fn(target, Protocol::INDEX_GET, (&index,)))
         {
-            Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
+            err(VmErrorKind::UnsupportedIndexGet {
                 target: vm_try!(target.type_info()),
                 index: vm_try!(index.type_info()),
-            }))
+            })
         } else {
             Ok(())
         }
@@ -2076,9 +2067,9 @@ impl Vm {
         if let CallResult::Unsupported(value) =
             vm_try!(self.call_index_fn(Protocol::GET, value, index, ()))
         {
-            return Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
+            return err(VmErrorKind::UnsupportedTupleIndexGet {
                 target: vm_try!(value.type_info()),
-            }));
+            });
         }
 
         // NB: should leave a value on the stack.
@@ -2095,9 +2086,9 @@ impl Vm {
             return Ok(());
         }
 
-        Err(VmError::from(VmErrorKind::UnsupportedTupleIndexSet {
+        err(VmErrorKind::UnsupportedTupleIndexSet {
             target: vm_try!(tuple.type_info()),
-        }))
+        })
     }
 
     /// Perform an index get operation specialized for tuples.
@@ -2115,9 +2106,9 @@ impl Vm {
         if let CallResult::Unsupported(value) =
             vm_try!(self.call_index_fn(Protocol::GET, value, index, ()))
         {
-            return Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
+            return err(VmErrorKind::UnsupportedTupleIndexGet {
                 target: vm_try!(value.type_info()),
-            }));
+            });
         }
 
         Ok(())
@@ -2145,11 +2136,9 @@ impl Vm {
                 self.stack.push(value);
                 Ok(())
             }
-            CallResult::Unsupported(target) => {
-                Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
-                    target: vm_try!(target.type_info()),
-                }))
-            }
+            CallResult::Unsupported(target) => err(VmErrorKind::UnsupportedObjectSlotIndexGet {
+                target: vm_try!(target.type_info()),
+            }),
         }
     }
 
@@ -2162,9 +2151,9 @@ impl Vm {
         if let CallResult::Unsupported(target) =
             vm_try!(self.try_object_slot_index_set(target, string_slot, value))
         {
-            Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexSet {
+            err(VmErrorKind::UnsupportedObjectSlotIndexSet {
                 target: vm_try!(target.type_info()),
-            }))
+            })
         } else {
             Ok(())
         }
@@ -2180,11 +2169,9 @@ impl Vm {
                 self.stack.push(value);
                 Ok(())
             }
-            CallResult::Unsupported(target) => {
-                Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
-                    target: vm_try!(target.type_info()),
-                }))
-            }
+            CallResult::Unsupported(target) => err(VmErrorKind::UnsupportedObjectSlotIndexGet {
+                target: vm_try!(target.type_info()),
+            }),
         }
     }
 
@@ -2327,7 +2314,7 @@ impl Vm {
             if let Result::Err(fmt::Error) =
                 vm_try!(value.string_display_with(&mut out, &mut buf, &mut *self))
             {
-                return Err(VmError::from(VmErrorKind::FormatError));
+                return err(VmErrorKind::FormatError);
             }
         }
 
@@ -2362,9 +2349,9 @@ impl Vm {
             },
             Value::Option(option) => (*vm_try!(option.borrow_ref())).clone(),
             other => {
-                return Err(VmError::from(VmErrorKind::UnsupportedTryOperand {
+                return err(VmErrorKind::UnsupportedTryOperand {
                     actual: vm_try!(other.type_info()),
-                }))
+                });
             }
         };
 
@@ -2692,7 +2679,7 @@ impl Vm {
 
         let (offset, call, args) = match info {
             UnitFn::Offset { offset, call, args } => (offset, call, args),
-            _ => return Err(VmError::from(VmErrorKind::MissingFunction { hash })),
+            _ => return err(VmErrorKind::MissingFunction { hash }),
         };
 
         let environment = vm_try!(self.stack.pop_sequence(count)).into_boxed_slice();
@@ -2810,10 +2797,10 @@ impl Vm {
             return Ok(());
         }
 
-        Err(VmError::from(VmErrorKind::MissingInstanceFunction {
+        err(VmErrorKind::MissingInstanceFunction {
             instance: vm_try!(instance.type_info()),
             hash,
-        }))
+        })
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2828,9 +2815,7 @@ impl Vm {
             }
             actual => {
                 let actual_type = vm_try!(actual.type_info());
-                return Err(VmError::from(VmErrorKind::UnsupportedCallFn {
-                    actual_type,
-                }));
+                return err(VmErrorKind::UnsupportedCallFn { actual_type });
             }
         };
 
@@ -2855,9 +2840,9 @@ impl Vm {
                 }
             }
             other => {
-                return Err(VmError::from(VmErrorKind::UnsupportedIterNextOperand {
+                return err(VmErrorKind::UnsupportedIterNextOperand {
                     actual: vm_try!(other.type_info()),
-                }))
+                });
             }
         };
 
@@ -3169,9 +3154,9 @@ impl Vm {
                     vm_try!(self.op_iter_next(offset, jump));
                 }
                 Inst::Panic { reason } => {
-                    return Err(VmError::from(VmErrorKind::Panic {
+                    return err(VmErrorKind::Panic {
                         reason: Panic::from(reason),
-                    }));
+                    });
                 }
             }
 

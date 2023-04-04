@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::runtime::{
-    Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Vec, VmError,
+    Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Vec,
     VmErrorKind, VmResult,
 };
 use serde::{Deserialize, Serialize};
@@ -169,9 +169,9 @@ impl FromValue for ConstValue {
                 Self::Object(const_object)
             }
             value => {
-                return VmResult::Err(VmError::from(VmErrorKind::ConstNotSupported {
+                return VmResult::err(VmErrorKind::ConstNotSupported {
                     actual: vm_try!(value.type_info()),
-                }))
+                })
             }
         })
     }

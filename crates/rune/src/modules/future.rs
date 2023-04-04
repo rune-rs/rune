@@ -25,7 +25,7 @@ where
     for (index, value) in values.into_iter().enumerate() {
         let future = match value {
             Value::Future(future) => vm_try!(future.clone().into_mut()),
-            value => return VmResult::Err(vm_try!(VmError::bad_argument::<Future>(index, value))),
+            value => return VmResult::err(vm_try!(VmError::bad_argument::<Future>(index, value))),
         };
 
         futures.push(SelectFuture::new(index, future));
@@ -54,17 +54,17 @@ async fn join(value: Value) -> VmResult<Value> {
                 try_join_impl(vec.iter(), vec.len(), Value::vec).await
             ))
         }
-        value => VmResult::Err(vm_try!(VmError::bad_argument::<Vec<Value>>(0, &value))),
+        value => VmResult::err(vm_try!(VmError::bad_argument::<Vec<Value>>(0, &value))),
     }
 }
 
 /// The join implementation.
 fn raw_join(stack: &mut Stack, args: usize) -> VmResult<()> {
     if args != 1 {
-        return VmResult::Err(VmError::from(VmErrorKind::BadArgumentCount {
+        return VmResult::err(VmErrorKind::BadArgumentCount {
             actual: args,
             expected: 1,
-        }));
+        });
     }
 
     let value = vm_try!(stack.pop());

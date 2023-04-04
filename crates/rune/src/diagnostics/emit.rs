@@ -1,24 +1,26 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
+use std::convert::TryInto;
+use std::error::Error;
+use std::fmt;
+use std::fmt::Write;
+use std::io;
+
+use thiserror::Error;
+use codespan_reporting::diagnostic as d;
+use codespan_reporting::term;
+use codespan_reporting::term::termcolor::WriteColor;
+pub use codespan_reporting::term::termcolor;
+
 use crate::compile::{IrErrorKind, CompileErrorKind, Location, LinkerError};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
 use crate::parse::ResolveErrorKind;
 use crate::query::QueryErrorKind;
-use crate::runtime::{Unit, VmError, VmErrorKind};
+use crate::runtime::{Unit, VmErrorKind, VmErrorWithTrace};
 use crate::{Source, Diagnostics, SourceId, Sources};
 use crate::ast::{Span, Spanned};
-use std::convert::TryInto;
-use std::error::Error;
-use std::fmt;
-use std::fmt::Write;
-use std::io;
-use thiserror::Error;
-use codespan_reporting::diagnostic as d;
-use codespan_reporting::term;
-use codespan_reporting::term::termcolor::WriteColor;
-pub use codespan_reporting::term::termcolor;
 
 struct StackFrame {
     source_id: SourceId,
@@ -73,7 +75,7 @@ impl Diagnostics {
     }
 }
 
-impl VmError {
+impl VmErrorWithTrace {
     /// Generate formatted diagnostics capable of referencing source lines and
     /// hints.
     ///
@@ -86,122 +88,102 @@ impl VmError {
     where
         O: WriteColor,
     {
-        let (error, unwound) = self.as_unwound();
-
-        let (unit, ip, frames) = match unwound {
-            Some((unit, ip, frames)) => (unit, ip, frames),
-            None => {
-                writeln!(
-                    out,
-                    "virtual machine error: {} (no diagnostics available)",
-                    error
-                )?;
-
-                return Ok(());
-            }
-        };
-
-        let debug_info = match unit.debug_info() {
-            Some(debug_info) => debug_info,
-            None => {
-                writeln!(out, "virtual machine error: {} (no debug info)", error)?;
-                return Ok(());
-            }
-        };
-
-        let debug_inst = match debug_info.instruction_at(ip) {
-            Some(debug_inst) => debug_inst,
-            None => {
-                writeln!(
-                    out,
-                    "virtual machine error: {} (no debug instruction)",
-                    error
-                )?;
-
-                return Ok(());
-            }
-        };
-
+        let mut backtrace = vec![];
         let config = codespan_reporting::term::Config::default();
 
-        let mut labels = Vec::new();
+        for l in &self.stacktrace {
+            let debug_info = match l.unit.debug_info() {
+                Some(debug_info) => debug_info,
+                None => continue,
+            };
 
-        let source_id = debug_inst.source_id;
-        let span = debug_inst.span;
+            for ip in [l.ip].into_iter().chain(l.frames.iter().rev().map(|v| v.ip())) {
+                let debug_inst = match debug_info.instruction_at(ip) {
+                    Some(debug_inst) => debug_inst,
+                    None => continue,
+                };
 
-        let (reason, notes) = match error {
-            VmErrorKind::Panic { reason } => {
-                labels.push(d::Label::primary(source_id, span.range()).with_message("panicked"));
-                ("panic in runtime".to_owned(), vec![reason.to_string()])
+                let source_id = debug_inst.source_id;
+                let span = debug_inst.span;
+
+                backtrace.push(StackFrame { source_id, span });
             }
-            VmErrorKind::UnsupportedBinaryOperation { lhs, rhs, op } => {
-                labels.push(
-                    d::Label::primary(source_id, span.range())
-                        .with_message("in this expression".to_string()),
-                );
+        }
 
-                (
-                    format!("type mismatch for operation `{}`", op),
-                    vec![
-                        format!("left hand side has type `{}`", lhs),
-                        format!("right hand side has type `{}`", rhs),
-                    ],
-                )
-            }
-            VmErrorKind::BadArgumentCount { actual, expected } => {
-                labels.push(
-                    d::Label::primary(source_id, span.range())
-                        .with_message("in this function call".to_string()),
-                );
+        let mut diagnostic = d::Diagnostic::error();
 
-                (
-                    "wrong number of arguments".to_string(),
-                    vec![
-                        format!("expected `{}`", expected),
-                        format!("got `{}`", actual),
-                    ],
-                )
-            }
-            e => {
-                labels.push(
-                    d::Label::primary(source_id, span.range())
-                        .with_message("in this expression".to_string()),
-                );
-                ("internal vm error".to_owned(), vec![e.to_string()])
-            }
-        };
+        for (index, error) in [&self.error].into_iter().chain(&self.chain) {
+            let get = || {
+                let l = self.stacktrace.get(*index)?;
+                let debug_info = l.unit.debug_info()?;
+                let debug_inst = debug_info.instruction_at(l.ip)?;
+                Some(debug_inst)
+            };
 
-        let mut backtrace = vec![StackFrame { source_id, span }];
-
-        for ip in frames.iter().map(|v| v.ip()) {
-            let debug_inst = match debug_info.instruction_at(ip) {
+            let debug_inst = match get() {
                 Some(debug_inst) => debug_inst,
                 None => {
-                    writeln!(
-                        out,
-                        "virtual machine error: {} (no debug instruction)",
-                        error
-                    )?;
-
-                    return Ok(());
+                    println!("error: {error} (no debug information)");
+                    continue;
                 }
             };
 
             let source_id = debug_inst.source_id;
             let span = debug_inst.span;
 
-            backtrace.push(StackFrame { source_id, span });
-        }
+            let mut labels = Vec::new();
 
-        let diagnostic = d::Diagnostic::error()
-            .with_message(reason)
-            .with_labels(labels)
-            .with_notes(notes);
+            let (reason, notes) = match error.kind() {
+                VmErrorKind::Panic { reason } => {
+                    labels.push(d::Label::primary(source_id, span.range()).with_message("panicked"));
+                    ("panic in runtime".to_owned(), vec![reason.to_string()])
+                }
+                VmErrorKind::UnsupportedBinaryOperation { lhs, rhs, op } => {
+                    labels.push(
+                        d::Label::primary(source_id, span.range())
+                            .with_message("in this expression".to_string()),
+                    );
+
+                    (
+                        format!("type mismatch for operation `{}`", op),
+                        vec![
+                            format!("left hand side has type `{}`", lhs),
+                            format!("right hand side has type `{}`", rhs),
+                        ],
+                    )
+                }
+                VmErrorKind::BadArgumentCount { actual, expected } => {
+                    labels.push(
+                        d::Label::primary(source_id, span.range())
+                            .with_message("in this function call".to_string()),
+                    );
+
+                    (
+                        "wrong number of arguments".to_string(),
+                        vec![
+                            format!("expected `{}`", expected),
+                            format!("got `{}`", actual),
+                        ],
+                    )
+                }
+                e => {
+                    labels.push(
+                        d::Label::primary(source_id, span.range())
+                            .with_message("in this expression".to_string()),
+                    );
+                    ("internal vm error".to_owned(), vec![e.to_string()])
+                }
+            };
+
+            diagnostic = diagnostic.with_message(reason)
+                .with_labels(labels)
+                .with_notes(notes);
+        }
 
         term::emit(out, &config, sources, &diagnostic)?;
 
         if !backtrace.is_empty() {
-            writeln!(out, "backtrace:")?;
+            writeln!(out, "Backtrace:")?;
 
             for frame in &backtrace {
                 let source = match sources.get(frame.source_id) {
@@ -218,7 +200,8 @@ impl VmError {
                     None => continue,
                 };
 
-                writeln!(out, "{}:{}:{}: {}", source.name(), line, line_count, text)?;
+                writeln!(out, "At {}:{}:{}:", source.name(), line, line_count)?;
+                writeln!(out, "{text}")?;
             }
         }
 

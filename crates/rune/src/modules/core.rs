@@ -2,7 +2,7 @@
 
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Panic, Tuple, Value};
+use crate::runtime::{Panic, Tuple, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std` module.
@@ -26,8 +26,8 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn panic_impl(m: &str) -> Result<(), Panic> {
-    Err(Panic::custom(m.to_owned()))
+fn panic_impl(m: &str) -> VmResult<()> {
+    VmResult::err(Panic::custom(m.to_owned()))
 }
 
 fn is_readable(value: Value) -> bool {

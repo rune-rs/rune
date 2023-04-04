@@ -76,7 +76,7 @@ fn option_iter(option: &Option<Value>) -> Iterator {
 fn unwrap_impl(option: Option<Value>) -> VmResult<Value> {
     match option {
         Some(some) => VmResult::Ok(some),
-        None => VmResult::Err(VmError::panic(
+        None => VmResult::err(VmError::panic(
             "called `Option::unwrap()` on a `None` value",
         )),
     }
@@ -85,7 +85,7 @@ fn unwrap_impl(option: Option<Value>) -> VmResult<Value> {
 fn expect_impl(option: Option<Value>, message: &str) -> VmResult<Value> {
     match option {
         Some(some) => VmResult::Ok(some),
-        None => VmResult::Err(VmError::panic(message.to_owned())),
+        None => VmResult::err(VmError::panic(message.to_owned())),
     }
 }
 

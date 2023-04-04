@@ -7,7 +7,7 @@
 //!
 //! See the corresponding function for documentation.
 
-use crate::runtime::{RuntimeContext, Unit, VmError, VmErrorKind, VmResult};
+use crate::runtime::{RuntimeContext, Unit, VmErrorKind, VmResult};
 use std::cell::Cell;
 use std::ptr;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ where
     let Env { context, unit } = env;
 
     if context.is_null() || unit.is_null() {
-        return VmResult::Err(VmError::from(VmErrorKind::MissingInterfaceEnvironment));
+        return VmResult::err(VmErrorKind::MissingInterfaceEnvironment);
     }
 
     // Safety: context and unit can only be registered publicly through

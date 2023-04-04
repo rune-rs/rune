@@ -34,7 +34,7 @@ fn is_err(result: &Result<Value, Value>) -> bool {
 fn unwrap_impl(result: Result<Value, Value>) -> VmResult<Value> {
     match result {
         Ok(value) => VmResult::Ok(value),
-        Err(err) => VmResult::Err(VmError::panic(format!(
+        Err(err) => VmResult::err(VmError::panic(format!(
             "called `Result::unwrap()` on an `Err` value: {:?}",
             err
         ))),
@@ -44,7 +44,7 @@ fn unwrap_impl(result: Result<Value, Value>) -> VmResult<Value> {
 fn expect_impl(result: Result<Value, Value>, message: &str) -> VmResult<Value> {
     match result {
         Ok(value) => VmResult::Ok(value),
-        Err(err) => VmResult::Err(VmError::panic(format!("{}: {:?}", message, err))),
+        Err(err) => VmResult::err(VmError::panic(format!("{}: {:?}", message, err))),
     }
 }
 

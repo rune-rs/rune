@@ -1,6 +1,6 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
-    FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value, VmError,
+    FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
     VmErrorKind, VmResult,
 };
 use pin_project::pin_project;
@@ -51,7 +51,7 @@ impl future::Future for Future {
         let future = match &mut this.future {
             Some(future) => future,
             None => {
-                return Poll::Ready(VmResult::Err(VmError::from(VmErrorKind::FutureCompleted)));
+                return Poll::Ready(VmResult::err(VmErrorKind::FutureCompleted));
             }
         };
 

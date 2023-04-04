@@ -210,7 +210,7 @@ mod tests {
         let shared = Value::Bytes(Shared::new(Bytes::new()));
 
         let _ = {
-            let shared = shared.into_bytes()?;
+            let shared = shared.into_bytes().into_result()?;
             let out = shared.borrow_ref()?.clone();
             out
         };

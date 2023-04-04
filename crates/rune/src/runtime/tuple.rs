@@ -173,7 +173,7 @@ impl FromValue for Tuple {
         match value {
             Value::Unit => VmResult::Ok(Self::empty()),
             Value::Tuple(tuple) => VmResult::Ok(vm_try!(tuple.take())),
-            actual => VmResult::Err(VmError::expected::<Self>(vm_try!(actual.type_info()))),
+            actual => VmResult::err(VmError::expected::<Self>(vm_try!(actual.type_info()))),
         }
     }
 }
@@ -197,10 +197,10 @@ macro_rules! impl_tuple {
                 let tuple = vm_try!(vm_try!(value.into_tuple()).take());
 
                 if tuple.len() != $count {
-                    return VmResult::Err(VmError::from(VmErrorKind::ExpectedTupleLength {
+                    return VmResult::err(VmErrorKind::ExpectedTupleLength {
                         actual: tuple.len(),
                         expected: $count,
-                    }));
+                    });
                 }
 
                 #[allow(unused_mut, unused_variables)]
@@ -210,7 +210,7 @@ macro_rules! impl_tuple {
                     let $var = match it.next() {
                         Some(value) => vm_try!(<$ty>::from_value(value)),
                         None => {
-                            return VmResult::Err(VmError::from(VmErrorKind::IterationError));
+                            return VmResult::err(VmErrorKind::IterationError);
                         },
                     };
                 )*

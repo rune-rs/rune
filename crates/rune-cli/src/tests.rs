@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::Parser;
 use rune::compile::ItemBuf;
-use rune::runtime::{Unit, Value, Vm, VmError};
+use rune::runtime::{Unit, Value, Vm, VmErrorWithTrace, VmResult};
 use rune::{Context, Hash, Sources};
 use rune_modules::capture_io::CaptureIo;
 
@@ -27,7 +27,7 @@ pub(crate) struct Flags {
 
 #[derive(Debug)]
 enum FailureReason {
-    Crash(VmError),
+    Crash(Box<VmErrorWithTrace>),
     ReturnedNone,
     ReturnedErr { output: Box<[u8]>, error: Value },
 }
@@ -61,9 +61,9 @@ impl<'a> TestCase<'a> {
             write!(io.stdout, "Test {:30} ", self.item)?;
         }
 
-        let result = match vm.execute(self.hash, ()).into_result() {
-            Ok(mut execution) => execution.async_complete().await.into_result(),
-            Err(err) => Err(err),
+        let result = match vm.execute(self.hash, ()) {
+            VmResult::Ok(mut execution) => execution.async_complete().await,
+            VmResult::Err(err) => VmResult::Err(err),
         };
 
         if let Some(capture_io) = capture_io {
@@ -71,8 +71,7 @@ impl<'a> TestCase<'a> {
         }
 
         self.outcome = match result {
-            Err(e) => Some(FailureReason::Crash(e)),
-            Ok(v) => match v {
+            VmResult::Ok(v) => match v {
                 Value::Result(result) => match result.take()? {
                     Ok(..) => None,
                     Err(error) => Some(FailureReason::ReturnedErr {
@@ -86,6 +85,7 @@ impl<'a> TestCase<'a> {
                 },
                 _ => None,
             },
+            VmResult::Err(e) => Some(FailureReason::Crash(e)),
         };
 
         if quiet {
