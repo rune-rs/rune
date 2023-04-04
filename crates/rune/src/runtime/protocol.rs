@@ -127,7 +127,7 @@ impl Protocol {
         pub const GET: Protocol = Protocol {
             name: "get",
             hash: 0x504007af1a8485a4,
-            repr: Some("let value = $value.field"),
+            repr: Some("let output = $value"),
             doc: ["Allows a get operation to work."],
         };
 
@@ -135,7 +135,7 @@ impl Protocol {
         pub const SET: Protocol = Protocol {
             name: "set",
             hash: 0x7d13d47fd8efef5a,
-            repr: Some("$value.field = b"),
+            repr: Some("$value = input"),
             doc: ["Allows a set operation to work."],
         };
 
@@ -143,7 +143,7 @@ impl Protocol {
         pub const INDEX_GET: Protocol = Protocol {
             name: "index_get",
             hash: 0xadb5b27e2a4d2dec,
-            repr: Some("let value = $value[index]"),
+            repr: Some("let output = $value[index]"),
             doc: ["Allows an indexing get operation to work."],
         };
 
@@ -151,7 +151,7 @@ impl Protocol {
         pub const INDEX_SET: Protocol = Protocol {
             name: "index_set",
             hash: 0x162943f7bd03ad36,
-            repr: Some("$value[index] = b"),
+            repr: Some("$value[index] = input"),
             doc: ["Allows an indexing set operation to work."],
         };
 
@@ -167,7 +167,7 @@ impl Protocol {
         pub const ADD: Protocol = Protocol {
             name: "add",
             hash: 0xe4ecf51fa0bf1076,
-            repr: Some("let value = $value + b"),
+            repr: Some("let output = $value + b"),
             doc: [
                 "Allows the `+` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -187,7 +187,7 @@ impl Protocol {
         pub const SUB: Protocol = Protocol {
             name: "sub",
             hash: 0x6fa86a5f18d0bf71,
-            repr: Some("let value = $value - b"),
+            repr: Some("let output = $value - b"),
             doc: [
                 "Allows the `-` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -207,7 +207,7 @@ impl Protocol {
         pub const MUL: Protocol = Protocol {
             name: "mul",
             hash: 0xb09e99dc94091d1c,
-            repr: Some("let value = $value * b"),
+            repr: Some("let output = $value * b"),
             doc: [
                 "Allows the `*` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -227,7 +227,7 @@ impl Protocol {
         pub const DIV: Protocol = Protocol {
             name: "div",
             hash: 0xf26d6eea1afca6e8,
-            repr: Some("let value = $value / b"),
+            repr: Some("let output = $value / b"),
             doc: [
                 "Allows the `/` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -247,7 +247,7 @@ impl Protocol {
         pub const REM: Protocol = Protocol {
             name: "rem",
             hash: 0x5c6293639c74e671,
-            repr: Some("let value = $value % b"),
+            repr: Some("let output = $value % b"),
             doc: [
                 "Allows the `%` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -267,7 +267,7 @@ impl Protocol {
         pub const BIT_AND: Protocol = Protocol {
             name: "bit_and",
             hash: 0x0e11f20d940eebe8,
-            repr: Some("let value = $value & b"),
+            repr: Some("let output = $value & b"),
             doc: [
                 "Allows the `&` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -287,7 +287,7 @@ impl Protocol {
         pub const BIT_XOR: Protocol = Protocol {
             name: "bit_xor",
             hash: 0xa3099c54e1de4cbf,
-            repr: Some("let value = $value ^ b"),
+            repr: Some("let output = $value ^ b"),
             doc: [
                 "Allows the `^` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -307,7 +307,7 @@ impl Protocol {
         pub const BIT_OR: Protocol = Protocol {
             name: "bit_or",
             hash: 0x05010afceb4a03d0,
-            repr: Some("let value = $value | b"),
+            repr: Some("let output = $value | b"),
             doc: [
                 "Allows the `|` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -327,7 +327,7 @@ impl Protocol {
         pub const SHL: Protocol = Protocol {
             name: "shl",
             hash: 0x6845f7d0cc9e002d,
-            repr: Some("let value = $value << b"),
+            repr: Some("let output = $value << b"),
             doc: [
                 "Allows the `<<` operator to apply to values of this type, where the current type is the left-hand side."
             ],
@@ -347,7 +347,7 @@ impl Protocol {
         pub const SHR: Protocol = Protocol {
             name: "shr",
             hash: 0x6b485e8e6e58fbc8,
-            repr: Some("let value = $value >> b"),
+            repr: Some("let output = $value >> b"),
             doc: [
                 "Allows the `>>` operator to apply to values of this type, where the current type is the left-hand side."
             ],
