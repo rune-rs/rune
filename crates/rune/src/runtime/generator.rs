@@ -1,7 +1,7 @@
 use crate::compile::Named;
 use crate::runtime::{
     FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
-    Value, Vm, VmError, VmErrorKind, VmExecution,
+    Value, Vm, VmErrorKind, VmExecution, VmResult,
 };
 use crate::InstallWith;
 use std::fmt;
@@ -34,31 +34,31 @@ where
 
     /// Get the next value produced by this stream.
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Result<Option<Value>, VmError> {
-        Ok(match self.resume(Value::Unit)? {
+    pub fn next(&mut self) -> VmResult<Option<Value>> {
+        VmResult::Ok(match vm_try!(self.resume(Value::Unit)) {
             GeneratorState::Yielded(value) => Some(value),
             GeneratorState::Complete(_) => None,
         })
     }
 
     /// Resume the generator with a value and get the next generator state.
-    pub fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
-        let execution = self
+    pub fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
+        let execution = vm_try!(self
             .execution
             .as_mut()
-            .ok_or(VmErrorKind::GeneratorComplete)?;
+            .ok_or(VmErrorKind::GeneratorComplete));
 
         let state = if execution.is_resumed() {
-            execution.resume_with(value)?
+            vm_try!(execution.resume_with(value))
         } else {
-            execution.resume()?
+            vm_try!(execution.resume())
         };
 
         if state.is_complete() {
             self.execution = None;
         }
 
-        Ok(state)
+        VmResult::Ok(state)
     }
 }
 
@@ -73,16 +73,13 @@ impl Generator<&mut Vm> {
 
 impl Generator<Vm> {
     /// Convert into iterator
-    pub fn into_iterator(self) -> Result<Iterator, VmError> {
-        Ok(Iterator::from(
-            "std::generator::GeneratorIterator",
-            self.into_iter(),
-        ))
+    pub fn into_iterator(self) -> Iterator {
+        Iterator::from("std::generator::GeneratorIterator", self.into_iter())
     }
 }
 
 impl IntoIterator for Generator<Vm> {
-    type Item = Result<Value, VmError>;
+    type Item = VmResult<Value>;
     type IntoIter = GeneratorIterator;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -95,10 +92,14 @@ pub struct GeneratorIterator {
 }
 
 impl std::iter::Iterator for GeneratorIterator {
-    type Item = Result<Value, VmError>;
+    type Item = VmResult<Value>;
 
-    fn next(&mut self) -> Option<Result<Value, VmError>> {
-        self.generator.next().transpose()
+    fn next(&mut self) -> Option<VmResult<Value>> {
+        match self.generator.next() {
+            VmResult::Ok(Some(value)) => Some(VmResult::Ok(value)),
+            VmResult::Ok(None) => None,
+            VmResult::Err(error) => Some(VmResult::Err(error)),
+        }
     }
 }
 
@@ -123,15 +124,17 @@ where
 impl<T> InstallWith for Generator<T> where T: AsMut<Vm> {}
 
 impl FromValue for Shared<Generator<Vm>> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
         value.into_generator()
     }
 }
 
 impl FromValue for Generator<Vm> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        let generator = value.into_generator()?;
-        Ok(generator.take()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let generator = vm_try!(value.into_generator());
+        let generator = vm_try!(generator.take());
+        VmResult::Ok(generator)
     }
 }
 
@@ -139,10 +142,10 @@ impl UnsafeFromValue for &Generator<Vm> {
     type Output = *const Generator<Vm>;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let generator = value.into_generator()?;
-        let (generator, guard) = Ref::into_raw(generator.into_ref()?);
-        Ok((generator, guard))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let generator = vm_try!(value.into_generator());
+        let (generator, guard) = Ref::into_raw(vm_try!(generator.into_ref()));
+        VmResult::Ok((generator, guard))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -154,9 +157,10 @@ impl UnsafeFromValue for &mut Generator<Vm> {
     type Output = *mut Generator<Vm>;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let generator = value.into_generator()?;
-        Ok(Mut::into_raw(generator.into_mut()?))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let generator = vm_try!(value.into_generator());
+        let generator = vm_try!(generator.into_mut());
+        VmResult::Ok(Mut::into_raw(generator))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {

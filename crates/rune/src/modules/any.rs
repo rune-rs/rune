@@ -1,6 +1,6 @@
 //! `std::any` module.
 
-use crate::runtime::{Protocol, Value};
+use crate::runtime::{Protocol, Value, VmResult};
 use crate::{Any, ContextError, Module};
 use std::any::TypeId as StdTypeId;
 use std::fmt;
@@ -11,8 +11,8 @@ use std::fmt::Write;
 #[repr(transparent)]
 struct TypeId(StdTypeId);
 
-fn type_id_of_val(item: Value) -> TypeId {
-    unsafe { std::mem::transmute(item.type_hash().expect("no type known for item!")) }
+fn type_id_of_val(item: Value) -> VmResult<TypeId> {
+    VmResult::Ok(unsafe { std::mem::transmute(vm_try!(item.type_hash())) })
 }
 
 fn format_type_id(item: &TypeId, buf: &mut String) -> fmt::Result {

@@ -1,6 +1,7 @@
 use crate::runtime::budget;
 use crate::runtime::{
     Generator, GeneratorState, Stream, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo,
+    VmResult,
 };
 use crate::shared::AssertSend;
 use std::fmt;
@@ -102,7 +103,7 @@ where
     /// let unit = rune::prepare(&mut sources).build()?;
     ///
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let mut generator = vm.execute(["main"], ())?.into_generator()?;
+    /// let mut generator = vm.execute(["main"], ())?.into_generator();
     ///
     /// let mut n = 1i64;
     ///
@@ -113,8 +114,8 @@ where
     /// }
     /// # Ok(()) }
     /// ```
-    pub fn into_generator(self) -> Result<Generator<T>, VmError> {
-        Ok(Generator::from_execution(self))
+    pub fn into_generator(self) -> Generator<T> {
+        Generator::from_execution(self)
     }
 
     /// Coerce the current execution into a stream if appropriate.
@@ -136,7 +137,7 @@ where
     /// let unit = rune::prepare(&mut sources).build()?;
     ///
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
-    /// let mut stream = vm.execute(["main"], ())?.into_stream()?;
+    /// let mut stream = vm.execute(["main"], ())?.into_stream();
     ///
     /// let mut n = 1i64;
     ///
@@ -147,8 +148,8 @@ where
     /// }
     /// # Ok(()) }
     /// ```
-    pub fn into_stream(self) -> Result<Stream<T>, VmError> {
-        Ok(Stream::from_execution(self))
+    pub fn into_stream(self) -> Stream<T> {
+        Stream::from_execution(self)
     }
 
     /// Get a reference to the current virtual machine.
@@ -167,10 +168,10 @@ where
     /// Complete the current execution without support for async instructions.
     ///
     /// This will error if the execution is suspended through yielding.
-    pub async fn async_complete(&mut self) -> Result<Value, VmError> {
-        match self.async_resume().await? {
-            GeneratorState::Complete(value) => Ok(value),
-            GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
+    pub async fn async_complete(&mut self) -> VmResult<Value> {
+        match vm_try!(self.async_resume().await) {
+            GeneratorState::Complete(value) => VmResult::Ok(value),
+            GeneratorState::Yielded(..) => VmResult::Err(VmError::from(VmErrorKind::Halted {
                 halt: VmHaltInfo::Yielded,
             })),
         }
@@ -180,10 +181,10 @@ where
     ///
     /// If any async instructions are encountered, this will error. This will
     /// also error if the execution is suspended through yielding.
-    pub fn complete(&mut self) -> Result<Value, VmError> {
-        match self.resume()? {
-            GeneratorState::Complete(value) => Ok(value),
-            GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
+    pub fn complete(&mut self) -> VmResult<Value> {
+        match vm_try!(self.resume()) {
+            GeneratorState::Complete(value) => VmResult::Ok(value),
+            GeneratorState::Yielded(..) => VmResult::Err(VmError::from(VmErrorKind::Halted {
                 halt: VmHaltInfo::Yielded,
             })),
         }
@@ -191,13 +192,12 @@ where
 
     /// Resume the current execution with the given value and resume
     /// asynchronous execution.
-    pub async fn async_resume_with(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+    pub async fn async_resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
         if !matches!(self.state, ExecutionState::Resumed) {
-            return Err(VmErrorKind::ExpectedExecutionState {
+            return VmResult::Err(VmError::from(VmErrorKind::ExpectedExecutionState {
                 expected: ExecutionState::Resumed,
                 actual: self.state,
-            }
-            .into());
+            }));
         }
 
         vm_mut!(self).stack_mut().push(value);
@@ -208,7 +208,7 @@ where
     ///
     /// If the function being executed is a generator or stream this will resume
     /// it while returning a unit from the current `yield`.
-    pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError> {
+    pub async fn async_resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
             vm_mut!(self).stack_mut().push(Value::Unit);
         } else {
@@ -218,50 +218,49 @@ where
         self.inner_async_resume().await
     }
 
-    async fn inner_async_resume(&mut self) -> Result<GeneratorState, VmError> {
+    async fn inner_async_resume(&mut self) -> VmResult<GeneratorState> {
         loop {
             let len = self.vms.len();
             let vm = vm_mut!(self);
 
-            match Self::run(vm)? {
+            match vm_try!(Self::run(vm)) {
                 VmHalt::Exited => (),
                 VmHalt::Awaited(awaited) => {
-                    awaited.into_vm(vm).await?;
+                    vm_try!(awaited.into_vm(vm).await);
                     continue;
                 }
                 VmHalt::VmCall(vm_call) => {
-                    vm_call.into_execution(self)?;
+                    vm_call.into_execution(self);
                     continue;
                 }
                 VmHalt::Yielded => {
-                    let value = vm.stack_mut().pop()?;
-                    return Ok(GeneratorState::Yielded(value));
+                    let value = vm_try!(vm.stack_mut().pop());
+                    return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
-                    return Err(VmError::from(VmErrorKind::Halted {
+                    return VmResult::Err(VmError::from(VmErrorKind::Halted {
                         halt: halt.into_info(),
                     }))
                 }
             }
 
             if len == 0 {
-                let value = self.end()?;
-                return Ok(GeneratorState::Complete(value));
+                let value = vm_try!(self.end());
+                return VmResult::Ok(GeneratorState::Complete(value));
             }
 
-            self.pop_vm()?;
+            vm_try!(self.pop_vm());
         }
     }
 
     /// Resume the current execution with the given value and resume synchronous
     /// execution.
-    pub fn resume_with(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+    pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
         if !matches!(self.state, ExecutionState::Resumed) {
-            return Err(VmErrorKind::ExpectedExecutionState {
+            return VmResult::Err(VmError::from(VmErrorKind::ExpectedExecutionState {
                 expected: ExecutionState::Resumed,
                 actual: self.state,
-            }
-            .into());
+            }));
         }
 
         vm_mut!(self).stack_mut().push(value);
@@ -275,7 +274,7 @@ where
     ///
     /// If any async instructions are encountered, this will error with
     /// [VmErrorKind::Halted].
-    pub fn resume(&mut self) -> Result<GeneratorState, VmError> {
+    pub fn resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
             vm_mut!(self).stack_mut().push(Value::Unit);
         } else {
@@ -285,34 +284,34 @@ where
         self.inner_resume()
     }
 
-    fn inner_resume(&mut self) -> Result<GeneratorState, VmError> {
+    fn inner_resume(&mut self) -> VmResult<GeneratorState> {
         loop {
             let len = self.vms.len();
             let vm = vm_mut!(self);
 
-            match Self::run(vm)? {
+            match vm_try!(Self::run(vm)) {
                 VmHalt::Exited => (),
                 VmHalt::VmCall(vm_call) => {
-                    vm_call.into_execution(self)?;
+                    vm_call.into_execution(self);
                     continue;
                 }
                 VmHalt::Yielded => {
-                    let value = vm.stack_mut().pop()?;
-                    return Ok(GeneratorState::Yielded(value));
+                    let value = vm_try!(vm.stack_mut().pop());
+                    return VmResult::Ok(GeneratorState::Yielded(value));
                 }
                 halt => {
-                    return Err(VmError::from(VmErrorKind::Halted {
+                    return VmResult::Err(VmError::from(VmErrorKind::Halted {
                         halt: halt.into_info(),
-                    }))
+                    }));
                 }
             }
 
             if len == 0 {
-                let value = self.end()?;
-                return Ok(GeneratorState::Complete(value));
+                let value = vm_try!(self.end());
+                return VmResult::Ok(GeneratorState::Complete(value));
             }
 
-            self.pop_vm()?;
+            vm_try!(self.pop_vm());
         }
     }
 
@@ -320,72 +319,72 @@ where
     /// instructions.
     ///
     /// If any async instructions are encountered, this will error.
-    pub fn step(&mut self) -> Result<Option<Value>, VmError> {
+    pub fn step(&mut self) -> VmResult<Option<Value>> {
         let len = self.vms.len();
         let vm = vm_mut!(self);
 
-        match budget::with(1, || Self::run(vm)).call()? {
+        match vm_try!(budget::with(1, || Self::run(vm)).call()) {
             VmHalt::Exited => (),
             VmHalt::VmCall(vm_call) => {
-                vm_call.into_execution(self)?;
-                return Ok(None);
+                vm_call.into_execution(self);
+                return VmResult::Ok(None);
             }
-            VmHalt::Limited => return Ok(None),
+            VmHalt::Limited => return VmResult::Ok(None),
             halt => {
-                return Err(VmError::from(VmErrorKind::Halted {
+                return VmResult::Err(VmError::from(VmErrorKind::Halted {
                     halt: halt.into_info(),
                 }))
             }
         }
 
         if len == 0 {
-            let value = self.end()?;
-            return Ok(Some(value));
+            let value = vm_try!(self.end());
+            return VmResult::Ok(Some(value));
         }
 
-        self.pop_vm()?;
-        Ok(None)
+        vm_try!(self.pop_vm());
+        VmResult::Ok(None)
     }
 
     /// Step the single execution for one step with support for async
     /// instructions.
-    pub async fn async_step(&mut self) -> Result<Option<Value>, VmError> {
+    pub async fn async_step(&mut self) -> VmResult<Option<Value>> {
         let len = self.vms.len();
         let vm = vm_mut!(self);
 
-        match budget::with(1, || Self::run(vm)).call()? {
+        match vm_try!(budget::with(1, || Self::run(vm)).call()) {
             VmHalt::Exited => (),
             VmHalt::Awaited(awaited) => {
-                awaited.into_vm(vm).await?;
-                return Ok(None);
+                vm_try!(awaited.into_vm(vm).await);
+                return VmResult::Ok(None);
             }
             VmHalt::VmCall(vm_call) => {
-                vm_call.into_execution(self)?;
-                return Ok(None);
+                vm_call.into_execution(self);
+                return VmResult::Ok(None);
             }
-            VmHalt::Limited => return Ok(None),
+            VmHalt::Limited => return VmResult::Ok(None),
             halt => {
-                return Err(VmError::from(VmErrorKind::Halted {
+                return VmResult::Err(VmError::from(VmErrorKind::Halted {
                     halt: halt.into_info(),
                 }))
             }
         }
 
         if len == 0 {
-            let value = self.end()?;
-            return Ok(Some(value));
+            let value = vm_try!(self.end());
+            return VmResult::Ok(Some(value));
         }
 
-        self.pop_vm()?;
-        Ok(None)
+        vm_try!(self.pop_vm());
+        VmResult::Ok(None)
     }
 
     /// End execution and perform debug checks.
-    pub(crate) fn end(&mut self) -> Result<Value, VmError> {
+    pub(crate) fn end(&mut self) -> VmResult<Value> {
         let vm = self.head.as_mut();
-        let value = vm.stack_mut().pop()?;
+        let value = vm_try!(vm.stack_mut().pop());
         debug_assert!(self.vms.is_empty(), "execution vms should be empty");
-        Ok(value)
+        VmResult::Ok(value)
     }
 
     /// Push a virtual machine state onto the execution.
@@ -396,25 +395,27 @@ where
 
     /// Pop a virtual machine state from the execution and transfer the top of
     /// the stack from the popped machine.
-    fn pop_vm(&mut self) -> Result<(), VmError> {
-        let (mut from, state) = self.vms.pop().ok_or(VmErrorKind::NoRunningVm)?;
+    fn pop_vm(&mut self) -> VmResult<()> {
+        let (mut from, state) = vm_try!(self.vms.pop().ok_or(VmErrorKind::NoRunningVm));
 
         let stack = from.stack_mut();
-        let value = stack.pop()?;
+        let value = vm_try!(stack.pop());
         debug_assert!(stack.is_empty(), "vm stack not clean");
 
         let onto = vm_mut!(self);
         onto.stack_mut().push(value);
         onto.advance();
         self.state = state;
-        Ok(())
+        VmResult::Ok(())
     }
 
     #[inline]
-    fn run(vm: &mut Vm) -> Result<VmHalt, VmError> {
+    fn run(vm: &mut Vm) -> VmResult<VmHalt> {
         match vm.run() {
-            Ok(reason) => Ok(reason),
-            Err(error) => Err(error.into_unwinded(vm.unit(), vm.ip(), vm.call_frames().to_vec())),
+            VmResult::Ok(reason) => VmResult::Ok(reason),
+            VmResult::Err(error) => {
+                VmResult::Err(error.into_unwinded(vm.unit(), vm.ip(), vm.call_frames().to_vec()))
+            }
         }
     }
 }
@@ -453,15 +454,13 @@ impl VmSendExecution {
     /// This requires that the result of the Vm is converted into a
     /// [crate::FromValue] that also implements [Send],  which prevents non-Send
     /// values from escaping from the virtual machine.
-    pub fn async_complete(
-        mut self,
-    ) -> impl Future<Output = Result<Value, VmError>> + Send + 'static {
+    pub fn async_complete(mut self) -> impl Future<Output = VmResult<Value>> + Send + 'static {
         let future = async move {
-            let result = self.0.async_resume().await?;
+            let result = vm_try!(self.0.async_resume().await);
 
             match result {
-                GeneratorState::Complete(value) => Ok(value),
-                GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
+                GeneratorState::Complete(value) => VmResult::Ok(value),
+                GeneratorState::Yielded(..) => VmResult::Err(VmError::from(VmErrorKind::Halted {
                     halt: VmHaltInfo::Yielded,
                 })),
             }

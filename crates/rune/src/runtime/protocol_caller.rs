@@ -1,16 +1,13 @@
 use crate::runtime::vm::CallResult;
-use crate::runtime::{GuardedArgs, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind};
+use crate::runtime::{
+    GuardedArgs, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind, VmResult,
+};
 use crate::Hash;
 
 /// Trait used for integrating an instance function call.
 pub(crate) trait ProtocolCaller {
     /// Call the given protocol function.
-    fn call_protocol_fn<A>(
-        self,
-        protocol: Protocol,
-        target: Value,
-        args: A,
-    ) -> Result<Value, VmError>
+    fn call_protocol_fn<A>(self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
     where
         A: GuardedArgs;
 }
@@ -21,18 +18,13 @@ pub(crate) trait ProtocolCaller {
 pub(crate) struct EnvProtocolCaller;
 
 impl ProtocolCaller for EnvProtocolCaller {
-    fn call_protocol_fn<A>(
-        self,
-        protocol: Protocol,
-        target: Value,
-        args: A,
-    ) -> Result<Value, VmError>
+    fn call_protocol_fn<A>(self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
     where
         A: GuardedArgs,
     {
         return crate::runtime::env::with(|context, unit| {
             let count = args.count() + 1;
-            let hash = Hash::instance_function(target.type_hash()?, protocol.hash);
+            let hash = Hash::instance_function(vm_try!(target.type_hash()), protocol.hash);
 
             if let Some(UnitFn::Offset {
                 offset,
@@ -40,13 +32,13 @@ impl ProtocolCaller for EnvProtocolCaller {
                 call,
             }) = unit.function(hash)
             {
-                check_args(count, expected)?;
+                vm_try!(check_args(count, expected));
 
                 let mut stack = Stack::with_capacity(count);
                 stack.push(target);
 
                 // Safety: We hold onto the guard until the vm has completed.
-                let _guard = unsafe { args.unsafe_into_stack(&mut stack)? };
+                let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
 
                 let mut vm = Vm::with_stack(context.clone(), unit.clone(), stack);
                 vm.set_ip(offset);
@@ -55,17 +47,17 @@ impl ProtocolCaller for EnvProtocolCaller {
 
             let handler = match context.function(hash) {
                 Some(handler) => handler,
-                None => return Err(VmError::from(VmErrorKind::MissingFunction { hash })),
+                None => return VmResult::Err(VmError::from(VmErrorKind::MissingFunction { hash })),
             };
 
             let mut stack = Stack::with_capacity(count);
             stack.push(target);
 
             // Safety: We hold onto the guard until the vm has completed.
-            let _guard = unsafe { args.unsafe_into_stack(&mut stack)? };
+            let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut stack)) };
 
-            handler(&mut stack, count)?;
-            Ok(stack.pop()?)
+            vm_try!(handler(&mut stack, count));
+            VmResult::Ok(vm_try!(stack.pop()))
         });
 
         /// Check that arguments matches expected or raise the appropriate error.
@@ -83,21 +75,17 @@ impl ProtocolCaller for EnvProtocolCaller {
 }
 
 impl ProtocolCaller for &mut Vm {
-    fn call_protocol_fn<A>(
-        self,
-        protocol: Protocol,
-        target: Value,
-        args: A,
-    ) -> Result<Value, VmError>
+    fn call_protocol_fn<A>(self, protocol: Protocol, target: Value, args: A) -> VmResult<Value>
     where
         A: GuardedArgs,
     {
-        if let CallResult::Unsupported(..) = self.call_instance_fn(target, protocol, args)? {
-            return Err(VmError::from(VmErrorKind::MissingFunction {
+        if let CallResult::Unsupported(..) = vm_try!(self.call_instance_fn(target, protocol, args))
+        {
+            return VmResult::Err(VmError::from(VmErrorKind::MissingFunction {
                 hash: protocol.hash,
             }));
         }
 
-        Ok(self.stack_mut().pop()?)
+        VmResult::Ok(vm_try!(self.stack_mut().pop()))
     }
 }

@@ -1,5 +1,5 @@
 use crate::runtime::{
-    ConstValue, FromValue, Mut, Ref, ToValue, Value, Vm, VmError, VmErrorKind, TUPLE_TYPE,
+    ConstValue, FromValue, Mut, Ref, ToValue, Value, Vm, VmError, VmErrorKind, VmResult, TUPLE_TYPE,
 };
 use std::fmt;
 use std::ops;
@@ -41,16 +41,16 @@ impl Tuple {
     }
 
     /// Get the given value at the given index.
-    pub fn get_value<T>(&self, index: usize) -> Result<Option<T>, VmError>
+    pub fn get_value<T>(&self, index: usize) -> VmResult<Option<T>>
     where
         T: FromValue,
     {
         let value = match self.inner.get(index) {
             Some(value) => value.clone(),
-            None => return Ok(None),
+            None => return VmResult::Ok(None),
         };
 
-        Ok(Some(T::from_value(value)?))
+        VmResult::Ok(Some(vm_try!(T::from_value(value))))
     }
 
     /// Get the mutable value at the given index.
@@ -59,18 +59,18 @@ impl Tuple {
     }
 
     /// Value pointer equals implementation for a Tuple.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
         if a.len() != b.len() {
-            return Ok(false);
+            return VmResult::Ok(false);
         }
 
         for (a, b) in a.iter().zip(b.iter()) {
-            if !Value::value_ptr_eq(vm, a, b)? {
-                return Ok(false);
+            if !vm_try!(Value::value_ptr_eq(vm, a, b)) {
+                return VmResult::Ok(false);
             }
         }
 
-        Ok(true)
+        VmResult::Ok(true)
     }
 }
 
@@ -157,23 +157,23 @@ impl From<Box<[ConstValue]>> for Tuple {
 }
 
 impl FromValue for Mut<Tuple> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_tuple()?.into_mut()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        VmResult::Ok(vm_try!(vm_try!(value.into_tuple()).into_mut()))
     }
 }
 
 impl FromValue for Ref<Tuple> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_tuple()?.into_ref()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        VmResult::Ok(vm_try!(vm_try!(value.into_tuple()).into_ref()))
     }
 }
 
 impl FromValue for Tuple {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> VmResult<Self> {
         match value {
-            Value::Unit => Ok(Self::empty()),
-            Value::Tuple(tuple) => Ok(tuple.take()?),
-            actual => Err(VmError::expected::<Self>(actual.type_info()?)),
+            Value::Unit => VmResult::Ok(Self::empty()),
+            Value::Tuple(tuple) => VmResult::Ok(vm_try!(tuple.take())),
+            actual => VmResult::Err(VmError::expected::<Self>(vm_try!(actual.type_info()))),
         }
     }
 }
@@ -193,11 +193,11 @@ macro_rules! impl_tuple {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value) -> Result<Self, VmError> {
-                let tuple = value.into_tuple()?.take()?;
+            fn from_value(value: Value) -> VmResult<Self> {
+                let tuple = vm_try!(vm_try!(value.into_tuple()).take());
 
                 if tuple.len() != $count {
-                    return Err(VmError::from(VmErrorKind::ExpectedTupleLength {
+                    return VmResult::Err(VmError::from(VmErrorKind::ExpectedTupleLength {
                         actual: tuple.len(),
                         expected: $count,
                     }));
@@ -208,14 +208,14 @@ macro_rules! impl_tuple {
 
                 $(
                     let $var = match it.next() {
-                        Some(value) => <$ty>::from_value(value)?,
+                        Some(value) => vm_try!(<$ty>::from_value(value)),
                         None => {
-                            return Err(VmError::from(VmErrorKind::IterationError));
+                            return VmResult::Err(VmError::from(VmErrorKind::IterationError));
                         },
                     };
                 )*
 
-                Ok(($($var,)*))
+                VmResult::Ok(($($var,)*))
             }
         }
 
@@ -223,10 +223,10 @@ macro_rules! impl_tuple {
         where
             $($ty: ToValue,)*
         {
-            fn to_value(self) -> Result<Value, VmError> {
+            fn to_value(self) -> VmResult<Value> {
                 let ($($var,)*) = self;
-                $(let $var = $var.to_value()?;)*
-                Ok(Value::from(Tuple::from(vec![$($var,)*])))
+                $(let $var = vm_try!($var.to_value());)*
+                VmResult::Ok(Value::from(Tuple::from(vec![$($var,)*])))
             }
         }
     };

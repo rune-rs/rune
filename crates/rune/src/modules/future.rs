@@ -1,7 +1,7 @@
 //! The `std::future` module.
 
 use crate::runtime::future::SelectFuture;
-use crate::runtime::{Future, Shared, Stack, Value, VmError, VmErrorKind};
+use crate::runtime::{Future, Shared, Stack, Value, VmError, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::future` module.
@@ -12,7 +12,7 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-async fn try_join_impl<'a, I, F>(values: I, len: usize, factory: F) -> Result<Value, VmError>
+async fn try_join_impl<'a, I, F>(values: I, len: usize, factory: F) -> VmResult<Value>
 where
     I: IntoIterator<Item = &'a Value>,
     F: FnOnce(Vec<Value>) -> Value,
@@ -24,8 +24,8 @@ where
 
     for (index, value) in values.into_iter().enumerate() {
         let future = match value {
-            Value::Future(future) => future.clone().into_mut()?,
-            value => return Err(VmError::bad_argument::<Future>(index, value)?),
+            Value::Future(future) => vm_try!(future.clone().into_mut()),
+            value => return VmResult::Err(vm_try!(VmError::bad_argument::<Future>(index, value))),
         };
 
         futures.push(SelectFuture::new(index, future));
@@ -33,38 +33,42 @@ where
     }
 
     while !futures.is_empty() {
-        let (index, value) = futures.next().await.unwrap()?;
+        let (index, value) = vm_try!(futures.next().await.unwrap());
         *results.get_mut(index).unwrap() = value;
     }
 
-    Ok(factory(results))
+    VmResult::Ok(factory(results))
 }
 
-async fn join(value: Value) -> Result<Value, VmError> {
+async fn join(value: Value) -> VmResult<Value> {
     match value {
         Value::Tuple(tuple) => {
-            let tuple = tuple.borrow_ref()?;
-            Ok(try_join_impl(tuple.iter(), tuple.len(), Value::tuple).await?)
+            let tuple = vm_try!(tuple.borrow_ref());
+            VmResult::Ok(vm_try!(
+                try_join_impl(tuple.iter(), tuple.len(), Value::tuple).await
+            ))
         }
         Value::Vec(vec) => {
-            let vec = vec.borrow_ref()?;
-            Ok(try_join_impl(vec.iter(), vec.len(), Value::vec).await?)
+            let vec = vm_try!(vec.borrow_ref());
+            VmResult::Ok(vm_try!(
+                try_join_impl(vec.iter(), vec.len(), Value::vec).await
+            ))
         }
-        value => Err(VmError::bad_argument::<Vec<Value>>(0, &value)?),
+        value => VmResult::Err(vm_try!(VmError::bad_argument::<Vec<Value>>(0, &value))),
     }
 }
 
 /// The join implementation.
-fn raw_join(stack: &mut Stack, args: usize) -> Result<(), VmError> {
+fn raw_join(stack: &mut Stack, args: usize) -> VmResult<()> {
     if args != 1 {
-        return Err(VmError::from(VmErrorKind::BadArgumentCount {
+        return VmResult::Err(VmError::from(VmErrorKind::BadArgumentCount {
             actual: args,
             expected: 1,
         }));
     }
 
-    let value = stack.pop()?;
+    let value = vm_try!(stack.pop());
     let value = Value::Future(Shared::new(Future::new(join(value))));
     stack.push(value);
-    Ok(())
+    VmResult::Ok(())
 }

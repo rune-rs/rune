@@ -1,6 +1,6 @@
 //! The `std::string` module.
 
-use crate::runtime::{Bytes, Iterator, Protocol, Value, VmError, VmErrorKind};
+use crate::runtime::{Bytes, Iterator, Protocol, Value, VmError, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
 /// Construct the `std::string` module.
@@ -77,10 +77,10 @@ fn char_at(s: &str, index: usize) -> Option<char> {
     s[index..].chars().next()
 }
 
-fn string_split(this: &str, value: Value) -> Result<Iterator, VmError> {
+fn string_split(this: &str, value: Value) -> VmResult<Iterator> {
     let lines = match value {
         Value::String(s) => this
-            .split(s.borrow_ref()?.as_str())
+            .split(vm_try!(s.borrow_ref()).as_str())
             .map(String::from)
             .collect::<Vec<String>>(),
         Value::StaticString(s) => this
@@ -88,10 +88,10 @@ fn string_split(this: &str, value: Value) -> Result<Iterator, VmError> {
             .map(String::from)
             .collect::<Vec<String>>(),
         Value::Char(pat) => this.split(pat).map(String::from).collect::<Vec<String>>(),
-        value => return Err(VmError::bad_argument::<String>(0, &value)?),
+        value => return VmResult::Err(vm_try!(VmError::bad_argument::<String>(0, &value))),
     };
 
-    Ok(Iterator::from_double_ended(
+    VmResult::Ok(Iterator::from_double_ended(
         "std::str::Split",
         lines.into_iter(),
     ))
@@ -127,20 +127,20 @@ fn string_chars(s: &str) -> Iterator {
 }
 
 /// Get a specific string index.
-fn string_get(s: &str, key: Value) -> Result<Option<String>, VmError> {
+fn string_get(s: &str, key: Value) -> VmResult<Option<String>> {
     use crate::runtime::{FromValue, RangeLimits, TypeOf};
 
     match key {
         Value::Range(range) => {
-            let range = range.borrow_ref()?;
+            let range = vm_try!(range.borrow_ref());
 
             let start = match range.start.clone() {
-                Some(value) => Some(<usize>::from_value(value)?),
+                Some(value) => Some(vm_try!(<usize>::from_value(value))),
                 None => None,
             };
 
             let end = match range.end.clone() {
-                Some(value) => Some(<usize>::from_value(value)?),
+                Some(value) => Some(vm_try!(<usize>::from_value(value))),
                 None => None,
             };
 
@@ -154,20 +154,23 @@ fn string_get(s: &str, key: Value) -> Result<Option<String>, VmError> {
                 RangeLimits::Closed => match (start, end) {
                     (Some(start), Some(end)) => s.get(start..=end),
                     (None, Some(end)) => s.get(..=end),
-                    _ => return Err(VmError::from(VmErrorKind::UnsupportedRange)),
+                    _ => return VmResult::Err(VmError::from(VmErrorKind::UnsupportedRange)),
                 },
             };
 
-            Ok(out.map(|out| out.to_owned()))
+            VmResult::Ok(out.map(|out| out.to_owned()))
         }
-        index => Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
+        index => VmResult::Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
             target: String::type_info(),
-            index: index.type_info()?,
+            index: vm_try!(index.type_info()),
         })),
     }
 }
 
 /// Get a specific string index.
-fn string_index_get(s: &str, key: Value) -> Result<String, VmError> {
-    string_get(s, key)?.ok_or_else(|| VmError::panic("missing string slice"))
+fn string_index_get(s: &str, key: Value) -> VmResult<String> {
+    match vm_try!(string_get(s, key)) {
+        Some(slice) => VmResult::Ok(slice),
+        None => VmResult::Err(VmError::panic("missing string slice")),
+    }
 }

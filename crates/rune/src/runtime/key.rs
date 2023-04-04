@@ -1,6 +1,6 @@
 use crate::runtime::{
     Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Variant,
-    VariantData, VariantRtti, Vec, VmError, VmErrorKind,
+    VariantData, VariantRtti, Vec, VmError, VmErrorKind, VmResult,
 };
 use serde::{de, ser};
 use std::cmp;
@@ -38,48 +38,50 @@ pub enum Key {
 
 impl Key {
     /// Convert a value reference into a key.
-    pub fn from_value(value: &Value) -> Result<Self, VmError> {
-        return Ok(match value {
+    pub fn from_value(value: &Value) -> VmResult<Self> {
+        return VmResult::Ok(match value {
             Value::Unit => Self::Unit,
             Value::Byte(b) => Self::Byte(*b),
             Value::Char(c) => Self::Char(*c),
             Value::Bool(b) => Self::Bool(*b),
             Value::Integer(n) => Self::Integer(*n),
             Value::String(s) => {
-                let s = s.borrow_ref()?;
+                let s = vm_try!(s.borrow_ref());
                 Self::String(StringKey::String((**s).into()))
             }
             Value::StaticString(s) => Self::String(StringKey::StaticString(s.clone())),
-            Value::Option(option) => Self::Option(match &*option.borrow_ref()? {
-                Some(some) => Some(Box::new(Self::from_value(some)?)),
+            Value::Option(option) => Self::Option(match &*vm_try!(option.borrow_ref()) {
+                Some(some) => Some(Box::new(vm_try!(Self::from_value(some)))),
                 None => None,
             }),
             Value::Bytes(b) => {
-                let b = b.borrow_ref()?;
+                let b = vm_try!(b.borrow_ref());
                 Self::Bytes((*b).clone())
             }
             Value::Vec(vec) => {
-                let vec = vec.borrow_ref()?;
+                let vec = vm_try!(vec.borrow_ref());
                 let mut key_vec = vec::Vec::with_capacity(vec.len());
 
                 for value in &*vec {
-                    key_vec.push(Self::from_value(value)?);
+                    key_vec.push(vm_try!(Self::from_value(value)));
                 }
 
                 Self::Vec(key_vec)
             }
             Value::Tuple(tuple) => {
-                let tuple = tuple.borrow_ref()?;
-                Self::Tuple(tuple_from_value(&tuple)?)
+                let tuple = vm_try!(tuple.borrow_ref());
+                Self::Tuple(vm_try!(tuple_from_value(&tuple)))
             }
             Value::Variant(variant) => {
-                let variant = variant.borrow_ref()?;
+                let variant = vm_try!(variant.borrow_ref());
 
                 let data = match &variant.data {
                     VariantData::Unit => VariantKeyData::Unit,
-                    VariantData::Tuple(tuple) => VariantKeyData::Tuple(tuple_from_value(tuple)?),
+                    VariantData::Tuple(tuple) => {
+                        VariantKeyData::Tuple(vm_try!(tuple_from_value(tuple)))
+                    }
                     VariantData::Struct(object) => {
-                        VariantKeyData::Struct(struct_from_value(object)?)
+                        VariantKeyData::Struct(vm_try!(struct_from_value(object)))
                     }
                 };
 
@@ -89,30 +91,30 @@ impl Key {
                 })
             }
             value => {
-                return Err(VmError::from(VmErrorKind::KeyNotSupported {
-                    actual: value.type_info()?,
+                return VmResult::Err(VmError::from(VmErrorKind::KeyNotSupported {
+                    actual: vm_try!(value.type_info()),
                 }))
             }
         });
 
-        fn tuple_from_value(tuple: &Tuple) -> Result<Box<[Key]>, VmError> {
+        fn tuple_from_value(tuple: &Tuple) -> VmResult<Box<[Key]>> {
             let mut output = vec::Vec::with_capacity(tuple.len());
 
             for value in tuple {
-                output.push(Key::from_value(value)?);
+                output.push(vm_try!(Key::from_value(value)));
             }
 
-            Ok(output.into_boxed_slice())
+            VmResult::Ok(output.into_boxed_slice())
         }
 
-        fn struct_from_value(object: &Object) -> Result<Box<[(Box<str>, Key)]>, VmError> {
+        fn struct_from_value(object: &Object) -> VmResult<Box<[(Box<str>, Key)]>> {
             let mut output = vec::Vec::with_capacity(object.len());
 
             for (key, value) in object {
-                output.push((key.as_str().into(), Key::from_value(value)?));
+                output.push((key.as_str().into(), vm_try!(Key::from_value(value))));
             }
 
-            Ok(output.into_boxed_slice())
+            VmResult::Ok(output.into_boxed_slice())
         }
     }
 
@@ -226,14 +228,16 @@ impl fmt::Debug for Key {
 }
 
 impl FromValue for Key {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
         Key::from_value(&value)
     }
 }
 
 impl ToValue for Key {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(Key::into_value(self))
+    #[inline]
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(Key::into_value(self))
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::runtime::{FromValue, ToValue, Value, VmError, VmErrorKind};
+use crate::runtime::{FromValue, ToValue, Value, VmError, VmErrorKind, VmResult};
 
 /// A helper type to deserialize arrays with different interior types.
 ///
@@ -33,12 +33,12 @@ macro_rules! impl_from_value_tuple_vec {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value) -> Result<Self, VmError> {
-                let vec = value.into_vec()?;
-                let vec = vec.take()?;
+            fn from_value(value: Value) -> VmResult<Self> {
+                let vec = vm_try!(value.into_vec());
+                let vec = vm_try!(vec.take());
 
                 if vec.len() != $count {
-                    return Err(VmError::from(VmErrorKind::ExpectedTupleLength {
+                    return VmResult::Err(VmError::from(VmErrorKind::ExpectedTupleLength {
                         actual: vec.len(),
                         expected: $count,
                     }));
@@ -49,14 +49,14 @@ macro_rules! impl_from_value_tuple_vec {
 
                 $(
                     let $value: $ty = match it.next() {
-                        Some(value) => <$ty>::from_value(value)?,
+                        Some(value) => vm_try!(<$ty>::from_value(value)),
                         None => {
-                            return Err(VmError::from(VmErrorKind::IterationError));
+                            return VmResult::Err(VmError::from(VmErrorKind::IterationError));
                         },
                     };
                 )*
 
-                Ok(VecTuple(($($value,)*)))
+                VmResult::Ok(VecTuple(($($value,)*)))
             }
         }
 
@@ -64,10 +64,10 @@ macro_rules! impl_from_value_tuple_vec {
         where
             $($ty: ToValue,)*
         {
-            fn to_value(self) -> Result<Value, VmError> {
+            fn to_value(self) -> VmResult<Value> {
                 let ($($value,)*) = self.0;
-                let vec = vec![$($value.to_value()?,)*];
-                Ok(Value::vec(vec))
+                let vec = vec![$(vm_try!($value.to_value()),)*];
+                VmResult::Ok(Value::vec(vec))
             }
         }
     };

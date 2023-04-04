@@ -4,7 +4,7 @@
 
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
-    FromValue, Mut, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError,
+    FromValue, Mut, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmResult,
 };
 use serde::{Deserialize, Serialize};
 use std::cmp;
@@ -127,8 +127,10 @@ impl ops::DerefMut for Bytes {
 }
 
 impl FromValue for Bytes {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_bytes()?.borrow_ref()?.clone())
+    fn from_value(value: Value) -> VmResult<Self> {
+        let bytes = vm_try!(value.into_bytes());
+        let bytes = vm_try!(bytes.borrow_ref());
+        VmResult::Ok(bytes.clone())
     }
 }
 
@@ -136,10 +138,10 @@ impl<'a> UnsafeFromValue for &'a Bytes {
     type Output = *const Bytes;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let bytes = value.into_bytes()?;
-        let bytes = bytes.into_ref()?;
-        Ok(Ref::into_raw(bytes))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let bytes = vm_try!(value.into_bytes());
+        let bytes = vm_try!(bytes.into_ref());
+        VmResult::Ok(Ref::into_raw(bytes))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -151,10 +153,10 @@ impl<'a> UnsafeFromValue for &'a mut Bytes {
     type Output = *mut Bytes;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let bytes = value.into_bytes()?;
-        let bytes = bytes.into_mut()?;
-        Ok(Mut::into_raw(bytes))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let bytes = vm_try!(value.into_bytes());
+        let bytes = vm_try!(bytes.into_mut());
+        VmResult::Ok(Mut::into_raw(bytes))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -166,13 +168,13 @@ impl<'a> UnsafeFromValue for &'a [u8] {
     type Output = *const [u8];
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let bytes = value.into_bytes()?;
-        let bytes = bytes.into_ref()?;
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let bytes = vm_try!(value.into_bytes());
+        let bytes = vm_try!(bytes.into_ref());
         let (value, guard) = Ref::into_raw(bytes);
         // Safety: we're holding onto the guard for the slice here, so it is
         // live.
-        Ok((unsafe { (*value).bytes.as_slice() }, guard))
+        VmResult::Ok((unsafe { (*value).bytes.as_slice() }, guard))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {

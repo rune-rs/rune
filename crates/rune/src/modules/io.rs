@@ -8,7 +8,7 @@ use std::io::Write as _;
 use crate as rune;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Panic, Protocol, Stack, Value, VmError};
+use crate::runtime::{Panic, Protocol, Stack, Value, VmError, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::io` module.
@@ -36,16 +36,16 @@ fn format_io_error(error: &std::io::Error, buf: &mut String) -> fmt::Result {
     write!(buf, "{}", error)
 }
 
-fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {
+fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
-    for value in stack.drain(args)? {
-        writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
+    for value in vm_try!(stack.drain(args)) {
+        vm_try!(writeln!(stdout, "{:?}", value).map_err(VmError::panic));
     }
 
     stack.push(Value::Unit);
-    Ok(())
+    VmResult::Ok(())
 }
 
 /// Implementation for the `dbg!` macro.

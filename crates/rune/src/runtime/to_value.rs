@@ -1,4 +1,6 @@
-use crate::runtime::{AnyObj, Object, Panic, Shared, Value, VmError, VmErrorKind, VmIntegerRepr};
+use crate::runtime::{
+    AnyObj, Object, Panic, Shared, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+};
 use crate::Any;
 
 #[doc(inline)]
@@ -37,7 +39,7 @@ pub use rune_macros::ToValue;
 /// ```
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self) -> Result<Value, VmError>;
+    fn to_value(self) -> VmResult<Value>;
 }
 
 /// Trait for converting types into values.
@@ -51,15 +53,15 @@ pub trait UnsafeToValue: Sized {
     ///
     /// The value returned must not be used after the guard associated with it
     /// has been dropped.
-    unsafe fn unsafe_to_value(self) -> Result<(Value, Self::Guard), VmError>;
+    unsafe fn unsafe_to_value(self) -> VmResult<(Value, Self::Guard)>;
 }
 
 impl<T> ToValue for T
 where
     T: Any,
 {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::from(AnyObj::new(self)))
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(Value::from(AnyObj::new(self)))
     }
 }
 
@@ -69,14 +71,15 @@ where
 {
     type Guard = ();
 
-    unsafe fn unsafe_to_value(self) -> Result<(Value, Self::Guard), VmError> {
-        Ok((self.to_value()?, ()))
+    unsafe fn unsafe_to_value(self) -> VmResult<(Value, Self::Guard)> {
+        VmResult::Ok((vm_try!(self.to_value()), ()))
     }
 }
 
 impl ToValue for &Value {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(self.clone())
+    #[inline]
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(self.clone())
     }
 }
 
@@ -86,10 +89,10 @@ impl<T> ToValue for Option<T>
 where
     T: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::from(Shared::new(match self {
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(Value::from(Shared::new(match self {
             Some(some) => {
-                let value = some.to_value()?;
+                let value = vm_try!(some.to_value());
                 Some(value)
             }
             None => None,
@@ -100,14 +103,14 @@ where
 // String impls
 
 impl ToValue for Box<str> {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::from(Shared::new(self.to_string())))
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(Value::from(Shared::new(self.to_string())))
     }
 }
 
 impl ToValue for &str {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::from(Shared::new(self.to_string())))
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(Value::from(Shared::new(self.to_string())))
     }
 }
 
@@ -117,22 +120,23 @@ impl<T> ToValue for Result<T, Panic>
 where
     T: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> VmResult<Value> {
         match self {
-            Ok(value) => Ok(value.to_value()?),
-            Err(reason) => Err(VmError::from(VmErrorKind::Panic { reason })),
+            Ok(value) => VmResult::Ok(vm_try!(value.to_value())),
+            Err(reason) => VmResult::Err(VmError::from(VmErrorKind::Panic { reason })),
         }
     }
 }
 
-impl<T> ToValue for Result<T, VmError>
+impl<T> ToValue for VmResult<T>
 where
     T: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
+    #[inline]
+    fn to_value(self) -> VmResult<Value> {
         match self {
-            Ok(value) => Ok(value.to_value()?),
-            Err(error) => Err(error),
+            VmResult::Ok(value) => value.to_value(),
+            VmResult::Err(error) => VmResult::Err(error),
         }
     }
 }
@@ -142,14 +146,14 @@ where
     T: ToValue,
     E: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(match self {
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(match self {
             Ok(ok) => {
-                let ok = ok.to_value()?;
+                let ok = vm_try!(ok.to_value());
                 Value::from(Shared::new(Ok(ok)))
             }
             Err(err) => {
-                let err = err.to_value()?;
+                let err = vm_try!(err.to_value());
                 Value::from(Shared::new(Err(err)))
             }
         })
@@ -161,15 +165,17 @@ where
 macro_rules! number_value_trait {
     ($ty:ty) => {
         impl ToValue for $ty {
-            fn to_value(self) -> Result<Value, VmError> {
+            fn to_value(self) -> VmResult<Value> {
                 use std::convert::TryInto as _;
 
                 match self.try_into() {
-                    Ok(number) => Ok(Value::Integer(number)),
-                    Err(..) => Err(VmError::from(VmErrorKind::IntegerToValueCoercionError {
-                        from: VmIntegerRepr::from(self),
-                        to: std::any::type_name::<i64>(),
-                    })),
+                    Ok(number) => VmResult::Ok(Value::Integer(number)),
+                    Err(..) => {
+                        VmResult::Err(VmError::from(VmErrorKind::IntegerToValueCoercionError {
+                            from: VmIntegerRepr::from(self),
+                            to: std::any::type_name::<i64>(),
+                        }))
+                    }
                 }
             }
         }
@@ -188,8 +194,8 @@ number_value_trait!(i128);
 number_value_trait!(isize);
 
 impl ToValue for f32 {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::Float(self as f64))
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(Value::Float(self as f64))
     }
 }
 
@@ -201,14 +207,14 @@ macro_rules! impl_map {
         where
             T: ToValue,
         {
-            fn to_value(self) -> Result<Value, VmError> {
+            fn to_value(self) -> VmResult<Value> {
                 let mut output = Object::with_capacity(self.len());
 
                 for (key, value) in self {
-                    output.insert(key, value.to_value()?);
+                    output.insert(key, vm_try!(value.to_value()));
                 }
 
-                Ok(Value::from(Shared::new(output)))
+                VmResult::Ok(Value::from(Shared::new(output)))
             }
         }
     };

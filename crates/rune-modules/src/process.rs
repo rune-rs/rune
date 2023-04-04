@@ -32,7 +32,7 @@
 //! ```
 
 use rune::{Any, Module, ContextError};
-use rune::runtime::{Bytes, Shared, Value, VmError, Protocol};
+use rune::runtime::{Bytes, Shared, Value, VmError, Protocol, VmResult};
 use std::fmt;
 use std::io;
 use tokio::process;
@@ -69,22 +69,22 @@ impl Command {
     }
 
     /// Add arguments.
-    fn args(&mut self, args: &[Value]) -> Result<(), VmError> {
+    fn args(&mut self, args: &[Value]) -> VmResult<()> {
         for arg in args {
             match arg {
                 Value::String(s) => {
-                    self.inner.arg(&*s.borrow_ref()?);
+                    self.inner.arg(&*rune::vm_try!(s.borrow_ref()));
                 }
                 Value::StaticString(s) => {
                     self.inner.arg(&***s);
                 }
                 actual => {
-                    return Err(VmError::expected::<String>(actual.type_info()?));
+                    return VmResult::Err(VmError::expected::<String>(rune::vm_try!(actual.type_info().into_result())));
                 }
             }
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     /// Add an argument.
@@ -112,20 +112,20 @@ struct Child {
 impl Child {
     // Returns a future that will resolve to an Output, containing the exit
     // status, stdout, and stderr of the child process.
-    async fn wait_with_output(self) -> Result<io::Result<Output>, VmError> {
+    async fn wait_with_output(self) -> VmResult<io::Result<Output>> {
         let inner = match self.inner {
             Some(inner) => inner,
             None => {
-                return Err(VmError::panic("already completed"));
+                return VmResult::Err(VmError::panic("already completed"));
             }
         };
 
         let output = match inner.wait_with_output().await {
             Ok(output) => output,
-            Err(error) => return Ok(Err(error)),
+            Err(error) => return VmResult::Ok(Err(error)),
         };
 
-        Ok(Ok(Output {
+        VmResult::Ok(Ok(Output {
             status: ExitStatus { status: output.status },
             stdout: Shared::new(Bytes::from_vec(output.stdout)),
             stderr: Shared::new(Bytes::from_vec(output.stderr)),

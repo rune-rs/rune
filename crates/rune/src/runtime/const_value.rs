@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
 use crate::runtime::{
     Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Vec, VmError,
-    VmErrorKind,
+    VmErrorKind, VmResult,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -117,8 +117,8 @@ impl ConstValue {
 }
 
 impl FromValue for ConstValue {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(match value {
+    fn from_value(value: Value) -> VmResult<Self> {
+        VmResult::Ok(match value {
             Value::Unit => Self::Unit,
             Value::Byte(b) => Self::Byte(b),
             Value::Char(c) => Self::Char(c),
@@ -126,51 +126,51 @@ impl FromValue for ConstValue {
             Value::Integer(n) => Self::Integer(n),
             Value::Float(f) => Self::Float(f),
             Value::String(s) => {
-                let s = s.take()?;
+                let s = vm_try!(s.take());
                 Self::String(s)
             }
             Value::StaticString(s) => Self::StaticString(s),
-            Value::Option(option) => Self::Option(match option.take()? {
-                Some(some) => Some(Box::new(Self::from_value(some)?)),
+            Value::Option(option) => Self::Option(match vm_try!(option.take()) {
+                Some(some) => Some(Box::new(vm_try!(Self::from_value(some)))),
                 None => None,
             }),
             Value::Bytes(b) => {
-                let b = b.take()?;
+                let b = vm_try!(b.take());
                 Self::Bytes(b)
             }
             Value::Vec(vec) => {
-                let vec = vec.take()?;
+                let vec = vm_try!(vec.take());
                 let mut const_vec = vec::Vec::with_capacity(vec.len());
 
                 for value in vec {
-                    const_vec.push(Self::from_value(value)?);
+                    const_vec.push(vm_try!(Self::from_value(value)));
                 }
 
                 Self::Vec(const_vec)
             }
             Value::Tuple(tuple) => {
-                let tuple = tuple.take()?;
+                let tuple = vm_try!(tuple.take());
                 let mut const_tuple = vec::Vec::with_capacity(tuple.len());
 
                 for value in vec::Vec::from(tuple.into_inner()) {
-                    const_tuple.push(Self::from_value(value)?);
+                    const_tuple.push(vm_try!(Self::from_value(value)));
                 }
 
                 Self::Tuple(const_tuple.into_boxed_slice())
             }
             Value::Object(object) => {
-                let object = object.take()?;
+                let object = vm_try!(object.take());
                 let mut const_object = HashMap::with_capacity(object.len());
 
                 for (key, value) in object {
-                    const_object.insert(key, Self::from_value(value)?);
+                    const_object.insert(key, vm_try!(Self::from_value(value)));
                 }
 
                 Self::Object(const_object)
             }
             value => {
-                return Err(VmError::from(VmErrorKind::ConstNotSupported {
-                    actual: value.type_info()?,
+                return VmResult::Err(VmError::from(VmErrorKind::ConstNotSupported {
+                    actual: vm_try!(value.type_info()),
                 }))
             }
         })
@@ -178,7 +178,7 @@ impl FromValue for ConstValue {
 }
 
 impl ToValue for ConstValue {
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(ConstValue::into_value(self))
+    fn to_value(self) -> VmResult<Value> {
+        VmResult::Ok(ConstValue::into_value(self))
     }
 }

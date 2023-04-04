@@ -1,4 +1,4 @@
-use crate::runtime::{Future, Generator, Stream, Value, Vm, VmError};
+use crate::runtime::{Future, Generator, Stream, Value, Vm, VmResult};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -20,11 +20,11 @@ pub enum Call {
 impl Call {
     /// Perform the call with the given virtual machine.
     #[inline]
-    pub(crate) fn call_with_vm(self, vm: Vm) -> Result<Value, VmError> {
-        Ok(match self {
+    pub(crate) fn call_with_vm(self, vm: Vm) -> VmResult<Value> {
+        VmResult::Ok(match self {
             Call::Stream => Value::from(Stream::new(vm)),
             Call::Generator => Value::from(Generator::new(vm)),
-            Call::Immediate => vm.complete()?,
+            Call::Immediate => vm_try!(vm.complete()),
             Call::Async => Value::from(Future::new(vm.async_complete())),
         })
     }

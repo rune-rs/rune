@@ -17,7 +17,7 @@ use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
     ConstValue, FromValue, FullTypeOf, FunctionHandler, Future, GeneratorState, MacroHandler,
     MaybeTypeOf, Protocol, Stack, StaticType, ToValue, TypeCheck, TypeInfo, TypeOf,
-    UnsafeFromValue, Value, VmError, VmErrorKind,
+    UnsafeFromValue, Value, VmError, VmErrorKind, VmResult,
 };
 use crate::Hash;
 
@@ -680,13 +680,13 @@ impl Module {
         }
 
         let value = match value.to_value() {
-            Ok(v) => v,
-            Err(e) => return Err(ContextError::ValueError { error: e }),
+            VmResult::Ok(v) => v,
+            VmResult::Err(e) => return Err(ContextError::ValueError { error: e }),
         };
 
         let constant_value = match <ConstValue as FromValue>::from_value(value) {
-            Ok(v) => v,
-            Err(e) => return Err(ContextError::ValueError { error: e }),
+            VmResult::Ok(v) => v,
+            VmResult::Err(e) => return Err(ContextError::ValueError { error: e }),
         };
 
         self.constants.insert(name, constant_value);
@@ -1001,7 +1001,7 @@ impl Module {
     /// machine.
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
     where
-        F: 'static + Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync,
+        F: 'static + Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -1112,7 +1112,7 @@ pub trait Function<Args>: 'static + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
 /// Trait used to provide the [async_function][Module::async_function] function.
@@ -1126,7 +1126,7 @@ pub trait AsyncFunction<Args>: 'static + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
 /// Trait used to provide the [inst_fn][Module::inst_fn] function.
@@ -1144,7 +1144,7 @@ pub trait InstFn<Args>: 'static + Send + Sync {
     fn ty() -> AssocType;
 
     /// Perform the vm call.
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
 /// Trait used to provide the [async_inst_fn][Module::async_inst_fn] function.
@@ -1164,7 +1164,7 @@ pub trait AsyncInstFn<Args>: 'static + Send + Sync {
     fn ty() -> AssocType;
 
     /// Perform the vm call.
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
+    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
 macro_rules! impl_register {
@@ -1190,11 +1190,11 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
                 impl_register!{@check-args $count, args}
 
                 #[allow(unused_mut)]
-                let mut it = stack.drain($count)?;
+                let mut it = vm_try!(stack.drain($count));
                 $(let $var = it.next().unwrap();)*
                 drop(it);
 
@@ -1212,7 +1212,7 @@ macro_rules! impl_register {
                 };
 
                 impl_register!{@return stack, ret, Return}
-                Ok(())
+                VmResult::Ok(())
             }
         }
 
@@ -1230,11 +1230,11 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
                 impl_register!{@check-args $count, args}
 
                 #[allow(unused_mut)]
-                let mut it = stack.drain($count)?;
+                let mut it = vm_try!(stack.drain($count));
                 $(let $var = it.next().unwrap();)*
                 drop(it);
 
@@ -1251,13 +1251,13 @@ macro_rules! impl_register {
                     Future::new(async move {
                         let output = fut.await;
                         impl_register!{@drop-stack-guards $($var),*}
-                        let value = output.to_value()?;
-                        Ok(value)
+                        let value = vm_try!(output.to_value());
+                        VmResult::Ok(value)
                     })
                 };
 
                 impl_register!{@return stack, ret, Return}
-                Ok(())
+                VmResult::Ok(())
             }
         }
 
@@ -1282,11 +1282,11 @@ macro_rules! impl_register {
                 }
             }
 
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
                 impl_register!{@check-args ($count + 1), args}
 
                 #[allow(unused_mut)]
-                let mut it = stack.drain($count + 1)?;
+                let mut it = vm_try!(stack.drain($count + 1));
                 let inst = it.next().unwrap();
                 $(let $var = it.next().unwrap();)*
                 drop(it);
@@ -1305,7 +1305,7 @@ macro_rules! impl_register {
                 };
 
                 impl_register!{@return stack, ret, Return}
-                Ok(())
+                VmResult::Ok(())
             }
         }
 
@@ -1332,11 +1332,11 @@ macro_rules! impl_register {
                 }
             }
 
-            fn fn_call(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
+            fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
                 impl_register!{@check-args ($count + 1), args}
 
                 #[allow(unused_mut)]
-                let mut it = stack.drain($count + 1)?;
+                let mut it = vm_try!(stack.drain($count + 1));
                 let inst = it.next().unwrap();
                 $(let $var = it.next().unwrap();)*
                 drop(it);
@@ -1354,21 +1354,21 @@ macro_rules! impl_register {
                     Future::new(async move {
                         let output = fut.await;
                         impl_register!{@drop-stack-guards inst, $($var),*}
-                        let value = output.to_value()?;
-                        Ok(value)
+                        let value = vm_try!(output.to_value());
+                        VmResult::Ok(value)
                     })
                 };
 
                 impl_register!{@return stack, ret, Return}
-                Ok(())
+                VmResult::Ok(())
             }
         }
     };
 
     (@return $stack:ident, $ret:ident, $ty:ty) => {
         let $ret = match $ret.to_value() {
-            Ok($ret) => $ret,
-            Err(e) => return Err(VmError::from(e.unpack_critical()?)),
+            VmResult::Ok($ret) => $ret,
+            VmResult::Err(e) => return VmResult::Err(VmError::from(vm_try!(e.unpack_critical()))),
         };
 
         $stack.push($ret);
@@ -1378,9 +1378,9 @@ macro_rules! impl_register {
     (@unsafe-vars $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         $(
             let $var = match <$ty>::from_value($var) {
-                Ok(v) => v,
-                Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
-                    error: e.unpack_critical()?,
+                VmResult::Ok(v) => v,
+                VmResult::Err(e) => return VmResult::Err(VmError::from(VmErrorKind::BadArgument {
+                    error: vm_try!(e.unpack_critical()),
                     arg: $count - $num,
                 })),
             };
@@ -1390,18 +1390,18 @@ macro_rules! impl_register {
     // Expand to instance variable bindings.
     (@unsafe-inst-vars $inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         let $inst = match Instance::from_value($inst) {
-            Ok(v) => v,
-            Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
-                error: e.unpack_critical()?,
+            VmResult::Ok(v) => v,
+            VmResult::Err(e) => return VmResult::Err(VmError::from(VmErrorKind::BadArgument {
+                error: vm_try!(e.unpack_critical()),
                 arg: 0,
             })),
         };
 
         $(
             let $var = match <$ty>::from_value($var) {
-                Ok(v) => v,
-                Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
-                    error: e.unpack_critical()?,
+                VmResult::Ok(v) => v,
+                VmResult::Err(e) => return VmResult::Err(VmError::from(VmErrorKind::BadArgument {
+                    error: vm_try!(e.unpack_critical()),
                     arg: 1 + $count - $num,
                 })),
             };
@@ -1415,7 +1415,7 @@ macro_rules! impl_register {
 
     (@check-args $expected:expr, $actual:expr) => {
         if $actual != $expected {
-            return Err(VmError::from(VmErrorKind::BadArgumentCount {
+            return VmResult::Err(VmError::from(VmErrorKind::BadArgumentCount {
                 actual: $actual,
                 expected: $expected,
             }));

@@ -1,4 +1,4 @@
-use crate::runtime::{Object, Tuple, TypeInfo, VariantRtti, Vm, VmError};
+use crate::runtime::{Object, Tuple, TypeInfo, VariantRtti, Vm, VmResult};
 use std::fmt;
 use std::sync::Arc;
 
@@ -54,24 +54,24 @@ impl Variant {
     }
 
     /// Perform a deep value comparison of two variants.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
         debug_assert_eq!(
             a.rtti.enum_hash, b.rtti.enum_hash,
             "comparison only makes sense if enum hashes match"
         );
 
         if a.rtti.hash != b.rtti.hash {
-            return Ok(false);
+            return VmResult::Ok(false);
         }
 
-        Ok(match (&a.data, &b.data) {
-            (VariantData::Unit, VariantData::Unit) => true,
+        match (&a.data, &b.data) {
+            (VariantData::Unit, VariantData::Unit) => VmResult::Ok(true),
             (VariantData::Tuple(a), VariantData::Tuple(b)) => return Tuple::value_ptr_eq(vm, a, b),
             (VariantData::Struct(a), VariantData::Struct(b)) => {
                 return Object::value_ptr_eq(vm, a, b)
             }
-            _ => false,
-        })
+            _ => VmResult::Ok(false),
+        }
     }
 }
 

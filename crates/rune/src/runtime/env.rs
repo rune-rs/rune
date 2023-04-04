@@ -7,7 +7,7 @@
 //!
 //! See the corresponding function for documentation.
 
-use crate::runtime::{RuntimeContext, Unit, VmError, VmErrorKind};
+use crate::runtime::{RuntimeContext, Unit, VmError, VmErrorKind, VmResult};
 use std::cell::Cell;
 use std::ptr;
 use std::sync::Arc;
@@ -15,15 +15,15 @@ use std::sync::Arc;
 thread_local! { static ENV: Cell<Env> = Cell::new(Env::null()) }
 
 /// Call the given closure with access to the checked environment.
-pub(crate) fn with<F, T>(c: F) -> Result<T, VmError>
+pub(crate) fn with<F, T>(c: F) -> VmResult<T>
 where
-    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>) -> Result<T, VmError>,
+    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>) -> VmResult<T>,
 {
     let env = ENV.with(|env| env.get());
     let Env { context, unit } = env;
 
     if context.is_null() || unit.is_null() {
-        return Err(VmError::from(VmErrorKind::MissingInterfaceEnvironment));
+        return VmResult::Err(VmError::from(VmErrorKind::MissingInterfaceEnvironment));
     }
 
     // Safety: context and unit can only be registered publicly through

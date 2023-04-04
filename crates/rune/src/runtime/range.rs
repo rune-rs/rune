@@ -1,7 +1,7 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Iterator, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
-    Vm, VmError, VmErrorKind,
+    Vm, VmError, VmErrorKind, VmResult,
 };
 use std::fmt;
 use std::ops;
@@ -57,35 +57,35 @@ impl Range {
     }
 
     /// Value pointer equals implementation for a range.
-    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> Result<bool, VmError> {
+    pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Self, b: &Self) -> VmResult<bool> {
         if a.limits != b.limits {
-            return Ok(false);
+            return VmResult::Ok(false);
         }
 
         match (&a.start, &b.start) {
             (None, None) => (),
-            (Some(a), Some(b)) if Value::value_ptr_eq(vm, a, b)? => (),
-            _ => return Ok(false),
+            (Some(a), Some(b)) if vm_try!(Value::value_ptr_eq(vm, a, b)) => (),
+            _ => return VmResult::Ok(false),
         }
 
         match (&a.end, &b.end) {
             (None, None) => (),
-            (Some(a), Some(b)) if Value::value_ptr_eq(vm, a, b)? => (),
-            _ => return Ok(false),
+            (Some(a), Some(b)) if vm_try!(Value::value_ptr_eq(vm, a, b)) => (),
+            _ => return VmResult::Ok(false),
         }
 
-        Ok(true)
+        VmResult::Ok(true)
     }
 
     /// Test if the current range contains the given integer.
-    pub(crate) fn contains_int(&self, n: i64) -> Result<bool, VmError> {
+    pub(crate) fn contains_int(&self, n: i64) -> VmResult<bool> {
         let start: Option<i64> = match self.start.clone() {
-            Some(value) => Some(FromValue::from_value(value)?),
+            Some(value) => Some(vm_try!(FromValue::from_value(value))),
             None => None,
         };
 
         let end: Option<i64> = match self.end.clone() {
-            Some(value) => Some(FromValue::from_value(value)?),
+            Some(value) => Some(vm_try!(FromValue::from_value(value))),
             None => None,
         };
 
@@ -99,11 +99,11 @@ impl Range {
             RangeLimits::Closed => match (start, end) {
                 (Some(start), Some(end)) => (start..=end).contains(&n),
                 (None, Some(end)) => (..=end).contains(&n),
-                _ => return Err(VmError::from(VmErrorKind::UnsupportedRange)),
+                _ => return VmResult::Err(VmError::from(VmErrorKind::UnsupportedRange)),
             },
         };
 
-        Ok(out)
+        VmResult::Ok(out)
     }
 }
 
@@ -140,11 +140,11 @@ impl<Idx> ToValue for ops::Range<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
-        let start = self.start.to_value()?;
-        let end = self.end.to_value()?;
+    fn to_value(self) -> VmResult<Value> {
+        let start = vm_try!(self.start.to_value());
+        let end = vm_try!(self.end.to_value());
         let range = Range::new(Some(start), Some(end), RangeLimits::HalfOpen);
-        Ok(Value::from(range))
+        VmResult::Ok(Value::from(range))
     }
 }
 
@@ -153,18 +153,18 @@ impl<Idx> ToValue for ops::RangeFrom<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
-        let start = self.start.to_value()?;
+    fn to_value(self) -> VmResult<Value> {
+        let start = vm_try!(self.start.to_value());
         let range = Range::new(Some(start), None, RangeLimits::HalfOpen);
-        Ok(Value::from(range))
+        VmResult::Ok(Value::from(range))
     }
 }
 
 /// Coercing `..` into a [Range].
 impl ToValue for ops::RangeFull {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> VmResult<Value> {
         let range = Range::new(None, None, RangeLimits::HalfOpen);
-        Ok(Value::from(range))
+        VmResult::Ok(Value::from(range))
     }
 }
 
@@ -173,12 +173,12 @@ impl<Idx> ToValue for ops::RangeInclusive<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> VmResult<Value> {
         let (start, end) = self.into_inner();
-        let start = start.to_value()?;
-        let end = end.to_value()?;
+        let start = vm_try!(start.to_value());
+        let end = vm_try!(end.to_value());
         let range = Range::new(Some(start), Some(end), RangeLimits::Closed);
-        Ok(Value::from(range))
+        VmResult::Ok(Value::from(range))
     }
 }
 
@@ -187,10 +187,10 @@ impl<Idx> ToValue for ops::RangeTo<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
-        let end = self.end.to_value()?;
+    fn to_value(self) -> VmResult<Value> {
+        let end = vm_try!(self.end.to_value());
         let range = Range::new(None, Some(end), RangeLimits::HalfOpen);
-        Ok(Value::from(range))
+        VmResult::Ok(Value::from(range))
     }
 }
 
@@ -199,32 +199,32 @@ impl<Idx> ToValue for ops::RangeToInclusive<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
-        let end = self.end.to_value()?;
+    fn to_value(self) -> VmResult<Value> {
+        let end = vm_try!(self.end.to_value());
         let range = Range::new(None, Some(end), RangeLimits::Closed);
-        Ok(Value::from(range))
+        VmResult::Ok(Value::from(range))
     }
 }
 
 impl FromValue for Range {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_range()?.take()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        VmResult::Ok(vm_try!(vm_try!(value.into_range()).take()))
     }
 }
 
 impl FromValue for Mut<Range> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        let object = value.into_range()?;
-        let object = object.into_mut()?;
-        Ok(object)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let object = vm_try!(value.into_range());
+        let object = vm_try!(object.into_mut());
+        VmResult::Ok(object)
     }
 }
 
 impl FromValue for Ref<Range> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        let object = value.into_range()?;
-        let object = object.into_ref()?;
-        Ok(object)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let object = vm_try!(value.into_range());
+        let object = vm_try!(object.into_ref());
+        VmResult::Ok(object)
     }
 }
 
@@ -232,10 +232,10 @@ impl UnsafeFromValue for &Range {
     type Output = *const Range;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let object = value.into_range()?;
-        let object = object.into_ref()?;
-        Ok(Ref::into_raw(object))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let object = vm_try!(value.into_range());
+        let object = vm_try!(object.into_ref());
+        VmResult::Ok(Ref::into_raw(object))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -247,10 +247,10 @@ impl UnsafeFromValue for &mut Range {
     type Output = *mut Range;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let object = value.into_range()?;
-        let object = object.into_mut()?;
-        Ok(Mut::into_raw(object))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let object = vm_try!(value.into_range());
+        let object = vm_try!(object.into_mut());
+        VmResult::Ok(Mut::into_raw(object))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {

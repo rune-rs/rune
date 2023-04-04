@@ -68,7 +68,7 @@ pub(crate) async fn run(
     for (hash, item) in fns {
         let mut bencher = Bencher::default();
 
-        if let Err(error) = vm.call(*hash, (&mut bencher,)) {
+        if let Err(error) = vm.call(*hash, (&mut bencher,)).into_result() {
             writeln!(io.stdout, "{}: Error in benchmark", item)?;
             error.emit(io.stdout, sources)?;
             any_error = true;
@@ -115,7 +115,7 @@ fn bench_fn(
     multiple: bool,
 ) -> anyhow::Result<()> {
     for _ in 0..args.warmup {
-        let value = f.call::<_, Value>(())?;
+        let value = f.call::<_, Value>(()).into_result()?;
         drop(value);
     }
 
@@ -124,7 +124,7 @@ fn bench_fn(
 
     for _ in 0..args.iterations {
         let start = Instant::now();
-        let value = f.call::<_, Value>(())?;
+        let value = f.call::<_, Value>(()).into_result()?;
         let duration = Instant::now().duration_since(start);
         collected.push(duration.as_nanos() as i128);
         drop(value);

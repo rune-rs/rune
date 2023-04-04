@@ -1,7 +1,7 @@
 //! Types for dealing with formatting specifications.
 
 use crate::compile::Named;
-use crate::runtime::{FromValue, ProtocolCaller, RawStr, Value, VmError, VmErrorKind};
+use crate::runtime::{FromValue, ProtocolCaller, RawStr, Value, VmErrorKind, VmResult};
 use crate::InstallWith;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
@@ -43,8 +43,9 @@ impl Named for Format {
 impl InstallWith for Format {}
 
 impl FromValue for Format {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(*value.into_format()?)
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
+        VmResult::Ok(*vm_try!(value.into_format()))
     }
 }
 
@@ -188,14 +189,14 @@ impl FormatSpec {
         out: &mut String,
         buf: &mut String,
         caller: impl ProtocolCaller,
-    ) -> Result<(), VmError> {
+    ) -> VmResult<()> {
         match value {
             Value::Char(c) => {
                 buf.push(*c);
                 self.format_fill(out, buf, self.align, self.fill, None);
             }
             Value::String(s) => {
-                buf.push_str(&s.borrow_ref()?);
+                buf.push_str(&vm_try!(s.borrow_ref()));
                 self.format_fill(out, buf, self.align, self.fill, None);
             }
             Value::StaticString(s) => {
@@ -209,16 +210,16 @@ impl FormatSpec {
             }
             Value::Float(n) => {
                 let (n, align, fill, sign) = self.float_traits(*n);
-                self.format_float(buf, n)?;
+                vm_try!(self.format_float(buf, n));
                 self.format_fill(out, buf, align, fill, sign);
             }
             _ => {
-                let result = value.string_display_with(out, buf, caller)?;
-                result.map_err(|_| VmErrorKind::FormatError)?;
+                let result = vm_try!(value.string_display_with(out, buf, caller));
+                vm_try!(result.map_err(|_| VmErrorKind::FormatError));
             }
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     fn format_debug(
@@ -227,13 +228,14 @@ impl FormatSpec {
         out: &mut String,
         buf: &mut String,
         caller: impl ProtocolCaller,
-    ) -> Result<(), VmError> {
+    ) -> VmResult<()> {
         match value {
             Value::String(s) => {
-                write!(out, "{:?}", &*s.borrow_ref()?).map_err(|_| VmErrorKind::FormatError)?;
+                let s = vm_try!(s.borrow_ref());
+                vm_try!(write!(out, "{:?}", &*s).map_err(|_| VmErrorKind::FormatError));
             }
             Value::StaticString(s) => {
-                write!(out, "{:?}", s.as_ref()).map_err(|_| VmErrorKind::FormatError)?;
+                vm_try!(write!(out, "{:?}", s.as_ref()).map_err(|_| VmErrorKind::FormatError));
             }
             Value::Integer(n) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
@@ -242,16 +244,16 @@ impl FormatSpec {
             }
             Value::Float(n) => {
                 let (n, align, fill, sign) = self.float_traits(*n);
-                self.format_float(buf, n)?;
+                vm_try!(self.format_float(buf, n));
                 self.format_fill(out, buf, align, fill, sign);
             }
             value => {
-                let result = value.string_debug_with(out, caller)?;
-                result.map_err(|_| VmErrorKind::FormatError)?;
+                let result = vm_try!(value.string_debug_with(out, caller));
+                vm_try!(result.map_err(|_| VmErrorKind::FormatError));
             }
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 
     fn format_upper_hex(
@@ -342,17 +344,17 @@ impl FormatSpec {
         out: &mut String,
         buf: &mut String,
         caller: impl ProtocolCaller,
-    ) -> Result<(), VmError> {
+    ) -> VmResult<()> {
         match self.format_type {
-            Type::Display => self.format_display(value, out, buf, caller)?,
-            Type::Debug => self.format_debug(value, out, buf, caller)?,
-            Type::UpperHex => self.format_upper_hex(value, out, buf)?,
-            Type::LowerHex => self.format_lower_hex(value, out, buf)?,
-            Type::Binary => self.format_binary(value, out, buf)?,
-            Type::Pointer => self.format_pointer(value, out, buf)?,
+            Type::Display => vm_try!(self.format_display(value, out, buf, caller)),
+            Type::Debug => vm_try!(self.format_debug(value, out, buf, caller)),
+            Type::UpperHex => vm_try!(self.format_upper_hex(value, out, buf)),
+            Type::LowerHex => vm_try!(self.format_lower_hex(value, out, buf)),
+            Type::Binary => vm_try!(self.format_binary(value, out, buf)),
+            Type::Pointer => vm_try!(self.format_pointer(value, out, buf)),
         }
 
-        Ok(())
+        VmResult::Ok(())
     }
 }
 

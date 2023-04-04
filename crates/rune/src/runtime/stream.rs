@@ -1,7 +1,7 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, GeneratorState, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value,
-    Vm, VmError, VmErrorKind, VmExecution,
+    Vm, VmErrorKind, VmExecution, VmResult,
 };
 use std::fmt;
 
@@ -32,31 +32,31 @@ where
     }
 
     /// Get the next value produced by this stream.
-    pub async fn next(&mut self) -> Result<Option<Value>, VmError> {
-        Ok(match self.resume(Value::Unit).await? {
+    pub async fn next(&mut self) -> VmResult<Option<Value>> {
+        VmResult::Ok(match vm_try!(self.resume(Value::Unit).await) {
             GeneratorState::Yielded(value) => Some(value),
             GeneratorState::Complete(_) => None,
         })
     }
 
     /// Get the next value produced by this stream.
-    pub async fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
-        let execution = self
+    pub async fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
+        let execution = vm_try!(self
             .execution
             .as_mut()
-            .ok_or(VmErrorKind::GeneratorComplete)?;
+            .ok_or(VmErrorKind::GeneratorComplete));
 
         let state = if execution.is_resumed() {
-            execution.async_resume_with(value).await?
+            vm_try!(execution.async_resume_with(value).await)
         } else {
-            execution.async_resume().await?
+            vm_try!(execution.async_resume().await)
         };
 
         if state.is_complete() {
             self.execution = None;
         }
 
-        Ok(state)
+        VmResult::Ok(state)
     }
 }
 
@@ -90,15 +90,16 @@ where
 }
 
 impl FromValue for Shared<Stream<Vm>> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    #[inline]
+    fn from_value(value: Value) -> VmResult<Self> {
         value.into_stream()
     }
 }
 
 impl FromValue for Stream<Vm> {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        let stream = value.into_stream()?;
-        Ok(stream.take()?)
+    fn from_value(value: Value) -> VmResult<Self> {
+        let stream = vm_try!(value.into_stream());
+        VmResult::Ok(vm_try!(stream.take()))
     }
 }
 
@@ -106,10 +107,10 @@ impl UnsafeFromValue for &Stream<Vm> {
     type Output = *const Stream<Vm>;
     type Guard = RawRef;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let stream = value.into_stream()?;
-        let (stream, guard) = Ref::into_raw(stream.into_ref()?);
-        Ok((stream, guard))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let stream = vm_try!(value.into_stream());
+        let (stream, guard) = Ref::into_raw(vm_try!(stream.into_ref()));
+        VmResult::Ok((stream, guard))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
@@ -121,9 +122,9 @@ impl UnsafeFromValue for &mut Stream<Vm> {
     type Output = *mut Stream<Vm>;
     type Guard = RawMut;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let stream = value.into_stream()?;
-        Ok(Mut::into_raw(stream.into_mut()?))
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let stream = vm_try!(value.into_stream());
+        VmResult::Ok(Mut::into_raw(vm_try!(stream.into_mut())))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {
