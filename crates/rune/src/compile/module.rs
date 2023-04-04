@@ -1169,12 +1169,12 @@ pub trait AsyncInstFn<Args>: 'static + Send + Sync {
 
 macro_rules! impl_register {
     () => {
-        impl_register!{@impl 0,}
+        impl_register!(@impl 0,);
     };
 
     ({$ty:ident, $var:ident, $num:expr}, $({$l_ty:ident, $l_var:ident, $l_num:expr},)*) => {
-        impl_register!{@impl $num, {$ty, $var, $num}, $({$l_ty, $l_var, $l_num},)*}
-        impl_register!{$({$l_ty, $l_var, $l_num},)*}
+        impl_register!(@impl $num, {$ty, $var, $num}, $({$l_ty, $l_var, $l_num},)*);
+        impl_register!($({$l_ty, $l_var, $l_num},)*);
     };
 
     (@impl $count:expr, $({$ty:ident, $var:ident, $num:expr},)*) => {
@@ -1191,7 +1191,7 @@ macro_rules! impl_register {
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                impl_register!{@check-args $count, args}
+                impl_register!(@check-args $count, args);
 
                 #[allow(unused_mut)]
                 let mut it = vm_try!(stack.drain($count));
@@ -1205,13 +1205,14 @@ macro_rules! impl_register {
                 // when we return below.
                 #[allow(unused)]
                 let ret = unsafe {
-                    impl_register!{@unsafe-vars $count, $($ty, $var, $num,)*}
+                    impl_register!(@unsafe-vars $count, $($ty, $var, $num,)*);
                     let ret = self($(<$ty>::unsafe_coerce($var.0),)*);
-                    impl_register!{@drop-stack-guards $($var),*}
+                    impl_register!(@drop-stack-guards $($var),*);
                     ret
                 };
 
-                impl_register!{@return stack, ret, Return}
+                let ret = vm_try!(ret.to_value());
+                stack.push(ret);
                 VmResult::Ok(())
             }
         }
@@ -1231,7 +1232,7 @@ macro_rules! impl_register {
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                impl_register!{@check-args $count, args}
+                impl_register!(@check-args $count, args);
 
                 #[allow(unused_mut)]
                 let mut it = vm_try!(stack.drain($count));
@@ -1244,19 +1245,20 @@ macro_rules! impl_register {
                 // being polled.
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
-                    impl_register!{@unsafe-vars $count, $($ty, $var, $num,)*}
+                    impl_register!(@unsafe-vars $count, $($ty, $var, $num,)*);
 
                     let fut = self($(<$ty>::unsafe_coerce($var.0),)*);
 
                     Future::new(async move {
                         let output = fut.await;
-                        impl_register!{@drop-stack-guards $($var),*}
+                        impl_register!(@drop-stack-guards $($var),*);
                         let value = vm_try!(output.to_value());
                         VmResult::Ok(value)
                     })
                 };
 
-                impl_register!{@return stack, ret, Return}
+                let ret = vm_try!(ret.to_value());
+                stack.push(ret);
                 VmResult::Ok(())
             }
         }
@@ -1283,7 +1285,7 @@ macro_rules! impl_register {
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                impl_register!{@check-args ($count + 1), args}
+                impl_register!(@check-args ($count + 1), args);
 
                 #[allow(unused_mut)]
                 let mut it = vm_try!(stack.drain($count + 1));
@@ -1298,13 +1300,14 @@ macro_rules! impl_register {
                 // when we return below.
                 #[allow(unused)]
                 let ret = unsafe {
-                    impl_register!{@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*}
+                    impl_register!(@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*);
                     let ret = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
-                    impl_register!{@drop-stack-guards inst, $($var),*}
+                    impl_register!(@drop-stack-guards inst, $($var),*);
                     ret
                 };
 
-                impl_register!{@return stack, ret, Return}
+                let ret = vm_try!(ret.to_value());
+                stack.push(ret);
                 VmResult::Ok(())
             }
         }
@@ -1333,7 +1336,7 @@ macro_rules! impl_register {
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
-                impl_register!{@check-args ($count + 1), args}
+                impl_register!(@check-args ($count + 1), args);
 
                 #[allow(unused_mut)]
                 let mut it = vm_try!(stack.drain($count + 1));
@@ -1347,27 +1350,23 @@ macro_rules! impl_register {
                 // being polled.
                 #[allow(unused)]
                 let ret = unsafe {
-                    impl_register!{@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*}
+                    impl_register!(@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*);
 
                     let fut = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
 
                     Future::new(async move {
                         let output = fut.await;
-                        impl_register!{@drop-stack-guards inst, $($var),*}
+                        impl_register!(@drop-stack-guards inst, $($var),*);
                         let value = vm_try!(output.to_value());
                         VmResult::Ok(value)
                     })
                 };
 
-                impl_register!{@return stack, ret, Return}
+                let ret = vm_try!(ret.to_value());
+                stack.push(ret);
                 VmResult::Ok(())
             }
         }
-    };
-
-    (@return $stack:ident, $ret:ident, $ty:ty) => {
-        let $ret = vm_try!($ret.to_value());
-        $stack.push($ret);
     };
 
     // Expand to function variable bindings.
