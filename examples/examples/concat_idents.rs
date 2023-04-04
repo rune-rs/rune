@@ -2,7 +2,7 @@ use rune::ast;
 use rune::macros::{quote, MacroContext, TokenStream};
 use rune::parse::Parser;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Context, Diagnostics, FromValue, Module, Vm, T};
+use rune::{Context, Diagnostics, Module, Vm, T};
 use std::sync::Arc;
 
 fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
@@ -63,7 +63,7 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, unit);
     let value = vm.call(["main"], ())?;
-    let value = u32::from_value(value)?;
+    let value: u32 = rune::from_value(value)?;
 
     assert_eq!(value, 42);
     Ok(())

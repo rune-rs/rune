@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use crate::internals::*;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
@@ -104,7 +106,7 @@ pub(crate) struct FieldProtocol {
 
 #[derive(Default)]
 pub(crate) struct Context {
-    pub(crate) errors: Vec<syn::Error>,
+    pub(crate) errors: RefCell<Vec<syn::Error>>,
     pub(crate) module: Option<TokenStream>,
 }
 
@@ -118,7 +120,7 @@ impl Context {
     /// in which it was declared.
     pub(crate) fn with_crate() -> Self {
         Self {
-            errors: Vec::new(),
+            errors: RefCell::new(Vec::new()),
             module: Some(quote!(crate)),
         }
     }
@@ -129,17 +131,22 @@ impl Context {
         M: Copy + ToTokens,
     {
         Self {
-            errors: Vec::new(),
+            errors: RefCell::new(Vec::new()),
             module: Some(module.to_token_stream()),
         }
     }
 
+    /// Register an error.
+    pub(crate) fn error(&self, error: syn::Error) {
+        self.errors.borrow_mut().push(error)
+    }
+
     /// Get a field identifier.
-    pub(crate) fn field_ident<'a>(&mut self, field: &'a syn::Field) -> Option<&'a syn::Ident> {
+    pub(crate) fn field_ident<'a>(&self, field: &'a syn::Field) -> Option<&'a syn::Ident> {
         match &field.ident {
             Some(ident) => Some(ident),
             None => {
-                self.errors.push(syn::Error::new_spanned(
+                self.error(syn::Error::new_spanned(
                     field,
                     "unnamed fields are not supported",
                 ));
@@ -149,7 +156,7 @@ impl Context {
     }
 
     /// Parse field attributes.
-    pub(crate) fn field_attrs(&mut self, input: &[syn::Attribute]) -> Option<FieldAttrs> {
+    pub(crate) fn field_attrs(&self, input: &[syn::Attribute]) -> Option<FieldAttrs> {
         macro_rules! generate_op {
             ($proto:ident, $op:tt) => {
                 |g| {
@@ -367,7 +374,7 @@ impl Context {
                 Ok(())
             }) {
                 error = true;
-                self.errors.push(e);
+                self.error(e);
             }
         }
 
@@ -379,7 +386,7 @@ impl Context {
     }
 
     /// Parse field attributes.
-    pub(crate) fn type_attrs(&mut self, input: &[syn::Attribute]) -> Option<TypeAttrs> {
+    pub(crate) fn type_attrs(&self, input: &[syn::Attribute]) -> Option<TypeAttrs> {
         let mut error = false;
         let mut attrs = TypeAttrs::default();
 
@@ -431,7 +438,7 @@ impl Context {
                 Ok(())
             }) {
                 error = true;
-                self.errors.push(e);
+                self.error(e);
             };
         }
 
@@ -443,7 +450,7 @@ impl Context {
     }
 
     /// Parse and extract variant attributes.
-    pub(crate) fn variant_attrs(&mut self, input: &[syn::Attribute]) -> Option<VariantAttrs> {
+    pub(crate) fn variant_attrs(&self, input: &[syn::Attribute]) -> Option<VariantAttrs> {
         let mut attrs = VariantAttrs::default();
         let mut error = false;
 
@@ -469,7 +476,7 @@ impl Context {
                 Ok(())
             }) {
                 error = true;
-                self.errors.push(e);
+                self.error(e);
             };
         }
 
@@ -481,10 +488,7 @@ impl Context {
     }
 
     /// Parse path to custom field function.
-    fn parse_field_custom(
-        &mut self,
-        input: ParseStream<'_>,
-    ) -> Result<Option<syn::Path>, syn::Error> {
+    fn parse_field_custom(&self, input: ParseStream<'_>) -> Result<Option<syn::Path>, syn::Error> {
         if !input.peek(Token![=]) {
             return Ok(None);
         };
@@ -496,7 +500,7 @@ impl Context {
 
     /// Build an inner spanned decoder from an iterator.
     pub(crate) fn build_spanned_iter<'a>(
-        &mut self,
+        &self,
         tokens: &Tokens,
         back: bool,
         mut it: impl Iterator<Item = (Option<TokenStream>, &'a syn::Field)>,
@@ -574,10 +578,7 @@ impl Context {
     }
 
     /// Explicit span for fields.
-    pub(crate) fn explicit_span(
-        &mut self,
-        named: &syn::FieldsNamed,
-    ) -> Option<Option<TokenStream>> {
+    pub(crate) fn explicit_span(&self, named: &syn::FieldsNamed) -> Option<Option<TokenStream>> {
         let mut explicit_span = None;
 
         for field in &named.named {
@@ -585,7 +586,7 @@ impl Context {
 
             if let Some(span) = attrs.span {
                 if explicit_span.is_some() {
-                    self.errors.push(syn::Error::new(
+                    self.error(syn::Error::new(
                         span,
                         "only one field can be marked `#[rune(span)]`",
                     ));
@@ -653,10 +654,11 @@ impl Context {
             unsafe_to_value: quote!(#module::runtime::UnsafeToValue),
             value: quote!(#module::runtime::Value),
             variant_data: quote!(#module::runtime::VariantData),
-            variant: quote!(#module::compile::Variant),
+            compile_variant: quote!(#module::compile::Variant),
             vm_error_kind: quote!(#module::runtime::VmErrorKind),
             vm_error: quote!(#module::runtime::VmError),
             vm_result: quote!(#module::runtime::VmResult),
+            try_result: quote!(#module::runtime::try_result),
         }
     }
 }
@@ -699,10 +701,11 @@ pub(crate) struct Tokens {
     pub(crate) unsafe_to_value: TokenStream,
     pub(crate) value: TokenStream,
     pub(crate) variant_data: TokenStream,
-    pub(crate) variant: TokenStream,
+    pub(crate) compile_variant: TokenStream,
     pub(crate) vm_error_kind: TokenStream,
     pub(crate) vm_error: TokenStream,
     pub(crate) vm_result: TokenStream,
+    pub(crate) try_result: TokenStream,
 }
 
 impl Tokens {
@@ -710,5 +713,19 @@ impl Tokens {
     pub(crate) fn protocol(&self, sym: Symbol) -> TokenStream {
         let protocol = &self.protocol;
         quote!(#protocol::#sym)
+    }
+
+    /// Expand a `vm_try!` expression.
+    pub(crate) fn vm_try(&self, expr: impl ToTokens) -> impl ToTokens {
+        let vm_result = &self.vm_result;
+        let vm_error = &self.vm_error;
+        let try_result = &self.try_result;
+
+        quote! {
+            match #try_result(#expr) {
+                #vm_result::Ok(value) => value,
+                #vm_result::Err(err) => return #vm_result::Err(#vm_error::from(err)),
+            }
+        }
     }
 }

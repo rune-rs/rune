@@ -14,7 +14,7 @@ use std::rc::Rc;
 use futures_executor::block_on;
 
 use rune::compile::Named;
-use rune::runtime::{AnyTypeInfo, RawRef, RawStr, Stack, TypeInfo, TypeOf, UnsafeFromValue, VmError};
+use rune::runtime::{AnyTypeInfo, RawRef, RawStr, Stack, TypeInfo, TypeOf, UnsafeFromValue, VmResult};
 use rune::{Any, Context, Hash, InstallWith, Module, Value};
 
 #[test]
@@ -33,8 +33,8 @@ fn bug_344_function() -> rune::Result<()> {
 
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
-    function(&mut stack, 1)?;
-    assert_eq!(stack.pop()?.into_integer()?, 42);
+    function(&mut stack, 1).into_result()?;
+    assert_eq!(stack.pop()?.into_integer().into_result()?, 42);
     return Ok(());
 
     fn function(check: &GuardCheck) -> i64 {
@@ -61,9 +61,9 @@ fn bug_344_inst_fn() -> rune::Result<()> {
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
     stack.push(GuardCheck::new());
-    function(&mut stack, 2)?;
+    function(&mut stack, 2).into_result()?;
 
-    assert_eq!(stack.pop()?.into_integer()?, 42);
+    assert_eq!(stack.pop()?.into_integer().into_result()?, 42);
     return Ok(());
 
     fn function(s: &GuardCheck, check: &GuardCheck) -> i64 {
@@ -89,10 +89,9 @@ fn bug_344_async_function() -> rune::Result<()> {
 
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
-    function(&mut stack, 1)?;
-
-    let future = stack.pop()?.into_future()?;
-    assert_eq!(block_on(future)?.into_integer()?, 42);
+    function(&mut stack, 1).into_result()?;
+    let future = stack.pop()?.into_future().into_result()?;
+    assert_eq!(block_on(future).into_result()?.into_integer().into_result()?, 42);
     return Ok(());
 
     async fn function(check: &GuardCheck) -> i64 {
@@ -119,10 +118,10 @@ fn bug_344_async_inst_fn() -> rune::Result<()> {
     let mut stack = Stack::new();
     stack.push(GuardCheck::new());
     stack.push(GuardCheck::new());
-    function(&mut stack, 2)?;
+    function(&mut stack, 2).into_result()?;
 
-    let future = stack.pop()?.into_future()?;
-    assert_eq!(block_on(future)?.into_integer()?, 42);
+    let future = stack.pop()?.into_future().into_result()?;
+    assert_eq!(block_on(future).into_result()?.into_integer().into_result()?, 42);
     return Ok(());
 
     async fn function(s: &GuardCheck, check: &GuardCheck) -> i64 {
@@ -191,8 +190,8 @@ impl UnsafeFromValue for &GuardCheck {
     type Output = *const GuardCheck;
     type Guard = Guard;
 
-    fn from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        let (output, guard) = value.into_any_ptr::<GuardCheck>()?;
+    fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
+        let (output, guard) = rune::vm_try!(value.into_any_ptr::<GuardCheck>());
 
         let guard = Guard {
             _guard: guard,
@@ -202,7 +201,7 @@ impl UnsafeFromValue for &GuardCheck {
             dropped: unsafe { (*output).dropped.clone() },
         };
 
-        Ok((output, guard))
+        VmResult::Ok((output, guard))
     }
 
     unsafe fn unsafe_coerce(output: Self::Output) -> Self {

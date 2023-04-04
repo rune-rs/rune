@@ -72,7 +72,7 @@ impl Derive {
 
         let attrs = match ctx.type_attrs(&self.input.attrs) {
             Some(attrs) => attrs,
-            None => return Err(ctx.errors),
+            None => return Err(ctx.errors.into_inner()),
         };
 
         let tokens = ctx.tokens_with_module(attrs.module.as_ref());
@@ -81,7 +81,7 @@ impl Derive {
         let install_with =
             match expand_install_with(&mut ctx, &self.input, &tokens, &attrs, generics) {
                 Some(install_with) => install_with,
-                None => return Err(ctx.errors),
+                None => return Err(ctx.errors.into_inner()),
             };
 
         let name = match attrs.name {
@@ -98,7 +98,7 @@ impl Derive {
 
 /// Expannd the install into impl.
 pub(crate) fn expand_install_with(
-    ctx: &mut Context,
+    ctx: &Context,
     input: &syn::DeriveInput,
     tokens: &Tokens,
     attrs: &TypeAttrs,
@@ -116,7 +116,7 @@ pub(crate) fn expand_install_with(
             expand_enum_install_with(ctx, &mut installers, ident, en, tokens, generics)?;
         }
         syn::Data::Union(..) => {
-            ctx.errors.push(syn::Error::new_spanned(
+            ctx.error(syn::Error::new_spanned(
                 input,
                 "`Any` not supported on unions",
             ));
@@ -137,7 +137,7 @@ pub(crate) fn expand_install_with(
 }
 
 fn expand_struct_install_with(
-    ctx: &mut Context,
+    ctx: &Context,
     installers: &mut Vec<TokenStream>,
     st: &syn::DataStruct,
     tokens: &Tokens,
@@ -201,19 +201,22 @@ fn expand_struct_install_with(
 }
 
 fn expand_enum_install_with(
-    ctx: &mut Context,
+    ctx: &Context,
     installers: &mut Vec<TokenStream>,
     ident: &syn::Ident,
     en: &syn::DataEnum,
     tokens: &Tokens,
     generics: &syn::Generics,
 ) -> Option<()> {
-    let protocol = &tokens.protocol;
-    let variant_meta = &tokens.variant;
-    let vm_error = &tokens.vm_error;
-    let vm_error_kind = &tokens.vm_error_kind;
-    let to_value = &tokens.to_value;
-    let type_of = &tokens.type_of;
+    let Tokens {
+        compile_variant,
+        protocol,
+        to_value,
+        type_of,
+        vm_error_kind,
+        vm_result,
+        ..
+    } = tokens;
 
     let mut is_variant = Vec::new();
     let mut variants = Vec::new();
@@ -243,8 +246,7 @@ fn expand_enum_install_with(
                     let f_ident = match &f.ident {
                         Some(ident) => ident,
                         None => {
-                            ctx.errors
-                                .push(syn::Error::new_spanned(f, "missing field name"));
+                            ctx.error(syn::Error::new_spanned(f, "missing field name"));
                             return None;
                         }
                     };
@@ -257,16 +259,16 @@ fn expand_enum_install_with(
                         let fields = field_fns.entry(f_name).or_default();
 
                         let value = if attrs.copy {
-                            quote!(#to_value::to_value(*#f_ident)?)
+                            quote!(#to_value::to_value(*#f_ident))
                         } else {
-                            quote!(#to_value::to_value(#f_ident.clone())?)
+                            quote!(#to_value::to_value(#f_ident.clone()))
                         };
 
                         fields.push(quote!(#ident::#variant_ident { #f_ident, .. } => #value));
                     }
                 }
 
-                variants.push(quote!((#variant_name, #variant_meta::st([#(#field_names),*]))));
+                variants.push(quote!((#variant_name, #compile_variant::st([#(#field_names),*]))));
             }
             syn::Fields::Unnamed(fields) => {
                 let mut fields_len = 0usize;
@@ -281,20 +283,20 @@ fn expand_enum_install_with(
                         let n = syn::LitInt::new(&n.to_string(), span);
 
                         let value = if attrs.copy {
-                            quote!(#to_value::to_value(*value)?)
+                            quote!(#to_value::to_value(*value))
                         } else {
-                            quote!(#to_value::to_value(value.clone())?)
+                            quote!(#to_value::to_value(value.clone()))
                         };
 
                         fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #value));
                     }
                 }
 
-                variants.push(quote!((#variant_name, #variant_meta::tuple(#fields_len))));
+                variants.push(quote!((#variant_name, #compile_variant::tuple(#fields_len))));
 
                 if variant_attrs.constructor {
                     if fields_len != fields.unnamed.len() {
-                        ctx.errors.push(syn::Error::new_spanned(fields, "#[rune(constructor)] can only be used if all fields are marked with #[rune(get)"));
+                        ctx.error(syn::Error::new_spanned(fields, "#[rune(constructor)] can only be used if all fields are marked with #[rune(get)"));
                         return None;
                     }
 
@@ -302,7 +304,7 @@ fn expand_enum_install_with(
                 }
             }
             syn::Fields::Unit => {
-                variants.push(quote!((#variant_name, #variant_meta::unit())));
+                variants.push(quote!((#variant_name, #compile_variant::unit())));
 
                 if variant_attrs.constructor {
                     constructors
@@ -326,12 +328,12 @@ fn expand_enum_install_with(
     for (field, matches) in field_fns {
         installers.push(quote! {
             module.field_fn(#protocol::GET, #field, |this: &#ident #generics| {
-                Ok::<_, #vm_error>(match this {
+                match this {
                     #(#matches,)*
-                    _ => return Err(#vm_error::from(#vm_error_kind::UnsupportedObjectFieldGet {
+                    _ => return #vm_result::err(#vm_error_kind::UnsupportedObjectFieldGet {
                         target: <Self as #type_of>::type_info(),
-                    })),
-                })
+                    }),
+                }
             })?;
         });
     }
@@ -339,12 +341,12 @@ fn expand_enum_install_with(
     for (index, matches) in index_fns {
         installers.push(quote! {
             module.index_fn(#protocol::GET, #index, |this: &#ident #generics| {
-                Ok::<_, #vm_error>(match this {
+                match this {
                     #(#matches,)*
-                    _ => return Err(#vm_error::from(#vm_error_kind::UnsupportedTupleIndexGet {
+                    _ => return #vm_result::err(#vm_error_kind::UnsupportedTupleIndexGet {
                         target: <Self as #type_of>::type_info(),
-                    })),
-                })
+                    }),
+                }
             })?;
         });
     }

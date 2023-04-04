@@ -1,6 +1,6 @@
-use rune::runtime::{Function, VmError};
+use rune::runtime::{Function, VmResult};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{ContextError, Diagnostics, FromValue, Module, Value, Vm};
+use rune::{ContextError, Diagnostics, Module, Value, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
@@ -38,7 +38,7 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(["main"], ())?;
-    let output = u32::from_value(output)?;
+    let output: u32 = rune::from_value(output)?;
 
     println!("{}", output);
     Ok(())
@@ -49,7 +49,7 @@ fn module() -> Result<Module, ContextError> {
 
     m.function(
         ["pass_along"],
-        |func: Function, args: Vec<Value>| -> Result<Value, VmError> { func.call(args) },
+        |func: Function, args: Vec<Value>| -> VmResult<Value> { func.call(args) },
     )?;
 
     Ok(m)

@@ -46,7 +46,7 @@
 //!
 //! let mut vm = Vm::new(runtime, unit);
 //! let value = vm.call(["main"], ())?;
-//! let value = String::from_value(value)?;
+//! let value: String = rune::from_value(value)?;
 //!
 //! assert_eq!(value, "hello");
 //! # Ok(()) }

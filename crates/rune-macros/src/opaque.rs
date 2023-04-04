@@ -29,20 +29,20 @@ impl Derive {
                 }
             }
             syn::Data::Enum(en) => {
-                expander.ctx.errors.push(syn::Error::new_spanned(
+                expander.ctx.error(syn::Error::new_spanned(
                     en.enum_token,
                     "not supported on enums",
                 ));
             }
             syn::Data::Union(un) => {
-                expander.ctx.errors.push(syn::Error::new_spanned(
+                expander.ctx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
             }
         }
 
-        Err(expander.ctx.errors)
+        Err(expander.ctx.errors.into_inner())
     }
 }
 
@@ -84,7 +84,7 @@ impl Expander {
 
             if attrs.id.is_some() {
                 if field.is_some() {
-                    self.ctx.errors.push(syn::Error::new_spanned(
+                    self.ctx.error(syn::Error::new_spanned(
                         f,
                         "only one field can be marked `#[rune(id)]`",
                     ));
@@ -97,7 +97,7 @@ impl Expander {
         let (n, f) = match field {
             Some(field) => field,
             None => {
-                self.ctx.errors.push(syn::Error::new_spanned(
+                self.ctx.error(syn::Error::new_spanned(
                     fields,
                     "could not find a suitable identifier field",
                 ));

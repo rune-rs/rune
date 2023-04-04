@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rune::runtime::Vm;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Any, ContextError, Diagnostics, FromValue, Module};
+use rune::{Any, ContextError, Diagnostics, Module};
 
 #[derive(Debug, Any, PartialEq, Eq)]
 enum External {
@@ -59,19 +59,19 @@ fn main() -> rune::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let output = vm.call(["main"], (External::First(42),))?;
-    let output = External::from_value(output)?;
+    let output: External = rune::from_value(output)?;
     println!("{:?}", output);
 
     let output = vm.call(["main"], (External::Second(42, 12345),))?;
-    let output = External::from_value(output)?;
+    let output: External = rune::from_value(output)?;
     println!("{:?}", output);
 
     let output = vm.call(["main"], (External::Third,))?;
-    let output = External::from_value(output)?;
+    let output: External = rune::from_value(output)?;
     println!("{:?}", output);
 
     let output = vm.call(["main"], (External::Fourth { a: 42, b: 2 },))?;
-    let output = External::from_value(output)?;
+    let output: External = rune::from_value(output)?;
     println!("{:?}", output);
     Ok(())
 }

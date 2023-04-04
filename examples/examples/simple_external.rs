@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rune::runtime::Vm;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Any, ContextError, Diagnostics, FromValue, Module};
+use rune::{Any, ContextError, Diagnostics, Module};
 
 #[derive(Debug, Any)]
 struct External {
@@ -47,7 +47,7 @@ fn main() -> rune::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let output = vm.call(["main"], (External { value: 42 },))?;
-    let output = External::from_value(output)?;
+    let output: External = rune::from_value(output)?;
     println!("{:?}", output);
     assert_eq!(output.value, 42);
     Ok(())

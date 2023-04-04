@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::Any;
-use rune::{ContextError, Diagnostics, FromValue, Module, Vm};
+use rune::{ContextError, Diagnostics, Module, Vm};
 
 fn main() -> rune::Result<()> {
     let m = module()?;
@@ -36,7 +36,7 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(["main"], (1u32,))?;
-    let output = i64::from_value(output)?;
+    let output: i64 = rune::from_value(output)?;
 
     println!("{}", output);
     Ok(())

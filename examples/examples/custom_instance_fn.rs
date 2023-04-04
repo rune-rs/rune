@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{ContextError, Diagnostics, FromValue, Module, Vm};
+use rune::{ContextError, Diagnostics, Module, Vm};
 use std::sync::Arc;
 
 fn divide_by_three(value: i64) -> i64 {
@@ -35,8 +35,8 @@ async fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.execute(["main"], (33i64,))?.complete()?;
-    let output = i64::from_value(output)?;
+    let output = vm.execute(["main"], (33i64,))?.complete().into_result()?;
+    let output: i64 = rune::from_value(output)?;
 
     println!("output: {}", output);
     Ok(())

@@ -1,10 +1,50 @@
-use crate::runtime::{AnyObj, Object, Shared, Value, VmErrorKind, VmIntegerRepr, VmResult};
+use crate::runtime::{
+    AnyObj, Object, Shared, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult,
+};
 use crate::Any;
 
 #[doc(inline)]
 pub use rune_macros::ToValue;
 
-/// Trait for converting types into the dynamic [Value] container.
+/// Convert something into the dynamic [`Value`].
+///
+/// # Examples
+///
+/// ```
+/// use rune::{FromValue, ToValue, Vm};
+/// use std::sync::Arc;
+///
+/// #[derive(ToValue)]
+/// struct Foo {
+///     field: u64,
+/// }
+///
+/// # fn main() -> rune::Result<()> {
+/// let mut sources = rune::sources! {
+///     entry => {
+///         pub fn main(foo) {
+///             foo.field + 1
+///         }
+///     }
+/// };
+///
+/// let unit = rune::prepare(&mut sources).build()?;
+///
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
+/// let foo = vm.call(["main"], (Foo { field: 42 },))?;
+/// let foo: u64 = rune::from_value(foo)?;
+///
+/// assert_eq!(foo, 43);
+/// # Ok(()) }
+/// ```
+pub fn to_value<T>(value: T) -> Result<Value, VmError>
+where
+    T: ToValue,
+{
+    T::to_value(value).into_result()
+}
+
+/// Trait for converting types into the dynamic [`Value`] container.
 ///
 /// # Examples
 ///

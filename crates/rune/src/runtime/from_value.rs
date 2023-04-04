@@ -1,12 +1,51 @@
+use std::sync::Arc;
+
 use crate::runtime::{
-    AnyObj, Mut, RawMut, RawRef, Ref, Shared, StaticString, Value, VmErrorKind, VmIntegerRepr,
-    VmResult,
+    AnyObj, Mut, RawMut, RawRef, Ref, Shared, StaticString, Value, VmError, VmErrorKind,
+    VmIntegerRepr, VmResult,
 };
 use crate::Any;
-use std::sync::Arc;
 
 #[doc(inline)]
 pub use rune_macros::FromValue;
+
+/// Convert something into the dynamic [`Value`].
+///
+/// # Examples
+///
+/// ```
+/// use rune::{FromValue, ToValue, Vm};
+/// use std::sync::Arc;
+///
+/// #[derive(ToValue)]
+/// struct Foo {
+///     field: u64,
+/// }
+///
+/// # fn main() -> rune::Result<()> {
+/// let mut sources = rune::sources! {
+///     entry => {
+///         pub fn main(foo) {
+///             foo.field + 1
+///         }
+///     }
+/// };
+///
+/// let unit = rune::prepare(&mut sources).build()?;
+///
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
+/// let foo = vm.call(["main"], (Foo { field: 42 },))?;
+/// let foo: u64 = rune::from_value(foo)?;
+///
+/// assert_eq!(foo, 43);
+/// # Ok(()) }
+/// ```
+pub fn from_value<T>(value: Value) -> Result<T, VmError>
+where
+    T: FromValue,
+{
+    T::from_value(value).into_result()
+}
 
 /// Trait for converting types from the dynamic [Value] container.
 ///

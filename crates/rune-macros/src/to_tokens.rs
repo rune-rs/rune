@@ -35,14 +35,14 @@ impl Derive {
                 }
             }
             syn::Data::Union(un) => {
-                expander.ctx.errors.push(syn::Error::new_spanned(
+                expander.ctx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
             }
         }
 
-        Err(expander.ctx.errors)
+        Err(expander.ctx.errors.into_inner())
     }
 }
 
@@ -102,14 +102,14 @@ impl Expander {
         match fields {
             syn::Fields::Named(named) => self.expand_struct_named(input, named),
             syn::Fields::Unnamed(..) => {
-                self.ctx.errors.push(syn::Error::new_spanned(
+                self.ctx.error(syn::Error::new_spanned(
                     fields,
                     "tuple structs are not supported",
                 ));
                 None
             }
             syn::Fields::Unit => {
-                self.ctx.errors.push(syn::Error::new_spanned(
+                self.ctx.error(syn::Error::new_spanned(
                     fields,
                     "unit structs are not supported",
                 ));
