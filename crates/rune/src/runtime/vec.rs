@@ -1,7 +1,7 @@
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
-    Vm, VmError, VmErrorKind, VmResult,
+    Vm, VmErrorKind, VmResult,
 };
 use std::cmp;
 use std::fmt;
@@ -14,18 +14,17 @@ use std::vec;
 /// # Examples
 ///
 /// ```
-/// # fn main() -> rune::Result<()> {
 /// let mut vec = rune::runtime::Vec::new();
 /// assert!(vec.is_empty());
 ///
-/// vec.push_value(42)?;
-/// vec.push_value(true)?;
+/// vec.push_value(42).into_result()?;
+/// vec.push_value(true).into_result()?;
 /// assert_eq!(2, vec.len());
 ///
-/// assert_eq!(Some(42), vec.get_value(0)?);
-/// assert_eq!(Some(true), vec.get_value(1)?);
-/// assert_eq!(None::<bool>, vec.get_value(2)?);
-/// # Ok(()) }
+/// assert_eq!(Some(42), vec.get_value(0).into_result()?);
+/// assert_eq!(Some(true), vec.get_value(1).into_result()?);
+/// assert_eq!(None::<bool>, vec.get_value(2).into_result()?);
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Clone)]
 #[repr(transparent)]
@@ -93,12 +92,12 @@ impl Vec {
 
     /// Appends an element to the back of a dynamic vector, converting it as
     /// necessary through the [`ToValue`] trait.
-    pub fn push_value<T>(&mut self, value: T) -> Result<(), VmError>
+    pub fn push_value<T>(&mut self, value: T) -> VmResult<()>
     where
         T: ToValue,
     {
-        self.inner.push(value.to_value().into_result()?);
-        Ok(())
+        self.inner.push(vm_try!(value.to_value()));
+        VmResult::Ok(())
     }
 
     /// Get the value at the given index.

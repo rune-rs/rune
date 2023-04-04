@@ -86,10 +86,9 @@ where
     /// Coerce the current execution into a generator if appropriate.
     ///
     /// ```
-    /// use rune::{Context, FromValue, Vm};
+    /// use rune::Vm;
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         pub fn main() {
@@ -106,12 +105,12 @@ where
     ///
     /// let mut n = 1i64;
     ///
-    /// while let Some(value) = generator.next()? {
-    ///     let value = i64::from_value(value)?;
+    /// while let Some(value) = generator.next().into_result()? {
+    ///     let value: i64 = rune::from_value(value)?;
     ///     assert_eq!(value, n);
     ///     n += 1;
     /// }
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn into_generator(self) -> Generator<T> {
         Generator::from_execution(self)
@@ -120,7 +119,7 @@ where
     /// Coerce the current execution into a stream if appropriate.
     ///
     /// ```
-    /// use rune::{Context, FromValue, Vm};
+    /// use rune::Vm;
     /// use std::sync::Arc;
     ///
     /// # #[tokio::main] async fn main() -> rune::Result<()> {
@@ -140,8 +139,8 @@ where
     ///
     /// let mut n = 1i64;
     ///
-    /// while let Some(value) = stream.next().await? {
-    ///     let value = i64::from_value(value)?;
+    /// while let Some(value) = stream.next().await.into_result()? {
+    ///     let value: i64 = rune::from_value(value)?;
     ///     assert_eq!(value, n);
     ///     n += 1;
     /// }

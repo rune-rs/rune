@@ -28,12 +28,11 @@ impl Stack {
     /// use rune::runtime::Stack;
     /// use rune::Value;
     ///
-    /// # fn main() -> Result<(), rune::runtime::StackError> {
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
     /// stack.push(String::from("Hello World"));
     /// assert!(matches!(stack.pop()?, Value::String(..)));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub const fn new() -> Self {
         Self {
@@ -48,12 +47,11 @@ impl Stack {
     /// use rune::runtime::Stack;
     /// use rune::Value;
     ///
-    /// # fn main() -> Result<(), rune::runtime::StackError> {
     /// let mut stack = Stack::with_capacity(16);
     /// assert!(stack.pop().is_err());
     /// stack.push(String::from("Hello World"));
     /// assert!(matches!(stack.pop()?, Value::String(..)));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -119,12 +117,11 @@ impl Stack {
     /// use rune::runtime::Stack;
     /// use rune::Value;
     ///
-    /// # fn main() -> Result<(), rune::runtime::StackError> {
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
     /// stack.push(String::from("Hello World"));
     /// assert!(matches!(stack.pop()?, Value::String(..)));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn push<T>(&mut self, value: T)
     where
@@ -139,12 +136,11 @@ impl Stack {
     /// use rune::runtime::Stack;
     /// use rune::Value;
     ///
-    /// # fn main() -> Result<(), rune::runtime::StackError> {
     /// let mut stack = Stack::new();
     /// assert!(stack.pop().is_err());
     /// stack.push(String::from("Hello World"));
     /// assert!(matches!(stack.pop()?, Value::String(..)));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn pop(&mut self) -> Result<Value, StackError> {
         if self.stack.len() == self.stack_bottom {
@@ -161,7 +157,6 @@ impl Stack {
     /// use rune::runtime::Stack;
     /// use rune::Value;
     ///
-    /// # fn main() -> Result<(), rune::runtime::StackError> {
     /// let mut stack = Stack::new();
     ///
     /// stack.push(42i64);
@@ -173,7 +168,7 @@ impl Stack {
     /// assert!(matches!(it.next(), Some(Value::String(..))));
     /// assert!(matches!(it.next(), Some(Value::Unit)));
     /// assert!(matches!(it.next(), None));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn drain(
         &mut self,
@@ -191,7 +186,6 @@ impl Stack {
     /// use rune::runtime::Stack;
     /// use rune::Value;
     ///
-    /// # fn main() -> Result<(), rune::runtime::StackError> {
     /// let mut stack = Stack::new();
     ///
     /// stack.extend([Value::from(42i64), Value::from(String::from("foo")), Value::Unit]);
@@ -201,7 +195,7 @@ impl Stack {
     /// assert!(matches!(it.next(), Some(Value::String(..))));
     /// assert!(matches!(it.next(), Some(Value::Unit)));
     /// assert!(matches!(it.next(), None));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn extend<I>(&mut self, iter: I)
     where

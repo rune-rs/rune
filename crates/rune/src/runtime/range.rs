@@ -11,13 +11,11 @@ use std::ops;
 /// # Examples
 ///
 /// ```
-/// use rune::ToValue;
 /// use rune::runtime::{Range, RangeLimits};
 ///
-/// # fn main() -> rune::Result<()> {
-/// let from = 42i64.to_value()?;
+/// let from = rune::to_value(42i64)?;
 /// let _ = Range::new(Some(from), None, RangeLimits::HalfOpen);
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Clone)]
 pub struct Range {
