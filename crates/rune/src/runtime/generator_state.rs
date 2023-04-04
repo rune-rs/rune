@@ -6,11 +6,10 @@ use crate::{compile::Named, InstallWith};
 /// The state of a generator.
 ///
 /// ```
-/// use rune::{Context, FromValue, Value, Vm};
+/// use rune::{Value, Vm};
 /// use rune::runtime::{Generator, GeneratorState};
 /// use std::sync::Arc;
 ///
-/// # fn main() -> rune::Result<()> {
 /// let mut sources = rune::sources! {
 ///     entry => {
 ///         pub fn main() {
@@ -27,28 +26,28 @@ use crate::{compile::Named, InstallWith};
 /// let mut execution = vm.execute(["main"], ())?;
 ///
 /// // Initial resume doesn't take a value.
-/// let first = match execution.resume()? {
-///     GeneratorState::Yielded(first) => i64::from_value(first)?,
+/// let first = match execution.resume().into_result()? {
+///     GeneratorState::Yielded(first) => rune::from_value::<i64>(first)?,
 ///     GeneratorState::Complete(..) => panic!("generator completed"),
 /// };
 ///
 /// assert_eq!(first, 1);
 ///
 /// // Additional resumes require a value.
-/// let second = match execution.resume_with(Value::from(2i64))? {
-///     GeneratorState::Yielded(second) => i64::from_value(second)?,
+/// let second = match execution.resume_with(Value::from(2i64)).into_result()? {
+///     GeneratorState::Yielded(second) => rune::from_value::<i64>(second)?,
 ///     GeneratorState::Complete(..) => panic!("generator completed"),
 /// };
 ///
 /// assert_eq!(second, 3);
 ///
-/// let ret = match execution.resume_with(Value::from(42i64))? {
-///     GeneratorState::Complete(ret) => i64::from_value(ret)?,
+/// let ret = match execution.resume_with(Value::from(42i64)).into_result()? {
+///     GeneratorState::Complete(ret) => rune::from_value::<i64>(ret)?,
 ///     GeneratorState::Yielded(..) => panic!("generator yielded"),
 /// };
 ///
 /// assert_eq!(ret, 42);
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Debug)]
 pub enum GeneratorState {

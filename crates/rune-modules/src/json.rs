@@ -13,11 +13,9 @@
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> rune::Result<()> {
 //! let mut context = rune::Context::with_default_modules()?;
 //! context.install(rune_modules::json::module(true)?)?;
-//! # Ok(())
-//! # }
+//! # Ok::<_, rune::Error>(())
 //! ```
 //!
 //! Use it in Rune:

@@ -11,7 +11,6 @@
 //! use rune::termcolor::{ColorChoice, StandardStream};
 //! use rune::{Sources, Diagnostics};
 //!
-//! # fn main() -> rune::Result<()> {
 //! let mut sources = Sources::new();
 //!
 //! let mut diagnostics = Diagnostics::new();
@@ -28,7 +27,7 @@
 //! }
 //!
 //! let unit = result?;
-//! # Ok(()) }
+//! # Ok::<_, rune::Error>(())
 //! ```
 
 use crate::ast::Span;
@@ -82,7 +81,6 @@ impl Mode {
 /// use rune::{Sources, Diagnostics};
 /// use rune::termcolor::{StandardStream, ColorChoice};
 ///
-/// # fn main() -> rune::Result<()> {
 /// let mut sources = Sources::new();
 /// let mut diagnostics = Diagnostics::new();
 ///
@@ -92,7 +90,7 @@ impl Mode {
 ///     let mut writer = StandardStream::stderr(ColorChoice::Always);
 ///     diagnostics.emit(&mut writer, &sources)?;
 /// }
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Debug)]
 pub struct Diagnostics {

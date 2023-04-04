@@ -187,14 +187,13 @@ impl Context {
     /// use rune::{Context, Vm, Unit};
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let context = Context::with_default_modules()?;
     ///
     /// let runtime = Arc::new(context.runtime());
     /// let unit = Arc::new(Unit::default());
     ///
     /// let vm = Vm::new(runtime, unit);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn runtime(&self) -> RuntimeContext {
         RuntimeContext::new(self.functions.clone(), self.constants.clone())
@@ -291,6 +290,7 @@ impl Context {
     }
 
     /// Lookup meta by its hash.
+    #[cfg(feature = "doc")]
     pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> Option<&PrivMeta> {
         self.meta.get(&hash)
     }

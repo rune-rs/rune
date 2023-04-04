@@ -60,18 +60,17 @@ pub type Values<'a> = btree_map::Values<'a, String, Value>;
 /// # Examples
 ///
 /// ```
-/// # fn main() -> rune::Result<()> {
 /// let mut object = rune::runtime::Object::new();
 /// assert!(object.is_empty());
 ///
-/// object.insert_value(String::from("foo"), 42)?;
-/// object.insert_value(String::from("bar"), true)?;
+/// object.insert_value(String::from("foo"), 42).into_result()?;
+/// object.insert_value(String::from("bar"), true).into_result()?;
 /// assert_eq!(2, object.len());
 ///
-/// assert_eq!(Some(42), object.get_value("foo")?);
-/// assert_eq!(Some(true), object.get_value("bar")?);
-/// assert_eq!(None::<bool>, object.get_value("baz")?);
-/// # Ok(()) }
+/// assert_eq!(Some(42), object.get_value("foo").into_result()?);
+/// assert_eq!(Some(true), object.get_value("bar").into_result()?);
+/// assert_eq!(None::<bool>, object.get_value("baz").into_result()?);
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Default, Clone)]
 #[repr(transparent)]

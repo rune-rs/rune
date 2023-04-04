@@ -189,12 +189,11 @@ impl Vm {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Context, Vm, Unit, FromValue};
+    /// use rune::{Context, Vm, Unit};
     /// use rune::compile::ItemBuf;
     ///
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let context = Context::with_default_modules()?;
     /// let context = Arc::new(context.runtime());
     ///
@@ -218,7 +217,7 @@ impl Vm {
     /// // Looking up an item from the source.
     /// let dynamic_max = vm.lookup_function(["max"])?;
     ///
-    /// let value = i64::from_value(dynamic_max.call((10, 20))?)?;
+    /// let value: i64 = rune::from_value(dynamic_max.call((10, 20)).into_result()?)?;
     /// assert_eq!(value, 20);
     ///
     /// // Building an item buffer to lookup an `::std` item.
@@ -228,9 +227,9 @@ impl Vm {
     ///
     /// let max = vm.lookup_function(&item)?;
     ///
-    /// let value = i64::from_value(max.call((10, 20)).into_result()?)?;
+    /// let value: i64 = rune::from_value(max.call((10, 20)).into_result()?)?;
     /// assert_eq!(value, 20);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn lookup_function<N>(&self, name: N) -> Result<Function, VmError>
     where
@@ -271,10 +270,9 @@ impl Vm {
     /// # Examples
     ///
     /// ```,no_run
-    /// use rune::{Context, Unit, FromValue, Source};
+    /// use rune::{Context, Unit};
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let context = Context::with_default_modules()?;
     /// let context = Arc::new(context.runtime());
     ///
@@ -284,21 +282,20 @@ impl Vm {
     ///
     /// let mut vm = rune::Vm::new(context, unit);
     ///
-    /// let output = vm.execute(["main"], (33i64,))?.complete()?;
-    /// let output = i64::from_value(output)?;
+    /// let output = vm.execute(["main"], (33i64,))?.complete().into_result()?;
+    /// let output: i64 = rune::from_value(output)?;
     ///
     /// println!("output: {}", output);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     ///
     /// You can use a `Vec<Value>` to provide a variadic collection of
     /// arguments.
     ///
     /// ```,no_run
-    /// use rune::{Context, Unit, FromValue, Source, ToValue};
+    /// use rune::{Context, Unit};
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let context = Context::with_default_modules()?;
     /// let context = Arc::new(context.runtime());
     ///
@@ -309,14 +306,14 @@ impl Vm {
     /// let mut vm = rune::Vm::new(context, unit);
     ///
     /// let mut args = Vec::new();
-    /// args.push(1u32.to_value()?);
-    /// args.push(String::from("Hello World").to_value()?);
+    /// args.push(rune::to_value(1u32)?);
+    /// args.push(rune::to_value(String::from("Hello World"))?);
     ///
-    /// let output = vm.execute(["main"], args)?.complete()?;
-    /// let output = i64::from_value(output)?;
+    /// let output = vm.execute(["main"], args)?.complete().into_result()?;
+    /// let output: i64 = rune::from_value(output)?;
     ///
     /// println!("output: {}", output);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn execute<A, N>(&mut self, name: N, args: A) -> Result<VmExecution<&mut Self>, VmError>
     where
@@ -2859,10 +2856,9 @@ impl Vm {
     /// [Value::string_display] which requires access to a virtual machine.
     ///
     /// ```,no_run
-    /// use rune::{Context, Unit, FromValue, Source};
+    /// use rune::{Context, Unit};
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let context = Context::with_default_modules()?;
     /// let context = Arc::new(context.runtime());
     ///
@@ -2872,7 +2868,7 @@ impl Vm {
     ///
     /// let mut vm = rune::Vm::new(context, unit);
     ///
-    /// let output = vm.execute(["main"], ())?.complete()?;
+    /// let output = vm.call(["main"], ())?;
     ///
     /// // Call the string_display protocol on `output`. This requires
     /// // access to a virtual machine since it might use functions
@@ -2882,8 +2878,8 @@ impl Vm {
     ///
     /// // Note: We do an extra unwrap because the return value is
     /// // `fmt::Result`.
-    /// vm.with(|| output.string_display(&mut s, &mut buf))?.expect("formatting should succeed");
-    /// # Ok(()) }
+    /// vm.with(|| output.string_display(&mut s, &mut buf)).into_result()?.expect("formatting should succeed");
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn with<F, T>(&mut self, f: F) -> T
     where

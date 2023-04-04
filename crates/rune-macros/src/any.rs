@@ -68,7 +68,7 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let mut ctx = Context::new();
+        let ctx = Context::new();
 
         let attrs = match ctx.type_attrs(&self.input.attrs) {
             Some(attrs) => attrs,
@@ -78,11 +78,10 @@ impl Derive {
         let tokens = ctx.tokens_with_module(attrs.module.as_ref());
 
         let generics = &self.input.generics;
-        let install_with =
-            match expand_install_with(&mut ctx, &self.input, &tokens, &attrs, generics) {
-                Some(install_with) => install_with,
-                None => return Err(ctx.errors.into_inner()),
-            };
+        let install_with = match expand_install_with(&ctx, &self.input, &tokens, &attrs, generics) {
+            Some(install_with) => install_with,
+            None => return Err(ctx.errors.into_inner()),
+        };
 
         let name = match attrs.name {
             Some(name) => name,

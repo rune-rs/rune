@@ -15,10 +15,9 @@ use std::ops;
 /// use rune::SourceId;
 /// use rune::parse::Parser;
 ///
-/// # fn main() -> rune::Result<()> {
 /// let mut parser = Parser::new("fn foo() {}", SourceId::empty(), false);
 /// let ast = parser.parse::<ast::ItemFn>()?;
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Debug)]
 pub struct Parser<'a> {

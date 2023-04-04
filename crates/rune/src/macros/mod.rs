@@ -8,7 +8,7 @@
 //! where the macro was invoked.
 //!
 //! ```
-//! use rune::{T, Context, FromValue, Module, Vm};
+//! use rune::{T, Context, Module, Vm};
 //! use rune::ast;
 //! use rune::macros::{quote, MacroContext, TokenStream};
 //! use rune::parse::Parser;
@@ -37,7 +37,6 @@
 //!     Ok(quote!(#output).into_token_stream(ctx))
 //! }
 //!
-//! # fn main() -> rune::Result<()> {
 //! let mut m = Module::new();
 //! m.macro_(["concat_idents"], concat_idents)?;
 //!
@@ -63,10 +62,10 @@
 //!
 //! let mut vm = Vm::new(runtime, unit);
 //! let value = vm.call(["main"], ())?;
-//! let value = u32::from_value(value)?;
+//! let value: u32 = rune::from_value(value)?;
 //!
 //! assert_eq!(value, 42);
-//! # Ok(()) }
+//! # Ok::<_, rune::Error>(())
 //! ```
 
 mod format_args;

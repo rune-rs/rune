@@ -1096,11 +1096,11 @@ impl Value {
             },
         }
 
-        err(VmErrorKind::from(VmErrorKind::UnsupportedBinaryOperation {
+        err(VmErrorKind::UnsupportedBinaryOperation {
             op: "==",
             lhs: vm_try!(a.type_info()),
             rhs: vm_try!(b.type_info()),
-        }))
+        })
     }
 }
 

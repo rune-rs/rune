@@ -14,7 +14,7 @@ pub use rune_macros::FromValue;
 /// # Examples
 ///
 /// ```
-/// use rune::{FromValue, ToValue, Vm};
+/// use rune::{ToValue, Vm};
 /// use std::sync::Arc;
 ///
 /// #[derive(ToValue)]
@@ -22,7 +22,6 @@ pub use rune_macros::FromValue;
 ///     field: u64,
 /// }
 ///
-/// # fn main() -> rune::Result<()> {
 /// let mut sources = rune::sources! {
 ///     entry => {
 ///         pub fn main(foo) {
@@ -38,7 +37,7 @@ pub use rune_macros::FromValue;
 /// let foo: u64 = rune::from_value(foo)?;
 ///
 /// assert_eq!(foo, 43);
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 pub fn from_value<T>(value: Value) -> Result<T, VmError>
 where
@@ -52,7 +51,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use rune::{Context, FromValue, Sources, Source, Vm};
+/// use rune::{FromValue, Vm};
 /// use std::sync::Arc;
 ///
 /// #[derive(FromValue)]
@@ -60,7 +59,6 @@ where
 ///     field: u64,
 /// }
 ///
-/// # fn main() -> rune::Result<()> {
 /// let mut sources = rune::sources!(entry => {
 ///     pub fn main() { #{field: 42} }
 /// });
@@ -69,10 +67,10 @@ where
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(["main"], ())?;
-/// let foo = Foo::from_value(foo)?;
+/// let foo: Foo = rune::from_value(foo)?;
 ///
 /// assert_eq!(foo.field, 42);
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 pub trait FromValue: 'static + Sized {
     /// Try to convert to the given type, from the given value.

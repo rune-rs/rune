@@ -27,10 +27,9 @@ pub struct BuildError;
 ///
 /// ```
 /// use rune::termcolor::{ColorChoice, StandardStream};
-/// use rune::{Context, Options, Source, Vm};
+/// use rune::{Context, Source, Vm};
 /// use std::sync::Arc;
 ///
-/// # fn main() -> rune::Result<()> {
 /// let context = Context::with_default_modules()?;
 /// let runtime = Arc::new(context.runtime());
 ///
@@ -56,7 +55,7 @@ pub struct BuildError;
 /// let unit = result?;
 /// let unit = Arc::new(unit);
 /// let vm = Vm::new(runtime, unit);
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 pub fn prepare(sources: &mut Sources) -> Build<'_> {
     Build {

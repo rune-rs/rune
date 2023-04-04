@@ -66,10 +66,8 @@ impl Variant {
 
         match (&a.data, &b.data) {
             (VariantData::Unit, VariantData::Unit) => VmResult::Ok(true),
-            (VariantData::Tuple(a), VariantData::Tuple(b)) => return Tuple::value_ptr_eq(vm, a, b),
-            (VariantData::Struct(a), VariantData::Struct(b)) => {
-                return Object::value_ptr_eq(vm, a, b)
-            }
+            (VariantData::Tuple(a), VariantData::Tuple(b)) => Tuple::value_ptr_eq(vm, a, b),
+            (VariantData::Struct(a), VariantData::Struct(b)) => Object::value_ptr_eq(vm, a, b),
             _ => VmResult::Ok(false),
         }
     }

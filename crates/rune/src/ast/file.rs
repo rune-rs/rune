@@ -59,7 +59,6 @@ use crate::ast::prelude::*;
 /// use rune::SourceId;
 /// use rune::{ast, parse};
 ///
-/// # fn main() -> rune::Result<()> {
 /// let file = parse::parse_all::<ast::File>(r#"#!rune run
 ///
 /// fn main() {
@@ -70,7 +69,7 @@ use crate::ast::prelude::*;
 /// "#, SourceId::EMPTY, true)?;
 ///
 /// assert!(file.shebang.is_some());
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 #[non_exhaustive]

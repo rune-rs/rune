@@ -895,13 +895,12 @@ impl<T: ?Sized> Ref<T> {
     /// ```
     /// use rune::runtime::{Shared, Ref};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
     /// let vec = vec.into_ref()?;
     /// let value: Ref<[u32]> = Ref::map(vec, |vec| &vec[0..2]);
     ///
     /// assert_eq!(&*value, &[1u32, 2u32][..]);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn map<U: ?Sized, F>(this: Self, f: F) -> Ref<U>
     where
@@ -930,13 +929,12 @@ impl<T: ?Sized> Ref<T> {
     /// ```
     /// use rune::runtime::{Shared, Ref};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
     /// let vec = vec.into_ref()?;
     /// let value: Option<Ref<[u32]>> = Ref::try_map(vec, |vec| vec.get(0..2));
     ///
     /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn try_map<U: ?Sized, F>(this: Self, f: F) -> Option<Ref<U>>
     where
@@ -1016,13 +1014,12 @@ impl<T: ?Sized> Mut<T> {
     /// ```
     /// use rune::runtime::{Mut, Shared};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
     /// let vec = vec.into_mut()?;
     /// let value: Mut<[u32]> = Mut::map(vec, |vec| &mut vec[0..2]);
     ///
     /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn map<U: ?Sized, F>(this: Self, f: F) -> Mut<U>
     where
@@ -1054,13 +1051,12 @@ impl<T: ?Sized> Mut<T> {
     /// ```
     /// use rune::runtime::{Mut, Shared};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
     /// let vec = vec.into_mut()?;
     /// let mut value: Option<Mut<[u32]>> = Mut::try_map(vec, |vec| vec.get_mut(0..2));
     ///
     /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn try_map<U: ?Sized, F>(this: Self, f: F) -> Option<Mut<U>>
     where

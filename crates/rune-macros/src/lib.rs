@@ -248,7 +248,6 @@ pub fn opaque(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///     field: u64,
 /// }
 ///
-/// # fn main() -> rune::Result<()> {
 /// let mut sources = rune::sources! {
 ///     entry => {
 ///         pub fn main() {
@@ -261,10 +260,10 @@ pub fn opaque(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(["main"], ())?;
-/// let foo = Foo::from_value(foo)?;
+/// let foo: Foo = rune::from_value(foo)?;
 ///
 /// assert_eq!(foo.field, 42);
-/// # Ok(()) }
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[proc_macro_derive(FromValue, attributes(rune))]
 pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -280,7 +279,7 @@ pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// # Examples
 ///
 /// ```
-/// use rune::{FromValue, ToValue, Vm};
+/// use rune::{ToValue, Vm};
 /// use std::sync::Arc;
 ///
 /// #[derive(ToValue)]
@@ -288,7 +287,6 @@ pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///     field: u64,
 /// }
 ///
-/// # fn main() -> rune::Result<()> {
 /// let mut sources = rune::sources! {
 ///     entry => {
 ///         pub fn main(foo) {
@@ -300,11 +298,11 @@ pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// let unit = rune::prepare(&mut sources).build()?;
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
-/// let foo = vm.call(["main"], (Foo { field: 42 },))?;
-/// let foo = u64::from_value(foo)?;
+/// let value = vm.call(["main"], (Foo { field: 42 },))?;
+/// let value: u64 = rune::from_value(value)?;
 ///
-/// assert_eq!(foo, 43);
-/// # Ok(()) }
+/// assert_eq!(value, 43);
+/// # Ok::<_, rune::Error>(())
 /// ```
 #[proc_macro_derive(ToValue, attributes(rune))]
 pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

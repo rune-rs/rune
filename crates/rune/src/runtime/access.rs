@@ -321,13 +321,12 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// ```
     /// use rune::runtime::{BorrowRef, Shared};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
     /// let vec = vec.borrow_ref()?;
     /// let value: BorrowRef<[u32]> = BorrowRef::map(vec, |vec| &vec[0..2]);
     ///
     /// assert_eq!(&*value, &[1u32, 2u32][..]);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowRef<'a, U>
     where
@@ -346,13 +345,12 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// ```
     /// use rune::runtime::{BorrowRef, Shared};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
     /// let vec = vec.borrow_ref()?;
     /// let mut value: Option<BorrowRef<[u32]>> = BorrowRef::try_map(vec, |vec| vec.get(0..2));
     ///
     /// assert_eq!(value.as_deref(), Some(&[1u32, 2u32][..]));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowRef<'a, U>>
     where
@@ -461,13 +459,12 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// ```
     /// use rune::runtime::{BorrowMut, Shared};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
     /// let vec = vec.borrow_mut()?;
     /// let value: BorrowMut<[u32]> = BorrowMut::map(vec, |vec| &mut vec[0..2]);
     ///
     /// assert_eq!(&*value, &mut [1u32, 2u32][..]);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowMut<'a, U>
     where
@@ -486,13 +483,12 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// ```
     /// use rune::runtime::{BorrowMut, Shared};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let vec = Shared::<Vec<u32>>::new(vec![1, 2, 3, 4]);
     /// let vec = vec.borrow_mut()?;
     /// let mut value: Option<BorrowMut<[u32]>> = BorrowMut::try_map(vec, |vec| vec.get_mut(0..2));
     ///
     /// assert_eq!(value.as_deref_mut(), Some(&mut [1u32, 2u32][..]));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowMut<'a, U>>
     where

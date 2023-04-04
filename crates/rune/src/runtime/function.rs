@@ -19,11 +19,10 @@ impl Function {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         pub fn main(function) {
@@ -40,9 +39,9 @@ impl Function {
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
     /// let value = vm.call(["main"], (function,))?;
-    /// let value = u32::from_value(value)?;
+    /// let value: u32 = rune::from_value(value)?;
     /// assert_eq!(value, 42);
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn function<Func, Args>(f: Func) -> Self
     where
@@ -61,7 +60,7 @@ impl Function {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
     /// use std::sync::Arc;
     ///
@@ -82,7 +81,7 @@ impl Function {
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
     /// let value = vm.async_call(["main"], (function,)).await?;
-    /// let value = u32::from_value(value)?;
+    /// let value: u32 = rune::from_value(value)?;
     /// assert_eq!(value, 42);
     /// # Ok(()) }
     /// ```
@@ -113,11 +112,10 @@ impl Function {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         fn add(a, b) {
@@ -132,9 +130,9 @@ impl Function {
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let value = vm.call(["main"], ())?;
     ///
-    /// let value = Function::from_value(value)?;
-    /// assert_eq!(value.call::<_, u32>((1, 2))?, 3);
-    /// # Ok(()) }
+    /// let value: Function = rune::from_value(value)?;
+    /// assert_eq!(value.call::<_, u32>((1, 2)).into_result()?, 3);
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn call<A, T>(&self, args: A) -> VmResult<T>
     where
@@ -222,11 +220,10 @@ impl Function {
     /// [Hash::type_hash].
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         fn pony() { }
@@ -238,10 +235,10 @@ impl Function {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let pony = vm.call(["main"], ())?;
-    /// let pony = Function::from_value(pony)?;
+    /// let pony: Function = rune::from_value(pony)?;
     ///
     /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn type_hash(&self) -> Hash {
         self.0.type_hash()
@@ -254,11 +251,10 @@ impl Function {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         fn pony() { }
@@ -270,13 +266,13 @@ impl Function {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let pony = vm.call(["main"], ())?;
-    /// let pony = Function::from_value(pony)?;
+    /// let pony: Function = rune::from_value(pony)?;
     ///
     /// // This is fine, since `pony` is a free function.
-    /// let pony = pony.into_sync()?;
+    /// let pony = pony.into_sync().into_result()?;
     ///
     /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     ///
     /// The following *does not* work, because we return a closure which tries
@@ -284,11 +280,10 @@ impl Function {
     /// constant value.
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         fn generator() {
@@ -308,12 +303,12 @@ impl Function {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let closure = vm.call(["main"], ())?;
-    /// let closure = Function::from_value(closure)?;
+    /// let closure: Function = rune::from_value(closure)?;
     ///
     /// // This is *not* fine since the returned closure has captured a
     /// // generator which is not a constant value.
     /// assert!(closure.into_sync().is_err());
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn into_sync(self) -> VmResult<SyncFunction> {
         VmResult::Ok(SyncFunction(vm_try!(self.0.into_sync())))
@@ -333,7 +328,7 @@ impl SyncFunction {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::SyncFunction;
     /// use std::sync::Arc;
     ///
@@ -352,9 +347,9 @@ impl SyncFunction {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let add = vm.call(["main"], ())?;
-    /// let add = SyncFunction::from_value(add)?;
+    /// let add: SyncFunction = rune::from_value(add)?;
     ///
-    /// let value = add.async_send_call::<_, u32>((1, 2)).await?;
+    /// let value = add.async_send_call::<_, u32>((1, 2)).await.into_result()?;
     /// assert_eq!(value, 3);
     /// # Ok(()) }
     /// ```
@@ -371,11 +366,10 @@ impl SyncFunction {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::SyncFunction;
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         fn add(a, b) {
@@ -389,10 +383,10 @@ impl SyncFunction {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let add = vm.call(["main"], ())?;
-    /// let add = SyncFunction::from_value(add)?;
+    /// let add: SyncFunction = rune::from_value(add)?;
     ///
-    /// assert_eq!(add.call::<_, u32>((1, 2))?, 3);
-    /// # Ok(()) }
+    /// assert_eq!(add.call::<_, u32>((1, 2)).into_result()?, 3);
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn call<A, T>(&self, args: A) -> VmResult<T>
     where
@@ -410,11 +404,10 @@ impl SyncFunction {
     /// [Hash::type_hash].
     ///
     /// ```
-    /// use rune::{Hash, Vm, FromValue};
+    /// use rune::{Hash, Vm};
     /// use rune::runtime::SyncFunction;
     /// use std::sync::Arc;
     ///
-    /// # fn main() -> rune::Result<()> {
     /// let mut sources = rune::sources! {
     ///     entry => {
     ///         fn pony() { }
@@ -426,10 +419,10 @@ impl SyncFunction {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let pony = vm.call(["main"], ())?;
-    /// let pony = SyncFunction::from_value(pony)?;
+    /// let pony: SyncFunction = rune::from_value(pony)?;
     ///
     /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
-    /// # Ok(()) }
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn type_hash(&self) -> Hash {
         self.0.type_hash()

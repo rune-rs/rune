@@ -168,11 +168,10 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 /// use rune_tests::*;
 /// use rune::Value;
 ///
-/// # fn main() {
 /// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
 /// let result = vm.execute(["main"], ()).unwrap().complete().unwrap();
 /// assert_eq!(result.into_bool().unwrap(), true);
-/// # }
+/// ```
 #[macro_export]
 macro_rules! rune_vm {
     ($($tt:tt)*) => {{
@@ -193,11 +192,10 @@ macro_rules! rune_vm {
 /// use rune_tests::*;
 /// use rune::Value;
 ///
-/// # fn main() {
 /// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
 /// let result = vm.execute(["main"], ()).unwrap().complete().unwrap();
 /// assert_eq!(result.into_bool().unwrap(), true);
-/// # }
+/// ```
 #[macro_export]
 macro_rules! rune_vm_capture {
     ($($tt:tt)*) => {{
@@ -220,10 +218,9 @@ macro_rules! rune_vm_capture {
 /// ```
 /// use rune_tests::*;
 ///
-/// # fn main() {
 /// let out: bool = rune_tests::rune!(pub fn main() { true || false });
 /// assert_eq!(out, true);
-/// # }
+/// ```
 #[macro_export]
 macro_rules! rune {
     ($($tt:tt)*) => {{
@@ -239,10 +236,8 @@ macro_rules! rune {
 /// ```
 /// use rune_tests::*;
 ///
-/// # fn main() {
 /// let out: bool = rune_tests::rune_s!("pub fn main() { true || false }");
 /// assert_eq!(out, true);
-/// # }
 /// ```
 #[macro_export]
 macro_rules! rune_s {
@@ -261,6 +256,7 @@ macro_rules! rune_s {
 /// ```
 /// use rune_tests::*;
 /// use rune::Module;
+///
 /// fn get_native_module() -> Module {
 ///     Module::new()
 /// }
@@ -271,6 +267,7 @@ macro_rules! rune_s {
 ///     true,
 /// };
 /// # }
+/// ```
 #[macro_export]
 macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
