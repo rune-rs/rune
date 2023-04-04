@@ -3,7 +3,7 @@
 
 pub use ::rune_modules as modules;
 use rune::compile::{IntoComponent, ItemBuf};
-use rune::runtime::{Args, VmError, VmErrorWithTrace, VmResult};
+use rune::runtime::{Args, VmError, VmResult};
 use rune::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
 use std::sync::Arc;
 use thiserror::Error;
@@ -16,14 +16,14 @@ pub enum RunError {
     BuildError(BuildError),
     /// A virtual machine error was raised during testing.
     #[error("vm error: {0}")]
-    VmError(Box<VmErrorWithTrace>),
+    VmError(VmError),
 }
 
 impl RunError {
     /// Unpack into a vm error or panic with the given message.
     pub fn expect_vm_error(self, msg: &str) -> VmError {
         match self {
-            Self::VmError(error) => error.into_error(),
+            Self::VmError(error) => error,
             _ => panic!("{}", msg),
         }
     }
@@ -80,15 +80,14 @@ where
     ::futures_executor::block_on(async move {
         let mut vm = vm(context, sources, diagnostics)?;
 
-        let mut execute = match vm.execute(&ItemBuf::with_item(function), args) {
-            VmResult::Ok(execute) => execute,
-            VmResult::Err(err) => return Err(RunError::VmError(err)),
-        };
-
-        let output = match execute.async_complete().await {
-            VmResult::Ok(output) => output,
-            VmResult::Err(err) => return Err(RunError::VmError(err)),
-        };
+        let mut execute = vm
+            .execute(&ItemBuf::with_item(function), args)
+            .map_err(RunError::VmError)?;
+        let output = execute
+            .async_complete()
+            .await
+            .into_result()
+            .map_err(RunError::VmError)?;
 
         match T::from_value(output) {
             VmResult::Ok(output) => Ok(output),

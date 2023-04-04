@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use anyhow::Result;
 use clap::Parser;
-use rune::runtime::{VmErrorWithTrace, VmExecution, VmResult};
+use rune::runtime::{VmError, VmExecution, VmResult};
 use rune::{Context, Sources, Unit, Value, Vm};
 
 use crate::{Config, ExitCode, Io, SharedFlags};
@@ -80,7 +80,7 @@ impl Flags {
 
 enum TraceError {
     Io(std::io::Error),
-    VmError(Box<VmErrorWithTrace>),
+    VmError(VmError),
 }
 
 impl From<std::io::Error> for TraceError {
@@ -167,7 +167,7 @@ pub(crate) async fn run(
     let last = Instant::now();
 
     let mut vm = Vm::new(runtime, unit);
-    let mut execution: VmExecution<_> = vm.execute(["main"], ()).into_result()?;
+    let mut execution: VmExecution<_> = vm.execute(["main"], ())?;
 
     let result = if args.trace {
         match do_trace(

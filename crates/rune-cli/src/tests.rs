@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::Parser;
 use rune::compile::ItemBuf;
-use rune::runtime::{Unit, Value, Vm, VmErrorWithTrace, VmResult};
+use rune::runtime::{Unit, Value, Vm, VmError, VmResult};
 use rune::{Context, Hash, Sources};
 use rune_modules::capture_io::CaptureIo;
 
@@ -27,7 +27,7 @@ pub(crate) struct Flags {
 
 #[derive(Debug)]
 enum FailureReason {
-    Crash(Box<VmErrorWithTrace>),
+    Crash(VmError),
     ReturnedNone,
     ReturnedErr { output: Box<[u8]>, error: Value },
 }
@@ -62,8 +62,8 @@ impl<'a> TestCase<'a> {
         }
 
         let result = match vm.execute(self.hash, ()) {
-            VmResult::Ok(mut execution) => execution.async_complete().await,
-            VmResult::Err(err) => VmResult::Err(err),
+            Ok(mut execution) => execution.async_complete().await,
+            Err(err) => VmResult::Err(err),
         };
 
         if let Some(capture_io) = capture_io {

@@ -18,7 +18,7 @@ use crate::diagnostics::{
 };
 use crate::parse::ResolveErrorKind;
 use crate::query::QueryErrorKind;
-use crate::runtime::{Unit, VmErrorKind, VmErrorWithTrace};
+use crate::runtime::{Unit, VmErrorKind, VmError};
 use crate::{Source, Diagnostics, SourceId, Sources};
 use crate::ast::{Span, Spanned};
 
@@ -75,7 +75,7 @@ impl Diagnostics {
     }
 }
 
-impl VmErrorWithTrace {
+impl VmError {
     /// Generate formatted diagnostics capable of referencing source lines and
     /// hints.
     ///
@@ -91,7 +91,7 @@ impl VmErrorWithTrace {
         let mut backtrace = vec![];
         let config = codespan_reporting::term::Config::default();
 
-        for l in &self.stacktrace {
+        for l in &self.inner.stacktrace {
             let debug_info = match l.unit.debug_info() {
                 Some(debug_info) => debug_info,
                 None => continue,
@@ -112,9 +112,9 @@ impl VmErrorWithTrace {
 
         let mut diagnostic = d::Diagnostic::error();
 
-        for (index, error) in [&self.error].into_iter().chain(&self.chain) {
+        for at in [&self.inner.error].into_iter().chain(&self.inner.chain) {
             let get = || {
-                let l = self.stacktrace.get(*index)?;
+                let l = self.inner.stacktrace.get(at.index)?;
                 let debug_info = l.unit.debug_info()?;
                 let debug_inst = debug_info.instruction_at(l.ip)?;
                 Some(debug_inst)
@@ -123,7 +123,7 @@ impl VmErrorWithTrace {
             let debug_inst = match get() {
                 Some(debug_inst) => debug_inst,
                 None => {
-                    println!("error: {error} (no debug information)");
+                    println!("error: {} (no debug information)", at.kind);
                     continue;
                 }
             };
@@ -133,7 +133,7 @@ impl VmErrorWithTrace {
 
             let mut labels = Vec::new();
 
-            let (reason, notes) = match error.kind() {
+            let (reason, notes) = match &at.kind {
                 VmErrorKind::Panic { reason } => {
                     labels.push(d::Label::primary(source_id, span.range()).with_message("panicked"));
                     ("panic in runtime".to_owned(), vec![reason.to_string()])

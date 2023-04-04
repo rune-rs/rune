@@ -25,7 +25,10 @@ impl Call {
             Call::Stream => Value::from(Stream::new(vm)),
             Call::Generator => Value::from(Generator::new(vm)),
             Call::Immediate => vm_try!(vm.complete()),
-            Call::Async => Value::from(Future::new(vm.async_complete())),
+            Call::Async => {
+                let mut execution = vm.into_execution();
+                Value::from(Future::new(async move { execution.async_complete().await }))
+            }
         })
     }
 }

@@ -1,7 +1,7 @@
 //! The `std::option` module.
 
 use crate as rune;
-use crate::runtime::{Function, Iterator, Protocol, Shared, Value, VmError, VmResult};
+use crate::runtime::{Function, Iterator, Panic, Protocol, Shared, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::option` module.
@@ -76,16 +76,14 @@ fn option_iter(option: &Option<Value>) -> Iterator {
 fn unwrap_impl(option: Option<Value>) -> VmResult<Value> {
     match option {
         Some(some) => VmResult::Ok(some),
-        None => VmResult::err(VmError::panic(
-            "called `Option::unwrap()` on a `None` value",
-        )),
+        None => VmResult::err(Panic::custom("called `Option::unwrap()` on a `None` value")),
     }
 }
 
 fn expect_impl(option: Option<Value>, message: &str) -> VmResult<Value> {
     match option {
         Some(some) => VmResult::Ok(some),
-        None => VmResult::err(VmError::panic(message.to_owned())),
+        None => VmResult::err(Panic::custom(message.to_owned())),
     }
 }
 

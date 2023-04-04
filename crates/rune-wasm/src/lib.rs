@@ -326,8 +326,8 @@ async fn inner_compile(
     let mut vm = rune::Vm::new(Arc::new(context.runtime()), unit);
 
     let mut execution = match vm.execute(["main"], ()) {
-        VmResult::Ok(execution) => execution,
-        VmResult::Err(error) => {
+        Ok(execution) => execution,
+        Err(error) => {
             error
                 .emit(&mut writer, &sources)
                 .context("emitting to buffer should never fail")?;

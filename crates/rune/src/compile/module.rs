@@ -681,20 +681,12 @@ impl Module {
 
         let value = match value.to_value() {
             VmResult::Ok(v) => v,
-            VmResult::Err(e) => {
-                return Err(ContextError::ValueError {
-                    error: e.into_error(),
-                })
-            }
+            VmResult::Err(error) => return Err(ContextError::ValueError { error }),
         };
 
         let constant_value = match <ConstValue as FromValue>::from_value(value) {
             VmResult::Ok(v) => v,
-            VmResult::Err(e) => {
-                return Err(ContextError::ValueError {
-                    error: e.into_error(),
-                })
-            }
+            VmResult::Err(error) => return Err(ContextError::ValueError { error }),
         };
 
         self.constants.insert(name, constant_value);

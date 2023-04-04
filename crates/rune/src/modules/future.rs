@@ -1,7 +1,7 @@
 //! The `std::future` module.
 
 use crate::runtime::future::SelectFuture;
-use crate::runtime::{Future, Shared, Stack, Value, VmError, VmErrorKind, VmResult};
+use crate::runtime::{Future, Shared, Stack, Value, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std::future` module.
@@ -25,7 +25,9 @@ where
     for (index, value) in values.into_iter().enumerate() {
         let future = match value {
             Value::Future(future) => vm_try!(future.clone().into_mut()),
-            value => return VmResult::err(vm_try!(VmError::bad_argument::<Future>(index, value))),
+            value => {
+                return VmResult::err(vm_try!(VmErrorKind::bad_argument::<Future>(index, value)))
+            }
         };
 
         futures.push(SelectFuture::new(index, future));
@@ -54,7 +56,7 @@ async fn join(value: Value) -> VmResult<Value> {
                 try_join_impl(vec.iter(), vec.len(), Value::vec).await
             ))
         }
-        value => VmResult::err(vm_try!(VmError::bad_argument::<Vec<Value>>(0, &value))),
+        value => VmResult::err(vm_try!(VmErrorKind::bad_argument::<Vec<Value>>(0, &value))),
     }
 }
 
