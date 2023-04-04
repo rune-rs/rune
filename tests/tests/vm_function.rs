@@ -33,7 +33,7 @@ fn test_function() {
         pub fn main() { Custom::A }
     };
 
-    assert!(function.call::<_, Value>(()).is_err());
+    assert!(function.call::<_, Value>(()).into_result().is_err());
     let value: Value = function.call((1i64,)).unwrap();
     assert!(matches!(value, Value::Variant(..)));
 
@@ -43,7 +43,7 @@ fn test_function() {
         pub fn main() { Custom }
     };
 
-    assert!(function.call::<_, Value>(()).is_err());
+    assert!(function.call::<_, Value>(()).into_result().is_err());
     let value: Value = function.call((1i64,)).unwrap();
     assert!(matches!(value, Value::TupleStruct(..)));
 
@@ -52,7 +52,7 @@ fn test_function() {
         pub fn main() { |a, b| a + b }
     };
 
-    assert!(function.call::<_, Value>((1i64,)).is_err());
+    assert!(function.call::<_, Value>((1i64,)).into_result().is_err());
     let value: Value = function.call((1i64, 2i64)).unwrap();
     assert!(matches!(value, Value::Integer(3)));
 
@@ -65,7 +65,7 @@ fn test_function() {
     )
     .unwrap();
 
-    assert!(function.call::<_, Value>((1i64,)).is_err());
+    assert!(function.call::<_, Value>((1i64,)).into_result().is_err());
     let value: Value = function.call(()).unwrap();
     assert!(matches!(value, Value::Integer(3)));
 }

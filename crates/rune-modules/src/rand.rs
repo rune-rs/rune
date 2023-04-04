@@ -140,14 +140,14 @@ mod tests {
     #[test]
     fn test_range_is_exclusive() {
         for _ in 0..100 {
-            assert_eq!(int_range(0, 1).unwrap().into_integer().unwrap(), 0);
+            assert_eq!(rune::from_value::<i64>(int_range(0, 1).unwrap()).unwrap(), 0);
         }
     }
 
     #[test]
     fn test_range_can_be_negative() {
         for _ in 0..100 {
-            assert_eq!(int_range(-2, -1).unwrap().into_integer().unwrap(), -2);
+            assert_eq!(rune::from_value::<i64>(int_range(-2, -1).unwrap()).unwrap(), -2);
         }
     }
 
@@ -155,8 +155,9 @@ mod tests {
     fn test_int_is_properly_signed() {
         let mut any_negative = false;
         let mut any_positive = false;
+
         for _ in 0..100 {
-            let v = int().unwrap().into_integer().unwrap();
+            let v: i64 = rune::from_value(int().unwrap()).unwrap();
             any_negative = any_negative || v < 0;
             any_positive = any_positive || v > 0;
         }

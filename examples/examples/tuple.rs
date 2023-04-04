@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, FromValue, Vm};
+use rune::{Diagnostics, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
@@ -30,7 +30,7 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(["calc"], ((1u32, 2u32),))?;
-    let output = <(i32, i32)>::from_value(output)?;
+    let output: (i32, i32) = rune::from_value(output)?;
 
     println!("{:?}", output);
     Ok(())

@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, FromValue, Vm};
+use rune::{Diagnostics, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
@@ -28,8 +28,8 @@ fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
-    let output = vm.execute(["main"], (33i64,))?.complete()?;
-    let output = i64::from_value(output)?;
+    let output = vm.execute(["main"], (33i64,))?.complete().into_result()?;
+    let output: i64 = rune::from_value(output)?;
 
     println!("output: {}", output);
     Ok(())

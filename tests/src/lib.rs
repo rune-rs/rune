@@ -301,8 +301,8 @@ macro_rules! assert_vm_error {
             }
         };
 
-        let (e, _) = match e {
-            $crate::RunError::VmError(e) => e.into_unwound(),
+        let e = match e {
+            $crate::RunError::VmError(e) => e,
             actual => {
                 panic!("expected vm error `{}` but was `{:?}`", stringify!($pat), actual);
             }

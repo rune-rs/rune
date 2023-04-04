@@ -1,7 +1,7 @@
 use rune::ast;
 use rune::macros::quote;
 use rune::parse::Parser;
-use rune::{Context, FromValue, Module, Vm};
+use rune::{Context, Module, Vm};
 use std::sync::Arc;
 
 #[test]
@@ -43,8 +43,8 @@ fn test_parse_in_macro() -> rune::Result<()> {
     let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
-    let output = vm.execute(["main"], ())?.complete()?;
-    let output = <(u32, u32)>::from_value(output)?;
+    let output = vm.execute(["main"], ())?.complete().into_result()?;
+    let output: (u32, u32) = rune::from_value(output)?;
 
     assert_eq!(output, (42, 42));
     Ok(())

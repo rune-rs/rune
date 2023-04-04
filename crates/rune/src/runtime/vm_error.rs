@@ -19,6 +19,10 @@ pub trait TryFromResult {
 }
 
 /// Helper to coerce one result type into [`VmResult`].
+///
+/// Despite being public, this is actually private API (`#[doc(hidden)]`). Use
+/// at your own risk.
+#[doc(hidden)]
 pub fn try_result<T>(result: T) -> VmResult<T::Ok>
 where
     T: TryFromResult,
@@ -196,11 +200,21 @@ impl<T> VmResult<T> {
     }
 
     /// Expect a value or panic.
+    #[doc(hidden)]
     pub fn expect(self, msg: &str) -> T {
-        match self {
-            VmResult::Ok(t) => t,
-            VmResult::Err(error) => panic!("{msg}: {error:?}"),
-        }
+        self.into_result().expect(msg)
+    }
+
+    /// Unwrap the interior value.
+    #[doc(hidden)]
+    pub fn unwrap(self) -> T {
+        self.into_result().unwrap()
+    }
+
+    /// Test if it is an error.
+    #[doc(hidden)]
+    pub fn is_err(&self) -> bool {
+        matches!(self, Self::Err(..))
     }
 }
 

@@ -61,7 +61,7 @@ pub use self::call::Call;
 pub use self::const_value::ConstValue;
 pub use self::debug::{DebugInfo, DebugInst};
 pub use self::format::{Format, FormatSpec};
-pub use self::from_value::{FromValue, UnsafeFromValue};
+pub use self::from_value::{from_value, FromValue, UnsafeFromValue};
 pub use self::function::{Function, SyncFunction};
 pub use self::future::Future;
 pub use self::generator::Generator;
@@ -93,7 +93,7 @@ pub use self::static_type::{
     UNIT_TYPE, VEC_TYPE,
 };
 pub use self::stream::Stream;
-pub use self::to_value::{ToValue, UnsafeToValue};
+pub use self::to_value::{to_value, ToValue, UnsafeToValue};
 pub use self::tuple::Tuple;
 pub use self::type_info::{AnyTypeInfo, TypeInfo};
 pub use self::type_of::{FullTypeOf, MaybeTypeOf, TypeOf};

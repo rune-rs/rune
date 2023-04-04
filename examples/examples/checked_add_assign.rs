@@ -1,4 +1,4 @@
-use rune::runtime::{VmError, VmErrorKind};
+use rune::runtime::{VmErrorKind, VmResult};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Any, ContextError, Diagnostics, Module, Vm};
 use std::sync::Arc;
@@ -11,13 +11,13 @@ struct External {
 
 #[allow(clippy::unnecessary_lazy_evaluations)]
 impl External {
-    fn value_add_assign(&mut self, other: i64) -> Result<(), VmError> {
-        self.value = self
+    fn value_add_assign(&mut self, other: i64) -> VmResult<()> {
+        self.value = rune::vm_try!(self
             .value
             .checked_add(other)
-            .ok_or_else(|| VmErrorKind::Overflow)?;
+            .ok_or_else(|| VmErrorKind::Overflow));
 
-        Ok(())
+        VmResult::Ok(())
     }
 }
 
@@ -56,8 +56,7 @@ fn main() -> rune::Result<()> {
         value: i64::max_value(),
     };
     let err = vm.call(["main"], (input,)).unwrap_err();
-    let (kind, _) = err.as_unwound();
-    println!("{:?}", kind);
+    println!("{:?}", err.kind());
     Ok(())
 }
 

@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, FromValue, Vm};
+use rune::{Diagnostics, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
@@ -37,7 +37,7 @@ fn main() -> rune::Result<()> {
 
     let input = vec![1, 2, 3, 4];
     let output = vm.call(["calc"], (input,))?;
-    let output = Vec::<i64>::from_value(output)?;
+    let output: Vec<i64> = rune::from_value(output)?;
 
     println!("{:?}", output);
     Ok(())

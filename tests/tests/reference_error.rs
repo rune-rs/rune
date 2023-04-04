@@ -1,4 +1,4 @@
-use rune::runtime::{AnyObj, Shared, VmError};
+use rune::runtime::{AnyObj, Shared, VmResult};
 use rune::Any;
 use rune::{Context, Module, Vm};
 use std::sync::Arc;
@@ -10,10 +10,10 @@ fn test_reference_error() -> rune::Result<()> {
         value: i64,
     }
 
-    fn take_it(this: Shared<AnyObj>) -> Result<(), VmError> {
+    fn take_it(this: Shared<AnyObj>) -> VmResult<()> {
         // NB: this will error, since this is a reference.
-        let _ = this.into_ref()?;
-        Ok(())
+        let _ = rune::vm_try!(this.into_ref());
+        VmResult::Ok(())
     }
 
     let mut module = Module::new();

@@ -15,53 +15,61 @@ impl Expander {
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
     ) -> Option<TokenStream> {
+        let ident = &input.ident;
+
+        let Tokens {
+            value,
+            vm_error_kind,
+            from_value,
+            vm_result,
+            ..
+        } = &self.tokens;
+
         let (expanded, expected) = match &st.fields {
             syn::Fields::Unit => {
-                let value = &self.tokens.value;
-
                 let expanded = quote_spanned! {
                     input.span() =>
                     #value::Unit => {
-                        Ok(Self)
+                        #vm_result::Ok(Self)
                     }
                     #value::UnitStruct(..) => {
-                        Ok(Self)
+                        #vm_result::Ok(Self)
                     }
                 };
 
                 (expanded, &self.tokens.unit_struct)
             }
-            syn::Fields::Unnamed(unnamed) => {
-                let expanded = &self.expand_unnamed(unnamed)?;
-                let value = &self.tokens.value;
+            syn::Fields::Unnamed(f) => {
+                let expanded = self.expand_unnamed(f)?;
+                let borrow_ref = self.tokens.vm_try(quote!(tuple.borrow_ref()));
 
                 let expanded = quote_spanned! {
-                    unnamed.span() =>
+                    f.span() =>
                     #value::Tuple(tuple) => {
-                        let tuple = tuple.borrow_ref()?;
-                        Ok(Self(#expanded))
+                        let tuple = #borrow_ref;
+                        #vm_result::Ok(Self(#expanded))
                     }
                     #value::TupleStruct(tuple) => {
-                        let tuple = tuple.borrow_ref()?;
-                        Ok(Self(#expanded))
+                        let tuple = #borrow_ref;
+                        #vm_result::Ok(Self(#expanded))
                     }
                 };
 
                 (expanded, &self.tokens.tuple)
             }
-            syn::Fields::Named(named) => {
-                let expanded = &self.expand_named(named)?;
-                let value = &self.tokens.value;
+            syn::Fields::Named(f) => {
+                let expanded = self.expand_named(f)?;
+                let borrow_ref = self.tokens.vm_try(quote!(object.borrow_ref()));
 
                 let expanded = quote_spanned! {
-                    named.span() =>
+                    f.span() =>
                     #value::Object(object) => {
-                        let object = object.borrow_ref()?;
-                        Ok(Self { #expanded })
+                        let object = #borrow_ref;
+                        #vm_result::Ok(Self { #expanded })
                     }
                     #value::Struct(object) => {
-                        let object = object.borrow_ref()?;
-                        Ok(Self { #expanded })
+                        let object = #borrow_ref;
+                        #vm_result::Ok(Self { #expanded })
                     }
                 };
 
@@ -69,18 +77,18 @@ impl Expander {
             }
         };
 
-        let ident = &input.ident;
-        let value = &self.tokens.value;
-        let vm_error = &self.tokens.vm_error;
-        let from_value = &self.tokens.from_value;
+        let actual_type_info = self.tokens.vm_try(quote!(actual.type_info()));
 
-        Some(quote! {
+        Some(quote_spanned! {
+            input.span() =>
             impl #from_value for #ident {
-                fn from_value(value: #value) -> ::std::result::Result<Self, #vm_error> {
+                fn from_value(value: #value) -> #vm_result<Self> {
                     match value {
                         #expanded
                         actual => {
-                            Err(#vm_error::expected::<#expected>(actual.type_info()?))
+                            #vm_result::err(#vm_error_kind::expected::<#expected>(
+                                #actual_type_info
+                            ))
                         }
                     }
                 }
@@ -94,6 +102,17 @@ impl Expander {
         let mut unnamed_matches = Vec::new();
         let mut named_matches = Vec::new();
 
+        let ident = &input.ident;
+
+        let Tokens {
+            from_value,
+            variant_data,
+            value,
+            vm_error_kind,
+            vm_result,
+            ..
+        } = &self.tokens;
+
         for variant in &en.variants {
             let ident = &variant.ident;
             let lit_str = syn::LitStr::new(&ident.to_string(), variant.span());
@@ -101,7 +120,7 @@ impl Expander {
             match &variant.fields {
                 syn::Fields::Unit => {
                     unit_matches.push(quote_spanned! { variant.span() =>
-                        #lit_str => Ok(Self::#ident)
+                        #lit_str => #vm_result::Ok(Self::#ident)
                     });
                 }
                 syn::Fields::Unnamed(named) => {
@@ -109,7 +128,7 @@ impl Expander {
 
                     unnamed_matches.push(quote_spanned! { variant.span() =>
                         #lit_str => {
-                            Ok( Self::#ident ( #expanded ) )
+                            #vm_result::Ok(Self::#ident ( #expanded ))
                         }
                     });
                 }
@@ -118,62 +137,59 @@ impl Expander {
 
                     named_matches.push(quote_spanned! { variant.span() =>
                         #lit_str => {
-                            Ok( Self::#ident { #expanded } )
+                            #vm_result::Ok(Self::#ident { #expanded })
                         }
                     });
                 }
             }
         }
 
-        let from_value = &self.tokens.from_value;
-        let variant_data = &self.tokens.variant_data;
-        let ident = &input.ident;
-        let value = &self.tokens.value;
-        let vm_error = &self.tokens.vm_error;
-        let vm_error_kind = &self.tokens.vm_error_kind;
+        let borrow_ref = self.tokens.vm_try(quote!(variant.borrow_ref()));
 
         let variant = quote_spanned! { input.span() =>
             #value::Variant(variant) => {
-                let variant = variant.borrow_ref()?;
+                let variant = #borrow_ref;
                 let mut it = variant.rtti().item.iter();
 
                 let name = match it.next_back_str() {
                     Some(name) => name,
-                    None => return Err(#vm_error::from(#vm_error_kind::MissingVariantName)),
+                    None => return #vm_result::err(#vm_error_kind::MissingVariantName),
                 };
 
                 match variant.data() {
                     #variant_data::Unit => match name {
                         #(#unit_matches,)*
                         name => {
-                            return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
+                            return #vm_result::err(#vm_error_kind::MissingVariant { name: name.into() })
                         }
                     },
                     #variant_data::Tuple(tuple) => match name {
                         #(#unnamed_matches)*
                         name => {
-                            return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
+                            return #vm_result::err(#vm_error_kind::MissingVariant { name: name.into() })
                         }
                     },
                     #variant_data::Struct(object) => match name {
                         #(#named_matches)*
                         name => {
-                            return Err(#vm_error::from(#vm_error_kind::MissingVariant { name: name.into() }))
+                            return #vm_result::err(#vm_error_kind::MissingVariant { name: name.into() })
                         }
                     },
                 }
             }
         };
 
+        let actual_type_info = self.tokens.vm_try(quote!(actual.type_info()));
+
         Some(quote_spanned! { input.span() =>
             impl #from_value for #ident {
-                fn from_value(value: #value) -> ::std::result::Result<Self, #vm_error> {
+                fn from_value(value: #value) -> #vm_result<Self> {
                     match value {
                         #variant,
                         actual => {
-                            Err(#vm_error::from(#vm_error_kind::ExpectedVariant {
-                                actual: actual.type_info()?,
-                            }))
+                            #vm_result::err(#vm_error_kind::ExpectedVariant {
+                                actual: #actual_type_info,
+                            })
                         }
                     }
                 }
@@ -182,11 +198,11 @@ impl Expander {
     }
 
     /// Get a field identifier.
-    fn field_ident<'a>(&mut self, field: &'a syn::Field) -> Option<&'a syn::Ident> {
+    fn field_ident<'a>(&self, field: &'a syn::Field) -> Option<&'a syn::Ident> {
         match &field.ident {
             Some(ident) => Some(ident),
             None => {
-                self.ctx.errors.push(syn::Error::new_spanned(
+                self.ctx.error(syn::Error::new_spanned(
                     field,
                     "unnamed fields are not supported",
                 ));
@@ -196,29 +212,31 @@ impl Expander {
     }
 
     /// Expand unnamed fields.
-    fn expand_unnamed(&mut self, unnamed: &syn::FieldsUnnamed) -> Option<TokenStream> {
+    fn expand_unnamed(&self, unnamed: &syn::FieldsUnnamed) -> Option<TokenStream> {
         let mut from_values = Vec::new();
+
+        let Tokens {
+            from_value,
+            vm_error_kind,
+            vm_result,
+            ..
+        } = &self.tokens;
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
             let _ = self.ctx.field_attrs(&field.attrs)?;
-
-            let from_value = &self.tokens.from_value;
-            let vm_error = &self.tokens.vm_error;
-            let vm_error_kind = &self.tokens.vm_error_kind;
-
-            let from_value = quote_spanned! {
-                field.span() => #from_value::from_value(value.clone())?
-            };
+            let from_value = self
+                .tokens
+                .vm_try(quote!(#from_value::from_value(value.clone())));
 
             from_values.push(quote_spanned! {
                 field.span() =>
                 match tuple.get(#index) {
                     Some(value) => #from_value,
                     None => {
-                        return Err(#vm_error::from(#vm_error_kind::MissingTupleIndex {
+                        return #vm_result::err(#vm_error_kind::MissingTupleIndex {
                             target: std::any::type_name::<Self>(),
                             index: #index,
-                        }));
+                        });
                     }
                 }
             });
@@ -228,7 +246,7 @@ impl Expander {
     }
 
     /// Expand named fields.
-    fn expand_named(&mut self, named: &syn::FieldsNamed) -> Option<TokenStream> {
+    fn expand_named(&self, named: &syn::FieldsNamed) -> Option<TokenStream> {
         let mut from_values = Vec::new();
 
         for field in &named.named {
@@ -237,23 +255,26 @@ impl Expander {
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
-            let from_value = &self.tokens.from_value;
-            let vm_error = &self.tokens.vm_error;
-            let vm_error_kind = &self.tokens.vm_error_kind;
+            let Tokens {
+                from_value,
+                vm_error_kind,
+                vm_result,
+                ..
+            } = &self.tokens;
 
-            let from_value = quote_spanned! {
-                field.span() => #from_value::from_value(value.clone())?
-            };
+            let from_value = self
+                .tokens
+                .vm_try(quote!(#from_value::from_value(value.clone())));
 
             from_values.push(quote_spanned! {
                 field.span() =>
                 #ident: match object.get(#name) {
                     Some(value) => #from_value,
                     None => {
-                        return Err(#vm_error::from(#vm_error_kind::MissingStructField {
+                        return #vm_result::err(#vm_error_kind::MissingStructField {
                             target: std::any::type_name::<Self>(),
                             name: #name,
-                        }));
+                        });
                     }
                 }
             });
@@ -264,12 +285,12 @@ impl Expander {
 }
 
 pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
-    let mut ctx = Context::new();
+    let ctx = Context::new();
 
     let attrs = match ctx.type_attrs(&input.attrs) {
         Some(attrs) => attrs,
         None => {
-            return Err(ctx.errors);
+            return Err(ctx.errors.into_inner());
         }
     };
 
@@ -289,12 +310,12 @@ pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             }
         }
         syn::Data::Union(un) => {
-            expander.ctx.errors.push(syn::Error::new_spanned(
+            expander.ctx.error(syn::Error::new_spanned(
                 un.union_token,
                 "not supported on unions",
             ));
         }
     }
 
-    Err(expander.ctx.errors)
+    Err(expander.ctx.errors.into_inner())
 }

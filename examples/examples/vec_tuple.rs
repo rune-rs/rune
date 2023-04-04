@@ -1,6 +1,6 @@
 use rune::runtime::VecTuple;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, FromValue, Vm};
+use rune::{Diagnostics, Vm};
 use std::sync::Arc;
 
 fn main() -> rune::Result<()> {
@@ -34,7 +34,7 @@ fn main() -> rune::Result<()> {
 
     let input: VecTuple<(i64, String)> = VecTuple::new((1, String::from("Hello")));
     let output = vm.call(["calc"], (input,))?;
-    let VecTuple((a, b)) = VecTuple::<(u32, String)>::from_value(output)?;
+    let VecTuple((a, b)): VecTuple<(u32, String)> = rune::from_value(output)?;
 
     println!("({:?}, {:?})", a, b);
     Ok(())

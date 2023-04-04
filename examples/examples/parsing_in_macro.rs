@@ -2,7 +2,7 @@ use rune::macros::quote;
 use rune::parse::Parser;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ast, ContextError};
-use rune::{Diagnostics, FromValue, Module, Vm};
+use rune::{Diagnostics, Module, Vm};
 use std::sync::Arc;
 
 pub fn main() -> rune::Result<()> {
@@ -37,8 +37,8 @@ pub fn main() -> rune::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.execute(["main"], ())?.complete()?;
-    let output = <(u32, u32)>::from_value(output)?;
+    let output = vm.execute(["main"], ())?.complete().into_result()?;
+    let output: (u32, u32) = rune::from_value(output)?;
 
     println!("{:?}", output);
     Ok(())

@@ -2,7 +2,7 @@
 //! specific type `Foo`.
 
 use rune::runtime::Protocol;
-use rune::{Any, ContextError, Diagnostics, FromValue, Module, Vm};
+use rune::{Any, ContextError, Diagnostics, Module, Vm};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
@@ -43,7 +43,7 @@ fn main() -> rune::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(["main"], (Foo { field: 5 },))?;
-    let output = Foo::from_value(output)?;
+    let output: Foo = rune::from_value(output)?;
 
     println!("output: {:?}", output);
     Ok(())
