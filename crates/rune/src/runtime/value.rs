@@ -1,10 +1,10 @@
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
-    AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, Function, Future,
-    Generator, GeneratorState, Iterator, Mut, Object, Protocol, ProtocolCaller, Range, RawMut,
-    RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, TypeInfo, Variant, Vec, Vm, VmError,
-    VmErrorKind,
+    AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
+    Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, Protocol,
+    ProtocolCaller, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple,
+    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind,
 };
 use crate::{Any, Hash};
 use serde::{de, ser, Deserialize, Serialize};
@@ -1203,12 +1203,14 @@ macro_rules! impl_from {
     ($($variant:ident => $ty:ty),* $(,)*) => {
         $(
             impl From<$ty> for Value {
+                #[inline]
                 fn from(value: $ty) -> Self {
                     Self::$variant(value)
                 }
             }
 
             impl ToValue for $ty {
+                #[inline]
                 fn to_value(self) -> Result<Value, VmError> {
                     Ok(Value::from(self))
                 }
@@ -1223,12 +1225,14 @@ macro_rules! impl_from_wrapper {
 
         $(
             impl From<$ty> for Value {
+                #[inline]
                 fn from(value: $ty) -> Self {
                     Self::$variant($wrapper::new(value))
                 }
             }
 
             impl ToValue for $ty {
+                #[inline]
                 fn to_value(self) -> Result<Value, VmError> {
                     Ok(Value::from(self))
                 }
@@ -1550,6 +1554,13 @@ impl<'de> de::Visitor<'de> for VmVisitor {
         }
 
         Ok(Value::Object(Shared::new(object)))
+    }
+}
+
+impl MaybeTypeOf for Value {
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        None
     }
 }
 

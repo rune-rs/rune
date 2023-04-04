@@ -1,14 +1,14 @@
 //! Tests for derive(Any) on generic types
 
 use rune::compile::Named;
-use rune::runtime::UnsafeFromValue;
+use rune::runtime::{UnsafeFromValue, MaybeTypeOf};
 use rune::{Any, ContextError, Module, ToValue};
 use rune_tests::*;
 
 #[derive(Any)]
 struct Generic<T>
 where
-    T: 'static + Clone + Named + UnsafeFromValue + ToValue,
+    T: 'static + Clone + Named + UnsafeFromValue + ToValue + MaybeTypeOf,
 {
     #[rune(get, set)]
     data: T,
@@ -16,7 +16,7 @@ where
 
 impl<T> Generic<T>
 where
-    T: 'static + Clone + Copy + Named + UnsafeFromValue + ToValue,
+    T: 'static + Clone + Copy + Named + UnsafeFromValue + ToValue + MaybeTypeOf,
 {
     fn get_value(&self) -> T {
         self.data

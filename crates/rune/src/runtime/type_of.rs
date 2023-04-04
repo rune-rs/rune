@@ -2,7 +2,7 @@ use crate::runtime::{Mut, Ref, TypeInfo};
 use crate::Hash;
 
 /// Full type information.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FullTypeOf {
     pub(crate) hash: Hash,
 }
@@ -22,6 +22,12 @@ pub trait TypeOf {
 
     /// Access diagnostical information on the value type.
     fn type_info() -> TypeInfo;
+}
+
+/// A type that might or might not have a concrete type.
+pub trait MaybeTypeOf {
+    /// Type information for the given type.
+    fn maybe_type_of() -> Option<FullTypeOf>;
 }
 
 /// Blanket implementation for references.

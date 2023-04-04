@@ -437,6 +437,7 @@ impl Context {
                                 item: item.clone(),
                                 is_async: false,
                                 args: Some(args),
+                                return_type: Some(enum_hash),
                                 kind: meta::SignatureKind::Function,
                             };
 
@@ -520,6 +521,7 @@ impl Context {
             item: item.clone(),
             is_async: false,
             args: f.args,
+            return_type: f.return_type.as_ref().map(|f| f.hash),
             kind: meta::SignatureKind::Function,
         };
 
@@ -623,6 +625,7 @@ impl Context {
             item: info.item.clone(),
             is_async: assoc.is_async,
             args: assoc.args,
+            return_type: assoc.return_type.as_ref().map(|f| f.hash),
             kind: meta::SignatureKind::Instance {
                 name: assoc.name.kind.clone(),
                 self_type_info: info.type_info.clone(),
@@ -666,6 +669,7 @@ impl Context {
                 item: item.clone(),
                 is_async: assoc.is_async,
                 args: assoc.args,
+                return_type: assoc.return_type.as_ref().map(|f| f.hash),
                 kind: meta::SignatureKind::Function,
             };
 
@@ -789,6 +793,7 @@ impl Context {
                 item,
                 is_async: false,
                 args: Some(variant.args),
+                return_type: Some(enum_hash),
                 kind: meta::SignatureKind::Function,
             };
 
@@ -861,6 +866,7 @@ impl Context {
             item,
             is_async: false,
             args: Some(args),
+            return_type: Some(type_hash),
             kind: meta::SignatureKind::Function,
         };
 

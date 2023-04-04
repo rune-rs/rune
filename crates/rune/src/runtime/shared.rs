@@ -1,7 +1,3 @@
-use crate::runtime::{
-    Access, AccessError, AccessKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, RawAccessGuard,
-};
-use crate::{Any, Hash};
 use std::any;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
@@ -13,6 +9,11 @@ use std::pin::Pin;
 use std::process;
 use std::ptr;
 use std::task::{Context, Poll};
+
+use crate::runtime::{
+    Access, AccessError, AccessKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, RawAccessGuard,
+};
+use crate::{Any, Hash};
 
 /// A shared value.
 pub struct Shared<T: ?Sized> {

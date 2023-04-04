@@ -15,8 +15,9 @@ use crate::compile::{
 };
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
-    ConstValue, FromValue, FunctionHandler, Future, GeneratorState, MacroHandler, Protocol, Stack,
-    StaticType, ToValue, TypeCheck, TypeInfo, TypeOf, UnsafeFromValue, Value, VmError, VmErrorKind,
+    ConstValue, FromValue, FullTypeOf, FunctionHandler, Future, GeneratorState, MacroHandler,
+    MaybeTypeOf, Protocol, Stack, StaticType, ToValue, TypeCheck, TypeInfo, TypeOf,
+    UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use crate::Hash;
 
@@ -212,6 +213,8 @@ pub struct AssociatedFunction {
     pub(crate) args: Option<usize>,
     /// The full name of the associated function.
     pub(crate) name: AssociatedFunctionName,
+    /// The return type of an associated function.
+    pub(crate) return_type: Option<FullTypeOf>,
     /// The documentation of the associated function.
     pub(crate) docs: Docs,
 }
@@ -233,6 +236,9 @@ pub(crate) struct ModuleFunction {
     pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,
     pub(crate) instance_function: bool,
+    /// The return type of a module function.
+    pub(crate) return_type: Option<FullTypeOf>,
+    /// Documentation of the module function.
     pub(crate) docs: Docs,
 }
 
@@ -817,6 +823,7 @@ impl Module {
     pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
         Func: Function<Args>,
+        Func::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -857,6 +864,7 @@ impl Module {
     pub fn async_function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
         Func: AsyncFunction<Args>,
+        Func::Output: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
     {
@@ -904,6 +912,7 @@ impl Module {
     where
         N: ToInstance,
         Func: InstFn<Args>,
+        Func::Return: MaybeTypeOf,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_instance(), f),
@@ -944,6 +953,7 @@ impl Module {
     where
         N: ToInstance,
         Func: AsyncInstFn<Args>,
+        Func::Output: MaybeTypeOf,
     {
         self.assoc_fn(
             AssociatedFunctionData::new_async(name.to_instance(), f),
@@ -961,6 +971,7 @@ impl Module {
     where
         N: ToFieldFunction,
         Func: InstFn<Args>,
+        Func::Return: MaybeTypeOf,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_field_function(protocol), f),
@@ -980,9 +991,9 @@ impl Module {
     ) -> Result<(), ContextError>
     where
         Func: InstFn<Args>,
+        Func::Return: MaybeTypeOf,
     {
         let name = AssociatedFunctionName::index(protocol, index);
-
         self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::default())
     }
 
@@ -1007,6 +1018,7 @@ impl Module {
                 is_async: false,
                 args: None,
                 instance_function: false,
+                return_type: None,
                 docs: Docs::default(),
             },
         );
@@ -1026,6 +1038,7 @@ impl Module {
                 is_async: data.is_async,
                 args: data.args,
                 instance_function: false,
+                return_type: data.return_type,
                 docs,
             },
         );
@@ -1074,6 +1087,7 @@ impl Module {
             is_async: data.is_async,
             args: data.args,
             name: data.name,
+            return_type: data.return_type,
             docs,
         };
 
@@ -1104,7 +1118,9 @@ pub trait Function<Args>: 'static + Send + Sync {
 /// Trait used to provide the [async_function][Module::async_function] function.
 pub trait AsyncFunction<Args>: 'static + Send + Sync {
     /// The return type of the function.
-    type Return;
+    type Return: std::future::Future<Output = Self::Output>;
+    /// The output produces by the future.
+    type Output;
 
     /// Get the number of arguments.
     fn args() -> usize;
@@ -1136,7 +1152,9 @@ pub trait AsyncInstFn<Args>: 'static + Send + Sync {
     /// The type of the instance.
     type Instance;
     /// The return type of the function.
-    type Return;
+    type Return: std::future::Future<Output = Self::Output>;
+    /// The output value of the async function.
+    type Output;
 
     /// Get the number of arguments.
     fn args() -> usize;
@@ -1206,6 +1224,7 @@ macro_rules! impl_register {
             $($ty: 'static + UnsafeFromValue,)*
         {
             type Return = Return;
+            type Output = Return::Output;
 
             fn args() -> usize {
                 $count
@@ -1300,6 +1319,7 @@ macro_rules! impl_register {
         {
             type Instance = Instance;
             type Return = Return;
+            type Output = Return::Output;
 
             fn args() -> usize {
                 $count + 1
