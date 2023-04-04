@@ -595,6 +595,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> CompileResult<
         idx.q.visitor.visit_doc_comment(
             Location::new(idx.source_id, span),
             idx.q.pool.module_item(idx.mod_item),
+            idx.q.pool.module_item_hash(idx.mod_item),
             &doc.doc_string.resolve(ctx)?,
         );
     }
@@ -1258,21 +1259,31 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             ));
         }
 
-        let ctx = resolve_context!(idx.q);
         let span = variant.name.span();
-        let name = variant.name.resolve(ctx)?;
+        let name = variant.name.resolve(resolve_context!(idx.q))?;
         let _guard = idx.items.push_name(name.as_ref());
+
+        let item_meta = idx.q.insert_new_item(
+            &idx.items,
+            Location::new(idx.source_id, span),
+            idx.mod_item,
+            Visibility::Public,
+            &docs,
+        )?;
+        variant.id = item_meta.id;
+
+        let ctx = resolve_context!(idx.q);
 
         for (field, _) in variant.body.fields() {
             let mut attrs = Attributes::new(field.attributes.to_vec());
             let docs = Doc::collect_from(ctx, &mut attrs)?;
             let name = field.name.resolve(ctx)?;
-            let item = idx.items.item();
 
             for doc in docs {
                 idx.q.visitor.visit_field_doc_comment(
                     Location::new(idx.source_id, doc.span),
-                    &item,
+                    idx.q.pool.item(item_meta.item),
+                    idx.q.pool.item_type_hash(item_meta.item),
                     name,
                     doc.doc_string.resolve(ctx)?.as_ref(),
                 );
@@ -1286,15 +1297,6 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> CompileResult<()
             }
         }
 
-        let item_meta = idx.q.insert_new_item(
-            &idx.items,
-            Location::new(idx.source_id, span),
-            idx.mod_item,
-            Visibility::Public,
-            &docs,
-        )?;
-        variant.id = item_meta.id;
-
         idx.q
             .index_variant(item_meta, enum_item.id, variant.clone(), index)?;
     }
@@ -1307,8 +1309,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
     let span = ast.span();
     let mut attrs = Attributes::new(ast.attributes.to_vec());
 
-    let ctx = resolve_context!(idx.q);
-    let docs = Doc::collect_from(ctx, &mut attrs)?;
+    let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
     if let Some(first) = attrs.remaining() {
         return Err(CompileError::msg(
@@ -1317,19 +1318,31 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
         ));
     }
 
-    let ident = ast.ident.resolve(ctx)?;
+    let ident = ast.ident.resolve(resolve_context!(idx.q))?;
     let _guard = idx.items.push_name(ident);
+
+    let visibility = ast_to_visibility(&ast.visibility)?;
+    let item_meta = idx.q.insert_new_item(
+        &idx.items,
+        Location::new(idx.source_id, span),
+        idx.mod_item,
+        visibility,
+        &docs,
+    )?;
+    ast.id = item_meta.id;
+
+    let ctx = resolve_context!(idx.q);
 
     for (field, _) in ast.body.fields() {
         let mut attrs = Attributes::new(field.attributes.to_vec());
         let docs = Doc::collect_from(ctx, &mut attrs)?;
         let name = field.name.resolve(ctx)?;
-        let item = idx.items.item();
 
         for doc in docs {
             idx.q.visitor.visit_field_doc_comment(
                 Location::new(idx.source_id, doc.span),
-                &item,
+                idx.q.pool.item(item_meta.item),
+                idx.q.pool.item_type_hash(item_meta.item),
                 name,
                 doc.doc_string.resolve(ctx)?.as_ref(),
             );
@@ -1347,16 +1360,6 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> CompileResul
             ));
         }
     }
-
-    let visibility = ast_to_visibility(&ast.visibility)?;
-    let item_meta = idx.q.insert_new_item(
-        &idx.items,
-        Location::new(idx.source_id, span),
-        idx.mod_item,
-        visibility,
-        &docs,
-    )?;
-    ast.id = item_meta.id;
 
     idx.q.index_struct(item_meta, Box::new(ast.clone()))?;
     Ok(())

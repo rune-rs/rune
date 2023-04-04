@@ -14,8 +14,7 @@ use crate::hash::Hash;
 use crate::parse::{Id, ParseError, ResolveContext};
 use crate::runtime::{ConstValue, TypeInfo};
 
-/// Provides a human-readable description of a meta item. This is cheaper to use
-/// than [Meta] because it avoids having to clone some data.
+/// A meta reference to an item being compiled.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct MetaRef<'a> {

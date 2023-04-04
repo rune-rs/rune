@@ -6,6 +6,7 @@
     --headings-border-bottom-color: #d2d2d2;
     --type-link-color: #2dbfb8;
     --fn-link-color: #2bab63;
+    --mod-link-color: #d2991d;
 }
 
 body {
@@ -72,6 +73,10 @@ a {
 
 .fn {
     color: var(--fn-link-color);
+}
+
+.module {
+    color: var(--mod-link-color);
 }
 
 .protocol {

@@ -1,5 +1,6 @@
 use crate::ast::Span;
 use crate::compile::{Item, Location, MetaRef};
+use crate::hash::Hash;
 use crate::SourceId;
 
 /// A visitor that will be called for every language item compiled.
@@ -24,7 +25,8 @@ pub trait CompileVisitor {
     ///
     /// This can be called in any order, before or after
     /// [CompileVisitor::visit_meta] for any given item.
-    fn visit_doc_comment(&mut self, _location: Location, _item: &Item, _docstr: &str) {}
+    fn visit_doc_comment(&mut self, _location: Location, _item: &Item, _hash: Hash, _docstr: &str) {
+    }
 
     /// Visit anterior `///`-style comments, and interior `//!`-style doc
     /// comments for a field contained in a struct / enum variant struct.
@@ -35,6 +37,7 @@ pub trait CompileVisitor {
         &mut self,
         _location: Location,
         _item: &Item,
+        _hash: Hash,
         _field: &str,
         _docstr: &str,
     ) {

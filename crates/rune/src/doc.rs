@@ -10,3 +10,4 @@ pub use self::html::write_html;
 
 mod visitor;
 pub use self::visitor::Visitor;
+pub(crate) use self::visitor::VisitorData;

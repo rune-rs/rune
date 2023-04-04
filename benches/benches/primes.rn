@@ -1,5 +1,6 @@
 const MAX_NUMBER_TO_CHECK = 1000;
 
+/// Find prime numbers.
 #[bench]
 fn find_primes(b) {
     let prime_mask = [];

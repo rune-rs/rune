@@ -1,7 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
 
-use crate::hash::Hash;
 use crate::runtime::{RawStr, Rtti, StaticType, VariantRtti};
 
 /// Type information about a value, that can be printed for human consumption
@@ -40,40 +39,18 @@ impl fmt::Display for TypeInfo {
     }
 }
 
-/// Type information for the [`Any`] type.
+/// Type information for the [`Any`][crate::Any] type.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct AnyTypeInfo {
     /// The name of the type.
     pub name: RawStr,
-    /// The hash of the type.
-    #[cfg(feature = "doc")]
-    #[allow(unused)]
-    // TODO: will be used to lookup meta for a given type when generating documentation.
-    pub(crate) hash: Hash,
 }
 
 impl AnyTypeInfo {
     /// Private constructor, use at your own risk.
     #[doc(hidden)]
-    pub fn new(name: RawStr, #[cfg_attr(not(feature = "doc"), allow(unused))] hash: Hash) -> Self {
-        Self {
-            name,
-            #[cfg(feature = "doc")]
-            hash,
-        }
-    }
-
-    /// Private constructor, use at your own risk which can optionally construct a hash from a provided function.
-    #[doc(hidden)]
-    pub fn new_from(
-        name: RawStr,
-        #[cfg_attr(not(feature = "doc"), allow(unused))] hash: fn() -> Hash,
-    ) -> Self {
-        Self {
-            name,
-            #[cfg(feature = "doc")]
-            hash: hash(),
-        }
+    pub fn new(name: RawStr) -> Self {
+        Self { name }
     }
 }

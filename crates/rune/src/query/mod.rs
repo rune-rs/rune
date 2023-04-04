@@ -321,6 +321,7 @@ impl<'a> Query<'a> {
                 self.visitor.visit_doc_comment(
                     Location::new(location.source_id, doc.span),
                     self.pool.item(item),
+                    self.pool.item_type_hash(item),
                     doc.doc_string.resolve(ctx)?.as_ref(),
                 );
             }

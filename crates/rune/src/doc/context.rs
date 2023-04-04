@@ -1,12 +1,14 @@
 use crate::compile::context::PrivMeta;
 use crate::compile::meta;
 use crate::compile::{AssociatedFunction, ComponentRef, IntoComponent, Item};
-use crate::doc::Visitor;
+use crate::doc::{Visitor, VisitorData};
 use crate::runtime::ConstValue;
 use crate::Hash;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Meta<'a> {
+    /// Item of the meta.
+    pub(crate) item: &'a Item,
     /// Type hash for the meta item.
     pub(crate) hash: Hash,
     /// Kind of the meta item.
@@ -76,25 +78,25 @@ impl<'a> Context<'a> {
     /// Get a meta item by its hash.
     pub(crate) fn meta_by_hash(&self, hash: Hash) -> Option<Meta<'_>> {
         for visitor in self.visitors {
-            if let Some(m) = visitor.get_by_hash(hash) {
-                return Some(visitor_meta_to_meta(m, visitor, hash));
+            if let Some(data) = visitor.get_by_hash(hash) {
+                return Some(visitor_meta_to_meta(data));
             }
         }
 
         let meta = self.context.lookup_meta_by_hash(hash)?;
-        Some(self.context_meta_to_meta(meta)?)
+        self.context_meta_to_meta(meta)
     }
 
     /// Lookup Meta.
     pub(crate) fn meta(&self, item: &Item) -> Option<Meta<'_>> {
         for visitor in self.visitors {
-            if let Some((hash, m)) = visitor.get(item) {
-                return Some(visitor_meta_to_meta(m, visitor, hash));
+            if let Some(data) = visitor.get(item) {
+                return Some(visitor_meta_to_meta(data));
             }
         }
 
         let meta = self.context.lookup_meta(item)?;
-        Some(self.context_meta_to_meta(meta)?)
+        self.context_meta_to_meta(meta)
     }
 
     fn context_meta_to_meta(&self, meta: &'a PrivMeta) -> Option<Meta<'a>> {
@@ -132,6 +134,7 @@ impl<'a> Context<'a> {
         };
 
         let m = Meta {
+            item: &meta.item,
             hash: meta.hash,
             docs: meta.docs.lines(),
             kind,
@@ -145,12 +148,12 @@ impl<'a> Context<'a> {
         self.visitors
             .iter()
             .map(|v| v.base.as_ref())
-            .chain(self.context.iter_meta().map(|(_, m)| m.module.as_ref()))
+            .chain(self.context.iter_meta().map(|m| m.module.as_ref()))
     }
 }
 
-fn visitor_meta_to_meta<'a>(m: &'a meta::Kind, visitor: &'a Visitor, hash: Hash) -> Meta<'a> {
-    let kind = match m {
+fn visitor_meta_to_meta(data: &VisitorData) -> Meta<'_> {
+    let kind = match &data.kind {
         meta::Kind::Unknown { .. } => Kind::Unknown,
         meta::Kind::Struct { .. } => Kind::Struct,
         meta::Kind::Variant { .. } => Kind::Variant,
@@ -163,11 +166,10 @@ fn visitor_meta_to_meta<'a>(m: &'a meta::Kind, visitor: &'a Visitor, hash: Hash)
         _ => Kind::Unsupported,
     };
 
-    let docs = visitor
-        .docs
-        .get(&hash)
-        .map(Vec::as_slice)
-        .unwrap_or_default();
-
-    Meta { hash, docs, kind }
+    Meta {
+        item: &data.item,
+        hash: data.hash,
+        docs: data.docs.as_slice(),
+        kind,
+    }
 }
