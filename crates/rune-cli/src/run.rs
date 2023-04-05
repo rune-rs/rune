@@ -220,22 +220,22 @@ pub(crate) async fn run(
 
         while let Some((count, frame)) = it.next() {
             let stack_top = match it.peek() {
-                Some((_, next)) => next.stack_bottom(),
+                Some((_, next)) => next.stack_bottom,
                 None => stack.stack_bottom(),
             };
 
             let values = stack
-                .get(frame.stack_bottom()..stack_top)
+                .get(frame.stack_bottom..stack_top)
                 .expect("bad stack slice");
 
-            writeln!(io.stdout, "  frame #{} (+{})", count, frame.stack_bottom())?;
+            writeln!(io.stdout, "  frame #{} (+{})", count, frame.stack_bottom)?;
 
             if values.is_empty() {
                 writeln!(io.stdout, "    *empty*")?;
             }
 
             for (n, value) in stack.iter().enumerate() {
-                writeln!(io.stdout, "{}+{} = {:?}", frame.stack_bottom(), n, value)?;
+                writeln!(io.stdout, "{}+{} = {:?}", frame.stack_bottom, n, value)?;
             }
         }
 
