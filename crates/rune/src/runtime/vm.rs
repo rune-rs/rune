@@ -664,7 +664,7 @@ impl Vm {
 
                 match &*result {
                     Result::Ok(value) if index == 0 => Some(value.clone()),
-                    Result::Err(value) if index == 1 => Some(value.clone()),
+                    Result::Err(value) if index == 0 => Some(value.clone()),
                     _ => None,
                 }
             }
@@ -682,7 +682,7 @@ impl Vm {
 
                 match &*state {
                     Yielded(value) if index == 0 => Some(value.clone()),
-                    Complete(value) if index == 1 => Some(value.clone()),
+                    Complete(value) if index == 0 => Some(value.clone()),
                     _ => None,
                 }
             }
@@ -736,7 +736,7 @@ impl Vm {
 
                 BorrowMut::try_map(result, |result| match result {
                     Result::Ok(value) if index == 0 => Some(value),
-                    Result::Err(value) if index == 1 => Some(value),
+                    Result::Err(value) if index == 0 => Some(value),
                     _ => None,
                 })
             }
@@ -754,7 +754,7 @@ impl Vm {
 
                 BorrowMut::try_map(state, |state| match state {
                     Yielded(value) if index == 0 => Some(value),
-                    Complete(value) if index == 1 => Some(value),
+                    Complete(value) if index == 0 => Some(value),
                     _ => None,
                 })
             }

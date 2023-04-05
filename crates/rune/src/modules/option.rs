@@ -98,7 +98,7 @@ fn map_impl(option: &Option<Value>, then: Function) -> VmResult<Option<Value>> {
 fn and_then_impl(option: &Option<Value>, then: Function) -> VmResult<Option<Value>> {
     match option {
         // no need to clone v, passing the same reference forward
-        Some(v) => VmResult::Ok(Some(vm_try!(then.call::<_, _>((v,))))),
+        Some(v) => VmResult::Ok(vm_try!(then.call::<_, _>((v,)))),
         None => VmResult::Ok(None),
     }
 }
