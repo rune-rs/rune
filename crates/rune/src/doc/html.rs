@@ -1,3 +1,6 @@
+mod enum_;
+mod type_;
+
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -12,7 +15,7 @@ use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 use crate::collections::{BTreeSet, HashMap, VecDeque};
-use crate::compile::{AssociatedFunctionKind, ComponentRef, Item, ItemBuf};
+use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Function, Kind, Signature};
 use crate::doc::templating;
 use crate::doc::{Context, Visitor};
@@ -84,6 +87,7 @@ struct Ctxt<'a> {
     module_template: templating::Template,
     type_template: templating::Template,
     function_template: templating::Template,
+    enum_template: templating::Template,
     syntax_set: SyntaxSet,
 }
 
@@ -353,6 +357,7 @@ impl Ctxt<'_> {
 enum Build<'a> {
     Type(ItemBuf, Hash),
     Struct(ItemBuf, Hash),
+    Enum(ItemBuf, Hash),
     Function(ItemBuf),
     Module(&'a Item),
 }
@@ -435,6 +440,7 @@ pub fn write_html(
         module_template: compile(&templating, "module.html.hbs")?,
         type_template: compile(&templating, "type.html.hbs")?,
         function_template: compile(&templating, "function.html.hbs")?,
+        enum_template: compile(&templating, "enum.html.hbs")?,
         syntax_set,
     };
 
@@ -446,11 +452,15 @@ pub fn write_html(
         match build {
             Build::Type(item, hash) => {
                 cx.set_path(item, ItemPath::Type);
-                type_(&cx, "Type", "type", hash)?;
+                self::type_::build(&cx, "Type", "type", hash)?;
             }
             Build::Struct(item, hash) => {
                 cx.set_path(item, ItemPath::Struct);
-                type_(&cx, "Struct", "struct", hash)?;
+                self::type_::build(&cx, "Struct", "struct", hash)?;
+            }
+            Build::Enum(item, hash) => {
+                cx.set_path(item, ItemPath::Enum);
+                self::enum_::build(&cx, hash)?;
             }
             Build::Function(item) => {
                 cx.set_path(item, ItemPath::Function);
@@ -529,6 +539,7 @@ fn module(
         module: String,
         types: Vec<Type<'a>>,
         structs: Vec<Struct<'a>>,
+        enums: Vec<Enum<'a>>,
         functions: Vec<Function<'a>>,
         modules: Vec<Module<'a>>,
     }
@@ -545,6 +556,16 @@ fn module(
 
     #[derive(Serialize)]
     struct Struct<'a> {
+        path: RelativePathBuf,
+        #[serde(serialize_with = "serialize_item")]
+        item: ItemBuf,
+        #[serde(serialize_with = "serialize_component_ref")]
+        name: ComponentRef<'a>,
+        first: Option<&'a String>,
+    }
+
+    #[derive(Serialize)]
+    struct Enum<'a> {
         path: RelativePathBuf,
         #[serde(serialize_with = "serialize_item")]
         item: ItemBuf,
@@ -577,6 +598,7 @@ fn module(
     let module = cx.module_path_html(true);
     let mut types = Vec::new();
     let mut structs = Vec::new();
+    let mut enums = Vec::new();
     let mut functions = Vec::new();
     let mut modules = Vec::new();
 
@@ -603,6 +625,16 @@ fn module(
                 queue.push_front(Build::Struct(item.clone(), meta.hash));
                 let path = cx.dir().relative(cx.item_path(&item, ItemPath::Struct));
                 structs.push(Struct {
+                    item,
+                    path,
+                    name,
+                    first: meta.docs.first(),
+                });
+            }
+            Kind::Enum { .. } => {
+                queue.push_front(Build::Enum(item.clone(), meta.hash));
+                let path = cx.dir().relative(cx.item_path(&item, ItemPath::Enum));
+                enums.push(Enum {
                     item,
                     path,
                     name,
@@ -643,159 +675,9 @@ fn module(
             module,
             types,
             structs,
+            enums,
             functions,
             modules,
-        })
-    })
-}
-
-/// Build an unknown type.
-// #[tracing::instrument(skip_all)]
-fn type_(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> {
-    #[derive(Serialize)]
-    struct Params<'a> {
-        what: &'a str,
-        what_class: &'a str,
-        #[serde(flatten)]
-        shared: Shared,
-        module: String,
-        #[serde(serialize_with = "serialize_component_ref")]
-        name: ComponentRef<'a>,
-        #[serde(serialize_with = "serialize_item")]
-        item: &'a Item,
-        methods: Vec<Method<'a>>,
-        protocols: Vec<Protocol<'a>>,
-    }
-
-    #[derive(Serialize)]
-    struct Protocol<'a> {
-        name: &'a str,
-        repr: Option<String>,
-        return_type: Option<String>,
-        doc: Option<String>,
-    }
-
-    #[derive(Serialize)]
-    struct Method<'a> {
-        is_async: bool,
-        name: &'a str,
-        args: String,
-        parameters: Option<String>,
-        return_type: Option<String>,
-        doc: Option<String>,
-    }
-
-    let module = cx.module_path_html(false);
-    let name = cx.item.last().context("missing module name")?;
-    let mut protocols = Vec::new();
-    let mut methods = Vec::new();
-
-    for name in cx.context.iter_components(&cx.item) {
-        let item = cx.item.join([name]);
-
-        let meta = match cx.context.meta(&item) {
-            Some(meta) => meta,
-            _ => continue,
-        };
-
-        let name = match name {
-            ComponentRef::Str(name) => name,
-            _ => continue,
-        };
-
-        match meta.kind {
-            Kind::Function(f) => {
-                if !matches!(f.signature, Signature::Instance { .. }) {
-                    methods.push(Method {
-                        is_async: f.is_async,
-                        name,
-                        args: args_to_string(f.args, f.signature)?,
-                        parameters: None,
-                        return_type: match f.return_type {
-                            Some(hash) => Some(cx.hash_to_link(hash)?),
-                            None => None,
-                        },
-                        doc: cx.render_docs(meta.docs)?,
-                    });
-                }
-            }
-            _ => {
-                continue;
-            }
-        }
-    }
-
-    for f in cx.context.associated(hash) {
-        let value;
-
-        let (protocol, value) = match &f.name.kind {
-            AssociatedFunctionKind::Protocol(protocol) => (protocol, "value"),
-            AssociatedFunctionKind::FieldFn(protocol, field) => {
-                value = format!("value.{field}");
-                (protocol, value.as_str())
-            }
-            AssociatedFunctionKind::IndexFn(protocol, index) => {
-                value = format!("value.{index}");
-                (protocol, value.as_str())
-            }
-            AssociatedFunctionKind::Instance(name) => {
-                let doc = cx.render_docs(f.docs.lines())?;
-
-                let mut list = Vec::new();
-
-                for hash in &f.name.parameter_types {
-                    list.push(cx.hash_to_link(*hash)?);
-                }
-
-                let parameters = (!list.is_empty()).then(|| list.join(", "));
-
-                methods.push(Method {
-                    is_async: f.is_async,
-                    name,
-                    args: args_to_string(f.docs.args(), Signature::Instance { args: f.args })?,
-                    parameters,
-                    return_type: match &f.return_type {
-                        Some(f) => Some(cx.hash_to_link(f.hash)?),
-                        None => None,
-                    },
-                    doc,
-                });
-
-                continue;
-            }
-        };
-
-        let doc = if f.docs.lines().is_empty() {
-            cx.render_docs(protocol.doc)?
-        } else {
-            cx.render_docs(f.docs.lines())?
-        };
-
-        let repr = protocol
-            .repr
-            .map(|line| cx.render_code([line.replace("$value", value.as_ref())]));
-
-        protocols.push(Protocol {
-            name: protocol.name,
-            repr,
-            return_type: match &f.return_type {
-                Some(f) => Some(cx.hash_to_link(f.hash)?),
-                None => None,
-            },
-            doc,
-        });
-    }
-
-    cx.write_file(|cx| {
-        cx.type_template.render(&Params {
-            what,
-            what_class,
-            shared: cx.shared(),
-            module,
-            name,
-            item: &cx.item,
-            methods,
-            protocols,
         })
     })
 }

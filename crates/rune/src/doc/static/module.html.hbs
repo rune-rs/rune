@@ -25,6 +25,16 @@
 {{/each}}
 {{/if}}
 
+{{#if enums}}
+<h4 class="section-title">Enums</h4>
+
+{{#each enums}}
+    <div class="item-entry">
+    <a class="enum" href="{{literal this.path}}">{{this.name}}</a>
+    </div>
+{{/each}}
+{{/if}}
+
 {{#if functions}}
 <h4 class="section-title">Functions</h4>
 
