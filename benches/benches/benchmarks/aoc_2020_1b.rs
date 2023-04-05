@@ -60,9 +60,6 @@ fn aoc_2020_1b(b: &mut Criterion) {
     let entry = rune::Hash::type_hash(["main"]);
 
     b.bench_function("aoc_2020_1b", |b| {
-        b.iter(|| {
-            vm.call(entry, (data.clone(),))
-                .expect("successful execution")
-        });
+        b.iter(|| vm.call(entry, (data.clone(),)).expect("failed call"));
     });
 }

@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 tokio = { version = "1.26.0", features = ["macros"] }
 criterion = "0.4.0"
+anyhow = "1.0.70"
 
 rune = { path = "../crates/rune", features = ["bench"] }
 rune-tests = { path = "../tests", default-features = false }

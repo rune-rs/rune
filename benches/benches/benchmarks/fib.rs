@@ -20,7 +20,7 @@ fn fib_15(b: &mut Criterion) {
     let entry = rune::Hash::type_hash(["main"]);
 
     b.bench_function("fib_15", |b| {
-        b.iter(|| vm.call(entry, (15,)).expect("successful execution"));
+        b.iter(|| vm.call(entry, (15,)).expect("failed call"));
     });
 }
 
@@ -42,6 +42,6 @@ fn fib_20(b: &mut Criterion) {
     let entry = rune::Hash::type_hash(["main"]);
 
     b.bench_function("fib_20", |b| {
-        b.iter(|| vm.call(entry, (20,)).expect("successful execution"));
+        b.iter(|| vm.call(entry, (20,)).expect("failed call"));
     });
 }

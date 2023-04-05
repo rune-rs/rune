@@ -12,7 +12,7 @@ fn entry(b: &mut Criterion) {
         let entry = Hash::type_hash(["main"]);
 
         b.iter(|| {
-            let value = vm.call(entry, (program, 0)).expect("successful execution");
+            let value = vm.call(entry, (program, 0)).expect("failed call");
             let out = io.drain_utf8();
             assert_eq!(out.as_deref(), Ok("Hello World!\n"));
             value
@@ -27,7 +27,7 @@ fn entry(b: &mut Criterion) {
         let entry = Hash::type_hash(["main"]);
 
         b.iter(|| {
-            let value = vm.call(entry, (program, 0)).expect("successful execution");
+            let value = vm.call(entry, (program, 0)).expect("failed call");
             let out = io.drain_utf8();
             assert_eq!(out.as_deref(), Ok("hello world"));
             value
@@ -42,7 +42,7 @@ fn entry(b: &mut Criterion) {
         let entry = Hash::type_hash(["main"]);
 
         b.iter(|| {
-            let value = vm.call(entry, (program, 0)).expect("successful execution");
+            let value = vm.call(entry, (program, 0)).expect("failed call");
             let out = io.drain_utf8();
             assert_eq!(
                 out.as_deref(),
@@ -60,7 +60,7 @@ fn entry(b: &mut Criterion) {
         let entry = Hash::type_hash(["main"]);
 
         b.iter(|| {
-            let value = vm.call(entry, (program, 5)).expect("successful execution");
+            let value = vm.call(entry, (program, 5)).expect("failed call");
             let out = io.drain_utf8();
             assert_eq!(out.as_deref(), Ok(""));
             value

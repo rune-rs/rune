@@ -2,6 +2,7 @@
 //!
 //! Source: https://github.com/udoprog/aoc2020
 
+use anyhow::Context;
 use criterion::Criterion;
 
 criterion::criterion_group!(benches, aoc_2020_1a);
@@ -16,7 +17,12 @@ fn aoc_2020_1a(b: &mut Criterion) {
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
     {
-        data.push_value(str::parse::<i64>(line).unwrap()).unwrap();
+        data.push_value(
+            str::parse::<i64>(line)
+                .with_context(|| line.to_string())
+                .expect("invalid number"),
+        )
+        .unwrap();
     }
 
     let mut vm = rune_tests::rune_vm! {
@@ -80,9 +86,6 @@ fn aoc_2020_1a(b: &mut Criterion) {
     let entry = rune::Hash::type_hash(["main"]);
 
     b.bench_function("aoc_2020_1a", |b| {
-        b.iter(|| {
-            vm.call(entry, (data.clone(),))
-                .expect("successful execution")
-        });
+        b.iter(|| vm.call(entry, (data.clone(),)).expect("failed call"));
     });
 }
