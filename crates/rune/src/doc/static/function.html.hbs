@@ -3,7 +3,7 @@
 {{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
 {{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
 <body>
-<h3 class="title">Function {{literal module}}::<span class="fn">{{name}}({{args}})</span></h3>
+<h3 class="title">Function {{literal module}}::<span class="fn">{{name}}</span>({{args}})</h3>
 {{#if this.doc}}{{literal this.doc}}{{/if}}
 </body>
 </html>
