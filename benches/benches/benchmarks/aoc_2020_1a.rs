@@ -11,7 +11,11 @@ const INPUT: &str = include_str!("data/aoc_2020_1.txt");
 fn aoc_2020_1a(b: &mut Criterion) {
     let mut data = rune::runtime::Vec::new();
 
-    for line in INPUT.split('\n').filter(|s| !s.is_empty()) {
+    for line in INPUT
+        .split('\n')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
         data.push_value(str::parse::<i64>(line).unwrap()).unwrap();
     }
 
