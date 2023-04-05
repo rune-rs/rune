@@ -255,6 +255,7 @@ pub struct Signature {
     /// Arguments.
     pub(crate) args: Option<usize>,
     /// Return type of the function.
+    #[cfg_attr(not(feature = "doc"), allow(unused))]
     pub(crate) return_type: Option<Hash>,
     /// The kind of a signature.
     pub(crate) kind: SignatureKind,

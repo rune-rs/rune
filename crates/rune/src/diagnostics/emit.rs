@@ -97,7 +97,7 @@ impl VmError {
                 None => continue,
             };
 
-            for ip in [l.ip].into_iter().chain(l.frames.iter().rev().map(|v| v.ip())) {
+            for ip in [l.ip].into_iter().chain(l.frames.iter().rev().map(|v| v.ip)) {
                 let debug_inst = match debug_info.instruction_at(ip) {
                     Some(debug_inst) => debug_inst,
                     None => continue,
