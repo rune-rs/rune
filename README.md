@@ -75,7 +75,7 @@ The following is a complete example, including rich diagnostics using
 [`termcolor`]: https://docs.rs/termcolor
 
 ```rust
-use rune::{Context, Diagnostics, FromValue, Source, Sources, Vm};
+use rune::{Context, Diagnostics, Source, Sources, Vm};
 use rune::termcolor::{ColorChoice, StandardStream};
 use std::sync::Arc;
 
@@ -110,7 +110,7 @@ async fn main() -> rune::Result<()> {
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
     let output = vm.call(["add"], (10i64, 20i64))?;
-    let output = i64::from_value(output)?;
+    let output: i64 = rune::from_value(output)?;
 
     println!("{}", output);
     Ok(())
