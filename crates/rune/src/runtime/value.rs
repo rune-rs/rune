@@ -15,9 +15,6 @@ use std::hash;
 use std::sync::Arc;
 use std::vec;
 
-use VmResult::Err;
-use VmResult::Ok;
-
 // Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
 where
@@ -344,10 +341,10 @@ impl Value {
                 s.push_str(buffer.format(*float));
             }
             Value::Bool(bool) => {
-                return Ok(write!(s, "{}", bool));
+                return VmResult::Ok(write!(s, "{}", bool));
             }
             Value::Byte(byte) => {
-                return Ok(write!(s, "{:#04X}", byte));
+                return VmResult::Ok(write!(s, "{:#04X}", byte));
             }
             value => {
                 let b = Shared::new(std::mem::take(s));
@@ -360,11 +357,11 @@ impl Value {
 
                 let result = vm_try!(fmt::Result::from_value(result));
                 drop(std::mem::replace(s, vm_try!(b.take())));
-                return Ok(result);
+                return VmResult::Ok(result);
             }
         }
 
-        Ok(fmt::Result::Ok(()))
+        VmResult::Ok(fmt::Result::Ok(()))
     }
 
     /// Debug format the value using the [Protocol::STRING_DEBUG] protocol.
@@ -480,11 +477,11 @@ impl Value {
 
                 let result = vm_try!(fmt::Result::from_value(result));
                 drop(std::mem::replace(s, vm_try!(b.take())));
-                return Ok(result);
+                return VmResult::Ok(result);
             }
         };
 
-        Ok(result)
+        VmResult::Ok(result)
     }
 
     /// Convert value into an iterator using the [Protocol::INTO_ITER] protocol.
@@ -499,9 +496,11 @@ impl Value {
     /// the environment.
     pub fn into_iter(self) -> VmResult<Iterator> {
         let target = match self {
-            Value::Iterator(iterator) => return Ok(vm_try!(iterator.take())),
-            Value::Vec(vec) => return Ok(vm_try!(vec.borrow_ref()).into_iterator()),
-            Value::Object(object) => return Ok(vm_try!(object.borrow_ref()).into_iterator()),
+            Value::Iterator(iterator) => return VmResult::Ok(vm_try!(iterator.take())),
+            Value::Vec(vec) => return VmResult::Ok(vm_try!(vec.borrow_ref()).into_iterator()),
+            Value::Object(object) => {
+                return VmResult::Ok(vm_try!(object.borrow_ref()).into_iterator())
+            }
             target => target,
         };
 
@@ -522,7 +521,7 @@ impl Value {
     /// environment.
     pub fn into_future(self) -> VmResult<Future> {
         let target = match self {
-            Value::Future(fut) => return Ok(vm_try!(fut.take())),
+            Value::Future(fut) => return VmResult::Ok(vm_try!(fut.take())),
             target => target,
         };
 
@@ -544,12 +543,12 @@ impl Value {
     #[inline]
     pub fn into_shared_future(self) -> VmResult<Shared<Future>> {
         let target = match self {
-            Value::Future(future) => return Ok(future),
+            Value::Future(future) => return VmResult::Ok(future),
             target => target,
         };
 
         let value = vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, ()));
-        Ok(Shared::new(vm_try!(Future::from_value(value))))
+        VmResult::Ok(Shared::new(vm_try!(Future::from_value(value))))
     }
 
     /// Retrieves a human readable type name for the current value.
@@ -568,21 +567,21 @@ impl Value {
         crate::runtime::env::with(|context, unit| {
             if let Some(name) = context.constant(hash) {
                 match name {
-                    ConstValue::String(s) => return Ok(s.clone()),
-                    ConstValue::StaticString(s) => return Ok((*s).to_string()),
+                    ConstValue::String(s) => return VmResult::Ok(s.clone()),
+                    ConstValue::StaticString(s) => return VmResult::Ok((*s).to_string()),
                     _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
 
             if let Some(name) = unit.constant(hash) {
                 match name {
-                    ConstValue::String(s) => return Ok(s.clone()),
-                    ConstValue::StaticString(s) => return Ok((*s).to_string()),
+                    ConstValue::String(s) => return VmResult::Ok(s.clone()),
+                    ConstValue::StaticString(s) => return VmResult::Ok((*s).to_string()),
                     _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
 
-            Ok(vm_try!(self.type_info()).to_string())
+            VmResult::Ok(vm_try!(self.type_info()).to_string())
         })
     }
 
@@ -621,7 +620,7 @@ impl Value {
 
     /// Take the interior value.
     pub fn take(self) -> VmResult<Self> {
-        Ok(match self {
+        VmResult::Ok(match self {
             Self::Unit => Self::Unit,
             Self::Bool(value) => Self::Bool(value),
             Self::Byte(value) => Self::Byte(value),
@@ -657,7 +656,7 @@ impl Value {
     #[inline]
     pub fn into_unit(self) -> VmResult<()> {
         match self {
-            Value::Unit => Ok(()),
+            Value::Unit => VmResult::Ok(()),
             actual => err(VmErrorKind::expected::<()>(vm_try!(actual.type_info()))),
         }
     }
@@ -666,7 +665,7 @@ impl Value {
     #[inline]
     pub fn into_bool(self) -> VmResult<bool> {
         match self {
-            Self::Bool(b) => Ok(b),
+            Self::Bool(b) => VmResult::Ok(b),
             actual => err(VmErrorKind::expected::<bool>(vm_try!(actual.type_info()))),
         }
     }
@@ -675,7 +674,7 @@ impl Value {
     #[inline]
     pub fn as_bool(&self) -> VmResult<bool> {
         match self {
-            Self::Bool(b) => Ok(*b),
+            Self::Bool(b) => VmResult::Ok(*b),
             actual => err(VmErrorKind::expected::<bool>(vm_try!(actual.type_info()))),
         }
     }
@@ -684,7 +683,7 @@ impl Value {
     #[inline]
     pub fn into_byte(self) -> VmResult<u8> {
         match self {
-            Self::Byte(b) => Ok(b),
+            Self::Byte(b) => VmResult::Ok(b),
             actual => err(VmErrorKind::expected::<u8>(vm_try!(actual.type_info()))),
         }
     }
@@ -693,7 +692,7 @@ impl Value {
     #[inline]
     pub fn into_char(self) -> VmResult<char> {
         match self {
-            Self::Char(c) => Ok(c),
+            Self::Char(c) => VmResult::Ok(c),
             actual => err(VmErrorKind::expected::<char>(vm_try!(actual.type_info()))),
         }
     }
@@ -702,7 +701,7 @@ impl Value {
     #[inline]
     pub fn into_integer(self) -> VmResult<i64> {
         match self {
-            Self::Integer(integer) => Ok(integer),
+            Self::Integer(integer) => VmResult::Ok(integer),
             actual => err(VmErrorKind::expected::<i64>(vm_try!(actual.type_info()))),
         }
     }
@@ -711,7 +710,7 @@ impl Value {
     #[inline]
     pub fn into_float(self) -> VmResult<f64> {
         match self {
-            Self::Float(float) => Ok(float),
+            Self::Float(float) => VmResult::Ok(float),
             actual => err(VmErrorKind::expected::<f64>(vm_try!(actual.type_info()))),
         }
     }
@@ -720,7 +719,7 @@ impl Value {
     #[inline]
     pub fn into_result(self) -> VmResult<Shared<Result<Value, Value>>> {
         match self {
-            Self::Result(result) => Ok(result),
+            Self::Result(result) => VmResult::Ok(result),
             actual => err(VmErrorKind::expected::<Result<Value, Value>>(vm_try!(
                 actual.type_info()
             ))),
@@ -731,7 +730,7 @@ impl Value {
     #[inline]
     pub fn as_result(&self) -> VmResult<&Shared<Result<Value, Value>>> {
         match self {
-            Self::Result(result) => Ok(result),
+            Self::Result(result) => VmResult::Ok(result),
             actual => err(VmErrorKind::expected::<Result<Value, Value>>(vm_try!(
                 actual.type_info()
             ))),
@@ -742,7 +741,7 @@ impl Value {
     #[inline]
     pub fn into_generator(self) -> VmResult<Shared<Generator<Vm>>> {
         match self {
-            Value::Generator(generator) => Ok(generator),
+            Value::Generator(generator) => VmResult::Ok(generator),
             actual => err(VmErrorKind::expected::<Generator<Vm>>(vm_try!(
                 actual.type_info()
             ))),
@@ -753,7 +752,7 @@ impl Value {
     #[inline]
     pub fn into_stream(self) -> VmResult<Shared<Stream<Vm>>> {
         match self {
-            Value::Stream(stream) => Ok(stream),
+            Value::Stream(stream) => VmResult::Ok(stream),
             actual => err(VmErrorKind::expected::<Stream<Vm>>(vm_try!(
                 actual.type_info()
             ))),
@@ -764,7 +763,7 @@ impl Value {
     #[inline]
     pub fn into_generator_state(self) -> VmResult<Shared<GeneratorState>> {
         match self {
-            Value::GeneratorState(state) => Ok(state),
+            Value::GeneratorState(state) => VmResult::Ok(state),
             actual => err(VmErrorKind::expected::<GeneratorState>(vm_try!(
                 actual.type_info()
             ))),
@@ -775,7 +774,7 @@ impl Value {
     #[inline]
     pub fn into_option(self) -> VmResult<Shared<Option<Value>>> {
         match self {
-            Self::Option(option) => Ok(option),
+            Self::Option(option) => VmResult::Ok(option),
             actual => err(VmErrorKind::expected::<Option<Value>>(vm_try!(
                 actual.type_info()
             ))),
@@ -786,7 +785,7 @@ impl Value {
     #[inline]
     pub fn into_string(self) -> VmResult<Shared<String>> {
         match self {
-            Self::String(string) => Ok(string),
+            Self::String(string) => VmResult::Ok(string),
             actual => err(VmErrorKind::expected::<String>(vm_try!(actual.type_info()))),
         }
     }
@@ -795,7 +794,7 @@ impl Value {
     #[inline]
     pub fn into_bytes(self) -> VmResult<Shared<Bytes>> {
         match self {
-            Self::Bytes(bytes) => Ok(bytes),
+            Self::Bytes(bytes) => VmResult::Ok(bytes),
             actual => err(VmErrorKind::expected::<Bytes>(vm_try!(actual.type_info()))),
         }
     }
@@ -804,7 +803,7 @@ impl Value {
     #[inline]
     pub fn into_vec(self) -> VmResult<Shared<Vec>> {
         match self {
-            Self::Vec(vec) => Ok(vec),
+            Self::Vec(vec) => VmResult::Ok(vec),
             actual => err(VmErrorKind::expected::<Vec>(vm_try!(actual.type_info()))),
         }
     }
@@ -813,7 +812,7 @@ impl Value {
     #[inline]
     pub fn into_tuple(self) -> VmResult<Shared<Tuple>> {
         match self {
-            Self::Tuple(tuple) => Ok(tuple),
+            Self::Tuple(tuple) => VmResult::Ok(tuple),
             actual => err(VmErrorKind::expected::<Tuple>(vm_try!(actual.type_info()))),
         }
     }
@@ -822,7 +821,7 @@ impl Value {
     #[inline]
     pub fn into_object(self) -> VmResult<Shared<Object>> {
         match self {
-            Self::Object(object) => Ok(object),
+            Self::Object(object) => VmResult::Ok(object),
             actual => err(VmErrorKind::expected::<Object>(vm_try!(actual.type_info()))),
         }
     }
@@ -831,7 +830,7 @@ impl Value {
     #[inline]
     pub fn into_range(self) -> VmResult<Shared<Range>> {
         match self {
-            Self::Range(object) => Ok(object),
+            Self::Range(object) => VmResult::Ok(object),
             actual => err(VmErrorKind::expected::<Range>(vm_try!(actual.type_info()))),
         }
     }
@@ -840,7 +839,7 @@ impl Value {
     #[inline]
     pub fn into_function(self) -> VmResult<Shared<Function>> {
         match self {
-            Self::Function(function) => Ok(function),
+            Self::Function(function) => VmResult::Ok(function),
             actual => err(VmErrorKind::expected::<Function>(vm_try!(
                 actual.type_info()
             ))),
@@ -851,7 +850,7 @@ impl Value {
     #[inline]
     pub fn into_format(self) -> VmResult<Box<Format>> {
         match self {
-            Value::Format(format) => Ok(format),
+            Value::Format(format) => VmResult::Ok(format),
             actual => err(VmErrorKind::expected::<Format>(vm_try!(actual.type_info()))),
         }
     }
@@ -860,7 +859,7 @@ impl Value {
     #[inline]
     pub fn into_iterator(self) -> VmResult<Shared<Iterator>> {
         match self {
-            Value::Iterator(format) => Ok(format),
+            Value::Iterator(format) => VmResult::Ok(format),
             actual => err(VmErrorKind::expected::<Iterator>(vm_try!(
                 actual.type_info()
             ))),
@@ -871,7 +870,7 @@ impl Value {
     #[inline]
     pub fn into_any(self) -> VmResult<Shared<AnyObj>> {
         match self {
-            Self::Any(any) => Ok(any),
+            Self::Any(any) => VmResult::Ok(any),
             actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
         }
     }
@@ -894,7 +893,7 @@ impl Value {
             Self::Any(any) => {
                 let any = vm_try!(any.internal_downcast_into_ref::<T>(AccessKind::Any));
                 let (data, guard) = Ref::into_raw(any);
-                Ok((data, guard))
+                VmResult::Ok((data, guard))
             }
             actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
         }
@@ -918,7 +917,7 @@ impl Value {
             Self::Any(any) => {
                 let any = vm_try!(any.internal_downcast_into_mut::<T>(AccessKind::Any));
                 let (data, guard) = Mut::into_raw(any);
-                Ok((data, guard))
+                VmResult::Ok((data, guard))
             }
             actual => err(VmErrorKind::expected_any(vm_try!(actual.type_info()))),
         }
@@ -928,7 +927,7 @@ impl Value {
     ///
     /// One notable feature is that the type of a variant is its container
     /// *enum*, and not the type hash of the variant itself.
-    pub fn type_hash(&self) -> VmResult<Hash> {
+    pub fn type_hash(&self) -> Result<Hash, VmErrorKind> {
         Ok(match self {
             Self::Unit => crate::runtime::UNIT_TYPE.hash,
             Self::Bool(..) => crate::runtime::BOOL_TYPE.hash,
@@ -949,21 +948,21 @@ impl Value {
             Self::GeneratorState(..) => crate::runtime::GENERATOR_STATE_TYPE.hash,
             Self::Result(..) => crate::runtime::RESULT_TYPE.hash,
             Self::Option(..) => crate::runtime::OPTION_TYPE.hash,
-            Self::Function(func) => vm_try!(func.borrow_ref()).type_hash(),
+            Self::Function(func) => func.borrow_ref()?.type_hash(),
             Self::Format(..) => crate::runtime::FORMAT_TYPE.hash,
             Self::Iterator(..) => crate::runtime::ITERATOR_TYPE.hash,
             Self::Type(hash) => *hash,
-            Self::UnitStruct(empty) => vm_try!(empty.borrow_ref()).rtti.hash,
-            Self::TupleStruct(tuple) => vm_try!(tuple.borrow_ref()).rtti.hash,
-            Self::Struct(object) => vm_try!(object.borrow_ref()).rtti.hash,
-            Self::Variant(variant) => vm_try!(variant.borrow_ref()).rtti().enum_hash,
-            Self::Any(any) => vm_try!(any.borrow_ref()).type_hash(),
+            Self::UnitStruct(empty) => empty.borrow_ref()?.rtti.hash,
+            Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
+            Self::Struct(object) => object.borrow_ref()?.rtti.hash,
+            Self::Variant(variant) => variant.borrow_ref()?.rtti().enum_hash,
+            Self::Any(any) => any.borrow_ref()?.type_hash(),
         })
     }
 
     /// Get the type information for the current value.
     pub fn type_info(&self) -> VmResult<TypeInfo> {
-        Ok(match self {
+        VmResult::Ok(match self {
             Self::Unit => TypeInfo::StaticType(crate::runtime::UNIT_TYPE),
             Self::Bool(..) => TypeInfo::StaticType(crate::runtime::BOOL_TYPE),
             Self::Byte(..) => TypeInfo::StaticType(crate::runtime::BYTE_TYPE),
@@ -1001,12 +1000,12 @@ impl Value {
     /// This is the basis for the eq operation (`==`).
     pub(crate) fn value_ptr_eq(vm: &mut Vm, a: &Value, b: &Value) -> VmResult<bool> {
         match (a, b) {
-            (Self::Unit, Self::Unit) => return Ok(true),
-            (Self::Bool(a), Self::Bool(b)) => return Ok(a == b),
-            (Self::Byte(a), Self::Byte(b)) => return Ok(a == b),
-            (Self::Char(a), Self::Char(b)) => return Ok(a == b),
-            (Self::Integer(a), Self::Integer(b)) => return Ok(a == b),
-            (Self::Float(a), Self::Float(b)) => return Ok(a == b),
+            (Self::Unit, Self::Unit) => return VmResult::Ok(true),
+            (Self::Bool(a), Self::Bool(b)) => return VmResult::Ok(a == b),
+            (Self::Byte(a), Self::Byte(b)) => return VmResult::Ok(a == b),
+            (Self::Char(a), Self::Char(b)) => return VmResult::Ok(a == b),
+            (Self::Integer(a), Self::Integer(b)) => return VmResult::Ok(a == b),
+            (Self::Float(a), Self::Float(b)) => return VmResult::Ok(a == b),
             (Self::Vec(a), Self::Vec(b)) => {
                 let a = vm_try!(a.borrow_ref());
                 let b = vm_try!(b.borrow_ref());
@@ -1034,7 +1033,7 @@ impl Value {
                     // between two incompatible types.
                     //
                     // Other than that, all units are equal.
-                    return Ok(true);
+                    return VmResult::Ok(true);
                 }
             }
             (Self::TupleStruct(a), Self::TupleStruct(b)) => {
@@ -1062,32 +1061,32 @@ impl Value {
                 }
             }
             (Self::String(a), Self::String(b)) => {
-                return Ok(*vm_try!(a.borrow_ref()) == *vm_try!(b.borrow_ref()));
+                return VmResult::Ok(*vm_try!(a.borrow_ref()) == *vm_try!(b.borrow_ref()));
             }
             (Self::StaticString(a), Self::String(b)) => {
                 let b = vm_try!(b.borrow_ref());
-                return Ok(***a == *b);
+                return VmResult::Ok(***a == *b);
             }
             (Self::String(a), Self::StaticString(b)) => {
                 let a = vm_try!(a.borrow_ref());
-                return Ok(*a == ***b);
+                return VmResult::Ok(*a == ***b);
             }
             // fast string comparison: exact string slot.
             (Self::StaticString(a), Self::StaticString(b)) => {
-                return Ok(***a == ***b);
+                return VmResult::Ok(***a == ***b);
             }
             (Self::Option(a), Self::Option(b)) => {
                 match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
                     (Some(a), Some(b)) => return Self::value_ptr_eq(vm, a, b),
-                    (None, None) => return Ok(true),
-                    _ => return Ok(false),
+                    (None, None) => return VmResult::Ok(true),
+                    _ => return VmResult::Ok(false),
                 }
             }
             (Self::Result(a), Self::Result(b)) => {
                 match (&*vm_try!(a.borrow_ref()), &*vm_try!(b.borrow_ref())) {
-                    (Result::Ok(a), Result::Ok(b)) => return Self::value_ptr_eq(vm, a, b),
-                    (Result::Err(a), Result::Err(b)) => return Self::value_ptr_eq(vm, a, b),
-                    _ => return Ok(false),
+                    (Ok(a), Ok(b)) => return Self::value_ptr_eq(vm, a, b),
+                    (Err(a), Err(b)) => return Self::value_ptr_eq(vm, a, b),
+                    _ => return VmResult::Ok(false),
                 }
             }
             (a, b) => match vm_try!(vm.call_instance_fn(a.clone(), Protocol::EQ, (b.clone(),))) {
@@ -1192,15 +1191,15 @@ impl fmt::Debug for Value {
                 let mut s = String::new();
 
                 match value.string_debug(&mut s) {
-                    Ok(result) => result?,
-                    Err(error) => return write!(f, "{:?}", error),
+                    VmResult::Ok(result) => result?,
+                    VmResult::Err(error) => return write!(f, "{:?}", error),
                 }
 
                 f.write_str(&s)?;
             }
         }
 
-        Result::Ok(())
+        Ok(())
     }
 }
 
@@ -1227,13 +1226,13 @@ impl From<()> for Value {
 
 impl ToValue for Value {
     fn to_value(self) -> VmResult<Value> {
-        Ok(self)
+        VmResult::Ok(self)
     }
 }
 
 impl ToValue for () {
     fn to_value(self) -> VmResult<Value> {
-        Ok(Value::from(()))
+        VmResult::Ok(Value::from(()))
     }
 }
 
@@ -1250,7 +1249,7 @@ macro_rules! impl_from {
             impl ToValue for $ty {
                 #[inline]
                 fn to_value(self) -> VmResult<Value> {
-                    Ok(Value::from(self))
+                    VmResult::Ok(Value::from(self))
                 }
             }
         )*
@@ -1272,7 +1271,7 @@ macro_rules! impl_from_wrapper {
             impl ToValue for $ty {
                 #[inline]
                 fn to_value(self) -> VmResult<Value> {
-                    Ok(Value::from(self))
+                    VmResult::Ok(Value::from(self))
                 }
             }
         )*
@@ -1381,30 +1380,22 @@ impl ser::Serialize for Value {
                 <Option<Value>>::serialize(&*option, serializer)
             }
             Value::UnitStruct(..) => serializer.serialize_unit(),
-            Value::TupleStruct(..) => {
-                Result::Err(ser::Error::custom("cannot serialize tuple structs"))
-            }
-            Value::Struct(..) => {
-                Result::Err(ser::Error::custom("cannot serialize objects structs"))
-            }
-            Value::Variant(..) => Result::Err(ser::Error::custom("cannot serialize variants")),
-            Value::Result(..) => Result::Err(ser::Error::custom("cannot serialize results")),
-            Value::Type(..) => Result::Err(ser::Error::custom("cannot serialize types")),
-            Value::Future(..) => Result::Err(ser::Error::custom("cannot serialize futures")),
-            Value::Stream(..) => Result::Err(ser::Error::custom("cannot serialize streams")),
-            Value::Generator(..) => Result::Err(ser::Error::custom("cannot serialize generators")),
+            Value::TupleStruct(..) => Err(ser::Error::custom("cannot serialize tuple structs")),
+            Value::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
+            Value::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
+            Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
+            Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
+            Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
+            Value::Stream(..) => Err(ser::Error::custom("cannot serialize streams")),
+            Value::Generator(..) => Err(ser::Error::custom("cannot serialize generators")),
             Value::GeneratorState(..) => {
-                Result::Err(ser::Error::custom("cannot serialize generator states"))
+                Err(ser::Error::custom("cannot serialize generator states"))
             }
-            Value::Function(..) => {
-                Result::Err(ser::Error::custom("cannot serialize function pointers"))
-            }
-            Value::Format(..) => {
-                Result::Err(ser::Error::custom("cannot serialize format specifications"))
-            }
-            Value::Iterator(..) => Result::Err(ser::Error::custom("cannot serialize iterators")),
-            Value::Range(..) => Result::Err(ser::Error::custom("cannot serialize ranges")),
-            Value::Any(..) => Result::Err(ser::Error::custom("cannot serialize external objects")),
+            Value::Function(..) => Err(ser::Error::custom("cannot serialize function pointers")),
+            Value::Format(..) => Err(ser::Error::custom("cannot serialize format specifications")),
+            Value::Iterator(..) => Err(ser::Error::custom("cannot serialize iterators")),
+            Value::Range(..) => Err(ser::Error::custom("cannot serialize ranges")),
+            Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }
 }
@@ -1423,7 +1414,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::String(Shared::new(value.to_owned())))
+        Ok(Value::String(Shared::new(value.to_owned())))
     }
 
     #[inline]
@@ -1431,7 +1422,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::String(Shared::new(value)))
+        Ok(Value::String(Shared::new(value)))
     }
 
     #[inline]
@@ -1439,7 +1430,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Bytes(Shared::new(Bytes::from_vec(v.to_vec()))))
+        Ok(Value::Bytes(Shared::new(Bytes::from_vec(v.to_vec()))))
     }
 
     #[inline]
@@ -1447,7 +1438,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Bytes(Shared::new(Bytes::from_vec(v))))
+        Ok(Value::Bytes(Shared::new(Bytes::from_vec(v))))
     }
 
     #[inline]
@@ -1455,7 +1446,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1463,7 +1454,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1471,7 +1462,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1479,7 +1470,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v))
+        Ok(Value::Integer(v))
     }
 
     #[inline]
@@ -1487,7 +1478,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1495,7 +1486,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1503,7 +1494,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1511,7 +1502,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1519,7 +1510,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1527,7 +1518,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -1535,7 +1526,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Float(v as f64))
+        Ok(Value::Float(v as f64))
     }
 
     #[inline]
@@ -1543,7 +1534,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Float(v))
+        Ok(Value::Float(v))
     }
 
     #[inline]
@@ -1551,7 +1542,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Bool(v))
+        Ok(Value::Bool(v))
     }
 
     #[inline]
@@ -1559,7 +1550,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Unit)
+        Ok(Value::Unit)
     }
 
     #[inline]
@@ -1567,7 +1558,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Result::Ok(Value::Unit)
+        Ok(Value::Unit)
     }
 
     #[inline]
@@ -1585,7 +1576,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             vec.push(elem);
         }
 
-        Result::Ok(Value::Vec(Shared::new(Vec::from(vec))))
+        Ok(Value::Vec(Shared::new(Vec::from(vec))))
     }
 
     #[inline]
@@ -1599,7 +1590,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             object.insert(key, value);
         }
 
-        Result::Ok(Value::Object(Shared::new(object)))
+        Ok(Value::Object(Shared::new(object)))
     }
 }
 
