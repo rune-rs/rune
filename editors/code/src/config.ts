@@ -10,13 +10,21 @@ export interface Env {
 
 export class Config {
     readonly extensionId = "rune-vscode";
+    configureLang: vscode.Disposable | undefined;
+
     readonly rootSection = "rune";
 
     readonly globalStorageUri: vscode.Uri;
 
     constructor(ctx: vscode.ExtensionContext) {
         this.globalStorageUri = ctx.globalStorageUri;
+        vscode.workspace.onDidChangeConfiguration(
+            this.onDidChangeConfiguration,
+            this,
+            ctx.subscriptions
+        );
         this.refreshLogging();
+        this.configureLanguage();
     }
 
     private refreshLogging() {
@@ -24,6 +32,98 @@ export class Config {
 
         const cfg = Object.entries(this.cfg).filter(([_, val]) => !(val instanceof Function));
         log.info("Using configuration", Object.fromEntries(cfg));
+    }
+
+    private async onDidChangeConfiguration(event: vscode.ConfigurationChangeEvent) {
+        this.refreshLogging();
+        this.configureLanguage();
+    }
+
+    /**
+     * Sets up additional language configuration that's impossible to do via a
+     * separate language-configuration.json file. See [1] for more information.
+     *
+     * [1]: https://github.com/Microsoft/vscode/issues/11514#issuecomment-244707076
+     */
+    private configureLanguage() {
+        // Only need to dispose of the config if there's a change
+        if (this.configureLang) {
+            this.configureLang.dispose();
+            this.configureLang = undefined;
+        }
+
+        let onEnterRules: vscode.OnEnterRule[] = [
+            {
+                // Carry indentation from the previous line
+                beforeText: /^\s*$/,
+                action: { indentAction: vscode.IndentAction.None },
+            },
+            {
+                // After the end of a function/field chain,
+                // with the semicolon on the same line
+                beforeText: /^\s+\..*;/,
+                action: { indentAction: vscode.IndentAction.Outdent },
+            },
+            {
+                // After the end of a function/field chain,
+                // with semicolon detached from the rest
+                beforeText: /^\s+;/,
+                previousLineText: /^\s+\..*/,
+                action: { indentAction: vscode.IndentAction.Outdent },
+            },
+        ];
+
+        if (this.typingContinueCommentsOnNewline) {
+            const indentAction = vscode.IndentAction.None;
+
+            onEnterRules = [
+                ...onEnterRules,
+                {
+                    // Doc single-line comment
+                    // e.g. ///|
+                    beforeText: /^\s*\/{3}.*$/,
+                    action: { indentAction, appendText: "/// " },
+                },
+                {
+                    // Parent doc single-line comment
+                    // e.g. //!|
+                    beforeText: /^\s*\/{2}\!.*$/,
+                    action: { indentAction, appendText: "//! " },
+                },
+                {
+                    // Begins an auto-closed multi-line comment (standard or parent doc)
+                    // e.g. /** | */ or /*! | */
+                    beforeText: /^\s*\/\*(\*|\!)(?!\/)([^\*]|\*(?!\/))*$/,
+                    afterText: /^\s*\*\/$/,
+                    action: {
+                        indentAction: vscode.IndentAction.IndentOutdent,
+                        appendText: " * ",
+                    },
+                },
+                {
+                    // Begins a multi-line comment (standard or parent doc)
+                    // e.g. /** ...| or /*! ...|
+                    beforeText: /^\s*\/\*(\*|\!)(?!\/)([^\*]|\*(?!\/))*$/,
+                    action: { indentAction, appendText: " * " },
+                },
+                {
+                    // Continues a multi-line comment
+                    // e.g.  * ...|
+                    beforeText: /^(\ \ )*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+                    action: { indentAction, appendText: "* " },
+                },
+                {
+                    // Dedents after closing a multi-line comment
+                    // e.g.  */|
+                    beforeText: /^(\ \ )*\ \*\/\s*$/,
+                    action: { indentAction, removeText: 1 },
+                },
+            ];
+        }
+
+        this.configureLang = vscode.languages.setLanguageConfiguration("rune", {
+            onEnterRules,
+        });
     }
 
     // We don't do runtime config validation here for simplicity. More on stackoverflow:
@@ -71,6 +171,10 @@ export class Config {
 
     get traceExtension() {
         return this.get<boolean>("trace.extension");
+    }
+
+    get typingContinueCommentsOnNewline() {
+        return this.get<boolean>("typing.continueCommentsOnNewline");
     }
 }
 

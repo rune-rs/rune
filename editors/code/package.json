@@ -36,7 +36,7 @@
         ],
         "aliases": [
           "Rune",
-          "rn"
+          "rune"
         ],
         "configuration": "./language-configuration.json",
         "icon": {
@@ -48,8 +48,8 @@
     "grammars": [
       {
         "language": "rune",
-        "scopeName": "source.rune",
-        "path": "./syntaxes/rune.tmGrammar.json"
+        "path": "./syntaxes/rune.tmLanguage.json",
+        "scopeName": "source.rune"
       }
     ],
     "commands": [
@@ -90,6 +90,11 @@
           "type": "boolean",
           "default": true,
           "description": "Whether to ask for permission before downloading any files from the Internet."
+        },
+        "rune.typing.continueCommentsOnNewline": {
+          "markdownDescription": "Whether to prefix newlines after comments with the corresponding comment prefix.",
+          "default": true,
+          "type": "boolean"
         },
         "rune.server.path": {
           "type": [
