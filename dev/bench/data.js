@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1680711456955,
+  "lastUpdate": 1680711729547,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -17560,6 +17560,90 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5092120,
             "range": "± 2422",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "committer": {
+            "email": "udoprog@tedro.se",
+            "name": "John-John Tedro",
+            "username": "udoprog"
+          },
+          "distinct": true,
+          "id": "493407b5a22e52bfc1c2c61f1157ac735300076b",
+          "message": "Bump version",
+          "timestamp": "2023-04-05T18:15:55+02:00",
+          "tree_id": "e95a0167c00096840556464961498c74b22a29ee",
+          "url": "https://github.com/rune-rs/rune/commit/493407b5a22e52bfc1c2c61f1157ac735300076b"
+        },
+        "date": 1680711728803,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 280561,
+            "range": "± 19132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 905053,
+            "range": "± 1349",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 412797057,
+            "range": "± 1520729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 231719942,
+            "range": "± 793287",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1172932,
+            "range": "± 2509",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 12479079,
+            "range": "± 28508",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 68822404,
+            "range": "± 145269",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 10830203,
+            "range": "± 22053",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 461887,
+            "range": "± 1162",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5090998,
+            "range": "± 1684",
             "unit": "ns/iter"
           }
         ]
