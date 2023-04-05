@@ -233,8 +233,7 @@ impl Vm {
     where
         N: ToTypeHash,
     {
-        self.lookup_function_by_hash(name.to_type_hash())
-            .into_result()
+        Ok(self.lookup_function_by_hash(name.to_type_hash())?)
     }
 
     /// Convert into an execution.
@@ -614,18 +613,18 @@ impl Vm {
     }
 
     /// Pop a call frame and return it.
-    fn pop_call_frame(&mut self) -> VmResult<bool> {
+    fn pop_call_frame(&mut self) -> Result<bool, VmErrorKind> {
         let frame = match self.call_frames.pop() {
             Some(frame) => frame,
             None => {
-                vm_try!(self.stack.check_stack_top());
-                return VmResult::Ok(true);
+                self.stack.check_stack_top()?;
+                return Ok(true);
             }
         };
 
-        vm_try!(self.stack.pop_stack_top(frame.stack_bottom));
+        self.stack.pop_stack_top(frame.stack_bottom)?;
         self.ip = frame.ip;
-        VmResult::Ok(false)
+        Ok(false)
     }
 
     /// Implementation of getting a string index on an object-like type.
@@ -1947,36 +1946,95 @@ impl Vm {
     }
 
     #[inline]
-    fn op_return_internal(&mut self, return_value: Value, clean: usize) -> VmResult<bool> {
+    fn op_return_internal(
+        &mut self,
+        return_value: Value,
+        clean: usize,
+    ) -> Result<bool, VmErrorKind> {
         if clean > 0 {
-            vm_try!(self.stack.popn(clean));
+            self.stack.popn(clean)?;
         }
 
-        let exit = vm_try!(self.pop_call_frame());
+        let exit = self.pop_call_frame()?;
         self.stack.push(return_value);
-        VmResult::Ok(exit)
+        Ok(exit)
+    }
+
+    fn lookup_function_by_hash(&self, hash: Hash) -> Result<Function, VmErrorKind> {
+        Ok(match self.unit.function(hash) {
+            Some(info) => match info {
+                UnitFn::Offset { offset, call, args } => Function::from_vm_offset(
+                    self.context.clone(),
+                    self.unit.clone(),
+                    offset,
+                    call,
+                    args,
+                    hash,
+                ),
+                UnitFn::UnitStruct { hash } => {
+                    let rtti = self
+                        .unit
+                        .lookup_rtti(hash)
+                        .ok_or(VmErrorKind::MissingRtti { hash })?;
+
+                    Function::from_unit_struct(rtti.clone())
+                }
+                UnitFn::TupleStruct { hash, args } => {
+                    let rtti = self
+                        .unit
+                        .lookup_rtti(hash)
+                        .ok_or(VmErrorKind::MissingRtti { hash })?;
+
+                    Function::from_tuple_struct(rtti.clone(), args)
+                }
+                UnitFn::UnitVariant { hash } => {
+                    let rtti = self
+                        .unit
+                        .lookup_variant_rtti(hash)
+                        .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
+
+                    Function::from_unit_variant(rtti.clone())
+                }
+                UnitFn::TupleVariant { hash, args } => {
+                    let rtti = self
+                        .unit
+                        .lookup_variant_rtti(hash)
+                        .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
+
+                    Function::from_tuple_variant(rtti.clone(), args)
+                }
+            },
+            None => {
+                let handler = self
+                    .context
+                    .function(hash)
+                    .ok_or(VmErrorKind::MissingFunction { hash })?;
+
+                Function::from_handler(handler.clone(), hash)
+            }
+        })
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_return(&mut self, address: InstAddress, clean: usize) -> VmResult<bool> {
-        let return_value = vm_try!(self.stack.address(address));
+    fn op_return(&mut self, address: InstAddress, clean: usize) -> Result<bool, VmErrorKind> {
+        let return_value = self.stack.address(address)?;
         self.op_return_internal(return_value, clean)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_return_unit(&mut self) -> VmResult<bool> {
-        let exit = vm_try!(self.pop_call_frame());
+    fn op_return_unit(&mut self) -> Result<bool, VmErrorKind> {
+        let exit = self.pop_call_frame()?;
         self.stack.push(());
-        VmResult::Ok(exit)
+        Ok(exit)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_load_instance_fn(&mut self, hash: Hash) -> VmResult<()> {
-        let instance = vm_try!(self.stack.pop());
-        let ty = vm_try!(instance.type_hash());
+    fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmErrorKind> {
+        let instance = self.stack.pop()?;
+        let ty = instance.type_hash()?;
         let hash = Hash::instance_function(ty, hash);
         self.stack.push(Value::Type(hash));
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Perform an index get operation.
@@ -2348,7 +2406,7 @@ impl Vm {
 
             VmResult::Ok(false)
         } else {
-            self.op_return_internal(return_value, clean)
+            VmResult::Ok(vm_try!(self.op_return_internal(return_value, clean)))
         }
     }
 
@@ -2598,61 +2656,6 @@ impl Vm {
         let function = vm_try!(self.lookup_function_by_hash(hash));
         self.stack.push(Value::Function(Shared::new(function)));
         VmResult::Ok(())
-    }
-
-    fn lookup_function_by_hash(&self, hash: Hash) -> VmResult<Function> {
-        VmResult::Ok(match self.unit.function(hash) {
-            Some(info) => match info {
-                UnitFn::Offset { offset, call, args } => Function::from_vm_offset(
-                    self.context.clone(),
-                    self.unit.clone(),
-                    offset,
-                    call,
-                    args,
-                    hash,
-                ),
-                UnitFn::UnitStruct { hash } => {
-                    let rtti = vm_try!(self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or(VmErrorKind::MissingRtti { hash }));
-
-                    Function::from_unit_struct(rtti.clone())
-                }
-                UnitFn::TupleStruct { hash, args } => {
-                    let rtti = vm_try!(self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or(VmErrorKind::MissingRtti { hash }));
-
-                    Function::from_tuple_struct(rtti.clone(), args)
-                }
-                UnitFn::UnitVariant { hash } => {
-                    let rtti = vm_try!(self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or(VmErrorKind::MissingVariantRtti { hash }));
-
-                    Function::from_unit_variant(rtti.clone())
-                }
-                UnitFn::TupleVariant { hash, args } => {
-                    let rtti = vm_try!(self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or(VmErrorKind::MissingVariantRtti { hash }));
-
-                    Function::from_tuple_variant(rtti.clone(), args)
-                }
-            },
-            None => {
-                let handler = vm_try!(self
-                    .context
-                    .function(hash)
-                    .ok_or(VmErrorKind::MissingFunction { hash }));
-
-                Function::from_handler(handler.clone(), hash)
-            }
-        })
     }
 
     /// Construct a closure on the top of the stack.
