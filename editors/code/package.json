@@ -4,8 +4,8 @@
   "description": "Language support for Rune",
   "preview": true,
   "private": true,
-  "icon": "icons/rune.png",
-  "version": "0.12.4",
+  "icon": "assets/logo.png",
+  "version": "0.12.5",
   "releaseTag": null,
   "publisher": "udoprog",
   "repository": {
@@ -40,8 +40,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/rune.png",
-          "dark": "./icons/rune.png"
+          "light": "assets/icon.png",
+          "dark": "assets/icon.png"
         }
       }
     ],
