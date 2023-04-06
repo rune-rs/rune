@@ -2,7 +2,7 @@ name: Nightly Build
 
 on:
   schedule:
-    - cron:  '* 1 * * *'
+    - cron: '* 1 * * *'
   push:
     branches:
       - nightly
@@ -21,7 +21,8 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo test --workspace --all-targets
     - run: cargo test --workspace --doc
-    - run: cargo run --release --bin rune -- check --recursive --experimental scripts
+    - run: cargo run --bin rune -- check --recursive --experimental scripts
+    - run: cargo run --bin rune -- test --recursive --experimental scripts
     - run: cargo run --manifest-path tools/builder/Cargo.toml -- --channel nightly
     - uses: softprops/action-gh-release@v1
       with:

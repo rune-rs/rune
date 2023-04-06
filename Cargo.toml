@@ -9,11 +9,11 @@ members = [
     "tests",
     "examples",
     "benches",
+    "tools/builder",
+    "tools/site",
 ]
 
 exclude = [
-    "tools/builder",
-    "tools/site",
     "tools/generate",
 ]
 

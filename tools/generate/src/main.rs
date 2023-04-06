@@ -94,19 +94,19 @@ fn main() -> Result<()> {
     write_tokens(
         Path::new("crates/rune-macros/src/quote/generated.rs"),
         genco::quote!(
-            #(format!("/// This file has been generated from `{}`", asset.display()))
-            #("/// DO NOT modify by hand!")
+            $(format!("/// This file has been generated from `{}`", asset.display()))
+            $("/// DO NOT modify by hand!")
 
-            pub(crate) fn kind_from_ident(ident: &str) -> Option<#kind> {
+            pub(crate) fn kind_from_ident(ident: &str) -> Option<$kind> {
                 match ident {
-                    #(for k in &keywords => #(quoted(&k.keyword)) => Some(#kind(#(quoted(&k.variant)))),#<push>)
+                    $(for k in &keywords => $(quoted(&k.keyword)) => Some($kind($(quoted(&k.variant)))),$['\r'])
                     _ => None,
                 }
             }
 
-            pub(crate) fn kind_from_punct(buf: &[char]) -> Option<#kind> {
+            pub(crate) fn kind_from_punct(buf: &[char]) -> Option<$kind> {
                 match buf {
-                    #(for p in &punctuations => #(buf_match(&p.punct)) => Some(#kind(#(quoted(&p.variant)))),#<push>)
+                    $(for p in &punctuations => $(buf_match(&p.punct)) => Some($kind($(quoted(&p.variant)))),$['\r'])
                     _ => None,
                 }
             }
@@ -139,217 +139,217 @@ fn main() -> Result<()> {
     write_tokens(
         Path::new("crates/rune/src/ast/generated.rs"),
         genco::quote!{
-            #(format!("/// This file has been generated from `{}`", asset.display()))
-            #("/// DO NOT modify by hand!")
+            $(format!("/// This file has been generated from `{}`", asset.display()))
+            $("/// DO NOT modify by hand!")
 
-            #(for t in &non_syntax join(#<line>) =>
-                #(format!("/// {}", t.doc()))
+            $(for t in &non_syntax join($['\n']) =>
+                $(format!("/// {}", t.doc()))
                 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
                 #[non_exhaustive]
-                pub struct #(t.variant()) {
-                    #("/// Associated span.")
-                    pub span: #span,
+                pub struct $(t.variant()) {
+                    $("/// Associated span.")
+                    pub span: $span,
                 }
 
-                impl #spanned for #(t.variant()) {
-                    fn span(&self) -> #span {
+                impl $spanned for $(t.variant()) {
+                    fn span(&self) -> $span {
                         self.span
                     }
                 }
 
-                impl #parse for #(t.variant()) {
-                    fn parse(p: &mut #parser<'_>) -> Result<Self, #parse_error> {
+                impl $parse for $(t.variant()) {
+                    fn parse(p: &mut $parser<'_>) -> Result<Self, $parse_error> {
                         let token = p.next()?;
 
                         match token.kind {
-                            #kind::#(t.variant()) => Ok(Self { span: token.span }),
-                            _ => Err(#parse_error::expected(token, #kind::#(t.variant()))),
+                            $kind::$(t.variant()) => Ok(Self { span: token.span }),
+                            _ => Err($parse_error::expected(token, $kind::$(t.variant()))),
                         }
                     }
                 }
 
-                impl #peek for #(t.variant()) {
-                    fn peek(peeker: &mut #peeker<'_>) -> bool {
-                        matches!(peeker.nth(0), #kind::#(t.variant()))
+                impl $peek for $(t.variant()) {
+                    fn peek(peeker: &mut $peeker<'_>) -> bool {
+                        matches!(peeker.nth(0), $kind::$(t.variant()))
                     }
                 }
 
-                impl #to_tokens for #(t.variant()) {
-                    fn to_tokens(&self, _: &mut #macro_context<'_>, stream: &mut #token_stream) {
-                        stream.push(#token {
+                impl $to_tokens for $(t.variant()) {
+                    fn to_tokens(&self, _: &mut $macro_context<'_>, stream: &mut $token_stream) {
+                        stream.push($token {
                             span: self.span,
-                            kind: #kind::#(t.variant()),
+                            kind: $kind::$(t.variant()),
                         });
                     }
                 }
             )
 
-            #("/// Helper macro to reference a specific token.")
+            $("/// Helper macro to reference a specific token.")
             #[macro_export]
             macro_rules! T {
                 ('(') => {
-                    $crate::ast::OpenParen
+                    $$crate::ast::OpenParen
                 };
                 (')') => {
-                    $crate::ast::CloseParen
+                    $$crate::ast::CloseParen
                 };
                 ('[') => {
-                    $crate::ast::OpenBracket
+                    $$crate::ast::OpenBracket
                 };
                 (']') => {
-                    $crate::ast::CloseBracket 
+                    $$crate::ast::CloseBracket 
                 };
                 ('{') => {
-                    $crate::ast::OpenBrace
+                    $$crate::ast::OpenBrace
                 };
                 ('}') => {
-                    $crate::ast::CloseBrace
+                    $$crate::ast::CloseBrace
                 };
                 (is not) => {
-                    $crate::ast::IsNot
+                    $$crate::ast::IsNot
                 };
-                #(for k in &keywords join(#<push>) =>
-                    (#(&k.keyword)) => {
-                        $crate::ast::#(&k.variant)
+                $(for k in &keywords join($['\r']) =>
+                    ($(&k.keyword)) => {
+                        $$crate::ast::$(&k.variant)
                     };
                 )
-                #(for k in &punctuations join(#<push>) =>
-                    (#(&k.punct)) => {
-                        $crate::ast::#(&k.variant)
+                $(for k in &punctuations join($['\r']) =>
+                    ($(&k.punct)) => {
+                        $$crate::ast::$(&k.variant)
                     };
                 )
             }
 
-            #("/// Helper macro to reference a specific token kind, or short sequence of kinds.")
+            $("/// Helper macro to reference a specific token kind, or short sequence of kinds.")
             #[macro_export]
             macro_rules! K {
-                (#!($($tt:tt)*)) => { $crate::ast::Kind::Shebang($($tt)*) };
-                (ident) => { $crate::ast::Kind::Ident(..) };
-                (ident ($($tt:tt)*)) => { $crate::ast::Kind::Ident($($tt)*) };
-                ('label) => { $crate::ast::Kind::Label(..) };
-                ('label ($($tt:tt)*)) => { $crate::ast::Kind::Label($($tt)*) };
-                (str) => { $crate::ast::Kind::Str(..) };
-                (str ($($tt:tt)*)) => { $crate::ast::Kind::Str($($tt)*) };
-                (bytestr) => { $crate::ast::Kind::ByteStr(..) };
-                (bytestr ($($tt:tt)*)) => { $crate::ast::Kind::ByteStr($($tt)*) };
-                (char) => { $crate::ast::Kind::Char(..) };
-                (char ($($tt:tt)*)) => { $crate::ast::Kind::Char($($tt)*) };
-                (byte) => { $crate::ast::Kind::Byte(..) };
-                (byte ($($tt:tt)*)) => { $crate::ast::Kind::Byte($($tt)*) };
-                (number) => { $crate::ast::Kind::Number(..) };
-                (number ($($tt:tt)*)) => { $crate::ast::Kind::Number($($tt)*) };
-                ('(') => { $crate::ast::Kind::Open($crate::ast::Delimiter::Parenthesis) };
-                (')') => { $crate::ast::Kind::Close($crate::ast::Delimiter::Parenthesis) };
-                ('[') => { $crate::ast::Kind::Open($crate::ast::Delimiter::Bracket) };
-                (']') => { $crate::ast::Kind::Close($crate::ast::Delimiter::Bracket) };
-                ('{') => { $crate::ast::Kind::Open($crate::ast::Delimiter::Brace) };
-                ('}') => { $crate::ast::Kind::Close($crate::ast::Delimiter::Brace) };
-                #(for k in &keywords join(#<push>) =>
-                    (#(&k.keyword)) => { $crate::ast::Kind::#(&k.variant) };
+                (#!($$($$tt:tt)*)) => { $$crate::ast::Kind::Shebang($$($$tt)*) };
+                (ident) => { $$crate::ast::Kind::Ident(..) };
+                (ident ($$($$tt:tt)*)) => { $$crate::ast::Kind::Ident($$($$tt)*) };
+                ('label) => { $$crate::ast::Kind::Label(..) };
+                ('label ($$($$tt:tt)*)) => { $$crate::ast::Kind::Label($$($$tt)*) };
+                (str) => { $$crate::ast::Kind::Str(..) };
+                (str ($$($$tt:tt)*)) => { $$crate::ast::Kind::Str($$($$tt)*) };
+                (bytestr) => { $$crate::ast::Kind::ByteStr(..) };
+                (bytestr ($$($$tt:tt)*)) => { $$crate::ast::Kind::ByteStr($$($$tt)*) };
+                (char) => { $$crate::ast::Kind::Char(..) };
+                (char ($$($$tt:tt)*)) => { $$crate::ast::Kind::Char($$($$tt)*) };
+                (byte) => { $$crate::ast::Kind::Byte(..) };
+                (byte ($$($$tt:tt)*)) => { $$crate::ast::Kind::Byte($$($$tt)*) };
+                (number) => { $$crate::ast::Kind::Number(..) };
+                (number ($$($$tt:tt)*)) => { $$crate::ast::Kind::Number($$($$tt)*) };
+                ('(') => { $$crate::ast::Kind::Open($$crate::ast::Delimiter::Parenthesis) };
+                (')') => { $$crate::ast::Kind::Close($$crate::ast::Delimiter::Parenthesis) };
+                ('[') => { $$crate::ast::Kind::Open($$crate::ast::Delimiter::Bracket) };
+                (']') => { $$crate::ast::Kind::Close($$crate::ast::Delimiter::Bracket) };
+                ('{') => { $$crate::ast::Kind::Open($$crate::ast::Delimiter::Brace) };
+                ('}') => { $$crate::ast::Kind::Close($$crate::ast::Delimiter::Brace) };
+                $(for k in &keywords join($['\r']) =>
+                    ($(&k.keyword)) => { $$crate::ast::Kind::$(&k.variant) };
                 )
-                #(for k in &punctuations join(#<push>) =>
-                    (#(&k.punct)) => { $crate::ast::Kind::#(&k.variant) };
+                $(for k in &punctuations join($['\r']) =>
+                    ($(&k.punct)) => { $$crate::ast::Kind::$(&k.variant) };
                 )
             }
 
-            #("/// The kind of the token.")
+            $("/// The kind of the token.")
             #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
             pub enum Kind {
-                #("/// En end-of-file marker.")
+                $("/// En end-of-file marker.")
                 Eof,
-                #("/// A single-line comment.")
+                $("/// A single-line comment.")
                 Comment,
-                #("/// A multiline comment where the boolean indicates if it's been terminated correctly.")
+                $("/// A multiline comment where the boolean indicates if it's been terminated correctly.")
                 MultilineComment(bool),
-                #("/// En error marker.")
+                $("/// En error marker.")
                 Error,
-                #("/// The special initial line of a file shebang.")
-                Shebang(#lit_source),
-                #("/// A close delimiter: `)`, `}`, or `]`.")
-                Close(#delimiter),
-                #("/// An open delimiter: `(`, `{`, or `[`.")
-                Open(#delimiter),
-                #("/// An identifier.")
-                Ident(#lit_source),
-                #("/// A label, like `'loop`.")
-                Label(#lit_source),
-                #("/// A byte literal.")
-                Byte(#copy_source<u8>),
-                #("/// A byte string literal, including escape sequences. Like `b\"hello\\nworld\"`.")
-                ByteStr(#lit_str_source),
-                #("/// A characer literal.")
-                Char(#copy_source<char>),
-                #("/// A number literal, like `42` or `3.14` or `0xff`.")
-                Number(#number_source),
-                #("/// A string literal, including escape sequences. Like `\"hello\\nworld\"`.")
-                Str(#lit_str_source),
-                #(for t in &tokens join(#<push>) =>
-                    #(format!("/// {}", t.doc()))
-                    #(t.variant()),
+                $("/// The special initial line of a file shebang.")
+                Shebang($lit_source),
+                $("/// A close delimiter: `)`, `}`, or `]`.")
+                Close($delimiter),
+                $("/// An open delimiter: `(`, `{`, or `[`.")
+                Open($delimiter),
+                $("/// An identifier.")
+                Ident($lit_source),
+                $("/// A label, like `'loop`.")
+                Label($lit_source),
+                $("/// A byte literal.")
+                Byte($copy_source<u8>),
+                $("/// A byte string literal, including escape sequences. Like `b\"hello\\nworld\"`.")
+                ByteStr($lit_str_source),
+                $("/// A characer literal.")
+                Char($copy_source<char>),
+                $("/// A number literal, like `42` or `3.14` or `0xff`.")
+                Number($number_source),
+                $("/// A string literal, including escape sequences. Like `\"hello\\nworld\"`.")
+                Str($lit_str_source),
+                $(for t in &tokens join($['\r']) =>
+                    $(format!("/// {}", t.doc()))
+                    $(t.variant()),
                 )
             }
 
-            impl From<#token> for Kind {
-                fn from(token: #token) -> Self {
+            impl From<$token> for Kind {
+                fn from(token: $token) -> Self {
                     token.kind
                 }
             }
 
             impl Kind {
-                #("/// Try to convert an identifier into a keyword.")
+                $("/// Try to convert an identifier into a keyword.")
                 pub(crate) fn from_keyword(ident: &str) -> Option<Self> {
                     match ident {
-                        #(for k in &keywords join (#<push>) => #(quoted(&k.keyword)) => Some(Self::#(&k.variant)),)
+                        $(for k in &keywords join ($['\r']) => $(quoted(&k.keyword)) => Some(Self::$(&k.variant)),)
                         _ => None,
                     }
                 }
 
-                #("/// If applicable, convert this into a literal.")
+                $("/// If applicable, convert this into a literal.")
                 pub(crate) fn as_literal_str(&self) -> Option<&'static str> {
                     match self {
                         Self::Close(d) => Some(d.close()),
                         Self::Open(d) => Some(d.open()),
-                        #(for k in &keywords join (#<push>) => Self::#(&k.variant) => Some(#(quoted(&k.keyword))),)
-                        #(for p in &punctuations join (#<push>) => Self::#(&p.variant) => Some(#(quoted(&p.punct))),)
+                        $(for k in &keywords join ($['\r']) => Self::$(&k.variant) => Some($(quoted(&k.keyword))),)
+                        $(for p in &punctuations join ($['\r']) => Self::$(&p.variant) => Some($(quoted(&p.punct))),)
                         _ => None,
                     }
                 }
             }
 
-            impl #display for Kind {
-                fn fmt(&self, f: &mut #formatter<'_>) -> #fmt_result {
-                    #into_expectation::into_expectation(*self).fmt(f)
+            impl $display for Kind {
+                fn fmt(&self, f: &mut $formatter<'_>) -> $fmt_result {
+                    $into_expectation::into_expectation(*self).fmt(f)
                 }
             }
 
-            impl #to_tokens for Kind {
-                fn to_tokens(&self, context: &mut #macro_context<'_>, stream: &mut #token_stream) {
-                    stream.push(#token {
+            impl $to_tokens for Kind {
+                fn to_tokens(&self, context: &mut $macro_context<'_>, stream: &mut $token_stream) {
+                    stream.push($token {
                         kind: *self,
                         span: context.macro_span(),
                     });
                 }
             }
 
-            impl #into_expectation for Kind {
-                fn into_expectation(self) -> #expectation {
+            impl $into_expectation for Kind {
+                fn into_expectation(self) -> $expectation {
                     match self {
-                        Self::Eof => #expectation::Description("eof"),
-                        Self::Comment | Self::MultilineComment(..) => #expectation::Comment,
-                        Self::Error => #expectation::Description("error"),
-                        Self::Shebang { .. } => #expectation::Description("shebang"),
-                        Self::Ident(..) => #expectation::Description("ident"),
-                        Self::Label(..) => #expectation::Description("label"),
-                        Self::Byte { .. } => #expectation::Description("byte"),
-                        Self::ByteStr { .. } => #expectation::Description("byte string"),
-                        Self::Char { .. } => #expectation::Description("char"),
-                        Self::Number { .. } => #expectation::Description("number"),
-                        Self::Str { .. } => #expectation::Description("string"),
-                        Self::Close(delimiter) => #expectation::Delimiter(delimiter.close()),
-                        Self::Open(delimiter) => #expectation::Delimiter(delimiter.open()),
-                        #(for k in &keywords join (#<push>) => Self::#(&k.variant) => #expectation::Keyword(#(quoted(&k.keyword))),)
-                        #(for p in &punctuations join (#<push>) => Self::#(&p.variant) => #expectation::Punctuation(#(quoted(&p.punct))),)
-                        #(for s in &syntax join (#<push>) => Self::#(&s.variant) => #expectation::Syntax,)
+                        Self::Eof => $expectation::Description("eof"),
+                        Self::Comment | Self::MultilineComment(..) => $expectation::Comment,
+                        Self::Error => $expectation::Description("error"),
+                        Self::Shebang { .. } => $expectation::Description("shebang"),
+                        Self::Ident(..) => $expectation::Description("ident"),
+                        Self::Label(..) => $expectation::Description("label"),
+                        Self::Byte { .. } => $expectation::Description("byte"),
+                        Self::ByteStr { .. } => $expectation::Description("byte string"),
+                        Self::Char { .. } => $expectation::Description("char"),
+                        Self::Number { .. } => $expectation::Description("number"),
+                        Self::Str { .. } => $expectation::Description("string"),
+                        Self::Close(delimiter) => $expectation::Delimiter(delimiter.close()),
+                        Self::Open(delimiter) => $expectation::Delimiter(delimiter.open()),
+                        $(for k in &keywords join ($['\r']) => Self::$(&k.variant) => $expectation::Keyword($(quoted(&k.keyword))),)
+                        $(for p in &punctuations join ($['\r']) => Self::$(&p.variant) => $expectation::Punctuation($(quoted(&p.punct))),)
+                        $(for s in &syntax join ($['\r']) => Self::$(&s.variant) => $expectation::Syntax,)
                     }
                 }
             }
@@ -368,7 +368,7 @@ fn buf_match<'a>(punct: &'a str) -> impl FormatInto<Rust> + 'a {
             .expect("a punctuation should not be longer than 3");
         let it = chars.into_iter().chain(std::iter::repeat('\0').take(extra));
 
-        quote_in!(tokens => [#(for c in it join (, ) => #(format!("{:?}", c)))])
+        quote_in!(tokens => [$(for c in it join (, ) => $(format!("{:?}", c)))])
     })
 }
 

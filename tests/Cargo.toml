@@ -16,7 +16,7 @@ full = ["rune-modules/full"]
 
 [dependencies]
 thiserror = "1.0.40"
-futures-executor = "0.3.27"
+futures-executor = "0.3.28"
 
 rune = { path = "../crates/rune" }
 rune-modules = { path = "../crates/rune-modules", features = ["capture-io"] }

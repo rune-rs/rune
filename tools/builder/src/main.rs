@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let build = if let Some(channel) = channel {
         Build::Channel(channel)
     } else {
-        let version = github_ref_version()?;
+        let version = Version::github_ref_version()?;
         env::set_var("RUNE_VERSION", &version);
         Build::Version(version)
     };
@@ -53,6 +53,7 @@ fn main() -> Result<()> {
 }
 
 #[derive(Debug, Clone)]
+#[allow(unused)]
 struct Version {
     base: String,
     major: u32,
@@ -62,6 +63,25 @@ struct Version {
 }
 
 impl Version {
+    /// Get the version from GITHUB_REF.
+    fn github_ref_version() -> Result<Version> {
+        let version = match env::var("GITHUB_REF") {
+            Ok(version) => version,
+            _ => bail!("missing: GITHUB_REF"),
+        };
+
+        let mut it = version.split('/');
+
+        let version = match (it.next(), it.next(), it.next()) {
+            (Some("refs"), Some("tags"), Some(version)) => {
+                Version::open(version)?.ok_or_else(|| anyhow!("Expected valid version"))?
+            }
+            _ => bail!("expected GITHUB_REF: refs/tags/*"),
+        };
+
+        Ok(version)
+    }
+
     /// Open a version by matching it against the given string.
     pub fn open(version: impl AsRef<str>) -> Result<Option<Version>> {
         let version_re = Regex::new(r"^(\d+)\.(\d+)\.(\d+)(-.+\.(\d+))?$")?;
@@ -87,25 +107,6 @@ impl Version {
     }
 }
 
-/// Get the version from GITHUB_REF.
-fn github_ref_version() -> Result<Version> {
-    let version = match env::var("GITHUB_REF") {
-        Ok(version) => version,
-        _ => bail!("missing: GITHUB_REF"),
-    };
-
-    let mut it = version.split('/');
-
-    let version = match (it.next(), it.next(), it.next()) {
-        (Some("refs"), Some("tags"), Some(version)) => {
-            Version::open(version)?.ok_or_else(|| anyhow!("Expected valid version"))?
-        }
-        _ => bail!("expected GITHUB_REF: refs/tags/*"),
-    };
-
-    Ok(version)
-}
-
 impl fmt::Display for Version {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.base.fmt(fmt)
@@ -124,9 +125,19 @@ impl AsRef<OsStr> for Version {
     }
 }
 
-fn cargo(args: &[&str]) -> Result<()> {
-    println!("cargo {}", args.join(" "));
-    let status = Command::new("cargo").args(args).status()?;
+fn cargo<S>(args: impl AsRef<[S]>) -> Result<()>
+where
+    S: AsRef<str> + AsRef<OsStr>,
+{
+    println!(
+        "cargo {}",
+        args.as_ref()
+            .iter()
+            .map(|s| s.as_ref())
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    let status = Command::new("cargo").args(args.as_ref()).status()?;
 
     if !status.success() {
         bail!("failed to run cargo");
@@ -178,7 +189,7 @@ where
             .ok_or_else(|| anyhow!("file name is not a string"))?;
 
         zip.start_file(file_name, options)?;
-        let mut from = fs::File::open(&p)?;
+        let mut from = fs::File::open(p)?;
         io::copy(&mut from, &mut zip)?;
     }
 
@@ -277,10 +288,7 @@ enum Build {
 impl Build {
     /// Test if the build is a channel.
     fn is_channel(&self) -> bool {
-        match self {
-            Self::Channel(..) => true,
-            _ => false,
-        }
+        matches!(self, Self::Channel(..))
     }
 }
 

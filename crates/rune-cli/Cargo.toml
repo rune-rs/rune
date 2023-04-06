@@ -18,10 +18,10 @@ bincode = "1.3.3"
 atty = "0.2.14"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-tokio = { version = "1.26.0", features = ["rt-multi-thread", "net", "fs", "macros"] }
+tokio = { version = "1.27.0", features = ["rt-multi-thread", "net", "fs", "macros"] }
 codespan-reporting = "0.11.1"
 anyhow = { version = "1.0.70", features = ["std"] }
-clap = { version = "4.1.13", features = ["derive"] }
+clap = { version = "4.2.1", features = ["derive"] }
 
 rune = { version = "0.12.3", path = "../rune", features = ["workspace", "doc"] }
 rune-modules = { version = "0.12.3", path = "../rune-modules", features = ["full", "experiments", "capture-io"] }

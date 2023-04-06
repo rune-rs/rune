@@ -24,7 +24,7 @@ jobs:
     - run: cargo test --workspace --all-targets
     - run: cargo test --workspace --doc
     - run: cargo run --bin rune -- check --recursive --experimental scripts
-    - run: cargo run --bin rune -- test --experimental --recursive scripts
+    - run: cargo run --bin rune -- test --recursive --experimental scripts
 
   docs:
     runs-on: ubuntu-latest

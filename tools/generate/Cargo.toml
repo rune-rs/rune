@@ -6,7 +6,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-serde = { version = "1.0.116", features = ["derive"] }
-serde_yaml = "0.8.13" 
-genco = "0.15.0"
-anyhow = "1.0.32"
+serde = { version = "1.0.159", features = ["derive"] }
+serde_yaml = "0.9.20"
+genco = "0.17.5"
+anyhow = "1.0.70"
