@@ -234,7 +234,7 @@ where
 fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
     let readme = PathBuf::from("README.md");
     let release_dir = PathBuf::from("target").join("release");
-    let upload = PathBuf::from("target").join("upload");
+    let upload = Path::from("dist");
 
     if !upload.is_dir() {
         fs::create_dir_all(&upload).context("creating upload directory")?;

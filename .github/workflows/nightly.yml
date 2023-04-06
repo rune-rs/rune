@@ -3,12 +3,12 @@ name: Nightly
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '* 12 * * *'
+    - cron: '0 0 * * *'
 
 jobs:
   build:
     name: Release
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{matrix.os}}
     strategy:
       fail-fast: false
       matrix:
@@ -22,10 +22,29 @@ jobs:
     - run: cargo run --bin rune -- check --recursive --experimental scripts
     - run: cargo run --bin rune -- test --recursive --experimental scripts
     - run: cargo run --manifest-path tools/builder/Cargo.toml -- --channel nightly
-    - uses: softprops/action-gh-release@v1
+    - uses: actions/upload-artifact@v1
       with:
-        prerelease: true
-        tag_name: nightly
-        files: target/upload/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: dist-${{matrix.os}}
+        path: dist
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: dist
+    steps:
+    - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
+      if: github.ref == 'refs/heads/release'
+    - run: echo "TAG=nightly" >> $GITHUB_ENV
+      if: github.ref != 'refs/heads/release'
+    - run: 'echo "TAG: $TAG"'
+    - uses: actions/download-artifact@v1
+      with: {name: dist-macos-latest, path: dist}
+    - uses: actions/download-artifact@v1
+      with: {name: dist-windows-latest, path: dist}
+    - uses: actions/download-artifact@v1
+      with: {name: dist-ubuntu-latest, path: dist}
+    - name: Publish Release
+      uses: ./.github/actions/github-release
+      with:
+        files: "dist/*"
+        name: ${{env.TAG}}
+        token: ${{secrets.GITHUB_TOKEN}}
