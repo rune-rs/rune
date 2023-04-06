@@ -237,7 +237,7 @@ fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
     let upload = Path::new("dist");
 
     if !upload.is_dir() {
-        fs::create_dir_all(&upload).context("creating upload directory")?;
+        fs::create_dir_all(upload).context("creating upload directory")?;
     }
 
     let rune = release_dir.join(format!("rune{}", ext));
@@ -255,7 +255,7 @@ fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
     }
 
     // Create a zip file containing everything related to rune.
-    create_release_zip(&upload, &build, vec![&readme, &rune, &rune_languageserver])
+    create_release_zip(upload, &build, vec![&readme, &rune, &rune_languageserver])
         .context("building .zip")?;
 
     if build.is_channel() {
@@ -268,7 +268,7 @@ fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
 
         // Copy files to be uploaded.
         copy_files(
-            &upload,
+            upload,
             vec![(
                 rune_languageserver,
                 format!("rune-languageserver-{}{}", suffix, ext),
