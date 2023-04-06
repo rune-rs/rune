@@ -23,55 +23,55 @@ on:
       - release
 
 jobs:
-  tag:
-    runs-on: ubuntu-latest
-    steps:
-    - run: echo "tag=$(date --iso -u)" >> $GITHUB_OUTPUT
-      if: ${{github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release'}}
-    - run: echo "tag=nightly" >> $GITHUB_OUTPUT
-      if: ${{github.event_name == 'schedule'}}
-    - run: echo "tag=${{github.event.inputs.channel}}" >> $GITHUB_OUTPUT
-      if: ${{github.event.inputs.channel != ''}}
-
   test:
     runs-on: ubuntu-latest
+    if: ${{!github.event.inputs.skip_tests}}
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-      if: ${{!github.event.inputs.skip_tests}}
     - run: cargo test --workspace --all-targets
-      if: ${{!github.event.inputs.skip_tests}}
     - run: cargo test --workspace --doc
-      if: ${{!github.event.inputs.skip_tests}}
     - run: cargo run --bin rune -- check --recursive --experimental scripts
-      if: ${{!github.event.inputs.skip_tests}}
     - run: cargo run --bin rune -- test --recursive --experimental scripts
-      if: ${{!github.event.inputs.skip_tests}}
 
   build:
-    needs: [tag, test]
+    needs: test
     runs-on: ${{matrix.os}}
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
-    - run: 'echo "tag: ${{needs.tag.outputs.tag}}"'
+    - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
+      if: github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release'
+    - run: echo "TAG=nightly" >> $GITHUB_ENV
+      if: github.event_name == 'schedule'
+    - run: echo "TAG=${{github.event.inputs.channel}}" >> $GITHUB_ENV
+      if: github.event_name != 'schedule' && github.ref != 'refs/heads/release'
+    - run: 'echo "TAG: ${{env.TAG}}"'
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-    - run: cargo run -p builder -- --channel ${{needs.tag.outputs.tag}}
+    - run: cargo run -p builder -- --channel ${{env.TAG}}
     - uses: actions/upload-artifact@v1
       with:
         name: dist-${{matrix.os}}
         path: dist
 
   publish:
-    needs: [tag, build]
+    needs: build
     runs-on: ubuntu-latest
     steps:
-    - run: 'echo "tag: ${{needs.tag.outputs.tag}}"'
+    - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
+      if: github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release'
+    - run: echo "TAG=nightly" >> $GITHUB_ENV
+      if: github.event_name == 'schedule'
+    - run: echo "TAG=${{github.event.inputs.channel}}" >> $GITHUB_ENV
+      if: github.event_name != 'schedule' && github.ref != 'refs/heads/release'
+    - run: 'echo "TAG: ${{env.TAG}}"'
+    - run: 'echo "tag: ${{env.TAG}}"'
     - uses: actions/download-artifact@v1
       with: {name: dist-macos-latest, path: dist}
     - uses: actions/download-artifact@v1
@@ -82,5 +82,5 @@ jobs:
       uses: ./.github/actions/github-release
       with:
         files: "dist/*"
-        name: ${{needs.tag.outputs.tag}}
+        name: ${{env.TAG}}
         token: ${{secrets.GITHUB_TOKEN}}
