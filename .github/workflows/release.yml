@@ -71,7 +71,6 @@ jobs:
     - run: echo "TAG=${{github.event.inputs.channel}}" >> $GITHUB_ENV
       if: github.event_name != 'schedule' && github.ref != 'refs/heads/release'
     - run: 'echo "TAG: ${{env.TAG}}"'
-    - run: 'echo "tag: ${{env.TAG}}"'
     - uses: actions/download-artifact@v1
       with: {name: dist-macos-latest, path: dist}
     - uses: actions/download-artifact@v1
