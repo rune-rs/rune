@@ -1,11 +1,29 @@
-name: Nightly
+name: Release
 
 on:
-  workflow_dispatch: {}
   schedule:
     - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'channel to release'
+        type: string
+        required: true
+  push:
+    branches:
+      - release
 
 jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "tag=$(date --iso -u)" >> $GITHUB_OUTPUT
+      if: github.ref == 'refs/heads/release'
+    - run: echo "tag=nightly" >> $GITHUB_OUTPUT
+      if: ${{github.event_name == 'schedule'}}
+    - run: echo "tag=${{github.event.inputs.channel}}" >> $GITHUB_OUTPUT
+      if: github.event.inputs.channel != ''
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -18,31 +36,28 @@ jobs:
     - run: cargo run --bin rune -- test --recursive --experimental scripts
 
   build:
-    needs: test
+    needs: [tag, test]
     runs-on: ${{matrix.os}}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
+    - run: 'echo "tag: ${{needs.tag.outputs.tag}}"'
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-    - run: cargo run --manifest-path tools/builder/Cargo.toml -- --channel nightly
+    - run: cargo run -p builder -- --channel ${{needs.tag.outputs.tag}}
     - uses: actions/upload-artifact@v1
       with:
         name: dist-${{matrix.os}}
         path: dist
 
   publish:
-    needs: build
+    needs: [tag, test]
     runs-on: ubuntu-latest
     steps:
-    - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
-      if: github.ref == 'refs/heads/release'
-    - run: echo "TAG=nightly" >> $GITHUB_ENV
-      if: github.ref != 'refs/heads/release'
-    - run: 'echo "TAG: $TAG"'
+    - run: 'echo "tag: ${{needs.tag.outputs.tag}}"'
     - uses: actions/download-artifact@v1
       with: {name: dist-macos-latest, path: dist}
     - uses: actions/download-artifact@v1
@@ -50,8 +65,8 @@ jobs:
     - uses: actions/download-artifact@v1
       with: {name: dist-ubuntu-latest, path: dist}
     - name: Publish Release
-      uses: ./.github/actions/github-release
+      uses: .github/actions/github-release
       with:
         files: "dist/*"
-        name: ${{env.TAG}}
+        name: ${{needs.tag.outputs.tag}}
         token: ${{secrets.GITHUB_TOKEN}}
