@@ -3,6 +3,8 @@
 /// The name of the toplevel manifest `Rune.toml`.
 pub const MANIFEST_FILE: &str = "Rune.toml";
 
+mod spanned_value;
+
 mod build;
 pub use self::build::{prepare, Build, BuildError};
 

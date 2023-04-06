@@ -1,19 +1,20 @@
 use std::collections::VecDeque;
 use std::mem;
 use std::path::{PathBuf, Path};
-use relative_path::{RelativePathBuf, RelativePath, Component};
-use semver::Version;
-use serde::de::{IntoDeserializer};
-use toml_spanned_value::spanned_value::{ValueKind, Table, Array};
-use crate::{Sources, SourceId, Source};
-use crate::ast::{Span, Spanned};
-use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError};
-use toml_spanned_value::SpannedValue;
-use serde::Deserialize;
-use serde_hashkey as key;
 use std::io;
 use std::fs;
 use std::ffi::OsStr;
+
+use relative_path::{RelativePathBuf, RelativePath, Component};
+use semver::Version;
+use serde::de::{IntoDeserializer};
+use serde::Deserialize;
+use serde_hashkey as key;
+
+use crate::{Sources, SourceId, Source};
+use crate::ast::{Span, Spanned};
+use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError};
+use crate::workspace::spanned_value::{Array, SpannedValue, Value, Table};
 
 /// A workspace filter which in combination with functions such as
 /// [Manifest::find_bins] can be used to selectively find things in the
@@ -49,8 +50,8 @@ impl WorkspaceFilter<'_> {
 impl<T> Spanned for toml::Spanned<T> {
     #[inline]
     fn span(&self) -> Span {
-        let (start, end) = toml::Spanned::span(self);
-        Span::new(start, end)
+        let range = toml::Spanned::span(self);
+        Span::new(range.start, range.end)
     }
 }
 
@@ -332,7 +333,7 @@ fn into_table(l: &mut Loader<'_>, value: SpannedValue) -> Option<(Table, Span)> 
     let span = Spanned::span(&value);
 
     match value.into_inner() {
-        ValueKind::Table(table) => Some((table, span)),
+        Value::Table(table) => Some((table, span)),
         _ => {
             let error = WorkspaceError::new(span, WorkspaceErrorKind::ExpectedTable);
             l.diagnostics.fatal(l.id, error);
@@ -346,7 +347,7 @@ fn into_array(l: &mut Loader<'_>, value: SpannedValue) -> Option<(Array, Span)> 
     let span = Spanned::span(&value);
 
     match value.into_inner() {
-        ValueKind::Array(array) => Some((array, span)),
+        Value::Array(array) => Some((array, span)),
         _ => {
             let error = WorkspaceError::expected_array(span);
             l.diagnostics.fatal(l.id, error);
