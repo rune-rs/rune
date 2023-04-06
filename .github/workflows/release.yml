@@ -26,7 +26,7 @@ jobs:
   tag:
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{needs.tag.outputs.tag}}
+      tag: ${{env.TAG}}
     steps:
     - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
       if: github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release'
@@ -52,7 +52,6 @@ jobs:
     runs-on: ${{matrix.os}}
     if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
     strategy:
-      fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
