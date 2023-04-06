@@ -27,7 +27,7 @@ pub mod envelope;
 mod server;
 mod state;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use rune::{Context, Options};
 use tokio::sync::mpsc;
 

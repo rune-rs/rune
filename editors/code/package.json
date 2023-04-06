@@ -55,15 +55,24 @@
     "commands": [
       {
         "command": "rune-vscode.reload",
-        "title": "Restart server",
+        "title": "Reload extension",
+        "category": "Rune"
+      },
+      {
+        "command": "rune-vscode.startServer",
+        "title": "Start server",
+        "category": "Rune"
+      },
+      {
+        "command": "rune-vscode.stopServer",
+        "title": "Stop server",
         "category": "Rune"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "rune-vscode.reload",
-          "when": "inRuneProject"
+          "command": "rune-vscode.reload"
         }
       ]
     },
