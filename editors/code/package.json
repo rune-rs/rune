@@ -25,10 +25,10 @@
   },
   "activationEvents": [
     "onLanguage:rune",
-    "workspaceContains:*/Rune.toml",
     "onCommand:rune-vscode.reload",
     "onCommand:rune-vscode.startServer",
-    "onCommand:rune-vscode.stopServer"
+    "onCommand:rune-vscode.stopServer",
+    "workspaceContains:*/Rune.toml"
   ],
   "main": "./dist/extension.js",
   "contributes": {

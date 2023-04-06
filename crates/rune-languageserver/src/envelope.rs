@@ -1,6 +1,5 @@
 //! Types to deserialize.
 
-use bstr::BStr;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -16,7 +15,7 @@ pub struct IncomingMessage<'a> {
     pub jsonrpc: V2,
     pub id: Option<RequestId>,
     #[serde(borrow)]
-    pub method: &'a BStr,
+    pub method: &'a str,
     #[serde(default)]
     pub params: serde_json::Value,
 }

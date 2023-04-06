@@ -1,11 +1,13 @@
+use std::error;
+use std::fmt;
+
+use thiserror::Error;
+
 use crate::ast::{Span, Spanned};
 use crate::compile::{CompileError, LinkerError};
 use crate::parse::ParseError;
 use crate::query::QueryError;
 use crate::SourceId;
-use std::error;
-use std::fmt;
-use thiserror::Error;
 
 /// Fatal diagnostic emitted during compilation. Fatal diagnostics indicates an
 /// unrecoverable issue.

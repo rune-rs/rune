@@ -1,8 +1,11 @@
-use crate::ast::Span;
-use crate::SourceId;
 use std::error;
 use std::fmt;
+
 use thiserror::Error;
+
+use crate::ast::Span;
+use crate::ast::Spanned;
+use crate::SourceId;
 
 /// Warning diagnostic emitted during compilation. Warning diagnostics indicates
 /// an recoverable issues.
@@ -29,9 +32,11 @@ impl WarningDiagnostic {
     pub fn into_kind(self) -> WarningDiagnosticKind {
         self.kind
     }
+}
 
+impl Spanned for WarningDiagnostic {
     /// Get the span of the warning.
-    pub fn span(&self) -> Span {
+    fn span(&self) -> Span {
         match &self.kind {
             WarningDiagnosticKind::NotUsed { span, .. } => *span,
             WarningDiagnosticKind::LetPatternMightPanic { span, .. } => *span,

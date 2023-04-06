@@ -27,17 +27,20 @@
 mod connection;
 pub mod envelope;
 mod fs;
-mod server;
 mod state;
+mod url;
 
 use anyhow::Result;
+use lsp::notification::Notification;
+use lsp::request::Request;
 use rune::workspace::MANIFEST_FILE;
 use rune::{Context, Options};
-use tokio::sync::mpsc;
+use serde::Deserialize;
+use tokio::sync::Notify;
 
 pub use crate::connection::stdio;
 pub use crate::connection::{Input, Output};
-pub use crate::server::Server;
+use crate::envelope::Code;
 pub use crate::state::State;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
@@ -45,39 +48,24 @@ pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"))
 pub fn run(context: Context, options: Options) -> Result<()> {
     let (mut input, output) = stdio()?;
 
-    let (rebuild_tx, mut rebuild_rx) = mpsc::channel(1);
-
-    let mut server = Server::new(output, rebuild_tx, context, options);
-
-    server.request_handler::<lsp::request::Initialize, _, _>(initialize);
-    server.request_handler::<lsp::request::Shutdown, _, _>(shutdown);
-
-    server.request_handler::<lsp::request::GotoDefinition, _, _>(goto_definition);
-
-    server.notification_handler::<lsp::notification::DidOpenTextDocument, _, _>(
-        did_open_text_document,
-    );
-    server.notification_handler::<lsp::notification::DidChangeTextDocument, _, _>(
-        did_change_text_document,
-    );
-    server.notification_handler::<lsp::notification::DidCloseTextDocument, _, _>(
-        did_close_text_document,
-    );
-    server.notification_handler::<lsp::notification::DidSaveTextDocument, _, _>(
-        did_save_text_document,
-    );
-    server.notification_handler::<lsp::notification::Initialized, _, _>(initialized);
-
-    tracing::info!("Starting server");
-
     let runtime = tokio::runtime::Runtime::new()?;
 
     let result: Result<()> = runtime.block_on(async {
-        while !server.state().is_stopped() {
+        let rebuild_notify = Notify::new();
+
+        let rebuild = rebuild_notify.notified();
+        tokio::pin!(rebuild);
+
+        let mut state = State::new(output, &rebuild_notify, context, options);
+        tracing::info!("Starting server");
+        state.rebuild().await?;
+
+        while !state.is_stopped() {
             tokio::select! {
-                _ = rebuild_rx.recv() => {
+                _ = rebuild.as_mut() => {
                     tracing::info!("rebuilding project");
-                    server.rebuild().await?;
+                    state.rebuild().await?;
+                    rebuild.set(rebuild_notify.notified());
                 },
                 frame = input.next() => {
                     let frame = match frame? {
@@ -85,9 +73,57 @@ pub fn run(context: Context, options: Options) -> Result<()> {
                         None => break,
                     };
 
-                    let request: envelope::IncomingMessage<'_> = serde_json::from_slice(frame.content)?;
-                    tracing::trace!(?request);
-                    server.process(request).await?;
+                    let incoming: envelope::IncomingMessage<'_> = serde_json::from_slice(frame.content)?;
+                    tracing::trace!(?incoming);
+
+                    // If server is not initialized, reject incoming requests.
+                    if !state.is_initialized() && incoming.method != lsp::request::Initialize::METHOD {
+                        state.output
+                            .error(
+                                incoming.id,
+                                Code::InvalidRequest,
+                                "Server not initialized",
+                                None::<()>,
+                            )
+                            .await?;
+
+                        continue;
+                    }
+
+                    macro_rules! handle {
+                        ($(req($req_ty:ty, $req_handle:ident)),* $(, notif($notif_ty:ty, $notif_handle:ident))* $(,)?) => {
+                            match incoming.method {
+                                $(<$req_ty>::METHOD => {
+                                    let params = <$req_ty as Request>::Params::deserialize(incoming.params)?;
+                                    let result = $req_handle(&mut state, params).await?;
+                                    state.output.response(incoming.id, result).await?;
+                                })*
+                                $(<$notif_ty>::METHOD => {
+                                    let params = <$notif_ty as Notification>::Params::deserialize(incoming.params)?;
+                                    let () = $notif_handle(&mut state, params).await?;
+                                })*
+                                _ => {
+                                    state.output
+                                    .log(
+                                        lsp::MessageType::INFO,
+                                        format!("Unhandled method `{}`", incoming.method),
+                                    )
+                                    .await?;
+                                }
+                            }
+                        }
+                    }
+
+                    handle! {
+                        req(lsp::request::Initialize, initialize),
+                        req(lsp::request::Shutdown, shutdown),
+                        req(lsp::request::GotoDefinition, goto_definition),
+                        notif(lsp::notification::DidOpenTextDocument, did_open_text_document),
+                        notif(lsp::notification::DidChangeTextDocument, did_change_text_document),
+                        notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
+                        notif(lsp::notification::DidSaveTextDocument, did_save_text_document),
+                        notif(lsp::notification::Initialized, initialized),
+                    }
                 },
             }
         };
@@ -103,15 +139,14 @@ pub fn run(context: Context, options: Options) -> Result<()> {
     Ok(())
 }
 
-/// Initialize the language server.
+/// Initialize the language state.
 async fn initialize(
-    state: State,
-    output: Output,
+    s: &mut State<'_>,
     params: lsp::InitializeParams,
 ) -> Result<lsp::InitializeResult> {
-    state.initialize();
+    s.initialize();
 
-    output
+    s.output
         .log(lsp::MessageType::INFO, "Starting language server")
         .await?;
 
@@ -128,6 +163,8 @@ async fn initialize(
         version: None,
     };
 
+    let mut rebuild = false;
+
     if let Some(root_uri) = &params.root_uri {
         let mut manifest_uri = root_uri.clone();
 
@@ -138,9 +175,14 @@ async fn initialize(
         if let Ok(manifest_path) = manifest_uri.to_file_path() {
             if fs::is_file(&manifest_path).await? {
                 tracing::trace!(?manifest_uri, ?manifest_path, "Activating workspace");
-                state.workspace_mut().await.manifest_path = Some((manifest_uri, manifest_path));
+                s.workspace_mut().manifest_path = Some((manifest_uri, manifest_path));
+                rebuild = true;
             }
         }
+    }
+
+    if rebuild {
+        s.rebuild_interest();
     }
 
     Ok(lsp::InitializeResult {
@@ -149,24 +191,23 @@ async fn initialize(
     })
 }
 
-async fn shutdown(state: State, _: Output, _: ()) -> Result<()> {
-    state.stop();
+async fn shutdown(s: &mut State<'_>, _: ()) -> Result<()> {
+    s.stop();
     Ok(())
 }
 
 /// Handle initialized notification.
-async fn initialized(_: State, _: Output, _: lsp::InitializedParams) -> Result<()> {
+async fn initialized(_: &mut State<'_>, _: lsp::InitializedParams) -> Result<()> {
     tracing::info!("Initialized");
     Ok(())
 }
 
 /// Handle initialized notification.
 async fn goto_definition(
-    state: State,
-    _: Output,
+    s: &mut State<'_>,
     params: lsp::GotoDefinitionParams,
 ) -> Result<Option<lsp::GotoDefinitionResponse>> {
-    let position = state
+    let position = s
         .goto_definition(
             &params.text_document_position_params.text_document.uri,
             params.text_document_position_params.position,
@@ -178,13 +219,10 @@ async fn goto_definition(
 
 /// Handle open text document.
 async fn did_open_text_document(
-    state: State,
-    _: Output,
+    s: &mut State<'_>,
     params: lsp::DidOpenTextDocumentParams,
 ) -> Result<()> {
-    let mut sources = state.workspace_mut().await;
-
-    if sources
+    if s.workspace_mut()
         .insert_text(params.text_document.uri.clone(), params.text_document.text)
         .is_some()
     {
@@ -194,38 +232,33 @@ async fn did_open_text_document(
         );
     }
 
-    state.rebuild_interest().await?;
+    s.rebuild_interest();
     Ok(())
 }
 
 /// Handle open text document.
 async fn did_change_text_document(
-    state: State,
-    _: Output,
+    s: &mut State<'_>,
     params: lsp::DidChangeTextDocumentParams,
 ) -> Result<()> {
     let mut interest = false;
 
-    {
-        let mut sources = state.workspace_mut().await;
-
-        if let Some(source) = sources.get_mut(&params.text_document.uri) {
-            for change in params.content_changes {
-                if let Some(range) = change.range {
-                    source.modify_lsp_range(range, &change.text)?;
-                    interest = true;
-                }
+    if let Some(source) = s.workspace_mut().get_mut(&params.text_document.uri) {
+        for change in params.content_changes {
+            if let Some(range) = change.range {
+                source.modify_lsp_range(range, &change.text)?;
+                interest = true;
             }
-        } else {
-            tracing::warn!(
-                "tried to modify `{}`, but it was not open!",
-                params.text_document.uri
-            );
         }
+    } else {
+        tracing::warn!(
+            "tried to modify `{}`, but it was not open!",
+            params.text_document.uri
+        );
     }
 
     if interest {
-        state.rebuild_interest().await?;
+        s.rebuild_interest();
     }
 
     Ok(())
@@ -233,20 +266,17 @@ async fn did_change_text_document(
 
 /// Handle open text document.
 async fn did_close_text_document(
-    state: State,
-    _: Output,
+    s: &mut State<'_>,
     params: lsp::DidCloseTextDocumentParams,
 ) -> Result<()> {
-    let mut sources = state.workspace_mut().await;
-    sources.remove(&params.text_document.uri);
-    state.rebuild_interest().await?;
+    s.workspace_mut().remove(&params.text_document.uri);
+    s.rebuild_interest();
     Ok(())
 }
 
 /// Handle saving of text documents.
 async fn did_save_text_document(
-    _: State,
-    _: Output,
+    _: &mut State<'_>,
     _: lsp::DidSaveTextDocumentParams,
 ) -> Result<()> {
     Ok(())

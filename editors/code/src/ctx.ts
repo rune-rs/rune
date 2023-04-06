@@ -194,7 +194,7 @@ export class Ctx {
 
     setupStatusBar() {
         this.statusBar.show();
-        this.statusBar.text = "Rune";
+        this.statusBar.text = "rune";
         this.statusBar.command = "rune-vscode.reload";
 
         let tooltip = new vscode.MarkdownString("", true);
