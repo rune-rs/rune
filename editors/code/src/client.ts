@@ -1,4 +1,5 @@
 import * as lc from "vscode-languageclient/node";
+import { workspace } from 'vscode';
 
 import { Env, substituteVariablesInEnv } from "./config";
 import { outputChannel, traceOutputChannel } from "./extension";
@@ -21,7 +22,7 @@ export function createClient(
     };
 
     const clientOptions: lc.LanguageClientOptions = {
-        documentSelector: [{ scheme: 'file', language: 'rune' }],
+        documentSelector: [{ scheme: 'file', language: 'rune' }, { pattern: '**/Rune.toml', language: 'toml' }],
         traceOutputChannel: traceOutputChannel(),
         outputChannel: outputChannel(),
     };
