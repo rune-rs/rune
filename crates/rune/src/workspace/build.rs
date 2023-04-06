@@ -1,7 +1,8 @@
+use thiserror::Error;
+
 use crate::Sources;
 use crate::workspace::Diagnostics;
-use thiserror::Error;
-use crate::workspace::manifest::{self, Loader, Manifest};
+use crate::workspace::manifest::{Loader, Manifest};
 
 /// Failed to build workspace.
 #[derive(Debug, Error)]
@@ -46,14 +47,8 @@ impl<'a> Build<'a> {
         let mut manifest = Manifest::default();
 
         for id in self.sources.source_ids() {
-            let mut l = Loader {
-                id,
-                sources: self.sources,
-                diagnostics,
-                manifest: &mut manifest,
-            };
-
-            manifest::load_manifest(&mut l);
+            let mut loader = Loader::new(id, self.sources, diagnostics, &mut manifest);
+            loader.load_manifest();
         }
 
         if diagnostics.has_errors() {
