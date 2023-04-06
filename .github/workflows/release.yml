@@ -23,6 +23,18 @@ on:
       - release
 
 jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{needs.tag.outputs.tag}}
+    steps:
+    - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
+      if: github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release'
+    - run: echo "TAG=nightly" >> $GITHUB_ENV
+      if: github.event_name == 'schedule'
+    - run: echo "TAG=${{github.event.inputs.channel}}" >> $GITHUB_ENV
+      if: github.event_name != 'schedule' && github.ref != 'refs/heads/release'
+
   test:
     runs-on: ubuntu-latest
     if: ${{!github.event.inputs.skip_tests}}
@@ -36,7 +48,7 @@ jobs:
     - run: cargo run --bin rune -- test --recursive --experimental scripts
 
   build:
-    needs: test
+    needs: [tag, test]
     runs-on: ${{matrix.os}}
     if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
     strategy:
@@ -44,33 +56,21 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
-    - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
-      if: github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release'
-    - run: echo "TAG=nightly" >> $GITHUB_ENV
-      if: github.event_name == 'schedule'
-    - run: echo "TAG=${{github.event.inputs.channel}}" >> $GITHUB_ENV
-      if: github.event_name != 'schedule' && github.ref != 'refs/heads/release'
-    - run: 'echo "TAG: ${{env.TAG}}"'
+    - run: 'echo "TAG: ${{needs.tag.outputs.tag}}"'
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-    - run: cargo run -p builder -- --channel ${{env.TAG}}
+    - run: cargo run -p builder -- --channel
     - uses: actions/upload-artifact@v1
       with:
         name: dist-${{matrix.os}}
         path: dist
 
   publish:
-    needs: build
+    needs: [tag, build]
     runs-on: ubuntu-latest
     steps:
-    - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
-      if: github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release'
-    - run: echo "TAG=nightly" >> $GITHUB_ENV
-      if: github.event_name == 'schedule'
-    - run: echo "TAG=${{github.event.inputs.channel}}" >> $GITHUB_ENV
-      if: github.event_name != 'schedule' && github.ref != 'refs/heads/release'
-    - run: 'echo "TAG: ${{env.TAG}}"'
+    - run: 'echo "TAG: ${{needs.tag.outputs.tag}}"'
     - uses: actions/download-artifact@v1
       with: {name: dist-macos-latest, path: dist}
     - uses: actions/download-artifact@v1
@@ -81,5 +81,5 @@ jobs:
       uses: ./.github/actions/github-release
       with:
         files: "dist/*"
-        name: ${{env.TAG}}
+        name: ${{needs.tag.outputs.tag}}
         token: ${{secrets.GITHUB_TOKEN}}
