@@ -21,14 +21,20 @@ pub struct Source {
 
 impl Source {
     /// Construct a new source with the given name.
-    pub fn new(name: impl AsRef<str>, source: impl AsRef<str>) -> Self {
+    pub fn new<S>(name: impl AsRef<str>, source: S) -> Self
+    where
+        S: AsRef<str>,
+    {
         Self::with_path(name, source, None::<Box<Path>>)
     }
 
     /// Read and load a source from the given path.
-    pub fn from_path(path: &Path) -> io::Result<Self> {
-        let name = path.display().to_string();
-        let source = fs::read_to_string(path)?;
+    pub fn from_path<P>(path: P) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let name = path.as_ref().display().to_string();
+        let source = fs::read_to_string(path.as_ref())?;
         Ok(Self::with_path(name, source, Some(path)))
     }
 

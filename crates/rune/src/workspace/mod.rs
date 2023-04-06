@@ -3,6 +3,8 @@
 /// The name of the toplevel manifest `Rune.toml`.
 pub const MANIFEST_FILE: &str = "Rune.toml";
 
+mod glob;
+
 mod spanned_value;
 
 mod build;
