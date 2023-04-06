@@ -43,7 +43,8 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 }
 
 fn from_bytes(bytes: &[u8]) -> rune::Result<Value> {
-    Ok(toml::from_slice(bytes)?)
+    let bytes = std::str::from_utf8(bytes)?;
+    Ok(toml::from_str(bytes)?)
 }
 
 /// Get value from toml string.
@@ -58,6 +59,6 @@ fn to_string(value: Value) -> rune::Result<String> {
 
 /// Convert any value to toml bytes.
 fn to_bytes(value: Value) -> rune::Result<Bytes> {
-    let bytes = toml::to_vec(&value)?;
+    let bytes = toml::to_string(&value)?.into_bytes();
     Ok(Bytes::from_vec(bytes))
 }
