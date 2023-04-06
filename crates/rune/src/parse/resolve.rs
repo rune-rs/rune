@@ -42,39 +42,39 @@ impl From<ResolveError> for SpannedError {
 pub enum ResolveErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
-    #[error("expected {expected}, but got {actual}")]
+    #[error("Expected `{expected}`, but got `{actual}`")]
     Expected {
         actual: Expectation,
         expected: Expectation,
     },
-    #[error("tried to read bad slice from source")]
+    #[error("Tried to read bad slice from source")]
     BadSlice,
-    #[error("tried to get bad synthetic identifier `{id}` for {kind}")]
+    #[error("Tried to get bad synthetic identifier `{id}` for `{kind}`")]
     BadSyntheticId {
         kind: SyntheticKind,
         id: SyntheticId,
     },
-    #[error("bad escape sequence")]
+    #[error("Bad escape sequence")]
     BadEscapeSequence,
-    #[error("bad unicode escape")]
+    #[error("Bad unicode escape")]
     BadUnicodeEscape,
     #[error(
-        "this form of character escape may only be used with characters in the range [\\x00-\\x7f]"
+        "This form of character escape may only be used with characters in the range [\\x00-\\x7f]"
     )]
     BadHexEscapeChar,
     #[error(
-        "this form of byte escape may only be used with characters in the range [\\x00-\\xff]"
+        "This form of byte escape may only be used with characters in the range [\\x00-\\xff]"
     )]
     BadHexEscapeByte,
-    #[error("bad byte escape")]
+    #[error("Bad byte escape")]
     BadByteEscape,
-    #[error("bad character literal")]
+    #[error("Bad character literal")]
     BadCharLiteral,
-    #[error("bad byte literal")]
+    #[error("Bad byte literal")]
     BadByteLiteral,
-    #[error("unicode escapes are not supported as a byte or byte string")]
+    #[error("Unicode escapes are not supported as a byte or byte string")]
     BadUnicodeEscapeInByteString,
-    #[error("number literal not valid")]
+    #[error("Number literal not valid")]
     BadNumberLiteral,
 }
 

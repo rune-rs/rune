@@ -36,10 +36,7 @@ impl Input {
         };
 
         self.buf.resize(length, 0u8);
-
-        tracing::trace!("read frame: {}", self.buf.len());
         self.stdin.read_exact(&mut self.buf[..]).await?;
-
         Ok(Some(Frame { content: &self.buf }))
     }
 }

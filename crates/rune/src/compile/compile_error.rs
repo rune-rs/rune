@@ -97,139 +97,139 @@ pub enum CompileErrorKind {
         #[from]
         error: HirErrorKind,
     },
-    #[error("failed to load `{path}`: {error}")]
-    ModFileError {
+    #[error("Failed to load `{path}`: {error}")]
+    FileError {
         path: PathBuf,
         #[source]
         error: io::Error,
     },
-    #[error("error during constant evaluation: {msg}")]
+    #[error("Error during constant evaluation: {msg}")]
     ConstError { msg: &'static str },
-    #[error("experimental feature: {msg}")]
+    #[error("Experimental feature: {msg}")]
     Experimental { msg: &'static str },
-    #[error("file not found, expected a module file like `{path}.rn`")]
+    #[error("File not found, expected a module file like `{path}.rn`")]
     ModNotFound { path: PathBuf },
-    #[error("module `{item}` has already been loaded")]
+    #[error("Module `{item}` has already been loaded")]
     ModAlreadyLoaded {
         item: ItemBuf,
         existing: (SourceId, Span),
     },
-    #[error("variable `{name}` conflicts")]
+    #[error("Variable `{name}` conflicts")]
     VariableConflict { name: String, existing_span: Span },
-    #[error("missing macro `{item}`")]
+    #[error("Missing macro `{item}`")]
     MissingMacro { item: ItemBuf },
     #[error("{error}")]
     CallMacroError { item: ItemBuf, error: Error },
-    #[error("no local variable `{name}`")]
+    #[error("No local variable `{name}`")]
     MissingLocal { name: String },
-    #[error("missing item `{item}`")]
+    #[error("Missing item `{item}`")]
     MissingItem { item: ItemBuf },
-    #[error("unsupported crate prefix `::`")]
+    #[error("Unsupported crate prefix `::`")]
     UnsupportedGlobal,
-    #[error("cannot load modules using a source without an associated URL")]
+    #[error("Cannot load modules using a source without an associated URL")]
     UnsupportedModuleSource,
-    #[error("cannot load modules relative to `{root}`")]
+    #[error("Cannot load modules relative to `{root}`")]
     UnsupportedModuleRoot { root: PathBuf },
-    #[error("cannot load module for `{item}`")]
+    #[error("Cannot load module for `{item}`")]
     UnsupportedModuleItem { item: ItemBuf },
-    #[error("wildcard support not supported in this position")]
+    #[error("Wildcard support not supported in this position")]
     UnsupportedWildcard,
-    #[error("`self` not supported here")]
+    #[error("Keyword `self` not supported here")]
     UnsupportedSelf,
-    #[error("unsupported unary operator `{op}`")]
+    #[error("Unsupported unary operator `{op}`")]
     UnsupportedUnaryOp { op: ast::UnOp },
-    #[error("unsupported binary operator `{op}`")]
+    #[error("Unsupported binary operator `{op}`")]
     UnsupportedBinaryOp { op: ast::BinOp },
-    #[error("{meta} is not an object")]
+    #[error("Item `{meta}` is not an object")]
     UnsupportedLitObject { meta: MetaInfo },
-    #[error("missing field `{field}` in declaration of `{item}`")]
+    #[error("Missing field `{field}` in declaration of `{item}`")]
     LitObjectMissingField { field: Box<str>, item: ItemBuf },
-    #[error("`{field}` is not a field in `{item}`")]
+    #[error("Field `{field}` is not a field in `{item}`")]
     LitObjectNotField { field: Box<str>, item: ItemBuf },
-    #[error("cannot assign to expression")]
+    #[error("Cannot assign to expression")]
     UnsupportedAssignExpr,
-    #[error("unsupported binary expression")]
+    #[error("Unsupported binary expression")]
     UnsupportedBinaryExpr,
-    #[error("cannot take reference of expression")]
+    #[error("Cannot take reference of expression")]
     UnsupportedRef,
-    #[error("unsupported select pattern")]
+    #[error("Unsupported select pattern")]
     UnsupportedSelectPattern,
-    #[error("unsupported field access")]
+    #[error("Unsupported field access")]
     BadFieldAccess,
-    #[error("wrong number of arguments, expected `{expected}` but got `{actual}`")]
+    #[error("Wrong number of arguments, expected `{expected}` but got `{actual}`")]
     UnsupportedArgumentCount {
         meta: MetaInfo,
         expected: usize,
         actual: usize,
     },
-    #[error("{meta} is not supported here")]
+    #[error("Item `{meta}` is not supported here")]
     UnsupportedPattern { meta: MetaInfo },
-    #[error("this kind of expression is not supported as a pattern")]
+    #[error("This kind of expression is not supported as a pattern")]
     UnsupportedPatternExpr,
-    #[error("not a valid binding")]
+    #[error("Not a valid binding")]
     UnsupportedBinding,
-    #[error("floating point numbers cannot be used in patterns")]
+    #[error("Floating point numbers cannot be used in patterns")]
     MatchFloatInPattern,
-    #[error("duplicate key in literal object")]
+    #[error("Duplicate key in literal object")]
     DuplicateObjectKey { existing: Span, object: Span },
-    #[error("`yield` must be used in function or closure")]
+    #[error("Expression `yield` must be used in function or closure")]
     YieldOutsideFunction,
-    #[error("`await` must be used inside an async function or closure")]
+    #[error("Expression `await` must be used inside an async function or closure")]
     AwaitOutsideFunction,
-    #[error("instance function declared outside of `impl` block")]
+    #[error("Instance function declared outside of `impl` block")]
     InstanceFunctionOutsideImpl,
-    #[error("import `{item}` (imported in prelude) does not exist")]
+    #[error("Import `{item}` (imported in prelude) does not exist")]
     MissingPreludeModule { item: ItemBuf },
-    #[error("unsupported tuple index `{number}`")]
+    #[error("Unsupported tuple index `{number}`")]
     UnsupportedTupleIndex { number: ast::Number },
-    #[error("break outside of loop")]
+    #[error("Break outside of loop")]
     BreakOutsideOfLoop,
-    #[error("continue outside of loop")]
+    #[error("Continue outside of loop")]
     ContinueOutsideOfLoop,
-    #[error("multiple `default` branches in select")]
+    #[error("Multiple `default` branches in select")]
     SelectMultipleDefaults,
-    #[error("expected expression to be terminated by a semicolon `;`")]
+    #[error("Expected expression to be terminated by a semicolon `;`")]
     ExpectedBlockSemiColon { followed_span: Span },
-    #[error("macro call must be terminated by a semicolon `;`")]
+    #[error("Macro call must be terminated by a semicolon `;`")]
     ExpectedMacroSemi,
-    #[error("an `fn` can't both be `async` and `const` at the same time")]
+    #[error("An `fn` can't both be `async` and `const` at the same time")]
     FnConstAsyncConflict,
-    #[error("a block can't both be `async` and `const` at the same time")]
+    #[error("A block can't both be `async` and `const` at the same time")]
     BlockConstAsyncConflict,
-    #[error("const functions can't be generators")]
+    #[error("Const functions can't be generators")]
     FnConstNotGenerator,
-    #[error("unsupported closure kind")]
+    #[error("Unsupported closure kind")]
     ClosureKind,
-    #[error("`crate` is only suppoted in the first location of a path")]
+    #[error("Keyword `crate` is only suppoted in the first location of a path")]
     UnsupportedCrate,
-    #[error("`Self` is only supported inside of `impl` blocks")]
+    #[error("Keyword `Self` is only supported inside of `impl` blocks")]
     UnsupportedSelfType,
-    #[error("`self` cannot be used here")]
+    #[error("Keyword `self` cannot be used here")]
     UnsupportedSelfValue,
-    #[error("`super` is not supported at the root module level")]
+    #[error("Keyword `super` is not supported at the root module level")]
     UnsupportedSuper,
-    #[error("`super` can't be used in paths starting with `Self`")]
+    #[error("Keyword `super` can't be used in paths starting with `Self`")]
     UnsupportedSuperInSelfType,
-    #[error("path component cannot follow a generic argument")]
+    #[error("Path component cannot follow a generic argument")]
     UnsupportedAfterGeneric,
-    #[error("another segment can't follow wildcard `*` or group imports")]
+    #[error("Another segment can't follow wildcard `*` or group imports")]
     IllegalUseSegment,
-    #[error("use aliasing is not supported for wildcard `*` or group imports")]
+    #[error("Use aliasing is not supported for wildcard `*` or group imports")]
     UseAliasNotSupported,
-    #[error("conflicting function signature already exists `{existing}`")]
+    #[error("Conflicting function signature already exists `{existing}`")]
     FunctionConflict { existing: DebugSignature },
-    #[error("conflicting function hash already exists `{hash}`")]
+    #[error("Conflicting function hash already exists `{hash}`")]
     FunctionReExportConflict { hash: Hash },
-    #[error("conflicting constant registered for `{item}` on hash `{hash}`")]
+    #[error("Conflicting constant registered for `{item}` on hash `{hash}`")]
     ConstantConflict { item: ItemBuf, hash: Hash },
-    #[error("unsupported meta type for item `{existing}`")]
+    #[error("Unsupported meta type for item `{existing}`")]
     UnsupportedMeta { existing: ItemBuf },
-    #[error("missing static string for hash `{hash}` and slot `{slot}`")]
+    #[error("Missing static string for hash `{hash}` and slot `{slot}`")]
     StaticStringMissing { hash: Hash, slot: usize },
-    #[error("missing static byte string for hash `{hash}` and slot `{slot}`")]
+    #[error("Missing static byte string for hash `{hash}` and slot `{slot}`")]
     StaticBytesMissing { hash: Hash, slot: usize },
     #[error(
-        "conflicting static string for hash `{hash}`
+        "Conflicting static string for hash `{hash}`
         between `{existing:?}` and `{current:?}`"
     )]
     StaticStringHashConflict {
@@ -238,7 +238,7 @@ pub enum CompileErrorKind {
         existing: String,
     },
     #[error(
-        "conflicting static string for hash `{hash}`
+        "Conflicting static string for hash `{hash}`
         between `{existing:?}` and `{current:?}`"
     )]
     StaticBytesHashConflict {
@@ -246,10 +246,10 @@ pub enum CompileErrorKind {
         current: Vec<u8>,
         existing: Vec<u8>,
     },
-    #[error("missing static object keys for hash `{hash}` and slot `{slot}`")]
+    #[error("Missing static object keys for hash `{hash}` and slot `{slot}`")]
     StaticObjectKeysMissing { hash: Hash, slot: usize },
     #[error(
-        "conflicting static object keys for hash `{hash}`
+        "Conflicting static object keys for hash `{hash}`
         between `{existing:?}` and `{current:?}`"
     )]
     StaticObjectKeysHashConflict {
@@ -257,40 +257,40 @@ pub enum CompileErrorKind {
         current: Box<[String]>,
         existing: Box<[String]>,
     },
-    #[error("duplicate label `{label}`")]
+    #[error("Duplicate label `{label}`")]
     DuplicateLabel { label: Label },
-    #[error("missing label `{label}`")]
+    #[error("Missing label `{label}`")]
     MissingLabel { label: Label },
-    #[error("missing loop label `{label}`")]
+    #[error("Missing loop label `{label}`")]
     MissingLoopLabel { label: Box<str> },
-    #[error("base offset overflow")]
+    #[error("Base offset overflow")]
     BaseOverflow,
-    #[error("offset overflow")]
+    #[error("Offset overflow")]
     OffsetOverflow,
-    #[error("segment is only supported in the first position")]
+    #[error("Segment is only supported in the first position")]
     ExpectedLeadingPathSegment,
-    #[error("visibility modifier not supported")]
+    #[error("Visibility modifier not supported")]
     UnsupportedVisibility,
-    #[error("expected {expected} but got `{meta}`")]
+    #[error("Expected {expected} but got `{meta}`")]
     ExpectedMeta {
         expected: &'static str,
         meta: MetaInfo,
     },
-    #[error("no such built-in macro `{name}`")]
+    #[error("No such built-in macro `{name}`")]
     NoSuchBuiltInMacro { name: Box<str> },
-    #[error("variable moved")]
+    #[error("Variable moved")]
     VariableMoved { moved_at: Span },
-    #[error("unsupported generic argument")]
+    #[error("Unsupported generic argument")]
     UnsupportedGenerics,
-    #[error("#[test] attributes are not supported on nested items")]
+    #[error("Attribute `#[test]` is not supported on nested items")]
     NestedTest { nested_span: Span },
-    #[error("#[bench] attributes are not supported on nested items")]
+    #[error("Attribute `#[bench]` is not supported on nested items")]
     NestedBench { nested_span: Span },
-    #[error("missing function with hash `{hash}`")]
+    #[error("Missing function with hash `{hash}`")]
     MissingFunctionHash { hash: Hash },
-    #[error("conflicting function already exists `{hash}`")]
+    #[error("Conflicting function already exists `{hash}`")]
     FunctionConflictHash { hash: Hash },
-    #[error("non-exhaustive pattern for `{item}`")]
+    #[error("Non-exhaustive pattern for `{item}`")]
     PatternMissingFields {
         item: ItemBuf,
         fields: Box<[Box<str>]>,

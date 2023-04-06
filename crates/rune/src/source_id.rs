@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::fmt;
 
 /// The identifier of a source file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct SourceId {
     index: u32,
@@ -25,6 +25,12 @@ impl SourceId {
     /// Access the source identifier as an index.
     pub fn into_index(self) -> usize {
         usize::try_from(self.index).expect("source id out of bounds")
+    }
+}
+
+impl fmt::Debug for SourceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.index.fmt(f)
     }
 }
 

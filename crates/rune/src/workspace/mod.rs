@@ -25,3 +25,6 @@ pub use self::manifest::{Manifest, WorkspaceFilter};
 
 mod diagnostics;
 pub use self::diagnostics::{Diagnostics, Diagnostic, FatalDiagnostic};
+
+mod source_loader;
+pub use self::source_loader::{FileSourceLoader, SourceLoader};

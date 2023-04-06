@@ -44,7 +44,7 @@ serde-hashkey = { version = "0.4.5", optional = true }
 smallvec = { version = "1.10.0", features = ["write", "serde", "const_new"] }
 syntect = { version = "5.0.0", optional = true }
 thiserror = "1.0.40"
-toml = { version = "0.7.3", optional = true }
+toml = { version = "0.7.3", optional = true, features = ["parse"] }
 tracing = "0.1.37"
 twox-hash = { version = "1.6.3", default-features = false }
 

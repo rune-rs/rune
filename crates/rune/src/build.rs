@@ -11,7 +11,7 @@ use thiserror::Error;
 ///
 /// Look at the passed in [Diagnostics] instance for details.
 #[derive(Debug, Error)]
-#[error("failed to build rune sources (see diagnostics for details)")]
+#[error("Failed to build rune sources (see diagnostics for details)")]
 #[non_exhaustive]
 pub struct BuildError;
 
