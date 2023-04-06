@@ -59,16 +59,20 @@ async function tryActivate(context: vscode.ExtensionContext): Promise<lc.Languag
 
 	await setContextValue(RUNE_PROJECT_CONTEXT_NAME, true);
 
-	// Reloading is inspired by @DanTup maneuver: https://github.com/microsoft/vscode/issues/45774#issuecomment-373423895
-	reload = vscode.commands.registerCommand("rune-vscode.reload", async () => {
-		void vscode.window.showInformationMessage("Reloading Rune Language Server...");
-		try {
-			await doDeactivate();
-		} catch (exception) {
-			log.warn("doDeactivate failed", exception);
-		}
-		await activate(context).catch(log.error);
-	});
+	if (!reload) {
+		// Reloading is inspired by @DanTup maneuver: https://github.com/microsoft/vscode/issues/45774#issuecomment-373423895
+		reload = vscode.commands.registerCommand("rune-vscode.reload", async () => {
+			void vscode.window.showInformationMessage("Reloading Rune Language Server...");
+
+			try {
+				await doDeactivate();
+			} catch (exception) {
+				log.warn("doDeactivate failed", exception);
+			}
+
+			await activate(context).catch(log.error);
+		});
+	}
 
 	return client;
 }
