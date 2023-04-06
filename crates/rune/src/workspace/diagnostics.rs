@@ -1,14 +1,29 @@
 use crate::{SourceId};
 use crate::workspace::WorkspaceError;
 
-/// A reported diagnostic error.
-pub(crate) struct FatalDiagnostic {
-    pub(crate) source_id: SourceId,
-    pub(crate) error: WorkspaceError,
+/// A fatal diagnostic in a workspace.
+#[derive(Debug)]
+pub struct FatalDiagnostic {
+    source_id: SourceId,
+    error: WorkspaceError,
+}
+
+impl FatalDiagnostic {
+    /// Get source id of the diagnostic.
+    pub fn source_id(&self) -> SourceId {
+        self.source_id
+    }
+
+    /// Access the underlying workspace error.
+    pub fn error(&self) -> &WorkspaceError {
+        &self.error
+    }
 }
 
 /// A single workspace diagnostic.
-pub(crate) enum Diagnostic {
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum Diagnostic {
     /// An error in a workspace.
     Fatal(FatalDiagnostic),
 }
@@ -20,12 +35,9 @@ pub struct Diagnostics {
 }
 
 impl Diagnostics {
-    /// Report a single workspace error.
-    pub fn fatal(&mut self, source_id: SourceId, error: WorkspaceError) {
-        self.diagnostics.push(Diagnostic::Fatal(FatalDiagnostic {
-            source_id,
-            error,
-        }))
+    /// Access underlying diagnostics.
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
     }
 
     /// Test if diagnostics has errors.
@@ -36,6 +48,14 @@ impl Diagnostics {
     /// Test if diagnostics is empty.
     pub fn is_empty(&self) -> bool {
         self.diagnostics.is_empty()
+    }
+
+    /// Report a single workspace error.
+    pub(crate) fn fatal(&mut self, source_id: SourceId, error: WorkspaceError) {
+        self.diagnostics.push(Diagnostic::Fatal(FatalDiagnostic {
+            source_id,
+            error,
+        }))
     }
 }
 

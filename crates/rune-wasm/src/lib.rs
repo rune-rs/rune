@@ -291,6 +291,7 @@ async fn inner_compile(
                     });
                 }
             }
+            _ => {}
         }
     }
 

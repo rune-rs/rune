@@ -47,6 +47,7 @@ cfg_emit! {
 
 /// A single diagnostic.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Diagnostic {
     /// A fatal diagnostic.
     Fatal(FatalDiagnostic),

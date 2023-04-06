@@ -1,5 +1,4 @@
 use std::bytes::Bytes;
-use std::test::assert;
 
 pub fn main() {
     let bytes = Bytes::new();

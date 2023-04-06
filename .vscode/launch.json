@@ -11,7 +11,8 @@
             ],
             "env": {
                 "RUNE_BUILD_FOLDER": "${workspaceFolder}/target/debug",
-                "RUNE_TRACE_LOG_FILE": "${workspaceFolder}/target/debug/rune-languageserver.log",
+                "RUNE_LOG_FILE": "${workspaceFolder}/target/debug/rune-languageserver.log",
+                "RUNE_LOG": "rune_languageserver=trace",
                 "RUST_BACKTRACE": "1"
             }
         },
@@ -24,7 +25,8 @@
                 "--extensionDevelopmentPath=${workspaceFolder}/editors/code"
             ],
             "env": {
-                "RUNE_TRACE_LOG_FILE": "${workspaceFolder}/target/debug/rune-languageserver.log",
+                "RUNE_LOG_FILE": "${workspaceFolder}/target/debug/rune-languageserver.log",
+                "RUNE_LOG": "rune_languageserver=trace",
                 "RUST_BACKTRACE": "1"
             }
         }
