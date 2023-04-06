@@ -29,15 +29,15 @@ jobs:
       tag: ${{env.TAG}}
     steps:
     - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
-      if: github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release'
+      if: ${{ github.ref == 'refs/heads/release' || github.event.inputs.channel == 'release' }}
     - run: echo "TAG=nightly" >> $GITHUB_ENV
-      if: github.event_name == 'schedule'
+      if: ${{ github.event_name == 'schedule' }}
     - run: echo "TAG=${{github.event.inputs.channel}}" >> $GITHUB_ENV
-      if: github.event_name != 'schedule' && github.ref != 'refs/heads/release'
+      if: ${{ github.event_name != 'schedule' && github.ref != 'refs/heads/release' }}
 
   test:
     runs-on: ubuntu-latest
-    if: ${{!github.event.inputs.skip_tests}}
+    if: ${{ always() && !github.event.inputs.skip_tests }}
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
@@ -50,7 +50,7 @@ jobs:
   build:
     needs: [tag, test]
     runs-on: ${{matrix.os}}
-    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    if: ${{ always() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     strategy:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
@@ -68,7 +68,14 @@ jobs:
   publish:
     needs: [tag, build]
     runs-on: ubuntu-latest
+    if: ${{ always() && needs.tag.result == 'success' && needs.build.result == 'success' }}
     steps:
+    - uses: actions/checkout@v3
+    - run: echo "HEAD_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+    - run: 'echo "HEAD_SHA: $HEAD_SHA"'
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 16
     - run: 'echo "TAG: ${{needs.tag.outputs.tag}}"'
     - uses: actions/download-artifact@v1
       with: {name: dist-macos-latest, path: dist}
@@ -76,8 +83,7 @@ jobs:
       with: {name: dist-windows-latest, path: dist}
     - uses: actions/download-artifact@v1
       with: {name: dist-ubuntu-latest, path: dist}
-    - name: Publish Release
-      uses: ./.github/actions/github-release
+    - uses: ./.github/actions/github-release
       with:
         files: "dist/*"
         name: ${{needs.tag.outputs.tag}}
