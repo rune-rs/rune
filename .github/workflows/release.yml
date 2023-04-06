@@ -35,15 +35,19 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    if: ${{!github.event.inputs.skip_tests}}
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
+      if: ${{!github.event.inputs.skip_tests}}
     - run: cargo test --workspace --all-targets
+      if: ${{!github.event.inputs.skip_tests}}
     - run: cargo test --workspace --doc
+      if: ${{!github.event.inputs.skip_tests}}
     - run: cargo run --bin rune -- check --recursive --experimental scripts
+      if: ${{!github.event.inputs.skip_tests}}
     - run: cargo run --bin rune -- test --recursive --experimental scripts
+      if: ${{!github.event.inputs.skip_tests}}
 
   build:
     needs: [tag, test]
@@ -64,7 +68,7 @@ jobs:
         path: dist
 
   publish:
-    needs: [tag, test]
+    needs: [tag, build]
     runs-on: ubuntu-latest
     steps:
     - run: 'echo "tag: ${{needs.tag.outputs.tag}}"'
