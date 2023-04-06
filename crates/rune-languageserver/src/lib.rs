@@ -41,9 +41,14 @@ use tokio::sync::Notify;
 pub use crate::connection::stdio;
 pub use crate::connection::{Input, Output};
 use crate::envelope::Code;
-pub use crate::state::State;
+pub(crate) use crate::state::State;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
+
+enum Language {
+    Rune,
+    Other,
+}
 
 pub fn run(context: Context, options: Options) -> Result<()> {
     let (mut input, output) = stdio()?;
@@ -222,8 +227,17 @@ async fn did_open_text_document(
     s: &mut State<'_>,
     params: lsp::DidOpenTextDocumentParams,
 ) -> Result<()> {
+    let lagnuage = match params.text_document.language_id.as_str() {
+        "rune" => Language::Rune,
+        _ => Language::Other,
+    };
+
     if s.workspace_mut()
-        .insert_text(params.text_document.uri.clone(), params.text_document.text)
+        .insert_source(
+            params.text_document.uri.clone(),
+            params.text_document.text,
+            lagnuage,
+        )
         .is_some()
     {
         tracing::warn!(
@@ -276,8 +290,9 @@ async fn did_close_text_document(
 
 /// Handle saving of text documents.
 async fn did_save_text_document(
-    _: &mut State<'_>,
+    s: &mut State<'_>,
     _: lsp::DidSaveTextDocumentParams,
 ) -> Result<()> {
+    s.rebuild_interest();
     Ok(())
 }

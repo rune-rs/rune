@@ -60,57 +60,57 @@ pub enum ParseErrorKind {
     Custom { message: Box<str> },
     #[error("{error}")]
     ResolveError { error: ResolveErrorKind },
-    #[error("expected end of file, but got `{actual}`")]
+    #[error("Expected end of file, but got `{actual}`")]
     ExpectedEof { actual: ast::Kind },
-    #[error("unexpected end of file")]
+    #[error("Unexpected end of file")]
     UnexpectedEof,
-    #[error("bad lexer mode `{actual}`, expected `{expected}`")]
+    #[error("Bad lexer mode `{actual}`, expected `{expected}`")]
     BadLexerMode {
         actual: LexerMode,
         expected: LexerMode,
     },
-    #[error("expected {expected}, but got {actual}")]
+    #[error("Expected {expected}, but got {actual}")]
     Expected {
         actual: Expectation,
         expected: Expectation,
     },
-    #[error("{what} is not supported")]
+    #[error("Unsupported `{what}`")]
     Unsupported { what: Expectation },
-    #[error("expected escape sequence")]
+    #[error("Expected escape sequence")]
     ExpectedEscape,
-    #[error("unterminated string literal")]
+    #[error("Unterminated string literal")]
     UnterminatedStrLit,
-    #[error("unterminated byte string literal")]
+    #[error("Unterminated byte string literal")]
     UnterminatedByteStrLit,
-    #[error("unterminated character literal")]
+    #[error("Unterminated character literal")]
     UnterminatedCharLit,
-    #[error("unterminated byte literal")]
+    #[error("Unterminated byte literal")]
     UnterminatedByteLit,
-    #[error("expected character literal to be closed")]
+    #[error("Expected character literal to be closed")]
     ExpectedCharClose,
-    #[error("expected label or character")]
+    #[error("Expected label or character")]
     ExpectedCharOrLabel,
-    #[error("expected byte literal to be closed")]
+    #[error("Expected byte literal to be closed")]
     ExpectedByteClose,
-    #[error("unexpected character `{c}`")]
+    #[error("Unexpected character `{c}`")]
     UnexpectedChar { c: char },
-    #[error("group required in expression to determine precedence")]
+    #[error("Group required in expression to determine precedence")]
     PrecedenceGroupRequired,
-    #[error("number literal out of bounds `-9223372036854775808` to `9223372036854775807`")]
+    #[error("Number literal out of bounds `-9223372036854775808` to `9223372036854775807`")]
     BadNumberOutOfBounds,
-    #[error("unsupported field access")]
+    #[error("Unsupported field access")]
     BadFieldAccess,
-    #[error("expected close delimiter `{expected}`, but got `{actual}`")]
+    #[error("Expected close delimiter `{expected}`, but got `{actual}`")]
     ExpectedMacroCloseDelimiter {
         expected: ast::Kind,
         actual: ast::Kind,
     },
-    #[error("bad number literal")]
+    #[error("Bad number literal")]
     BadNumber,
-    #[error("can only specify one attribute named `{name}`")]
+    #[error("Can only specify one attribute named `{name}`")]
     MultipleMatchingAttributes { name: &'static str },
-    #[error("missing source id `{source_id}`")]
+    #[error("Missing source id `{source_id}`")]
     MissingSourceId { source_id: SourceId },
-    #[error("expected multiline comment to be terminated with a `*/`")]
+    #[error("Expected multiline comment to be terminated with a `*/`")]
     ExpectedMultilineCommentTerm,
 }

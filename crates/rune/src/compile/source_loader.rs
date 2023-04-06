@@ -72,7 +72,7 @@ impl SourceLoader for FileSourceLoader {
             Ok(source) => Ok(source),
             Err(error) => Err(CompileError::new(
                 span,
-                CompileErrorKind::ModFileError {
+                CompileErrorKind::FileError {
                     path: path.to_owned(),
                     error,
                 },

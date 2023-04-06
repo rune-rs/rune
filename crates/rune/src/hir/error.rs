@@ -17,18 +17,18 @@ error! {
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum HirErrorKind {
-    #[error("{message}")]
-    Custom { message: Box<str> },
-    #[error("writing arena slice out of bounds for index {index}")]
-    ArenaWriteSliceOutOfBounds { index: usize },
-    #[error("allocation error for {requested} bytes")]
-    ArenaAllocError { requested: usize },
-    #[error("`..` is not supported in this location")]
-    UnsupportedPatternRest,
     #[error("{error}")]
     QueryError {
         #[source]
         #[from]
         error: Box<QueryErrorKind>,
     },
+    #[error("{message}")]
+    Custom { message: Box<str> },
+    #[error("Writing arena slice out of bounds for index {index}")]
+    ArenaWriteSliceOutOfBounds { index: usize },
+    #[error("Allocation error for {requested} bytes")]
+    ArenaAllocError { requested: usize },
+    #[error("Pattern `..` is not supported in this location")]
+    UnsupportedPatternRest,
 }

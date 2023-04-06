@@ -32,6 +32,17 @@ impl WarningDiagnostic {
     pub fn into_kind(self) -> WarningDiagnosticKind {
         self.kind
     }
+
+    /// Access context of warning, if any is available.
+    pub(crate) fn context(&self) -> Option<Span> {
+        match &self.kind {
+            WarningDiagnosticKind::LetPatternMightPanic { context, .. }
+            | WarningDiagnosticKind::RemoveTupleCallParams { context, .. }
+            | WarningDiagnosticKind::NotUsed { context, .. }
+            | WarningDiagnosticKind::TemplateWithoutExpansions { context, .. } => *context,
+            WarningDiagnosticKind::UnecessarySemiColon { .. } => None,
+        }
+    }
 }
 
 impl Spanned for WarningDiagnostic {
@@ -65,7 +76,7 @@ impl error::Error for WarningDiagnostic {
 #[non_exhaustive]
 pub enum WarningDiagnosticKind {
     /// Item identified by the span is not used.
-    #[error("not used")]
+    #[error("Not used")]
     NotUsed {
         /// The span that is not used.
         span: Span,
@@ -74,7 +85,7 @@ pub enum WarningDiagnosticKind {
     },
     /// Warning that an unconditional let pattern will panic if it doesn't
     /// match.
-    #[error("pattern might panic")]
+    #[error("Pattern might panic")]
     LetPatternMightPanic {
         /// The span of the pattern.
         span: Span,
@@ -82,7 +93,7 @@ pub enum WarningDiagnosticKind {
         context: Option<Span>,
     },
     /// Encountered a template string without an expansion.
-    #[error("using a template string without expansions, like `Hello World`")]
+    #[error("Using a template string without expansions, like `Hello World`")]
     TemplateWithoutExpansions {
         /// Span that caused the error.
         span: Span,
@@ -90,7 +101,7 @@ pub enum WarningDiagnosticKind {
         context: Option<Span>,
     },
     /// Suggestion that call parameters could be removed.
-    #[error("call paramters are not needed here")]
+    #[error("Call paramters are not needed here")]
     RemoveTupleCallParams {
         /// The span of the call.
         span: Span,
@@ -100,7 +111,7 @@ pub enum WarningDiagnosticKind {
         context: Option<Span>,
     },
     /// An unecessary semi-colon is used.
-    #[error("unnecessary semicolon")]
+    #[error("Unnecessary semicolon")]
     UnecessarySemiColon {
         /// Span where the semi-colon is.
         span: Span,

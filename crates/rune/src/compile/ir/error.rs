@@ -59,7 +59,7 @@ pub enum IrErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
     /// An access error raised during compilation.
-    #[error("access error: {error}")]
+    #[error("Access error: {error}")]
     AccessError {
         /// The source error.
         #[source]
@@ -81,7 +81,7 @@ pub enum IrErrorKind {
         error: ResolveErrorKind,
     },
     /// A scope error.
-    #[error("scope error: {error}")]
+    #[error("Scope error: {error}")]
     ScopeError {
         /// The kind of the scope error.
         #[source]
@@ -89,7 +89,7 @@ pub enum IrErrorKind {
         error: ScopeErrorKind,
     },
     /// A HIR error.
-    #[error("hir error: {error}")]
+    #[error("HIR error: {error}")]
     HirError {
         /// The kind of the scope error.
         #[source]
@@ -98,19 +98,19 @@ pub enum IrErrorKind {
     },
     /// Encountered an expression that is not supported as a constant
     /// expression.
-    #[error("expected a constant expression")]
+    #[error("Expected a constant expression")]
     NotConst,
     /// Trying to process a cycle of constants.
-    #[error("constant cycle detected")]
+    #[error("Constant cycle detected")]
     ConstCycle,
     /// Encountered a compile meta used in an inappropriate position.
-    #[error("{meta} is not supported here")]
+    #[error("Item `{meta}` is not supported here")]
     UnsupportedMeta {
         /// Unsupported compile meta.
         meta: MetaInfo,
     },
     /// A constant evaluation errored.
-    #[error("expected a value of type {expected} but got {actual}")]
+    #[error("Expected a value of type {expected} but got {actual}")]
     Expected {
         /// The expected value.
         expected: TypeInfo,
@@ -118,42 +118,42 @@ pub enum IrErrorKind {
         actual: TypeInfo,
     },
     /// Exceeded evaluation budget.
-    #[error("evaluation budget exceeded")]
+    #[error("Evaluation budget exceeded")]
     BudgetExceeded,
     /// Integer underflow.
-    #[error("integer underflow")]
+    #[error("Integer underflow")]
     IntegerUnderflow,
     /// Missing a tuple index.
-    #[error("missing index {index}")]
+    #[error("Missing index {index}")]
     MissingIndex {
         /// The index that was missing.
         index: usize,
     },
     /// Missing an object field.
-    #[error("missing field `{field}`")]
+    #[error("Missing field `{field}`")]
     MissingField {
         /// The field that was missing.
         field: Box<str>,
     },
     /// Missing local with the given name.
-    #[error("missing local `{name}`")]
+    #[error("Missing local `{name}`")]
     MissingLocal {
         /// Name of the missing local.
         name: Box<str>,
     },
     /// Missing const or local with the given name.
-    #[error("no constant or local matching `{name}`")]
+    #[error("No constant or local matching `{name}`")]
     MissingConst {
         /// Name of the missing thing.
         name: Box<str>,
     },
     /// Error raised when trying to use a break outside of a loop.
-    #[error("break outside of supported loop")]
+    #[error("Break outside of supported loop")]
     BreakOutsideOfLoop,
-    #[error("function not found")]
+    #[error("Function not found")]
     FnNotFound,
-    #[error("argument count mismatch, got {actual} but expected {expected}")]
+    #[error("Argument count mismatch, got {actual} but expected {expected}")]
     ArgumentCountMismatch { actual: usize, expected: usize },
-    #[error("value `{value}` is outside of the supported integer range")]
+    #[error("Value `{value}` is outside of the supported integer range")]
     NotInteger { value: num::BigInt },
 }

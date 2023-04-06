@@ -50,16 +50,18 @@ pub enum QueryErrorKind {
         #[from]
         error: HirErrorKind,
     },
-    #[error("missing {what} for id {id:?}")]
+    #[error("Missing {what} for id {id:?}")]
     MissingId { what: &'static str, id: Id },
-    #[error("cannot define conflicting item `{item}`")]
+    #[error("Cannot define conflicting item `{item}`")]
     ItemConflict { item: ItemBuf, other: Location },
-    #[error("`{item}` can refer to multiple things")]
+    #[error("Item `{item}` can refer to multiple things")]
     AmbiguousItem {
         item: ItemBuf,
         locations: Vec<(Location, ItemBuf)>,
     },
-    #[error("`{item}` with {visibility} visibility, is not accessible from module `{from}`")]
+    #[error(
+        "Item `{item}` with visibility `{visibility}`, is not accessible from module `{from}`"
+    )]
     NotVisible {
         chain: Vec<Location>,
         location: Location,
@@ -68,7 +70,7 @@ pub enum QueryErrorKind {
         from: ItemBuf,
     },
     #[error(
-        "module `{item}` with {visibility} visibility, is not accessible from module `{from}`"
+        "Module `{item}` with {visibility} visibility, is not accessible from module `{from}`"
     )]
     NotVisibleMod {
         chain: Vec<Location>,
@@ -77,30 +79,30 @@ pub enum QueryErrorKind {
         item: ItemBuf,
         from: ItemBuf,
     },
-    #[error("missing query meta for module {item}")]
+    #[error("Missing query meta for module {item}")]
     MissingMod { item: ItemBuf },
-    #[error("cycle in import")]
+    #[error("Cycle in import")]
     ImportCycle { path: Vec<ImportStep> },
-    #[error("import recursion limit reached ({count})")]
+    #[error("Import recursion limit reached ({count})")]
     ImportRecursionLimit { count: usize, path: Vec<ImportStep> },
-    #[error("missing last use component")]
+    #[error("Missing last use component")]
     LastUseComponent,
-    #[error("found indexed entry for `{item}`, but was not an import")]
+    #[error("Found indexed entry for `{item}`, but was not an import")]
     NotIndexedImport { item: ItemBuf },
-    #[error("{meta} can't be used as an import")]
+    #[error("Item `{meta}` can't be used as an import")]
     UnsupportedImportMeta { meta: MetaInfo },
     /// Tried to add an item that already exists.
-    #[error("trying to insert `{current}` but conflicting meta `{existing}` already exists")]
+    #[error("Item `{current}` but conflicting meta `{existing}` already exists")]
     MetaConflict {
         /// The meta we tried to insert.
         current: MetaInfo,
         /// The existing item.
         existing: MetaInfo,
     },
-    #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
+    #[error("Tried to insert variant runtime type information, but conflicted with hash `{hash}`")]
     VariantRttiConflict { hash: Hash },
-    #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
+    #[error("Tried to insert runtime type information, but conflicted with hash `{hash}`")]
     TypeRttiConflict { hash: Hash },
-    #[error("conflicting function signature already exists `{existing}`")]
+    #[error("Conflicting function signature already exists `{existing}`")]
     FunctionConflict { existing: DebugSignature },
 }

@@ -1,3 +1,5 @@
+mod module;
+
 pub fn main() {
-    println!("A project");
+    println!("A simple example: {}", module::test());
 }

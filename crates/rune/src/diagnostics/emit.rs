@@ -357,21 +357,11 @@ where
     let mut notes = Vec::new();
     let mut labels = Vec::new();
 
-    let context = match this.kind() {
-        WarningDiagnosticKind::NotUsed { span, context } => {
-            labels.push(d::Label::primary(this.source_id(), span.range()).with_message("not used"));
+    labels.push(d::Label::primary(this.source_id(), this.span().range()).with_message(this.to_string()));
 
-            *context
-        }
-        WarningDiagnosticKind::LetPatternMightPanic { span, context } => {
-            labels.push(
-                d::Label::primary(this.source_id(), span.range())
-                    .with_message("let binding might panic"),
-            );
-
-            let binding = sources.source(this.source_id(), *span);
-
-            if let Some(binding) = binding {
+    match this.kind() {
+        WarningDiagnosticKind::LetPatternMightPanic { span, .. } => {
+            if let Some(binding) = sources.source(this.source_id(), *span) {
                 let mut note = String::new();
                 writeln!(note, "Hint: Rewrite to:")?;
                 writeln!(note, "if {} {{", binding)?;
@@ -379,55 +369,28 @@ where
                 writeln!(note, "}}")?;
                 notes.push(note);
             }
-
-            *context
-        }
-        WarningDiagnosticKind::TemplateWithoutExpansions { span, context } => {
-            labels.push(
-                d::Label::primary(this.source_id(), span.range())
-                    .with_message("template string without expansions like `${1 + 2}`"),
-            );
-
-            *context
         }
         WarningDiagnosticKind::RemoveTupleCallParams {
-            span,
             variant,
-            context,
+            ..
         } => {
-            labels.push(
-                d::Label::secondary(this.source_id(), span.range())
-                    .with_message("constructing this variant could be done without parentheses"),
-            );
-
-            let variant = sources.source(this.source_id(), *variant);
-
-            if let Some(variant) = variant {
+            if let Some(variant) = sources.source(this.source_id(), *variant) {
                 let mut note = String::new();
                 writeln!(note, "Hint: Rewrite to `{}`", variant)?;
                 notes.push(note);
             }
-
-            *context
         }
-        WarningDiagnosticKind::UnecessarySemiColon { span } => {
-            labels.push(
-                d::Label::primary(this.source_id(), span.range())
-                    .with_message("unnecessary semicolon"),
-            );
-
-            None
-        }
+        _ => {}
     };
 
-    if let Some(context) = context {
+    if let Some(context) = this.context() {
         labels.push(
-            d::Label::secondary(this.source_id(), context.range()).with_message("in this context"),
+            d::Label::secondary(this.source_id(), context.range()).with_message("In this context"),
         );
     }
 
     let diagnostic = d::Diagnostic::warning()
-        .with_message("warning")
+        .with_message("Warning")
         .with_labels(labels)
         .with_notes(notes);
 

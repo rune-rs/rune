@@ -1,5 +1,8 @@
 use std::path::Path;
+use std::io;
+
 use thiserror::Error;
+
 use crate::{SourceId};
 use crate::ast::Span;
 
@@ -26,24 +29,28 @@ impl WorkspaceError {
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum WorkspaceErrorKind {
-    #[error("manifest deserialization: {error}")]
-    Toml { #[from] #[source] error: toml::de::Error },
-    #[error("manifest serializationo: {error}")]
-    Key { #[from] #[source] error: serde_hashkey::Error },
-    #[error("failed to read `{path}`: {error}")]
-    SourceError { path: Box<Path>, error: std::io::Error },
-    #[error("custom: {message}")]
+    #[error("{message}")]
     Custom { message: Box<str> },
-    #[error("missing source id `{source_id}`")]
+    #[error("Failed to load `{path}`: {error}")]
+    FileError {
+        path: Box<Path>,
+        #[source]
+        error: io::Error,
+    },
+    #[error("Failed to deserialize manifest: {error}")]
+    Toml { #[from] error: toml::de::Error },
+    #[error("Failed to deserialize: {error}")]
+    Key { #[from] error: serde_hashkey::Error },
+    #[error("Missing source id `{source_id}`")]
     MissingSourceId { source_id: SourceId },
-    #[error("missing required field `{field}`")]
+    #[error("Missing required field `{field}`")]
     MissingField { field: &'static str },
-    #[error("expected array")]
+    #[error("Expected array")]
     ExpectedArray,
-    #[error("[workspace] elements can only be used in manifests with a valid path")]
+    #[error("Element `[workspace]` can only be used in manifests with a valid path")]
     MissingManifestPath,
-    #[error("expected table")]
+    #[error("Expected table")]
     ExpectedTable,
-    #[error("key not supported")]
-    UnsupportedKey,
+    #[error("Key `{key}` not supported")]
+    UnsupportedKey { key: String },
 }

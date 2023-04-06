@@ -73,7 +73,7 @@ impl Sources {
     }
 
     /// Get all available source ids.
-    pub(crate) fn source_ids(&self) -> impl Iterator<Item = SourceId> {
+    pub fn source_ids(&self) -> impl Iterator<Item = SourceId> {
         (0..self.sources.len()).map(|index| SourceId::new(index as u32))
     }
 }

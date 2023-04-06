@@ -9,9 +9,9 @@ use serde::de::{IntoDeserializer};
 use serde::Deserialize;
 use serde_hashkey as key;
 
-use crate::{Sources, SourceId, Source};
+use crate::{Sources, SourceId};
 use crate::ast::{Span, Spanned};
-use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError};
+use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError, SourceLoader};
 use crate::workspace::spanned_value::{Array, SpannedValue, Value, Table};
 
 /// A workspace filter which in combination with functions such as
@@ -134,32 +134,30 @@ pub struct Package {
     pub auto_benches: bool,
 }
 
-pub(crate) struct Inner<'a> {
+pub(crate) struct Loader<'a> {
+    id: SourceId,
     sources: &'a mut Sources,
     diagnostics: &'a mut Diagnostics,
+    source_loader: &'a mut dyn SourceLoader,
     manifest: &'a mut Manifest,
 }
 
-pub(crate) struct Loader<'a> {
-    id: SourceId,
-    inner: Inner<'a>,
-}
-
 impl<'a> Loader<'a> {
-    pub(crate) fn new(id: SourceId, sources: &'a mut Sources, diagnostics: &'a mut Diagnostics, manifest: &'a mut Manifest) -> Self {
+    pub(crate) fn new(id: SourceId, sources: &'a mut Sources, diagnostics: &'a mut Diagnostics, 
+    source_loader: &'a mut dyn SourceLoader,
+    manifest: &'a mut Manifest) -> Self {
         Self {
             id,
-            inner: Inner {
-                sources,
-                diagnostics,
-                manifest,
-            },
+            sources,
+            diagnostics,
+            source_loader,
+            manifest,
         }
     }
 
     /// Load a manifest.
     pub(crate) fn load_manifest(&mut self) {
-        let Some(source) = self.inner.sources.get(self.id) else {
+        let Some(source) = self.sources.get(self.id) else {
             self.fatal(WorkspaceError::new(Span::empty(), WorkspaceErrorKind::MissingSourceId { source_id: self.id }));
             return;
         };
@@ -167,7 +165,11 @@ impl<'a> Loader<'a> {
         let value: SpannedValue = match toml::from_str(source.as_str()) {
             Ok(value) => value,
             Err(e) => {
-                let span = Span::new(0, source.len());
+                let span = match e.span() {
+                    Some(span) => Span::new(span.start, span.end),
+                    None => Span::new(0, source.len()),
+                };
+
                 self.fatal(WorkspaceError::new(span, e));
                 return;
             }
@@ -183,7 +185,7 @@ impl<'a> Loader<'a> {
         // If manifest is a package, add it here.
         if let Some((package, span)) = table.remove("package").and_then(|value| self.ensure_table(value)) {
             if let Some(package) = self.load_package(package, span, root) {
-                self.inner.manifest.packages.push(package);
+                self.manifest.packages.push(package);
             }
         }
 
@@ -260,7 +262,7 @@ impl<'a> Loader<'a> {
         match result {
             Ok(result) => Some(result),
             Err(error) => {
-                self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::SourceError {
+                self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::FileError {
                     path: path.into(),
                     error,
                 }));
@@ -272,12 +274,15 @@ impl<'a> Loader<'a> {
 
     /// Try to load the given path as a member in the current manifest.
     fn load_member(&mut self, span: Span, path: &Path) {
-        let source = match self.source_error(span, path, Source::from_path(path)) {
-            Some(source) => source,
-            None => return,
+        let source = match self.source_loader.load(span, path) {
+            Ok(source) => source,
+            Err(error) => {
+                self.fatal(error);
+                return;
+            }
         };
 
-        let id = self.inner.sources.insert(source);
+        let id = self.sources.insert(source);
         let old = std::mem::replace(&mut self.id, id);
         self.load_manifest();
         self.id = old;
@@ -304,7 +309,7 @@ impl<'a> Loader<'a> {
     fn ensure_empty(&mut self, table: Table) {
         for (key, _) in table {
             let span = Spanned::span(&key);
-            self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::UnsupportedKey));
+            self.fatal(WorkspaceError::new(span, WorkspaceErrorKind::UnsupportedKey { key: key.get_ref().clone() }));
         }
     }
 
@@ -358,7 +363,7 @@ impl<'a> Loader<'a> {
 
     /// Report a fatal diagnostic.
     fn fatal(&mut self, error: WorkspaceError) {
-        self.inner.diagnostics.fatal(self.id, error);
+        self.diagnostics.fatal(self.id, error);
     }
 }
 
