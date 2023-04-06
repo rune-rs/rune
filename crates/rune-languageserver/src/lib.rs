@@ -27,15 +27,16 @@ pub mod envelope;
 mod server;
 mod state;
 
-pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
+use anyhow::{bail, Result};
+use rune::{Context, Options};
+use tokio::sync::mpsc;
 
 pub use crate::connection::stdio;
 pub use crate::connection::{Input, Output};
 pub use crate::server::Server;
 pub use crate::state::State;
-use anyhow::Result;
-use rune::{Context, Options};
-use tokio::sync::mpsc;
+
+pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
 
 pub fn run(context: Context, options: Options) -> Result<()> {
     let (mut input, output) = stdio()?;
@@ -45,6 +46,7 @@ pub fn run(context: Context, options: Options) -> Result<()> {
     let mut server = Server::new(output, rebuild_tx, context, options);
 
     server.request_handler::<lsp::request::Initialize, _, _>(initialize);
+    server.request_handler::<lsp::request::Shutdown, _, _>(shutdown);
 
     server.request_handler::<lsp::request::GotoDefinition, _, _>(goto_definition);
 
@@ -64,10 +66,13 @@ pub fn run(context: Context, options: Options) -> Result<()> {
 
     tracing::info!("Starting server");
 
-    tokio::runtime::Runtime::new()?.block_on(async {
-        loop {
+    let runtime = tokio::runtime::Runtime::new()?;
+
+    let result: Result<()> = runtime.block_on(async {
+        while !server.state().is_stopped() {
             tokio::select! {
                 _ = rebuild_rx.recv() => {
+                    tracing::info!("rebuilding project");
                     server.rebuild().await?;
                 },
                 frame = input.next() => {
@@ -76,13 +81,21 @@ pub fn run(context: Context, options: Options) -> Result<()> {
                         None => break,
                     };
 
-                    let request: envelope::IncomingMessage = serde_json::from_slice(frame.content)?;
+                    let request: envelope::IncomingMessage<'_> = serde_json::from_slice(frame.content)?;
                     server.process(request).await?;
                 },
             }
-        }
+        };
+
         Ok(())
-    })
+    });
+
+    match result {
+        Ok(()) => tracing::info!("Server stopped"),
+        Err(err) => tracing::error!("Server stopped with error: {}", err),
+    }
+
+    Ok(())
 }
 
 /// Initialize the language server.
@@ -114,6 +127,11 @@ async fn initialize(
         capabilities,
         server_info: Some(server_info),
     })
+}
+
+async fn shutdown(state: State, _: Output, _: ()) -> Result<()> {
+    state.stop();
+    Ok(())
 }
 
 /// Handle initialized notification.

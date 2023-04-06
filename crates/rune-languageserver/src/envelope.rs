@@ -1,5 +1,6 @@
 //! Types to deserialize.
 
+use bstr::BStr;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -11,10 +12,12 @@ pub enum RequestId {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct IncomingMessage {
+pub struct IncomingMessage<'a> {
     pub jsonrpc: V2,
     pub id: Option<RequestId>,
-    pub method: String,
+    #[serde(borrow)]
+    pub method: &'a BStr,
+    #[serde(default)]
     pub params: serde_json::Value,
 }
 

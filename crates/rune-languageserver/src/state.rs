@@ -35,8 +35,9 @@ impl State {
                 rebuild_tx,
                 context,
                 options,
-                initialized: Default::default(),
-                sources: Default::default(),
+                initialized: AtomicBool::default(),
+                stopped: AtomicBool::default(),
+                sources: RwLock::default(),
             }),
         }
     }
@@ -51,6 +52,16 @@ impl State {
         self.inner.initialized.load(Ordering::Acquire)
     }
 
+    /// Mark server as stopped.
+    pub fn stop(&self) {
+        self.inner.stopped.store(true, Ordering::Release);
+    }
+
+    /// Test if server is stopped.
+    pub fn is_stopped(&self) -> bool {
+        self.inner.stopped.load(Ordering::Acquire)
+    }
+
     /// Access sources in the current state.
     pub async fn sources_mut(&self) -> RwLockWriteGuard<'_, Sources> {
         self.inner.sources.write().await
@@ -62,7 +73,6 @@ impl State {
     pub async fn rebuild_interest(&self) -> Result<()> {
         self.inner
             .rebuild_tx
-            .clone()
             .send(())
             .await
             .map_err(|_| anyhow!("failed to send rebuild interest"))
@@ -143,6 +153,8 @@ impl State {
                 .build();
 
             for diagnostic in diagnostics.diagnostics() {
+                tracing::trace!("diagnostic: {:?}", diagnostic);
+
                 match diagnostic {
                     Diagnostic::Fatal(fatal) => {
                         let source_id = fatal.source_id();
@@ -239,6 +251,8 @@ impl State {
                 version: None,
             };
 
+            tracing::info!(?url, ?diagnostics, "diagnostic");
+
             output
                 .notification::<lsp::notification::PublishDiagnostics>(diagnostics)
                 .await?;
@@ -258,6 +272,8 @@ struct Inner {
     options: Options,
     /// Indicate if the server is initialized.
     initialized: AtomicBool,
+    /// Indicate that the server is stopped.
+    stopped: AtomicBool,
     /// Sources used in the project.
     sources: RwLock<Sources>,
 }

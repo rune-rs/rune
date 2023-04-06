@@ -2,6 +2,7 @@ use crate::connection::Output;
 use crate::envelope::{Code, IncomingMessage};
 use crate::State;
 use anyhow::Result;
+use bstr::BStr;
 use hashbrown::HashMap;
 use rune::{Context, Options};
 use std::future::Future;
@@ -21,7 +22,7 @@ pub struct Server {
     /// The output abstraction.
     output: Output,
     /// Handlers registered in the server.
-    handlers: HashMap<&'static str, Box<Handler>>,
+    handlers: HashMap<&'static BStr, Box<Handler>>,
 }
 
 impl Server {
@@ -39,9 +40,14 @@ impl Server {
         }
     }
 
-    /// Get a clone of the server output.
-    pub fn output(&self) -> Output {
-        self.output.clone()
+    /// Get a reference to server output.
+    pub fn output(&self) -> &Output {
+        &self.output
+    }
+
+    /// Get a reference to server state.
+    pub fn state(&self) -> &State {
+        &self.state
     }
 
     /// Rebuild the projects.
@@ -51,14 +57,13 @@ impl Server {
     }
 
     /// Process an incoming message.
-    pub async fn process(&self, mut incoming: IncomingMessage) -> Result<()> {
+    pub async fn process(&self, incoming: IncomingMessage<'_>) -> Result<()> {
         use lsp::request::Request as _;
 
-        let method = std::mem::take(&mut incoming.method);
-        tracing::trace!("incoming message: method = `{}`", method);
+        tracing::trace!("incoming message: method = `{}`", incoming.method);
 
         // If server is not initialized, reject incoming requests.
-        if !self.state.is_initialized() && method != lsp::request::Initialize::METHOD {
+        if !self.state.is_initialized() && incoming.method != lsp::request::Initialize::METHOD {
             self.output
                 .error(
                     incoming.id,
@@ -71,17 +76,17 @@ impl Server {
             return Ok(());
         }
 
-        if let Some(handler) = self.handlers.get(&method.as_str()) {
+        if let Some(handler) = self.handlers.get(incoming.method) {
             handler(self.state.clone(), self.output.clone(), incoming).await?;
             return Ok(());
         }
 
-        tracing::warn!("Unhandled method `{}`", method);
+        tracing::warn!("Unhandled method `{}`", incoming.method);
 
         self.output
             .log(
                 lsp::MessageType::INFO,
-                format!("Unhandled method `{}`", method),
+                format!("Unhandled method `{}`", incoming.method),
             )
             .await?;
 
@@ -105,7 +110,7 @@ impl Server {
             })
         });
 
-        self.handlers.insert(T::METHOD, handler);
+        self.handlers.insert(BStr::new(T::METHOD), handler);
     }
 
     /// Register a notification handler.
@@ -124,6 +129,6 @@ impl Server {
             })
         });
 
-        self.handlers.insert(T::METHOD, handler);
+        self.handlers.insert(BStr::new(T::METHOD), handler);
     }
 }

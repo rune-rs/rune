@@ -60,7 +60,6 @@ fn setup_logging() -> Result<Option<WorkerGuard>> {
 
         if let (Some(d), Some(name)) = (log_path.parent(), log_path.file_name()) {
             let file_appender = tracing_appender::rolling::never(d, name);
-
             let (non_blocking, g) = tracing_appender::non_blocking(file_appender);
 
             tracing_subscriber::fmt()
@@ -100,5 +99,6 @@ fn main() -> Result<()> {
     let mut options = Options::default();
     options.macros(true);
 
-    rune_languageserver::run(context, options)
+    rune_languageserver::run(context, options)?;
+    Ok(())
 }
