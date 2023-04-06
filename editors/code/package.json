@@ -24,7 +24,11 @@
     "vscode": "^1.70.0"
   },
   "activationEvents": [
-    "onLanguage:rune"
+    "onLanguage:rune",
+    "workspaceContains:*/Rune.toml",
+    "onCommand:rune-vscode.reload",
+    "onCommand:rune-vscode.startServer",
+    "onCommand:rune-vscode.stopServer"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -126,7 +130,7 @@
             ]
           },
           "default": null,
-          "markdownDescription": "Extra environment variables that will be passed to the rune-languageserver executable. Useful for passing e.g. `RUNE_TRACE_LOG_FILE` for debugging."
+          "markdownDescription": "Extra environment variables that will be passed to the rune-languageserver executable. Useful for passing e.g. `RUNE_LOG_FILE` for debugging."
         },
         "rune.trace.extension": {
           "description": "Enable logging of VS Code extensions itself.",

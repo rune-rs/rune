@@ -49,13 +49,16 @@ use rune::Options;
 use std::env;
 use std::path::PathBuf;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::EnvFilter;
 
 fn setup_logging() -> Result<Option<WorkerGuard>> {
     let mut guard = None;
 
+    let env_filter = EnvFilter::from_env("RUNE_LOG");
+
     // Set environment variable to get the language server to trace log to the
     // given file.
-    if let Some(log_path) = std::env::var_os("RUNE_TRACE_LOG_FILE") {
+    if let Some(log_path) = std::env::var_os("RUNE_LOG_FILE") {
         let log_path = PathBuf::from(log_path);
 
         if let (Some(d), Some(name)) = (log_path.parent(), log_path.file_name()) {
@@ -63,7 +66,7 @@ fn setup_logging() -> Result<Option<WorkerGuard>> {
             let (non_blocking, g) = tracing_appender::non_blocking(file_appender);
 
             tracing_subscriber::fmt()
-                .with_max_level(tracing::Level::TRACE)
+                .with_env_filter(env_filter)
                 .with_writer(non_blocking)
                 .init();
 

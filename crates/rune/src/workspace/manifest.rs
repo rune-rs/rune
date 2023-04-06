@@ -83,6 +83,16 @@ impl Manifest {
         Ok(output)
     }
 
+    /// Find every single entrypoint available.
+    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found<'_>>> {
+        let mut output = Vec::new();
+        output.extend(self.find_bins(m)?);
+        output.extend(self.find_tests(m)?);
+        output.extend(self.find_examples(m)?);
+        output.extend(self.find_benches(m)?);
+        Ok(output)
+    }
+
     /// Find all binaries matching the given name in the workspace.
     pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found<'_>>> {
         self.find_paths(m, Path::new("bin"), |p| p.auto_bins)

@@ -24,5 +24,4 @@ mod manifest;
 pub use self::manifest::{Manifest, WorkspaceFilter};
 
 mod diagnostics;
-pub use self::diagnostics::{Diagnostics};
-pub(crate) use self::diagnostics::{Diagnostic, FatalDiagnostic};
+pub use self::diagnostics::{Diagnostics, Diagnostic, FatalDiagnostic};

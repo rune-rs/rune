@@ -60,8 +60,6 @@ impl Server {
     pub async fn process(&self, incoming: IncomingMessage<'_>) -> Result<()> {
         use lsp::request::Request as _;
 
-        tracing::trace!("incoming message: method = `{}`", incoming.method);
-
         // If server is not initialized, reject incoming requests.
         if !self.state.is_initialized() && incoming.method != lsp::request::Initialize::METHOD {
             self.output

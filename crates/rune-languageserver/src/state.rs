@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context as _, Result};
 use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
@@ -37,7 +37,7 @@ impl State {
                 options,
                 initialized: AtomicBool::default(),
                 stopped: AtomicBool::default(),
-                sources: RwLock::default(),
+                workspace: RwLock::default(),
             }),
         }
     }
@@ -62,9 +62,9 @@ impl State {
         self.inner.stopped.load(Ordering::Acquire)
     }
 
-    /// Access sources in the current state.
-    pub async fn sources_mut(&self) -> RwLockWriteGuard<'_, Sources> {
-        self.inner.sources.write().await
+    /// Get mutable access to the workspace.
+    pub async fn workspace_mut(&self) -> RwLockWriteGuard<'_, Workspace> {
+        self.inner.workspace.write().await
     }
 
     /// Indicate interest in having the project rebuild.
@@ -84,7 +84,7 @@ impl State {
         uri: &Url,
         position: lsp::Position,
     ) -> Option<lsp::Location> {
-        let sources = self.inner.sources.read().await;
+        let sources = self.inner.workspace.read().await;
 
         let source = sources.get(uri)?;
         let offset = source.lsp_position_to_offset(position);
@@ -119,129 +119,81 @@ impl State {
 
     /// Rebuild the current project.
     pub async fn rebuild(&self, output: &Output) -> Result<()> {
-        let mut inner = self.inner.sources.write().await;
+        let mut workspace = self.inner.workspace.write().await;
 
         let mut by_url = HashMap::<Url, Vec<lsp::Diagnostic>>::new();
 
-        for (url, _) in inner.removed.drain(..) {
+        for (url, _) in workspace.removed.drain(..) {
             by_url.insert(url.clone(), Vec::new());
         }
 
-        let mut builds = Vec::new();
+        let mut source_loader = SourceLoader::new(&workspace.sources);
+        let mut workspace_sources = rune::Sources::new();
+        let mut sources = rune::Sources::new();
+        let mut id_to_url = HashMap::new();
 
-        let mut source_loader = SourceLoader::new(&inner.sources);
+        let mut workspace_diagnostics = rune::workspace::Diagnostics::default();
 
-        for (url, source) in &inner.sources {
-            tracing::trace!("build: {}", url);
+        if let Some((workspace_url, workspace_path)) = &workspace.manifest_path {
+            if let Err(error) = load_workspace(
+                workspace_url,
+                workspace_path,
+                &mut workspace_sources,
+                &mut workspace_diagnostics,
+                &workspace,
+                &mut sources,
+                &mut id_to_url,
+                &mut by_url,
+            ) {
+                tracing::error!("error loading workspace: {error}");
 
-            by_url.insert(url.clone(), Default::default());
-
-            let mut sources = rune::Sources::new();
-            let input = rune::Source::with_path(url, source.to_string(), url.to_file_path().ok());
-
-            sources.insert(input);
-
-            let mut diagnostics = rune::Diagnostics::new();
-            let mut visitor = Visitor::new(Index::default());
-
-            let _ = rune::prepare(&mut sources)
-                .with_context(&self.inner.context)
-                .with_diagnostics(&mut diagnostics)
-                .with_options(&self.inner.options)
-                .with_visitor(&mut visitor)
-                .with_source_loader(&mut source_loader)
-                .build();
-
-            for diagnostic in diagnostics.diagnostics() {
-                tracing::trace!("diagnostic: {:?}", diagnostic);
-
-                match diagnostic {
-                    Diagnostic::Fatal(fatal) => {
-                        let source_id = fatal.source_id();
-
-                        match fatal.kind() {
-                            FatalDiagnosticKind::ParseError(error) => {
-                                report(
-                                    &sources,
-                                    &mut by_url,
-                                    error.span(),
-                                    source_id,
-                                    error,
-                                    display_to_error,
-                                );
-                            }
-                            FatalDiagnosticKind::CompileError(error) => {
-                                report(
-                                    &sources,
-                                    &mut by_url,
-                                    error.span(),
-                                    source_id,
-                                    error,
-                                    display_to_error,
-                                );
-                            }
-                            FatalDiagnosticKind::QueryError(error) => {
-                                report(
-                                    &sources,
-                                    &mut by_url,
-                                    error.span(),
-                                    source_id,
-                                    error,
-                                    display_to_error,
-                                );
-                            }
-                            FatalDiagnosticKind::LinkError(error) => match error {
-                                LinkerError::MissingFunction { hash, spans } => {
-                                    for (span, _) in spans {
-                                        let diagnostics = by_url.entry(url.clone()).or_default();
-
-                                        let range = source.span_to_lsp_range(*span);
-
-                                        diagnostics.push(display_to_error(
-                                            range,
-                                            format!("missing function with hash `{}`", hash),
-                                        ));
-                                    }
-                                }
-                                error => {
-                                    let diagnostics = by_url.entry(url.clone()).or_default();
-                                    let range = lsp::Range::default();
-                                    diagnostics.push(display_to_error(range, error));
-                                }
-                            },
-                            FatalDiagnosticKind::Internal(message) => {
-                                let diagnostics = by_url.entry(url.clone()).or_default();
-                                let range = lsp::Range::default();
-                                diagnostics.push(display_to_error(range, message));
-                            }
-                            error => {
-                                let diagnostics = by_url.entry(url.clone()).or_default();
-                                let range = lsp::Range::default();
-                                diagnostics.push(display_to_error(range, error));
-                            }
-                        }
-                    }
-                    Diagnostic::Warning(warning) => {
-                        report(
-                            &sources,
-                            &mut by_url,
-                            warning.span(),
-                            warning.source_id(),
-                            warning.kind(),
-                            display_to_warning,
-                        );
-                    }
+                for error in error.chain().skip(1) {
+                    tracing::error!("caused by: {error}");
                 }
             }
-
-            builds.push((url.clone(), sources, visitor.into_index()));
+        } else {
+            for (url, source) in &workspace.sources {
+                tracing::trace!("build plain source: {}", url);
+                let input =
+                    rune::Source::with_path(url, source.to_string(), url.to_file_path().ok());
+                let id = sources.insert(input);
+                id_to_url.insert(id, url.clone());
+                by_url.insert(url.clone(), Vec::default());
+            }
         }
 
-        for (url, build_sources, index) in builds {
-            if let Some(source) = inner.sources.get_mut(&url) {
-                source.index = index;
-                source.build_sources = Some(build_sources);
-            }
+        let mut diagnostics = rune::Diagnostics::new();
+        let mut visitor = Visitor::default();
+
+        let _ = rune::prepare(&mut sources)
+            .with_context(&self.inner.context)
+            .with_diagnostics(&mut diagnostics)
+            .with_options(&self.inner.options)
+            .with_visitor(&mut visitor)
+            .with_source_loader(&mut source_loader)
+            .build();
+
+        let sources = Arc::new(sources);
+
+        emit_workspace_diagnostics(
+            workspace_diagnostics,
+            &id_to_url,
+            &workspace_sources,
+            &mut by_url,
+        );
+        emit_diagnostics(diagnostics, &id_to_url, &sources, &mut by_url);
+
+        for (source_id, value) in visitor.into_indexes() {
+            let Some(url) = id_to_url.get(&source_id) else {
+                continue;
+            };
+
+            let Some(source) = workspace.sources.get_mut(url) else {
+                continue;
+            };
+
+            source.index = value;
+            source.build_sources = Some(sources.clone());
         }
 
         for (url, diagnostics) in by_url {
@@ -251,7 +203,7 @@ impl State {
                 version: None,
             };
 
-            tracing::info!(?url, ?diagnostics, "diagnostic");
+            tracing::info!(url = ?url.to_string(), ?diagnostics, "diagnostic");
 
             output
                 .notification::<lsp::notification::PublishDiagnostics>(diagnostics)
@@ -259,6 +211,191 @@ impl State {
         }
 
         Ok(())
+    }
+}
+
+/// Try to load workspace.
+fn load_workspace(
+    url: &Url,
+    path: &Path,
+    workspace_sources: &mut rune::Sources,
+    workspace_diagnostics: &mut rune::workspace::Diagnostics,
+    workspace: &Workspace,
+    sources: &mut rune::Sources,
+    id_to_url: &mut HashMap<SourceId, Url>,
+    by_url: &mut HashMap<Url, Vec<lsp::Diagnostic>>,
+) -> Result<(), anyhow::Error> {
+    tracing::info!(url = ?url.to_string(), "building workspace");
+    let source = std::fs::read_to_string(path).with_context(|| url.to_string())?;
+
+    workspace_sources.insert(rune::Source::with_path(url, source, Some(path)));
+
+    let manifest = rune::workspace::prepare(workspace_sources)
+        .with_diagnostics(workspace_diagnostics)
+        .build()?;
+
+    let output = manifest.find_all(rune::workspace::WorkspaceFilter::All)?;
+
+    for found in output {
+        let Ok(url) = Url::from_file_path(&found.path) else {
+            continue;
+        };
+
+        tracing::trace!("build manifest source: {}", url);
+
+        let source = match workspace.sources.get(&url) {
+            Some(source) => source.chunks().collect::<String>(),
+            None => std::fs::read_to_string(&found.path)
+                .with_context(|| found.path.display().to_string())?,
+        };
+
+        let input = rune::Source::with_path(&url, source, Some(found.path));
+        let id = sources.insert(input);
+        id_to_url.insert(id, url.clone());
+        by_url.insert(url.clone(), Vec::default());
+    }
+
+    Ok(())
+}
+
+/// Emit diagnostics workspace.
+fn emit_workspace_diagnostics(
+    diagnostics: rune::workspace::Diagnostics,
+    id_to_url: &HashMap<SourceId, Url>,
+    sources: &rune::Sources,
+    by_url: &mut HashMap<Url, Vec<lsp::Diagnostic>>,
+) {
+    for diagnostic in diagnostics.diagnostics() {
+        tracing::trace!("diagnostic: {:?}", diagnostic);
+
+        if let rune::workspace::Diagnostic::Fatal(fatal) = diagnostic {
+            let source_id = fatal.source_id();
+
+            let Some(url) = id_to_url.get(&source_id) else {
+                continue;
+            };
+
+            report(
+                sources,
+                by_url,
+                url,
+                fatal.error().span(),
+                source_id,
+                fatal.error(),
+                display_to_error,
+            );
+        }
+    }
+}
+
+/// Emit regular compile diagnostics.
+fn emit_diagnostics(
+    diagnostics: rune::Diagnostics,
+    id_to_url: &HashMap<SourceId, Url>,
+    sources: &rune::Sources,
+    by_url: &mut HashMap<Url, Vec<lsp::Diagnostic>>,
+) {
+    for diagnostic in diagnostics.diagnostics() {
+        tracing::trace!("diagnostic: {:?}", diagnostic);
+
+        match diagnostic {
+            Diagnostic::Fatal(fatal) => {
+                let source_id = fatal.source_id();
+
+                let Some(url) = id_to_url.get(&source_id) else {
+                    continue;
+                };
+
+                match fatal.kind() {
+                    FatalDiagnosticKind::ParseError(error) => {
+                        report(
+                            sources,
+                            by_url,
+                            url,
+                            error.span(),
+                            source_id,
+                            error,
+                            display_to_error,
+                        );
+                    }
+                    FatalDiagnosticKind::CompileError(error) => {
+                        report(
+                            sources,
+                            by_url,
+                            url,
+                            error.span(),
+                            source_id,
+                            error,
+                            display_to_error,
+                        );
+                    }
+                    FatalDiagnosticKind::QueryError(error) => {
+                        report(
+                            sources,
+                            by_url,
+                            url,
+                            error.span(),
+                            source_id,
+                            error,
+                            display_to_error,
+                        );
+                    }
+                    FatalDiagnosticKind::LinkError(error) => match error {
+                        LinkerError::MissingFunction { hash, spans } => {
+                            for (span, source_id) in spans {
+                                let (Some(url), Some(source)) = (id_to_url.get(source_id), sources.get(*source_id)) else {
+                                    continue;
+                                };
+
+                                let Some(range) = span_to_lsp_range(source, *span) else {
+                                    continue;
+                                };
+
+                                let diagnostics = by_url.entry(url.clone()).or_default();
+
+                                diagnostics.push(display_to_error(
+                                    range,
+                                    format!("missing function with hash `{}`", hash),
+                                ));
+                            }
+                        }
+                        error => {
+                            let diagnostics = by_url.entry(url.clone()).or_default();
+                            let range = lsp::Range::default();
+                            diagnostics.push(display_to_error(range, error));
+                        }
+                    },
+                    FatalDiagnosticKind::Internal(message) => {
+                        let diagnostics = by_url.entry(url.clone()).or_default();
+                        let range = lsp::Range::default();
+                        diagnostics.push(display_to_error(range, message));
+                    }
+                    error => {
+                        let diagnostics = by_url.entry(url.clone()).or_default();
+                        let range = lsp::Range::default();
+                        diagnostics.push(display_to_error(range, error));
+                    }
+                }
+            }
+            Diagnostic::Warning(warning) => {
+                let source_id = warning.source_id();
+
+                let Some(url) = id_to_url.get(&source_id) else {
+                    continue;
+                };
+
+                report(
+                    sources,
+                    by_url,
+                    url,
+                    warning.span(),
+                    source_id,
+                    warning.kind(),
+                    display_to_warning,
+                );
+            }
+            _ => {}
+        }
     }
 }
 
@@ -275,19 +412,21 @@ struct Inner {
     /// Indicate that the server is stopped.
     stopped: AtomicBool,
     /// Sources used in the project.
-    sources: RwLock<Sources>,
+    workspace: RwLock<Workspace>,
 }
 
 /// A collection of open sources.
 #[derive(Default)]
-pub struct Sources {
+pub struct Workspace {
+    /// Found workspace root.
+    pub(crate) manifest_path: Option<(Url, PathBuf)>,
     /// Sources that might be modified.
     sources: HashMap<Url, Source>,
     /// A source that has been removed.
     removed: Vec<(Url, Source)>,
 }
 
-impl Sources {
+impl Workspace {
     /// Insert the given source at the given url.
     pub fn insert_text(&mut self, url: Url, text: String) -> Option<Source> {
         let source = Source {
@@ -325,7 +464,7 @@ pub struct Source {
     index: Index,
     /// Loaded Rune sources for this source file. Will be present after the
     /// source file has been built.
-    build_sources: Option<rune::Sources>,
+    build_sources: Option<Arc<rune::Sources>>,
 }
 
 impl Source {
@@ -352,29 +491,6 @@ impl Source {
         }
 
         Ok(())
-    }
-
-    /// Convert a span to an lsp range.
-    fn span_to_lsp_range(&self, span: Span) -> lsp::Range {
-        let start = self.offset_to_lsp_position(span.start.into_usize());
-        let end = self.offset_to_lsp_position(span.end.into_usize());
-
-        lsp::Range { start, end }
-    }
-
-    /// Offset in the rope to lsp position.
-    fn offset_to_lsp_position(&self, offset: usize) -> lsp::Position {
-        let line = self.content.byte_to_line(offset);
-
-        let col_char = self.content.byte_to_char(offset);
-        let col_char = self.content.char_to_utf16_cu(col_char);
-
-        let line_char = self.content.line_to_char(line);
-        let line_char = self.content.char_to_utf16_cu(line_char);
-
-        let col_char = col_char - line_char;
-
-        lsp::Position::new(line as u32, col_char as u32)
     }
 
     /// Offset in the rope to lsp position.
@@ -438,6 +554,7 @@ fn rope_utf16_position(rope: &Rope, position: lsp::Position) -> Result<usize> {
 fn report<E, R>(
     sources: &rune::Sources,
     by_url: &mut HashMap<Url, Vec<lsp::Diagnostic>>,
+    url: &Url,
     span: Span,
     source_id: SourceId,
     error: E,
@@ -446,25 +563,15 @@ fn report<E, R>(
     E: fmt::Display,
     R: Fn(lsp::Range, E) -> lsp::Diagnostic,
 {
-    let source = match sources.get(source_id) {
-        Some(source) => source,
-        None => return,
+    let Some(source) = sources.get(source_id) else {
+        return;
     };
 
-    let url = match source.path() {
-        Some(path) => match Url::from_file_path(path) {
-            Ok(url) => url,
-            Err(()) => return,
-        },
-        None => return,
+    let Some(range) = span_to_lsp_range(source, span) else {
+        return;
     };
 
-    let range = match span_to_lsp_range(source, span) {
-        Some(range) => range,
-        None => return,
-    };
-
-    let diagnostics = by_url.entry(url).or_default();
+    let diagnostics = by_url.entry(url.clone()).or_default();
     diagnostics.push(report(range, error));
 }
 
@@ -580,28 +687,20 @@ pub enum DefinitionKind {
     Module,
 }
 
+#[derive(Default)]
 struct Visitor {
-    index: Index,
+    indexes: HashMap<SourceId, Index>,
 }
 
 impl Visitor {
-    /// Construct a new visitor.
-    pub fn new(index: Index) -> Self {
-        Self { index }
-    }
-
     /// Convert visitor back into an index.
-    pub fn into_index(self) -> Index {
-        self.index
+    pub fn into_indexes(self) -> HashMap<SourceId, Index> {
+        self.indexes
     }
 }
 
 impl CompileVisitor for Visitor {
     fn visit_meta(&mut self, location: Location, meta: MetaRef<'_>) {
-        if location.source_id.into_index() != 0 {
-            return;
-        }
-
         let source = match meta.source {
             Some(source) => source,
             None => return,
@@ -642,37 +741,35 @@ impl CompileVisitor for Visitor {
             source: DefinitionSource::SourceMeta(source.clone()),
         };
 
-        if let Some(d) = self.index.definitions.insert(location.span, definition) {
+        let index = self.indexes.entry(location.source_id).or_default();
+
+        if let Some(d) = index.definitions.insert(location.span, definition) {
             tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
     fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: Span) {
-        if source_id.into_index() != 0 {
-            return;
-        }
-
         let definition = Definition {
             kind: DefinitionKind::Local,
             source: DefinitionSource::Location(Location::new(source_id, var_span)),
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        let index = self.indexes.entry(source_id).or_default();
+
+        if let Some(d) = index.definitions.insert(span, definition) {
             tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
     fn visit_mod(&mut self, source_id: SourceId, span: Span) {
-        if source_id.into_index() != 0 {
-            return;
-        }
-
         let definition = Definition {
             kind: DefinitionKind::Module,
             source: DefinitionSource::Source(source_id),
         };
 
-        if let Some(d) = self.index.definitions.insert(span, definition) {
+        let index = self.indexes.entry(source_id).or_default();
+
+        if let Some(d) = index.definitions.insert(span, definition) {
             tracing::warn!("replaced definition: {:?}", d.kind)
         }
     }

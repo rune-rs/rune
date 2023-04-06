@@ -68,11 +68,11 @@ where
 {
     let mut labels = Vec::new();
 
-    let span = this.error.span();
-    labels.push(d::Label::primary(this.source_id, span.range()).with_message(this.error.to_string()));
+    let span = this.error().span();
+    labels.push(d::Label::primary(this.source_id(), span.range()).with_message(this.error().to_string()));
 
     let diagnostic = d::Diagnostic::error()
-        .with_message(this.error.to_string())
+        .with_message(this.error().to_string())
         .with_labels(labels);
 
     term::emit(out, config, sources, &diagnostic)?;

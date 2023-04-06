@@ -22,12 +22,16 @@
 //!
 //! This is part of the [Rune language](https://rune-rs.github.io).
 
+#![allow(clippy::too_many_arguments)]
+
 mod connection;
 pub mod envelope;
+mod fs;
 mod server;
 mod state;
 
 use anyhow::Result;
+use rune::workspace::MANIFEST_FILE;
 use rune::{Context, Options};
 use tokio::sync::mpsc;
 
@@ -82,6 +86,7 @@ pub fn run(context: Context, options: Options) -> Result<()> {
                     };
 
                     let request: envelope::IncomingMessage<'_> = serde_json::from_slice(frame.content)?;
+                    tracing::trace!(?request);
                     server.process(request).await?;
                 },
             }
@@ -102,7 +107,7 @@ pub fn run(context: Context, options: Options) -> Result<()> {
 async fn initialize(
     state: State,
     output: Output,
-    _: lsp::InitializeParams,
+    params: lsp::InitializeParams,
 ) -> Result<lsp::InitializeResult> {
     state.initialize();
 
@@ -122,6 +127,21 @@ async fn initialize(
         name: String::from("Rune Language Server"),
         version: None,
     };
+
+    if let Some(root_uri) = &params.root_uri {
+        let mut manifest_uri = root_uri.clone();
+
+        if let Ok(mut path) = manifest_uri.path_segments_mut() {
+            path.push(MANIFEST_FILE);
+        }
+
+        if let Ok(manifest_path) = manifest_uri.to_file_path() {
+            if fs::is_file(&manifest_path).await? {
+                tracing::trace!(?manifest_uri, ?manifest_path, "Activating workspace");
+                state.workspace_mut().await.manifest_path = Some((manifest_uri, manifest_path));
+            }
+        }
+    }
 
     Ok(lsp::InitializeResult {
         capabilities,
@@ -162,7 +182,7 @@ async fn did_open_text_document(
     _: Output,
     params: lsp::DidOpenTextDocumentParams,
 ) -> Result<()> {
-    let mut sources = state.sources_mut().await;
+    let mut sources = state.workspace_mut().await;
 
     if sources
         .insert_text(params.text_document.uri.clone(), params.text_document.text)
@@ -187,7 +207,7 @@ async fn did_change_text_document(
     let mut interest = false;
 
     {
-        let mut sources = state.sources_mut().await;
+        let mut sources = state.workspace_mut().await;
 
         if let Some(source) = sources.get_mut(&params.text_document.uri) {
             for change in params.content_changes {
@@ -217,7 +237,7 @@ async fn did_close_text_document(
     _: Output,
     params: lsp::DidCloseTextDocumentParams,
 ) -> Result<()> {
-    let mut sources = state.sources_mut().await;
+    let mut sources = state.workspace_mut().await;
     sources.remove(&params.text_document.uri);
     state.rebuild_interest().await?;
     Ok(())
