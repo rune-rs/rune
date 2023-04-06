@@ -1,11 +1,9 @@
 name: Nightly Build
 
 on:
+  workflow_dispatch: {}
   schedule:
     - cron: '* 1 * * *'
-  push:
-    branches:
-      - nightly
 
 jobs:
   build:
