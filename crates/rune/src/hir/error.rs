@@ -16,7 +16,7 @@ error! {
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum HirErrorKind {
+pub(crate) enum HirErrorKind {
     #[error("{error}")]
     QueryError {
         #[source]

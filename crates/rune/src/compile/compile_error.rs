@@ -64,7 +64,7 @@ impl CompileError {
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum CompileErrorKind {
+pub(crate) enum CompileErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
     #[error("{error}")]

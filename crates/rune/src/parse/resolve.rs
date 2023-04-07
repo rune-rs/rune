@@ -39,7 +39,7 @@ impl From<ResolveError> for SpannedError {
 #[derive(Debug, Clone, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum ResolveErrorKind {
+pub(crate) enum ResolveErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
     #[error("Expected `{expected}`, but got `{actual}`")]

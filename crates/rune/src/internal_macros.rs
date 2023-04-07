@@ -16,7 +16,8 @@ macro_rules! error {
 
         impl $error_ty {
             /// Construct a new scope error.
-            pub fn new<S, K>(spanned: S, kind: K) -> Self
+            #[allow(unused)]
+            pub(crate) fn new<S, K>(spanned: S, kind: K) -> Self
             where
                 S: $crate::ast::Spanned,
                 $kind: From<K>,
@@ -31,7 +32,8 @@ macro_rules! error {
             ///
             /// This should be used for programming invariants of the encoder which are
             /// broken for some reason.
-            pub fn msg<S, M>(spanned: S, message: M) -> Self
+            #[allow(unused)]
+            pub(crate) fn msg<S, M>(spanned: S, message: M) -> Self
             where
                 S: $crate::ast::Spanned,
                 M: ::core::fmt::Display,
@@ -40,12 +42,14 @@ macro_rules! error {
             }
 
             /// Get the kind of the error.
-            pub fn kind(&self) -> &$kind {
+            #[allow(unused)]
+            pub(crate) fn kind(&self) -> &$kind {
                 &*self.kind
             }
 
             /// Convert into the kind of the error.
-            pub fn into_kind(self) -> $kind {
+            #[allow(unused)]
+            pub(crate) fn into_kind(self) -> $kind {
                 *self.kind
             }
         }

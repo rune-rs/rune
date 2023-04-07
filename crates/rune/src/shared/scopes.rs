@@ -184,7 +184,7 @@ error! {
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum ScopeErrorKind {
+pub(crate) enum ScopeErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
     #[error("missing local {name}")]

@@ -131,13 +131,8 @@ impl VmError {
         self.inner.stacktrace.first()
     }
 
-    #[doc(hidden)]
-    pub fn kind(&self) -> &VmErrorKind {
-        &self.inner.error.kind
-    }
-
-    #[doc(hidden)]
-    pub fn into_kind(self) -> VmErrorKind {
+    #[cfg(test)]
+    pub(crate) fn into_kind(self) -> VmErrorKind {
         self.inner.error.kind
     }
 }
@@ -359,7 +354,7 @@ impl From<Panic> for VmErrorKind {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 #[doc(hidden)]
-pub enum VmErrorKind {
+pub(crate) enum VmErrorKind {
     #[error("{error}")]
     AccessError {
         #[from]
