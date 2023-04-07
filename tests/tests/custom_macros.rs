@@ -44,7 +44,7 @@ fn test_parse_in_macro() -> Result<()> {
     let unit = prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
-    let output = vm.execute(["main"], ())?.complete().into_result()?;
+    let output = vm.call(["main"], ())?;
     let output: (u32, u32) = from_value(output)?;
 
     assert_eq!(output, (42, 42));

@@ -180,31 +180,31 @@ fn test_nested_async_closure() {
 }
 
 #[test]
-fn test_closure_in_lit_vec() -> Result<()> {
+fn test_closure_in_lit_vec() -> VmResult<()> {
     let ret: VecTuple<(i64, Function, Function, i64)> = rune_s! {
         r#"pub fn main() { let a = 4; [0, || 2, || 4, 3] }"#
     };
 
     let (start, first, second, end) = ret.0;
     assert_eq!(0, start);
-    assert_eq!(2, first.call::<_, i64>(()).into_result()?);
-    assert_eq!(4, second.call::<_, i64>(()).into_result()?);
+    assert_eq!(2, vm_try!(first.call::<_, i64>(())));
+    assert_eq!(4, vm_try!(second.call::<_, i64>(())));
     assert_eq!(3, end);
-    Ok(())
+    VmResult::Ok(())
 }
 
 #[test]
-fn test_closure_in_lit_tuple() -> Result<()> {
+fn test_closure_in_lit_tuple() -> VmResult<()> {
     let ret: (i64, Function, Function, i64) = rune_s! {
         r#"pub fn main() { let a = 4; (0, || 2, || a, 3) }"#
     };
 
     let (start, first, second, end) = ret;
     assert_eq!(0, start);
-    assert_eq!(2, first.call::<_, i64>(()).into_result()?);
-    assert_eq!(4, second.call::<_, i64>(()).into_result()?);
+    assert_eq!(2, vm_try!(first.call::<_, i64>(())));
+    assert_eq!(4, vm_try!(second.call::<_, i64>(())));
     assert_eq!(3, end);
-    Ok(())
+    VmResult::Ok(())
 }
 
 #[test]
