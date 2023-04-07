@@ -1,4 +1,5 @@
 use std::fmt;
+use std::process::Termination;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -184,10 +185,7 @@ impl<T> VmResult<T> {
     where
         E: TypeOf,
     {
-        Self::err(VmErrorKind::Expected {
-            expected: E::type_info(),
-            actual,
-        })
+        Self::Err(VmError::expected::<E>(actual))
     }
 
     /// Construct a new error from a type that can be converted into a
@@ -196,30 +194,30 @@ impl<T> VmResult<T> {
     where
         VmErrorKind: From<E>,
     {
-        VmResult::Err(VmError::from(error))
+        Self::Err(VmError::from(error))
     }
 
     /// Convert a [`VmResult`] into a [`Result`].
     #[inline(always)]
     pub fn into_result(self) -> Result<T, VmError> {
         match self {
-            VmResult::Ok(value) => Ok(value),
-            VmResult::Err(error) => Err(error),
+            Self::Ok(value) => Ok(value),
+            Self::Err(error) => Err(error),
         }
     }
 
     /// Apply the given frame to the current result.
     pub(crate) fn with_vm(self, vm: &Vm) -> Self {
         match self {
-            VmResult::Ok(ok) => VmResult::Ok(ok),
-            VmResult::Err(mut err) => {
+            Self::Ok(ok) => Self::Ok(ok),
+            Self::Err(mut err) => {
                 err.inner.stacktrace.push(VmErrorLocation {
                     unit: vm.unit().clone(),
                     ip: vm.ip(),
                     frames: vm.call_frames().to_vec(),
                 });
 
-                VmResult::Err(err)
+                Self::Err(err)
             }
         }
     }
@@ -232,8 +230,8 @@ impl<T> VmResult<T> {
         VmErrorKind: From<O>,
     {
         match self {
-            VmResult::Ok(ok) => VmResult::Ok(ok),
-            VmResult::Err(mut err) => {
+            Self::Ok(ok) => Self::Ok(ok),
+            Self::Err(mut err) => {
                 let index = err.inner.stacktrace.len();
 
                 err.inner.chain.push(VmErrorAt {
@@ -241,7 +239,7 @@ impl<T> VmResult<T> {
                     kind: VmErrorKind::from(error()),
                 });
 
-                VmResult::Err(err)
+                Self::Err(err)
             }
         }
     }
@@ -319,6 +317,13 @@ where
     #[inline]
     fn maybe_type_of() -> Option<FullTypeOf> {
         T::maybe_type_of()
+    }
+}
+
+impl<T> Termination for VmResult<T> {
+    #[inline]
+    fn report(self) -> std::process::ExitCode {
+        std::process::ExitCode::FAILURE
     }
 }
 

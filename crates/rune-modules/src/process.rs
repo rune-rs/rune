@@ -77,7 +77,7 @@ impl Command {
                     self.inner.arg(&***s);
                 }
                 actual => {
-                    return VmResult::expected::<String>(rune::vm_try!(actual.type_info().into_result()));
+                    return VmResult::expected::<String>(rune::vm_try!(actual.type_info()));
                 }
             }
         }

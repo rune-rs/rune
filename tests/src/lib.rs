@@ -2,14 +2,10 @@
 #![allow(dead_code)]
 
 pub mod prelude {
-    pub use crate::assert_compile_error;
-    pub use crate::assert_errors;
-    pub use crate::assert_matches;
-    pub use crate::assert_parse;
-    pub use crate::assert_parse_error;
-    pub use crate::assert_vm_error;
-    pub use crate::assert_warnings;
-    pub use crate::run;
+    pub use crate::{
+        assert_compile_error, assert_errors, assert_matches, assert_parse, assert_parse_error,
+        assert_vm_error, assert_warnings, run,
+    };
     pub use crate::{rune, rune_n, rune_s};
     pub use ::rune_modules as modules;
     pub use futures_executor::block_on;
