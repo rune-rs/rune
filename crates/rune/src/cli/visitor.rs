@@ -1,10 +1,10 @@
-use rune::compile::meta;
-use rune::compile::{CompileVisitor, ItemBuf, MetaRef};
-use rune::Hash;
+use crate::compile::meta;
+use crate::compile::{CompileVisitor, ItemBuf, MetaRef};
+use crate::Hash;
 
 /// Attribute to collect.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum Attribute {
+pub(super) enum Attribute {
     /// Do not collect any functions.
     None,
     /// Collect `#[test]` functions.
@@ -14,13 +14,13 @@ pub(crate) enum Attribute {
 }
 
 /// A compile visitor that collects functions with a specific attribute.
-pub struct FunctionVisitor {
+pub(super) struct FunctionVisitor {
     attribute: Attribute,
     functions: Vec<(Hash, ItemBuf)>,
 }
 
 impl FunctionVisitor {
-    pub(crate) fn new(kind: Attribute) -> Self {
+    pub(super) fn new(kind: Attribute) -> Self {
         Self {
             attribute: kind,
             functions: Default::default(),
@@ -28,7 +28,7 @@ impl FunctionVisitor {
     }
 
     /// Convert visitor into test functions.
-    pub(crate) fn into_functions(self) -> Vec<(Hash, ItemBuf)> {
+    pub(super) fn into_functions(self) -> Vec<(Hash, ItemBuf)> {
         self.functions
     }
 }

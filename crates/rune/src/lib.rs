@@ -253,6 +253,9 @@ pub mod testing;
 pub(crate) use rune_macros::__internal_impl_any;
 pub use rune_macros::function;
 
+#[cfg(feature = "cli")]
+pub mod cli;
+
 #[cfg(feature = "doc")]
 pub mod doc;
 

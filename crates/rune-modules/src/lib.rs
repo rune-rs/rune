@@ -82,12 +82,6 @@
 #[cfg(feature = "experiments")]
 pub mod experiments;
 
-#[cfg(feature = "capture-io")]
-pub mod capture_io;
-
-#[cfg(feature = "disable-io")]
-pub mod disable_io;
-
 macro_rules! modules {
     ($($ident:ident, $name:literal),* $(,)?) => {
         $(

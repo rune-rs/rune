@@ -2,16 +2,15 @@
 //!
 //! ```
 //! use rune::{Context, ContextError};
-//! use rune_modules::disable_io;
+//! use rune::modules::disable_io;
 //!
-//! # fn main() -> Result<(), ContextError> {
-//! let mut context = rune_modules::with_config(false)?;
+//! let mut context = rune::Context::with_config(false)?;
 //! context.install(disable_io::module()?)?;
-//! # Ok(()) }
+//! # Ok::<_, ContextError>(())
 //! ```
 
-use rune::runtime::{Stack, VmResult};
-use rune::{ContextError, Module};
+use crate::runtime::{Stack, VmResult};
+use crate::{ContextError, Module};
 
 /// Provide a bunch of `std::io` functions which will cause any output to be ignored.
 pub fn module() -> Result<Module, ContextError> {
@@ -23,7 +22,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.raw_fn(["dbg"], move |stack: &mut Stack, args: usize| {
         // NB: still need to maintain the stack.
-        drop(rune::vm_try!(stack.drain(args)));
+        drop(vm_try!(stack.drain(args)));
         stack.push(());
         VmResult::Ok(())
     })?;

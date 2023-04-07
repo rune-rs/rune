@@ -36,9 +36,9 @@ use gloo_utils::format::JsValueSerdeExt;
 use rune::ast::Spanned;
 use rune::compile::LinkerError;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use rune::modules::capture_io::CaptureIo;
 use rune::runtime::{budget, Value, VmResult};
 use rune::{Context, ContextError, Options};
-use rune_modules::capture_io::CaptureIo;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -150,7 +150,7 @@ impl WasmCompileResult {
 fn setup_context(experimental: bool, io: &CaptureIo) -> Result<Context, ContextError> {
     let mut context = Context::with_config(false)?;
 
-    context.install(rune_modules::capture_io::module(io)?)?;
+    context.install(rune::modules::capture_io::module(io)?)?;
     context.install(time::module()?)?;
     context.install(http::module()?)?;
     context.install(rune_modules::json::module(false)?)?;

@@ -19,10 +19,18 @@ emit = ["codespan-reporting"]
 bench = []
 workspace = ["toml", "semver", "relative-path", "serde-hashkey"]
 doc = ["rust-embed", "handlebars", "pulldown-cmark", "syntect"]
+cli = ["workspace", "doc", "bincode", "atty", "tracing-subscriber", "tokio", "anyhow/std", "clap", "webbrowser", "capture-io", "disable-io"]
+capture-io = ["parking_lot"]
+disable-io = []
 
 [dependencies]
+rune-macros = { version = "=0.12.3", path = "../rune-macros" }
+
 anyhow = "1.0.70"
+atty = { version = "0.2.14", optional = true }
+bincode = { version = "1.3.3", optional = true }
 byteorder = "1.4.3"
+clap = { version = "4.2.1", features = ["derive"], optional = true }
 codespan-reporting = { version = "0.11.1", optional = true }
 futures-core = "0.3.28"
 futures-util = "0.3.28"
@@ -44,11 +52,13 @@ serde-hashkey = { version = "0.4.5", optional = true }
 smallvec = { version = "1.10.0", features = ["write", "serde", "const_new"] }
 syntect = { version = "5.0.0", optional = true }
 thiserror = "1.0.40"
+tokio = { version = "1.27.0", features = ["rt-multi-thread", "net", "fs", "macros"], optional = true }
 toml = { version = "0.7.3", optional = true, features = ["parse"] }
 tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"], optional = true }
 twox-hash = { version = "1.6.3", default-features = false }
-
-rune-macros = { version = "=0.12.3", path = "../rune-macros" }
+webbrowser = { version = "0.8.8", optional = true }
+parking_lot = { version = "0.12.1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.27.0", features = ["macros"] }

@@ -3,23 +3,24 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use rune::compile::FileSourceLoader;
-use rune::{Diagnostics, Options, Source, Sources};
 
-use crate::{visitor, Config, ExitCode, Io, SharedFlags};
+use crate::cli::{visitor, Config, Entry, ExitCode, Io, SharedFlags};
+use crate::compile::FileSourceLoader;
+use crate::{Diagnostics, Options, Source, Sources};
 
 #[derive(Parser, Debug, Clone)]
-pub(crate) struct Flags {
+pub(super) struct Flags {
     /// Exit with a non-zero exit-code even for warnings
     #[arg(long)]
     warnings_are_errors: bool,
 
     #[command(flatten)]
-    pub(crate) shared: SharedFlags,
+    pub(super) shared: SharedFlags,
 }
 
-pub(crate) fn run(
+pub(super) fn run(
     io: &mut Io<'_>,
+    entry: &mut Entry<'_>,
     c: &Config,
     flags: &Flags,
     options: &Options,
@@ -27,7 +28,7 @@ pub(crate) fn run(
 ) -> Result<ExitCode> {
     writeln!(io.stdout, "Checking: {}", path.display())?;
 
-    let context = flags.shared.context(c)?;
+    let context = flags.shared.context(entry, c, None)?;
 
     let source =
         Source::from_path(path).with_context(|| format!("reading file: {}", path.display()))?;
@@ -45,7 +46,7 @@ pub(crate) fn run(
     let mut test_finder = visitor::FunctionVisitor::new(visitor::Attribute::None);
     let mut source_loader = FileSourceLoader::new();
 
-    let _ = rune::prepare(&mut sources)
+    let _ = crate::prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .with_options(options)

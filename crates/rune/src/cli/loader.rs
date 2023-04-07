@@ -6,21 +6,20 @@ use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
 use anyhow::{anyhow, Context as _, Result};
-use rune::compile::{FileSourceLoader, ItemBuf};
-use rune::Diagnostics;
-use rune::{Context, Hash, Options, Source, Sources, Unit};
-use tracing::{error, trace};
 
-use crate::{visitor, Args, Io};
+use crate::cli::{visitor, Args, Io};
+use crate::compile::{FileSourceLoader, ItemBuf};
+use crate::Diagnostics;
+use crate::{Context, Hash, Options, Source, Sources, Unit};
 
-pub(crate) struct Load {
-    pub(crate) unit: Arc<Unit>,
-    pub(crate) sources: Sources,
-    pub(crate) functions: Vec<(Hash, ItemBuf)>,
+pub(super) struct Load {
+    pub(super) unit: Arc<Unit>,
+    pub(super) sources: Sources,
+    pub(super) functions: Vec<(Hash, ItemBuf)>,
 }
 
 /// Load context and code for a given path
-pub(crate) fn load(
+pub(super) fn load(
     io: &mut Io<'_>,
     context: &Context,
     args: &Args,
@@ -46,11 +45,11 @@ pub(crate) fn load(
 
         match bincode::deserialize_from::<_, Unit>(f) {
             Ok(unit) => {
-                trace!("using cache: {}", bytecode_path.display());
+                tracing::trace!("using cache: {}", bytecode_path.display());
                 Some(Arc::new(unit))
             }
             Err(e) => {
-                error!("failed to deserialize: {}: {}", bytecode_path.display(), e);
+                tracing::error!("failed to deserialize: {}: {}", bytecode_path.display(), e);
                 None
             }
         }
@@ -61,7 +60,7 @@ pub(crate) fn load(
     let (unit, functions) = match maybe_unit {
         Some(unit) => (unit, Default::default()),
         None => {
-            trace!("building file: {}", path.display());
+            tracing::trace!("building file: {}", path.display());
 
             let mut diagnostics = if shared.warnings {
                 Diagnostics::new()
@@ -72,7 +71,7 @@ pub(crate) fn load(
             let mut functions = visitor::FunctionVisitor::new(attribute);
             let mut source_loader = FileSourceLoader::new();
 
-            let result = rune::prepare(&mut sources)
+            let result = crate::prepare(&mut sources)
                 .with_context(context)
                 .with_diagnostics(&mut diagnostics)
                 .with_options(options)
@@ -84,7 +83,7 @@ pub(crate) fn load(
             let unit = result?;
 
             if options.bytecode {
-                trace!("serializing cache: {}", bytecode_path.display());
+                tracing::trace!("serializing cache: {}", bytecode_path.display());
                 let f = fs::File::create(&bytecode_path)?;
                 bincode::serialize_into(f, &unit)?;
             }
@@ -113,7 +112,7 @@ fn should_cache_be_used(source: &Path, cached: &Path) -> io::Result<bool> {
     Ok(source.modified()? < cached.modified()?)
 }
 
-pub(crate) fn recurse_paths(
+pub(super) fn recurse_paths(
     recursive: bool,
     first: PathBuf,
 ) -> impl Iterator<Item = io::Result<PathBuf>> {
