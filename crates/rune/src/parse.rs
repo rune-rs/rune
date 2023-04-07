@@ -4,7 +4,6 @@ mod expectation;
 mod id;
 mod lexer;
 mod opaque;
-#[allow(clippy::module_inception)]
 mod parse;
 mod parse_error;
 mod parser;
