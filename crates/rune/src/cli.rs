@@ -9,6 +9,7 @@
 mod benches;
 mod check;
 mod doc;
+mod languageserver;
 mod loader;
 mod run;
 mod tests;
@@ -192,6 +193,8 @@ enum Command {
     Bench(benches::Flags),
     /// Run the designated script
     Run(run::Flags),
+    /// Run a language server.
+    LanguageServer(languageserver::Flags),
 }
 
 impl Command {
@@ -208,6 +211,7 @@ impl Command {
             Command::Run(args) => {
                 args.propagate_related_flags();
             }
+            Command::LanguageServer(..) => {}
         }
     }
 
@@ -218,6 +222,7 @@ impl Command {
             Command::Test(..) => "Testing",
             Command::Bench(..) => "Benchmarking",
             Command::Run(..) => "Running",
+            Command::LanguageServer(..) => "Running",
         }
     }
 
@@ -228,6 +233,7 @@ impl Command {
             Command::Test(args) => &args.shared,
             Command::Bench(args) => &args.shared,
             Command::Run(args) => &args.shared,
+            Command::LanguageServer(args) => &args.shared,
         }
     }
 
@@ -382,7 +388,8 @@ impl Args {
                 options.test(true);
                 options.bytecode(false);
             }
-            Command::Bench(_) | Command::Doc(..) | Command::Run(_) => (),
+            Command::Bench(_) | Command::Doc(..) | Command::Run(_) | Command::LanguageServer(_) => {
+            }
         }
 
         for option in &self.cmd.shared().compiler_options {
@@ -722,6 +729,10 @@ where
                     }
                 }
             }
+        }
+        Command::LanguageServer(flags) => {
+            let context = flags.shared.context(entry, c, None)?;
+            languageserver::run(context).await?;
         }
     }
 

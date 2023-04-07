@@ -51,6 +51,8 @@ use std::path::PathBuf;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::EnvFilter;
 
+pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
+
 fn setup_logging() -> Result<Option<WorkerGuard>> {
     let mut guard = None;
 
@@ -87,7 +89,7 @@ fn main() -> Result<()> {
     for arg in it {
         match arg.as_str() {
             "--version" => {
-                println!("Rune language server {}", rune_languageserver::VERSION);
+                println!("Rune language server {}", VERSION);
                 return Ok(());
             }
             other => {
@@ -102,6 +104,20 @@ fn main() -> Result<()> {
     let mut options = Options::default();
     options.macros(true);
 
-    rune_languageserver::run(context, options)?;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+
+    let result = runtime.block_on(rune::languageserver::run(context, options));
+
+    match result {
+        Ok(()) => {
+            tracing::info!("Server shutting down");
+        }
+        Err(error) => {
+            tracing::error!("Server errored: {error}");
+        }
+    }
+
     Ok(())
 }

@@ -126,7 +126,7 @@ impl Diagnostics {
     /// let mut diagnostics = Diagnostics::without_warnings();
     /// assert!(diagnostics.is_empty());
     ///
-    /// diagnostics.not_used(SourceId::empty(), Span::empty(), None);
+    /// // emit warnings
     ///
     /// assert!(diagnostics.is_empty());
     /// let warning = diagnostics.into_diagnostics().into_iter().next();
@@ -147,15 +147,6 @@ impl Diagnostics {
     ///
     /// let mut diagnostics = Diagnostics::new();
     /// assert!(diagnostics.is_empty());
-    ///
-    /// diagnostics.not_used(SourceId::empty(), Span::empty(), None);
-    ///
-    /// assert!(!diagnostics.is_empty());
-    ///
-    /// assert!(matches! {
-    ///     diagnostics.into_diagnostics().into_iter().next(),
-    ///     Some(Diagnostic::Warning(..))
-    /// });
     /// ```
     pub fn new() -> Self {
         Self::default()
@@ -195,14 +186,14 @@ impl Diagnostics {
     }
 
     /// Indicate that a value is produced but never used.
-    pub fn not_used(&mut self, source_id: SourceId, span: Span, context: Option<Span>) {
+    pub(crate) fn not_used(&mut self, source_id: SourceId, span: Span, context: Option<Span>) {
         self.warning(source_id, WarningDiagnosticKind::NotUsed { span, context });
     }
 
     /// Indicate that a binding pattern might panic.
     ///
     /// Like `let (a, b) = value`.
-    pub fn let_pattern_might_panic(
+    pub(crate) fn let_pattern_might_panic(
         &mut self,
         source_id: SourceId,
         span: Span,
@@ -218,7 +209,7 @@ impl Diagnostics {
     /// groups.
     ///
     /// Like `` `Hello` ``.
-    pub fn template_without_expansions(
+    pub(crate) fn template_without_expansions(
         &mut self,
         source_id: SourceId,
         span: Span,
@@ -234,7 +225,7 @@ impl Diagnostics {
     /// removed when creating it.
     ///
     /// Like `None()`.
-    pub fn remove_tuple_call_parens(
+    pub(crate) fn remove_tuple_call_parens(
         &mut self,
         source_id: SourceId,
         span: Span,
@@ -252,7 +243,7 @@ impl Diagnostics {
     }
 
     /// Add a warning about an unecessary semi-colon.
-    pub fn uneccessary_semi_colon(&mut self, source_id: SourceId, span: Span) {
+    pub(crate) fn uneccessary_semi_colon(&mut self, source_id: SourceId, span: Span) {
         self.warning(
             source_id,
             WarningDiagnosticKind::UnecessarySemiColon { span },
@@ -260,7 +251,7 @@ impl Diagnostics {
     }
 
     /// Push a warning to the collection of diagnostics.
-    pub fn warning<T>(&mut self, source_id: SourceId, kind: T)
+    pub(crate) fn warning<T>(&mut self, source_id: SourceId, kind: T)
     where
         WarningDiagnosticKind: From<T>,
     {
@@ -278,7 +269,7 @@ impl Diagnostics {
     }
 
     /// Report an error.
-    pub fn error<T>(&mut self, source_id: SourceId, kind: T)
+    pub(crate) fn error<T>(&mut self, source_id: SourceId, kind: T)
     where
         FatalDiagnosticKind: From<T>,
     {

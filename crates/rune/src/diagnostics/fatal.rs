@@ -30,8 +30,9 @@ impl FatalDiagnostic {
         &self.kind
     }
 
-    /// Convert into the kind of the load error.
-    pub fn into_kind(self) -> FatalDiagnosticKind {
+    /// The kind of the load error.
+    #[cfg(test)]
+    pub(crate) fn into_kind(self) -> FatalDiagnosticKind {
         *self.kind
     }
 

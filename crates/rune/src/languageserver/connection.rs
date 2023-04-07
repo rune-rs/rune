@@ -1,28 +1,30 @@
-use crate::envelope;
-use anyhow::{anyhow, bail, Result};
 use std::fmt;
 use std::sync::Arc;
+
+use anyhow::{anyhow, bail, Result};
 use tokio::io;
 use tokio::io::{
     AsyncBufRead, AsyncBufReadExt as _, AsyncReadExt as _, AsyncWriteExt as _, BufReader,
 };
 use tokio::sync::Mutex;
 
+use crate::languageserver::envelope;
+
 /// An input frame.
 #[derive(Debug)]
-pub struct Frame<'a> {
-    pub content: &'a [u8],
+pub(super) struct Frame<'a> {
+    pub(super) content: &'a [u8],
 }
 
 /// Input connection.
-pub struct Input {
+pub(super) struct Input {
     buf: Vec<u8>,
     stdin: BufReader<io::Stdin>,
 }
 
 impl Input {
     /// Get the next input frame.
-    pub async fn next(&mut self) -> Result<Option<Frame<'_>>> {
+    pub(super) async fn next(&mut self) -> Result<Option<Frame<'_>>> {
         let headers = match Headers::read(&mut self.buf, &mut self.stdin).await? {
             Some(headers) => headers,
             None => return Ok(None),
@@ -43,18 +45,18 @@ impl Input {
 
 /// Output connection.
 #[derive(Clone)]
-pub struct Output {
+pub(super) struct Output {
     stdout: Arc<Mutex<io::Stdout>>,
 }
 
 impl Output {
     /// Send the given response.
-    pub async fn response<R>(&self, id: Option<envelope::RequestId>, result: R) -> Result<()>
+    pub(super) async fn response<R>(&self, id: Option<envelope::RequestId>, result: R) -> Result<()>
     where
         R: serde::Serialize,
     {
         let response = envelope::ResponseMessage {
-            jsonrpc: crate::envelope::V2,
+            jsonrpc: envelope::V2,
             id,
             result: Some(result),
             error: None::<envelope::ResponseError<()>>,
@@ -66,7 +68,7 @@ impl Output {
     }
 
     /// Send the given error as response.
-    pub async fn error<D, M>(
+    pub(super) async fn error<D, M>(
         &self,
         id: Option<envelope::RequestId>,
         code: envelope::Code,
@@ -78,7 +80,7 @@ impl Output {
         M: fmt::Display,
     {
         let response = envelope::ResponseMessage {
-            jsonrpc: crate::envelope::V2,
+            jsonrpc: envelope::V2,
             id,
             result: None::<()>,
             error: Some(envelope::ResponseError {
@@ -94,12 +96,12 @@ impl Output {
     }
 
     /// Send the given notification
-    pub async fn notification<N>(&self, notification: N::Params) -> Result<()>
+    pub(super) async fn notification<N>(&self, notification: N::Params) -> Result<()>
     where
         N: lsp::notification::Notification,
     {
-        let notification = crate::envelope::NotificationMessage {
-            jsonrpc: crate::envelope::V2,
+        let notification = envelope::NotificationMessage {
+            jsonrpc: envelope::V2,
             method: N::METHOD,
             params: notification,
         };
@@ -110,7 +112,7 @@ impl Output {
     }
 
     /// Send a log message.
-    pub async fn log<M>(&self, typ: lsp::MessageType, message: M) -> Result<()>
+    pub(super) async fn log<M>(&self, typ: lsp::MessageType, message: M) -> Result<()>
     where
         M: fmt::Display,
     {
@@ -141,7 +143,7 @@ impl Output {
 }
 
 /// Setup a stdin/stdout connection.
-pub fn stdio() -> Result<(Input, Output)> {
+pub(super) fn stdio() -> Result<(Input, Output)> {
     let stdin = io::stdin();
     let stdout = io::stdout();
 
@@ -158,19 +160,19 @@ pub fn stdio() -> Result<(Input, Output)> {
 }
 
 #[derive(Debug)]
-pub enum ContentType {
+pub(super) enum ContentType {
     JsonRPC,
 }
 
 #[derive(Default, Debug)]
-pub struct Headers {
-    pub content_length: Option<u32>,
-    pub content_type: Option<ContentType>,
+pub(super) struct Headers {
+    pub(super) content_length: Option<u32>,
+    pub(super) content_type: Option<ContentType>,
 }
 
 impl Headers {
     /// Read headers from the given line stream.
-    pub async fn read<S>(buf: &mut Vec<u8>, reader: &mut S) -> anyhow::Result<Option<Self>>
+    pub(super) async fn read<S>(buf: &mut Vec<u8>, reader: &mut S) -> anyhow::Result<Option<Self>>
     where
         S: Unpin + AsyncBufRead,
     {
@@ -198,15 +200,12 @@ impl Headers {
                 break;
             }
 
-            let mut parts = line.splitn(2, ':').map(str::trim);
-
-            let (key, value) = match (parts.next(), parts.next()) {
-                (Some(key), Some(value)) => (key, value),
-                out => {
-                    return Err(anyhow!("bad header: {:?}", out));
-                }
+            let Some((key, value)) = line.split_once(':') else {
+                return Err(anyhow!("bad header"));
             };
 
+            let key = key.trim();
+            let value = value.trim();
             let key = key.to_lowercase();
 
             match key.as_str() {
@@ -226,7 +225,7 @@ impl Headers {
                     headers.content_length = Some(value);
                 }
                 key => {
-                    return Err(anyhow!("unsupported header: {:?}", key));
+                    return Err(anyhow!("header not supported: {:?}", key));
                 }
             }
         }

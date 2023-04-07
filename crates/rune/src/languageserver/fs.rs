@@ -2,7 +2,7 @@ use std::io;
 use std::path::Path;
 
 /// Test if the given path is a file.
-pub(crate) async fn is_file<P>(path: P) -> io::Result<bool>
+pub(super) async fn is_file<P>(path: P) -> io::Result<bool>
 where
     P: AsRef<Path>,
 {

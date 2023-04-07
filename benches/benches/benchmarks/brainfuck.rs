@@ -1,7 +1,7 @@
 use criterion::Criterion;
 use rune::{Hash, Result, Vm};
 
-use crate::capture_io::CaptureIo;
+use rune::modules::capture_io::CaptureIo;
 
 criterion::criterion_group!(benches, entry);
 

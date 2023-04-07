@@ -4,20 +4,21 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context as _, Result};
-use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
-use rune::ast::{Span, Spanned};
-use rune::compile::{
+use tokio::sync::Notify;
+
+use crate::ast::{Span, Spanned};
+use crate::collections::HashMap;
+use crate::compile::{
     self, meta, CompileError, CompileVisitor, ComponentRef, Item, LinkerError, Location, MetaRef,
     SourceMeta,
 };
-use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
-use rune::workspace::{self, WorkspaceError};
-use rune::{Context, Options, SourceId};
-use tokio::sync::Notify;
-
-use crate::{Language, Output};
+use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use crate::languageserver::connection::Output;
+use crate::languageserver::Language;
+use crate::workspace::{self, WorkspaceError};
+use crate::{Context, Options, SourceId};
 
 #[derive(Default)]
 struct Reporter {
@@ -41,11 +42,11 @@ impl Reporter {
 #[derive(Default)]
 struct Build {
     id_to_url: HashMap<SourceId, Url>,
-    sources: rune::Sources,
+    sources: crate::Sources,
 }
 
 impl Build {
-    pub(crate) fn populate(&mut self, reporter: &mut Reporter) {
+    pub(super) fn populate(&mut self, reporter: &mut Reporter) {
         for id in self.sources.source_ids() {
             let Some(source) = self.sources.get(id) else {
                 continue;
@@ -55,7 +56,7 @@ impl Build {
                 continue;
             };
 
-            let Ok(url) = crate::url::from_file_path(path) else {
+            let Ok(url) = crate::languageserver::url::from_file_path(path) else {
                 continue;
             };
 
@@ -64,7 +65,7 @@ impl Build {
         }
     }
 
-    pub(crate) fn visit(&mut self, visited: &mut HashSet<Url>) {
+    pub(super) fn visit(&mut self, visited: &mut HashSet<Url>) {
         for id in self.sources.source_ids() {
             let Some(source) = self.sources.get(id) else {
                 continue;
@@ -74,7 +75,7 @@ impl Build {
                 continue;
             };
 
-            let Ok(url) = crate::url::from_file_path(path) else {
+            let Ok(url) = crate::languageserver::url::from_file_path(path) else {
                 continue;
             };
 
@@ -84,14 +85,14 @@ impl Build {
 }
 
 /// Shared server state.
-pub(crate) struct State<'a> {
+pub(super) struct State<'a> {
     /// The output abstraction.
-    pub(crate) output: Output,
+    pub(super) output: Output,
     /// Sender to indicate interest in rebuilding the project.
     /// Can be triggered on modification.
     rebuild_notify: &'a Notify,
     /// The rune context to build for.
-    context: rune::Context,
+    context: crate::Context,
     /// Build options.
     options: Options,
     /// Indicate if the server is initialized.
@@ -104,7 +105,7 @@ pub(crate) struct State<'a> {
 
 impl<'a> State<'a> {
     /// Construct a new state.
-    pub(crate) fn new(
+    pub(super) fn new(
         output: Output,
         rebuild_notify: &'a Notify,
         context: Context,
@@ -122,39 +123,39 @@ impl<'a> State<'a> {
     }
 
     /// Mark server as initialized.
-    pub(crate) fn initialize(&mut self) {
+    pub(super) fn initialize(&mut self) {
         self.initialized = true;
     }
 
     /// Test if server is initialized.
-    pub(crate) fn is_initialized(&self) -> bool {
+    pub(super) fn is_initialized(&self) -> bool {
         self.initialized
     }
 
     /// Mark server as stopped.
-    pub(crate) fn stop(&mut self) {
+    pub(super) fn stop(&mut self) {
         self.stopped = true;
     }
 
     /// Test if server is stopped.
-    pub(crate) fn is_stopped(&self) -> bool {
+    pub(super) fn is_stopped(&self) -> bool {
         self.stopped
     }
 
     /// Get mutable access to the workspace.
-    pub(crate) fn workspace_mut(&mut self) -> &mut Workspace {
+    pub(super) fn workspace_mut(&mut self) -> &mut Workspace {
         &mut self.workspace
     }
 
     /// Indicate interest in having the project rebuild.
     ///
     /// Sources that have been modified will be marked as dirty.
-    pub(crate) fn rebuild_interest(&self) {
+    pub(super) fn rebuild_interest(&self) {
         self.rebuild_notify.notify_one();
     }
 
     /// Find definition at the given uri and LSP position.
-    pub(crate) async fn goto_definition(
+    pub(super) async fn goto_definition(
         &self,
         uri: &Url,
         position: lsp::Position,
@@ -164,7 +165,7 @@ impl<'a> State<'a> {
         let def = source.find_definition_at(Span::point(offset))?;
 
         let url = match def.source.path() {
-            Some(path) => crate::url::from_file_path(path).ok()?,
+            Some(path) => crate::languageserver::url::from_file_path(path).ok()?,
             None => uri.clone(),
         };
 
@@ -191,7 +192,7 @@ impl<'a> State<'a> {
     }
 
     /// Rebuild the project.
-    pub(crate) async fn rebuild(&mut self) -> Result<()> {
+    pub(super) async fn rebuild(&mut self) -> Result<()> {
         // Keep track of URLs visited as part of workspace builds.
         let mut visited = HashSet::new();
         // Workspace results.
@@ -202,7 +203,7 @@ impl<'a> State<'a> {
         let mut reporter = Reporter::default();
 
         if let Some((workspace_url, workspace_path)) = &self.workspace.manifest_path {
-            let mut diagnostics = rune::workspace::Diagnostics::default();
+            let mut diagnostics = crate::workspace::Diagnostics::default();
             let mut build = Build::default();
 
             let result = self.load_workspace(
@@ -244,7 +245,7 @@ impl<'a> State<'a> {
             tracing::trace!(url = url.to_string(), "build plain source");
 
             let mut build = Build::default();
-            let input = rune::Source::with_path(url, source.to_string(), url.to_file_path().ok());
+            let input = crate::Source::with_path(url, source.to_string(), url.to_file_path().ok());
             build.sources.insert(input);
             script_results.push(self.build_scripts(build, None));
         }
@@ -303,7 +304,7 @@ impl<'a> State<'a> {
         url: &Url,
         path: &Path,
         manifest_build: &mut Build,
-        diagnostics: &mut rune::workspace::Diagnostics,
+        diagnostics: &mut crate::workspace::Diagnostics,
         workspace: &Workspace,
     ) -> Result<Vec<Build>, anyhow::Error> {
         tracing::info!(url = ?url.to_string(), "building workspace");
@@ -315,19 +316,19 @@ impl<'a> State<'a> {
 
         manifest_build
             .sources
-            .insert(rune::Source::with_path(url, source, Some(path)));
+            .insert(crate::Source::with_path(url, source, Some(path)));
 
         let mut source_loader = WorkspaceSourceLoader::new(&self.workspace.sources);
 
-        let manifest = rune::workspace::prepare(&mut manifest_build.sources)
+        let manifest = crate::workspace::prepare(&mut manifest_build.sources)
             .with_diagnostics(diagnostics)
             .with_source_loader(&mut source_loader)
             .build()?;
 
         let mut script_builds = Vec::new();
 
-        for found in manifest.find_all(rune::workspace::WorkspaceFilter::All)? {
-            let Ok(url) = crate::url::from_file_path(&found.path) else {
+        for found in manifest.find_all(crate::workspace::WorkspaceFilter::All)? {
+            let Ok(url) = crate::languageserver::url::from_file_path(&found.path) else {
                 continue;
             };
 
@@ -342,7 +343,7 @@ impl<'a> State<'a> {
             let mut build = Build::default();
             build
                 .sources
-                .insert(rune::Source::with_path(&url, source, Some(found.path)));
+                .insert(crate::Source::with_path(&url, source, Some(found.path)));
             script_builds.push(build);
         }
 
@@ -353,12 +354,12 @@ impl<'a> State<'a> {
         &self,
         mut build: Build,
         built: Option<&mut HashSet<Url>>,
-    ) -> (rune::Diagnostics, Build, Visitor) {
-        let mut diagnostics = rune::Diagnostics::new();
+    ) -> (crate::Diagnostics, Build, Visitor) {
+        let mut diagnostics = crate::Diagnostics::new();
         let mut visitor = Visitor::default();
         let mut source_loader = ScriptSourceLoader::new(&self.workspace.sources);
 
-        let _ = rune::prepare(&mut build.sources)
+        let _ = crate::prepare(&mut build.sources)
             .with_context(&self.context)
             .with_diagnostics(&mut diagnostics)
             .with_options(&self.options)
@@ -376,7 +377,7 @@ impl<'a> State<'a> {
 
 /// Emit diagnostics workspace.
 fn emit_workspace(
-    diagnostics: rune::workspace::Diagnostics,
+    diagnostics: crate::workspace::Diagnostics,
     build: &Build,
     reporter: &mut Reporter,
 ) {
@@ -392,14 +393,13 @@ fn emit_workspace(
     for diagnostic in diagnostics.diagnostics() {
         tracing::trace!(?diagnostic, "workspace diagnostic");
 
-        if let rune::workspace::Diagnostic::Fatal(f) = diagnostic {
-            report(build, reporter, f.source_id(), f.error(), to_error);
-        }
+        let crate::workspace::Diagnostic::Fatal(f) = diagnostic;
+        report(build, reporter, f.source_id(), f.error(), to_error);
     }
 }
 
 /// Emit regular compile diagnostics.
-fn emit_scripts(diagnostics: rune::Diagnostics, build: &Build, reporter: &mut Reporter) {
+fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut Reporter) {
     if tracing::enabled!(tracing::Level::TRACE) {
         let id_to_url = build
             .id_to_url
@@ -442,30 +442,23 @@ fn emit_scripts(diagnostics: rune::Diagnostics, build: &Build, reporter: &mut Re
                             ));
                         }
                     }
-                    e => {
-                        report_without_span(build, reporter, f.source_id(), e, to_error);
-                    }
                 },
                 FatalDiagnosticKind::Internal(e) => {
-                    report_without_span(build, reporter, f.source_id(), e, to_error);
-                }
-                e => {
                     report_without_span(build, reporter, f.source_id(), e, to_error);
                 }
             },
             Diagnostic::Warning(e) => {
                 report(build, reporter, e.source_id(), e, to_warning);
             }
-            _ => {}
         }
     }
 }
 
 /// A collection of open sources.
 #[derive(Default)]
-pub(crate) struct Workspace {
+pub(super) struct Workspace {
     /// Found workspace root.
-    pub(crate) manifest_path: Option<(Url, PathBuf)>,
+    pub(super) manifest_path: Option<(Url, PathBuf)>,
     /// Sources that might be modified.
     sources: HashMap<Url, Source>,
     /// A source that has been removed.
@@ -474,7 +467,7 @@ pub(crate) struct Workspace {
 
 impl Workspace {
     /// Insert the given source at the given url.
-    pub(crate) fn insert_source(
+    pub(super) fn insert_source(
         &mut self,
         url: Url,
         text: String,
@@ -491,17 +484,17 @@ impl Workspace {
     }
 
     /// Get the source at the given url.
-    pub(crate) fn get(&self, url: &Url) -> Option<&Source> {
+    pub(super) fn get(&self, url: &Url) -> Option<&Source> {
         self.sources.get(url)
     }
 
     /// Get the mutable source at the given url.
-    pub(crate) fn get_mut(&mut self, url: &Url) -> Option<&mut Source> {
+    pub(super) fn get_mut(&mut self, url: &Url) -> Option<&mut Source> {
         self.sources.get_mut(url)
     }
 
     /// Remove the given url as a source.
-    pub(crate) fn remove(&mut self, url: &Url) {
+    pub(super) fn remove(&mut self, url: &Url) {
         if self.sources.remove(url).is_some() {
             self.removed.push(url.clone());
         }
@@ -509,21 +502,21 @@ impl Workspace {
 }
 
 /// A single open source.
-pub(crate) struct Source {
+pub(super) struct Source {
     /// The content of the current source.
     content: Rope,
     /// Indexes used to answer queries.
     index: Index,
     /// Loaded Rune sources for this source file. Will be present after the
     /// source file has been built.
-    build_sources: Option<Arc<rune::Sources>>,
+    build_sources: Option<Arc<crate::Sources>>,
     /// The language of the source.
     language: Language,
 }
 
 impl Source {
     /// Find the definition at the given span.
-    pub(crate) fn find_definition_at(&self, span: Span) -> Option<&Definition> {
+    pub(super) fn find_definition_at(&self, span: Span) -> Option<&Definition> {
         let (found_span, definition) = self.index.definitions.range(..=span).rev().next()?;
 
         if span.start >= found_span.start && span.end <= found_span.end {
@@ -535,7 +528,7 @@ impl Source {
     }
 
     /// Modify the given lsp range in the file.
-    pub(crate) fn modify_lsp_range(&mut self, range: lsp::Range, content: &str) -> Result<()> {
+    pub(super) fn modify_lsp_range(&mut self, range: lsp::Range, content: &str) -> Result<()> {
         let start = rope_utf16_position(&self.content, range.start)?;
         let end = rope_utf16_position(&self.content, range.end)?;
         self.content.remove(start..end);
@@ -555,7 +548,7 @@ impl Source {
     }
 
     /// Iterate over the text chunks in the source.
-    pub(crate) fn chunks(&self) -> impl Iterator<Item = &str> {
+    pub(super) fn chunks(&self) -> impl Iterator<Item = &str> {
         self.content.chunks()
     }
 }
@@ -567,7 +560,7 @@ impl fmt::Display for Source {
 }
 
 /// Convert the given span into an lsp range.
-fn span_to_lsp_range(source: &rune::Source, span: Span) -> Option<lsp::Range> {
+fn span_to_lsp_range(source: &crate::Source, span: Span) -> Option<lsp::Range> {
     let (line, character) = source.pos_to_utf16cu_linecol(span.start.into_usize());
     let start = lsp::Position::new(line as u32, character as u32);
     let (line, character) = source.pos_to_utf16cu_linecol(span.end.into_usize());
@@ -683,14 +676,14 @@ where
 }
 
 #[derive(Default)]
-pub(crate) struct Index {
+pub(super) struct Index {
     /// Spans mapping to their corresponding definitions.
     definitions: BTreeMap<Span, Definition>,
 }
 
 /// A definition source.
 #[derive(Debug, Clone)]
-pub(crate) enum DefinitionSource {
+pub(super) enum DefinitionSource {
     /// Only a file source.
     Source(SourceId),
     /// A location definition (source and span).
@@ -725,15 +718,15 @@ impl DefinitionSource {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Definition {
+pub(super) struct Definition {
     /// The kind of the definition.
-    pub(crate) kind: DefinitionKind,
+    pub(super) kind: DefinitionKind,
     /// The id of the source id the definition corresponds to.
-    pub(crate) source: DefinitionSource,
+    pub(super) source: DefinitionSource,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum DefinitionKind {
+pub(super) enum DefinitionKind {
     /// A unit struct.
     UnitStruct,
     /// A tuple struct.
@@ -763,7 +756,7 @@ struct Visitor {
 
 impl Visitor {
     /// Convert visitor back into an index.
-    pub(crate) fn into_indexes(self) -> HashMap<SourceId, Index> {
+    pub(super) fn into_indexes(self) -> HashMap<SourceId, Index> {
         self.indexes
     }
 }
@@ -851,7 +844,7 @@ struct ScriptSourceLoader<'a> {
 
 impl<'a> ScriptSourceLoader<'a> {
     /// Construct a new source loader.
-    pub(crate) fn new(sources: &'a HashMap<Url, Source>) -> Self {
+    pub(super) fn new(sources: &'a HashMap<Url, Source>) -> Self {
         Self {
             sources,
             base: compile::FileSourceLoader::new(),
@@ -891,21 +884,26 @@ impl<'a> ScriptSourceLoader<'a> {
         b.push(last);
         b.push("mod.rn");
 
-        let a_url = crate::url::from_file_path(&a).ok()?;
-        let b_url = crate::url::from_file_path(&b).ok()?;
+        let a_url = crate::languageserver::url::from_file_path(&a).ok()?;
+        let b_url = crate::languageserver::url::from_file_path(&b).ok()?;
 
         Some([(a_url, a), (b_url, b)])
     }
 }
 
-impl<'a> rune::compile::SourceLoader for ScriptSourceLoader<'a> {
-    fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<rune::Source, CompileError> {
+impl<'a> crate::compile::SourceLoader for ScriptSourceLoader<'a> {
+    fn load(
+        &mut self,
+        root: &Path,
+        item: &Item,
+        span: Span,
+    ) -> Result<crate::Source, CompileError> {
         tracing::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {
             for (url, path) in candidates {
                 if let Some(s) = self.sources.get(&url) {
-                    return Ok(rune::Source::with_path(url, s.to_string(), Some(path)));
+                    return Ok(crate::Source::with_path(url, s.to_string(), Some(path)));
                 }
             }
         }
@@ -921,7 +919,7 @@ struct WorkspaceSourceLoader<'a> {
 
 impl<'a> WorkspaceSourceLoader<'a> {
     /// Construct a new source loader.
-    pub(crate) fn new(sources: &'a HashMap<Url, Source>) -> Self {
+    pub(super) fn new(sources: &'a HashMap<Url, Source>) -> Self {
         Self {
             sources,
             base: workspace::FileSourceLoader::new(),
@@ -929,11 +927,11 @@ impl<'a> WorkspaceSourceLoader<'a> {
     }
 }
 
-impl<'a> rune::workspace::SourceLoader for WorkspaceSourceLoader<'a> {
-    fn load(&mut self, span: Span, path: &Path) -> Result<rune::Source, WorkspaceError> {
-        if let Ok(url) = crate::url::from_file_path(path) {
+impl<'a> crate::workspace::SourceLoader for WorkspaceSourceLoader<'a> {
+    fn load(&mut self, span: Span, path: &Path) -> Result<crate::Source, WorkspaceError> {
+        if let Ok(url) = crate::languageserver::url::from_file_path(path) {
             if let Some(s) = self.sources.get(&url) {
-                return Ok(rune::Source::with_path(url, s.to_string(), Some(path)));
+                return Ok(crate::Source::with_path(url, s.to_string(), Some(path)));
             }
         }
 
