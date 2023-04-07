@@ -491,12 +491,12 @@ where
             CompileErrorKind::DuplicateObjectKey { existing, object } => {
                 labels.push(
                     d::Label::secondary(this.source_id(), existing.range())
-                        .with_message("previously defined here"),
+                        .with_message("Previously defined here"),
                 );
 
                 labels.push(
                     d::Label::secondary(this.source_id(), object.range())
-                        .with_message("object being defined here"),
+                        .with_message("Object being defined here"),
                 );
             }
             CompileErrorKind::ModAlreadyLoaded { existing, .. } => {
@@ -504,13 +504,13 @@ where
 
                 labels.push(
                     d::Label::secondary(existing_source_id, existing_span.range())
-                        .with_message("previously loaded here"),
+                        .with_message("Previously loaded here"),
                 );
             }
             CompileErrorKind::ExpectedBlockSemiColon { followed_span } => {
                 labels.push(
                     d::Label::secondary(this.source_id(), followed_span.range())
-                        .with_message("because this immediately follows"),
+                        .with_message("Because this immediately follows"),
                 );
 
                 let binding = sources.source(this.source_id(), error_span);
@@ -524,7 +524,7 @@ where
             CompileErrorKind::VariableMoved { moved_at, .. } => {
                 labels.push(
                     d::Label::secondary(this.source_id(), moved_at.range())
-                        .with_message("moved here"),
+                        .with_message("Moved here"),
                 );
             }
             CompileErrorKind::CallMacroError { item, .. } => {
@@ -533,13 +533,13 @@ where
             CompileErrorKind::NestedTest { nested_span } => {
                 labels.push(
                     d::Label::secondary(this.source_id(), nested_span.range())
-                        .with_message("nested in here"),
+                        .with_message("Nested in here"),
                 );
             }
             CompileErrorKind::NestedBench { nested_span } => {
                 labels.push(
                     d::Label::secondary(this.source_id(), nested_span.range())
-                        .with_message("nested in here"),
+                        .with_message("Nested in here"),
                 );
             }
             CompileErrorKind::PatternMissingFields { fields, .. } => {
@@ -553,7 +553,7 @@ where
 
                 labels.push(
                     d::Label::secondary(this.source_id(), error_span.range())
-                        .with_message(format!("missing {}: {}", pl, fields)),
+                        .with_message(format!("Missing {}: {}", pl, fields)),
                 );
 
                 notes.push("You can also make the pattern non-exhaustive by adding `..`".to_string());
@@ -596,15 +596,6 @@ where
                             .with_message(format!("final step cycling back to `{}`", entry.item)),
                     );
                 }
-            }
-            QueryErrorKind::ItemConflict {
-                other: Location { source_id, span },
-                ..
-            } => {
-                labels.push(
-                    d::Label::secondary(*source_id, span.range())
-                        .with_message("previously defined here"),
-                );
             }
             QueryErrorKind::NotVisible {
                 chain,

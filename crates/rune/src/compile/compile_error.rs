@@ -103,8 +103,6 @@ pub(crate) enum CompileErrorKind {
         #[source]
         error: io::Error,
     },
-    #[error("Error during constant evaluation: {msg}")]
-    ConstError { msg: &'static str },
     #[error("Experimental feature: {msg}")]
     Experimental { msg: &'static str },
     #[error("File not found, expected a module file like `{path}.rn`")]
@@ -132,8 +130,6 @@ pub(crate) enum CompileErrorKind {
     UnsupportedModuleRoot { root: PathBuf },
     #[error("Cannot load module for `{item}`")]
     UnsupportedModuleItem { item: ItemBuf },
-    #[error("Wildcard support not supported in this position")]
-    UnsupportedWildcard,
     #[error("Keyword `self` not supported here")]
     UnsupportedSelf,
     #[error("Unsupported unary operator `{op}`")]
@@ -162,14 +158,10 @@ pub(crate) enum CompileErrorKind {
         expected: usize,
         actual: usize,
     },
-    #[error("Item `{meta}` is not supported here")]
-    UnsupportedPattern { meta: MetaInfo },
     #[error("This kind of expression is not supported as a pattern")]
     UnsupportedPatternExpr,
     #[error("Not a valid binding")]
     UnsupportedBinding,
-    #[error("Floating point numbers cannot be used in patterns")]
-    MatchFloatInPattern,
     #[error("Duplicate key in literal object")]
     DuplicateObjectKey { existing: Span, object: Span },
     #[error("Expression `yield` must be used in function or closure")]
@@ -178,8 +170,6 @@ pub(crate) enum CompileErrorKind {
     AwaitOutsideFunction,
     #[error("Instance function declared outside of `impl` block")]
     InstanceFunctionOutsideImpl,
-    #[error("Import `{item}` (imported in prelude) does not exist")]
-    MissingPreludeModule { item: ItemBuf },
     #[error("Unsupported tuple index `{number}`")]
     UnsupportedTupleIndex { number: ast::Number },
     #[error("Break outside of loop")]
@@ -190,8 +180,6 @@ pub(crate) enum CompileErrorKind {
     SelectMultipleDefaults,
     #[error("Expected expression to be terminated by a semicolon `;`")]
     ExpectedBlockSemiColon { followed_span: Span },
-    #[error("Macro call must be terminated by a semicolon `;`")]
-    ExpectedMacroSemi,
     #[error("An `fn` can't both be `async` and `const` at the same time")]
     FnConstAsyncConflict,
     #[error("A block can't both be `async` and `const` at the same time")]
@@ -200,12 +188,8 @@ pub(crate) enum CompileErrorKind {
     FnConstNotGenerator,
     #[error("Unsupported closure kind")]
     ClosureKind,
-    #[error("Keyword `crate` is only suppoted in the first location of a path")]
-    UnsupportedCrate,
     #[error("Keyword `Self` is only supported inside of `impl` blocks")]
     UnsupportedSelfType,
-    #[error("Keyword `self` cannot be used here")]
-    UnsupportedSelfValue,
     #[error("Keyword `super` is not supported at the root module level")]
     UnsupportedSuper,
     #[error("Keyword `super` can't be used in paths starting with `Self`")]
@@ -222,8 +206,6 @@ pub(crate) enum CompileErrorKind {
     FunctionReExportConflict { hash: Hash },
     #[error("Conflicting constant registered for `{item}` on hash `{hash}`")]
     ConstantConflict { item: ItemBuf, hash: Hash },
-    #[error("Unsupported meta type for item `{existing}`")]
-    UnsupportedMeta { existing: ItemBuf },
     #[error("Missing static string for hash `{hash}` and slot `{slot}`")]
     StaticStringMissing { hash: Hash, slot: usize },
     #[error("Missing static byte string for hash `{hash}` and slot `{slot}`")]

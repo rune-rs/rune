@@ -29,7 +29,7 @@ use crate::{Context, Hash, SourceId, Sources};
 /// The permitted number of import recursions when constructing a path.
 const IMPORT_RECURSION_LIMIT: usize = 128;
 
-pub use self::query_error::{QueryError};
+pub use self::query_error::QueryError;
 pub(crate) use self::query_error::QueryErrorKind;
 
 mod query_error;
