@@ -15,7 +15,7 @@ fn test_getter_setter() -> Result<()> {
     let mut module = Module::new();
     module.ty::<Foo>()?;
 
-    let mut context = rune_modules::default_context()?;
+    let mut context = Context::with_default_modules()?;
     context.install(module)?;
 
     let mut sources = sources! {

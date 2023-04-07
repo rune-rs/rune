@@ -323,7 +323,10 @@ where
 impl<T> Termination for VmResult<T> {
     #[inline]
     fn report(self) -> std::process::ExitCode {
-        std::process::ExitCode::FAILURE
+        match self {
+            VmResult::Ok(_) => std::process::ExitCode::SUCCESS,
+            VmResult::Err(_) => std::process::ExitCode::FAILURE,
+        }
     }
 }
 

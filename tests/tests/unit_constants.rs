@@ -2,7 +2,7 @@ use rune_tests::prelude::*;
 
 #[test]
 fn test_get_const() -> Result<()> {
-    let context = rune_modules::default_context()?;
+    let context = Context::with_default_modules()?;
 
     let mut sources = sources! {
         entry => {
@@ -26,7 +26,7 @@ fn test_get_const() -> Result<()> {
 
 #[test]
 fn test_get_const_re_export() -> Result<()> {
-    let context = rune_modules::default_context()?;
+    let context = Context::with_default_modules()?;
 
     let mut sources = sources! {
         entry => {
@@ -54,7 +54,7 @@ fn test_get_const_re_export() -> Result<()> {
 
 #[test]
 fn test_get_const_nested() -> Result<()> {
-    let context = rune_modules::default_context()?;
+    let context = Context::with_default_modules()?;
 
     let mut sources = sources! {
         entry => {

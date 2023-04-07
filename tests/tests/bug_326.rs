@@ -6,7 +6,7 @@ use std::sync::Arc;
 /// https://github.com/rune-rs/rune/issues/326
 #[test]
 fn bug_326() -> Result<()> {
-    let mut context = rune_modules::default_context()?;
+    let mut context = Context::with_default_modules()?;
     context.install(trim_module()?)?;
 
     let runtime = Arc::new(context.runtime());
