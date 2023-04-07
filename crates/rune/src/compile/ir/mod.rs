@@ -7,7 +7,7 @@ pub(crate) mod compile;
 pub(crate) use self::compile::IrCompiler;
 
 mod error;
-pub use self::error::{IrError};
+pub use self::error::IrError;
 pub(crate) use self::error::IrErrorKind;
 
 mod eval;

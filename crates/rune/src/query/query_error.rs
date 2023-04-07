@@ -52,8 +52,6 @@ pub(crate) enum QueryErrorKind {
     },
     #[error("Missing {what} for id {id:?}")]
     MissingId { what: &'static str, id: Id },
-    #[error("Cannot define conflicting item `{item}`")]
-    ItemConflict { item: ItemBuf, other: Location },
     #[error("Item `{item}` can refer to multiple things")]
     AmbiguousItem {
         item: ItemBuf,
@@ -87,10 +85,6 @@ pub(crate) enum QueryErrorKind {
     ImportRecursionLimit { count: usize, path: Vec<ImportStep> },
     #[error("Missing last use component")]
     LastUseComponent,
-    #[error("Found indexed entry for `{item}`, but was not an import")]
-    NotIndexedImport { item: ItemBuf },
-    #[error("Item `{meta}` can't be used as an import")]
-    UnsupportedImportMeta { meta: MetaInfo },
     /// Tried to add an item that already exists.
     #[error("Item `{current}` but conflicting meta `{existing}` already exists")]
     MetaConflict {

@@ -120,9 +120,6 @@ pub(crate) enum IrErrorKind {
     /// Exceeded evaluation budget.
     #[error("Evaluation budget exceeded")]
     BudgetExceeded,
-    /// Integer underflow.
-    #[error("Integer underflow")]
-    IntegerUnderflow,
     /// Missing a tuple index.
     #[error("Missing index {index}")]
     MissingIndex {

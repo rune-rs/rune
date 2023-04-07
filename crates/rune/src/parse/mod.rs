@@ -17,12 +17,12 @@ pub use self::id::{Id, NonZeroId};
 pub(crate) use self::lexer::{Lexer, LexerMode};
 pub(crate) use self::opaque::Opaque;
 pub use self::parse::Parse;
-pub use self::parse_error::{ParseError};
+pub use self::parse_error::ParseError;
 pub(crate) use self::parse_error::ParseErrorKind;
 pub use self::parser::{Parser, Peeker};
 pub use self::peek::Peek;
-pub use self::resolve::{Resolve, ResolveContext, ResolveError};
 pub(crate) use self::resolve::ResolveErrorKind;
+pub use self::resolve::{Resolve, ResolveContext, ResolveError};
 
 use crate::SourceId;
 
