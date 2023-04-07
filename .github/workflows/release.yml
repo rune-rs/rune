@@ -13,11 +13,6 @@ on:
         options:
         - nightly
         - release
-      skip_tests:
-        description: 'skip tests'
-        required: true
-        default: false
-        type: boolean
   push:
     branches:
       - release
@@ -37,7 +32,6 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    if: ${{ always() && !github.event.inputs.skip_tests }}
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
@@ -50,7 +44,6 @@ jobs:
   build:
     needs: [tag, test]
     runs-on: ${{matrix.os}}
-    if: ${{ always() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     strategy:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
@@ -68,7 +61,6 @@ jobs:
   publish:
     needs: [tag, build]
     runs-on: ubuntu-latest
-    if: ${{ always() && needs.tag.result == 'success' && needs.build.result == 'success' }}
     steps:
     - uses: actions/checkout@v3
     - run: echo "HEAD_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
