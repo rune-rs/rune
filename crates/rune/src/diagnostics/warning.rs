@@ -24,12 +24,12 @@ impl WarningDiagnostic {
     }
 
     /// The kind of the warning.
-    pub fn kind(&self) -> &WarningDiagnosticKind {
+    pub(crate) fn kind(&self) -> &WarningDiagnosticKind {
         &self.kind
     }
 
-    /// Convert into the kind of the warning.
-    pub fn into_kind(self) -> WarningDiagnosticKind {
+    #[cfg(test)]
+    pub(crate) fn into_kind(self) -> WarningDiagnosticKind {
         self.kind
     }
 

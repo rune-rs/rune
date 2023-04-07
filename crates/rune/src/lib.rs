@@ -256,6 +256,9 @@ pub use rune_macros::function;
 #[cfg(feature = "cli")]
 pub mod cli;
 
+#[cfg(feature = "languageserver")]
+pub mod languageserver;
+
 #[cfg(feature = "doc")]
 pub mod doc;
 

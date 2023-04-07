@@ -5,38 +5,39 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum RequestId {
+pub(super) enum RequestId {
     Number(u64),
     String(String),
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct IncomingMessage<'a> {
-    pub jsonrpc: V2,
-    pub id: Option<RequestId>,
+pub(super) struct IncomingMessage<'a> {
+    #[allow(unused)]
+    pub(super) jsonrpc: V2,
+    pub(super) id: Option<RequestId>,
     #[serde(borrow)]
-    pub method: &'a str,
+    pub(super) method: &'a str,
     #[serde(default)]
-    pub params: serde_json::Value,
+    pub(super) params: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct NotificationMessage<T> {
-    pub jsonrpc: V2,
-    pub method: &'static str,
-    pub params: T,
+pub(super) struct NotificationMessage<T> {
+    pub(super) jsonrpc: V2,
+    pub(super) method: &'static str,
+    pub(super) params: T,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseMessage<T, D> {
-    pub jsonrpc: V2,
-    pub id: Option<RequestId>,
-    pub result: Option<T>,
-    pub error: Option<ResponseError<D>>,
+pub(super) struct ResponseMessage<T, D> {
+    pub(super) jsonrpc: V2,
+    pub(super) id: Option<RequestId>,
+    pub(super) result: Option<T>,
+    pub(super) error: Option<ResponseError<D>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Code {
+pub(super) enum Code {
     ParseError = -32700,
     InvalidRequest = -32600,
     MethodNotFound = -32601,
@@ -50,14 +51,14 @@ pub enum Code {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseError<D> {
-    pub code: Code,
-    pub message: String,
-    pub data: Option<D>,
+pub(super) struct ResponseError<D> {
+    pub(super) code: Code,
+    pub(super) message: String,
+    pub(super) data: Option<D>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
-pub struct V2;
+pub(super) struct V2;
 
 impl serde::Serialize for V2 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

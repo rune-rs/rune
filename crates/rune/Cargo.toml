@@ -19,7 +19,8 @@ emit = ["codespan-reporting"]
 bench = []
 workspace = ["toml", "semver", "relative-path", "serde-hashkey"]
 doc = ["rust-embed", "handlebars", "pulldown-cmark", "syntect"]
-cli = ["workspace", "doc", "bincode", "atty", "tracing-subscriber", "tokio", "anyhow/std", "clap", "webbrowser", "capture-io", "disable-io"]
+cli = ["workspace", "doc", "bincode", "atty", "tracing-subscriber", "tokio", "anyhow/std", "clap", "webbrowser", "capture-io", "disable-io", "languageserver"]
+languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json"]
 capture-io = ["parking_lot"]
 disable-io = []
 
@@ -52,16 +53,21 @@ serde-hashkey = { version = "0.4.5", optional = true }
 smallvec = { version = "1.10.0", features = ["write", "serde", "const_new"] }
 syntect = { version = "5.0.0", optional = true }
 thiserror = "1.0.40"
-tokio = { version = "1.27.0", features = ["rt-multi-thread", "net", "fs", "macros"], optional = true }
+tokio = { version = "1.27.0", features = ["rt-multi-thread", "fs"], optional = true }
 toml = { version = "0.7.3", optional = true, features = ["parse"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"], optional = true }
 twox-hash = { version = "1.6.3", default-features = false }
 webbrowser = { version = "0.8.8", optional = true }
 parking_lot = { version = "0.12.1", optional = true }
+lsp = { version = "0.94.0", package = "lsp-types", optional = true }
+ropey = { version = "1.6.0", optional = true }
+percent-encoding = { version = "2.2.0", optional = true }
+url = { version = "2.3.1", optional = true }
+serde_json = { version = "1.0.95", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.27.0", features = ["macros"] }
+tokio = { version = "1.27.0", features = ["full"] }
 static_assertions = "1.1.0"
 checkers = "0.6.3"
 futures-executor = "0.3.28"

@@ -12,7 +12,7 @@ const PATH: &AsciiSet = &FRAGMENT.add(b'#').add(b'?').add(b'{').add(b'}');
 const PATH_SEGMENT: &AsciiSet = &PATH.add(b'/').add(b'%');
 
 /// Convert a file path into a URL.
-pub(crate) fn from_file_path<P>(path: P) -> Result<Url, ()>
+pub(super) fn from_file_path<P>(path: P) -> Result<Url, ()>
 where
     P: AsRef<Path>,
 {
