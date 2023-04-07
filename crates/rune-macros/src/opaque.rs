@@ -67,6 +67,7 @@ impl Expander {
         let (gen_impl, gen_type, gen_where) = input.generics.split_for_impl();
 
         Some(quote! {
+            #[automatically_derived]
             impl #gen_impl #opaque for #ident #gen_type #gen_where {
                 fn id(&self) -> #id {
                     #accessor

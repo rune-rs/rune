@@ -67,6 +67,7 @@ impl Expander {
         let (impl_gen, type_gen, where_gen) = input.generics.split_for_impl();
 
         Some(quote! {
+            #[automatically_derived]
             impl #impl_gen #spanned for #ident #type_gen #where_gen {
                 fn span(&self) -> #span {
                     #inner
@@ -92,6 +93,7 @@ impl Expander {
         let (impl_gen, type_gen, where_gen) = input.generics.split_for_impl();
 
         Some(quote_spanned! { input.span() =>
+            #[automatically_derived]
             impl #impl_gen #spanned for #ident #type_gen #where_gen {
                 fn span(&self) -> #span {
                     match self {

@@ -26,7 +26,8 @@ impl Expander {
             ..
         } = &self.tokens;
 
-        Some(quote! {
+        Some(quote_spanned! { input.span() =>
+            #[automatically_derived]
             impl #to_value for #ident {
                 fn to_value(self) -> #vm_result<#value> {
                     #inner

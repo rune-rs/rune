@@ -1,5 +1,7 @@
 //! Test cases for rune.
-#![allow(dead_code)]
+
+#![allow(clippy::bool_assert_comparison)]
+#![allow(clippy::approx_constant)]
 
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
@@ -38,16 +40,6 @@ pub enum RunError {
     /// A virtual machine error was raised during testing.
     #[error("vm error: {0}")]
     VmError(VmError),
-}
-
-impl RunError {
-    /// Unpack into a vm error or panic with the given message.
-    pub fn expect_vm_error(self, msg: &str) -> VmError {
-        match self {
-            Self::VmError(error) => error,
-            _ => panic!("{}", msg),
-        }
-    }
 }
 
 /// Compile the given source into a unit and collection of warnings.
@@ -156,29 +148,6 @@ where
     }
 
     Err(e)
-}
-
-/// Helper function to construct a context and unit from a Rune source for
-/// testing purposes.
-///
-/// This is primarily used in examples.
-pub fn build(context: &Context, source: &str) -> crate::Result<Arc<Unit>> {
-    let mut sources = Sources::new();
-    sources.insert(Source::new("source", source));
-
-    let mut diagnostics = Diagnostics::new();
-
-    let result = crate::prepare(&mut sources)
-        .with_context(context)
-        .with_diagnostics(&mut diagnostics)
-        .build();
-
-    if !diagnostics.is_empty() {
-        let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
-        diagnostics.emit(&mut writer, &sources)?;
-    }
-
-    Ok(Arc::new(result?))
 }
 
 /// Same as [rune_s!] macro, except it takes a Rust token tree. This works

@@ -15,7 +15,7 @@ fn test_binding_pattern() {
         }
     };
 
-    assert_eq!(out, 1 * 2 + 2 * 3 + 3 * 4);
+    assert_eq!(out, 2 + 2 * 3 + 3 * 4);
 }
 
 #[test]

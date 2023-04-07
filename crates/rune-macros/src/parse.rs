@@ -163,6 +163,7 @@ impl Expander {
         } else {
             Some(quote_spanned! {
                 named.span() =>
+                #[automatically_derived]
                 impl #parse for #ident {
                     fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
                         #(#meta_parse;)*
@@ -173,31 +174,31 @@ impl Expander {
         };
 
         let output = if !meta_args.is_empty() {
-            quote_spanned! {
-                named.span() =>
-                    impl #ident {
-                        #[doc = "Parse #ident and attach the given meta"]
-                        pub fn parse_with_meta(#parser_ident: &mut #parser<'_>, #(#meta_args,)*)
-                            -> Result<Self, #parse_error>
-                        {
-                            Ok(Self {
-                                #(#fields,)*
-                            })
-                        }
+            quote_spanned! { named.span() =>
+                #[automatically_derived]
+                impl #ident {
+                    #[doc = "Parse #ident and attach the given meta"]
+                    pub fn parse_with_meta(#parser_ident: &mut #parser<'_>, #(#meta_args,)*)
+                        -> Result<Self, #parse_error>
+                    {
+                        Ok(Self {
+                            #(#fields,)*
+                        })
                     }
+                }
 
-                    #inner
+                #inner
             }
         } else {
-            quote_spanned! {
-                named.span() =>
-                    impl #parse for #ident {
-                        fn parse(#parser_ident: &mut #parser<'_>) -> Result<Self, #parse_error> {
-                           Ok(Self {
-                                #(#fields,)*
-                            })
-                         }
+            quote_spanned! { named.span() =>
+                #[automatically_derived]
+                impl #parse for #ident {
+                    fn parse(#parser_ident: &mut #parser<'_>) -> Result<Self, #parse_error> {
+                        Ok(Self {
+                            #(#fields,)*
+                        })
                     }
+                }
             }
         };
 
