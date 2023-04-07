@@ -15,7 +15,7 @@ fn aoc_2020_11a(b: &mut Criterion) {
         .map(str::to_owned)
         .collect::<Vec<String>>();
 
-    let mut vm = rune_tests::rune_vm! {
+    let mut vm = rune_vm! {
         enum CellState {
             Floor,
             Unoccupied,

@@ -1,7 +1,7 @@
 use criterion::Criterion;
 use rune::{Hash, Result, Vm};
 
-use rune_tests::capture_io::CaptureIo;
+use crate::capture_io::CaptureIo;
 
 criterion::criterion_group!(benches, entry);
 
@@ -70,7 +70,7 @@ fn entry(b: &mut Criterion) {
 }
 
 fn make_vm() -> Result<(Vm, CaptureIo)> {
-    Ok(rune_tests::rune_vm_capture! {
+    Ok(rune_vm_capture! {
         enum Op {
             Inc(v),
             Move(v),
