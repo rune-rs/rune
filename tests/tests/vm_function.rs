@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 #[test]
 fn test_function() {
-    let context = Arc::new(rune_modules::default_context().unwrap());
+    let context = Arc::new(Context::with_default_modules().unwrap());
 
     // ptr to dynamic function.
     let function: Function = rune! {

@@ -7,7 +7,6 @@ pub mod prelude {
         assert_vm_error, assert_warnings, run,
     };
     pub use crate::{rune, rune_n, rune_s};
-    pub use ::rune_modules as modules;
     pub use futures_executor::block_on;
     pub use rune::ast;
     pub use rune::compile::{self, CompileErrorKind, Item, Location, Named};
@@ -25,6 +24,9 @@ pub mod prelude {
         Vm,
     };
 }
+
+#[doc(hidden)]
+pub mod capture_io;
 
 use rune::compile::{IntoComponent, ItemBuf};
 use rune::runtime::{Args, VmError, VmResult};
@@ -56,7 +58,7 @@ impl RunError {
 /// Compile the given source into a unit and collection of warnings.
 #[doc(hidden)]
 pub fn compile_helper(source: &str, diagnostics: &mut Diagnostics) -> Result<Unit, BuildError> {
-    let context = crate::prelude::modules::default_context().expect("setting up default modules");
+    let context = rune::Context::with_default_modules().expect("setting up default modules");
 
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source));
@@ -199,7 +201,7 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 #[macro_export]
 macro_rules! rune_vm {
     ($($tt:tt)*) => {{
-        let context = $crate::prelude::modules::default_context().expect("failed to build context");
+        let context = rune::Context::with_default_modules().expect("failed to build context");
         let mut diagnostics = Default::default();
         let mut sources = $crate::sources(stringify!($($tt)*));
         $crate::vm(&context, &mut sources, &mut diagnostics).expect("program to compile successfully")
@@ -223,9 +225,9 @@ macro_rules! rune_vm {
 #[macro_export]
 macro_rules! rune_vm_capture {
     ($($tt:tt)*) => {{
-        let mut context = $crate::prelude::modules::with_config(false)?;
-        let io = $crate::prelude::modules::capture_io::CaptureIo::new();
-        let m = $crate::prelude::modules::capture_io::module(&io)?;
+        let mut context = rune::Context::with_config(false)?;
+        let io = $crate::capture_io::CaptureIo::new();
+        let m = $crate::capture_io::module(&io)?;
         context.install(m)?;
         let mut sources = $crate::sources(stringify!($($tt)*));
         let mut diagnostics = Default::default();
@@ -248,7 +250,7 @@ macro_rules! rune_vm_capture {
 #[macro_export]
 macro_rules! rune {
     ($($tt:tt)*) => {{
-        let context = $crate::prelude::modules::default_context().expect("failed to build context");
+        let context = rune::Context::with_default_modules().expect("failed to build context");
         $crate::run(&context, stringify!($($tt)*), ["main"], ()).expect("program to run successfully")
     }};
 }
@@ -266,7 +268,7 @@ macro_rules! rune {
 #[macro_export]
 macro_rules! rune_s {
     ($source:expr) => {{
-        let context = $crate::prelude::modules::default_context().expect("failed to build context");
+        let context = rune::Context::with_default_modules().expect("failed to build context");
         $crate::run(&context, $source, ["main"], ()).expect("program to run successfully")
     }};
 }
@@ -295,7 +297,7 @@ macro_rules! rune_s {
 #[macro_export]
 macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
-        let mut context = $crate::prelude::modules::default_context().expect("failed to build context");
+        let mut context = rune::Context::with_default_modules().expect("failed to build context");
         context.install($module).expect("failed to install native module");
         $crate::run::<_, _, $ty>(&context, stringify!($($tt)*), ["main"], $args).expect("program to run successfully")
     }};
@@ -311,7 +313,7 @@ macro_rules! assert_vm_error {
 
     // Second variant which allows for specifyinga type.
     ($ty:ty => $source:expr, $pat:pat => $cond:block) => {{
-        let context = $crate::prelude::modules::default_context().unwrap();
+        let context = rune::Context::with_default_modules().unwrap();
         let mut diagnostics = Default::default();
 
         let mut sources = $crate::sources($source);

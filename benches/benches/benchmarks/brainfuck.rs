@@ -1,6 +1,7 @@
 use criterion::Criterion;
 use rune::{Hash, Result, Vm};
-use rune_tests::prelude::modules::capture_io::CaptureIo;
+
+use rune_tests::capture_io::CaptureIo;
 
 criterion::criterion_group!(benches, entry);
 

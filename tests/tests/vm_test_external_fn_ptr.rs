@@ -1,8 +1,8 @@
 use rune_tests::prelude::*;
 
 #[test]
-fn test_external_function() -> rune::Result<()> {
-    let context = rune_modules::default_context()?;
+fn test_external_function() -> Result<()> {
+    let context = Context::with_default_modules()?;
 
     // NB: here we test passing the function from one virtual machine instance
     // into another, making sure that the function holds everything it needs to
@@ -32,8 +32,8 @@ fn test_external_function() -> rune::Result<()> {
 }
 
 #[test]
-fn test_external_generator() -> rune::Result<()> {
-    let context = rune_modules::default_context()?;
+fn test_external_generator() -> Result<()> {
+    let context = Context::with_default_modules()?;
 
     // NB: here we test passing the generator from one virtual machine instance
     // into another, making sure that the function holds everything it needs to
