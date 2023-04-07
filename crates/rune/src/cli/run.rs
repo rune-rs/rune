@@ -4,13 +4,13 @@ use std::time::Instant;
 
 use anyhow::Result;
 use clap::Parser;
-use rune::runtime::{VmError, VmExecution, VmResult};
-use rune::{Context, Sources, Unit, Value, Vm};
 
-use crate::{Config, ExitCode, Io, SharedFlags};
+use crate::cli::{Config, ExitCode, Io, SharedFlags};
+use crate::runtime::{VmError, VmExecution, VmResult};
+use crate::{Context, Sources, Unit, Value, Vm};
 
 #[derive(Parser, Debug, Clone)]
-pub(crate) struct Flags {
+pub(super) struct Flags {
     /// Provide detailed tracing for each instruction executed.
     #[arg(short, long)]
     trace: bool,
@@ -47,11 +47,11 @@ pub(crate) struct Flags {
     #[arg(long)]
     with_source: bool,
     #[command(flatten)]
-    pub(crate) shared: SharedFlags,
+    pub(super) shared: SharedFlags,
 }
 
 impl Flags {
-    pub(crate) fn propagate_related_flags(&mut self) {
+    pub(super) fn propagate_related_flags(&mut self) {
         if self.dump {
             self.dump_constants = true;
             self.dump_unit = true;
@@ -89,7 +89,7 @@ impl From<std::io::Error> for TraceError {
     }
 }
 
-pub(crate) async fn run(
+pub(super) async fn run(
     io: &mut Io<'_>,
     c: &Config,
     args: &Flags,

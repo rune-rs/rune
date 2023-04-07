@@ -4,15 +4,17 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use clap::Parser;
-use rune::compile::{Item, ItemBuf};
-use rune::runtime::{Function, Unit, Value};
-use rune::{Any, Context, ContextError, Hash, Module, Sources};
-use rune_modules::capture_io::CaptureIo;
 
-use crate::{ExitCode, Io, SharedFlags};
+use crate::cli::{ExitCode, Io, SharedFlags};
+use crate::compile::{Item, ItemBuf};
+use crate::modules::capture_io::CaptureIo;
+use crate::runtime::{Function, Unit, Value};
+use crate::{Any, Context, ContextError, Hash, Module, Sources};
+
+use crate as rune;
 
 #[derive(Parser, Debug, Clone)]
-pub(crate) struct Flags {
+pub(super) struct Flags {
     /// Rounds of warmup to perform
     #[arg(long, default_value = "100")]
     warmup: u32,
@@ -22,11 +24,11 @@ pub(crate) struct Flags {
     iterations: u32,
 
     #[command(flatten)]
-    pub(crate) shared: SharedFlags,
+    pub(super) shared: SharedFlags,
 }
 
 #[derive(Default, Any)]
-pub(crate) struct Bencher {
+pub(super) struct Bencher {
     fns: Vec<Function>,
 }
 
@@ -37,7 +39,7 @@ impl Bencher {
 }
 
 /// Registers `std::test` module.
-pub(crate) fn test_module() -> Result<Module, ContextError> {
+pub(super) fn test_module() -> Result<Module, ContextError> {
     let mut module = Module::with_item(["std", "test"]);
     module.ty::<Bencher>()?;
     module.inst_fn("iter", Bencher::iter)?;
@@ -45,7 +47,7 @@ pub(crate) fn test_module() -> Result<Module, ContextError> {
 }
 
 /// Run benchmarks.
-pub(crate) async fn run(
+pub(super) async fn run(
     io: &mut Io<'_>,
     args: &Flags,
     context: &Context,

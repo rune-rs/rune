@@ -3,13 +3,13 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use rune::compile::FileSourceLoader;
-use rune::{Diagnostics, Options, Source, Sources};
 
-use crate::{Config, EntryPoint, ExitCode, Io, SharedFlags};
+use crate::cli::{Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
+use crate::compile::FileSourceLoader;
+use crate::{Diagnostics, Options, Source, Sources};
 
 #[derive(Parser, Debug, Clone)]
-pub(crate) struct Flags {
+pub(super) struct Flags {
     /// Exit with a non-zero exit-code even for warnings
     #[arg(long)]
     warnings_are_errors: bool,
@@ -20,11 +20,12 @@ pub(crate) struct Flags {
     #[arg(long)]
     open: bool,
     #[command(flatten)]
-    pub(crate) shared: SharedFlags,
+    pub(super) shared: SharedFlags,
 }
 
-pub(crate) fn run<I>(
+pub(super) fn run<I>(
     io: &mut Io<'_>,
+    entry: &mut Entry<'_>,
     c: &Config,
     flags: &Flags,
     options: &Options,
@@ -55,12 +56,12 @@ where
 
     writeln!(io.stdout, "Building documentation: {}", root.display())?;
 
-    let context = flags.shared.context(c)?;
+    let context = flags.shared.context(entry, c, None)?;
 
     let mut visitors = Vec::new();
 
     for e in entrys {
-        let mut visitor = rune::doc::Visitor::new(e.item);
+        let mut visitor = crate::doc::Visitor::new(e.item);
         let mut sources = Sources::new();
 
         for path in &e.paths {
@@ -77,7 +78,7 @@ where
 
         let mut source_loader = FileSourceLoader::new();
 
-        let _ = rune::prepare(&mut sources)
+        let _ = crate::prepare(&mut sources)
             .with_context(&context)
             .with_diagnostics(&mut diagnostics)
             .with_options(options)
@@ -94,7 +95,7 @@ where
         visitors.push(visitor);
     }
 
-    rune::doc::write_html("root", &root, &context, &visitors)?;
+    crate::doc::write_html("root", &root, &context, &visitors)?;
 
     if flags.open {
         let path = root.join("index.html");

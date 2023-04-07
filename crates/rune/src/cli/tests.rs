@@ -4,15 +4,15 @@ use std::time::Instant;
 
 use anyhow::Result;
 use clap::Parser;
-use rune::compile::ItemBuf;
-use rune::runtime::{Unit, Value, Vm, VmError, VmResult};
-use rune::{Context, Hash, Sources};
-use rune_modules::capture_io::CaptureIo;
 
-use crate::{ExitCode, Io, SharedFlags};
+use crate::cli::{ExitCode, Io, SharedFlags};
+use crate::compile::ItemBuf;
+use crate::modules::capture_io::CaptureIo;
+use crate::runtime::{Unit, Value, Vm, VmError, VmResult};
+use crate::{Context, Hash, Sources};
 
 #[derive(Parser, Debug, Clone)]
-pub(crate) struct Flags {
+pub(super) struct Flags {
     /// Display one character per test instead of one line
     #[arg(long, short = 'q')]
     quiet: bool,
@@ -22,7 +22,7 @@ pub(crate) struct Flags {
     no_fail_fast: bool,
 
     #[command(flatten)]
-    pub(crate) shared: SharedFlags,
+    pub(super) shared: SharedFlags,
 }
 
 #[derive(Debug)]
@@ -148,7 +148,7 @@ impl<'a> TestCase<'a> {
     }
 }
 
-pub(crate) async fn run(
+pub(super) async fn run(
     io: &mut Io<'_>,
     flags: &Flags,
     context: &Context,

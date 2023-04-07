@@ -2,14 +2,13 @@
 //!
 //! ```
 //! use rune::{Context, ContextError};
-//! use rune_modules::capture_io::{self, CaptureIo};
+//! use rune::modules::capture_io::{self, CaptureIo};
 //!
-//! # fn main() -> Result<(), ContextError> {
 //! let io = CaptureIo::new();
 //!
-//! let mut context = rune_modules::with_config(false)?;
+//! let mut context = rune::Context::with_config(false)?;
 //! context.install(capture_io::module(&io)?)?;
-//! # Ok(()) }
+//! # Ok::<_, ContextError>(())
 //! ```
 
 use std::io::{self, Write};
@@ -17,9 +16,11 @@ use std::string::FromUtf8Error;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use rune::runtime::{Stack, VmError, VmResult};
-use rune::{ContextError, Module, Value};
 
+use crate::runtime::{Stack, VmError, VmResult};
+use crate::{ContextError, Module, Value};
+
+/// Type which captures output from rune scripts.
 #[derive(Default, Clone)]
 pub struct CaptureIo {
     inner: Arc<Mutex<Vec<u8>>>,
@@ -92,8 +93,8 @@ fn dbg_impl<O>(o: &mut O, stack: &mut Stack, args: usize) -> VmResult<()>
 where
     O: Write,
 {
-    for value in rune::vm_try!(stack.drain(args)) {
-        rune::vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
+    for value in vm_try!(stack.drain(args)) {
+        vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
     }
 
     stack.push(Value::Unit);

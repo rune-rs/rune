@@ -6,10 +6,14 @@
 
 pub mod any;
 pub mod bytes;
+#[cfg(feature = "capture-io")]
+pub mod capture_io;
 pub mod char;
 pub mod cmp;
 pub mod collections;
 pub mod core;
+#[cfg(feature = "disable-io")]
+pub mod disable_io;
 pub mod float;
 pub mod fmt;
 pub mod future;

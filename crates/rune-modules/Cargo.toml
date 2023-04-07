@@ -14,8 +14,8 @@ keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
 [features]
-default = ["test", "core", "io", "fmt", "macros", "disable-io"]
-full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand", "io", "fmt", "macros"]
+default = ["test", "core", "io", "fmt"]
+full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand", "io", "fmt"]
 time = ["tokio", "tokio?/time"]
 fs = ["tokio", "tokio?/fs"]
 http = ["reqwest"]
@@ -24,13 +24,10 @@ process = ["tokio?/process"]
 signal = ["tokio?/signal"]
 rand = ["nanorand"]
 experiments = []
-capture-io = ["parking_lot"]
-disable-io = []
 test = []
 core = []
 io = []
 fmt = []
-macros = []
 
 [dependencies]
 reqwest = { version = "0.11.16", optional = true, default-features = false, features = ["rustls-tls", "gzip", "json"] }
@@ -38,7 +35,6 @@ tokio = { version = "1.27.0", optional = true }
 serde_json = { version = "1.0.95", optional = true }
 toml = { version = "0.7.3", optional = true }
 nanorand = { version = "0.7.0", optional = true, features = ["getrandom"] }
-parking_lot = { version = "0.12.1", optional = true }
 
 rune = { version = "0.12.3", path = "../rune" }
 
