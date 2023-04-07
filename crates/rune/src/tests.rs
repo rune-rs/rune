@@ -1,25 +1,25 @@
 //! Test cases for rune.
 #![allow(dead_code)]
 
-pub mod prelude {
-    pub use crate as rune;
-    pub use crate::ast;
-    pub use crate::compile::{self, CompileErrorKind, Item, Location, Named};
-    pub use crate::diagnostics;
-    pub use crate::macros;
-    pub use crate::parse::{self, ParseErrorKind, ResolveErrorKind};
-    pub use crate::query::QueryErrorKind;
-    pub use crate::runtime::{
+pub(crate) mod prelude {
+    pub(crate) use crate as rune;
+    pub(crate) use crate::ast;
+    pub(crate) use crate::compile::{self, CompileErrorKind, Item, Location, Named};
+    pub(crate) use crate::diagnostics;
+    pub(crate) use crate::macros;
+    pub(crate) use crate::parse::{self, ParseErrorKind, ResolveErrorKind};
+    pub(crate) use crate::query::QueryErrorKind;
+    pub(crate) use crate::runtime::{
         self, AnyObj, AnyTypeInfo, Bytes, Function, MaybeTypeOf, Object, Protocol, RawRef, RawStr,
         Shared, Stack, Tuple, TypeInfo, TypeOf, UnsafeFromValue, VecTuple, VmErrorKind, VmResult,
     };
-    pub use crate::tests::run;
-    pub use crate::{
-        from_value, prepare, sources, span, to_value, vm_try, Any, Context, ContextError,
+    pub(crate) use crate::tests::run;
+    pub(crate) use crate::{
+        from_value, prepare, sources, span, vm_try, Any, Context, ContextError,
         Diagnostics, FromValue, Hash, InstallWith, Module, Result, Source, Sources, ToValue, Value,
         Vm,
     };
-    pub use futures_executor::block_on;
+    pub(crate) use futures_executor::block_on;
 }
 
 use std::sync::Arc;

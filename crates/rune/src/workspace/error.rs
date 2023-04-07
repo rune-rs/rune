@@ -28,7 +28,7 @@ impl WorkspaceError {
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum WorkspaceErrorKind {
+pub(crate) enum WorkspaceErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
     #[error("Failed to load `{path}`: {error}")]

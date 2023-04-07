@@ -55,7 +55,7 @@ impl From<IrError> for SpannedError {
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum IrErrorKind {
+pub(crate) enum IrErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
     /// An access error raised during compilation.

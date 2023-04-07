@@ -55,7 +55,7 @@ impl From<ParseError> for SpannedError {
 #[derive(Debug, Clone, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum ParseErrorKind {
+pub(crate) enum ParseErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
     #[error("{error}")]

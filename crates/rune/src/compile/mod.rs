@@ -19,7 +19,8 @@ pub(crate) use self::assembly::{Assembly, AssemblyInst};
 pub(crate) mod attrs;
 
 mod compile_error;
-pub use self::compile_error::{CompileError, CompileErrorKind, ImportStep};
+pub use self::compile_error::{CompileError, ImportStep};
+pub(crate) use self::compile_error::CompileErrorKind;
 
 mod compile_visitor;
 pub use self::compile_visitor::CompileVisitor;
@@ -41,8 +42,8 @@ mod prelude;
 pub(crate) use self::prelude::Prelude;
 
 pub(crate) mod ir;
-pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, IrInterpreter};
-pub use self::ir::{IrError, IrErrorKind, IrEval, IrValue};
+pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, IrInterpreter, IrErrorKind};
+pub use self::ir::{IrError, IrEval, IrValue};
 
 pub(crate) mod item;
 pub use self::item::{Component, ComponentRef, IntoComponent, Item, ItemBuf};

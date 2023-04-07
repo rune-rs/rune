@@ -17,8 +17,8 @@ cfg_emit! {
 }
 
 mod error;
-
-pub use self::error::{WorkspaceErrorKind, WorkspaceError};
+pub use self::error::{WorkspaceError};
+pub(crate) use self::error::WorkspaceErrorKind;
 
 mod manifest;
 pub use self::manifest::{Manifest, WorkspaceFilter};
