@@ -65,6 +65,7 @@ impl Expander {
         let span = &self.tokens.span;
 
         Some(quote! {
+            #[automatically_derived]
             impl #option_spanned for #ident {
                 fn span(&self) -> #span {
                     #inner
@@ -89,6 +90,7 @@ impl Expander {
         let span = &self.tokens.span;
 
         Some(quote_spanned! { input.span() =>
+            #[automatically_derived]
             impl #option_spanned for #ident {
                 fn option_span(&self) -> Option<#span> {
                     match self {

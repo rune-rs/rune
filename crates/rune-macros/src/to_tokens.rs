@@ -83,6 +83,7 @@ impl Expander {
         let token_stream = &self.tokens.token_stream;
 
         Some(quote_spanned! { input.span() =>
+            #[automatically_derived]
             impl #to_tokens for #ident {
                 fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
                     match self {
@@ -160,8 +161,9 @@ impl Expander {
 
         let bounds = generic_bounds(generics, to_tokens);
 
-        let into_tokens_impl = quote_spanned! {
-            named.span() => impl #generics #to_tokens for #ident #generics #bounds {
+        let into_tokens_impl = quote_spanned! { named.span() =>
+            #[automatically_derived]
+            impl #generics #to_tokens for #ident #generics #bounds {
                 fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
                     #(#fields;)*
                 }

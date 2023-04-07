@@ -78,8 +78,8 @@ impl Expander {
 
         let actual_type_info = self.tokens.vm_try(quote!(actual.type_info()));
 
-        Some(quote_spanned! {
-            input.span() =>
+        Some(quote_spanned! { input.span() =>
+            #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #vm_result<Self> {
                     match value {
@@ -123,24 +123,24 @@ impl Expander {
                     let expanded = self.expand_unnamed(named)?;
 
                     unnamed_matches.push(quote_spanned! { variant.span() =>
-                        #lit_str => {
-                            #vm_result::Ok(Self::#ident ( #expanded ))
-                        }
+                        #lit_str => #vm_result::Ok(Self::#ident ( #expanded ))
                     });
                 }
                 syn::Fields::Named(named) => {
                     let expanded = self.expand_named(named)?;
 
                     named_matches.push(quote_spanned! { variant.span() =>
-                        #lit_str => {
-                            #vm_result::Ok(Self::#ident { #expanded })
-                        }
+                        #lit_str => #vm_result::Ok(Self::#ident { #expanded })
                     });
                 }
             }
         }
 
         let borrow_ref = self.tokens.vm_try(quote!(variant.borrow_ref()));
+
+        let missing = quote_spanned! { input.span() =>
+            name => #vm_result::__rune_macros__missing_variant(name)
+        };
 
         let variant = quote_spanned! { input.span() =>
             #value::Variant(variant) => {
@@ -154,22 +154,13 @@ impl Expander {
 
                 match variant.data() {
                     #variant_data::Unit => match name {
-                        #(#unit_matches,)*
-                        name => {
-                            return #vm_result::__rune_macros__missing_variant(name)
-                        }
+                        #(#unit_matches,)* #missing,
                     },
                     #variant_data::Tuple(tuple) => match name {
-                        #(#unnamed_matches)*
-                        name => {
-                            return #vm_result::__rune_macros__missing_variant(name)
-                        }
+                        #(#unnamed_matches,)* #missing,
                     },
                     #variant_data::Struct(object) => match name {
-                        #(#named_matches)*
-                        name => {
-                            return #vm_result::__rune_macros__missing_variant(name)
-                        }
+                        #(#named_matches,)* #missing,
                     },
                 }
             }
@@ -178,6 +169,7 @@ impl Expander {
         let actual_type_info = self.tokens.vm_try(quote!(actual.type_info()));
 
         Some(quote_spanned! { input.span() =>
+            #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #vm_result<Self> {
                     match value {

@@ -401,6 +401,7 @@ where
 
     let impl_named = if !generic_names.is_empty() {
         quote! {
+            #[automatically_derived]
             impl #impl_generics #named for #ident #ty_generics #where_clause {
                 const BASE_NAME: #raw_str  = #raw_str::from_str(#name);
 
@@ -411,6 +412,7 @@ where
         }
     } else {
         quote! {
+            #[automatically_derived]
             impl #impl_generics #named for #ident #ty_generics #where_clause {
                 const BASE_NAME: #raw_str = #raw_str::from_str(#name);
             }
@@ -418,6 +420,7 @@ where
     };
 
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics #any for #ident #ty_generics #where_clause {
             fn type_hash() -> #hash {
                 // Safety: `Hash` asserts that it is layout compatible with `TypeId`.
@@ -426,6 +429,7 @@ where
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics #install_with for #ident #ty_generics #where_clause {
             fn install_with(module: &mut #module) -> ::std::result::Result<(), #context_error> {
                 #installers
@@ -434,6 +438,7 @@ where
 
         #impl_named
 
+        #[automatically_derived]
         impl #impl_generics #type_of for #ident #ty_generics #where_clause {
             #[inline]
             fn type_hash() -> #hash {
@@ -446,6 +451,7 @@ where
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics #maybe_type_of for #ident #ty_generics #where_clause {
             #[inline]
             fn maybe_type_of() -> Option<#full_type_of> {
@@ -453,6 +459,7 @@ where
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics #unsafe_from_value for &#ident #ty_generics #where_clause {
             type Output = *const #ident #ty_generics;
             type Guard = #raw_into_ref;
@@ -467,6 +474,7 @@ where
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics #unsafe_from_value for &mut #ident #ty_generics #where_clause {
             type Output = *mut #ident  #ty_generics;
             type Guard = #raw_into_mut;
@@ -480,6 +488,7 @@ where
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics #unsafe_to_value for &#ident #ty_generics #where_clause {
             type Guard = #pointer_guard;
 
@@ -489,6 +498,7 @@ where
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics #unsafe_to_value for &mut #ident #ty_generics #where_clause {
             type Guard = #pointer_guard;
 
