@@ -15,7 +15,7 @@ fn aoc_2020_1b(b: &mut Criterion) {
         data.push_value(str::parse::<i64>(line).unwrap()).unwrap();
     }
 
-    let mut vm = rune_tests::rune_vm! {
+    let mut vm = rune_vm! {
         mod iter {
             pub fn all_pairs(data) {
                let count = data.len();

@@ -6,7 +6,6 @@ members = [
     "crates/rune-macros",
     "crates/rune-modules",
     "crates/rune-wasm",
-    "tests",
     "examples",
     "benches",
     "tools/builder",

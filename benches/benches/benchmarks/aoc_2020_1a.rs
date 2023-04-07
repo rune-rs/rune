@@ -25,7 +25,7 @@ fn aoc_2020_1a(b: &mut Criterion) {
         .unwrap();
     }
 
-    let mut vm = rune_tests::rune_vm! {
+    let mut vm = rune_vm! {
         use std::string;
 
         struct NoSolution;

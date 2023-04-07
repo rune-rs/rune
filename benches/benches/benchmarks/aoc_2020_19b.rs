@@ -11,7 +11,7 @@ fn aoc_2020_19b(b: &mut Criterion) {
         data.push(line.to_owned().into());
     }
 
-    let mut vm = rune_tests::rune_vm! {
+    let mut vm = rune_vm! {
         use std::collections::HashMap;
         fn get_rules() {
             HashMap::from([

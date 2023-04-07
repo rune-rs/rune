@@ -3,7 +3,7 @@ use criterion::Criterion;
 criterion::criterion_group!(benches, fib_15, fib_20);
 
 fn fib_15(b: &mut Criterion) {
-    let mut vm = rune_tests::rune_vm! {
+    let mut vm = rune_vm! {
         fn fib(n) {
             if n <= 1 {
                 n
@@ -25,7 +25,7 @@ fn fib_15(b: &mut Criterion) {
 }
 
 fn fib_20(b: &mut Criterion) {
-    let mut vm = rune_tests::rune_vm! {
+    let mut vm = rune_vm! {
         fn fib(n) {
             if n <= 1 {
                 n

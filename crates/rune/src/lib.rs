@@ -265,3 +265,6 @@ mod collections {
     pub use std::collections::{btree_set, BTreeSet};
     pub use std::collections::{vec_deque, VecDeque};
 }
+
+#[cfg(test)]
+mod tests;
