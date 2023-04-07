@@ -1,5 +1,4 @@
-use rune::runtime::Function;
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[test]
 fn test_external_function() -> rune::Result<()> {

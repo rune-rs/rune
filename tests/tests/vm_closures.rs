@@ -1,6 +1,4 @@
-use rune::runtime::{Function, VecTuple};
-use rune::FromValue;
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 /// Test that we don't accidentally capture `a` as part of its own declaration.
 #[test]
@@ -182,7 +180,7 @@ fn test_nested_async_closure() {
 }
 
 #[test]
-fn test_closure_in_lit_vec() -> rune::Result<()> {
+fn test_closure_in_lit_vec() -> Result<()> {
     let ret: VecTuple<(i64, Function, Function, i64)> = rune_s! {
         r#"pub fn main() { let a = 4; [0, || 2, || 4, 3] }"#
     };
@@ -196,7 +194,7 @@ fn test_closure_in_lit_vec() -> rune::Result<()> {
 }
 
 #[test]
-fn test_closure_in_lit_tuple() -> rune::Result<()> {
+fn test_closure_in_lit_tuple() -> Result<()> {
     let ret: (i64, Function, Function, i64) = rune_s! {
         r#"pub fn main() { let a = 4; (0, || 2, || a, 3) }"#
     };
@@ -210,7 +208,7 @@ fn test_closure_in_lit_tuple() -> rune::Result<()> {
 }
 
 #[test]
-fn test_closure_in_lit_object() -> rune::Result<()> {
+fn test_closure_in_lit_object() -> Result<()> {
     #[derive(FromValue)]
     struct Proxy {
         a: i64,

@@ -1,7 +1,7 @@
-use rune::compile::CompileErrorKind::*;
-use rune::query::QueryErrorKind::*;
-use rune::span;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use CompileErrorKind::*;
+use QueryErrorKind::*;
 
 #[test]
 fn test_super_self_crate_mod() {

@@ -1,6 +1,5 @@
-use rune::runtime::Function;
-use rune::Value;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
 use std::sync::Arc;
 
 #[test]

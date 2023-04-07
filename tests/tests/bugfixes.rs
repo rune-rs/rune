@@ -1,4 +1,4 @@
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 /// This was due to a binding optimization introduced in
 /// 195b67821e5e3dc9f4f5371a7799d2fd08b43ce7, causing the local binding `x` to

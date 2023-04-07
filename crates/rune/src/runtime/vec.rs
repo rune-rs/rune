@@ -77,7 +77,7 @@ impl Vec {
         if index >= self.len() {
             VmResult::err(VmErrorKind::OutOfRange {
                 index: index.into(),
-                len: self.len().into(),
+                length: self.len().into(),
             })
         } else {
             self.inner[index] = value;

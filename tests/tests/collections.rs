@@ -1,4 +1,4 @@
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[test]
 fn test_hash_map_tile() {

@@ -1,6 +1,6 @@
 //! Test for iterator functions
 
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[test]
 fn test_sum() {

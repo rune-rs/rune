@@ -1,5 +1,4 @@
-use rune::runtime::{Object, Tuple, Vec};
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 macro_rules! test_op {
     ($ty:ty => $lhs:literal $op:tt $rhs:literal = $result:literal) => {{
@@ -104,10 +103,10 @@ fn test_const_collections() {
         tuple.get_value::<String>(0).unwrap().as_deref()
     );
 
-    let vec: Vec = rune!(pub fn main() { VALUE } const VALUE = [];);
+    let vec: runtime::Vec = rune!(pub fn main() { VALUE } const VALUE = [];);
     assert!(vec.is_empty());
 
-    let vec: Vec = rune!(pub fn main() { VALUE } const VALUE = ["Hello World"];);
+    let vec: runtime::Vec = rune!(pub fn main() { VALUE } const VALUE = ["Hello World"];);
     assert_eq!(
         Some("Hello World"),
         vec.get_value::<String>(0).unwrap().as_deref()

@@ -1,7 +1,6 @@
 #![allow(clippy::unusual_byte_groupings)]
 
-use rune::runtime::Bytes;
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[test]
 fn test_literals() {

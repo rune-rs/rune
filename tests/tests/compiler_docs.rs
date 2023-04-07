@@ -1,14 +1,13 @@
+use rune_tests::prelude::*;
+
 use std::collections::BTreeMap;
-use rune::compile::{Location, Item, CompileVisitor};
-use rune::{Context, Diagnostics, Hash};
-use rune_tests::sources;
 
 struct DocVisitor {
     expected: BTreeMap<&'static str, Vec<&'static str>>,
     collected: BTreeMap<String, Vec<String>>
 }
 
-impl CompileVisitor for DocVisitor {
+impl compile::CompileVisitor for DocVisitor {
     fn visit_doc_comment(&mut self, _: Location, item: &Item, _: Hash, doc: &str) {
         self.collected.entry(item.to_string()).or_default().push(doc.to_string());
     }
@@ -102,7 +101,7 @@ fn harvest_docs() {
         "module::Module::Enum::B" => { " Enum variant B.\n" }
     };
 
-    let mut sources = sources(r#"
+    let mut sources = rune_tests::sources(r#"
         //! Mod/file doc.
         /*! Multiline mod/file doc.
          *  :)
@@ -165,7 +164,7 @@ fn harvest_docs() {
 
     let context = Context::default();
 
-    let result = rune::prepare(&mut sources)
+    let result = prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
         .with_visitor(&mut vis)

@@ -1,10 +1,11 @@
-use rune::{ContextError, Module, Source, Sources, Vm};
+use rune_tests::prelude::*;
+
 use std::sync::Arc;
 
 /// Cannot call instance functions on template literals.
 /// https://github.com/rune-rs/rune/issues/326
 #[test]
-fn bug_326() -> rune::Result<()> {
+fn bug_326() -> Result<()> {
     let mut context = rune_modules::default_context()?;
     context.install(trim_module()?)?;
 
@@ -26,7 +27,7 @@ fn bug_326() -> rune::Result<()> {
         "#,
     ));
 
-    let result = rune::prepare(&mut sources).with_context(&context).build();
+    let result = prepare(&mut sources).with_context(&context).build();
 
     let unit = result?;
     let mut vm = Vm::new(runtime, Arc::new(unit));

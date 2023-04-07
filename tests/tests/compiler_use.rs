@@ -1,7 +1,7 @@
-use rune::compile::CompileErrorKind::QueryError;
-use rune::query::QueryErrorKind::*;
-use rune::span;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use CompileErrorKind::QueryError;
+use QueryErrorKind::*;
 
 #[test]
 fn test_import_cycle() {

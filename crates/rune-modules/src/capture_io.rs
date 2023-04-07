@@ -12,12 +12,13 @@
 //! # Ok(()) }
 //! ```
 
-use parking_lot::Mutex;
-use rune::runtime::{Panic, Stack, VmResult};
-use rune::{ContextError, Module, Value};
 use std::io::{self, Write};
 use std::string::FromUtf8Error;
 use std::sync::Arc;
+
+use parking_lot::Mutex;
+use rune::runtime::{Stack, VmError, VmResult};
+use rune::{ContextError, Module, Value};
 
 #[derive(Default, Clone)]
 pub struct CaptureIo {
@@ -64,7 +65,7 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
     module.function(["print"], move |m: &str| {
         match write!(o.inner.lock(), "{}", m) {
             Ok(()) => VmResult::Ok(()),
-            Err(error) => VmResult::err(Panic::custom(error)),
+            Err(error) => VmResult::panic(error),
         }
     })?;
 
@@ -73,7 +74,7 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
     module.function(["println"], move |m: &str| {
         match writeln!(o.inner.lock(), "{}", m) {
             Ok(()) => VmResult::Ok(()),
-            Err(error) => VmResult::err(Panic::custom(error)),
+            Err(error) => VmResult::panic(error),
         }
     })?;
 
@@ -92,7 +93,7 @@ where
     O: Write,
 {
     for value in rune::vm_try!(stack.drain(args)) {
-        rune::vm_try!(writeln!(o, "{:?}", value).map_err(Panic::custom));
+        rune::vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
     }
 
     stack.push(Value::Unit);

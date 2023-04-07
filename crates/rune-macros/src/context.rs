@@ -655,10 +655,10 @@ impl Context {
             value: quote!(#module::runtime::Value),
             variant_data: quote!(#module::runtime::VariantData),
             compile_variant: quote!(#module::compile::Variant),
-            vm_error_kind: quote!(#module::runtime::VmErrorKind),
             vm_error: quote!(#module::runtime::VmError),
             vm_result: quote!(#module::runtime::VmResult),
             try_result: quote!(#module::runtime::try_result),
+            type_name: quote!(::core::any::type_name),
         }
     }
 }
@@ -702,10 +702,10 @@ pub(crate) struct Tokens {
     pub(crate) value: TokenStream,
     pub(crate) variant_data: TokenStream,
     pub(crate) compile_variant: TokenStream,
-    pub(crate) vm_error_kind: TokenStream,
     pub(crate) vm_error: TokenStream,
     pub(crate) vm_result: TokenStream,
     pub(crate) try_result: TokenStream,
+    pub(crate) type_name: TokenStream,
 }
 
 impl Tokens {

@@ -212,7 +212,6 @@ fn expand_enum_install_with(
         protocol,
         to_value,
         type_of,
-        vm_error_kind,
         vm_result,
         ..
     } = tokens;
@@ -329,9 +328,7 @@ fn expand_enum_install_with(
             module.field_fn(#protocol::GET, #field, |this: &#ident #generics| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::err(#vm_error_kind::UnsupportedObjectFieldGet {
-                        target: <Self as #type_of>::type_info(),
-                    }),
+                    _ => return #vm_result::__rune_macros__unsupported_object_field_get(<Self as #type_of>::type_info()),
                 }
             })?;
         });
@@ -342,9 +339,7 @@ fn expand_enum_install_with(
             module.index_fn(#protocol::GET, #index, |this: &#ident #generics| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::err(#vm_error_kind::UnsupportedTupleIndexGet {
-                        target: <Self as #type_of>::type_info(),
-                    }),
+                    _ => return #vm_result::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info()),
                 }
             })?;
         });

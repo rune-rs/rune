@@ -1,8 +1,6 @@
 //! Tests for `std::any::type_name_of_val(v)` for native types
 
-use rune::runtime::Protocol;
-use rune::{Any, ContextError, Module};
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[derive(Any)]
 pub struct NativeStruct(pub u32);

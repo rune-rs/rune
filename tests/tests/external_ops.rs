@@ -1,10 +1,9 @@
-use rune::runtime::Protocol;
-use rune::{Any, Context, Module, Source, Sources, Value, Vm};
-use rune_tests::*;
+use rune_tests::prelude::*;
+
 use std::sync::Arc;
 
 #[test]
-fn test_external_ops_struct() -> rune::Result<()> {
+fn test_external_ops_struct() -> Result<()> {
     /// Test case for a single operation.
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
@@ -54,7 +53,7 @@ fn test_external_ops_struct() -> rune::Result<()> {
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
             ));
 
-            let unit = rune::prepare(&mut sources)
+            let unit = prepare(&mut sources)
                 .with_context(&context)
                 .build()?;
 
@@ -95,7 +94,7 @@ fn test_external_ops_struct() -> rune::Result<()> {
 
 #[test]
 #[ignore = "Currently does not work, but should!"]
-fn test_external_ops_tuple() -> rune::Result<()> {
+fn test_external_ops_tuple() -> Result<()> {
     /// Test case for a single operation.
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
@@ -138,7 +137,7 @@ fn test_external_ops_tuple() -> rune::Result<()> {
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
             ));
 
-            let unit = rune::prepare(&mut sources)
+            let unit = prepare(&mut sources)
                 .with_context(&context)
                 .build()?;
 

@@ -1,5 +1,5 @@
-use rune::{Any, Module, Value, Vm};
-use rune_tests::*;
+use rune_tests::prelude::*;
+
 use std::sync::Arc;
 
 #[derive(Any, Debug, Default)]
@@ -11,14 +11,14 @@ struct Foo {
 }
 
 #[test]
-fn test_getter_setter() -> rune::Result<()> {
+fn test_getter_setter() -> Result<()> {
     let mut module = Module::new();
     module.ty::<Foo>()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(module)?;
 
-    let mut sources = rune::sources! {
+    let mut sources = sources! {
         entry => {
             pub fn main(foo) {
                 foo.number = foo.number + 1;
@@ -27,7 +27,7 @@ fn test_getter_setter() -> rune::Result<()> {
         }
     };
 
-    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
+    let unit = prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
 

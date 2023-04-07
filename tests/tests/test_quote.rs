@@ -1,7 +1,8 @@
-use rune::ast::Kind::*;
-use rune::ast::{CopySource, Delimiter, LitSource, NumberSource, StrSource};
-use rune::macros::{quote, MacroContext};
-use rune_tests::assert_matches;
+use rune_tests::prelude::*;
+
+use ast::Kind::*;
+use ast::{CopySource, Delimiter, LitSource, NumberSource, StrSource};
+use macros::{quote, MacroContext};
 
 macro_rules! assert_quote {
     ($ctx:expr, [$($expected:pat),* $(,)?], $quote:expr) => {

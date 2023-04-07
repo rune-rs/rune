@@ -1,7 +1,6 @@
-use rune::compile::CompileErrorKind;
-use rune::query::QueryErrorKind::*;
-use rune::span;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use QueryErrorKind::*;
 
 #[test]
 fn test_grouped_imports() {

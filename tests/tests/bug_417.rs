@@ -1,6 +1,6 @@
-use rune::query::QueryErrorKind::*;
-use rune::span;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use QueryErrorKind::*;
 
 /// This tests that all items can be successfully queried for when unused (but
 /// be ambiguous as is the case with `Foo::Variant`) and that a module with the

@@ -1,6 +1,6 @@
-use rune::parse::ParseErrorKind::*;
-use rune::span;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use ParseErrorKind::*;
 
 #[test]
 fn test_non_terminated_multiline_comments() {

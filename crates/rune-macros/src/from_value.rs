@@ -19,7 +19,6 @@ impl Expander {
 
         let Tokens {
             value,
-            vm_error_kind,
             from_value,
             vm_result,
             ..
@@ -86,9 +85,7 @@ impl Expander {
                     match value {
                         #expanded
                         actual => {
-                            #vm_result::err(#vm_error_kind::expected::<#expected>(
-                                #actual_type_info
-                            ))
+                            #vm_result::expected::<#expected>(#actual_type_info)
                         }
                     }
                 }
@@ -108,7 +105,6 @@ impl Expander {
             from_value,
             variant_data,
             value,
-            vm_error_kind,
             vm_result,
             ..
         } = &self.tokens;
@@ -153,26 +149,26 @@ impl Expander {
 
                 let name = match it.next_back_str() {
                     Some(name) => name,
-                    None => return #vm_result::err(#vm_error_kind::MissingVariantName),
+                    None => return #vm_result::__rune_macros__missing_variant_name(),
                 };
 
                 match variant.data() {
                     #variant_data::Unit => match name {
                         #(#unit_matches,)*
                         name => {
-                            return #vm_result::err(#vm_error_kind::MissingVariant { name: name.into() })
+                            return #vm_result::__rune_macros__missing_variant(name)
                         }
                     },
                     #variant_data::Tuple(tuple) => match name {
                         #(#unnamed_matches)*
                         name => {
-                            return #vm_result::err(#vm_error_kind::MissingVariant { name: name.into() })
+                            return #vm_result::__rune_macros__missing_variant(name)
                         }
                     },
                     #variant_data::Struct(object) => match name {
                         #(#named_matches)*
                         name => {
-                            return #vm_result::err(#vm_error_kind::MissingVariant { name: name.into() })
+                            return #vm_result::__rune_macros__missing_variant(name)
                         }
                     },
                 }
@@ -187,9 +183,7 @@ impl Expander {
                     match value {
                         #variant,
                         actual => {
-                            #vm_result::err(#vm_error_kind::ExpectedVariant {
-                                actual: #actual_type_info,
-                            })
+                            #vm_result::__rune_macros__expected_variant(#actual_type_info)
                         }
                     }
                 }
@@ -217,8 +211,8 @@ impl Expander {
 
         let Tokens {
             from_value,
-            vm_error_kind,
             vm_result,
+            type_name,
             ..
         } = &self.tokens;
 
@@ -233,10 +227,7 @@ impl Expander {
                 match tuple.get(#index) {
                     Some(value) => #from_value,
                     None => {
-                        return #vm_result::err(#vm_error_kind::MissingTupleIndex {
-                            target: std::any::type_name::<Self>(),
-                            index: #index,
-                        });
+                        return #vm_result::__rune_macros__missing_tuple_index(#type_name::<Self>(), #index);
                     }
                 }
             });
@@ -257,8 +248,8 @@ impl Expander {
 
             let Tokens {
                 from_value,
-                vm_error_kind,
                 vm_result,
+                type_name,
                 ..
             } = &self.tokens;
 
@@ -271,10 +262,7 @@ impl Expander {
                 #ident: match object.get(#name) {
                     Some(value) => #from_value,
                     None => {
-                        return #vm_result::err(#vm_error_kind::MissingStructField {
-                            target: std::any::type_name::<Self>(),
-                            name: #name,
-                        });
+                        return #vm_result::__rune_macros__missing_struct_field(#type_name::<Self>(), #name);
                     }
                 }
             });

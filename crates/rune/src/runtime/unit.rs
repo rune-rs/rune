@@ -73,6 +73,11 @@ impl Unit {
         Some(&**debug)
     }
 
+    /// Get raw underying instructions.
+    pub(crate) fn instructions(&self) -> &[Inst] {
+        &self.instructions
+    }
+
     /// Get the instruction at the given instruction pointer.
     pub fn instruction_at(&self, ip: usize) -> Option<&Inst> {
         self.instructions.get(ip)

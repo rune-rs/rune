@@ -1,6 +1,6 @@
 #![allow(clippy::mixed_case_hex_literals)]
 
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 
 /// This ensures that `e` literals found in hex number literals are not treated

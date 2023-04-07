@@ -4,7 +4,7 @@ use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
     Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, Protocol,
     ProtocolCaller, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple,
-    TypeInfo, Variant, Vec, Vm, VmErrorKind, VmResult,
+    TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmResult,
 };
 use crate::{Any, Hash};
 use serde::{de, ser, Deserialize, Serialize};
@@ -927,7 +927,7 @@ impl Value {
     ///
     /// One notable feature is that the type of a variant is its container
     /// *enum*, and not the type hash of the variant itself.
-    pub fn type_hash(&self) -> Result<Hash, VmErrorKind> {
+    pub fn type_hash(&self) -> Result<Hash, VmError> {
         Ok(match self {
             Self::Unit => crate::runtime::UNIT_TYPE.hash,
             Self::Bool(..) => crate::runtime::BOOL_TYPE.hash,

@@ -1,7 +1,6 @@
 //! Tests for derive(Any) generates the necessary metadata to match over fields.
 
-use rune::{Any, ContextError, Module};
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[derive(Any, Clone, Copy)]
 struct External {
