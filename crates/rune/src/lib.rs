@@ -163,6 +163,7 @@
 /// assert!(matches!(span, span!(42, 84)));
 /// ```
 #[macro_export]
+#[doc(hidden)]
 macro_rules! span {
     ($start:expr, $end:expr) => {
         $crate::ast::Span {

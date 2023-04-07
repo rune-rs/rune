@@ -1,7 +1,8 @@
 //! Test for result functions
 
-use rune::runtime::VmErrorKind::*;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use VmErrorKind::*;
 
 #[test]
 fn test_map() {

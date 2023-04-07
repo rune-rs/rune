@@ -1,4 +1,4 @@
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 /// See https://github.com/rune-rs/rune/issues/454
 #[test]

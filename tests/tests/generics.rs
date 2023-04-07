@@ -1,4 +1,4 @@
-use rune_tests::*;
+use rune_tests::prelude::*;
 use std::collections::HashMap;
 
 #[test]

@@ -377,7 +377,7 @@ impl VecDeque {
         if index > self.inner.len() {
             return VmResult::err(VmErrorKind::OutOfRange {
                 index: index.into(),
-                len: self.inner.len().into(),
+                length: self.inner.len().into(),
             });
         }
 
@@ -388,7 +388,7 @@ impl VecDeque {
         if index > self.inner.len() {
             return VmResult::err(VmErrorKind::OutOfRange {
                 index: index.into(),
-                len: self.inner.len().into(),
+                length: self.inner.len().into(),
             });
         }
 

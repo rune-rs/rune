@@ -1,5 +1,6 @@
-use rune::runtime::VmErrorKind::*;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use VmErrorKind::*;
 
 macro_rules! op_tests {
     ($lhs:literal $op:tt $rhs:literal = $out:expr) => {

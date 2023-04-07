@@ -1,9 +1,6 @@
 //! Tests for derive(Any) on generic types
 
-use rune::compile::Named;
-use rune::runtime::{UnsafeFromValue, MaybeTypeOf};
-use rune::{Any, ContextError, Module, ToValue};
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[derive(Any)]
 struct Generic<T>

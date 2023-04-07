@@ -1,4 +1,4 @@
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 /// Tests that different variants of the same enum can be compared to each other
 /// See: https://github.com/rune-rs/rune/pull/215

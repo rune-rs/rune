@@ -1,7 +1,6 @@
 #![allow(clippy::unit_cmp)]
 
-use rune::runtime::VecTuple;
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[test]
 fn test_small_programs() {

@@ -2029,7 +2029,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmErrorKind> {
+    fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmError> {
         let instance = self.stack.pop()?;
         let ty = instance.type_hash()?;
         let hash = Hash::instance_function(ty, hash);
@@ -2803,8 +2803,8 @@ impl Vm {
                 return function.call_with_vm(self, args);
             }
             actual => {
-                let actual_type = vm_try!(actual.type_info());
-                return err(VmErrorKind::UnsupportedCallFn { actual_type });
+                let actual = vm_try!(actual.type_info());
+                return err(VmErrorKind::UnsupportedCallFn { actual });
             }
         };
 
@@ -2889,10 +2889,12 @@ impl Vm {
                 return VmResult::Ok(VmHalt::Limited);
             }
 
-            let inst = *vm_try!(self
-                .unit
-                .instruction_at(self.ip)
-                .ok_or(VmErrorKind::IpOutOfBounds));
+            let inst = *vm_try!(self.unit.instruction_at(self.ip).ok_or_else(|| {
+                VmErrorKind::IpOutOfBounds {
+                    ip: self.ip,
+                    length: self.unit.instructions().len(),
+                }
+            }));
 
             tracing::trace!("{}: {}", self.ip, inst);
 

@@ -1,16 +1,16 @@
-use rune::Hash;
+use rune_tests::prelude::*;
 
 #[test]
-fn test_get_const() -> rune::Result<()> {
+fn test_get_const() -> Result<()> {
     let context = rune_modules::default_context()?;
 
-    let mut sources = rune::sources! {
+    let mut sources = sources! {
         entry => {
             pub const LEET = 1337;
         }
     };
 
-    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
+    let unit = prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
         unit.constant(Hash::type_hash(["LEET"]))
@@ -25,10 +25,10 @@ fn test_get_const() -> rune::Result<()> {
 }
 
 #[test]
-fn test_get_const_re_export() -> rune::Result<()> {
+fn test_get_const_re_export() -> Result<()> {
     let context = rune_modules::default_context()?;
 
-    let mut sources = rune::sources! {
+    let mut sources = sources! {
         entry => {
             mod inner {
                 pub const LEET = 1337;
@@ -38,7 +38,7 @@ fn test_get_const_re_export() -> rune::Result<()> {
         },
     };
 
-    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
+    let unit = prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
         unit.constant(Hash::type_hash(["LEET"]))
@@ -53,10 +53,10 @@ fn test_get_const_re_export() -> rune::Result<()> {
 }
 
 #[test]
-fn test_get_const_nested() -> rune::Result<()> {
+fn test_get_const_nested() -> Result<()> {
     let context = rune_modules::default_context()?;
 
-    let mut sources = rune::sources! {
+    let mut sources = sources! {
         entry => {
             pub mod inner {
                 pub const LEET = 1337;
@@ -64,7 +64,7 @@ fn test_get_const_nested() -> rune::Result<()> {
         },
     };
 
-    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
+    let unit = prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
         unit.constant(Hash::type_hash(["inner", "LEET"]))

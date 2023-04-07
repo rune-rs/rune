@@ -15,7 +15,7 @@ pub struct Panic {
 
 impl Panic {
     /// A custom panic reason.
-    pub fn custom<D>(message: D) -> Self
+    pub(crate) fn custom<D>(message: D) -> Self
     where
         D: BoxedPanic,
     {

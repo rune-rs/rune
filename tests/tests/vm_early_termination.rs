@@ -1,4 +1,4 @@
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 macro_rules! test_case {
     (($($k:tt)*), $field:tt, $index:tt, $($extra:tt)*) => {

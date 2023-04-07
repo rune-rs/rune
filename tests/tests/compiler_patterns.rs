@@ -1,6 +1,6 @@
-use rune::compile::CompileErrorKind::*;
-use rune::span;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use CompileErrorKind::*;
 
 #[test]
 fn illegal_pattern_in_match() {

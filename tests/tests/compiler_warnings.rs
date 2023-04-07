@@ -1,6 +1,6 @@
-use rune::diagnostics::WarningDiagnosticKind::*;
-use rune::span;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use diagnostics::WarningDiagnosticKind::*;
 
 #[test]
 fn test_let_pattern_might_panic() {

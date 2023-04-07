@@ -1,8 +1,8 @@
-use rune::compile::CompileErrorKind::{ParseError, ResolveError};
-use rune::parse::ParseErrorKind::*;
-use rune::parse::ResolveErrorKind::*;
-use rune::span;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use CompileErrorKind::{ParseError, ResolveError};
+use ParseErrorKind::*;
+use ResolveErrorKind::*;
 
 #[test]
 fn test_number_literals() {

@@ -1,11 +1,12 @@
-use rune::ast;
-use rune::macros::quote;
-use rune::parse::Parser;
-use rune::{Context, Module, Vm};
+use rune_tests::prelude::*;
+
 use std::sync::Arc;
 
+use macros::quote;
+use parse::Parser;
+
 #[test]
-fn test_parse_in_macro() -> rune::Result<()> {
+fn test_parse_in_macro() -> Result<()> {
     let mut m = Module::default();
 
     let string = "1 + 2 + 13 * 3";
@@ -30,7 +31,7 @@ fn test_parse_in_macro() -> rune::Result<()> {
     let mut context = Context::with_default_modules()?;
     context.install(m)?;
 
-    let mut sources = rune::sources! {
+    let mut sources = sources! {
         entry => {
             pub fn main() {
                 let a = string_as_code!();
@@ -40,11 +41,11 @@ fn test_parse_in_macro() -> rune::Result<()> {
         }
     };
 
-    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
+    let unit = prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(Arc::new(context.runtime()), Arc::new(unit));
     let output = vm.execute(["main"], ())?.complete().into_result()?;
-    let output: (u32, u32) = rune::from_value(output)?;
+    let output: (u32, u32) = from_value(output)?;
 
     assert_eq!(output, (42, 42));
     Ok(())

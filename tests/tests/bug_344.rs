@@ -7,18 +7,14 @@
 //!
 //! See: https://github.com/rune-rs/rune/issues/344
 
+use rune_tests::prelude::*;
+
 use std::any;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use futures_executor::block_on;
-
-use rune::compile::Named;
-use rune::runtime::{AnyTypeInfo, RawRef, RawStr, Stack, TypeInfo, TypeOf, UnsafeFromValue, VmResult};
-use rune::{Any, Context, Hash, InstallWith, Module, Value};
-
 #[test]
-fn bug_344_function() -> rune::Result<()> {
+fn bug_344_function() -> Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
@@ -44,7 +40,7 @@ fn bug_344_function() -> rune::Result<()> {
 }
 
 #[test]
-fn bug_344_inst_fn() -> rune::Result<()> {
+fn bug_344_inst_fn() -> Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
@@ -74,7 +70,7 @@ fn bug_344_inst_fn() -> rune::Result<()> {
 }
 
 #[test]
-fn bug_344_async_function() -> rune::Result<()> {
+fn bug_344_async_function() -> Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
@@ -101,7 +97,7 @@ fn bug_344_async_function() -> rune::Result<()> {
 }
 
 #[test]
-fn bug_344_async_inst_fn() -> rune::Result<()> {
+fn bug_344_async_inst_fn() -> Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
@@ -191,7 +187,7 @@ impl UnsafeFromValue for &GuardCheck {
     type Guard = Guard;
 
     fn from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)> {
-        let (output, guard) = rune::vm_try!(value.into_any_ptr::<GuardCheck>());
+        let (output, guard) = vm_try!(value.into_any_ptr::<GuardCheck>());
 
         let guard = Guard {
             _guard: guard,

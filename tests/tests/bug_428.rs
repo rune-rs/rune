@@ -1,4 +1,4 @@
-use rune_tests::*;
+use rune_tests::prelude::*;
 
 #[test]
 pub fn test_bug_428() {

@@ -1,6 +1,6 @@
-use rune::runtime::VmErrorKind::*;
-use rune::FromValue;
-use rune_tests::*;
+use rune_tests::prelude::*;
+
+use VmErrorKind::*;
 
 #[test]
 fn test_from_value_object_like() {

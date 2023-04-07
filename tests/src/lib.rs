@@ -1,7 +1,35 @@
 //! Test cases for rune.
 #![allow(dead_code)]
 
-pub use ::rune_modules as modules;
+pub mod prelude {
+    pub use crate::assert_compile_error;
+    pub use crate::assert_errors;
+    pub use crate::assert_matches;
+    pub use crate::assert_parse;
+    pub use crate::assert_parse_error;
+    pub use crate::assert_vm_error;
+    pub use crate::assert_warnings;
+    pub use crate::run;
+    pub use crate::{rune, rune_n, rune_s};
+    pub use ::rune_modules as modules;
+    pub use futures_executor::block_on;
+    pub use rune::ast;
+    pub use rune::compile::{self, CompileErrorKind, Item, Location, Named};
+    pub use rune::diagnostics;
+    pub use rune::macros;
+    pub use rune::parse::{self, ParseErrorKind, ResolveErrorKind};
+    pub use rune::query::QueryErrorKind;
+    pub use rune::runtime::{
+        self, AnyObj, AnyTypeInfo, Bytes, Function, MaybeTypeOf, Object, Protocol, RawRef, RawStr,
+        Shared, Stack, Tuple, TypeInfo, TypeOf, UnsafeFromValue, VecTuple, VmErrorKind, VmResult,
+    };
+    pub use rune::{
+        from_value, prepare, sources, span, to_value, vm_try, Any, Context, ContextError,
+        Diagnostics, FromValue, Hash, InstallWith, Module, Result, Source, Sources, ToValue, Value,
+        Vm,
+    };
+}
+
 use rune::compile::{IntoComponent, ItemBuf};
 use rune::runtime::{Args, VmError, VmResult};
 use rune::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sources, Unit, Vm};
@@ -32,7 +60,7 @@ impl RunError {
 /// Compile the given source into a unit and collection of warnings.
 #[doc(hidden)]
 pub fn compile_helper(source: &str, diagnostics: &mut Diagnostics) -> Result<Unit, BuildError> {
-    let context = self::modules::default_context().expect("setting up default modules");
+    let context = crate::prelude::modules::default_context().expect("setting up default modules");
 
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source));
@@ -165,7 +193,7 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 /// # Examples
 ///
 /// ```
-/// use rune_tests::*;
+/// use rune_tests::prelude::*;
 /// use rune::Value;
 ///
 /// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
@@ -175,7 +203,7 @@ pub fn build(context: &Context, source: &str) -> rune::Result<Arc<Unit>> {
 #[macro_export]
 macro_rules! rune_vm {
     ($($tt:tt)*) => {{
-        let context = $crate::modules::default_context().expect("failed to build context");
+        let context = $crate::prelude::modules::default_context().expect("failed to build context");
         let mut diagnostics = Default::default();
         let mut sources = $crate::sources(stringify!($($tt)*));
         $crate::vm(&context, &mut sources, &mut diagnostics).expect("program to compile successfully")
@@ -189,7 +217,7 @@ macro_rules! rune_vm {
 /// # Examples
 ///
 /// ```
-/// use rune_tests::*;
+/// use rune_tests::prelude::*;
 /// use rune::Value;
 ///
 /// let mut vm = rune_tests::rune_vm!(pub fn main() { true || false });
@@ -199,9 +227,9 @@ macro_rules! rune_vm {
 #[macro_export]
 macro_rules! rune_vm_capture {
     ($($tt:tt)*) => {{
-        let mut context = $crate::modules::with_config(false)?;
-        let io = $crate::modules::capture_io::CaptureIo::new();
-        let m = $crate::modules::capture_io::module(&io)?;
+        let mut context = $crate::prelude::modules::with_config(false)?;
+        let io = $crate::prelude::modules::capture_io::CaptureIo::new();
+        let m = $crate::prelude::modules::capture_io::module(&io)?;
         context.install(m)?;
         let mut sources = $crate::sources(stringify!($($tt)*));
         let mut diagnostics = Default::default();
@@ -216,7 +244,7 @@ macro_rules! rune_vm_capture {
 /// # Examples
 ///
 /// ```
-/// use rune_tests::*;
+/// use rune_tests::prelude::*;
 ///
 /// let out: bool = rune_tests::rune!(pub fn main() { true || false });
 /// assert_eq!(out, true);
@@ -224,7 +252,7 @@ macro_rules! rune_vm_capture {
 #[macro_export]
 macro_rules! rune {
     ($($tt:tt)*) => {{
-        let context = $crate::modules::default_context().expect("failed to build context");
+        let context = $crate::prelude::modules::default_context().expect("failed to build context");
         $crate::run(&context, stringify!($($tt)*), ["main"], ()).expect("program to run successfully")
     }};
 }
@@ -234,7 +262,7 @@ macro_rules! rune {
 /// # Examples
 ///
 /// ```
-/// use rune_tests::*;
+/// use rune_tests::prelude::*;
 ///
 /// let out: bool = rune_tests::rune_s!("pub fn main() { true || false }");
 /// assert_eq!(out, true);
@@ -242,7 +270,7 @@ macro_rules! rune {
 #[macro_export]
 macro_rules! rune_s {
     ($source:expr) => {{
-        let context = $crate::modules::default_context().expect("failed to build context");
+        let context = $crate::prelude::modules::default_context().expect("failed to build context");
         $crate::run(&context, $source, ["main"], ()).expect("program to run successfully")
     }};
 }
@@ -254,7 +282,7 @@ macro_rules! rune_s {
 /// # Examples
 ///
 /// ```
-/// use rune_tests::*;
+/// use rune_tests::prelude::*;
 /// use rune::Module;
 ///
 /// fn get_native_module() -> Module {
@@ -271,7 +299,7 @@ macro_rules! rune_s {
 #[macro_export]
 macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
-        let mut context = $crate::modules::default_context().expect("failed to build context");
+        let mut context = $crate::prelude::modules::default_context().expect("failed to build context");
         context.install($module).expect("failed to install native module");
         $crate::run::<_, _, $ty>(&context, stringify!($($tt)*), ["main"], $args).expect("program to run successfully")
     }};
@@ -287,7 +315,7 @@ macro_rules! assert_vm_error {
 
     // Second variant which allows for specifyinga type.
     ($ty:ty => $source:expr, $pat:pat => $cond:block) => {{
-        let context = $crate::modules::default_context().unwrap();
+        let context = $crate::prelude::modules::default_context().unwrap();
         let mut diagnostics = Default::default();
 
         let mut sources = $crate::sources($source);
