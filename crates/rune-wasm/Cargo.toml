@@ -18,7 +18,7 @@ rune = { version = "0.12.3", path = "../rune", features = ["capture-io"] }
 rune-macros = { version = "=0.12.3", path = "../rune-macros" }
 rune-modules = { version = "0.12.3", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand", "experiments"] }
 
-serde = { version = "1.0.159", features = ["derive"] }
+serde = { version = "1.0.160", features = ["derive"] }
 wasm-bindgen = { version = "0.2.84", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.34"
 js-sys = "0.3.61"

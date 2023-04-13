@@ -47,7 +47,7 @@ relative-path = { version = "1.8.0", optional = true, features = ["serde"] }
 rust-embed = { version = "6.6.1", optional = true }
 ryu = "1.0.13"
 semver = { version = "1.0.17", optional = true, features = ["serde"] }
-serde = { version = "1.0.159", features = ["derive", "rc"] }
+serde = { version = "1.0.160", features = ["derive", "rc"] }
 serde_bytes = "0.11.9"
 serde-hashkey = { version = "0.4.5", optional = true }
 smallvec = { version = "1.10.0", features = ["write", "serde", "const_new"] }
@@ -58,13 +58,13 @@ toml = { version = "0.7.3", optional = true, features = ["parse"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"], optional = true }
 twox-hash = { version = "1.6.3", default-features = false }
-webbrowser = { version = "0.8.8", optional = true }
+webbrowser = { version = "0.8.9", optional = true }
 parking_lot = { version = "0.12.1", optional = true }
 lsp = { version = "0.94.0", package = "lsp-types", optional = true }
 ropey = { version = "1.6.0", optional = true }
 percent-encoding = { version = "2.2.0", optional = true }
 url = { version = "2.3.1", optional = true }
-serde_json = { version = "1.0.95", optional = true }
+serde_json = { version = "1.0.96", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.27.0", features = ["full"] }
