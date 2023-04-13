@@ -15,9 +15,3 @@
 <br>
 
 A language server for the Rune Language, an embeddable dynamic programming language for Rust.
-
-<br>
-
-## Usage
-
-This is part of the [Rune language](https://rune-rs.github.io).
