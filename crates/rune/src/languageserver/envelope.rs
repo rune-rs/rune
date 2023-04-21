@@ -29,11 +29,13 @@ pub(super) struct NotificationMessage<T> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super) struct ResponseMessage<T, D> {
+pub(super) struct ResponseMessage<'a, T, D> {
     pub(super) jsonrpc: V2,
     pub(super) id: Option<RequestId>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) result: Option<T>,
-    pub(super) error: Option<ResponseError<D>>,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    pub(super) error: Option<ResponseError<'a, D>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,9 +53,9 @@ pub(super) enum Code {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super) struct ResponseError<D> {
+pub(super) struct ResponseError<'a, D> {
     pub(super) code: Code,
-    pub(super) message: String,
+    pub(super) message: &'a str,
     pub(super) data: Option<D>,
 }
 

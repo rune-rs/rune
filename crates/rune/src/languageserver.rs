@@ -87,6 +87,7 @@ pub async fn run(context: Context, options: Options) -> Result<()> {
                                     format!("Unhandled method `{}`", incoming.method),
                                 )
                                 .await?;
+                                state.output.method_not_found(incoming.id).await?;
                             }
                         }
                     }
