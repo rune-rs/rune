@@ -41,18 +41,60 @@ pub(super) struct ResponseMessage<'a, T, D> {
     pub(super) error: Option<ResponseError<'a, D>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super) enum Code {
-    ParseError = -32700,
-    InvalidRequest = -32600,
-    MethodNotFound = -32601,
-    InvalidParams = -32602,
-    InternalError = -32603,
-    ServerErrorStart = -32099,
-    ServerErrorEnd = -32000,
-    ServerNotInitialized = -32002,
-    UnknownErrorCode = -32001,
-    RequestCancelled = -32800,
+/// Build a type for known error codes and ensure it's serialized correctly.
+macro_rules! code {
+    (
+        $vis:vis enum $name:ident {
+            $($variant:ident = $value:expr),* $(,)?
+        }
+    ) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        $vis enum $name {
+            $($variant,)*
+            Unknown(i32),
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            #[inline]
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>
+            {
+                match i32::deserialize(deserializer)? {
+                    $($value => Ok($name::$variant),)*
+                    other => Ok($name::Unknown(other)),
+                }
+            }
+        }
+
+        impl Serialize for $name {
+            #[inline]
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer
+            {
+                match self {
+                    $(Code::$variant => serializer.serialize_i32($value),)*
+                    Code::Unknown(value) => serializer.serialize_i32(*value),
+                }
+            }
+        }
+    }
+}
+
+code! {
+    pub(super) enum Code {
+        ParseError = -32700,
+        InvalidRequest = -32600,
+        MethodNotFound = -32601,
+        InvalidParams = -32602,
+        InternalError = -32603,
+        ServerErrorStart = -32099,
+        ServerErrorEnd = -32000,
+        ServerNotInitialized = -32002,
+        UnknownErrorCode = -32001,
+        RequestCancelled = -32800,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,5 +142,21 @@ impl<'a> serde::Deserialize<'a> for V2 {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Code;
+
+    #[test]
+    fn test_code() {
+        let code: Code = serde_json::from_str("-1").unwrap();
+        assert_eq!(code, Code::Unknown(-1));
+        assert_eq!(serde_json::to_string(&code).unwrap(), "-1");
+
+        let code: Code = serde_json::from_str("-32601").unwrap();
+        assert_eq!(code, Code::MethodNotFound);
+        assert_eq!(serde_json::to_string(&code).unwrap(), "-32601");
     }
 }
