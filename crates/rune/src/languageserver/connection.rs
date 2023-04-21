@@ -67,17 +67,28 @@ impl Output {
         Ok(())
     }
 
+    /// Respond that the given method is not supported.
+    pub(super) async fn method_not_found(&self, id: Option<envelope::RequestId>) -> Result<()> {
+        self.error(
+            id,
+            envelope::Code::MethodNotFound,
+            "Method not found",
+            None::<()>,
+        )
+        .await?;
+        Ok(())
+    }
+
     /// Send the given error as response.
-    pub(super) async fn error<D, M>(
+    pub(super) async fn error<D>(
         &self,
         id: Option<envelope::RequestId>,
         code: envelope::Code,
-        message: M,
+        message: &'static str,
         data: Option<D>,
     ) -> Result<()>
     where
         D: serde::Serialize,
-        M: fmt::Display,
     {
         let response = envelope::ResponseMessage {
             jsonrpc: envelope::V2,
@@ -85,7 +96,7 @@ impl Output {
             result: None::<()>,
             error: Some(envelope::ResponseError {
                 code,
-                message: message.to_string(),
+                message,
                 data,
             }),
         };
