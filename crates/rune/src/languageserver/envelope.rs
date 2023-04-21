@@ -31,6 +31,9 @@ pub(super) struct NotificationMessage<T> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct ResponseMessage<'a, T, D> {
     pub(super) jsonrpc: V2,
+    // NB: serializing for this is not skipped, since the spec requires it to be
+    // `null` in case its absent, in contrast to other fields below which should
+    // be entirely optional.
     pub(super) id: Option<RequestId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) result: Option<T>,
