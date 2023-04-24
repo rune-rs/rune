@@ -206,6 +206,7 @@ async fn completion(
     state: &mut State<'_>,
     params: lsp::CompletionParams,
 ) -> Result<Option<lsp::CompletionResponse>> {
+    tracing::info!("completion:  {:?}", params);
     let results = state
         .complete(
             &params.text_document_position.text_document.uri,
@@ -214,7 +215,7 @@ async fn completion(
         .await;
 
     let results = results.map(lsp::CompletionResponse::Array);
-
+    tracing::info!("results: {:?}", results);
     Ok(results)
 }
 
