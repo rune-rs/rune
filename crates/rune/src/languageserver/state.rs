@@ -10,15 +10,17 @@ use tokio::sync::Notify;
 
 use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
+use crate::compile::meta::SignatureKind;
 use crate::compile::{
-    self, meta, CompileError, CompileVisitor, ComponentRef, Item, LinkerError, Location, MetaRef,
-    SourceMeta,
+    self, meta, CompileError, CompileVisitor, ComponentRef, Item, ItemBuf, LinkerError, Location,
+    MetaRef, SourceMeta,
 };
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
 use crate::workspace::{self, WorkspaceError};
-use crate::{Context, Options, SourceId};
+use crate::BuildError;
+use crate::{Context, Options, SourceId, Unit};
 
 #[derive(Default)]
 struct Reporter {
@@ -191,6 +193,173 @@ impl<'a> State<'a> {
         Some(location)
     }
 
+    /// Find definition at the given uri and LSP position.
+    pub async fn complete(
+        &self,
+        uri: &Url,
+        position: lsp::Position,
+    ) -> Option<Vec<lsp::CompletionItem>> {
+        let sources = &self.workspace.sources;
+        let workspace_source = sources.get(uri)?;
+
+        let offset = workspace_source.lsp_position_to_offset(position);
+
+        let (mut symbol, start) = workspace_source.looking_back(offset)?;
+
+        let item = ItemBuf::with_item(symbol.split("::"));
+        let span = Span::new(start + 1, offset);
+
+        let def = workspace_source.find_definition_at(Span::point(offset))?;
+        let source = self.workspace.get(uri)?;
+
+        let mut results = vec![];
+
+        let can_use_instance_fn: &[_] = &[']', '.', ')'];
+        let untrimmed_length = symbol.len();
+        let first_char = symbol.remove(0);
+
+        if let Some(unit) = workspace_source.unit.as_ref() {
+            if let Some(debug_info) = unit.debug_info() {
+                for function in debug_info.functions.values() {
+                    let func_name = format!("{}", function.path);
+
+                    if func_name.starts_with(&symbol) {
+                        results.push(lsp::CompletionItem {
+                            label: format!("{}", function.path),
+                            kind: Some(lsp::CompletionItemKind::FUNCTION),
+                            detail: Some("qwe".to_owned()),
+                            documentation: Some(lsp::Documentation::String(format!(
+                                "{}",
+                                function.path
+                            ))),
+                            deprecated: Some(false),
+                            preselect: Some(true),
+                            sort_text: None,
+                            filter_text: None,
+                            insert_text: None,
+                            insert_text_format: None,
+                            text_edit: Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
+                                range: lsp::Range {
+                                    start: lsp::Position {
+                                        line: position.line,
+                                        character: position.character - untrimmed_length as u32,
+                                    },
+                                    end: position,
+                                },
+                                new_text: format!("{}", function.path),
+                            })),
+                            additional_text_edits: None,
+                            command: None,
+                            data: Some("x".into()),
+                            tags: None,
+                            label_details: None,
+                            insert_text_mode: None,
+                            commit_characters: Some(vec!["(".into()]),
+                        })
+                    }
+                }
+            }
+        }
+
+        if first_char.is_ascii_alphabetic() || can_use_instance_fn.contains(&first_char) {
+            for info in self.context.iter_functions() {
+                let (prefix, kind, _args, name) = match &info.1.kind {
+                    SignatureKind::Instance { name, .. } => (
+                        info.1.item.clone(),
+                        lsp::CompletionItemKind::FUNCTION,
+                        info.1.args.clone(),
+                        name.clone(),
+                    ),
+                    _ => continue,
+                };
+                let func_name = format!("{}", name).trim_start_matches("::").to_owned();
+
+                if func_name.starts_with(&symbol) {
+                    results.push(lsp::CompletionItem {
+                        label: func_name.clone(),
+                        kind: Some(kind),
+                        detail: Some(format!("{}", prefix)),
+                        documentation: Some(lsp::Documentation::String(format!(
+                            "{}::{}",
+                            prefix, item
+                        ))),
+                        deprecated: Some(false),
+                        preselect: Some(true),
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        text_edit: Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
+                            range: lsp::Range {
+                                start: lsp::Position {
+                                    line: position.line,
+                                    character: position.character - untrimmed_length as u32,
+                                },
+                                end: position,
+                            },
+                            new_text: func_name,
+                        })),
+                        additional_text_edits: None,
+                        command: None,
+                        data: Some(symbol.clone().into()),
+                        tags: None,
+                        label_details: None,
+                        insert_text_mode: None,
+                        commit_characters: None,
+                    })
+                }
+            }
+        } else {
+            let trimmed_length = symbol.trim().len();
+            let delta = untrimmed_length - trimmed_length;
+            let span = Span::new(start + delta, offset);
+
+            for info in self.context.iter_functions() {
+                let (item, kind, args) = match info.1.kind {
+                    SignatureKind::Function { .. } => (
+                        info.1.item.clone(),
+                        lsp::CompletionItemKind::FUNCTION,
+                        info.1.args.clone(),
+                    ),
+                    _ => continue,
+                };
+                let func_name = format!("{}", item).trim_start_matches("::").to_owned();
+
+                if func_name.starts_with(&symbol.trim()) {
+                    results.push(lsp::CompletionItem {
+                        label: func_name.clone(),
+                        kind: Some(kind),
+                        detail: Some(format!("{} arguments", args.unwrap_or(0))),
+                        documentation: Some(lsp::Documentation::String(func_name.clone())),
+                        deprecated: Some(false),
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        text_edit: Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
+                            range: lsp::Range {
+                                start: lsp::Position {
+                                    line: position.line,
+                                    character: position.character - untrimmed_length as u32,
+                                },
+                                end: position,
+                            },
+                            new_text: func_name,
+                        })),
+                        additional_text_edits: None,
+                        command: None,
+                        data: Some(symbol.trim().into()),
+                        tags: None,
+                        label_details: None,
+                        insert_text_mode: None,
+                        commit_characters: None,
+                    })
+                }
+            }
+        }
+        Some(results)
+    }
     /// Rebuild the project.
     pub(super) async fn rebuild(&mut self) -> Result<()> {
         // Keep track of URLs visited as part of workspace builds.
@@ -246,6 +415,7 @@ impl<'a> State<'a> {
 
             let mut build = Build::default();
             let input = crate::Source::with_path(url, source.to_string(), url.to_file_path().ok());
+
             build.sources.insert(input);
             script_results.push(self.build_scripts(build, None));
         }
@@ -261,7 +431,7 @@ impl<'a> State<'a> {
             emit_workspace(diagnostics, &build, &mut reporter);
         }
 
-        for (diagnostics, mut build, visitor) in script_results {
+        for (diagnostics, mut build, visitor, unit) in script_results {
             build.populate(&mut reporter);
             emit_scripts(diagnostics, &build, &mut reporter);
 
@@ -278,6 +448,10 @@ impl<'a> State<'a> {
 
                 source.index = value;
                 source.build_sources = Some(sources.clone());
+
+                if let Ok(unit) = unit.as_ref().map(|v| v.clone()) {
+                    source.unit = Some(unit.clone());
+                }
             }
         }
 
@@ -344,6 +518,7 @@ impl<'a> State<'a> {
             build
                 .sources
                 .insert(crate::Source::with_path(&url, source, Some(found.path)));
+
             script_builds.push(build);
         }
 
@@ -354,12 +529,12 @@ impl<'a> State<'a> {
         &self,
         mut build: Build,
         built: Option<&mut HashSet<Url>>,
-    ) -> (crate::Diagnostics, Build, Visitor) {
+    ) -> (crate::Diagnostics, Build, Visitor, Result<Unit, BuildError>) {
         let mut diagnostics = crate::Diagnostics::new();
         let mut visitor = Visitor::default();
         let mut source_loader = ScriptSourceLoader::new(&self.workspace.sources);
 
-        let _ = crate::prepare(&mut build.sources)
+        let unit = crate::prepare(&mut build.sources)
             .with_context(&self.context)
             .with_diagnostics(&mut diagnostics)
             .with_options(&self.options)
@@ -371,7 +546,7 @@ impl<'a> State<'a> {
             build.visit(built);
         }
 
-        (diagnostics, build, visitor)
+        (diagnostics, build, visitor, unit)
     }
 }
 
@@ -406,6 +581,7 @@ fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut R
             .iter()
             .map(|(k, v)| (*k, v.to_string()))
             .collect::<HashMap<_, _>>();
+
         tracing::trace!(?id_to_url, "emitting script diagnostics");
     }
 
@@ -478,6 +654,7 @@ impl Workspace {
             index: Default::default(),
             build_sources: None,
             language,
+            unit: None,
         };
 
         self.sources.insert(url, source)
@@ -512,6 +689,8 @@ pub(super) struct Source {
     build_sources: Option<Arc<crate::Sources>>,
     /// The language of the source.
     language: Language,
+    /// The compiled unit
+    unit: Option<Unit>,
 }
 
 impl Source {
@@ -550,6 +729,23 @@ impl Source {
     /// Iterate over the text chunks in the source.
     pub(super) fn chunks(&self) -> impl Iterator<Item = &str> {
         self.content.chunks()
+    }
+
+    /// Returns the best match wordwise when looking back
+    pub fn looking_back(&self, offset: usize) -> Option<(String, usize)> {
+        let (chunk, start_byte, _, _) = self.content.chunk_at_byte(offset);
+
+        // this is everything that delimits one "item" from another... some of these will cause it to behave as static inference
+        let x: &[_] = &[',', ';', ')', '(', '.', '=', '+', '-', '*', '/'];
+        let end_search = offset - start_byte + 1;
+        if let Some(looking_back) = chunk[..end_search].rfind(x) {
+            Some((
+                chunk[looking_back..end_search].trim().to_owned(),
+                start_byte + looking_back,
+            ))
+        } else {
+            None
+        }
     }
 }
 
