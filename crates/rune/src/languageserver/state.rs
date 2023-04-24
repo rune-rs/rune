@@ -200,6 +200,7 @@ impl<'a> State<'a> {
         position: lsp::Position,
     ) -> Option<Vec<lsp::CompletionItem>> {
         let sources = &self.workspace.sources;
+        tracing::info!("sources: {:?}", sources.get(uri).is_some());
         let workspace_source = sources.get(uri)?;
 
         let offset = workspace_source.lsp_position_to_offset(position);
@@ -207,21 +208,22 @@ impl<'a> State<'a> {
         let (mut symbol, start) = workspace_source.looking_back(offset)?;
 
         let item = ItemBuf::with_item(symbol.split("::"));
-        let span = Span::new(start + 1, offset);
-
-        let def = workspace_source.find_definition_at(Span::point(offset))?;
-        let source = self.workspace.get(uri)?;
-
         let mut results = vec![];
 
         let can_use_instance_fn: &[_] = &[']', '.', ')'];
         let untrimmed_length = symbol.len();
+        if symbol.is_empty() {
+            return None;
+        }
         let first_char = symbol.remove(0);
 
         if let Some(unit) = workspace_source.unit.as_ref() {
+            tracing::info!("qux");
             if let Some(debug_info) = unit.debug_info() {
+                tracing::info!("qqweux");
                 for function in debug_info.functions.values() {
                     let func_name = format!("{}", function.path);
+                    tracing::info!("qqweux: {:?} {:?}", func_name, symbol);
 
                     if func_name.starts_with(&symbol) {
                         results.push(lsp::CompletionItem {
@@ -740,7 +742,7 @@ impl Source {
         let end_search = offset - start_byte + 1;
         if let Some(looking_back) = chunk[..end_search].rfind(x) {
             Some((
-                chunk[looking_back..end_search].trim().to_owned(),
+                chunk[looking_back + 1..end_search].trim().to_owned(),
                 start_byte + looking_back,
             ))
         } else {
