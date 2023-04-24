@@ -97,6 +97,8 @@ pub async fn run(context: Context, options: Options) -> Result<()> {
                     req(lsp::request::Initialize, initialize),
                     req(lsp::request::Shutdown, shutdown),
                     req(lsp::request::GotoDefinition, goto_definition),
+                    req(lsp::request::Completion, completion),
+                    req(lsp::request::ResolveCompletionItem, resolve),
                     notif(lsp::notification::DidOpenTextDocument, did_open_text_document),
                     notif(lsp::notification::DidChangeTextDocument, did_change_text_document),
                     notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
@@ -126,6 +128,17 @@ async fn initialize(
             lsp::TextDocumentSyncKind::INCREMENTAL,
         )),
         definition_provider: Some(lsp::OneOf::Left(true)),
+        completion_provider: Some(lsp::CompletionOptions {
+            all_commit_characters: None,
+            resolve_provider: Some(true),
+            trigger_characters: Some(vec![".".into(), "::".into()]),
+            work_done_progress_options: lsp::WorkDoneProgressOptions {
+                work_done_progress: None,
+            },
+            completion_item: Some(lsp::CompletionOptionsCompletionItem {
+                label_details_support: None,
+            }),
+        }),
         ..Default::default()
     };
 
@@ -186,6 +199,32 @@ async fn goto_definition(
         .await;
 
     Ok(position.map(lsp::GotoDefinitionResponse::Scalar))
+}
+
+/// Handle initialized notification.
+async fn completion(
+    state: &mut State<'_>,
+    params: lsp::CompletionParams,
+) -> Result<Option<lsp::CompletionResponse>> {
+    let results = state
+        .complete(
+            &params.text_document_position.text_document.uri,
+            params.text_document_position.position,
+        )
+        .await;
+
+    let results = results.map(lsp::CompletionResponse::Array);
+
+    Ok(results)
+}
+
+/// Handle initialized notification.
+async fn resolve(
+    state: &mut State<'_>,
+    mut item: lsp::CompletionItem,
+) -> Result<lsp::CompletionItem> {
+    item.documentation = Some(lsp::Documentation::String("hello".into()));
+    Ok(item)
 }
 
 /// Handle open text document.
