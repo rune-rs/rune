@@ -222,6 +222,7 @@ async fn resolve(
     state: &mut State<'_>,
     mut item: lsp::CompletionItem,
 ) -> Result<lsp::CompletionItem> {
+    return Ok(item);
     match &mut item.data {
         Some(serde_json::Value::String(key)) => {
             item.documentation = Some(lsp::Documentation::String("rune-function".into()));
