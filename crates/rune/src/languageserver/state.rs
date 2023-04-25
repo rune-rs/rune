@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context as _, Result};
-use lsp::Url;
+use lsp::{CompletionItemLabelDetails, Url};
 use ropey::Rope;
 use tokio::sync::Notify;
 
@@ -144,6 +144,11 @@ impl<'a> State<'a> {
         self.stopped
     }
 
+    /// Get access to the context.
+    pub(super) fn context(&self) -> &Context {
+        &self.context
+    }
+
     /// Get mutable access to the workspace.
     pub(super) fn workspace_mut(&mut self) -> &mut Workspace {
         &mut self.workspace
@@ -206,33 +211,40 @@ impl<'a> State<'a> {
         let offset = workspace_source.lsp_position_to_offset(position);
 
         let (mut symbol, start) = workspace_source.looking_back(offset)?;
-
-        let item = ItemBuf::with_item(symbol.split("::"));
-        let mut results = vec![];
-
-        let can_use_instance_fn: &[_] = &[']', '.', ')'];
-        let untrimmed_length = symbol.len();
         if symbol.is_empty() {
             return None;
         }
+
+        let mut results = vec![];
+
+        let can_use_instance_fn: &[_] = &['.'];
         let first_char = symbol.remove(0);
+        let symbol = symbol.trim();
+        let untrimmed_length = symbol.len();
 
         if let Some(unit) = workspace_source.unit.as_ref() {
-            tracing::info!("qux");
             if let Some(debug_info) = unit.debug_info() {
-                tracing::info!("qqweux");
                 for function in debug_info.functions.values() {
                     let func_name = format!("{}", function.path);
-                    tracing::info!("qqweux: {:?} {:?}", func_name, symbol);
 
+                    let args = match &function.args {
+                        crate::runtime::debug::DebugArgs::EmptyArgs => None,
+                        crate::runtime::debug::DebugArgs::TupleArgs(n) => Some(
+                            (0..*n)
+                                .map(|n| format!("_{}", n))
+                                .fold("".to_owned(), |a, b| format!("{}, {}", a, b)),
+                        ),
+                        crate::runtime::debug::DebugArgs::Named(names) => Some(names.join(", ")),
+                    };
+                    
                     if func_name.starts_with(&symbol) {
                         results.push(lsp::CompletionItem {
-                            label: format!("{}", function.path),
+                            label: format!("{}", function.path.last().unwrap()),
                             kind: Some(lsp::CompletionItemKind::FUNCTION),
-                            detail: Some("qwe".to_owned()),
+                            detail: args.clone(),
                             documentation: Some(lsp::Documentation::String(format!(
                                 "{}",
-                                function.path
+                                function.path.parent().unwrap_or_default()
                             ))),
                             deprecated: Some(false),
                             preselect: Some(true),
@@ -252,9 +264,12 @@ impl<'a> State<'a> {
                             })),
                             additional_text_edits: None,
                             command: None,
-                            data: Some("x".into()),
+                            data: Some("rune-function".into()),
                             tags: None,
-                            label_details: None,
+                            label_details: Some(CompletionItemLabelDetails {
+                                detail: args.map(|a| format!("({})", a)),
+                                description: None,
+                            }),
                             insert_text_mode: None,
                             commit_characters: Some(vec!["(".into()]),
                         })
@@ -265,26 +280,26 @@ impl<'a> State<'a> {
 
         if first_char.is_ascii_alphabetic() || can_use_instance_fn.contains(&first_char) {
             for info in self.context.iter_functions() {
-                let (prefix, kind, _args, name) = match &info.1.kind {
-                    SignatureKind::Instance { name, .. } => (
+                let (prefix, kind, name) = match &info.1.kind {
+                    SignatureKind::Instance { name, self_type_info  } => (
                         info.1.item.clone(),
                         lsp::CompletionItemKind::FUNCTION,
-                        info.1.args.clone(),
                         name.clone(),
                     ),
                     _ => continue,
                 };
-                let func_name = format!("{}", name).trim_start_matches("::").to_owned();
 
+                let (return_type, docs) = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|meta| (&meta.item, &meta.docs)).unzip();
+                let func_name = format!("{}", name).trim_start_matches("::").to_owned();
+                let args = docs.and_then(|d| d.args()).map(|args| args.join(", "));
+
+                let detail = return_type.zip(args.clone()).map(|(r, a)| format!("({a:} -> {r}"));
                 if func_name.starts_with(&symbol) {
                     results.push(lsp::CompletionItem {
                         label: func_name.clone(),
                         kind: Some(kind),
-                        detail: Some(format!("{}", prefix)),
-                        documentation: Some(lsp::Documentation::String(format!(
-                            "{}::{}",
-                            prefix, item
-                        ))),
+                        detail,
+                        documentation: docs.map(|d| lsp::Documentation::String(d.lines().join("\n"))),
                         deprecated: Some(false),
                         preselect: Some(true),
                         sort_text: None,
@@ -303,9 +318,12 @@ impl<'a> State<'a> {
                         })),
                         additional_text_edits: None,
                         command: None,
-                        data: Some(symbol.clone().into()),
+                        data: Some(serde_json::to_value(&info.0).unwrap()),
                         tags: None,
-                        label_details: None,
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: args.map(|args: String| format!("({})", args)),
+                            description: None,
+                        }),
                         insert_text_mode: None,
                         commit_characters: None,
                     })
@@ -313,8 +331,6 @@ impl<'a> State<'a> {
             }
         } else {
             let trimmed_length = symbol.trim().len();
-            let delta = untrimmed_length - trimmed_length;
-            let span = Span::new(start + delta, offset);
 
             for info in self.context.iter_functions() {
                 let (item, kind, args) = match info.1.kind {
@@ -351,7 +367,7 @@ impl<'a> State<'a> {
                         })),
                         additional_text_edits: None,
                         command: None,
-                        data: Some(symbol.trim().into()),
+                        data: Some(serde_json::to_value(&info.0).unwrap()),
                         tags: None,
                         label_details: None,
                         insert_text_mode: None,
@@ -742,7 +758,7 @@ impl Source {
         let end_search = offset - start_byte + 1;
         if let Some(looking_back) = chunk[..end_search].rfind(x) {
             Some((
-                chunk[looking_back + 1..end_search].trim().to_owned(),
+                chunk[looking_back..end_search].trim().to_owned(),
                 start_byte + looking_back,
             ))
         } else {

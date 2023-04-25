@@ -9,7 +9,7 @@ mod state;
 mod url;
 
 use crate::workspace::MANIFEST_FILE;
-use crate::{Context, Options};
+use crate::{Context, Hash, Options};
 use anyhow::Result;
 use lsp::notification::Notification;
 use lsp::request::Request;
@@ -206,7 +206,6 @@ async fn completion(
     state: &mut State<'_>,
     params: lsp::CompletionParams,
 ) -> Result<Option<lsp::CompletionResponse>> {
-    tracing::info!("completion:  {:?}", params);
     let results = state
         .complete(
             &params.text_document_position.text_document.uri,
@@ -215,7 +214,6 @@ async fn completion(
         .await;
 
     let results = results.map(lsp::CompletionResponse::Array);
-    tracing::info!("results: {:?}", results);
     Ok(results)
 }
 
@@ -224,7 +222,22 @@ async fn resolve(
     state: &mut State<'_>,
     mut item: lsp::CompletionItem,
 ) -> Result<lsp::CompletionItem> {
-    item.documentation = Some(lsp::Documentation::String("hello".into()));
+    match &mut item.data {
+        Some(serde_json::Value::String(key)) => {
+            item.documentation = Some(lsp::Documentation::String("rune-function".into()));
+        }
+        Some(v) => {
+            let hash: Hash = serde_json::from_value(v.take())?;
+            if let Some(func) = state.context().lookup_meta_by_hash(hash) {
+                let docs = func.docs.lines().join("\n");
+                item.documentation = Some(lsp::Documentation::String(docs.into()));
+            } else {
+                item.documentation = None;
+            }
+        }
+        None => return Ok(item),
+    };
+
     Ok(item)
 }
 
