@@ -289,17 +289,19 @@ impl<'a> State<'a> {
                     _ => continue,
                 };
 
-                let (return_type, docs) = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|meta| (&meta.item, &meta.docs)).unzip();
-                let func_name = format!("{}", name).trim_start_matches("::").to_owned();
-                let args = docs.and_then(|d| d.args()).map(|args| args.join(", "));
+                let meta = self.context.lookup_meta_by_hash(info.0);
+                let return_type = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|r| r.item.clone());
 
+                let func_name = format!("{}", name).trim_start_matches("::").to_owned();
+                let docs = meta.map(|meta| meta.docs.lines().join("\n"));
+                let args = meta.map(|meta| &meta.docs).and_then(|d| d.args()).map(|args| args.join(", "));
                 let detail = return_type.zip(args.clone()).map(|(r, a)| format!("({a:} -> {r}"));
                 if func_name.starts_with(&symbol) {
                     results.push(lsp::CompletionItem {
                         label: func_name.clone(),
                         kind: Some(kind),
                         detail,
-                        documentation: docs.map(|d| lsp::Documentation::String(d.lines().join("\n"))),
+                        documentation: docs.map(|d| lsp::Documentation::String(d)),
                         deprecated: Some(false),
                         preselect: Some(true),
                         sort_text: None,
@@ -330,24 +332,26 @@ impl<'a> State<'a> {
                 }
             }
         } else {
-            let trimmed_length = symbol.trim().len();
 
             for info in self.context.iter_functions() {
-                let (item, kind, args) = match info.1.kind {
+                let (item, kind) = match info.1.kind {
                     SignatureKind::Function { .. } => (
                         info.1.item.clone(),
                         lsp::CompletionItemKind::FUNCTION,
-                        info.1.args.clone(),
                     ),
                     _ => continue,
                 };
                 let func_name = format!("{}", item).trim_start_matches("::").to_owned();
 
+                let (return_type, docs) = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|meta| (&meta.item, &meta.docs)).unzip();
+                let args = docs.and_then(|d| d.args()).map(|args| args.join(", "));
+
+
                 if func_name.starts_with(&symbol.trim()) {
                     results.push(lsp::CompletionItem {
                         label: func_name.clone(),
                         kind: Some(kind),
-                        detail: Some(format!("{} arguments", args.unwrap_or(0))),
+                        detail: args,
                         documentation: Some(lsp::Documentation::String(func_name.clone())),
                         deprecated: Some(false),
                         preselect: None,
