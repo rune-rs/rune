@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context as _, Result};
-use lsp::{CompletionItemLabelDetails, Url};
+use lsp::{CompletionItemLabelDetails, Url, MarkupContent};
 use ropey::Rope;
 use tokio::sync::Notify;
 
@@ -18,6 +18,7 @@ use crate::compile::{
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
+use crate::runtime::debug::DebugArgs;
 use crate::workspace::{self, WorkspaceError};
 use crate::BuildError;
 use crate::{Context, Options, SourceId, Unit};
@@ -226,15 +227,15 @@ impl<'a> State<'a> {
             if let Some(debug_info) = unit.debug_info() {
                 for function in debug_info.functions.values() {
                     let func_name = format!("{}", function.path);
-
+                    
                     let args = match &function.args {
-                        crate::runtime::debug::DebugArgs::EmptyArgs => None,
-                        crate::runtime::debug::DebugArgs::TupleArgs(n) => Some(
+                        DebugArgs::EmptyArgs => None,
+                        DebugArgs::TupleArgs(n) => Some(
                             (0..*n)
                                 .map(|n| format!("_{}", n))
                                 .fold("".to_owned(), |a, b| format!("{}, {}", a, b)),
                         ),
-                        crate::runtime::debug::DebugArgs::Named(names) => Some(names.join(", ")),
+                        DebugArgs::Named(names) => Some(names.join(", ")),
                     };
                     
                     if func_name.starts_with(&symbol) {
@@ -280,19 +281,26 @@ impl<'a> State<'a> {
 
         if first_char.is_ascii_alphabetic() || can_use_instance_fn.contains(&first_char) {
             for info in self.context.iter_functions() {
-                let (prefix, kind, name) = match &info.1.kind {
-                    SignatureKind::Instance { name, self_type_info  } => (
+                let (prefix, kind, function_kind) = match &info.1.kind {
+                    SignatureKind::Instance { name,  .. } => (
                         info.1.item.clone(),
                         lsp::CompletionItemKind::FUNCTION,
-                        name.clone(),
+                        name,
                     ),
                     _ => continue,
                 };
 
+                match function_kind {
+                    compile::AssociatedFunctionKind::Protocol(_) => continue,
+                    compile::AssociatedFunctionKind::FieldFn(_, _) => continue,
+                    compile::AssociatedFunctionKind::IndexFn(_, _) => continue,
+                    compile::AssociatedFunctionKind::Instance(_) => {},
+                }
+                
                 let meta = self.context.lookup_meta_by_hash(info.0);
                 let return_type = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|r| r.item.clone());
 
-                let func_name = format!("{}", name).trim_start_matches("::").to_owned();
+                let func_name = format!("{}", prefix).trim_start_matches("::").to_owned();
                 let docs = meta.map(|meta| meta.docs.lines().join("\n"));
                 let args = meta.map(|meta| &meta.docs).and_then(|d| d.args()).map(|args| args.join(", "));
                 let detail = return_type.zip(args.clone()).map(|(r, a)| format!("({a:} -> {r}"));
@@ -301,13 +309,13 @@ impl<'a> State<'a> {
                         label: func_name.clone(),
                         kind: Some(kind),
                         detail,
-                        documentation: docs.map(|d| lsp::Documentation::String(d)),
+                        documentation: docs.map(|d| lsp::Documentation::MarkupContent(
+                            lsp::MarkupContent {
+                                kind: lsp::MarkupKind::Markdown,
+                                value: d,
+                            }
+                        )),
                         deprecated: Some(false),
-                        preselect: Some(true),
-                        sort_text: None,
-                        filter_text: None,
-                        insert_text: None,
-                        insert_text_format: None,
                         text_edit: Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
                             range: lsp::Range {
                                 start: lsp::Position {
@@ -318,47 +326,40 @@ impl<'a> State<'a> {
                             },
                             new_text: func_name,
                         })),
-                        additional_text_edits: None,
-                        command: None,
                         data: Some(serde_json::to_value(&info.0).unwrap()),
-                        tags: None,
-                        label_details: Some(CompletionItemLabelDetails {
-                            detail: args.map(|args: String| format!("({})", args)),
-                            description: None,
-                        }),
-                        insert_text_mode: None,
-                        commit_characters: None,
+                        ..Default::default()
                     })
                 }
             }
         } else {
-
             for info in self.context.iter_functions() {
                 let (item, kind) = match info.1.kind {
-                    SignatureKind::Function { .. } => (
+                    SignatureKind::Function {} => (
                         info.1.item.clone(),
                         lsp::CompletionItemKind::FUNCTION,
                     ),
                     _ => continue,
                 };
+
+                let meta = self.context.lookup_meta_by_hash(info.0);
+                let return_type = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|r| r.item.clone());
+
                 let func_name = format!("{}", item).trim_start_matches("::").to_owned();
-
-                let (return_type, docs) = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|meta| (&meta.item, &meta.docs)).unzip();
-                let args = docs.and_then(|d| d.args()).map(|args| args.join(", "));
-
-
+                let docs = meta.map(|meta| meta.docs.lines().join("\n"));
+                let args = meta.map(|meta| &meta.docs).and_then(|d| d.args()).map(|args| args.join(", "));
+                let detail = return_type.zip(args.clone()).map(|(r, a)| format!("({a:}) -> {r}"));
                 if func_name.starts_with(&symbol.trim()) {
                     results.push(lsp::CompletionItem {
                         label: func_name.clone(),
                         kind: Some(kind),
-                        detail: args,
-                        documentation: Some(lsp::Documentation::String(func_name.clone())),
+                        detail,
+                        documentation: docs.map(|d| lsp::Documentation::MarkupContent(
+                            lsp::MarkupContent {
+                                kind: lsp::MarkupKind::Markdown,
+                                value: d,
+                            }
+                        )),
                         deprecated: Some(false),
-                        preselect: None,
-                        sort_text: None,
-                        filter_text: None,
-                        insert_text: None,
-                        insert_text_format: None,
                         text_edit: Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
                             range: lsp::Range {
                                 start: lsp::Position {
@@ -369,17 +370,15 @@ impl<'a> State<'a> {
                             },
                             new_text: func_name,
                         })),
-                        additional_text_edits: None,
-                        command: None,
                         data: Some(serde_json::to_value(&info.0).unwrap()),
-                        tags: None,
-                        label_details: None,
-                        insert_text_mode: None,
-                        commit_characters: None,
+                        ..Default::default()
                     })
                 }
             }
         }
+
+        tracing::info!("results: {:?}", results);
+        
         Some(results)
     }
     /// Rebuild the project.
