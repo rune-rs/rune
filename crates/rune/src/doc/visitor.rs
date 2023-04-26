@@ -4,6 +4,7 @@ use crate::compile::{
 };
 use crate::hash::Hash;
 
+#[derive(Clone)] // TODO(TSol): this is a bit hackish
 pub(crate) struct VisitorData {
     pub(crate) item: ItemBuf,
     pub(crate) hash: Hash,
@@ -24,6 +25,7 @@ impl VisitorData {
     }
 }
 
+#[derive(Clone)] // TODO(TSol): this is a bit hackish
 /// Visitor used to collect documentation from rune sources.
 pub struct Visitor {
     pub(crate) base: ItemBuf,

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context as _, Result};
-use lsp::{CompletionItemLabelDetails, Url, MarkupContent};
+use lsp::{CompletionItemLabelDetails, Url};
 use ropey::Rope;
 use tokio::sync::Notify;
 
@@ -20,7 +20,7 @@ use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
 use crate::runtime::debug::DebugArgs;
 use crate::workspace::{self, WorkspaceError};
-use crate::BuildError;
+use crate::{BuildError, Hash};
 use crate::{Context, Options, SourceId, Unit};
 
 #[derive(Default)]
@@ -212,6 +212,8 @@ impl<'a> State<'a> {
         let offset = workspace_source.lsp_position_to_offset(position);
 
         let (mut symbol, start) = workspace_source.looking_back(offset)?;
+        tracing::info!("symbol : {:?}, start: {:}", symbol, start);
+
         if symbol.is_empty() {
             return None;
         }
@@ -225,9 +227,9 @@ impl<'a> State<'a> {
 
         if let Some(unit) = workspace_source.unit.as_ref() {
             if let Some(debug_info) = unit.debug_info() {
-                for function in debug_info.functions.values() {
+                for (hash, function) in debug_info.functions.iter() {
                     let func_name = format!("{}", function.path);
-                    
+                
                     let args = match &function.args {
                         DebugArgs::EmptyArgs => None,
                         DebugArgs::TupleArgs(n) => Some(
@@ -238,15 +240,19 @@ impl<'a> State<'a> {
                         DebugArgs::Named(names) => Some(names.join(", ")),
                     };
                     
+                    tracing::info!("func_name: {func_name:?}, symbol: {symbol:?}");
                     if func_name.starts_with(&symbol) {
+                        let docs = workspace_source.docs.as_ref().and_then(|docs| docs.get_by_hash(*hash)).map(|docs| docs.docs.join("\n"));
                         results.push(lsp::CompletionItem {
                             label: format!("{}", function.path.last().unwrap()),
                             kind: Some(lsp::CompletionItemKind::FUNCTION),
                             detail: args.clone(),
-                            documentation: Some(lsp::Documentation::String(format!(
-                                "{}",
-                                function.path.parent().unwrap_or_default()
-                            ))),
+                            documentation: docs.map(|d| lsp::Documentation::MarkupContent(
+                                lsp::MarkupContent {
+                                    kind: lsp::MarkupKind::Markdown,
+                                    value: d,
+                                }
+                            )),
                             deprecated: Some(false),
                             preselect: Some(true),
                             sort_text: None,
@@ -452,13 +458,13 @@ impl<'a> State<'a> {
             emit_workspace(diagnostics, &build, &mut reporter);
         }
 
-        for (diagnostics, mut build, visitor, unit) in script_results {
+        for (diagnostics, mut build, source_visitor, doc_visitor, unit) in script_results {
             build.populate(&mut reporter);
             emit_scripts(diagnostics, &build, &mut reporter);
 
             let sources = Arc::new(build.sources);
 
-            for (source_id, value) in visitor.into_indexes() {
+            for (source_id, value) in source_visitor.into_indexes() {
                 let Some(url) = build.id_to_url.get(&source_id) else {
                     continue;
                 };
@@ -470,10 +476,16 @@ impl<'a> State<'a> {
                 source.index = value;
                 source.build_sources = Some(sources.clone());
 
-                if let Ok(unit) = unit.as_ref().map(|v| v.clone()) {
-                    source.unit = Some(unit.clone());
-                }
+                
+                
+            if let Ok(unit) = unit.as_ref().map(|v| v.clone()) {
+                source.unit = Some(unit.clone());
             }
+
+            source.docs = Some(doc_visitor.clone());
+            }
+
+
         }
 
         for (url, diagnostics) in reporter.by_url {
@@ -550,16 +562,19 @@ impl<'a> State<'a> {
         &self,
         mut build: Build,
         built: Option<&mut HashSet<Url>>,
-    ) -> (crate::Diagnostics, Build, Visitor, Result<Unit, BuildError>) {
+    ) -> (crate::Diagnostics, Build, Visitor, crate::doc::Visitor, Result<Unit, BuildError>) {
         let mut diagnostics = crate::Diagnostics::new();
-        let mut visitor = Visitor::default();
+        let mut source_visitor = Visitor::default();
+        let mut doc_visitor = crate::doc::Visitor::new(ItemBuf::new());
+
         let mut source_loader = ScriptSourceLoader::new(&self.workspace.sources);
 
         let unit = crate::prepare(&mut build.sources)
             .with_context(&self.context)
             .with_diagnostics(&mut diagnostics)
             .with_options(&self.options)
-            .with_visitor(&mut visitor)
+            .with_visitor(&mut doc_visitor)
+            .with_visitor(&mut source_visitor)
             .with_source_loader(&mut source_loader)
             .build();
 
@@ -567,7 +582,7 @@ impl<'a> State<'a> {
             build.visit(built);
         }
 
-        (diagnostics, build, visitor, unit)
+        (diagnostics, build, source_visitor, doc_visitor, unit)
     }
 }
 
@@ -676,8 +691,8 @@ impl Workspace {
             build_sources: None,
             language,
             unit: None,
+            docs: None,
         };
-
         self.sources.insert(url, source)
     }
 
@@ -712,6 +727,8 @@ pub(super) struct Source {
     language: Language,
     /// The compiled unit
     unit: Option<Unit>,
+    /// Comments captured 
+    docs: Option<crate::doc::Visitor>
 }
 
 impl Source {
@@ -752,13 +769,14 @@ impl Source {
         self.content.chunks()
     }
 
-    /// Returns the best match wordwise when looking back
+    /// Returns the best match wordwise when looking back. Note that this will also include the *previous* terminal token. This should probably be an enum...
     pub fn looking_back(&self, offset: usize) -> Option<(String, usize)> {
         let (chunk, start_byte, _, _) = self.content.chunk_at_byte(offset);
 
         // this is everything that delimits one "item" from another... some of these will cause it to behave as static inference
         let x: &[_] = &[',', ';', ')', '(', '.', '=', '+', '-', '*', '/'];
-        let end_search = offset - start_byte + 1;
+        tracing::info!("chunk : {:?}", chunk);
+        let end_search = (offset - start_byte + 1).min(chunk.len());
         if let Some(looking_back) = chunk[..end_search].rfind(x) {
             Some((
                 chunk[looking_back..end_search].trim().to_owned(),
