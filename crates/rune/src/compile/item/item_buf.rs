@@ -22,31 +22,40 @@ use crate::compile::item::{Component, ComponentRef, IntoComponent, Item, Iter};
 ///
 /// # Panics
 ///
-/// The max length of a string component is is 2**15 = 32768. Attempting to add
-/// a string larger than that will panic.
+/// The max length of a string component is is 2**14 = 16384. Attempting to add
+/// a string larger than that will panic. This also constitutes the maximum
+/// number of *nested* sibling components that can exist in a single source file
+/// since they all use anonymous identifiers.
 ///
 /// # Component encoding
 ///
-/// A component is encoded as:
+/// The following details internal implementation details of an [`Item`], and is
+/// not exposed through its API. It is provided here in case you need to work
+/// with the internal of an item.
+///
+/// A single component is encoded as:
+///
 /// * A two byte tag as a u16 in native endianess, indicating its type (least
-///   significant 2 bits) and data (most significant 15 bits).
+///   significant 2 bits) and data (most significant 14 bits).
 /// * If the type is a `STRING`, the data is treated as the length of the
 ///   string. Any other type this the `data` is treated as the numeric id of the
 ///   component.
 /// * If the type is a `STRING`, the tag is repeated at the end of it to allow
-///   for seeking backwards. This is **not** the case for other types. Since
-///   they are fixed size its not necessary.
+///   for seeking backwards. This is *not* the case for other types. Since they
+///   are fixed size its not necessary.
 ///
-/// So all in all, a string is encoded as:
+/// So all in all, a string is encoded as this where the `d` part indicates the
+/// length of the string:
 ///
 /// ```text
-/// dddddddd dddddddt *string content* dddddddd dddddddt
+/// dddddddd ddddddtt *string content* dddddddd ddddddtt
 /// ```
 ///
-/// And any other component is just the two bytes:
+/// And any other component is just the two bytes where the `d` part makes up a
+/// numerical component:
 ///
 /// ```text
-/// dddddddd dddddddt
+/// dddddddd ddddddtt
 /// ```
 #[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
