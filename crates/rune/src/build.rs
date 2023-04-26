@@ -1,7 +1,7 @@
 use crate::ast::Span;
 use crate::compile;
 use crate::compile::{
-    CompileVisitor, FileSourceLoader, NoopCompileVisitor, Options, Pool, SourceLoader,
+    CompileVisitor, FileSourceLoader, Options, Pool, SourceLoader,
 };
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, SourceId, Sources};
@@ -63,7 +63,7 @@ pub fn prepare(sources: &mut Sources) -> Build<'_> {
         context: None,
         diagnostics: None,
         options: None,
-        visitor: None,
+        visitors: Vec::new(),
         source_loader: None,
     }
 }
@@ -74,10 +74,59 @@ pub struct Build<'a> {
     context: Option<&'a Context>,
     diagnostics: Option<&'a mut Diagnostics>,
     options: Option<&'a Options>,
-    visitor: Option<&'a mut dyn compile::CompileVisitor>,
+    visitors: Vec<&'a mut dyn compile::CompileVisitor>,
     source_loader: Option<&'a mut dyn SourceLoader>,
 }
 
+/// Wraps a collection of CompileVisitor
+struct CompileVisitorGroup<'a> {
+    visitors: Vec<&'a mut dyn compile::CompileVisitor>
+}
+
+impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
+    fn register_meta(&mut self, meta: compile::MetaRef<'_>) {
+        for v in self.visitors.iter_mut() {
+            v.register_meta(meta.clone())
+        }
+    }
+
+    fn visit_meta(&mut self, location: compile::Location, meta: compile::MetaRef<'_>) {
+        for v in self.visitors.iter_mut() {
+            v.visit_meta(location, meta.clone())
+        }
+    }
+
+    fn visit_variable_use(&mut self, source_id: SourceId, var_span: Span, span: Span) {
+        for v in self.visitors.iter_mut() {
+            v.visit_variable_use(source_id, var_span, span)
+        }
+    }
+
+    fn visit_mod(&mut self, source_id: SourceId, span: Span) {
+        for v in self.visitors.iter_mut() {
+            v.visit_mod(source_id, span)
+        }
+    }
+
+    fn visit_doc_comment(&mut self, location: compile::Location, item: &compile::Item, hash: crate::Hash, docstr: &str) {
+        for v in self.visitors.iter_mut() {
+            v.visit_doc_comment(location, item, hash, docstr)
+        }
+    }
+
+    fn visit_field_doc_comment(
+        &mut self,
+        location: compile::Location,
+        item: &compile::Item,
+        hash: crate::Hash,
+        field: &str,
+        docstr: &str,
+    ) {
+        for v in self.visitors.iter_mut() {
+            v.visit_field_doc_comment(location, item, hash, field, docstr);
+        }
+    }
+}
 impl<'a> Build<'a> {
     /// Modify the current [Build] to use the given [Context] while building.
     ///
@@ -112,7 +161,7 @@ impl<'a> Build<'a> {
     /// project.
     #[inline]
     pub fn with_visitor(mut self, visitor: &'a mut dyn CompileVisitor) -> Self {
-        self.visitor = Some(visitor);
+        self.visitors.push(visitor);
         self
     }
 
@@ -166,14 +215,22 @@ impl<'a> Build<'a> {
             }
         };
 
-        let mut default_visitor;
+        let mut default_visitors;
+        let  visitors = match self.visitors.is_empty() {
+            true => {
+                default_visitors = CompileVisitorGroup {
+                    visitors: vec![],
+                };
+                &mut default_visitors
+            },
+            false => {
+                let v = std::mem::take(&mut self.visitors);
+                default_visitors = CompileVisitorGroup {
+                    visitors: v
+                };
 
-        let visitor = match self.visitor.take() {
-            Some(visitor) => visitor,
-            None => {
-                default_visitor = NoopCompileVisitor::new();
-                &mut default_visitor
-            }
+                &mut default_visitors
+            },
         };
 
         let mut default_source_loader;
@@ -196,7 +253,7 @@ impl<'a> Build<'a> {
             context,
             diagnostics,
             options,
-            visitor,
+            visitors,
             source_loader,
         );
 
