@@ -98,7 +98,6 @@ pub async fn run(context: Context, options: Options) -> Result<()> {
                     req(lsp::request::Shutdown, shutdown),
                     req(lsp::request::GotoDefinition, goto_definition),
                     req(lsp::request::Completion, completion),
-                    req(lsp::request::ResolveCompletionItem, resolve),
                     notif(lsp::notification::DidOpenTextDocument, did_open_text_document),
                     notif(lsp::notification::DidChangeTextDocument, did_change_text_document),
                     notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
@@ -130,13 +129,13 @@ async fn initialize(
         definition_provider: Some(lsp::OneOf::Left(true)),
         completion_provider: Some(lsp::CompletionOptions {
             all_commit_characters: None,
-            resolve_provider: Some(true),
+            resolve_provider: Some(false),
             trigger_characters: Some(vec![".".into(), "::".into()]),
             work_done_progress_options: lsp::WorkDoneProgressOptions {
                 work_done_progress: None,
             },
             completion_item: Some(lsp::CompletionOptionsCompletionItem {
-                label_details_support: None,
+                label_details_support: Some(true),
             }),
         }),
         ..Default::default()
@@ -215,13 +214,6 @@ async fn completion(
 
     let results = results.map(lsp::CompletionResponse::Array);
     Ok(results)
-}
-
-/// Handle initialized notification.
-async fn resolve(_state: &mut State<'_>, item: lsp::CompletionItem) -> Result<lsp::CompletionItem> {
-    // TODO(TSolberg): We send docs with the immediate completions which is a bit overkill right now. We should only send docs when the user requests it.
-    // However, I'm not sure what the best key structure is for looking up data based on a completion item.
-    Ok(item)
 }
 
 /// Handle open text document.
