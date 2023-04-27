@@ -240,10 +240,11 @@ impl<'a> State<'a> {
                             .and_then(|docs| docs.get_by_hash(*hash))
                             .map(|docs| docs.docs.join("\n"));
 
+                        let detail = args.map(|a| format!("({a:}) -> ?"));
                         results.push(lsp::CompletionItem {
                             label: format!("{}", function.path.last().unwrap()),
                             kind: Some(lsp::CompletionItemKind::FUNCTION),
-                            detail: args.clone(),
+                            detail: detail.clone(),
                             documentation: docs.map(|d| {
                                 lsp::Documentation::MarkupContent(lsp::MarkupContent {
                                     kind: lsp::MarkupKind::Markdown,
@@ -261,7 +262,7 @@ impl<'a> State<'a> {
                                 new_text: format!("{}", function.path),
                             })),
                             label_details: Some(CompletionItemLabelDetails {
-                                detail: args.map(|a| format!("({})", a)),
+                                detail,
                                 description: None,
                             }),
                             commit_characters: Some(vec!["(".into()]),
@@ -281,16 +282,14 @@ impl<'a> State<'a> {
                     _ => continue,
                 };
 
-                match function_kind {
+                let n = match function_kind {
                     compile::AssociatedFunctionKind::Protocol(_) => continue,
                     compile::AssociatedFunctionKind::FieldFn(_, _) => continue,
                     compile::AssociatedFunctionKind::IndexFn(_, _) => continue,
-                    compile::AssociatedFunctionKind::Instance(_) => {}
-                }
+                    compile::AssociatedFunctionKind::Instance(n) => n,
+                };
 
-                let func_name = format!("{}", prefix).trim_start_matches("::").to_owned();
-
-                if func_name.starts_with(symbol) {
+                if n.starts_with(&symbol) {
                     let meta = self.context.lookup_meta_by_hash(info.0);
                     let return_type = info
                         .1
@@ -308,7 +307,7 @@ impl<'a> State<'a> {
                         .map(|(r, a)| format!("({a:} -> {r}"));
 
                     results.push(lsp::CompletionItem {
-                        label: func_name.clone(),
+                        label: n.to_string(),
                         kind: Some(kind),
                         detail,
                         documentation: docs.map(|d| {
@@ -325,8 +324,12 @@ impl<'a> State<'a> {
                                 },
                                 end: position,
                             },
-                            new_text: func_name,
+                            new_text: n.to_string(),
                         })),
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some(prefix.to_string()),
+                        }),
                         data: Some(serde_json::to_value(info.0).unwrap()),
                         ..Default::default()
                     })
