@@ -780,9 +780,10 @@ impl Source {
     pub fn looking_back(&self, offset: usize) -> Option<(String, usize)> {
         let (chunk, start_byte, _, _) = self.content.chunk_at_byte(offset);
 
-        // The set of tokens that can precede a symbol without being a syntax error.
-        // Probably not exhaustive, but it's a start.
-        let x: &[_] = &[',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{'];
+        // The set of tokens that delimit symbols.
+        let x: &[_] = &[
+            ',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{', ']', '[', ')', ':',
+        ];
 
         let end_search = (offset - start_byte + 1).min(chunk.len());
         chunk[..end_search].rfind(x).map(|looking_back| {
