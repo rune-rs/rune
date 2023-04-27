@@ -20,8 +20,7 @@ use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
 use crate::runtime::debug::DebugArgs;
 use crate::workspace::{self, WorkspaceError};
-use crate::{BuildError, Hash};
-use crate::{Context, Options, SourceId, Unit};
+use crate::{BuildError, Context, Options, SourceId, Unit};
 
 #[derive(Default)]
 struct Reporter {
@@ -145,11 +144,6 @@ impl<'a> State<'a> {
         self.stopped
     }
 
-    /// Get access to the context.
-    pub(super) fn context(&self) -> &Context {
-        &self.context
-    }
-
     /// Get mutable access to the workspace.
     pub(super) fn workspace_mut(&mut self) -> &mut Workspace {
         &mut self.workspace
@@ -228,37 +222,34 @@ impl<'a> State<'a> {
         if let Some(unit) = workspace_source.unit.as_ref() {
             if let Some(debug_info) = unit.debug_info() {
                 for (hash, function) in debug_info.functions.iter() {
-                    let func_name = format!("{}", function.path);
-                
-                    let args = match &function.args {
-                        DebugArgs::EmptyArgs => None,
-                        DebugArgs::TupleArgs(n) => Some(
-                            (0..*n)
-                                .map(|n| format!("_{}", n))
-                                .fold("".to_owned(), |a, b| format!("{}, {}", a, b)),
-                        ),
-                        DebugArgs::Named(names) => Some(names.join(", ")),
-                    };
-                    
-                    tracing::info!("func_name: {func_name:?}, symbol: {symbol:?}");
-                    if func_name.starts_with(&symbol) {
-                        let docs = workspace_source.docs.as_ref().and_then(|docs| docs.get_by_hash(*hash)).map(|docs| docs.docs.join("\n"));
+                    let func_name = function.to_string();
+                    if func_name.starts_with(symbol) {
+                        let args = match &function.args {
+                            DebugArgs::EmptyArgs => None,
+                            DebugArgs::TupleArgs(n) => Some(
+                                (0..*n)
+                                    .map(|n| format!("_{}", n))
+                                    .fold("".to_owned(), |a, b| format!("{}, {}", a, b)),
+                            ),
+                            DebugArgs::Named(names) => Some(names.join(", ")),
+                        };
+
+                        let docs = workspace_source
+                            .docs
+                            .as_ref()
+                            .and_then(|docs| docs.get_by_hash(*hash))
+                            .map(|docs| docs.docs.join("\n"));
+
                         results.push(lsp::CompletionItem {
                             label: format!("{}", function.path.last().unwrap()),
                             kind: Some(lsp::CompletionItemKind::FUNCTION),
                             detail: args.clone(),
-                            documentation: docs.map(|d| lsp::Documentation::MarkupContent(
-                                lsp::MarkupContent {
+                            documentation: docs.map(|d| {
+                                lsp::Documentation::MarkupContent(lsp::MarkupContent {
                                     kind: lsp::MarkupKind::Markdown,
                                     value: d,
-                                }
-                            )),
-                            deprecated: Some(false),
-                            preselect: Some(true),
-                            sort_text: None,
-                            filter_text: None,
-                            insert_text: None,
-                            insert_text_format: None,
+                                })
+                            }),
                             text_edit: Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
                                 range: lsp::Range {
                                     start: lsp::Position {
@@ -269,16 +260,12 @@ impl<'a> State<'a> {
                                 },
                                 new_text: format!("{}", function.path),
                             })),
-                            additional_text_edits: None,
-                            command: None,
-                            data: Some("rune-function".into()),
-                            tags: None,
                             label_details: Some(CompletionItemLabelDetails {
                                 detail: args.map(|a| format!("({})", a)),
                                 description: None,
                             }),
-                            insert_text_mode: None,
                             commit_characters: Some(vec!["(".into()]),
+                            ..Default::default()
                         })
                     }
                 }
@@ -288,11 +275,9 @@ impl<'a> State<'a> {
         if first_char.is_ascii_alphabetic() || can_use_instance_fn.contains(&first_char) {
             for info in self.context.iter_functions() {
                 let (prefix, kind, function_kind) = match &info.1.kind {
-                    SignatureKind::Instance { name,  .. } => (
-                        info.1.item.clone(),
-                        lsp::CompletionItemKind::FUNCTION,
-                        name,
-                    ),
+                    SignatureKind::Instance { name, .. } => {
+                        (info.1.item.clone(), lsp::CompletionItemKind::FUNCTION, name)
+                    }
                     _ => continue,
                 };
 
@@ -300,28 +285,38 @@ impl<'a> State<'a> {
                     compile::AssociatedFunctionKind::Protocol(_) => continue,
                     compile::AssociatedFunctionKind::FieldFn(_, _) => continue,
                     compile::AssociatedFunctionKind::IndexFn(_, _) => continue,
-                    compile::AssociatedFunctionKind::Instance(_) => {},
+                    compile::AssociatedFunctionKind::Instance(_) => {}
                 }
-                
-                let meta = self.context.lookup_meta_by_hash(info.0);
-                let return_type = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|r| r.item.clone());
 
                 let func_name = format!("{}", prefix).trim_start_matches("::").to_owned();
-                let docs = meta.map(|meta| meta.docs.lines().join("\n"));
-                let args = meta.map(|meta| &meta.docs).and_then(|d| d.args()).map(|args| args.join(", "));
-                let detail = return_type.zip(args.clone()).map(|(r, a)| format!("({a:} -> {r}"));
-                if func_name.starts_with(&symbol) {
+
+                if func_name.starts_with(symbol) {
+                    let meta = self.context.lookup_meta_by_hash(info.0);
+                    let return_type = info
+                        .1
+                        .return_type
+                        .and_then(|hash| self.context.lookup_meta_by_hash(hash))
+                        .map(|r| r.item.clone());
+
+                    let docs = meta.map(|meta| meta.docs.lines().join("\n"));
+                    let args = meta
+                        .map(|meta| &meta.docs)
+                        .and_then(|d| d.args())
+                        .map(|args| args.join(", "));
+                    let detail = return_type
+                        .zip(args.clone())
+                        .map(|(r, a)| format!("({a:} -> {r}"));
+
                     results.push(lsp::CompletionItem {
                         label: func_name.clone(),
                         kind: Some(kind),
                         detail,
-                        documentation: docs.map(|d| lsp::Documentation::MarkupContent(
-                            lsp::MarkupContent {
+                        documentation: docs.map(|d| {
+                            lsp::Documentation::MarkupContent(lsp::MarkupContent {
                                 kind: lsp::MarkupKind::Markdown,
                                 value: d,
-                            }
-                        )),
-                        deprecated: Some(false),
+                            })
+                        }),
                         text_edit: Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
                             range: lsp::Range {
                                 start: lsp::Position {
@@ -332,7 +327,7 @@ impl<'a> State<'a> {
                             },
                             new_text: func_name,
                         })),
-                        data: Some(serde_json::to_value(&info.0).unwrap()),
+                        data: Some(serde_json::to_value(info.0).unwrap()),
                         ..Default::default()
                     })
                 }
@@ -340,32 +335,40 @@ impl<'a> State<'a> {
         } else {
             for info in self.context.iter_functions() {
                 let (item, kind) = match info.1.kind {
-                    SignatureKind::Function {} => (
-                        info.1.item.clone(),
-                        lsp::CompletionItemKind::FUNCTION,
-                    ),
+                    SignatureKind::Function {} => {
+                        (info.1.item.clone(), lsp::CompletionItemKind::FUNCTION)
+                    }
                     _ => continue,
                 };
 
-                let meta = self.context.lookup_meta_by_hash(info.0);
-                let return_type = info.1.return_type.and_then(|hash| self.context.lookup_meta_by_hash(hash)).map(|r| r.item.clone());
+                let func_name = item.to_string().trim_start_matches("::").to_owned();
+                if func_name.starts_with(symbol) {
+                    let meta = self.context.lookup_meta_by_hash(info.0);
+                    let return_type = info
+                        .1
+                        .return_type
+                        .and_then(|hash| self.context.lookup_meta_by_hash(hash))
+                        .map(|r| r.item.clone());
 
-                let func_name = format!("{}", item).trim_start_matches("::").to_owned();
-                let docs = meta.map(|meta| meta.docs.lines().join("\n"));
-                let args = meta.map(|meta| &meta.docs).and_then(|d| d.args()).map(|args| args.join(", "));
-                let detail = return_type.zip(args.clone()).map(|(r, a)| format!("({a:}) -> {r}"));
-                if func_name.starts_with(&symbol.trim()) {
+                    let docs = meta.map(|meta| meta.docs.lines().join("\n"));
+                    let args = meta
+                        .map(|meta| &meta.docs)
+                        .and_then(|d| d.args())
+                        .map(|args| args.join(", "));
+                    let detail = return_type
+                        .zip(args.clone())
+                        .map(|(r, a)| format!("({a:}) -> {r}"));
+
                     results.push(lsp::CompletionItem {
                         label: func_name.clone(),
                         kind: Some(kind),
                         detail,
-                        documentation: docs.map(|d| lsp::Documentation::MarkupContent(
-                            lsp::MarkupContent {
+                        documentation: docs.map(|d| {
+                            lsp::Documentation::MarkupContent(lsp::MarkupContent {
                                 kind: lsp::MarkupKind::Markdown,
                                 value: d,
-                            }
-                        )),
-                        deprecated: Some(false),
+                            })
+                        }),
                         text_edit: Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
                             range: lsp::Range {
                                 start: lsp::Position {
@@ -376,17 +379,16 @@ impl<'a> State<'a> {
                             },
                             new_text: func_name,
                         })),
-                        data: Some(serde_json::to_value(&info.0).unwrap()),
+                        data: Some(serde_json::to_value(info.0).unwrap()),
                         ..Default::default()
                     })
                 }
             }
         }
 
-        tracing::info!("results: {:?}", results);
-        
         Some(results)
     }
+
     /// Rebuild the project.
     pub(super) async fn rebuild(&mut self) -> Result<()> {
         // Keep track of URLs visited as part of workspace builds.
@@ -476,16 +478,12 @@ impl<'a> State<'a> {
                 source.index = value;
                 source.build_sources = Some(sources.clone());
 
-                
-                
-            if let Ok(unit) = unit.as_ref().map(|v| v.clone()) {
-                source.unit = Some(unit.clone());
+                if let Ok(unit) = unit.as_ref().map(|v| v.clone()) {
+                    source.unit = Some(unit.clone());
+                }
+
+                source.docs = Some(doc_visitor.clone());
             }
-
-            source.docs = Some(doc_visitor.clone());
-            }
-
-
         }
 
         for (url, diagnostics) in reporter.by_url {
@@ -562,7 +560,13 @@ impl<'a> State<'a> {
         &self,
         mut build: Build,
         built: Option<&mut HashSet<Url>>,
-    ) -> (crate::Diagnostics, Build, Visitor, crate::doc::Visitor, Result<Unit, BuildError>) {
+    ) -> (
+        crate::Diagnostics,
+        Build,
+        Visitor,
+        crate::doc::Visitor,
+        Result<Unit, BuildError>,
+    ) {
         let mut diagnostics = crate::Diagnostics::new();
         let mut source_visitor = Visitor::default();
         let mut doc_visitor = crate::doc::Visitor::new(ItemBuf::new());
@@ -727,8 +731,8 @@ pub(super) struct Source {
     language: Language,
     /// The compiled unit
     unit: Option<Unit>,
-    /// Comments captured 
-    docs: Option<crate::doc::Visitor>
+    /// Comments captured
+    docs: Option<crate::doc::Visitor>,
 }
 
 impl Source {
@@ -769,22 +773,21 @@ impl Source {
         self.content.chunks()
     }
 
-    /// Returns the best match wordwise when looking back. Note that this will also include the *previous* terminal token. This should probably be an enum...
+    /// Returns the best match wordwise when looking back. Note that this will also include the *previous* terminal token.
     pub fn looking_back(&self, offset: usize) -> Option<(String, usize)> {
         let (chunk, start_byte, _, _) = self.content.chunk_at_byte(offset);
 
-        // this is everything that delimits one "item" from another... some of these will cause it to behave as static inference
-        let x: &[_] = &[',', ';', ')', '(', '.', '=', '+', '-', '*', '/'];
-        tracing::info!("chunk : {:?}", chunk);
+        // The set of tokens that can precede a symbol without being a syntax error.
+        // Probably not exhaustive, but it's a start.
+        let x: &[_] = &[',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{'];
+
         let end_search = (offset - start_byte + 1).min(chunk.len());
-        if let Some(looking_back) = chunk[..end_search].rfind(x) {
-            Some((
+        chunk[..end_search].rfind(x).map(|looking_back| {
+            (
                 chunk[looking_back..end_search].trim().to_owned(),
                 start_byte + looking_back,
-            ))
-        } else {
-            None
-        }
+            )
+        })
     }
 }
 

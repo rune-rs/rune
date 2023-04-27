@@ -9,7 +9,7 @@ mod state;
 mod url;
 
 use crate::workspace::MANIFEST_FILE;
-use crate::{Context, Hash, Options};
+use crate::{Context, Options};
 use anyhow::Result;
 use lsp::notification::Notification;
 use lsp::request::Request;
@@ -218,27 +218,9 @@ async fn completion(
 }
 
 /// Handle initialized notification.
-async fn resolve(
-    state: &mut State<'_>,
-    mut item: lsp::CompletionItem,
-) -> Result<lsp::CompletionItem> {
-    return Ok(item);
-    match &mut item.data {
-        Some(serde_json::Value::String(key)) => {
-            item.documentation = Some(lsp::Documentation::String("rune-function".into()));
-        }
-        Some(v) => {
-            let hash: Hash = serde_json::from_value(v.take())?;
-            if let Some(func) = state.context().lookup_meta_by_hash(hash) {
-                let docs = func.docs.lines().join("\n");
-                item.documentation = Some(lsp::Documentation::String(docs.into()));
-            } else {
-                item.documentation = None;
-            }
-        }
-        None => return Ok(item),
-    };
-
+async fn resolve(_state: &mut State<'_>, item: lsp::CompletionItem) -> Result<lsp::CompletionItem> {
+    // TODO(TSolberg): We send docs with the immediate completions which is a bit overkill right now. We should only send docs when the user requests it.
+    // However, I'm not sure what the best key structure is for looking up data based on a completion item.
     Ok(item)
 }
 
