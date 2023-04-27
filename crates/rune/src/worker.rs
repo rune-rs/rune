@@ -65,7 +65,7 @@ impl<'a> Worker<'a> {
             queue: VecDeque::new(),
         }
     }
-    
+
     /// Run the worker until the task queue is empty.
     pub(crate) fn run(&mut self) {
         // NB: defer wildcard expansion until all other imports have been

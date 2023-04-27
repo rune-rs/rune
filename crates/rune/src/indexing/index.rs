@@ -570,7 +570,7 @@ impl<'a> Indexer<'a> {
 
         let source_id = self.q.sources.insert(source);
         self.q.visitor.visit_mod(source_id, span);
-        
+
         self.queue.push_back(Task::LoadFile {
             kind: LoadFileKind::Module {
                 root: self.root.clone(),
