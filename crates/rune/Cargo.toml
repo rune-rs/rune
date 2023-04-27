@@ -20,7 +20,7 @@ bench = []
 workspace = ["toml", "semver", "relative-path", "serde-hashkey"]
 doc = ["rust-embed", "handlebars", "pulldown-cmark", "syntect"]
 cli = ["doc", "bincode", "atty", "tracing-subscriber", "anyhow/std", "clap", "webbrowser", "capture-io", "disable-io", "languageserver"]
-languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "workspace"]
+languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "workspace", "doc"]
 capture-io = ["parking_lot"]
 disable-io = []
 
