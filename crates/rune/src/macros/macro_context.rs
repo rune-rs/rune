@@ -5,8 +5,8 @@ use std::fmt;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, Pool,
-    Prelude, UnitBuilder, NoopCompileVisitor,
+    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, Pool,
+    Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};

@@ -1,8 +1,6 @@
 use crate::ast::Span;
 use crate::compile;
-use crate::compile::{
-    CompileVisitor, FileSourceLoader, Options, Pool, SourceLoader,
-};
+use crate::compile::{CompileVisitor, FileSourceLoader, Options, Pool, SourceLoader};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, SourceId, Sources};
 use thiserror::Error;
@@ -80,7 +78,7 @@ pub struct Build<'a> {
 
 /// Wraps a collection of CompileVisitor
 struct CompileVisitorGroup<'a> {
-    visitors: Vec<&'a mut dyn compile::CompileVisitor>
+    visitors: Vec<&'a mut dyn compile::CompileVisitor>,
 }
 
 impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
@@ -108,7 +106,13 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
         }
     }
 
-    fn visit_doc_comment(&mut self, location: compile::Location, item: &compile::Item, hash: crate::Hash, docstr: &str) {
+    fn visit_doc_comment(
+        &mut self,
+        location: compile::Location,
+        item: &compile::Item,
+        hash: crate::Hash,
+        docstr: &str,
+    ) {
         for v in self.visitors.iter_mut() {
             v.visit_doc_comment(location, item, hash, docstr)
         }
@@ -216,21 +220,17 @@ impl<'a> Build<'a> {
         };
 
         let mut default_visitors;
-        let  visitors = match self.visitors.is_empty() {
+        let visitors = match self.visitors.is_empty() {
             true => {
-                default_visitors = CompileVisitorGroup {
-                    visitors: vec![],
-                };
+                default_visitors = CompileVisitorGroup { visitors: vec![] };
                 &mut default_visitors
-            },
+            }
             false => {
                 let v = std::mem::take(&mut self.visitors);
-                default_visitors = CompileVisitorGroup {
-                    visitors: v
-                };
+                default_visitors = CompileVisitorGroup { visitors: v };
 
                 &mut default_visitors
-            },
+            }
         };
 
         let mut default_source_loader;

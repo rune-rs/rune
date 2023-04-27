@@ -279,7 +279,7 @@ impl<'a> State<'a> {
                     SignatureKind::Instance { name, .. } => {
                         (info.1.item.clone(), lsp::CompletionItemKind::FUNCTION, name)
                     }
-                    _ => continue,
+                    SignatureKind::Function { .. } => continue,
                 };
 
                 let n = match function_kind {
@@ -289,7 +289,7 @@ impl<'a> State<'a> {
                     compile::AssociatedFunctionKind::Instance(n) => n,
                 };
 
-                if n.starts_with(&symbol) {
+                if n.starts_with(symbol) {
                     let meta = self.context.lookup_meta_by_hash(info.0);
                     let return_type = info
                         .1
@@ -338,10 +338,10 @@ impl<'a> State<'a> {
         } else {
             for info in self.context.iter_functions() {
                 let (item, kind) = match info.1.kind {
-                    SignatureKind::Function {} => {
+                    SignatureKind::Function { .. } => {
                         (info.1.item.clone(), lsp::CompletionItemKind::FUNCTION)
                     }
-                    _ => continue,
+                    SignatureKind::Instance { .. } => continue,
                 };
 
                 let func_name = item.to_string().trim_start_matches("::").to_owned();
