@@ -12,17 +12,17 @@ use super::error::FormattingError;
 use super::indent_writer::IndentedWriter;
 use crate::{
     ast::{
-        AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Else, Expr,
-        ExprAssign, ExprAwait, ExprBinary, ExprBlock, ExprBreak, ExprBreakValue, ExprCall,
-        ExprClosure, ExprClosureArgs, ExprContinue, ExprElse, ExprElseIf, ExprEmpty, ExprField,
-        ExprFieldAccess, ExprFor, ExprGroup, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop,
-        ExprMatch, ExprMatchBranch, ExprObject, ExprRange, ExprReturn, ExprSelect,
-        ExprSelectBranch, ExprSelectPatBranch, ExprTry, ExprTuple, ExprUnary, ExprVec, ExprWhile,
-        ExprYield, Field, FieldAssign, FnArg, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod,
-        ItemModBody, ItemStruct, ItemStructBody, ItemVariant, ItemVariantBody, LitSource, Local,
-        MacroCall, ObjectKey, Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath, PatRest,
-        PatTuple, PatVec, Path, PathSegment, PathSegmentExpr, SelfType, SelfValue, SemiColon, Span,
-        Stmt, StmtSemi,
+        AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
+        ExprAwait, ExprBinary, ExprBlock, ExprBreak, ExprBreakValue, ExprCall, ExprClosure,
+        ExprClosureArgs, ExprContinue, ExprElse, ExprElseIf, ExprEmpty, ExprField, ExprFieldAccess,
+        ExprFor, ExprGroup, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMatch,
+        ExprMatchBranch, ExprObject, ExprRange, ExprReturn, ExprSelect, ExprSelectBranch,
+        ExprSelectPatBranch, ExprTry, ExprTuple, ExprUnary, ExprVec, ExprWhile, ExprYield, Field,
+        FieldAssign, FnArg, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemModBody,
+        ItemStruct, ItemStructBody, ItemVariant, ItemVariantBody, LitSource, Local, MacroCall,
+        ObjectKey, Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple,
+        PatVec, Path, PathSegment, PathSegmentExpr, SelfType, SelfValue, SemiColon, Span, Stmt,
+        StmtSemi,
     },
     Source,
 };
@@ -91,7 +91,6 @@ where
         if let PathSegment::Ident(ident) = first {
             if let LitSource::BuiltIn(BuiltIn::Doc) = ident.source {
                 write!(self.writer, "{}", self.resolve(ident.span)?.trim())?;
-
                 return Ok(());
             }
         }
@@ -118,36 +117,40 @@ where
         semi: Option<SemiColon>,
     ) -> Result<(), FormattingError> {
         match item {
-            crate::ast::Item::Use(usage) => self.visit_use(usage)?,
-            crate::ast::Item::Fn(item) => self.visit_fn(item)?,
-            crate::ast::Item::Enum(item) => self.visit_enum(item)?,
-            crate::ast::Item::Struct(item) => self.visit_struct(item)?,
-            crate::ast::Item::Impl(item) => self.visit_impl(item)?,
-            crate::ast::Item::Mod(item) => self.visit_mod(item)?,
-            crate::ast::Item::Const(item) => self.visit_const(item)?,
-            crate::ast::Item::MacroCall(item) => self.visit_macro_call(item)?,
+            crate::ast::Item::Use(usage) => self.visit_use(usage, semi)?,
+            crate::ast::Item::Fn(item) => self.visit_fn(item, semi)?,
+            crate::ast::Item::Enum(item) => self.visit_enum(item, semi)?,
+            crate::ast::Item::Struct(item) => self.visit_struct(item, semi)?,
+            crate::ast::Item::Impl(item) => self.visit_impl(item, semi)?,
+            crate::ast::Item::Mod(item) => self.visit_mod(item, semi)?,
+            crate::ast::Item::Const(item) => self.visit_const(item, semi)?,
+            crate::ast::Item::MacroCall(item) => self.visit_macro_call(item, semi)?,
         }
 
-        if let Some(_semi) = semi {
-            write!(self.writer, ";")?;
+        if !matches!(item, crate::ast::Item::MacroCall(_)) {
+            writeln!(self.writer)?;
         }
 
         Ok(())
     }
 
-    fn visit_const(&mut self, item: &ItemConst) -> Result<(), FormattingError> {
+    fn visit_const(
+        &mut self,
+        item: &ItemConst,
+        semi: Option<SemiColon>,
+    ) -> Result<(), FormattingError> {
         let ItemConst {
-            id,
+            id: _,
             attributes,
             visibility,
-            const_token,
+            const_token: _,
             name,
-            eq,
+            eq: _,
             expr,
         } = item;
 
         for attribute in attributes {
-            self.visit_attribute(attribute);
+            self.visit_attribute(attribute)?;
         }
         writeln!(self.writer)?;
 
@@ -157,23 +160,31 @@ where
         write!(self.writer, " = ")?;
         self.visit_expr(expr)?;
 
+        if semi.is_some() {
+            write!(self.writer, ";")?;
+        }
+
         Ok(())
     }
 
-    fn visit_mod(&mut self, item: &ItemMod) -> Result<(), FormattingError> {
+    fn visit_mod(
+        &mut self,
+        item: &ItemMod,
+        semi: Option<SemiColon>,
+    ) -> Result<(), FormattingError> {
         let ItemMod {
-            id,
+            id: _,
             attributes,
             visibility,
-            mod_token,
+            mod_token: _,
             name,
             body,
         } = item;
 
         for attribute in attributes {
-            self.visit_attribute(attribute);
+            self.visit_attribute(attribute)?;
+            writeln!(self.writer)?;
         }
-        writeln!(self.writer)?;
 
         self.emit_visibility(visibility)?;
 
@@ -181,7 +192,7 @@ where
         write!(self.writer, "{}", self.resolve(name.span)?)?;
 
         match body {
-            ItemModBody::EmptyBody(semi) => {
+            ItemModBody::EmptyBody(_semi) => {
                 writeln!(self.writer, ";")?;
             }
             ItemModBody::InlineBody(body) => {
@@ -195,54 +206,75 @@ where
             }
         }
 
+        if semi.is_some() {
+            write!(self.writer, ";")?;
+        }
+
+        writeln!(self.writer)?;
+
         Ok(())
     }
-    fn visit_impl(&mut self, item: &ItemImpl) -> Result<(), FormattingError> {
+
+    fn visit_impl(
+        &mut self,
+        item: &ItemImpl,
+        semi: Option<SemiColon>,
+    ) -> Result<(), FormattingError> {
         let ItemImpl {
             attributes,
-            impl_,
+            impl_: _impl,
             path,
-            open,
+            open: _open,
             functions,
-            close,
+            close: _close,
         } = item;
 
         for attribute in attributes {
-            self.visit_attribute(attribute);
+            self.visit_attribute(attribute)?;
+            writeln!(self.writer)?;
         }
-        writeln!(self.writer)?;
 
         write!(self.writer, "impl ")?;
         self.visit_path(path)?;
 
-        write!(self.writer, " {{")?;
+        writeln!(self.writer, " {{")?;
         self.writer.indent();
 
         for function in functions {
-            self.visit_fn(function)?;
+            self.visit_fn(function, None)?;
             writeln!(self.writer)?;
         }
 
         self.writer.dedent();
         write!(self.writer, "}}")?;
 
+        if semi.is_some() {
+            write!(self.writer, ";")?;
+        }
+
+        writeln!(self.writer)?;
+
         Ok(())
     }
-    fn visit_struct(&mut self, item: &ItemStruct) -> Result<(), FormattingError> {
+
+    fn visit_struct(
+        &mut self,
+        item: &ItemStruct,
+        semi: Option<SemiColon>,
+    ) -> Result<(), FormattingError> {
         let ItemStruct {
-            id,
+            id: _,
             attributes,
             visibility,
-            struct_token,
+            struct_token: _,
             ident,
             body,
         } = item;
 
-        for attribute in &item.attributes {
+        for attribute in attributes {
             self.visit_attribute(attribute)?;
             writeln!(self.writer)?;
         }
-        writeln!(self.writer)?;
 
         self.emit_visibility(visibility)?;
         write!(self.writer, "struct ")?;
@@ -250,6 +282,12 @@ where
         write!(self.writer, "{}", self.resolve(ident.span)?)?;
 
         self.visit_struct_body(body)?;
+
+        if semi.is_some() {
+            write!(self.writer, ";")?;
+        }
+
+        writeln!(self.writer)?;
 
         Ok(())
     }
@@ -265,36 +303,40 @@ where
                         write!(self.writer, ", ")?;
                     }
                 }
-                writeln!(self.writer, ")")?;
+                write!(self.writer, ")")?;
             }
             ItemStructBody::StructBody(body) => {
-                write!(self.writer, " {{")?;
+                writeln!(self.writer, " {{")?;
                 self.writer.indent();
-                for (field, comma) in body {
+                for (field, _comma) in body {
                     self.visit_field(field)?;
                     writeln!(self.writer, ",")?;
                 }
                 self.writer.dedent();
-                writeln!(self.writer, "}}")?;
+                write!(self.writer, "}}")?;
             }
         }
 
         Ok(())
     }
 
-    fn visit_enum(&mut self, item: &ItemEnum) -> Result<(), FormattingError> {
+    fn visit_enum(
+        &mut self,
+        item: &ItemEnum,
+        semi: Option<SemiColon>,
+    ) -> Result<(), FormattingError> {
         let ItemEnum {
             attributes,
             visibility,
-            enum_token,
+            enum_token: _,
             name,
             variants,
         } = item;
 
-        for attribute in &item.attributes {
-            self.visit_attribute(attribute);
+        for attribute in attributes {
+            self.visit_attribute(attribute)?;
+            writeln!(self.writer)?;
         }
-        writeln!(self.writer)?;
 
         self.emit_visibility(visibility)?;
         write!(self.writer, "enum ")?;
@@ -302,30 +344,35 @@ where
         write!(self.writer, "{}", self.resolve(name.span)?)?;
         write!(self.writer, " ")?;
 
-        write!(self.writer, "{{")?;
+        writeln!(self.writer, "{{")?;
         self.writer.indent();
-        for (variant, comma) in variants {
+        for (variant, _comma) in variants {
             self.visit_variant(variant)?;
-            if comma.is_some() {
-                write!(self.writer, ",")?;
-            }
+            writeln!(self.writer, ",")?;
         }
         self.writer.dedent();
         write!(self.writer, "}}")?;
+
+        if semi.is_some() {
+            write!(self.writer, ";")?;
+        }
+
+        writeln!(self.writer)?;
 
         Ok(())
     }
 
     fn visit_variant(&mut self, variant: &ItemVariant) -> Result<(), FormattingError> {
         let ItemVariant {
-            id,
+            id: _,
             attributes,
             name,
             body,
         } = variant;
 
-        for attribute in &variant.attributes {
-            self.visit_attribute(attribute);
+        for attribute in attributes {
+            self.visit_attribute(attribute)?;
+            writeln!(self.writer)?;
         }
 
         write!(self.writer, "{}", self.resolve(name.span)?)?;
@@ -340,22 +387,22 @@ where
             ItemVariantBody::UnitBody => {}
             ItemVariantBody::TupleBody(body) => {
                 write!(self.writer, "(")?;
-                for (field, comma) in &body.parenthesized {
-                    self.visit_field(field);
-                    if let Some(comma) = comma {
-                        write!(self.writer, ",")?;
+
+                let count = body.parenthesized.len();
+                for (idx, (field, _comma)) in body.parenthesized.iter().enumerate() {
+                    self.visit_field(field)?;
+                    if idx < count - 1 {
+                        write!(self.writer, ", ")?;
                     }
                 }
                 write!(self.writer, ")")?;
             }
             ItemVariantBody::StructBody(sbody) => {
-                write!(self.writer, "{{")?;
+                writeln!(self.writer, " {{")?;
                 self.writer.indent();
-                for (field, comma) in &sbody.braced {
+                for (field, _comma) in &sbody.braced {
                     self.visit_field(field)?;
-                    if let Some(comma) = comma {
-                        write!(self.writer, ",")?;
-                    }
+                    writeln!(self.writer, ",")?;
                 }
                 self.writer.dedent();
                 write!(self.writer, "}}")?;
@@ -383,14 +430,14 @@ where
         Ok(())
     }
 
-    fn visit_fn(&mut self, item: &ItemFn) -> Result<(), FormattingError> {
+    fn visit_fn(&mut self, item: &ItemFn, semi: Option<SemiColon>) -> Result<(), FormattingError> {
         let ItemFn {
-            id,
+            id: _,
             attributes,
             visibility,
             const_token,
             async_token,
-            fn_token,
+            fn_token: _,
             name,
             args,
             body,
@@ -398,7 +445,7 @@ where
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            write!(self.writer, "\n").unwrap();
+            writeln!(self.writer)?;
         }
 
         self.emit_visibility(visibility)?;
@@ -422,7 +469,7 @@ where
                 FnArg::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
                 FnArg::Pat(pattern) => self.visit_pattern(pattern)?,
             }
-            if let Some(comma) = comma {
+            if comma.is_some() {
                 write!(self.writer, ", ")?;
             }
         }
@@ -432,25 +479,41 @@ where
         }
         write!(self.writer, ") ")?;
         self.visit_block(body)?;
-        write!(self.writer, "\n\n")?;
+
+        if semi.is_some() {
+            write!(self.writer, ";")?;
+        }
+
+        writeln!(self.writer)?;
 
         Ok(())
     }
 
-    fn visit_use(&mut self, usage: &crate::ast::ItemUse) -> Result<(), FormattingError> {
+    fn visit_use(
+        &mut self,
+        usage: &crate::ast::ItemUse,
+        semi: Option<SemiColon>,
+    ) -> Result<(), FormattingError> {
         let crate::ast::ItemUse {
             attributes,
             visibility,
-            use_token,
+            use_token: _,
             path,
         } = usage;
-        for attribute in &usage.attributes {
-            self.visit_attribute(attribute);
+        for attribute in attributes {
+            self.visit_attribute(attribute)?;
+            writeln!(self.writer)?;
         }
 
         self.emit_visibility(visibility)?;
         write!(self.writer, "use ")?;
-        self.visit_item_use_path(path, None)
+        self.visit_item_use_path(path, None)?;
+
+        if semi.is_some() {
+            writeln!(self.writer, ";")?;
+        }
+
+        Ok(())
     }
 
     fn visit_item_use_path(
@@ -501,12 +564,12 @@ where
         Ok(())
     }
 
-    fn visit_self_type(&mut self, selftype: &SelfType) -> Result<(), FormattingError> {
+    fn visit_self_type(&mut self, _selftype: &SelfType) -> Result<(), FormattingError> {
         write!(self.writer, "Self")?;
         Ok(())
     }
 
-    fn visit_self_value(&mut self, selfvalue: &SelfValue) -> Result<(), FormattingError> {
+    fn visit_self_value(&mut self, _selfvalue: &SelfValue) -> Result<(), FormattingError> {
         write!(self.writer, "self")?;
         Ok(())
     }
@@ -560,20 +623,38 @@ where
             Expr::Object(object) => self.visit_object(object),
             Expr::Vec(vec) => self.visit_vec(vec),
             Expr::Empty(empty) => self.visit_empty(empty),
-            Expr::MacroCall(macrocall) => self.visit_macro_call(macrocall),
+            Expr::MacroCall(macrocall) => self.visit_macro_call(macrocall, None),
         }
     }
 
-    fn visit_macro_call(&mut self, macrocall: &MacroCall) -> Result<(), FormattingError> {
+    fn visit_macro_call(
+        &mut self,
+        macrocall: &MacroCall,
+        semi: Option<SemiColon>,
+    ) -> Result<(), FormattingError> {
+        // Note: We don't visit the stream, as emitting it truthfully is quite hard and we can't format it. Instead we just resolve everything between the open/close.
         let MacroCall {
-            id,
+            id: _,
             attributes,
             path,
-            bang,
+            bang: _,
             open,
-            stream,
+            stream: _,
             close,
         } = macrocall;
+
+        let first = &path.first;
+
+        if let PathSegment::Ident(ident) = first {
+            if let LitSource::BuiltIn(BuiltIn::Template) = ident.source {
+                let start = open.span.end.into_usize();
+                let end = close.span.start.into_usize();
+
+                let important_token = self.resolve(Span::new(start, end))?;
+                write!(self.writer, "{}", important_token)?;
+                return Ok(());
+            }
+        }
 
         for attr in attributes {
             self.visit_attribute(attr)?;
@@ -589,11 +670,29 @@ where
         write!(self.writer, "{}", self.resolve(Span::new(start, end))?)?;
         write!(self.writer, "{}", self.resolve(close.span)?)?;
 
+        if semi.is_some() {
+            write!(self.writer, ";")?;
+        }
+
         Ok(())
     }
 
     fn visit_empty(&mut self, empty: &ExprEmpty) -> Result<(), FormattingError> {
-        write!(self.writer, "()")?;
+        let ExprEmpty {
+            attributes,
+            open,
+            expr,
+            close,
+        } = empty;
+
+        for attr in attributes {
+            self.visit_attribute(attr)?;
+        }
+
+        write!(self.writer, "{}", self.resolve(open.span)?)?;
+        self.visit_expr(expr)?;
+        write!(self.writer, "{}", self.resolve(close.span)?)?;
+
         Ok(())
     }
 
@@ -647,7 +746,7 @@ where
         }
 
         match ident {
-            crate::ast::ObjectIdent::Anonymous(anonymous) => write!(self.writer, "#{{")?,
+            crate::ast::ObjectIdent::Anonymous(_anonymous) => write!(self.writer, "#{{")?,
             crate::ast::ObjectIdent::Named(named) => {
                 self.visit_path(named)?;
                 write!(self.writer, " {{")?
@@ -659,6 +758,7 @@ where
             writeln!(self.writer)?;
             true
         } else {
+            write!(self.writer, " ")?;
             false
         };
 
@@ -676,9 +776,11 @@ where
             }
         }
 
-        if assignments.len() > 5 {
+        if multiline {
             self.writer.dedent();
             writeln!(self.writer)?;
+        } else {
+            write!(self.writer, " ")?;
         }
         write!(self.writer, "}}")?;
 
@@ -693,7 +795,7 @@ where
             ObjectKey::Path(path) => self.visit_path(path)?,
         }
 
-        if let Some((colon, assign)) = assign {
+        if let Some((_colon, assign)) = assign {
             write!(self.writer, ": ")?;
             self.visit_expr(assign)?;
         }
@@ -704,10 +806,10 @@ where
     fn visit_select(&mut self, sel: &ExprSelect) -> Result<(), FormattingError> {
         let ExprSelect {
             attributes,
-            select,
-            open,
+            select: _,
+            open: _,
             branches,
-            close,
+            close: _,
         } = sel;
 
         for attr in attributes {
@@ -716,7 +818,7 @@ where
 
         writeln!(self.writer, "select {{")?;
         self.writer.indent();
-        for (branch, comma) in branches {
+        for (branch, _comma) in branches {
             self.visit_select_branch(branch)?;
             writeln!(self.writer, ",")?;
         }
@@ -729,7 +831,7 @@ where
     fn visit_select_branch(&mut self, branch: &ExprSelectBranch) -> Result<(), FormattingError> {
         match branch {
             ExprSelectBranch::Pat(pat) => self.visit_select_pattern(pat)?,
-            ExprSelectBranch::Default(default) => write!(self.writer, "default")?,
+            ExprSelectBranch::Default(_default) => write!(self.writer, "default")?,
         }
 
         Ok(())
@@ -738,9 +840,9 @@ where
     fn visit_select_pattern(&mut self, pat: &ExprSelectPatBranch) -> Result<(), FormattingError> {
         let ExprSelectPatBranch {
             pat,
-            eq,
+            eq: _,
             expr,
-            rocket,
+            rocket: _,
             body,
         } = pat;
 
@@ -757,7 +859,7 @@ where
         let ExprAssign {
             attributes,
             lhs,
-            eq,
+            eq: _,
             rhs,
         } = assign;
 
@@ -776,8 +878,8 @@ where
         let ExprAwait {
             attributes,
             expr,
-            dot,
-            await_token,
+            dot: _,
+            await_token: _,
         } = awaitexpr;
 
         for attr in attributes {
@@ -786,7 +888,7 @@ where
 
         self.visit_expr(expr)?;
         write!(self.writer, ".")?;
-        write!(self.writer, "await ")?;
+        write!(self.writer, "await")?;
 
         Ok(())
     }
@@ -795,7 +897,7 @@ where
         let ExprTry {
             attributes,
             expr,
-            try_token,
+            try_token: _,
         } = tri;
 
         for attr in attributes {
@@ -803,7 +905,7 @@ where
         }
 
         self.visit_expr(expr)?;
-        write!(self.writer, " ?")?;
+        write!(self.writer, "?")?;
 
         Ok(())
     }
@@ -812,7 +914,7 @@ where
         let ExprYield {
             attributes,
             expr,
-            yield_token,
+            yield_token: _,
         } = yieldexpr;
 
         for attr in attributes {
@@ -862,14 +964,33 @@ where
 
         for attr in attributes {
             self.visit_attribute(attr)?;
+            writeln!(self.writer)?;
         }
 
         write!(self.writer, "(")?;
-        for (item, comma) in items {
+        let multiline = if items.len() >= 5 {
+            self.writer.indent();
+            writeln!(self.writer)?;
+            true
+        } else {
+            false
+        };
+
+        let count = items.len();
+        for (idx, (item, _comma)) in items.iter().enumerate() {
             self.visit_expr(item)?;
-            if comma.is_some() {
-                write!(self.writer, ", ")?;
+            if multiline {
+                writeln!(self.writer, ",")?;
+            } else {
+                let is_last = idx == count - 1;
+                if !is_last {
+                    write!(self.writer, ", ")?;
+                }
             }
+        }
+
+        if multiline {
+            self.writer.dedent();
         }
 
         write!(self.writer, ")")?;
@@ -881,7 +1002,7 @@ where
         let ExprFieldAccess {
             attributes,
             expr,
-            dot,
+            dot: _,
             expr_field,
         } = fieldaccess;
 
@@ -907,7 +1028,7 @@ where
 
     fn visit_call(&mut self, call: &ExprCall) -> Result<(), FormattingError> {
         let ExprCall {
-            id,
+            id: _,
             attributes,
             expr,
             args,
@@ -920,9 +1041,10 @@ where
         self.visit_expr(expr)?;
         write!(self.writer, "(")?;
 
-        for (arg, comma) in &args.parenthesized {
+        let count = args.parenthesized.len();
+        for (idx, (arg, _comma)) in args.parenthesized.iter().enumerate() {
             self.visit_expr(arg)?;
-            if comma.is_some() {
+            if idx != count - 1 {
                 write!(self.writer, ", ")?;
             }
         }
@@ -935,9 +1057,9 @@ where
         let ExprIndex {
             attributes,
             target,
-            open,
+            open: _,
             index,
-            close,
+            close: _,
         } = index;
 
         for attr in attributes {
@@ -955,7 +1077,7 @@ where
     fn visit_continue(&mut self, continueexpr: &ExprContinue) -> Result<(), FormattingError> {
         let ExprContinue {
             attributes,
-            continue_token,
+            continue_token: _,
             label,
         } = continueexpr;
 
@@ -976,7 +1098,7 @@ where
     fn visit_break(&mut self, breakexpr: &ExprBreak) -> Result<(), FormattingError> {
         let ExprBreak {
             attributes,
-            break_token,
+            break_token: _,
             expr,
         } = breakexpr;
 
@@ -1009,7 +1131,7 @@ where
     fn visit_return(&mut self, returnexpr: &ExprReturn) -> Result<(), FormattingError> {
         let ExprReturn {
             attributes,
-            return_token,
+            return_token: _,
             expr,
         } = returnexpr;
 
@@ -1029,7 +1151,7 @@ where
 
     fn visit_closure(&mut self, closure: &ExprClosure) -> Result<(), FormattingError> {
         let ExprClosure {
-            id,
+            id: _,
             attributes,
             async_token,
             move_token,
@@ -1076,9 +1198,9 @@ where
             attributes,
             match_,
             expr,
-            open,
+            open: _,
             branches,
-            close,
+            close: _,
         } = matchexpr;
 
         for attr in attributes {
@@ -1090,11 +1212,9 @@ where
         writeln!(self.writer, " {{")?;
 
         self.writer.indent();
-        for (branch, comma) in branches {
+        for (branch, _comma) in branches {
             self.visit_match_branch(branch)?;
-            if comma.is_some() {
-                writeln!(self.writer, ",")?;
-            }
+            writeln!(self.writer, ",")?;
         }
         self.writer.dedent();
 
@@ -1249,7 +1369,7 @@ where
         let PatBinding {
             attributes,
             key,
-            colon,
+            colon: _,
             pat,
         } = binding;
 
@@ -1283,7 +1403,7 @@ where
         }
 
         match ident {
-            crate::ast::ObjectIdent::Anonymous(v) => write!(self.writer, "#")?,
+            crate::ast::ObjectIdent::Anonymous(_v) => write!(self.writer, "#")?,
             crate::ast::ObjectIdent::Named(n) => {
                 self.visit_path(n)?;
                 write!(self.writer, " ")?;
@@ -1291,21 +1411,28 @@ where
         }
 
         write!(self.writer, "{{")?;
-        if items.len() > 5 {
-            write!(self.writer, "\n")?;
+        let multiline = if items.len() > 5 {
+            writeln!(self.writer)?;
             self.writer.indent();
-        }
-        for (pat, comma) in items {
+            true
+        } else {
+            false
+        };
+
+        let count = items.len();
+        for (idx, (pat, _comma)) in items.iter().enumerate() {
             self.visit_pattern(pat)?;
-            if comma.is_some() {
+            if multiline {
+                writeln!(self.writer, ",")?;
+            } else if idx < count - 1 {
                 write!(self.writer, ", ")?;
             }
         }
-        if items.len() > 5 {
+        if multiline {
             self.writer.dedent();
-            write!(self.writer, "\n")?;
         }
-        write!(self.writer, "}}")?;
+
+        writeln!(self.writer, "}}")?;
 
         Ok(())
     }
@@ -1396,9 +1523,9 @@ where
     fn visit_let(&mut self, let_: &ExprLet) -> Result<(), FormattingError> {
         let ExprLet {
             attributes,
-            let_token,
+            let_token: _,
             pat,
-            eq,
+            eq: _,
             expr,
         } = let_;
 
@@ -1415,7 +1542,7 @@ where
     fn visit_if(&mut self, ifexpr: &ExprIf) -> Result<(), FormattingError> {
         let ExprIf {
             attributes,
-            if_,
+            if_: _,
             condition,
             block,
             expr_else_ifs,
@@ -1444,8 +1571,8 @@ where
 
     fn visit_expr_else_if(&mut self, expr_else_if: &ExprElseIf) -> Result<(), FormattingError> {
         let ExprElseIf {
-            else_,
-            if_,
+            else_: _,
+            if_: _,
             condition,
             block,
         } = expr_else_if;
@@ -1459,7 +1586,7 @@ where
     }
 
     fn visit_expr_else(&mut self, expr_else: &ExprElse) -> Result<(), FormattingError> {
-        let ExprElse { else_, block } = expr_else;
+        let ExprElse { else_: _, block } = expr_else;
 
         write!(self.writer, " else ")?;
         self.visit_block(block)?;
@@ -1496,17 +1623,17 @@ where
 
     fn visit_block(&mut self, block: &Block) -> Result<(), FormattingError> {
         let Block {
-            id,
-            open,
+            id: _,
+            open: _,
             statements,
-            close,
+            close: _,
         } = block;
 
         writeln!(self.writer, "{{")?;
         self.writer.indent();
         for statement in statements {
             self.visit_statement(statement)?;
-            write!(self.writer, "\n")?;
+            writeln!(self.writer)?;
         }
         self.writer.dedent();
         write!(self.writer, "}}")?;
@@ -1522,7 +1649,7 @@ where
             Stmt::Semi(semi) => {
                 let StmtSemi {
                     expr,
-                    semi_token,
+                    semi_token: _,
                     needs_semi,
                 } = semi;
                 self.visit_expr(expr)?;
@@ -1540,11 +1667,11 @@ where
     fn visit_local(&mut self, local: &Local) -> Result<(), FormattingError> {
         let Local {
             attributes,
-            let_token,
+            let_token: _,
             pat,
-            eq,
+            eq: _,
             expr,
-            semi,
+            semi: _,
         } = local;
 
         for attribute in attributes {
@@ -1578,10 +1705,10 @@ where
 
     fn visit_group(&mut self, group: &ExprGroup) -> Result<(), FormattingError> {
         let ExprGroup {
-            expr,
             attributes,
-            open,
-            close,
+            open: _,
+            expr,
+            close: _,
         } = group;
 
         for attribute in attributes {
@@ -1597,7 +1724,7 @@ where
 
     fn visit_path(&mut self, path: &Path) -> Result<(), FormattingError> {
         let Path {
-            id: _id,
+            id: _,
             global,
             first,
             rest,
@@ -1614,7 +1741,7 @@ where
             self.visit_path_segment(segment)?;
         }
 
-        if let Some(_trailing) = trailing {
+        if trailing.is_some() {
             write!(self.writer, "::")?;
         }
 
@@ -1688,12 +1815,12 @@ where
             crate::ast::ItemUseSegment::PathSegment(path) => {
                 self.visit_path_segment(path)?;
             }
-            crate::ast::ItemUseSegment::Wildcard(star) => write!(self.writer, "*")?,
+            crate::ast::ItemUseSegment::Wildcard(_star) => write!(self.writer, "*")?,
             crate::ast::ItemUseSegment::Group(braced_group) => {
                 let Braced {
-                    open,
+                    open: _,
                     braced,
-                    close,
+                    close: _,
                 } = braced_group;
                 write!(self.writer, "{{")?;
                 for (item, comma) in braced {

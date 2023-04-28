@@ -16,7 +16,7 @@ use self::error::FormattingError;
 
 /// Format the given contents.
 pub fn layout_string(contents: String) -> Result<String, FormattingError> {
-    let s = Source::new("xx", &contents);
+    let s = Source::new("<memory>", contents);
     layout_source(&s)
 }
 

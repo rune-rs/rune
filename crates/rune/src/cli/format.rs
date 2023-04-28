@@ -1,12 +1,11 @@
-use std::io::Write;
-use std::path::{Path, PathBuf};
-
 use anyhow::{Context, Result};
 use clap::Parser;
+use codespan_reporting::term::termcolor::WriteColor;
+use std::io::Write;
+use std::path::PathBuf;
 
-use crate::cli::{Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
-use crate::compile::FileSourceLoader;
-use crate::{Diagnostics, Options, Source, Sources};
+use crate::cli::{ExitCode, Io, SharedFlags};
+use crate::Source;
 
 #[derive(Parser, Debug, Clone)]
 pub(super) struct Flags {
@@ -18,26 +17,67 @@ pub(super) struct Flags {
     pub(super) shared: SharedFlags,
 }
 
-pub(super) fn run(
-    io: &mut Io<'_>,
-    entry: &mut Entry<'_>,
-    c: &Config,
-    flags: &Flags,
-    options: &Options,
-    path: &Path,
-) -> Result<ExitCode> {
-    let source =
-        Source::from_path(path).with_context(|| format!("reading file: {}", path.display()))?;
+pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf]) -> Result<ExitCode> {
+    let mut red = codespan_reporting::term::termcolor::ColorSpec::new();
+    red.set_fg(Some(codespan_reporting::term::termcolor::Color::Red));
 
-    let formatted = crate::fmt::layout_source(&source)?;
+    let mut green = codespan_reporting::term::termcolor::ColorSpec::new();
+    green.set_fg(Some(codespan_reporting::term::termcolor::Color::Green));
 
-    if formatted == source.as_str() {
-        println!("{} already formatted", path.display());
-    } else {
-        println!("{} formatted", path.display());
+    let mut yellow = codespan_reporting::term::termcolor::ColorSpec::new();
+    yellow.set_fg(Some(codespan_reporting::term::termcolor::Color::Yellow));
+
+    let mut succeeded = 0;
+    let mut failed = 0;
+    let mut unchanged = 0;
+    for path in paths {
+        let source =
+            Source::from_path(path).with_context(|| format!("reading file: {}", path.display()))?;
+
+        match crate::fmt::layout_source(&source) {
+            Ok(val) => {
+                if val == source.as_str() {
+                    io.stdout.set_color(&yellow)?;
+                    write!(io.stdout, "== ")?;
+                    io.stdout.reset()?;
+                    writeln!(io.stdout, "{}", path.display())?;
+
+                    unchanged += 1;
+                } else {
+                    succeeded += 1;
+                    io.stdout.set_color(&green)?;
+                    write!(io.stdout, "++ ")?;
+                    io.stdout.reset()?;
+                    writeln!(io.stdout, "{}", path.display())?;
+                    std::fs::write(path, &val)?;
+                }
+            }
+            Err(err) => {
+                failed += 1;
+                io.stdout.set_color(&red)?;
+                write!(io.stdout, "!! ")?;
+                io.stdout.reset()?;
+                writeln!(io.stdout, "{}: {}", path.display(), err)?;
+            }
+        }
     }
 
-    std::fs::write(path, &formatted)?;
+    io.stdout.set_color(&yellow)?;
+    write!(io.stdout, "{}", unchanged)?;
+    io.stdout.reset()?;
+    writeln!(io.stdout, " unchanged")?;
+    io.stdout.set_color(&green)?;
+    write!(io.stdout, "{}", succeeded)?;
+    io.stdout.reset()?;
+    writeln!(io.stdout, " succeeded")?;
+    io.stdout.set_color(&red)?;
+    write!(io.stdout, "{}", failed)?;
+    io.stdout.reset()?;
+    writeln!(io.stdout, " failed")?;
+
+    if failed > 0 {
+        return Ok(ExitCode::Failure);
+    }
 
     Ok(ExitCode::Success)
 }

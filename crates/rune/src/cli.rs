@@ -672,15 +672,15 @@ where
             }
         }
         Command::Doc(flags) => return doc::run(io, entry, c, flags, options, entrys),
-        Command::Format(flags) => {
+        Command::Format(_) => {
+            let mut paths = vec![];
             for e in entrys {
-                for path in &e.paths {
-                    match format::run(io, entry, c, flags, options, path)? {
-                        ExitCode::Success => (),
-                        other => return Ok(other),
-                    }
+                for path in e.paths {
+                    paths.push(path);
                 }
             }
+
+            format::run(io, &paths)?;
         }
         Command::Test(flags) => {
             for e in entrys {
