@@ -154,7 +154,7 @@ mod token;
 pub(super) mod utils;
 mod vis;
 
-pub use self::attribute::Attribute;
+pub use self::attribute::{AttrStyle, Attribute};
 pub use self::block::Block;
 pub use self::condition::Condition;
 pub use self::expr::Expr;
@@ -179,7 +179,7 @@ pub use self::expr_match::{ExprMatch, ExprMatchBranch};
 pub use self::expr_object::{ExprObject, FieldAssign, ObjectIdent, ObjectKey};
 pub use self::expr_range::{ExprRange, ExprRangeLimits};
 pub use self::expr_return::ExprReturn;
-pub use self::expr_select::{ExprSelect, ExprSelectBranch};
+pub use self::expr_select::{ExprSelect, ExprSelectBranch, ExprSelectPatBranch};
 pub use self::expr_try::ExprTry;
 pub use self::expr_tuple::ExprTuple;
 pub use self::expr_unary::{ExprUnary, UnOp};
@@ -208,7 +208,9 @@ pub use self::lit_number::LitNumber;
 pub use self::lit_str::LitStr;
 pub use self::local::Local;
 pub use self::macro_call::MacroCall;
-pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVec};
+pub use self::pat::{
+    Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple, PatVec,
+};
 pub use self::path::{Path, PathKind, PathSegment, PathSegmentExpr};
 pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};

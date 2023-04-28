@@ -189,6 +189,8 @@ mod exported_macros;
 #[macro_use]
 pub mod ast;
 
+pub mod fmt;
+
 cfg_emit! {
     pub use ::codespan_reporting::term::termcolor;
 }
