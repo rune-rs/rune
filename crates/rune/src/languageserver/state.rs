@@ -468,6 +468,7 @@ impl<'a> State<'a> {
             emit_scripts(diagnostics, &build, &mut reporter);
 
             let sources = Arc::new(build.sources);
+            let doc_visitor = Arc::new(doc_visitor);
 
             for (source_id, value) in source_visitor.into_indexes() {
                 let Some(url) = build.id_to_url.get(&source_id) else {
@@ -735,7 +736,7 @@ pub(super) struct Source {
     /// The compiled unit
     unit: Option<Unit>,
     /// Comments captured
-    docs: Option<crate::doc::Visitor>,
+    docs: Option<Arc<crate::doc::Visitor>>,
 }
 
 impl Source {
