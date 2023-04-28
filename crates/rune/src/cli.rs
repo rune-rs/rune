@@ -9,6 +9,7 @@
 mod benches;
 mod check;
 mod doc;
+mod format;
 mod languageserver;
 mod loader;
 mod run;
@@ -193,6 +194,8 @@ enum Command {
     Bench(benches::Flags),
     /// Run the designated script
     Run(run::Flags),
+    /// Format the provided file
+    Format(format::Flags),
     /// Run a language server.
     LanguageServer(languageserver::Flags),
 }
@@ -202,6 +205,7 @@ impl Command {
         match self {
             Command::Check(..) => {}
             Command::Doc(..) => {}
+            Command::Format(..) => {}
             Command::Test(..) => {
                 c.test = true;
             }
@@ -219,6 +223,7 @@ impl Command {
         match self {
             Command::Check(..) => "Checking",
             Command::Doc(..) => "Building documentation",
+            Command::Format(..) => "Formatting files",
             Command::Test(..) => "Testing",
             Command::Bench(..) => "Benchmarking",
             Command::Run(..) => "Running",
@@ -230,6 +235,7 @@ impl Command {
         match self {
             Command::Check(args) => &args.shared,
             Command::Doc(args) => &args.shared,
+            Command::Format(args) => &args.shared,
             Command::Test(args) => &args.shared,
             Command::Bench(args) => &args.shared,
             Command::Run(args) => &args.shared,
@@ -388,8 +394,11 @@ impl Args {
                 options.test(true);
                 options.bytecode(false);
             }
-            Command::Bench(_) | Command::Doc(..) | Command::Run(_) | Command::LanguageServer(_) => {
-            }
+            Command::Bench(_)
+            | Command::Doc(..)
+            | Command::Run(_)
+            | Command::LanguageServer(_)
+            | Command::Format(..) => {}
         }
 
         for option in &self.cmd.shared().compiler_options {
@@ -663,6 +672,16 @@ where
             }
         }
         Command::Doc(flags) => return doc::run(io, entry, c, flags, options, entrys),
+        Command::Format(flags) => {
+            for e in entrys {
+                for path in &e.paths {
+                    match format::run(io, entry, c, flags, options, path)? {
+                        ExitCode::Success => (),
+                        other => return Ok(other),
+                    }
+                }
+            }
+        }
         Command::Test(flags) => {
             for e in entrys {
                 for path in &e.paths {
