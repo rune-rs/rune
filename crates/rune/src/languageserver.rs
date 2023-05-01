@@ -2,6 +2,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
+mod completion;
 mod connection;
 pub mod envelope;
 mod fs;
@@ -205,12 +206,10 @@ async fn completion(
     state: &mut State<'_>,
     params: lsp::CompletionParams,
 ) -> Result<Option<lsp::CompletionResponse>> {
-    let results = state
-        .complete(
-            &params.text_document_position.text_document.uri,
-            params.text_document_position.position,
-        )
-        .await;
+    let results = state.complete(
+        &params.text_document_position.text_document.uri,
+        params.text_document_position.position,
+    );
 
     let results = results.map(lsp::CompletionResponse::Array);
     Ok(results)
