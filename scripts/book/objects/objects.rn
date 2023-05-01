@@ -1,5 +1,5 @@
 pub fn main() {
-    let values = #{ };
+    let values = #{};
     values["first"] = "bar";
     values["second"] = 42;
 
