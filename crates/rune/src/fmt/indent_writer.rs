@@ -213,7 +213,7 @@ impl<'a> SpanInjectionWriter<'a> {
     }
 }
 
-impl<'a> Deref for SpanInjectionWriter<'_> {
+impl Deref for SpanInjectionWriter<'_> {
     type Target = IndentedWriter;
 
     fn deref(&self) -> &Self::Target {
@@ -221,7 +221,7 @@ impl<'a> Deref for SpanInjectionWriter<'_> {
     }
 }
 
-impl<'a> DerefMut for SpanInjectionWriter<'_> {
+impl DerefMut for SpanInjectionWriter<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.writer
     }

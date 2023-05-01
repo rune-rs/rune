@@ -34,14 +34,12 @@ pub struct Printer<'a> {
 }
 
 impl<'a> Printer<'a> {
-    pub fn new(source: &'a Source) -> Self {
-        Self {
-            writer: SpanInjectionWriter::new(IndentedWriter::new(), source).unwrap(),
-            source,
-        }
+    pub fn new(source: &'a Source) -> Result<Self, FormattingError> {
+        let writer = SpanInjectionWriter::new(IndentedWriter::new(), source)?;
+        Ok(Self { writer, source })
     }
 
-    pub fn commit(mut self) -> String {
+    pub fn commit(self) -> String {
         let inner = self.writer.into_inner();
         inner.join("\n")
     }

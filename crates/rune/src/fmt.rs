@@ -25,8 +25,8 @@ pub fn layout_string(contents: String) -> Result<String, FormattingError> {
 pub fn layout_source(source: &Source) -> Result<String, FormattingError> {
     let mut parser = Parser::new(source.as_str(), SourceId::new(0), true);
 
-    let ast = ast::File::parse(&mut parser).unwrap();
-    let mut printer: Printer = Printer::new(source);
+    let ast = ast::File::parse(&mut parser)?;
+    let mut printer: Printer = Printer::new(source)?;
 
     printer.visit_file(&ast)?;
 

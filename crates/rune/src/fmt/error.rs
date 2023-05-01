@@ -17,6 +17,9 @@ pub enum FormattingError {
     #[error("invalid span: {0}..{1} but max is {2}")]
     InvalidSpan(usize, usize, usize),
 
+    #[error("error while parsing source")]
+    ParseError(#[from] crate::parse::ParseError),
+
     #[error("unexpected end of input")]
     Eof,
 }

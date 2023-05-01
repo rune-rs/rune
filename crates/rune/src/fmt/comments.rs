@@ -96,7 +96,7 @@ fn parse_line_comment(
     chars: &mut std::iter::Peekable<impl Iterator<Item = (usize, char)>>,
 ) -> Result<usize, FormattingError> {
     let mut last_i = 0;
-    while let Some((i, c)) = chars.next() {
+    for (i, c) in chars.by_ref() {
         match c {
             '\n' => return Ok(i),
             _ => {
@@ -112,15 +112,11 @@ fn parse_block_comment(
     chars: &mut std::iter::Peekable<impl Iterator<Item = (usize, char)>>,
 ) -> Result<usize, FormattingError> {
     while let Some((_, c)) = chars.next() {
-        match c {
-            '*' => match chars.peek() {
-                Some((_, '/')) => {
-                    let (offset, _) = chars.next().unwrap();
-                    return Ok(offset);
-                }
-                _ => {}
-            },
-            _ => {}
+        if c == '*' {
+            if let Some((_, '/')) = chars.peek() {
+                let (offset, _) = chars.next().unwrap();
+                return Ok(offset);
+            }
         }
     }
 
