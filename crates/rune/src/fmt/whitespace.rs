@@ -1,6 +1,5 @@
-use crate::ast::Span;
-
 use super::error::FormattingError;
+use crate::ast::Span;
 
 /// A span of an empty line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

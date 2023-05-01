@@ -1,7 +1,3 @@
-// Author: Tom Solberg <me@sbg.dev>
-// Copyright © 2023, Tom Solberg, all rights reserved.
-// Created: 27 April 2023
-
 /*!
 Error types for the formatting functionality.
  */

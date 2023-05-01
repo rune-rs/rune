@@ -1,19 +1,13 @@
-// Author: Tom Solberg <me@sbg.dev>
-// Copyright © 2023, Tom Solberg, all rights reserved.
-// Created: 28 April 2023
-
 /*!
-
+Specialized writter/string builders for the formatting module.
 */
 
+use super::{comments::Comment, error::FormattingError, whitespace::EmptyLine};
+use crate::{ast::Span, Source};
 use std::{
     io::Write,
     ops::{Deref, DerefMut},
 };
-
-use crate::{ast::Span, Source};
-
-use super::{comments::Comment, error::FormattingError, whitespace::EmptyLine};
 
 pub(super) struct IndentedWriter {
     lines: Vec<String>,

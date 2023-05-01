@@ -1,7 +1,3 @@
-// Author: Tom Solberg <me@sbg.dev>
-// Copyright © 2023, Tom Solberg, all rights reserved.
-// Created: 27 April 2023
-
 /*!
  * The `Printer` trait and implementations.
  */
@@ -10,7 +6,6 @@ use std::io::Write;
 
 use super::indent_writer::IndentedWriter;
 use super::{error::FormattingError, indent_writer::SpanInjectionWriter};
-use crate::ast::Item;
 use crate::{
     ast::{
         AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
@@ -19,11 +14,11 @@ use crate::{
         ExprFor, ExprGroup, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMatch,
         ExprMatchBranch, ExprObject, ExprRange, ExprReturn, ExprSelect, ExprSelectBranch,
         ExprSelectPatBranch, ExprTry, ExprTuple, ExprUnary, ExprVec, ExprWhile, ExprYield, Field,
-        FieldAssign, FnArg, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemModBody,
+        FieldAssign, FnArg, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemModBody,
         ItemStruct, ItemStructBody, ItemVariant, ItemVariantBody, LitSource, Local, MacroCall,
         ObjectKey, Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple,
-        PatVec, Path, PathSegment, PathSegmentExpr, SelfType, SelfValue, SemiColon, Span, Stmt,
-        StmtSemi,
+        PatVec, Path, PathSegment, PathSegmentExpr, SelfType, SelfValue, SemiColon, Span, Spanned,
+        Stmt, StmtSemi,
     },
     Source,
 };

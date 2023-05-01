@@ -1,9 +1,5 @@
-// Author: Tom Solberg <me@sbg.dev>
-// Copyright © 2023, Tom Solberg, all rights reserved.
-// Created: 30 April 2023
-
 /*!
-
+Extract comments from source code.
 */
 
 use crate::ast::Span;
