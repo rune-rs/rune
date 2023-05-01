@@ -12,7 +12,6 @@ use crate::{
     Source, SourceId,
 };
 use printer::Printer;
-use std::io::Cursor;
 
 use self::error::FormattingError;
 
@@ -27,11 +26,11 @@ pub fn layout_source(source: &Source) -> Result<String, FormattingError> {
     let mut parser = Parser::new(source.as_str(), SourceId::new(0), true);
 
     let ast = ast::File::parse(&mut parser).unwrap();
-    let mut buf: Vec<u8> = vec![];
-    let mut printer: Printer<Cursor<&mut Vec<u8>>> = Printer::new(Cursor::new(&mut buf), source);
+    let mut printer: Printer = Printer::new(source);
 
     printer.visit_file(&ast)?;
-    let res = String::from_utf8(buf).unwrap().trim().to_owned() + "\n";
+
+    let res = printer.commit().trim().to_owned() + "\n";
 
     Ok(res)
 }

@@ -10,6 +10,7 @@ use std::io::Write;
 
 use super::indent_writer::IndentedWriter;
 use super::{error::FormattingError, indent_writer::SpanInjectionWriter};
+use crate::ast::Item;
 use crate::{
     ast::{
         AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
@@ -27,23 +28,22 @@ use crate::{
     Source,
 };
 
-pub struct Printer<'a, W>
-where
-    W: Write,
-{
-    writer: SpanInjectionWriter<'a, W>,
+pub struct Printer<'a> {
+    writer: SpanInjectionWriter<'a>,
     source: &'a Source,
 }
 
-impl<'a, W> Printer<'a, W>
-where
-    W: Write,
-{
-    pub fn new(writer: W, source: &'a Source) -> Self {
+impl<'a> Printer<'a> {
+    pub fn new(source: &'a Source) -> Self {
         Self {
-            writer: SpanInjectionWriter::new(IndentedWriter::new(writer), source).unwrap(),
+            writer: SpanInjectionWriter::new(IndentedWriter::new(), source).unwrap(),
             source,
         }
+    }
+
+    pub fn commit(mut self) -> String {
+        let inner = self.writer.into_inner();
+        inner.join("\n")
     }
 
     pub fn resolve(&self, span: Span) -> Result<String, FormattingError> {
@@ -631,7 +631,7 @@ where
         }
 
         self.writer
-            .write_spanned_raw(generics.close.span, false, true)?;
+            .write_spanned_raw(generics.close.span, false, false)?;
 
         Ok(())
     }
@@ -1327,12 +1327,16 @@ where
 
         self.writer.indent();
         for (branch, comma) in branches {
-            self.visit_match_branch(branch)?;
+            let should_have_comma = self.visit_match_branch(branch)?;
 
-            if let Some(comma) = comma {
-                self.writer.write_spanned_raw(comma.span, true, false)?;
+            if should_have_comma {
+                if let Some(comma) = comma {
+                    self.writer.write_spanned_raw(comma.span, true, false)?;
+                } else {
+                    self.writer.write_unspanned(",\n")?;
+                }
             } else {
-                self.writer.write_unspanned(",\n")?;
+                self.writer.write_unspanned("\n")?;
             }
         }
         self.writer.dedent();
@@ -1342,7 +1346,7 @@ where
         Ok(())
     }
 
-    fn visit_match_branch(&mut self, branch: &ExprMatchBranch) -> Result<(), FormattingError> {
+    fn visit_match_branch(&mut self, branch: &ExprMatchBranch) -> Result<bool, FormattingError> {
         let ExprMatchBranch {
             pat,
             condition,
@@ -1361,7 +1365,9 @@ where
         self.writer.write_spanned_raw(rocket.span, false, true)?;
         self.visit_expr(body)?;
 
-        Ok(())
+        let should_have_comma = !matches!(body, Expr::Block(_));
+
+        Ok(should_have_comma)
     }
 
     fn visit_loop(&mut self, loopexpr: &ExprLoop) -> Result<(), FormattingError> {
@@ -1540,15 +1546,15 @@ where
             braced,
             close,
         } = items;
-        self.writer.write_spanned_raw(open.span, false, false)?;
 
-        let multiline = if items.len() > 5 {
+        let multiline = items.len() > 5;
+        self.writer
+            .write_spanned_raw(open.span, false, !multiline)?;
+
+        if multiline {
             self.writer.newline()?;
             self.writer.indent();
-            true
-        } else {
-            false
-        };
+        }
 
         let count = items.len();
         for (idx, (pat, comma)) in braced.iter().enumerate() {
@@ -1571,6 +1577,8 @@ where
 
         if multiline {
             self.writer.dedent();
+        } else {
+            self.writer.write_unspanned(" ")?;
         }
 
         self.writer.write_spanned_raw(close.span, false, false)?;
@@ -1798,8 +1806,8 @@ where
         self.writer.indent();
         for statement in statements {
             self.visit_statement(statement)?;
-            self.writer.newline()?;
         }
+
         self.writer.dedent();
         self.writer.write_spanned_raw(close.span, false, false)?;
 
@@ -1808,9 +1816,20 @@ where
 
     fn visit_statement(&mut self, statement: &Stmt) -> Result<(), FormattingError> {
         match statement {
-            Stmt::Local(local) => self.visit_local(local),
-            Stmt::Item(item, semi) => self.visit_item(item, *semi),
-            Stmt::Expr(expr) => self.visit_expr(expr),
+            Stmt::Local(local) => {
+                self.visit_local(local)?;
+                self.writer.newline()?;
+            }
+            Stmt::Item(item, semi) => {
+                self.visit_item(item, *semi)?;
+                if !matches!(item, Item::Fn(_)) {
+                    self.writer.newline()?;
+                }
+            }
+            Stmt::Expr(expr) => {
+                self.visit_expr(expr)?;
+                self.writer.newline()?;
+            }
             Stmt::Semi(semi) => {
                 let StmtSemi {
                     expr,
@@ -1831,9 +1850,11 @@ where
                     }
                 }
 
-                Ok(())
+                self.writer.newline()?;
             }
         }
+
+        Ok(())
     }
 
     fn visit_local(&mut self, local: &Local) -> Result<(), FormattingError> {

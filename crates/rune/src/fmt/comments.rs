@@ -20,6 +20,7 @@ pub enum CommentKind {
 pub(super) struct Comment {
     pub kind: CommentKind,
     pub span: Span,
+    pub on_new_line: bool,
 }
 
 pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingError> {
@@ -30,6 +31,7 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
     let mut in_string = false;
     let mut in_char = false;
     let mut in_template = false;
+    let mut on_new_line = true;
 
     while let Some((idx, c)) = chars.next() {
         match c {
@@ -39,6 +41,7 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
 
                     if !input[idx..end].starts_with("///") && !input[idx..end].starts_with("//!") {
                         comments.push(Comment {
+                            on_new_line,
                             kind: CommentKind::Line,
                             span: Span::new(idx, end),
                         });
@@ -49,6 +52,7 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
 
                     if !input[idx..end].starts_with("/**") && !input[idx..end].starts_with("/*!") {
                         comments.push(Comment {
+                            on_new_line,
                             kind: CommentKind::Block,
                             span: Span::new(idx, end),
                         });
@@ -57,22 +61,31 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
                 _ => {}
             },
             '"' => {
+                on_new_line = false;
                 if !in_char && !in_template {
                     in_string = !in_string;
                 }
             }
             '\'' => {
+                on_new_line = false;
                 if !in_string && !in_template {
                     in_char = !in_char;
                 }
             }
             '`' => {
+                on_new_line = false;
                 if !in_string && !in_char {
                     in_template = !in_template;
                 }
             }
+            '\n' => {
+                on_new_line = true;
+            }
+            c if c.is_whitespace() => {}
 
-            _ => {}
+            _ => {
+                on_new_line = false;
+            }
         }
     }
 
