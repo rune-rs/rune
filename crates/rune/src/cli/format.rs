@@ -15,9 +15,12 @@ pub(super) struct Flags {
 
     #[command(flatten)]
     pub(super) shared: SharedFlags,
+
+    #[arg(long)]
+    check: bool,
 }
 
-pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf]) -> Result<ExitCode> {
+pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf], flags: &Flags) -> Result<ExitCode> {
     let mut red = codespan_reporting::term::termcolor::ColorSpec::new();
     red.set_fg(Some(codespan_reporting::term::termcolor::Color::Red));
 
@@ -49,7 +52,9 @@ pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf]) -> Result<ExitCode> {
                     write!(io.stdout, "++ ")?;
                     io.stdout.reset()?;
                     writeln!(io.stdout, "{}", path.display())?;
-                    std::fs::write(path, &val)?;
+                    if !flags.check {
+                        std::fs::write(path, &val)?;
+                    }
                 }
             }
             Err(err) => {
@@ -74,6 +79,10 @@ pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf]) -> Result<ExitCode> {
     write!(io.stdout, "{}", failed)?;
     io.stdout.reset()?;
     writeln!(io.stdout, " failed")?;
+
+    if flags.check && succeeded > 0 {
+        return Ok(ExitCode::Failure);
+    }
 
     if failed > 0 {
         return Ok(ExitCode::Failure);

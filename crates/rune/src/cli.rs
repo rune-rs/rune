@@ -195,7 +195,7 @@ enum Command {
     /// Run the designated script
     Run(run::Flags),
     /// Format the provided file
-    Format(format::Flags),
+    Fmt(format::Flags),
     /// Run a language server.
     LanguageServer(languageserver::Flags),
 }
@@ -205,7 +205,7 @@ impl Command {
         match self {
             Command::Check(..) => {}
             Command::Doc(..) => {}
-            Command::Format(..) => {}
+            Command::Fmt(..) => {}
             Command::Test(..) => {
                 c.test = true;
             }
@@ -223,7 +223,7 @@ impl Command {
         match self {
             Command::Check(..) => "Checking",
             Command::Doc(..) => "Building documentation",
-            Command::Format(..) => "Formatting files",
+            Command::Fmt(..) => "Formatting files",
             Command::Test(..) => "Testing",
             Command::Bench(..) => "Benchmarking",
             Command::Run(..) => "Running",
@@ -235,7 +235,7 @@ impl Command {
         match self {
             Command::Check(args) => &args.shared,
             Command::Doc(args) => &args.shared,
-            Command::Format(args) => &args.shared,
+            Command::Fmt(args) => &args.shared,
             Command::Test(args) => &args.shared,
             Command::Bench(args) => &args.shared,
             Command::Run(args) => &args.shared,
@@ -398,7 +398,7 @@ impl Args {
             | Command::Doc(..)
             | Command::Run(_)
             | Command::LanguageServer(_)
-            | Command::Format(..) => {}
+            | Command::Fmt(..) => {}
         }
 
         for option in &self.cmd.shared().compiler_options {
@@ -672,7 +672,7 @@ where
             }
         }
         Command::Doc(flags) => return doc::run(io, entry, c, flags, options, entrys),
-        Command::Format(_) => {
+        Command::Fmt(flags) => {
             let mut paths = vec![];
             for e in entrys {
                 for path in e.paths {
@@ -680,7 +680,7 @@ where
                 }
             }
 
-            format::run(io, &paths)?;
+            format::run(io, &paths, flags)?;
         }
         Command::Test(flags) => {
             for e in entrys {
