@@ -17,10 +17,7 @@ impl User {
 }
 
 pub fn main() {
-    let user = User {
-        username: "setbac",
-        active: false,
-    };
+    let user = User { username: "setbac", active: false };
 
     user.describe();
     user.username = "newt";

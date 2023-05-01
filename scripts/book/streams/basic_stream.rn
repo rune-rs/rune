@@ -12,10 +12,7 @@ async fn send_requests(list) {
 }
 
 pub async fn main() {
-    let requests = send_requests([
-        "https://google.com",
-        "https://amazon.com",
-    ]);
+    let requests = send_requests(["https://google.com", "https://amazon.com"]);
 
     while let Some(status) = requests.next().await.transpose()? {
         println!("{}", status);

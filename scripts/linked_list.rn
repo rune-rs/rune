@@ -16,27 +16,19 @@ struct List {
 impl List {
     /// Construct a new linked list.
     fn new() {
-        List {
-            first: Empty,
-            last: Empty,
-        }
+        List { first: Empty, last: Empty }
     }
 
     /// Construct an iterator over the linked list.
     fn iter(self) {
-        Iter {
-            current: self.first,
-        }
+        Iter { current: self.first }
     }
 
     /// Push an element to the back of the linked list.
     fn push_back(self, value) {
         let prev = self.last;
 
-        self.last = Node {
-            value,
-            next: Empty,
-        };
+        self.last = Node { value, next: Empty };
 
         if prev is Empty {
             self.first = self.last;

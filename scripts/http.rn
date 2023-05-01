@@ -8,15 +8,10 @@ pub async fn main() {
         dbg(timezone);
     }
 
-    let body = json::to_bytes(#{"hello": "world"})?;
+    let body = json::to_bytes(#{ "hello": "world" })?;
 
     let client = http::Client::new();
-    let response = client.post("https://postman-echo.com/post")
-        .await?
-        .body_bytes(body)
-        .await?
-        .send()
-        .await?;
+    let response = client.post("https://postman-echo.com/post").await?.body_bytes(body).await?.send().await?;
 
     let response = response.json().await?;
 

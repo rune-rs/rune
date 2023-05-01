@@ -1,5 +1,5 @@
 pub fn main() {
-    let object = #{field: 1};
+    let object = #{ field: 1 };
     let object2 = object;
     println!("field: {}", object.field);
     drop(object2);

@@ -1,7 +1,7 @@
 fn describe_car(car) {
     match car {
-        #{"make": year, ..} if year < 1950 => "What, where did you get that?",
-        #{"model": "Ford", "make": year, ..} if year >= 2000 => "Pretty fast!",
+        #{ "make": year, .. } if year < 1950 => "What, where did you get that?",
+        #{ "model": "Ford", "make": year, .. } if year >= 2000 => "Pretty fast!",
         _ => "Can't tell 😞",
     }
 }
