@@ -806,12 +806,15 @@ impl<'a> Printer<'a> {
         self.writer
             .write_spanned_raw(assignments.open.span, false, false)?;
 
+        let has_items = !assignments.is_empty();
         let multiline = if assignments.len() > 5 {
             self.writer.indent();
             self.writer.newline()?;
             true
         } else {
-            write!(self.writer, " ")?;
+            if has_items {
+                write!(self.writer, " ")?;
+            }
             false
         };
 
@@ -840,7 +843,7 @@ impl<'a> Printer<'a> {
         if multiline {
             self.writer.dedent();
             self.writer.newline()?;
-        } else {
+        } else if has_items {
             self.writer.write_unspanned(" ")?;
         }
 
