@@ -680,7 +680,7 @@ where
                 }
             }
 
-            format::run(io, &paths, flags)?;
+            return format::run(io, &paths, flags);
         }
         Command::Test(flags) => {
             for e in entrys {

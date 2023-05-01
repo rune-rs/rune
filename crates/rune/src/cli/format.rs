@@ -40,10 +40,12 @@ pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf], flags: &Flags) -> Result<E
         match crate::fmt::layout_source(&source) {
             Ok(val) => {
                 if val == source.as_str() {
-                    io.stdout.set_color(&yellow)?;
-                    write!(io.stdout, "== ")?;
-                    io.stdout.reset()?;
-                    writeln!(io.stdout, "{}", path.display())?;
+                    if !flags.check {
+                        io.stdout.set_color(&yellow)?;
+                        write!(io.stdout, "== ")?;
+                        io.stdout.reset()?;
+                        writeln!(io.stdout, "{}", path.display())?;
+                    }
 
                     unchanged += 1;
                 } else {
@@ -81,6 +83,12 @@ pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf], flags: &Flags) -> Result<E
     writeln!(io.stdout, " failed")?;
 
     if flags.check && succeeded > 0 {
+        io.stdout.set_color(&red)?;
+        write!(
+            io.stdout,
+            "Exiting with failure due to `--check` flag and unformatted files."
+        )?;
+        io.stdout.reset()?;
         return Ok(ExitCode::Failure);
     }
 

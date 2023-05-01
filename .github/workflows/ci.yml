@@ -56,6 +56,13 @@ jobs:
         components: rustfmt
     - run: cargo fmt --all -- --check
 
+  runefmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@stable
+    - run: shopt -s globstar ; cargo run --bin rune -- fmt **/*.rn
+
   clippy:
     runs-on: ubuntu-latest
     steps:
