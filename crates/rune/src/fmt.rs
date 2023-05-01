@@ -1,8 +1,10 @@
 //! Helper to format Rune code.
 
+mod comments;
 mod error;
 mod indent_writer;
 mod printer;
+mod whitespace;
 
 use crate::{
     ast,

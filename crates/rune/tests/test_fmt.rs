@@ -1,7 +1,7 @@
-use rune::fmt::layout;
+use rune::fmt::layout_string;
 
 #[test]
-fn test_layout() {
+fn test_layout_string() {
     let input = r#"
         fn main() {
             let x = 1; let y = 2;           x + y
@@ -15,7 +15,7 @@ fn test_layout() {
 }
 "#;
 
-    assert_eq!(layout(input.to_owned()).unwrap(), expected);
+    assert_eq!(layout_string(input.to_owned()).unwrap(), expected);
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn foo() {
 }
 "#;
 
-    assert_eq!(layout(input.to_owned()).unwrap(), expected);
+    assert_eq!(layout_string(input.to_owned()).unwrap(), expected);
 }
 
 #[test]
@@ -73,5 +73,5 @@ fn foo() {
 }
 "#;
 
-    assert_eq!(layout(input.to_owned()).unwrap(), expected);
+    assert_eq!(layout_string(input.to_owned()).unwrap(), expected);
 }

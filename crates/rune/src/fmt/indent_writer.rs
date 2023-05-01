@@ -6,7 +6,14 @@
 
 */
 
-use std::io::Write;
+use std::{
+    io::Write,
+    ops::{Deref, DerefMut},
+};
+
+use crate::{ast::Span, Source};
+
+use super::{comments::Comment, error::FormattingError, whitespace::EmptyLine};
 
 pub(super) struct IndentedWriter<W>
 where
@@ -91,6 +98,138 @@ where
     }
 }
 
+enum ResolvedSpan {
+    Empty(EmptyLine),
+    Comment(Comment),
+}
+
+impl ResolvedSpan {
+    fn span(&self) -> Span {
+        match self {
+            Self::Empty(empty_line) => empty_line.span,
+            Self::Comment(comment) => comment.span,
+        }
+    }
+}
+
+/// Writes a span to the writer, injecting comments and empty lines from the source file.
+pub(super) struct SpanInjectionWriter<'a, W>
+where
+    W: Write,
+{
+    writer: IndentedWriter<W>,
+    queued_spans: Vec<ResolvedSpan>,
+    source: &'a Source,
+}
+
+impl<'a, W> SpanInjectionWriter<'a, W>
+where
+    W: Write,
+{
+    pub fn new(writer: IndentedWriter<W>, source: &'a Source) -> Result<Self, FormattingError> {
+        let comment_spans = super::comments::parse_comments(source.as_str())?;
+        let empty_line_spans = super::whitespace::gather_empty_line_spans(source.as_str())?;
+
+        let mut queued_spans = Vec::new();
+        queued_spans.extend(comment_spans.into_iter().map(ResolvedSpan::Comment));
+        queued_spans.extend(empty_line_spans.into_iter().map(ResolvedSpan::Empty));
+
+        queued_spans.sort_by_key(|span| span.span().start);
+        Ok(Self {
+            writer,
+            queued_spans,
+            source,
+        })
+    }
+
+    fn resolve(&self, span: Span) -> Result<String, FormattingError> {
+        match self.source.get(span.range()) {
+            Some(s) => Ok(s.to_owned()),
+            None => Err(FormattingError::InvalidSpan(
+                span.start.into_usize(),
+                span.end.into_usize(),
+                self.source.len(),
+            )),
+        }
+    }
+
+    pub fn write_spanned_raw(
+        &mut self,
+        span: Span,
+        newline: bool,
+        space: bool,
+    ) -> Result<(), FormattingError> {
+        let contents = self.resolve(span)?;
+        self.write_spanned(span, contents.trim(), newline, space)
+    }
+
+    pub fn newline(&mut self) -> Result<(), FormattingError> {
+        self.write_unspanned("\n")
+    }
+
+    pub fn write_unspanned(&mut self, text: &str) -> Result<(), FormattingError> {
+        self.write_spanned(Span::new(0, 0), text, false, false)
+    }
+
+    pub fn write_spanned(
+        &mut self,
+        span: Span,
+        text: &str,
+        newline: bool,
+        space: bool,
+    ) -> Result<(), FormattingError> {
+        // The queued recovered spans are ordered so we can pop them from the front if they're before the current span.
+        // If the current span is before the first queued span, we need to inject the queued span.
+
+        while let Some(queued_span) = self.queued_spans.first() {
+            if queued_span.span().start > span.start {
+                break;
+            }
+
+            let queued_span = self.queued_spans.remove(0);
+            match queued_span {
+                ResolvedSpan::Empty(_) => {
+                    writeln!(self.writer)?;
+                }
+                ResolvedSpan::Comment(comment) => {
+                    writeln!(self.writer, "{}", self.resolve(comment.span)?)?;
+                }
+            }
+        }
+
+        write!(self.writer, "{}", text)?;
+
+        if space {
+            write!(self.writer, " ")?;
+        }
+
+        if newline {
+            writeln!(self.writer)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a, W> Deref for SpanInjectionWriter<'_, W>
+where
+    W: Write,
+{
+    type Target = IndentedWriter<W>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.writer
+    }
+}
+
+impl<'a, W> DerefMut for SpanInjectionWriter<'_, W>
+where
+    W: Write,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.writer
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;

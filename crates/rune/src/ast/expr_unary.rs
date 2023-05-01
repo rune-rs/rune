@@ -62,6 +62,18 @@ pub enum UnOp {
     Deref(ast::Star),
 }
 
+impl UnOp {
+    /// Retrieve the span of the operator.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Not(bang) => bang.span(),
+            Self::Neg(dash) => dash.span(),
+            Self::BorrowRef(amp) => amp.span(),
+            Self::Deref(star) => star.span(),
+        }
+    }
+}
+
 /// A unary operator.
 ///
 /// # Examples

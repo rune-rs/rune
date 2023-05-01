@@ -8,8 +8,8 @@
 
 use std::io::Write;
 
-use super::error::FormattingError;
 use super::indent_writer::IndentedWriter;
+use super::{error::FormattingError, indent_writer::SpanInjectionWriter};
 use crate::{
     ast::{
         AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
@@ -31,7 +31,7 @@ pub struct Printer<'a, W>
 where
     W: Write,
 {
-    writer: IndentedWriter<W>,
+    writer: SpanInjectionWriter<'a, W>,
     source: &'a Source,
 }
 
@@ -41,7 +41,7 @@ where
 {
     pub fn new(writer: W, source: &'a Source) -> Self {
         Self {
-            writer: IndentedWriter::new(writer),
+            writer: SpanInjectionWriter::new(IndentedWriter::new(writer), source).unwrap(),
             source,
         }
     }
@@ -59,12 +59,12 @@ where
 
     pub fn visit_file(&mut self, file: &crate::ast::File) -> Result<(), FormattingError> {
         if let Some(shebang) = &file.shebang {
-            writeln!(self.writer, "{}", self.resolve(shebang.span)?)?;
+            self.writer.write_spanned_raw(shebang.span, true, false)?;
         }
 
         for attribute in &file.attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         for item in &file.items {
@@ -77,7 +77,7 @@ where
     pub fn visit_attribute(
         &mut self,
         attribute: &crate::ast::Attribute,
-    ) -> Result<(), FormattingError> {
+    ) -> Result<bool, FormattingError> {
         let crate::ast::Attribute {
             hash,
             style,
@@ -90,25 +90,26 @@ where
         let first = &path.first;
         if let PathSegment::Ident(ident) = first {
             if let LitSource::BuiltIn(BuiltIn::Doc) = ident.source {
-                write!(self.writer, "{}", self.resolve(ident.span)?.trim())?;
-                return Ok(());
+                self.writer.write_spanned_raw(ident.span, false, false)?;
+                return Ok(true);
             }
         }
 
-        write!(self.writer, "{}", self.resolve(hash.span)?)?;
+        self.writer.write_spanned_raw(hash.span, false, false)?;
+
         match style {
-            AttrStyle::Outer(_) => write!(self.writer, "!")?,
-            AttrStyle::Inner => write!(self.writer, "")?,
+            AttrStyle::Outer(bang) => self.writer.write_spanned_raw(bang.span, false, false)?,
+            AttrStyle::Inner => {}
         }
 
-        write!(self.writer, "{}", self.resolve(open.span)?)?;
+        self.writer.write_spanned_raw(open.span, false, false)?;
         self.visit_path(path)?;
         for token in input {
-            write!(self.writer, "{}", self.resolve(token.span)?)?;
+            self.writer.write_spanned_raw(token.span, false, false)?;
         }
-        write!(self.writer, "{}", self.resolve(close.span)?)?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
-        Ok(())
+        Ok(false)
     }
 
     pub fn visit_item(
@@ -128,7 +129,7 @@ where
         }
 
         if !matches!(item, crate::ast::Item::MacroCall(_)) {
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         Ok(())
@@ -143,25 +144,27 @@ where
             id: _,
             attributes,
             visibility,
-            const_token: _,
+            const_token,
             name,
-            eq: _,
+            eq,
             expr,
         } = item;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
         }
-        writeln!(self.writer)?;
+        self.writer.newline()?;
 
         self.emit_visibility(visibility)?;
-        write!(self.writer, "const ")?;
-        write!(self.writer, "{}", self.resolve(name.span)?)?;
-        write!(self.writer, " = ")?;
+
+        self.writer
+            .write_spanned_raw(const_token.span, false, true)?;
+        self.writer.write_spanned_raw(name.span, false, true)?;
+        self.writer.write_spanned_raw(eq.span, false, true)?;
         self.visit_expr(expr)?;
 
-        if semi.is_some() {
-            write!(self.writer, ";")?;
+        if let Some(semi) = semi {
+            self.writer.write_spanned_raw(semi.span, false, false)?;
         }
 
         Ok(())
@@ -176,41 +179,41 @@ where
             id: _,
             attributes,
             visibility,
-            mod_token: _,
+            mod_token,
             name,
             body,
         } = item;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         self.emit_visibility(visibility)?;
 
-        write!(self.writer, "mod ")?;
-        write!(self.writer, "{}", self.resolve(name.span)?)?;
+        self.writer.write_spanned_raw(mod_token.span, false, true)?;
+        self.writer.write_spanned_raw(name.span, false, false)?;
 
         match body {
-            ItemModBody::EmptyBody(_semi) => {
-                writeln!(self.writer, ";")?;
+            ItemModBody::EmptyBody(semi) => {
+                self.writer.write_spanned_raw(semi.span, false, false)?;
             }
             ItemModBody::InlineBody(body) => {
-                writeln!(self.writer, " {{")?;
+                self.writer.write_unspanned(" ")?;
+                self.writer.write_spanned_raw(body.open.span, true, false)?;
                 self.writer.indent();
 
                 self.visit_file(&body.file)?;
 
                 self.writer.dedent();
-                write!(self.writer, "}}")?;
+                self.writer
+                    .write_spanned_raw(body.close.span, false, false)?;
             }
         }
 
-        if semi.is_some() {
-            write!(self.writer, ";")?;
+        if let Some(semi) = semi {
+            self.writer.write_spanned_raw(semi.span, false, false)?;
         }
-
-        writeln!(self.writer)?;
 
         Ok(())
     }
@@ -222,37 +225,37 @@ where
     ) -> Result<(), FormattingError> {
         let ItemImpl {
             attributes,
-            impl_: _impl,
+            impl_,
             path,
-            open: _open,
+            open,
             functions,
-            close: _close,
+            close,
         } = item;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
-        write!(self.writer, "impl ")?;
+        self.writer.write_spanned_raw(impl_.span, false, true)?;
         self.visit_path(path)?;
 
-        writeln!(self.writer, " {{")?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(open.span, true, false)?;
+
         self.writer.indent();
 
         for function in functions {
             self.visit_fn(function, None)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         self.writer.dedent();
-        write!(self.writer, "}}")?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
-        if semi.is_some() {
-            write!(self.writer, ";")?;
+        if let Some(semi) = semi {
+            self.writer.write_spanned_raw(semi.span, false, false)?;
         }
-
-        writeln!(self.writer)?;
 
         Ok(())
     }
@@ -266,28 +269,27 @@ where
             id: _,
             attributes,
             visibility,
-            struct_token: _,
+            struct_token,
             ident,
             body,
         } = item;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         self.emit_visibility(visibility)?;
-        write!(self.writer, "struct ")?;
+        self.writer
+            .write_spanned_raw(struct_token.span, false, true)?;
 
-        write!(self.writer, "{}", self.resolve(ident.span)?)?;
+        self.writer.write_spanned_raw(ident.span, false, false)?;
 
         self.visit_struct_body(body)?;
 
-        if semi.is_some() {
-            write!(self.writer, ";")?;
+        if let Some(semi) = semi {
+            self.writer.write_spanned_raw(semi.span, false, false)?;
         }
-
-        writeln!(self.writer)?;
 
         Ok(())
     }
@@ -296,24 +298,33 @@ where
         match body {
             ItemStructBody::UnitBody => {}
             ItemStructBody::TupleBody(tuple) => {
-                write!(self.writer, "(")?;
+                self.writer
+                    .write_spanned_raw(tuple.open.span, false, false)?;
                 for (field, comma) in tuple {
                     self.visit_field(field)?;
-                    if comma.is_some() {
-                        write!(self.writer, ", ")?;
+                    if let Some(comma) = comma {
+                        self.writer.write_spanned_raw(comma.span, false, false)?;
                     }
                 }
-                write!(self.writer, ")")?;
+                self.writer
+                    .write_spanned_raw(tuple.close.span, false, false)?;
             }
             ItemStructBody::StructBody(body) => {
-                writeln!(self.writer, " {{")?;
+                self.writer.write_unspanned(" ")?;
+                self.writer.write_spanned_raw(body.open.span, true, false)?;
+
                 self.writer.indent();
-                for (field, _comma) in body {
+                for (field, comma) in body {
                     self.visit_field(field)?;
-                    writeln!(self.writer, ",")?;
+                    if let Some(comma) = comma {
+                        self.writer.write_spanned_raw(comma.span, true, false)?;
+                    } else {
+                        self.writer.write_unspanned(",\n")?;
+                    }
                 }
                 self.writer.dedent();
-                write!(self.writer, "}}")?;
+                self.writer
+                    .write_spanned_raw(body.close.span, false, false)?;
             }
         }
 
@@ -328,36 +339,40 @@ where
         let ItemEnum {
             attributes,
             visibility,
-            enum_token: _,
+            enum_token,
             name,
             variants,
         } = item;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         self.emit_visibility(visibility)?;
-        write!(self.writer, "enum ")?;
+        self.writer
+            .write_spanned_raw(enum_token.span, false, true)?;
+        self.writer.write_spanned_raw(name.span, false, true)?;
+        self.writer
+            .write_spanned_raw(variants.open.span, true, false)?;
 
-        write!(self.writer, "{}", self.resolve(name.span)?)?;
-        write!(self.writer, " ")?;
-
-        writeln!(self.writer, "{{")?;
         self.writer.indent();
         for (variant, _comma) in variants {
             self.visit_variant(variant)?;
-            writeln!(self.writer, ",")?;
+            let span = if let Some(comma) = _comma {
+                comma.span
+            } else {
+                Span::new(0, 0)
+            };
+            self.writer.write_spanned_raw(span, true, false)?;
         }
         self.writer.dedent();
-        write!(self.writer, "}}")?;
+        self.writer
+            .write_spanned_raw(variants.close.span, false, false)?;
 
-        if semi.is_some() {
-            write!(self.writer, ";")?;
+        if let Some(semi) = semi {
+            self.writer.write_spanned_raw(semi.span, false, false)?;
         }
-
-        writeln!(self.writer)?;
 
         Ok(())
     }
@@ -372,10 +387,10 @@ where
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
-        write!(self.writer, "{}", self.resolve(name.span)?)?;
+        self.writer.write_spanned_raw(name.span, false, false)?;
 
         self.visit_variant_body(body)?;
 
@@ -386,26 +401,41 @@ where
         match body {
             ItemVariantBody::UnitBody => {}
             ItemVariantBody::TupleBody(body) => {
-                write!(self.writer, "(")?;
+                self.writer
+                    .write_spanned_raw(body.open.span, false, false)?;
 
                 let count = body.parenthesized.len();
-                for (idx, (field, _comma)) in body.parenthesized.iter().enumerate() {
+                for (idx, (field, comma)) in body.parenthesized.iter().enumerate() {
                     self.visit_field(field)?;
                     if idx < count - 1 {
-                        write!(self.writer, ", ")?;
+                        if let Some(comma) = comma {
+                            self.writer.write_spanned_raw(comma.span, false, true)?;
+                        } else {
+                            self.writer.write_unspanned(", ")?;
+                        }
                     }
                 }
-                write!(self.writer, ")")?;
+
+                self.writer
+                    .write_spanned_raw(body.close.span, false, false)?;
             }
             ItemVariantBody::StructBody(sbody) => {
-                writeln!(self.writer, " {{")?;
+                self.writer.write_unspanned(" ")?;
+                self.writer
+                    .write_spanned_raw(sbody.open.span, true, false)?;
+
                 self.writer.indent();
-                for (field, _comma) in &sbody.braced {
+                for (field, comma) in &sbody.braced {
                     self.visit_field(field)?;
-                    writeln!(self.writer, ",")?;
+                    if let Some(comma) = comma {
+                        self.writer.write_spanned_raw(comma.span, true, false)?;
+                    } else {
+                        self.writer.write_unspanned(",\n")?;
+                    }
                 }
                 self.writer.dedent();
-                write!(self.writer, "}}")?;
+                self.writer
+                    .write_spanned_raw(sbody.close.span, false, false)?;
             }
         }
 
@@ -421,11 +451,11 @@ where
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         self.emit_visibility(visibility)?;
-        write!(self.writer, "{}", self.resolve(name.span)?)?;
+        self.writer.write_spanned_raw(name.span, false, false)?;
 
         Ok(())
     }
@@ -437,7 +467,7 @@ where
             visibility,
             const_token,
             async_token,
-            fn_token: _,
+            fn_token,
             name,
             args,
             body,
@@ -445,46 +475,54 @@ where
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         self.emit_visibility(visibility)?;
-        if const_token.is_some() {
-            write!(self.writer, "const ")?;
+        if let Some(const_token) = const_token {
+            self.writer
+                .write_spanned_raw(const_token.span, false, true)?;
         }
 
-        if async_token.is_some() {
-            write!(self.writer, "async ")?;
+        if let Some(async_token) = async_token {
+            self.writer
+                .write_spanned_raw(async_token.span, false, true)?;
         }
-        write!(self.writer, "fn ")?;
-        write!(self.writer, "{}", self.resolve(name.span)?)?;
 
-        write!(self.writer, "(")?;
-        if args.len() > 5 {
+        self.writer.write_spanned_raw(fn_token.span, false, true)?;
+        self.writer.write_spanned_raw(name.span, false, false)?;
+
+        self.writer
+            .write_spanned_raw(args.open.span, false, false)?;
+
+        let multiline = if args.len() > 5 {
             self.writer.indent();
-            writeln!(self.writer)?;
-        }
+            self.writer.newline()?;
+            true
+        } else {
+            false
+        };
         for (arg, comma) in args {
             match arg {
                 FnArg::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
                 FnArg::Pat(pattern) => self.visit_pattern(pattern)?,
             }
-            if comma.is_some() {
-                write!(self.writer, ", ")?;
+            if let Some(comma) = comma {
+                self.writer
+                    .write_spanned_raw(comma.span, multiline, !multiline)?;
             }
         }
         if args.len() > 5 {
             self.writer.dedent();
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
-        write!(self.writer, ") ")?;
+        self.writer
+            .write_spanned_raw(args.close.span, false, true)?;
         self.visit_block(body)?;
 
-        if semi.is_some() {
-            write!(self.writer, ";")?;
+        if let Some(semi) = semi {
+            self.writer.write_spanned_raw(semi.span, false, false)?;
         }
-
-        writeln!(self.writer)?;
 
         Ok(())
     }
@@ -497,20 +535,20 @@ where
         let crate::ast::ItemUse {
             attributes,
             visibility,
-            use_token: _,
+            use_token,
             path,
         } = usage;
         for attribute in attributes {
             self.visit_attribute(attribute)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
         self.emit_visibility(visibility)?;
-        write!(self.writer, "use ")?;
+        self.writer.write_spanned_raw(use_token.span, false, true)?;
         self.visit_item_use_path(path, None)?;
 
-        if semi.is_some() {
-            writeln!(self.writer, ";")?;
+        if let Some(semi) = semi {
+            self.writer.write_spanned_raw(semi.span, false, false)?;
         }
 
         Ok(())
@@ -528,22 +566,24 @@ where
             alias,
         } = path;
 
-        if global.is_some() {
-            write!(self.writer, "::")?;
+        if let Some(global) = global {
+            self.writer.write_spanned_raw(global.span, false, false)?;
         }
 
         self.visit_item_use_segment(first)?;
-        for (_, segment) in segments {
-            write!(self.writer, "::")?;
+        for (cc, segment) in segments {
+            self.writer.write_spanned_raw(cc.span, false, false)?;
+
             self.visit_item_use_segment(segment)?;
         }
 
-        if let Some(alias) = alias {
-            write!(self.writer, " as {}", self.resolve(alias.1.span)?)?;
+        if let Some((as_, ident)) = alias {
+            self.writer.write_spanned_raw(as_.span, false, true)?;
+            self.writer.write_spanned_raw(ident.span, false, false)?;
         }
 
-        if comma.is_some() {
-            write!(self.writer, ", ")?;
+        if let Some(comma) = comma {
+            self.writer.write_spanned_raw(comma.span, false, true)?;
         }
 
         Ok(())
@@ -556,21 +596,22 @@ where
         match segment {
             PathSegment::SelfType(selftype) => self.visit_self_type(selftype)?,
             PathSegment::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
-            PathSegment::Ident(ident) => write!(self.writer, "{}", self.resolve(ident.span)?)?,
-            PathSegment::Crate(c) => write!(self.writer, "{}", self.resolve(c.span)?)?,
-            PathSegment::Super(s) => write!(self.writer, "{}", self.resolve(s.span)?)?,
+            PathSegment::Ident(ident) => self.writer.write_spanned_raw(ident.span, false, false)?,
+            PathSegment::Crate(c) => self.writer.write_spanned_raw(c.span, false, false)?,
+            PathSegment::Super(s) => self.writer.write_spanned_raw(s.span, false, false)?,
             PathSegment::Generics(g) => self.visit_generics(g)?,
         }
         Ok(())
     }
 
-    fn visit_self_type(&mut self, _selftype: &SelfType) -> Result<(), FormattingError> {
-        write!(self.writer, "Self")?;
+    fn visit_self_type(&mut self, selftype: &SelfType) -> Result<(), FormattingError> {
+        self.writer.write_spanned_raw(selftype.span, false, false)?;
         Ok(())
     }
 
-    fn visit_self_value(&mut self, _selfvalue: &SelfValue) -> Result<(), FormattingError> {
-        write!(self.writer, "self")?;
+    fn visit_self_value(&mut self, selfvalue: &SelfValue) -> Result<(), FormattingError> {
+        self.writer
+            .write_spanned_raw(selfvalue.span, false, false)?;
         Ok(())
     }
 
@@ -578,16 +619,19 @@ where
         &mut self,
         generics: &AngleBracketed<PathSegmentExpr, Comma>,
     ) -> Result<(), FormattingError> {
-        write!(self.writer, "<")?;
+        self.writer
+            .write_spanned_raw(generics.open.span, false, false)?;
 
         for (expr, comma) in generics {
             self.visit_path_segment_expr(expr)?;
-            if comma.is_some() {
-                write!(self.writer, ", ")?;
+
+            if let Some(comma) = comma {
+                self.writer.write_spanned_raw(comma.span, false, true)?;
             }
         }
 
-        write!(self.writer, ">")?;
+        self.writer
+            .write_spanned_raw(generics.close.span, false, true)?;
 
         Ok(())
     }
@@ -637,7 +681,7 @@ where
             id: _,
             attributes,
             path,
-            bang: _,
+            bang,
             open,
             stream: _,
             close,
@@ -662,16 +706,18 @@ where
 
         self.visit_path(path)?;
 
-        write!(self.writer, "!")?;
-        write!(self.writer, "{}", self.resolve(open.span)?)?;
+        self.writer.write_spanned_raw(bang.span, false, false)?;
+        self.writer.write_spanned_raw(open.span, false, false)?;
 
         let start = open.span.end.into_usize();
         let end = close.span.start.into_usize();
-        write!(self.writer, "{}", self.resolve(Span::new(start, end))?)?;
-        write!(self.writer, "{}", self.resolve(close.span)?)?;
 
-        if semi.is_some() {
-            write!(self.writer, ";")?;
+        self.writer
+            .write_spanned_raw(Span::new(start, end), false, false)?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
+
+        if let Some(semi) = semi {
+            self.writer.write_spanned_raw(semi.span, false, false)?;
         }
 
         Ok(())
@@ -689,9 +735,9 @@ where
             self.visit_attribute(attr)?;
         }
 
-        write!(self.writer, "{}", self.resolve(open.span)?)?;
+        self.writer.write_spanned_raw(open.span, false, false)?;
         self.visit_expr(expr)?;
-        write!(self.writer, "{}", self.resolve(close.span)?)?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
         Ok(())
     }
@@ -703,25 +749,33 @@ where
             self.visit_attribute(attr)?;
         }
 
-        write!(self.writer, "[")?;
+        self.writer
+            .write_spanned_raw(items.open.span, false, false)?;
+
         let multiline = if items.len() > 10 {
             self.writer.indent();
-            writeln!(self.writer)?;
+            self.writer.newline()?;
             true
         } else {
             false
         };
 
         let count = items.len();
-        for (idx, (item, _)) in items.iter().enumerate() {
+        for (idx, (item, comma)) in items.iter().enumerate() {
             self.visit_expr(item)?;
 
             if multiline {
-                writeln!(self.writer, ",")?;
+                if let Some(comma) = comma {
+                    self.writer.write_spanned_raw(comma.span, true, false)?;
+                }
             } else {
                 let is_last = count == idx + 1;
                 if !is_last {
-                    write!(self.writer, ", ")?;
+                    if let Some(comma) = comma {
+                        self.writer.write_spanned_raw(comma.span, false, true)?;
+                    } else {
+                        write!(self.writer, ", ")?;
+                    }
                 }
             }
         }
@@ -730,7 +784,8 @@ where
             self.writer.dedent();
         }
 
-        write!(self.writer, "]")?;
+        self.writer
+            .write_spanned_raw(items.close.span, false, false)?;
         Ok(())
     }
 
@@ -746,16 +801,21 @@ where
         }
 
         match ident {
-            crate::ast::ObjectIdent::Anonymous(_anonymous) => write!(self.writer, "#{{")?,
+            crate::ast::ObjectIdent::Anonymous(p) => {
+                self.writer.write_spanned_raw(p.span, false, false)?;
+            }
             crate::ast::ObjectIdent::Named(named) => {
                 self.visit_path(named)?;
-                write!(self.writer, " {{")?
+                self.writer.write_unspanned(" ")?;
             }
         }
 
+        self.writer
+            .write_spanned_raw(assignments.open.span, false, false)?;
+
         let multiline = if assignments.len() > 5 {
             self.writer.indent();
-            writeln!(self.writer)?;
+            self.writer.newline()?;
             true
         } else {
             write!(self.writer, " ")?;
@@ -763,26 +823,36 @@ where
         };
 
         let count = assignments.len();
-        for (idx, (assignment, _comma)) in assignments.iter().enumerate() {
+        for (idx, (assignment, comma)) in assignments.iter().enumerate() {
             self.visit_object_assignment(assignment)?;
 
             if multiline {
-                writeln!(self.writer, ",")?;
+                if let Some(comma) = comma {
+                    self.writer.write_spanned_raw(comma.span, true, false)?;
+                } else {
+                    self.writer.write_unspanned(",\n")?;
+                }
             } else {
                 let is_last = count == idx + 1;
                 if !is_last {
-                    write!(self.writer, ", ")?;
+                    if let Some(comma) = comma {
+                        self.writer.write_spanned_raw(comma.span, false, true)?;
+                    } else {
+                        write!(self.writer, ", ")?;
+                    }
                 }
             }
         }
 
         if multiline {
             self.writer.dedent();
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         } else {
-            write!(self.writer, " ")?;
+            self.writer.write_unspanned(" ")?;
         }
-        write!(self.writer, "}}")?;
+
+        self.writer
+            .write_spanned_raw(assignments.close.span, false, false)?;
 
         Ok(())
     }
@@ -791,12 +861,14 @@ where
         let FieldAssign { key, assign } = assignment;
 
         match key {
-            ObjectKey::LitStr(key) => write!(self.writer, "{}", self.resolve(key.span)?)?,
+            ObjectKey::LitStr(key) => {
+                self.writer.write_spanned_raw(key.span, false, false)?;
+            }
             ObjectKey::Path(path) => self.visit_path(path)?,
         }
 
-        if let Some((_colon, assign)) = assign {
-            write!(self.writer, ": ")?;
+        if let Some((colon, assign)) = assign {
+            self.writer.write_spanned_raw(colon.span, false, true)?;
             self.visit_expr(assign)?;
         }
 
@@ -806,24 +878,30 @@ where
     fn visit_select(&mut self, sel: &ExprSelect) -> Result<(), FormattingError> {
         let ExprSelect {
             attributes,
-            select: _,
-            open: _,
+            select,
+            open,
             branches,
-            close: _,
+            close,
         } = sel;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
         }
 
-        writeln!(self.writer, "select {{")?;
+        self.writer.write_spanned_raw(select.span, false, true)?;
+        self.writer.write_spanned_raw(open.span, true, false)?;
         self.writer.indent();
-        for (branch, _comma) in branches {
+        for (branch, comma) in branches {
             self.visit_select_branch(branch)?;
-            writeln!(self.writer, ",")?;
+            if let Some(comma) = comma {
+                self.writer.write_spanned_raw(comma.span, true, false)?;
+            } else {
+                self.writer.write_unspanned(",\n")?;
+            }
         }
         self.writer.dedent();
-        write!(self.writer, "}}")?;
+
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
         Ok(())
     }
@@ -840,16 +918,18 @@ where
     fn visit_select_pattern(&mut self, pat: &ExprSelectPatBranch) -> Result<(), FormattingError> {
         let ExprSelectPatBranch {
             pat,
-            eq: _,
+            eq,
             expr,
-            rocket: _,
+            rocket,
             body,
         } = pat;
 
         self.visit_pattern(pat)?;
-        write!(self.writer, " = ")?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(eq.span, false, true)?;
         self.visit_expr(expr)?;
-        write!(self.writer, " => ")?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(rocket.span, false, true)?;
         self.visit_expr(body)?;
 
         Ok(())
@@ -859,7 +939,7 @@ where
         let ExprAssign {
             attributes,
             lhs,
-            eq: _,
+            eq,
             rhs,
         } = assign;
 
@@ -868,7 +948,8 @@ where
         }
 
         self.visit_expr(lhs)?;
-        write!(self.writer, " = ")?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(eq.span, false, true)?;
         self.visit_expr(rhs)?;
 
         Ok(())
@@ -878,8 +959,8 @@ where
         let ExprAwait {
             attributes,
             expr,
-            dot: _,
-            await_token: _,
+            dot,
+            await_token,
         } = awaitexpr;
 
         for attr in attributes {
@@ -887,8 +968,9 @@ where
         }
 
         self.visit_expr(expr)?;
-        write!(self.writer, ".")?;
-        write!(self.writer, "await")?;
+        self.writer.write_spanned_raw(dot.span, false, false)?;
+        self.writer
+            .write_spanned_raw(await_token.span, false, false)?;
 
         Ok(())
     }
@@ -897,7 +979,7 @@ where
         let ExprTry {
             attributes,
             expr,
-            try_token: _,
+            try_token,
         } = tri;
 
         for attr in attributes {
@@ -905,7 +987,8 @@ where
         }
 
         self.visit_expr(expr)?;
-        write!(self.writer, "?")?;
+        self.writer
+            .write_spanned_raw(try_token.span, false, false)?;
 
         Ok(())
     }
@@ -914,17 +997,18 @@ where
         let ExprYield {
             attributes,
             expr,
-            yield_token: _,
+            yield_token,
         } = yieldexpr;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
         }
 
-        write!(self.writer, "yield")?;
+        self.writer
+            .write_spanned_raw(yield_token.span, false, false)?;
 
         if let Some(expr) = expr {
-            write!(self.writer, " ")?;
+            self.writer.write_unspanned(" ")?;
             self.visit_expr(expr)?;
         }
 
@@ -964,27 +1048,37 @@ where
 
         for attr in attributes {
             self.visit_attribute(attr)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
 
-        write!(self.writer, "(")?;
+        self.writer
+            .write_spanned_raw(items.open.span, false, false)?;
+
         let multiline = if items.len() >= 5 {
             self.writer.indent();
-            writeln!(self.writer)?;
+            self.writer.newline()?;
             true
         } else {
             false
         };
 
         let count = items.len();
-        for (idx, (item, _comma)) in items.iter().enumerate() {
+        for (idx, (item, comma)) in items.iter().enumerate() {
             self.visit_expr(item)?;
             if multiline {
-                writeln!(self.writer, ",")?;
+                if let Some(comma) = comma {
+                    self.writer.write_spanned_raw(comma.span, true, false)?;
+                } else {
+                    self.writer.write_unspanned(",\n")?;
+                }
             } else {
                 let is_last = idx == count - 1;
                 if !is_last {
-                    write!(self.writer, ", ")?;
+                    if let Some(comma) = comma {
+                        self.writer.write_spanned_raw(comma.span, false, true)?;
+                    } else {
+                        write!(self.writer, ", ")?;
+                    }
                 }
             }
         }
@@ -993,7 +1087,8 @@ where
             self.writer.dedent();
         }
 
-        write!(self.writer, ")")?;
+        self.writer
+            .write_spanned_raw(items.close.span, false, false)?;
 
         Ok(())
     }
@@ -1002,7 +1097,7 @@ where
         let ExprFieldAccess {
             attributes,
             expr,
-            dot: _,
+            dot,
             expr_field,
         } = fieldaccess;
 
@@ -1011,7 +1106,7 @@ where
         }
 
         self.visit_expr(expr)?;
-        write!(self.writer, ".")?;
+        self.writer.write_spanned_raw(dot.span, false, false)?;
         self.visit_expr_field(expr_field)?;
 
         Ok(())
@@ -1020,7 +1115,7 @@ where
     fn visit_expr_field(&mut self, expr_field: &ExprField) -> Result<(), FormattingError> {
         match expr_field {
             ExprField::Path(path) => self.visit_path(path)?,
-            ExprField::LitNumber(num) => write!(self.writer, "{}", self.resolve(num.span)?)?,
+            ExprField::LitNumber(num) => self.writer.write_spanned_raw(num.span, false, false)?,
         }
 
         Ok(())
@@ -1039,16 +1134,23 @@ where
         }
 
         self.visit_expr(expr)?;
-        write!(self.writer, "(")?;
+        self.writer
+            .write_spanned_raw(args.open.span, false, false)?;
 
         let count = args.parenthesized.len();
-        for (idx, (arg, _comma)) in args.parenthesized.iter().enumerate() {
+        for (idx, (arg, comma)) in args.parenthesized.iter().enumerate() {
             self.visit_expr(arg)?;
             if idx != count - 1 {
-                write!(self.writer, ", ")?;
+                if let Some(comma) = comma {
+                    self.writer.write_spanned_raw(comma.span, false, true)?;
+                } else {
+                    write!(self.writer, ", ")?;
+                }
             }
         }
-        write!(self.writer, ")")?;
+
+        self.writer
+            .write_spanned_raw(args.close.span, false, false)?;
 
         Ok(())
     }
@@ -1057,9 +1159,9 @@ where
         let ExprIndex {
             attributes,
             target,
-            open: _,
+            open,
             index,
-            close: _,
+            close,
         } = index;
 
         for attr in attributes {
@@ -1067,9 +1169,9 @@ where
         }
 
         self.visit_expr(target)?;
-        write!(self.writer, "[")?;
+        self.writer.write_spanned_raw(open.span, false, false)?;
         self.visit_expr(index)?;
-        write!(self.writer, "]")?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
         Ok(())
     }
@@ -1077,7 +1179,7 @@ where
     fn visit_continue(&mut self, continueexpr: &ExprContinue) -> Result<(), FormattingError> {
         let ExprContinue {
             attributes,
-            continue_token: _,
+            continue_token,
             label,
         } = continueexpr;
 
@@ -1085,11 +1187,12 @@ where
             self.visit_attribute(attr)?;
         }
 
-        write!(self.writer, "continue")?;
+        self.writer
+            .write_spanned_raw(continue_token.span, false, false)?;
 
         if let Some(label) = label {
-            write!(self.writer, " ")?;
-            write!(self.writer, "{}", self.resolve(label.span)?)?;
+            self.writer.write_unspanned(" ")?;
+            self.writer.write_spanned_raw(label.span, false, false)?;
         }
 
         Ok(())
@@ -1098,7 +1201,7 @@ where
     fn visit_break(&mut self, breakexpr: &ExprBreak) -> Result<(), FormattingError> {
         let ExprBreak {
             attributes,
-            break_token: _,
+            break_token,
             expr,
         } = breakexpr;
 
@@ -1106,10 +1209,11 @@ where
             self.visit_attribute(attr)?;
         }
 
-        write!(self.writer, "break")?;
+        self.writer
+            .write_spanned_raw(break_token.span, false, false)?;
 
         if let Some(expr) = expr {
-            write!(self.writer, " ")?;
+            self.writer.write_unspanned(" ")?;
             self.visit_expr_break_value(expr)?;
         }
 
@@ -1122,7 +1226,9 @@ where
     ) -> Result<(), FormattingError> {
         match breakvalue {
             ExprBreakValue::Expr(expr) => self.visit_expr(expr)?,
-            ExprBreakValue::Label(label) => write!(self.writer, "{}", self.resolve(label.span)?)?,
+            ExprBreakValue::Label(label) => {
+                self.writer.write_spanned_raw(label.span, false, false)?
+            }
         }
 
         Ok(())
@@ -1131,7 +1237,7 @@ where
     fn visit_return(&mut self, returnexpr: &ExprReturn) -> Result<(), FormattingError> {
         let ExprReturn {
             attributes,
-            return_token: _,
+            return_token,
             expr,
         } = returnexpr;
 
@@ -1139,10 +1245,11 @@ where
             self.visit_attribute(attr)?;
         }
 
-        write!(self.writer, "return")?;
+        self.writer
+            .write_spanned_raw(return_token.span, false, false)?;
 
         if let Some(expr) = expr {
-            write!(self.writer, " ")?;
+            self.writer.write_unspanned(" ")?;
             self.visit_expr(expr)?;
         }
 
@@ -1163,28 +1270,33 @@ where
             self.visit_attribute(attr)?;
         }
 
-        if async_token.is_some() {
-            write!(self.writer, " async")?;
+        if let Some(async_token) = async_token {
+            self.writer
+                .write_spanned_raw(async_token.span, false, true)?;
         }
 
-        if move_token.is_some() {
-            write!(self.writer, " move")?;
+        if let Some(move_token) = move_token {
+            self.writer
+                .write_spanned_raw(move_token.span, false, true)?;
         }
 
         match args {
-            ExprClosureArgs::Empty { .. } => write!(self.writer, "|| ")?,
-            ExprClosureArgs::List { args, .. } => {
-                write!(self.writer, "|")?;
+            ExprClosureArgs::Empty { token } => {
+                self.writer.write_spanned_raw(token.span, false, true)?
+            }
+            ExprClosureArgs::List { args, open, close } => {
+                self.writer.write_spanned_raw(open.span, false, false)?;
                 for (arg, comma) in args {
                     match arg {
                         crate::ast::FnArg::SelfValue(self_) => self.visit_self_value(self_)?,
                         crate::ast::FnArg::Pat(pat) => self.visit_pattern(pat)?,
                     }
-                    if comma.is_some() {
-                        write!(self.writer, ", ")?;
+                    if let Some(comma) = comma {
+                        self.writer.write_spanned_raw(comma.span, false, true)?;
                     }
                 }
-                write!(self.writer, "| ")?;
+
+                self.writer.write_spanned_raw(close.span, false, true)?;
             }
         }
 
@@ -1198,27 +1310,34 @@ where
             attributes,
             match_,
             expr,
-            open: _,
+            open,
             branches,
-            close: _,
+            close,
         } = matchexpr;
 
         for attr in attributes {
             self.visit_attribute(attr)?;
         }
 
-        write!(self.writer, "{} ", self.resolve(match_.span)?)?;
+        self.writer.write_spanned_raw(match_.span, false, true)?;
         self.visit_expr(expr)?;
-        writeln!(self.writer, " {{")?;
+
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(open.span, true, false)?;
 
         self.writer.indent();
-        for (branch, _comma) in branches {
+        for (branch, comma) in branches {
             self.visit_match_branch(branch)?;
-            writeln!(self.writer, ",")?;
+
+            if let Some(comma) = comma {
+                self.writer.write_spanned_raw(comma.span, true, false)?;
+            } else {
+                self.writer.write_unspanned(",\n")?;
+            }
         }
         self.writer.dedent();
 
-        write!(self.writer, "}}")?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
         Ok(())
     }
@@ -1234,15 +1353,17 @@ where
         self.visit_pattern(pat)?;
 
         if let Some((if_, expr)) = condition {
-            write!(self.writer, " {} ", self.resolve(if_.span)?)?;
+            self.writer.write_unspanned(" ")?;
+            self.writer.write_spanned_raw(if_.span, false, true)?;
             self.visit_expr(expr)?;
         }
-
-        write!(self.writer, " {} ", self.resolve(rocket.span)?)?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(rocket.span, false, true)?;
         self.visit_expr(body)?;
 
         Ok(())
     }
+
     fn visit_loop(&mut self, loopexpr: &ExprLoop) -> Result<(), FormattingError> {
         let ExprLoop {
             attributes,
@@ -1255,14 +1376,15 @@ where
             self.visit_attribute(attr)?;
         }
 
-        if let Some(label) = label {
-            write!(self.writer, "{}: ", self.resolve(label.0.span)?)?;
+        if let Some((label, colon)) = label {
+            self.writer.write_spanned_raw(label.span, false, false)?;
+            self.writer.write_spanned_raw(colon.span, false, true)?;
         }
 
-        write!(self.writer, "{} ", self.resolve(loop_token.span)?)?;
+        self.writer
+            .write_spanned_raw(loop_token.span, false, true)?;
 
         self.visit_block(body)?;
-        writeln!(self.writer)?;
 
         Ok(())
     }
@@ -1282,21 +1404,22 @@ where
             self.visit_attribute(attr)?;
         }
 
-        if let Some(label) = label {
-            write!(self.writer, "{}: ", self.resolve(label.0.span)?)?;
+        if let Some((label, colon)) = label {
+            self.writer.write_spanned_raw(label.span, false, false)?;
+            self.writer.write_spanned_raw(colon.span, false, true)?;
         }
 
-        write!(self.writer, "{} ", self.resolve(for_token.span)?)?;
+        self.writer.write_spanned_raw(for_token.span, false, true)?;
 
         self.visit_pattern(binding)?;
 
-        write!(self.writer, " {} ", self.resolve(in_.span)?)?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(in_.span, false, true)?;
 
         self.visit_expr(iter)?;
-        write!(self.writer, " ")?;
+        self.writer.write_unspanned(" ")?;
 
         self.visit_block(body)?;
-        writeln!(self.writer)?;
 
         Ok(())
     }
@@ -1314,17 +1437,17 @@ where
             self.visit_attribute(attr)?;
         }
 
-        if let Some(label) = label {
-            write!(self.writer, "{}: ", self.resolve(label.0.span)?)?;
+        if let Some((label, colon)) = label {
+            self.writer.write_spanned_raw(label.span, false, false)?;
+            self.writer.write_spanned_raw(colon.span, false, true)?;
         }
 
-        write!(self.writer, "{} ", self.resolve(while_token.span)?)?;
-
+        self.writer
+            .write_spanned_raw(while_token.span, false, true)?;
         self.visit_condition(condition)?;
-        write!(self.writer, " ")?;
-
+        self.writer.write_unspanned(" ")?;
         self.visit_block(body)?;
-        writeln!(self.writer)?;
+
         Ok(())
     }
 
@@ -1353,14 +1476,14 @@ where
     fn visit_pat_rest(&mut self, rest: &PatRest) -> Result<(), FormattingError> {
         let PatRest {
             attributes,
-            dot_dot: _dot_dot,
+            dot_dot,
         } = rest;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
         }
 
-        write!(self.writer, "..")?;
+        self.writer.write_spanned_raw(dot_dot.span, false, false)?;
 
         Ok(())
     }
@@ -1369,7 +1492,7 @@ where
         let PatBinding {
             attributes,
             key,
-            colon: _,
+            colon,
             pat,
         } = binding;
 
@@ -1379,12 +1502,12 @@ where
 
         match key {
             crate::ast::ObjectKey::LitStr(str_) => {
-                write!(self.writer, "{}", self.resolve(str_.span)?)?
+                self.writer.write_spanned_raw(str_.span, false, false)?;
             }
             crate::ast::ObjectKey::Path(path) => self.visit_path(path)?,
         }
 
-        write!(self.writer, ": ")?;
+        self.writer.write_spanned_raw(colon.span, false, true)?;
 
         self.visit_pattern(pat)?;
 
@@ -1403,16 +1526,24 @@ where
         }
 
         match ident {
-            crate::ast::ObjectIdent::Anonymous(_v) => write!(self.writer, "#")?,
+            crate::ast::ObjectIdent::Anonymous(pound) => {
+                self.writer.write_spanned_raw(pound.span, false, false)?;
+            }
             crate::ast::ObjectIdent::Named(n) => {
                 self.visit_path(n)?;
-                write!(self.writer, " ")?;
+                self.writer.write_unspanned(" ")?;
             }
         }
 
-        write!(self.writer, "{{")?;
+        let Braced {
+            open,
+            braced,
+            close,
+        } = items;
+        self.writer.write_spanned_raw(open.span, false, false)?;
+
         let multiline = if items.len() > 5 {
-            writeln!(self.writer)?;
+            self.writer.newline()?;
             self.writer.indent();
             true
         } else {
@@ -1420,19 +1551,29 @@ where
         };
 
         let count = items.len();
-        for (idx, (pat, _comma)) in items.iter().enumerate() {
+        for (idx, (pat, comma)) in braced.iter().enumerate() {
             self.visit_pattern(pat)?;
+
             if multiline {
-                writeln!(self.writer, ",")?;
+                if let Some(comma) = comma {
+                    self.writer.write_spanned_raw(comma.span, true, false)?;
+                } else {
+                    self.writer.write_unspanned(",\n")?;
+                }
             } else if idx < count - 1 {
-                write!(self.writer, ", ")?;
+                if let Some(comma) = comma {
+                    self.writer.write_spanned_raw(comma.span, false, true)?;
+                } else {
+                    self.writer.write_unspanned(",\n")?;
+                }
             }
         }
+
         if multiline {
             self.writer.dedent();
         }
 
-        writeln!(self.writer, "}}")?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
         Ok(())
     }
@@ -1451,16 +1592,19 @@ where
         if let Some(path) = path {
             self.visit_path(path)?;
         }
-        write!(self.writer, "(")?;
+
+        self.writer
+            .write_spanned_raw(items.open.span, false, false)?;
 
         for (pat, comma) in items {
             self.visit_pattern(pat)?;
-            if comma.is_some() {
-                write!(self.writer, ", ")?;
+            if let Some(comma) = comma {
+                self.writer.write_spanned_raw(comma.span, false, true)?;
             }
         }
 
-        write!(self.writer, ")")?;
+        self.writer
+            .write_spanned_raw(items.close.span, false, false)?;
 
         Ok(())
     }
@@ -1472,16 +1616,23 @@ where
             self.visit_attribute(attribute)?;
         }
 
-        write!(self.writer, "[")?;
+        self.writer
+            .write_spanned_raw(items.open.span, false, false)?;
 
-        for (pat, comma) in items {
+        let count = items.len();
+        for (idx, (pat, comma)) in items.iter().enumerate() {
             self.visit_pattern(pat)?;
-            if comma.is_some() {
-                write!(self.writer, ", ")?;
+            if idx < count - 1 {
+                if let Some(comma) = comma {
+                    self.writer.write_spanned_raw(comma.span, false, true)?;
+                } else {
+                    self.writer.write_unspanned(", ")?;
+                }
             }
         }
 
-        write!(self.writer, "]")?;
+        self.writer
+            .write_spanned_raw(items.close.span, false, false)?;
 
         Ok(())
     }
@@ -1499,13 +1650,17 @@ where
     }
 
     fn visit_pat_ignore(&mut self, ignore: &PatIgnore) -> Result<(), FormattingError> {
-        let PatIgnore { attributes, .. } = ignore;
+        let PatIgnore {
+            attributes,
+            underscore,
+        } = ignore;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
         }
 
-        write!(self.writer, "_")?;
+        self.writer
+            .write_spanned_raw(underscore.span, false, false)?;
 
         Ok(())
     }
@@ -1523,9 +1678,9 @@ where
     fn visit_let(&mut self, let_: &ExprLet) -> Result<(), FormattingError> {
         let ExprLet {
             attributes,
-            let_token: _,
+            let_token,
             pat,
-            eq: _,
+            eq,
             expr,
         } = let_;
 
@@ -1533,16 +1688,17 @@ where
             self.visit_attribute(attribute)?;
         }
 
-        write!(self.writer, "let ")?;
+        self.writer.write_spanned_raw(let_token.span, false, true)?;
         self.visit_pattern(pat)?;
-        write!(self.writer, " = ")?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(eq.span, false, true)?;
         self.visit_expr(expr)?;
         Ok(())
     }
     fn visit_if(&mut self, ifexpr: &ExprIf) -> Result<(), FormattingError> {
         let ExprIf {
             attributes,
-            if_: _,
+            if_,
             condition,
             block,
             expr_else_ifs,
@@ -1553,9 +1709,9 @@ where
             self.visit_attribute(attribute)?;
         }
 
-        write!(self.writer, "if ")?;
+        self.writer.write_spanned_raw(if_.span, false, true)?;
         self.visit_condition(condition)?;
-        write!(self.writer, " ")?;
+        self.writer.write_unspanned(" ")?;
         self.visit_block(block)?;
 
         for expr_else_if in expr_else_ifs {
@@ -1571,13 +1727,16 @@ where
 
     fn visit_expr_else_if(&mut self, expr_else_if: &ExprElseIf) -> Result<(), FormattingError> {
         let ExprElseIf {
-            else_: _,
-            if_: _,
+            else_,
+            if_,
             condition,
             block,
         } = expr_else_if;
 
-        write!(self.writer, " else if ")?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(else_.span, false, true)?;
+        self.writer.write_spanned_raw(if_.span, false, true)?;
+
         self.visit_condition(condition)?;
         write!(self.writer, " ")?;
         self.visit_block(block)?;
@@ -1586,9 +1745,11 @@ where
     }
 
     fn visit_expr_else(&mut self, expr_else: &ExprElse) -> Result<(), FormattingError> {
-        let ExprElse { else_: _, block } = expr_else;
+        let ExprElse { else_, block } = expr_else;
 
-        write!(self.writer, " else ")?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(else_.span, false, true)?;
+
         self.visit_block(block)?;
         Ok(())
     }
@@ -1606,16 +1767,19 @@ where
             self.visit_attribute(attribute)?;
         }
 
-        if async_token.is_some() {
-            write!(self.writer, "async ")?;
+        if let Some(async_token) = async_token {
+            self.writer
+                .write_spanned_raw(async_token.span, false, true)?;
         }
 
-        if const_token.is_some() {
-            write!(self.writer, "const ")?;
+        if let Some(const_token) = const_token {
+            self.writer
+                .write_spanned_raw(const_token.span, false, true)?;
         }
 
-        if move_token.is_some() {
-            write!(self.writer, "move ")?;
+        if let Some(move_token) = move_token {
+            self.writer
+                .write_spanned_raw(move_token.span, false, true)?;
         }
 
         self.visit_block(block)
@@ -1624,19 +1788,20 @@ where
     fn visit_block(&mut self, block: &Block) -> Result<(), FormattingError> {
         let Block {
             id: _,
-            open: _,
+            open,
             statements,
-            close: _,
+            close,
         } = block;
 
-        writeln!(self.writer, "{{")?;
+        self.writer.write_spanned_raw(open.span, true, false)?;
+
         self.writer.indent();
         for statement in statements {
             self.visit_statement(statement)?;
-            writeln!(self.writer)?;
+            self.writer.newline()?;
         }
         self.writer.dedent();
-        write!(self.writer, "}}")?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
         Ok(())
     }
@@ -1649,14 +1814,21 @@ where
             Stmt::Semi(semi) => {
                 let StmtSemi {
                     expr,
-                    semi_token: _,
+                    semi_token,
                     needs_semi,
                 } = semi;
                 self.visit_expr(expr)?;
+
                 match needs_semi {
-                    Some(true) => write!(self.writer, ";")?,
+                    Some(true) => {
+                        self.writer
+                            .write_spanned_raw(semi_token.span, false, false)?;
+                    }
                     Some(false) => {}
-                    None => write!(self.writer, ";")?,
+                    None => {
+                        self.writer
+                            .write_spanned_raw(semi_token.span, false, false)?;
+                    }
                 }
 
                 Ok(())
@@ -1667,22 +1839,23 @@ where
     fn visit_local(&mut self, local: &Local) -> Result<(), FormattingError> {
         let Local {
             attributes,
-            let_token: _,
+            let_token,
             pat,
-            eq: _,
+            eq,
             expr,
-            semi: _,
+            semi,
         } = local;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
         }
 
-        write!(self.writer, "let ")?;
+        self.writer.write_spanned_raw(let_token.span, false, true)?;
         self.visit_pattern(pat)?;
-        write!(self.writer, " = ")?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(eq.span, false, true)?;
         self.visit_expr(expr)?;
-        write!(self.writer, ";")?;
+        self.writer.write_spanned_raw(semi.span, false, false)?;
 
         Ok(())
     }
@@ -1698,7 +1871,7 @@ where
             self.visit_attribute(attribute)?;
         }
 
-        write!(self.writer, "{}", op)?;
+        self.writer.write_spanned_raw(op.span(), false, false)?;
 
         self.visit_expr(expr)
     }
@@ -1706,18 +1879,18 @@ where
     fn visit_group(&mut self, group: &ExprGroup) -> Result<(), FormattingError> {
         let ExprGroup {
             attributes,
-            open: _,
+            open,
             expr,
-            close: _,
+            close,
         } = group;
 
         for attribute in attributes {
             self.visit_attribute(attribute)?;
         }
 
-        write!(self.writer, "(")?;
+        self.writer.write_spanned_raw(open.span, false, false)?;
         self.visit_expr(expr)?;
-        write!(self.writer, ")")?;
+        self.writer.write_spanned_raw(close.span, false, false)?;
 
         Ok(())
     }
@@ -1731,18 +1904,18 @@ where
             trailing,
         } = path;
 
-        if global.is_some() {
-            write!(self.writer, "::")?;
+        if let Some(global) = global {
+            self.writer.write_spanned_raw(global.span, false, false)?;
         }
 
         self.visit_path_segment(first)?;
-        for (_, segment) in rest {
-            write!(self.writer, "::")?;
+        for (cc, segment) in rest {
+            self.writer.write_spanned_raw(cc.span, false, false)?;
             self.visit_path_segment(segment)?;
         }
 
-        if trailing.is_some() {
-            write!(self.writer, "::")?;
+        if let Some(trailing) = trailing {
+            self.writer.write_spanned_raw(trailing.span, false, false)?;
         }
 
         Ok(())
@@ -1757,28 +1930,22 @@ where
 
         match lit {
             crate::ast::Lit::Bool(b) => {
-                let s = self.resolve(b.span)?;
-                write!(self.writer, "{}", s)?
+                self.writer.write_spanned_raw(b.span, false, false)?;
             }
             crate::ast::Lit::Byte(val) => {
-                let s = self.resolve(val.span)?;
-                write!(self.writer, "{}", s)?
+                self.writer.write_spanned_raw(val.span, false, false)?;
             }
             crate::ast::Lit::Str(v) => {
-                let s = self.resolve(v.span)?;
-                write!(self.writer, "{}", s)?
+                self.writer.write_spanned_raw(v.span, false, false)?;
             }
             crate::ast::Lit::ByteStr(v) => {
-                let s = self.resolve(v.span)?;
-                write!(self.writer, "{}", s)?
+                self.writer.write_spanned_raw(v.span, false, false)?;
             }
             crate::ast::Lit::Char(c) => {
-                let s = self.resolve(c.span)?;
-                write!(self.writer, "{}", s)?
+                self.writer.write_spanned_raw(c.span, false, false)?;
             }
             crate::ast::Lit::Number(n) => {
-                let s = self.resolve(n.span)?;
-                write!(self.writer, "{}", s)?
+                self.writer.write_spanned_raw(n.span, false, false)?;
             }
         }
         Ok(())
@@ -1797,7 +1964,8 @@ where
         }
 
         self.visit_expr(lhs.as_ref())?;
-        write!(self.writer, " {} ", op)?;
+        self.writer.write_unspanned(" ")?;
+        self.writer.write_spanned_raw(op.span(), false, true)?;
         self.visit_expr(rhs.as_ref())?;
         Ok(())
     }
@@ -1815,20 +1983,26 @@ where
             crate::ast::ItemUseSegment::PathSegment(path) => {
                 self.visit_path_segment(path)?;
             }
-            crate::ast::ItemUseSegment::Wildcard(_star) => write!(self.writer, "*")?,
+            crate::ast::ItemUseSegment::Wildcard(star) => {
+                self.writer.write_spanned_raw(star.span, false, false)?;
+            }
             crate::ast::ItemUseSegment::Group(braced_group) => {
                 let Braced {
-                    open: _,
+                    open,
                     braced,
-                    close: _,
+                    close,
                 } = braced_group;
-                write!(self.writer, "{{")?;
+                self.writer.write_spanned_raw(open.span, false, false)?;
                 for (item, comma) in braced {
                     self.visit_item_use_path(item, *comma)?;
-                    write!(self.writer, ", ")?;
+                    if let Some(comma) = comma {
+                        self.writer.write_spanned_raw(comma.span, false, true)?;
+                    } else {
+                        self.writer.write_unspanned(", ")?;
+                    }
                 }
 
-                write!(self.writer, "}}")?;
+                self.writer.write_spanned_raw(close.span, false, false)?;
             }
         }
 
@@ -1840,15 +2014,44 @@ where
         visibility: &crate::ast::Visibility,
     ) -> Result<(), FormattingError> {
         match visibility {
-            crate::ast::Visibility::Public(_) => write!(self.writer, "pub ")?,
+            crate::ast::Visibility::Public(p) => {
+                self.writer.write_spanned_raw(p.span, false, true)?
+            }
             crate::ast::Visibility::Inherited => {}
-            crate::ast::Visibility::Crate(_) => write!(self.writer, "pub(crate) ")?,
-            crate::ast::Visibility::Super(_) => write!(self.writer, "pub(super) ")?,
-            crate::ast::Visibility::SelfValue(_) => write!(self.writer, "pub(self) ")?,
+            crate::ast::Visibility::Crate(c) => {
+                self.writer
+                    .write_spanned_raw(c.pub_token.span, false, false)?;
+                self.writer.write_spanned_raw(c.open.span, false, false)?;
+                self.writer
+                    .write_spanned_raw(c.restriction.span, false, false)?;
+                self.writer.write_spanned_raw(c.close.span, false, false)?;
+            }
+            crate::ast::Visibility::Super(s) => {
+                self.writer
+                    .write_spanned_raw(s.pub_token.span, false, false)?;
+                self.writer.write_spanned_raw(s.open.span, false, false)?;
+                self.writer
+                    .write_spanned_raw(s.restriction.span, false, false)?;
+                self.writer.write_spanned_raw(s.close.span, false, false)?;
+            }
+            crate::ast::Visibility::SelfValue(s) => {
+                self.writer
+                    .write_spanned_raw(s.pub_token.span, false, false)?;
+                self.writer.write_spanned_raw(s.open.span, false, false)?;
+                self.writer
+                    .write_spanned_raw(s.restriction.span, false, false)?;
+                self.writer.write_spanned_raw(s.close.span, false, false)?;
+            }
             crate::ast::Visibility::In(target) => {
-                write!(self.writer, "pub(in ")?;
+                self.writer
+                    .write_spanned_raw(target.pub_token.span, false, false)?;
+                self.writer
+                    .write_spanned_raw(target.open.span, false, false)?;
+                self.writer
+                    .write_spanned_raw(target.restriction.in_token.span, false, true)?;
                 self.visit_path(&target.restriction.path)?;
-                write!(self.writer, ") ")?;
+                self.writer
+                    .write_spanned_raw(target.close.span, false, false)?;
             }
         }
 

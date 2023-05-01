@@ -235,6 +235,44 @@ impl BinOp {
 
         Ok(())
     }
+
+    /// Retrieve the span of the operator.
+    pub fn span(&self) -> Span {
+        match self {
+            BinOp::Add(v) => v.span,
+            BinOp::Sub(v) => v.span,
+            BinOp::Div(v) => v.span,
+            BinOp::Mul(v) => v.span,
+            BinOp::Rem(v) => v.span,
+            BinOp::Eq(v) => v.span,
+            BinOp::Neq(v) => v.span,
+            BinOp::Gt(v) => v.span,
+            BinOp::Lt(v) => v.span,
+            BinOp::Gte(v) => v.span,
+            BinOp::Lte(v) => v.span,
+            BinOp::Is(v) => v.span,
+            BinOp::IsNot(v) => v.span(),
+            BinOp::And(v) => v.span,
+            BinOp::Or(v) => v.span,
+            BinOp::Shl(v) => v.span,
+            BinOp::Shr(v) => v.span,
+            BinOp::BitAnd(v) => v.span,
+            BinOp::BitXor(v) => v.span,
+            BinOp::BitOr(v) => v.span,
+            BinOp::AddAssign(v) => v.span,
+            BinOp::SubAssign(v) => v.span,
+            BinOp::MulAssign(v) => v.span,
+            BinOp::DivAssign(v) => v.span,
+            BinOp::RemAssign(v) => v.span,
+            BinOp::BitAndAssign(v) => v.span,
+            BinOp::BitXorAssign(v) => v.span,
+            BinOp::BitOrAssign(v) => v.span,
+            BinOp::ShlAssign(v) => v.span,
+            BinOp::ShrAssign(v) => v.span,
+            BinOp::DotDot(v) => v.span,
+            BinOp::DotDotEq(v) => v.span,
+        }
+    }
 }
 
 impl fmt::Display for BinOp {
