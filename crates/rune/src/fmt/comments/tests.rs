@@ -4,7 +4,7 @@ use super::*;
 #[test]
 fn test_parse_line_comment() {
     let input = "// this is a comment\n";
-    let mut chars = input.char_indices().peekable();
+    let mut chars = input.char_indices();
     let end = parse_line_comment(&mut chars);
     assert_eq!(end, input.len() - 1);
 }
@@ -12,7 +12,7 @@ fn test_parse_line_comment() {
 #[test]
 fn test_parse_block_comment() {
     let input = "/* this is a comment */";
-    let mut chars = input.char_indices().peekable();
+    let mut chars = input.char_indices();
     let end = parse_block_comment(&mut chars).unwrap();
     assert_eq!(end, input.len() - 1);
 }

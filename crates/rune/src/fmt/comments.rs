@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests;
 
-use std::iter::Peekable;
+use std::str::CharIndices;
 
 use crate::ast::Span;
 
@@ -25,7 +25,7 @@ pub(super) struct Comment {
 pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingError> {
     let mut comments = Vec::new();
 
-    let mut chars = input.char_indices().peekable();
+    let mut chars = input.char_indices();
 
     let mut in_string = false;
     let mut in_char = false;
@@ -34,7 +34,7 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
 
     while let Some((idx, c)) = chars.next() {
         match c {
-            '/' if !in_string && !in_char && !in_template => match chars.peek() {
+            '/' if !in_string && !in_char && !in_template => match chars.clone().next() {
                 Some((_, '/')) => {
                     let end = parse_line_comment(&mut chars);
 
@@ -81,7 +81,6 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
                 on_new_line = true;
             }
             c if c.is_whitespace() => {}
-
             _ => {
                 on_new_line = false;
             }
@@ -91,7 +90,7 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
     Ok(comments)
 }
 
-fn parse_line_comment(chars: &mut Peekable<impl Iterator<Item = (usize, char)>>) -> usize {
+fn parse_line_comment(chars: &mut CharIndices<'_>) -> usize {
     let mut last_i = 0;
 
     for (i, c) in chars.by_ref() {
@@ -106,12 +105,11 @@ fn parse_line_comment(chars: &mut Peekable<impl Iterator<Item = (usize, char)>>)
     last_i + 1
 }
 
-fn parse_block_comment(chars: &mut Peekable<impl Iterator<Item = (usize, char)>>) -> Option<usize> {
+fn parse_block_comment(chars: &mut CharIndices<'_>) -> Option<usize> {
     while let Some((_, c)) = chars.next() {
         if c == '*' {
-            if let Some((_, '/')) = chars.peek() {
-                let (offset, _) = chars.next()?;
-                return Some(offset);
+            if let Some((_, '/')) = chars.clone().next() {
+                return Some(chars.next()?.0);
             }
         }
     }
