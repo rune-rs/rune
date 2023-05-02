@@ -1,10 +1,14 @@
 //! Specialized writter/string builders for the formatting module.
 
+#[cfg(test)]
+mod tests;
+
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 use std::str;
 
-use crate::{ast::Span, Source};
+use crate::ast::Span;
+use crate::Source;
 
 use super::comments::Comment;
 use super::error::FormattingError;
@@ -233,25 +237,5 @@ impl Deref for SpanInjectionWriter<'_> {
 impl DerefMut for SpanInjectionWriter<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.writer
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_roundtrip() {
-        let mut writer = IndentedWriter::new();
-        writer.write_all(b"hello\nworld\n").unwrap();
-        assert_eq!(writer.into_inner(), vec!["hello", "world", ""]);
-    }
-
-    #[test]
-    fn test_roundtrip_with_indent() {
-        let mut writer = IndentedWriter::new();
-        writer.indent();
-        writer.write_all(b"hello\nworld\n").unwrap();
-        assert_eq!(writer.into_inner(), vec!["    hello", "    world", ""]);
     }
 }
