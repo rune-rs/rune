@@ -48,7 +48,7 @@ impl<'a> MacroContext<'a> {
         let mut storage = Storage::default();
         let mut sources = Sources::default();
         let mut pool = Pool::default();
-        let mut visitor = NoopCompileVisitor::new();
+        let mut visitors = NoopCompileVisitor::new();
         let mut inner = Default::default();
 
         let mut query = Query::new(
@@ -58,7 +58,7 @@ impl<'a> MacroContext<'a> {
             &mut storage,
             &mut sources,
             &mut pool,
-            &mut visitor,
+            &mut visitors,
             &gen,
             &mut inner,
         );

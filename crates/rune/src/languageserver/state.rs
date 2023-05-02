@@ -1,24 +1,30 @@
+use crate::ast::{Span, Spanned};
+use crate::collections::HashMap;
+use crate::compile;
+use crate::compile::meta;
+use crate::compile::CompileError;
+use crate::compile::CompileVisitor;
+use crate::compile::ComponentRef;
+use crate::compile::Item;
+use crate::compile::ItemBuf;
+use crate::compile::LinkerError;
+use crate::compile::Location;
+use crate::compile::MetaRef;
+use crate::compile::SourceMeta;
+use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use crate::doc::VisitorData;
+use crate::languageserver::connection::Output;
+use crate::languageserver::Language;
+use crate::workspace::{self, WorkspaceError};
+use crate::{BuildError, Context, Options, SourceId, Unit};
+use anyhow::{anyhow, Context as _, Result};
+use lsp::Url;
+use ropey::Rope;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-
-use anyhow::{anyhow, Context as _, Result};
-use lsp::Url;
-use ropey::Rope;
 use tokio::sync::Notify;
-
-use crate::ast::{Span, Spanned};
-use crate::collections::HashMap;
-use crate::compile::{
-    self, meta, CompileError, CompileVisitor, ComponentRef, Item, LinkerError, Location, MetaRef,
-    SourceMeta,
-};
-use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
-use crate::languageserver::connection::Output;
-use crate::languageserver::Language;
-use crate::workspace::{self, WorkspaceError};
-use crate::{Context, Options, SourceId};
 
 #[derive(Default)]
 struct Reporter {
@@ -191,6 +197,61 @@ impl<'a> State<'a> {
         Some(location)
     }
 
+    /// Find definition at the given uri and LSP position.
+    #[tracing::instrument(skip_all)]
+    pub(super) fn complete(
+        &self,
+        uri: &Url,
+        position: lsp::Position,
+    ) -> Option<Vec<lsp::CompletionItem>> {
+        let sources = &self.workspace.sources;
+        tracing::trace!(uri = ?uri, uri_exists = sources.get(uri).is_some());
+        let workspace_source = sources.get(uri)?;
+
+        let offset = workspace_source.lsp_position_to_offset(position);
+
+        let (mut symbol, start) = workspace_source.looking_back(offset)?;
+        tracing::trace!(symbol = ?symbol, start = ?start);
+
+        if symbol.is_empty() {
+            return None;
+        }
+
+        let mut results = vec![];
+
+        let can_use_instance_fn: &[_] = &['.'];
+        let first_char = symbol.remove(0);
+        let symbol = symbol.trim();
+
+        if let Some(unit) = workspace_source.unit.as_ref() {
+            super::completion::complete_for_unit(
+                workspace_source,
+                unit,
+                symbol,
+                position,
+                &mut results,
+            );
+        }
+
+        if first_char.is_ascii_alphabetic() || can_use_instance_fn.contains(&first_char) {
+            super::completion::complete_native_instance_data(
+                &self.context,
+                symbol,
+                position,
+                &mut results,
+            );
+        } else {
+            super::completion::complete_native_loose_data(
+                &self.context,
+                symbol,
+                position,
+                &mut results,
+            );
+        }
+
+        Some(results)
+    }
+
     /// Rebuild the project.
     pub(super) async fn rebuild(&mut self) -> Result<()> {
         // Keep track of URLs visited as part of workspace builds.
@@ -246,6 +307,7 @@ impl<'a> State<'a> {
 
             let mut build = Build::default();
             let input = crate::Source::with_path(url, source.to_string(), url.to_file_path().ok());
+
             build.sources.insert(input);
             script_results.push(self.build_scripts(build, None));
         }
@@ -261,13 +323,14 @@ impl<'a> State<'a> {
             emit_workspace(diagnostics, &build, &mut reporter);
         }
 
-        for (diagnostics, mut build, visitor) in script_results {
+        for (diagnostics, mut build, source_visitor, doc_visitor, unit) in script_results {
             build.populate(&mut reporter);
             emit_scripts(diagnostics, &build, &mut reporter);
 
             let sources = Arc::new(build.sources);
+            let doc_visitor = Arc::new(doc_visitor);
 
-            for (source_id, value) in visitor.into_indexes() {
+            for (source_id, value) in source_visitor.into_indexes() {
                 let Some(url) = build.id_to_url.get(&source_id) else {
                     continue;
                 };
@@ -278,6 +341,12 @@ impl<'a> State<'a> {
 
                 source.index = value;
                 source.build_sources = Some(sources.clone());
+
+                if let Ok(unit) = unit.as_ref().map(|v| v.clone()) {
+                    source.unit = Some(unit.clone());
+                }
+
+                source.docs = Some(doc_visitor.clone());
             }
         }
 
@@ -344,6 +413,7 @@ impl<'a> State<'a> {
             build
                 .sources
                 .insert(crate::Source::with_path(&url, source, Some(found.path)));
+
             script_builds.push(build);
         }
 
@@ -354,16 +424,25 @@ impl<'a> State<'a> {
         &self,
         mut build: Build,
         built: Option<&mut HashSet<Url>>,
-    ) -> (crate::Diagnostics, Build, Visitor) {
+    ) -> (
+        crate::Diagnostics,
+        Build,
+        Visitor,
+        crate::doc::Visitor,
+        Result<Unit, BuildError>,
+    ) {
         let mut diagnostics = crate::Diagnostics::new();
-        let mut visitor = Visitor::default();
+        let mut source_visitor = Visitor::default();
+        let mut doc_visitor = crate::doc::Visitor::new(ItemBuf::new());
+
         let mut source_loader = ScriptSourceLoader::new(&self.workspace.sources);
 
-        let _ = crate::prepare(&mut build.sources)
+        let unit = crate::prepare(&mut build.sources)
             .with_context(&self.context)
             .with_diagnostics(&mut diagnostics)
             .with_options(&self.options)
-            .with_visitor(&mut visitor)
+            .with_visitor(&mut doc_visitor)
+            .with_visitor(&mut source_visitor)
             .with_source_loader(&mut source_loader)
             .build();
 
@@ -371,7 +450,7 @@ impl<'a> State<'a> {
             build.visit(built);
         }
 
-        (diagnostics, build, visitor)
+        (diagnostics, build, source_visitor, doc_visitor, unit)
     }
 }
 
@@ -406,6 +485,7 @@ fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut R
             .iter()
             .map(|(k, v)| (*k, v.to_string()))
             .collect::<HashMap<_, _>>();
+
         tracing::trace!(?id_to_url, "emitting script diagnostics");
     }
 
@@ -478,8 +558,9 @@ impl Workspace {
             index: Default::default(),
             build_sources: None,
             language,
+            unit: None,
+            docs: None,
         };
-
         self.sources.insert(url, source)
     }
 
@@ -512,6 +593,10 @@ pub(super) struct Source {
     build_sources: Option<Arc<crate::Sources>>,
     /// The language of the source.
     language: Language,
+    /// The compiled unit
+    unit: Option<Unit>,
+    /// Comments captured
+    docs: Option<Arc<crate::doc::Visitor>>,
 }
 
 impl Source {
@@ -550,6 +635,28 @@ impl Source {
     /// Iterate over the text chunks in the source.
     pub(super) fn chunks(&self) -> impl Iterator<Item = &str> {
         self.content.chunks()
+    }
+
+    /// Returns the best match wordwise when looking back. Note that this will also include the *previous* terminal token.
+    pub fn looking_back(&self, offset: usize) -> Option<(String, usize)> {
+        let (chunk, start_byte, _, _) = self.content.chunk_at_byte(offset);
+
+        // The set of tokens that delimit symbols.
+        let x: &[_] = &[
+            ',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{', ']', '[', ')', ':',
+        ];
+
+        let end_search = (offset - start_byte + 1).min(chunk.len());
+        chunk[..end_search].rfind(x).map(|looking_back| {
+            (
+                chunk[looking_back..end_search].trim().to_owned(),
+                start_byte + looking_back,
+            )
+        })
+    }
+
+    pub(super) fn get_docs_by_hash(&self, hash: crate::Hash) -> Option<&VisitorData> {
+        self.docs.as_ref().and_then(|docs| docs.get_by_hash(hash))
     }
 }
 
