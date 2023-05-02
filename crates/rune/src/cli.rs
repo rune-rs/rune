@@ -9,6 +9,7 @@
 mod benches;
 mod check;
 mod doc;
+mod format;
 mod languageserver;
 mod loader;
 mod run;
@@ -193,6 +194,8 @@ enum Command {
     Bench(benches::Flags),
     /// Run the designated script
     Run(run::Flags),
+    /// Format the provided file
+    Fmt(format::Flags),
     /// Run a language server.
     LanguageServer(languageserver::Flags),
 }
@@ -202,6 +205,7 @@ impl Command {
         match self {
             Command::Check(..) => {}
             Command::Doc(..) => {}
+            Command::Fmt(..) => {}
             Command::Test(..) => {
                 c.test = true;
             }
@@ -219,6 +223,7 @@ impl Command {
         match self {
             Command::Check(..) => "Checking",
             Command::Doc(..) => "Building documentation",
+            Command::Fmt(..) => "Formatting files",
             Command::Test(..) => "Testing",
             Command::Bench(..) => "Benchmarking",
             Command::Run(..) => "Running",
@@ -230,6 +235,7 @@ impl Command {
         match self {
             Command::Check(args) => &args.shared,
             Command::Doc(args) => &args.shared,
+            Command::Fmt(args) => &args.shared,
             Command::Test(args) => &args.shared,
             Command::Bench(args) => &args.shared,
             Command::Run(args) => &args.shared,
@@ -388,8 +394,11 @@ impl Args {
                 options.test(true);
                 options.bytecode(false);
             }
-            Command::Bench(_) | Command::Doc(..) | Command::Run(_) | Command::LanguageServer(_) => {
-            }
+            Command::Bench(_)
+            | Command::Doc(..)
+            | Command::Run(_)
+            | Command::LanguageServer(_)
+            | Command::Fmt(..) => {}
         }
 
         for option in &self.cmd.shared().compiler_options {
@@ -663,6 +672,16 @@ where
             }
         }
         Command::Doc(flags) => return doc::run(io, entry, c, flags, options, entrys),
+        Command::Fmt(flags) => {
+            let mut paths = vec![];
+            for e in entrys {
+                for path in e.paths {
+                    paths.push(path);
+                }
+            }
+
+            return format::run(io, &paths, flags);
+        }
         Command::Test(flags) => {
             for e in entrys {
                 for path in &e.paths {

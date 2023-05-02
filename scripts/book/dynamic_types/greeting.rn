@@ -9,9 +9,7 @@ impl Person {
 }
 
 pub fn main() {
-    let person = Person {
-        name: "John-John Tedro",
-    };
+    let person = Person { name: "John-John Tedro" };
 
     person.greet();
 }

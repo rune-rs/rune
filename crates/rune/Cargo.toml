@@ -19,10 +19,11 @@ emit = ["codespan-reporting"]
 bench = []
 workspace = ["toml", "semver", "relative-path", "serde-hashkey"]
 doc = ["rust-embed", "handlebars", "pulldown-cmark", "syntect"]
-cli = ["doc", "bincode", "atty", "tracing-subscriber", "anyhow/std", "clap", "webbrowser", "capture-io", "disable-io", "languageserver"]
+cli = ["doc", "bincode", "atty", "tracing-subscriber", "anyhow/std", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt"]
 languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "workspace", "doc"]
 capture-io = ["parking_lot"]
 disable-io = []
+fmt = []
 
 [dependencies]
 rune-macros = { version = "=0.12.3", path = "../rune-macros" }
