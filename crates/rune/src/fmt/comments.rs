@@ -1,5 +1,7 @@
 //! Extract comments from source code.
 
+use std::iter::Peekable;
+
 use crate::ast::Span;
 
 use super::error::FormattingError;
@@ -31,7 +33,7 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
         match c {
             '/' if !in_string && !in_char && !in_template => match chars.peek() {
                 Some((_, '/')) => {
-                    let end = parse_line_comment(&mut chars)?;
+                    let end = parse_line_comment(&mut chars);
 
                     if !input[idx..end].starts_with("///") && !input[idx..end].starts_with("//!") {
                         comments.push(Comment {
@@ -42,7 +44,7 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
                     }
                 }
                 Some((_, '*')) => {
-                    let end = parse_block_comment(&mut chars)?;
+                    let end = parse_block_comment(&mut chars).ok_or(FormattingError::Eof)?;
 
                     if !input[idx..end].starts_with("/**") && !input[idx..end].starts_with("/*!") {
                         comments.push(Comment {
@@ -86,35 +88,32 @@ pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingErro
     Ok(comments)
 }
 
-fn parse_line_comment(
-    chars: &mut std::iter::Peekable<impl Iterator<Item = (usize, char)>>,
-) -> Result<usize, FormattingError> {
+fn parse_line_comment(chars: &mut Peekable<impl Iterator<Item = (usize, char)>>) -> usize {
     let mut last_i = 0;
+
     for (i, c) in chars.by_ref() {
         match c {
-            '\n' => return Ok(i),
+            '\n' => return i,
             _ => {
                 last_i = i;
             }
         }
     }
 
-    Ok(last_i + 1)
+    last_i + 1
 }
 
-fn parse_block_comment(
-    chars: &mut std::iter::Peekable<impl Iterator<Item = (usize, char)>>,
-) -> Result<usize, FormattingError> {
+fn parse_block_comment(chars: &mut Peekable<impl Iterator<Item = (usize, char)>>) -> Option<usize> {
     while let Some((_, c)) = chars.next() {
         if c == '*' {
             if let Some((_, '/')) = chars.peek() {
-                let (offset, _) = chars.next().unwrap();
-                return Ok(offset);
+                let (offset, _) = chars.next()?;
+                return Some(offset);
             }
         }
     }
 
-    Err(FormattingError::Eof)
+    None
 }
 
 #[cfg(test)]
@@ -125,7 +124,7 @@ mod tests {
     fn test_parse_line_comment() {
         let input = "// this is a comment\n";
         let mut chars = input.char_indices().peekable();
-        let end = parse_line_comment(&mut chars).unwrap();
+        let end = parse_line_comment(&mut chars);
         assert_eq!(end, input.len() - 1);
     }
 

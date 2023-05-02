@@ -1,7 +1,8 @@
 //! Specialized writter/string builders for the formatting module.
 
-use std::io::Write;
+use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
+use std::str;
 
 use crate::{ast::Span, Source};
 
@@ -33,12 +34,14 @@ impl IndentedWriter {
     }
 
     pub(super) fn dedent(&mut self) {
-        self.indent -= 4;
+        self.indent = self.indent.saturating_sub(4);
     }
 
-    fn write_indent(&mut self) -> std::io::Result<usize> {
+    fn write_indent(&mut self) -> io::Result<usize> {
         for _ in 0..self.indent {
-            self.lines.last_mut().unwrap().push(' ');
+            if let Some(line) = self.lines.last_mut() {
+                line.push(' ');
+            }
         }
 
         Ok(self.indent)
@@ -46,7 +49,7 @@ impl IndentedWriter {
 }
 
 impl Write for IndentedWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if buf[0] == b'\n' {
             self.needs_indent = true;
             self.lines.push(String::new());
@@ -62,14 +65,17 @@ impl Write for IndentedWriter {
         };
 
         for (idx, line) in lines.enumerate().take(lines_to_write) {
-            let line = std::str::from_utf8(line).unwrap();
+            let line = str::from_utf8(line).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
             if self.needs_indent {
                 self.write_indent()?;
                 self.needs_indent = false;
             }
 
             if !line.is_empty() {
-                self.lines.last_mut().unwrap().push_str(line);
+                if let Some(last_line) = self.lines.last_mut() {
+                    last_line.push_str(line);
+                }
             }
 
             if idx < line_count.saturating_sub(1) || ends_with_newline {
@@ -81,7 +87,7 @@ impl Write for IndentedWriter {
         Ok(buf.len())
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
 }
@@ -129,8 +135,16 @@ impl<'a> SpanInjectionWriter<'a> {
     }
 
     fn extend_previous_line(&mut self, text: &str) {
-        let idx = self.writer.lines.len() - 2;
-        let last_line = self.writer.lines.get_mut(idx).unwrap();
+        let Some(idx) = self.writer.lines.len().checked_sub(2) else {
+            // TODO: bubble up an internal error?
+            return;
+        };
+
+        let Some(last_line) = self.writer.lines.get_mut(idx) else {
+            // TODO: bubble up an internal error?
+            return;
+        };
+
         last_line.push_str(text);
     }
 

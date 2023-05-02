@@ -3,7 +3,7 @@
 use std::io::Write;
 
 use crate::ast::{
-    AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
+    self, AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
     ExprAwait, ExprBinary, ExprBlock, ExprBreak, ExprBreakValue, ExprCall, ExprClosure,
     ExprClosureArgs, ExprContinue, ExprElse, ExprElseIf, ExprEmpty, ExprField, ExprFieldAccess,
     ExprFor, ExprGroup, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMatch, ExprMatchBranch,
@@ -16,8 +16,9 @@ use crate::ast::{
 };
 use crate::Source;
 
+use super::error::FormattingError;
 use super::indent_writer::IndentedWriter;
-use super::{error::FormattingError, indent_writer::SpanInjectionWriter};
+use super::indent_writer::SpanInjectionWriter;
 
 type Result<T> = std::result::Result<T, FormattingError>;
 
@@ -48,7 +49,7 @@ impl<'a> Printer<'a> {
         }
     }
 
-    pub(super) fn visit_file(&mut self, file: &crate::ast::File) -> Result<()> {
+    pub(super) fn visit_file(&mut self, file: &ast::File) -> Result<()> {
         if let Some(shebang) = &file.shebang {
             self.writer.write_spanned_raw(shebang.span, true, false)?;
         }
@@ -65,8 +66,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    pub(super) fn visit_attribute(&mut self, attribute: &crate::ast::Attribute) -> Result<bool> {
-        let crate::ast::Attribute {
+    pub(super) fn visit_attribute(&mut self, attribute: &ast::Attribute) -> Result<bool> {
+        let ast::Attribute {
             hash,
             style,
             open,
@@ -100,23 +101,19 @@ impl<'a> Printer<'a> {
         Ok(false)
     }
 
-    pub(super) fn visit_item(
-        &mut self,
-        item: &crate::ast::Item,
-        semi: Option<SemiColon>,
-    ) -> Result<()> {
+    pub(super) fn visit_item(&mut self, item: &ast::Item, semi: Option<SemiColon>) -> Result<()> {
         match item {
-            crate::ast::Item::Use(usage) => self.visit_use(usage, semi)?,
-            crate::ast::Item::Fn(item) => self.visit_fn(item, semi)?,
-            crate::ast::Item::Enum(item) => self.visit_enum(item, semi)?,
-            crate::ast::Item::Struct(item) => self.visit_struct(item, semi)?,
-            crate::ast::Item::Impl(item) => self.visit_impl(item, semi)?,
-            crate::ast::Item::Mod(item) => self.visit_mod(item, semi)?,
-            crate::ast::Item::Const(item) => self.visit_const(item, semi)?,
-            crate::ast::Item::MacroCall(item) => self.visit_macro_call(item, semi)?,
+            ast::Item::Use(usage) => self.visit_use(usage, semi)?,
+            ast::Item::Fn(item) => self.visit_fn(item, semi)?,
+            ast::Item::Enum(item) => self.visit_enum(item, semi)?,
+            ast::Item::Struct(item) => self.visit_struct(item, semi)?,
+            ast::Item::Impl(item) => self.visit_impl(item, semi)?,
+            ast::Item::Mod(item) => self.visit_mod(item, semi)?,
+            ast::Item::Const(item) => self.visit_const(item, semi)?,
+            ast::Item::MacroCall(item) => self.visit_macro_call(item, semi)?,
         }
 
-        if !matches!(item, crate::ast::Item::MacroCall(_)) {
+        if !matches!(item, ast::Item::MacroCall(_)) {
             self.writer.newline()?;
         }
 
@@ -495,8 +492,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_use(&mut self, usage: &crate::ast::ItemUse, semi: Option<SemiColon>) -> Result<()> {
-        let crate::ast::ItemUse {
+    fn visit_use(&mut self, usage: &ast::ItemUse, semi: Option<SemiColon>) -> Result<()> {
+        let ast::ItemUse {
             attributes,
             visibility,
             use_token,
@@ -518,12 +515,8 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_item_use_path(
-        &mut self,
-        path: &crate::ast::ItemUsePath,
-        comma: Option<Comma>,
-    ) -> Result<()> {
-        let crate::ast::ItemUsePath {
+    fn visit_item_use_path(&mut self, path: &ast::ItemUsePath, comma: Option<Comma>) -> Result<()> {
+        let ast::ItemUsePath {
             global,
             first,
             segments,
@@ -553,7 +546,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_path_segment(&mut self, segment: &crate::ast::PathSegment) -> Result<()> {
+    fn visit_path_segment(&mut self, segment: &ast::PathSegment) -> Result<()> {
         match segment {
             PathSegment::SelfType(selftype) => self.visit_self_type(selftype)?,
             PathSegment::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
@@ -755,10 +748,10 @@ impl<'a> Printer<'a> {
         }
 
         match ident {
-            crate::ast::ObjectIdent::Anonymous(p) => {
+            ast::ObjectIdent::Anonymous(p) => {
                 self.writer.write_spanned_raw(p.span, false, false)?;
             }
-            crate::ast::ObjectIdent::Named(named) => {
+            ast::ObjectIdent::Named(named) => {
                 self.visit_path(named)?;
                 self.writer.write_unspanned(" ")?;
             }
@@ -989,8 +982,8 @@ impl<'a> Printer<'a> {
         }
 
         match limits {
-            crate::ast::ExprRangeLimits::HalfOpen(_) => write!(self.writer, "..")?,
-            crate::ast::ExprRangeLimits::Closed(_) => write!(self.writer, "..=")?,
+            ast::ExprRangeLimits::HalfOpen(_) => write!(self.writer, "..")?,
+            ast::ExprRangeLimits::Closed(_) => write!(self.writer, "..=")?,
         }
 
         if let Some(to) = to {
@@ -1242,8 +1235,8 @@ impl<'a> Printer<'a> {
                 self.writer.write_spanned_raw(open.span, false, false)?;
                 for (arg, comma) in args {
                     match arg {
-                        crate::ast::FnArg::SelfValue(self_) => self.visit_self_value(self_)?,
-                        crate::ast::FnArg::Pat(pat) => self.visit_pattern(pat)?,
+                        ast::FnArg::SelfValue(self_) => self.visit_self_value(self_)?,
+                        ast::FnArg::Pat(pat) => self.visit_pattern(pat)?,
                     }
                     if let Some(comma) = comma {
                         self.writer.write_spanned_raw(comma.span, false, true)?;
@@ -1461,10 +1454,10 @@ impl<'a> Printer<'a> {
         }
 
         match key {
-            crate::ast::ObjectKey::LitStr(str_) => {
+            ast::ObjectKey::LitStr(str_) => {
                 self.writer.write_spanned_raw(str_.span, false, false)?;
             }
-            crate::ast::ObjectKey::Path(path) => self.visit_path(path)?,
+            ast::ObjectKey::Path(path) => self.visit_path(path)?,
         }
 
         self.writer.write_spanned_raw(colon.span, false, true)?;
@@ -1486,10 +1479,10 @@ impl<'a> Printer<'a> {
         }
 
         match ident {
-            crate::ast::ObjectIdent::Anonymous(pound) => {
+            ast::ObjectIdent::Anonymous(pound) => {
                 self.writer.write_spanned_raw(pound.span, false, false)?;
             }
-            crate::ast::ObjectIdent::Named(n) => {
+            ast::ObjectIdent::Named(n) => {
                 self.visit_path(n)?;
                 self.writer.write_unspanned(" ")?;
             }
@@ -1904,22 +1897,22 @@ impl<'a> Printer<'a> {
         }
 
         match lit {
-            crate::ast::Lit::Bool(b) => {
+            ast::Lit::Bool(b) => {
                 self.writer.write_spanned_raw(b.span, false, false)?;
             }
-            crate::ast::Lit::Byte(val) => {
+            ast::Lit::Byte(val) => {
                 self.writer.write_spanned_raw(val.span, false, false)?;
             }
-            crate::ast::Lit::Str(v) => {
+            ast::Lit::Str(v) => {
                 self.writer.write_spanned_raw(v.span, false, false)?;
             }
-            crate::ast::Lit::ByteStr(v) => {
+            ast::Lit::ByteStr(v) => {
                 self.writer.write_spanned_raw(v.span, false, false)?;
             }
-            crate::ast::Lit::Char(c) => {
+            ast::Lit::Char(c) => {
                 self.writer.write_spanned_raw(c.span, false, false)?;
             }
-            crate::ast::Lit::Number(n) => {
+            ast::Lit::Number(n) => {
                 self.writer.write_spanned_raw(n.span, false, false)?;
             }
         }
@@ -1950,15 +1943,15 @@ impl<'a> Printer<'a> {
         self.visit_expr(expr)
     }
 
-    fn visit_item_use_segment(&mut self, segment: &crate::ast::ItemUseSegment) -> Result<()> {
+    fn visit_item_use_segment(&mut self, segment: &ast::ItemUseSegment) -> Result<()> {
         match segment {
-            crate::ast::ItemUseSegment::PathSegment(path) => {
+            ast::ItemUseSegment::PathSegment(path) => {
                 self.visit_path_segment(path)?;
             }
-            crate::ast::ItemUseSegment::Wildcard(star) => {
+            ast::ItemUseSegment::Wildcard(star) => {
                 self.writer.write_spanned_raw(star.span, false, false)?;
             }
-            crate::ast::ItemUseSegment::Group(braced_group) => {
+            ast::ItemUseSegment::Group(braced_group) => {
                 let Braced {
                     open,
                     braced,
@@ -1981,13 +1974,11 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn emit_visibility(&mut self, visibility: &crate::ast::Visibility) -> Result<()> {
+    fn emit_visibility(&mut self, visibility: &ast::Visibility) -> Result<()> {
         match visibility {
-            crate::ast::Visibility::Public(p) => {
-                self.writer.write_spanned_raw(p.span, false, true)?
-            }
-            crate::ast::Visibility::Inherited => {}
-            crate::ast::Visibility::Crate(c) => {
+            ast::Visibility::Public(p) => self.writer.write_spanned_raw(p.span, false, true)?,
+            ast::Visibility::Inherited => {}
+            ast::Visibility::Crate(c) => {
                 self.writer
                     .write_spanned_raw(c.pub_token.span, false, false)?;
                 self.writer.write_spanned_raw(c.open.span, false, false)?;
@@ -1995,7 +1986,7 @@ impl<'a> Printer<'a> {
                     .write_spanned_raw(c.restriction.span, false, false)?;
                 self.writer.write_spanned_raw(c.close.span, false, false)?;
             }
-            crate::ast::Visibility::Super(s) => {
+            ast::Visibility::Super(s) => {
                 self.writer
                     .write_spanned_raw(s.pub_token.span, false, false)?;
                 self.writer.write_spanned_raw(s.open.span, false, false)?;
@@ -2003,7 +1994,7 @@ impl<'a> Printer<'a> {
                     .write_spanned_raw(s.restriction.span, false, false)?;
                 self.writer.write_spanned_raw(s.close.span, false, false)?;
             }
-            crate::ast::Visibility::SelfValue(s) => {
+            ast::Visibility::SelfValue(s) => {
                 self.writer
                     .write_spanned_raw(s.pub_token.span, false, false)?;
                 self.writer.write_spanned_raw(s.open.span, false, false)?;
@@ -2011,7 +2002,7 @@ impl<'a> Printer<'a> {
                     .write_spanned_raw(s.restriction.span, false, false)?;
                 self.writer.write_spanned_raw(s.close.span, false, false)?;
             }
-            crate::ast::Visibility::In(target) => {
+            ast::Visibility::In(target) => {
                 self.writer
                     .write_spanned_raw(target.pub_token.span, false, false)?;
                 self.writer
