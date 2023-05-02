@@ -6,14 +6,12 @@ mod indent_writer;
 mod printer;
 mod whitespace;
 
-use crate::{
-    ast,
-    parse::{Parse, Parser},
-    Source, SourceId,
-};
-use printer::Printer;
+use crate::ast;
+use crate::parse::{Parse, Parser};
+use crate::{Source, SourceId};
 
 use self::error::FormattingError;
+use self::printer::Printer;
 
 /// Format the given contents.
 pub fn layout_string(contents: String) -> Result<String, FormattingError> {
