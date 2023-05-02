@@ -4,7 +4,7 @@ use crate::ast::Span;
 /// A span of an empty line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct EmptyLine {
-    pub span: Span,
+    pub(super) span: Span,
 }
 
 /// Generate a list of all line spans that are empty. A span is the start and end byte index of the line.

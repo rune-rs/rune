@@ -1,22 +1,20 @@
-/*!
-Extract comments from source code.
-*/
+//! Extract comments from source code.
 
 use crate::ast::Span;
 
 use super::error::FormattingError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CommentKind {
+pub(super) enum CommentKind {
     Line,
     Block,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct Comment {
-    pub kind: CommentKind,
-    pub span: Span,
-    pub on_new_line: bool,
+    pub(super) kind: CommentKind,
+    pub(super) span: Span,
+    pub(super) on_new_line: bool,
 }
 
 pub(super) fn parse_comments(input: &str) -> Result<Vec<Comment>, FormattingError> {

@@ -1,13 +1,13 @@
-/*!
-Specialized writter/string builders for the formatting module.
-*/
+//! Specialized writter/string builders for the formatting module.
 
-use super::{comments::Comment, error::FormattingError, whitespace::EmptyLine};
+use std::io::Write;
+use std::ops::{Deref, DerefMut};
+
 use crate::{ast::Span, Source};
-use std::{
-    io::Write,
-    ops::{Deref, DerefMut},
-};
+
+use super::comments::Comment;
+use super::error::FormattingError;
+use super::whitespace::EmptyLine;
 
 pub(super) struct IndentedWriter {
     lines: Vec<String>,
@@ -16,7 +16,7 @@ pub(super) struct IndentedWriter {
 }
 
 impl IndentedWriter {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             lines: vec![String::new()],
             indent: 0,
@@ -24,7 +24,7 @@ impl IndentedWriter {
         }
     }
 
-    pub fn into_inner(self) -> Vec<String> {
+    pub(super) fn into_inner(self) -> Vec<String> {
         self.lines
     }
 
@@ -60,6 +60,7 @@ impl Write for IndentedWriter {
         } else {
             line_count + 1
         };
+
         for (idx, line) in lines.enumerate().take(lines_to_write) {
             let line = std::str::from_utf8(line).unwrap();
             if self.needs_indent {
@@ -107,7 +108,7 @@ pub(super) struct SpanInjectionWriter<'a> {
 }
 
 impl<'a> SpanInjectionWriter<'a> {
-    pub fn new(writer: IndentedWriter, source: &'a Source) -> Result<Self, FormattingError> {
+    pub(super) fn new(writer: IndentedWriter, source: &'a Source) -> Result<Self, FormattingError> {
         let comment_spans = super::comments::parse_comments(source.as_str())?;
         let empty_line_spans = super::whitespace::gather_empty_line_spans(source.as_str())?;
 
@@ -123,7 +124,7 @@ impl<'a> SpanInjectionWriter<'a> {
         })
     }
 
-    pub fn into_inner(self) -> Vec<String> {
+    pub(super) fn into_inner(self) -> Vec<String> {
         self.writer.into_inner()
     }
 
@@ -144,7 +145,7 @@ impl<'a> SpanInjectionWriter<'a> {
         }
     }
 
-    pub fn write_spanned_raw(
+    pub(super) fn write_spanned_raw(
         &mut self,
         span: Span,
         newline: bool,
@@ -154,15 +155,15 @@ impl<'a> SpanInjectionWriter<'a> {
         self.write_spanned(span, contents.trim(), newline, space)
     }
 
-    pub fn newline(&mut self) -> Result<(), FormattingError> {
+    pub(super) fn newline(&mut self) -> Result<(), FormattingError> {
         self.write_unspanned("\n")
     }
 
-    pub fn write_unspanned(&mut self, text: &str) -> Result<(), FormattingError> {
+    pub(super) fn write_unspanned(&mut self, text: &str) -> Result<(), FormattingError> {
         self.write_spanned(Span::new(0, 0), text, false, false)
     }
 
-    pub fn write_spanned(
+    pub(super) fn write_spanned(
         &mut self,
         span: Span,
         text: &str,

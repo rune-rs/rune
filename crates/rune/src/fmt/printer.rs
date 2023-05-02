@@ -1,45 +1,43 @@
-/*!
- * The `Printer` trait and implementations.
- */
+//! The `Printer` trait and implementations.
 
 use std::io::Write;
 
+use crate::ast::{
+    AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
+    ExprAwait, ExprBinary, ExprBlock, ExprBreak, ExprBreakValue, ExprCall, ExprClosure,
+    ExprClosureArgs, ExprContinue, ExprElse, ExprElseIf, ExprEmpty, ExprField, ExprFieldAccess,
+    ExprFor, ExprGroup, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMatch, ExprMatchBranch,
+    ExprObject, ExprRange, ExprReturn, ExprSelect, ExprSelectBranch, ExprSelectPatBranch, ExprTry,
+    ExprTuple, ExprUnary, ExprVec, ExprWhile, ExprYield, Field, FieldAssign, FnArg, Item,
+    ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemModBody, ItemStruct, ItemStructBody,
+    ItemVariant, ItemVariantBody, LitSource, Local, MacroCall, ObjectKey, Pat, PatBinding,
+    PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple, PatVec, Path, PathSegment,
+    PathSegmentExpr, SelfType, SelfValue, SemiColon, Span, Spanned, Stmt, StmtSemi,
+};
+use crate::Source;
+
 use super::indent_writer::IndentedWriter;
 use super::{error::FormattingError, indent_writer::SpanInjectionWriter};
-use crate::{
-    ast::{
-        AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
-        ExprAwait, ExprBinary, ExprBlock, ExprBreak, ExprBreakValue, ExprCall, ExprClosure,
-        ExprClosureArgs, ExprContinue, ExprElse, ExprElseIf, ExprEmpty, ExprField, ExprFieldAccess,
-        ExprFor, ExprGroup, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMatch,
-        ExprMatchBranch, ExprObject, ExprRange, ExprReturn, ExprSelect, ExprSelectBranch,
-        ExprSelectPatBranch, ExprTry, ExprTuple, ExprUnary, ExprVec, ExprWhile, ExprYield, Field,
-        FieldAssign, FnArg, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemModBody,
-        ItemStruct, ItemStructBody, ItemVariant, ItemVariantBody, LitSource, Local, MacroCall,
-        ObjectKey, Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple,
-        PatVec, Path, PathSegment, PathSegmentExpr, SelfType, SelfValue, SemiColon, Span, Spanned,
-        Stmt, StmtSemi,
-    },
-    Source,
-};
 
-pub struct Printer<'a> {
+type Result<T> = std::result::Result<T, FormattingError>;
+
+pub(super) struct Printer<'a> {
     writer: SpanInjectionWriter<'a>,
     source: &'a Source,
 }
 
 impl<'a> Printer<'a> {
-    pub fn new(source: &'a Source) -> Result<Self, FormattingError> {
+    pub(super) fn new(source: &'a Source) -> Result<Self> {
         let writer = SpanInjectionWriter::new(IndentedWriter::new(), source)?;
         Ok(Self { writer, source })
     }
 
-    pub fn commit(self) -> String {
+    pub(super) fn commit(self) -> String {
         let inner = self.writer.into_inner();
         inner.join("\n")
     }
 
-    pub fn resolve(&self, span: Span) -> Result<String, FormattingError> {
+    pub(super) fn resolve(&self, span: Span) -> Result<String> {
         match self.source.get(span.range()) {
             Some(s) => Ok(s.to_owned()),
             None => Err(FormattingError::InvalidSpan(
@@ -50,7 +48,7 @@ impl<'a> Printer<'a> {
         }
     }
 
-    pub fn visit_file(&mut self, file: &crate::ast::File) -> Result<(), FormattingError> {
+    pub(super) fn visit_file(&mut self, file: &crate::ast::File) -> Result<()> {
         if let Some(shebang) = &file.shebang {
             self.writer.write_spanned_raw(shebang.span, true, false)?;
         }
@@ -67,10 +65,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    pub fn visit_attribute(
-        &mut self,
-        attribute: &crate::ast::Attribute,
-    ) -> Result<bool, FormattingError> {
+    pub(super) fn visit_attribute(&mut self, attribute: &crate::ast::Attribute) -> Result<bool> {
         let crate::ast::Attribute {
             hash,
             style,
@@ -105,11 +100,11 @@ impl<'a> Printer<'a> {
         Ok(false)
     }
 
-    pub fn visit_item(
+    pub(super) fn visit_item(
         &mut self,
         item: &crate::ast::Item,
         semi: Option<SemiColon>,
-    ) -> Result<(), FormattingError> {
+    ) -> Result<()> {
         match item {
             crate::ast::Item::Use(usage) => self.visit_use(usage, semi)?,
             crate::ast::Item::Fn(item) => self.visit_fn(item, semi)?,
@@ -128,11 +123,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_const(
-        &mut self,
-        item: &ItemConst,
-        semi: Option<SemiColon>,
-    ) -> Result<(), FormattingError> {
+    fn visit_const(&mut self, item: &ItemConst, semi: Option<SemiColon>) -> Result<()> {
         let ItemConst {
             id: _,
             attributes,
@@ -163,11 +154,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_mod(
-        &mut self,
-        item: &ItemMod,
-        semi: Option<SemiColon>,
-    ) -> Result<(), FormattingError> {
+    fn visit_mod(&mut self, item: &ItemMod, semi: Option<SemiColon>) -> Result<()> {
         let ItemMod {
             id: _,
             attributes,
@@ -211,11 +198,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_impl(
-        &mut self,
-        item: &ItemImpl,
-        semi: Option<SemiColon>,
-    ) -> Result<(), FormattingError> {
+    fn visit_impl(&mut self, item: &ItemImpl, semi: Option<SemiColon>) -> Result<()> {
         let ItemImpl {
             attributes,
             impl_,
@@ -253,11 +236,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_struct(
-        &mut self,
-        item: &ItemStruct,
-        semi: Option<SemiColon>,
-    ) -> Result<(), FormattingError> {
+    fn visit_struct(&mut self, item: &ItemStruct, semi: Option<SemiColon>) -> Result<()> {
         let ItemStruct {
             id: _,
             attributes,
@@ -287,7 +266,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_struct_body(&mut self, body: &ItemStructBody) -> Result<(), FormattingError> {
+    fn visit_struct_body(&mut self, body: &ItemStructBody) -> Result<()> {
         match body {
             ItemStructBody::UnitBody => {}
             ItemStructBody::TupleBody(tuple) => {
@@ -324,11 +303,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_enum(
-        &mut self,
-        item: &ItemEnum,
-        semi: Option<SemiColon>,
-    ) -> Result<(), FormattingError> {
+    fn visit_enum(&mut self, item: &ItemEnum, semi: Option<SemiColon>) -> Result<()> {
         let ItemEnum {
             attributes,
             visibility,
@@ -370,7 +345,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_variant(&mut self, variant: &ItemVariant) -> Result<(), FormattingError> {
+    fn visit_variant(&mut self, variant: &ItemVariant) -> Result<()> {
         let ItemVariant {
             id: _,
             attributes,
@@ -390,7 +365,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_variant_body(&mut self, body: &ItemVariantBody) -> Result<(), FormattingError> {
+    fn visit_variant_body(&mut self, body: &ItemVariantBody) -> Result<()> {
         match body {
             ItemVariantBody::UnitBody => {}
             ItemVariantBody::TupleBody(body) => {
@@ -435,7 +410,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_field(&mut self, field: &Field) -> Result<(), FormattingError> {
+    fn visit_field(&mut self, field: &Field) -> Result<()> {
         let Field {
             attributes,
             visibility,
@@ -453,7 +428,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_fn(&mut self, item: &ItemFn, semi: Option<SemiColon>) -> Result<(), FormattingError> {
+    fn visit_fn(&mut self, item: &ItemFn, semi: Option<SemiColon>) -> Result<()> {
         let ItemFn {
             id: _,
             attributes,
@@ -520,11 +495,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_use(
-        &mut self,
-        usage: &crate::ast::ItemUse,
-        semi: Option<SemiColon>,
-    ) -> Result<(), FormattingError> {
+    fn visit_use(&mut self, usage: &crate::ast::ItemUse, semi: Option<SemiColon>) -> Result<()> {
         let crate::ast::ItemUse {
             attributes,
             visibility,
@@ -551,7 +522,7 @@ impl<'a> Printer<'a> {
         &mut self,
         path: &crate::ast::ItemUsePath,
         comma: Option<Comma>,
-    ) -> Result<(), FormattingError> {
+    ) -> Result<()> {
         let crate::ast::ItemUsePath {
             global,
             first,
@@ -582,10 +553,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_path_segment(
-        &mut self,
-        segment: &crate::ast::PathSegment,
-    ) -> Result<(), FormattingError> {
+    fn visit_path_segment(&mut self, segment: &crate::ast::PathSegment) -> Result<()> {
         match segment {
             PathSegment::SelfType(selftype) => self.visit_self_type(selftype)?,
             PathSegment::SelfValue(selfvalue) => self.visit_self_value(selfvalue)?,
@@ -597,21 +565,18 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_self_type(&mut self, selftype: &SelfType) -> Result<(), FormattingError> {
+    fn visit_self_type(&mut self, selftype: &SelfType) -> Result<()> {
         self.writer.write_spanned_raw(selftype.span, false, false)?;
         Ok(())
     }
 
-    fn visit_self_value(&mut self, selfvalue: &SelfValue) -> Result<(), FormattingError> {
+    fn visit_self_value(&mut self, selfvalue: &SelfValue) -> Result<()> {
         self.writer
             .write_spanned_raw(selfvalue.span, false, false)?;
         Ok(())
     }
 
-    fn visit_generics(
-        &mut self,
-        generics: &AngleBracketed<PathSegmentExpr, Comma>,
-    ) -> Result<(), FormattingError> {
+    fn visit_generics(&mut self, generics: &AngleBracketed<PathSegmentExpr, Comma>) -> Result<()> {
         self.writer
             .write_spanned_raw(generics.open.span, false, false)?;
 
@@ -629,7 +594,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr(&mut self, expr: &Expr) -> Result<(), FormattingError> {
+    fn visit_expr(&mut self, expr: &Expr) -> Result<()> {
         match expr {
             Expr::Path(path) => self.visit_path(path),
             Expr::Lit(lit) => self.visit_lit(lit),
@@ -664,11 +629,7 @@ impl<'a> Printer<'a> {
         }
     }
 
-    fn visit_macro_call(
-        &mut self,
-        macrocall: &MacroCall,
-        semi: Option<SemiColon>,
-    ) -> Result<(), FormattingError> {
+    fn visit_macro_call(&mut self, macrocall: &MacroCall, semi: Option<SemiColon>) -> Result<()> {
         // Note: We don't visit the stream, as emitting it truthfully is quite hard and we can't format it. Instead we just resolve everything between the open/close.
         let MacroCall {
             id: _,
@@ -716,7 +677,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_empty(&mut self, empty: &ExprEmpty) -> Result<(), FormattingError> {
+    fn visit_empty(&mut self, empty: &ExprEmpty) -> Result<()> {
         let ExprEmpty {
             attributes,
             open,
@@ -735,7 +696,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_vec(&mut self, vec: &ExprVec) -> Result<(), FormattingError> {
+    fn visit_vec(&mut self, vec: &ExprVec) -> Result<()> {
         let ExprVec { attributes, items } = vec;
 
         for attr in attributes {
@@ -782,7 +743,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_object(&mut self, object: &ExprObject) -> Result<(), FormattingError> {
+    fn visit_object(&mut self, object: &ExprObject) -> Result<()> {
         let ExprObject {
             attributes,
             ident,
@@ -853,7 +814,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_object_assignment(&mut self, assignment: &FieldAssign) -> Result<(), FormattingError> {
+    fn visit_object_assignment(&mut self, assignment: &FieldAssign) -> Result<()> {
         let FieldAssign { key, assign } = assignment;
 
         match key {
@@ -871,7 +832,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_select(&mut self, sel: &ExprSelect) -> Result<(), FormattingError> {
+    fn visit_select(&mut self, sel: &ExprSelect) -> Result<()> {
         let ExprSelect {
             attributes,
             select,
@@ -902,7 +863,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_select_branch(&mut self, branch: &ExprSelectBranch) -> Result<(), FormattingError> {
+    fn visit_select_branch(&mut self, branch: &ExprSelectBranch) -> Result<()> {
         match branch {
             ExprSelectBranch::Pat(pat) => self.visit_select_pattern(pat)?,
             ExprSelectBranch::Default(_default) => write!(self.writer, "default")?,
@@ -911,7 +872,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_select_pattern(&mut self, pat: &ExprSelectPatBranch) -> Result<(), FormattingError> {
+    fn visit_select_pattern(&mut self, pat: &ExprSelectPatBranch) -> Result<()> {
         let ExprSelectPatBranch {
             pat,
             eq,
@@ -931,7 +892,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_assign(&mut self, assign: &ExprAssign) -> Result<(), FormattingError> {
+    fn visit_assign(&mut self, assign: &ExprAssign) -> Result<()> {
         let ExprAssign {
             attributes,
             lhs,
@@ -951,7 +912,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_await(&mut self, awaitexpr: &ExprAwait) -> Result<(), FormattingError> {
+    fn visit_await(&mut self, awaitexpr: &ExprAwait) -> Result<()> {
         let ExprAwait {
             attributes,
             expr,
@@ -971,7 +932,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_try(&mut self, tri: &ExprTry) -> Result<(), FormattingError> {
+    fn visit_try(&mut self, tri: &ExprTry) -> Result<()> {
         let ExprTry {
             attributes,
             expr,
@@ -989,7 +950,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_yield(&mut self, yieldexpr: &ExprYield) -> Result<(), FormattingError> {
+    fn visit_yield(&mut self, yieldexpr: &ExprYield) -> Result<()> {
         let ExprYield {
             attributes,
             expr,
@@ -1011,7 +972,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_range(&mut self, range: &ExprRange) -> Result<(), FormattingError> {
+    fn visit_range(&mut self, range: &ExprRange) -> Result<()> {
         let ExprRange {
             attributes,
             from,
@@ -1039,7 +1000,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_tuple(&mut self, tuple: &ExprTuple) -> Result<(), FormattingError> {
+    fn visit_tuple(&mut self, tuple: &ExprTuple) -> Result<()> {
         let ExprTuple { attributes, items } = tuple;
 
         for attr in attributes {
@@ -1089,7 +1050,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_field_access(&mut self, fieldaccess: &ExprFieldAccess) -> Result<(), FormattingError> {
+    fn visit_field_access(&mut self, fieldaccess: &ExprFieldAccess) -> Result<()> {
         let ExprFieldAccess {
             attributes,
             expr,
@@ -1108,7 +1069,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_field(&mut self, expr_field: &ExprField) -> Result<(), FormattingError> {
+    fn visit_expr_field(&mut self, expr_field: &ExprField) -> Result<()> {
         match expr_field {
             ExprField::Path(path) => self.visit_path(path)?,
             ExprField::LitNumber(num) => self.writer.write_spanned_raw(num.span, false, false)?,
@@ -1117,7 +1078,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_call(&mut self, call: &ExprCall) -> Result<(), FormattingError> {
+    fn visit_call(&mut self, call: &ExprCall) -> Result<()> {
         let ExprCall {
             id: _,
             attributes,
@@ -1151,7 +1112,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_index(&mut self, index: &ExprIndex) -> Result<(), FormattingError> {
+    fn visit_index(&mut self, index: &ExprIndex) -> Result<()> {
         let ExprIndex {
             attributes,
             target,
@@ -1172,7 +1133,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_continue(&mut self, continueexpr: &ExprContinue) -> Result<(), FormattingError> {
+    fn visit_continue(&mut self, continueexpr: &ExprContinue) -> Result<()> {
         let ExprContinue {
             attributes,
             continue_token,
@@ -1194,7 +1155,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_break(&mut self, breakexpr: &ExprBreak) -> Result<(), FormattingError> {
+    fn visit_break(&mut self, breakexpr: &ExprBreak) -> Result<()> {
         let ExprBreak {
             attributes,
             break_token,
@@ -1216,10 +1177,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_break_value(
-        &mut self,
-        breakvalue: &ExprBreakValue,
-    ) -> Result<(), FormattingError> {
+    fn visit_expr_break_value(&mut self, breakvalue: &ExprBreakValue) -> Result<()> {
         match breakvalue {
             ExprBreakValue::Expr(expr) => self.visit_expr(expr)?,
             ExprBreakValue::Label(label) => {
@@ -1230,7 +1188,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_return(&mut self, returnexpr: &ExprReturn) -> Result<(), FormattingError> {
+    fn visit_return(&mut self, returnexpr: &ExprReturn) -> Result<()> {
         let ExprReturn {
             attributes,
             return_token,
@@ -1252,7 +1210,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_closure(&mut self, closure: &ExprClosure) -> Result<(), FormattingError> {
+    fn visit_closure(&mut self, closure: &ExprClosure) -> Result<()> {
         let ExprClosure {
             id: _,
             attributes,
@@ -1301,7 +1259,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_match(&mut self, matchexpr: &ExprMatch) -> Result<(), FormattingError> {
+    fn visit_match(&mut self, matchexpr: &ExprMatch) -> Result<()> {
         let ExprMatch {
             attributes,
             match_,
@@ -1342,7 +1300,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_match_branch(&mut self, branch: &ExprMatchBranch) -> Result<bool, FormattingError> {
+    fn visit_match_branch(&mut self, branch: &ExprMatchBranch) -> Result<bool> {
         let ExprMatchBranch {
             pat,
             condition,
@@ -1366,7 +1324,7 @@ impl<'a> Printer<'a> {
         Ok(should_have_comma)
     }
 
-    fn visit_loop(&mut self, loopexpr: &ExprLoop) -> Result<(), FormattingError> {
+    fn visit_loop(&mut self, loopexpr: &ExprLoop) -> Result<()> {
         let ExprLoop {
             attributes,
             label,
@@ -1391,7 +1349,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_for(&mut self, forexpr: &ExprFor) -> Result<(), FormattingError> {
+    fn visit_for(&mut self, forexpr: &ExprFor) -> Result<()> {
         let ExprFor {
             attributes,
             label,
@@ -1426,7 +1384,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_while(&mut self, whileexpr: &ExprWhile) -> Result<(), FormattingError> {
+    fn visit_while(&mut self, whileexpr: &ExprWhile) -> Result<()> {
         let ExprWhile {
             attributes,
             label,
@@ -1453,14 +1411,14 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_condition(&mut self, condition: &Condition) -> Result<(), FormattingError> {
+    fn visit_condition(&mut self, condition: &Condition) -> Result<()> {
         match condition {
             Condition::Expr(expr) => self.visit_expr(expr),
             Condition::ExprLet(let_) => self.visit_let(let_),
         }
     }
 
-    fn visit_pattern(&mut self, pattern: &Pat) -> Result<(), FormattingError> {
+    fn visit_pattern(&mut self, pattern: &Pat) -> Result<()> {
         match pattern {
             Pat::PatIgnore(ignore) => self.visit_pat_ignore(ignore)?,
             Pat::PatPath(path) => self.visit_pat_path(path)?,
@@ -1475,7 +1433,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_rest(&mut self, rest: &PatRest) -> Result<(), FormattingError> {
+    fn visit_pat_rest(&mut self, rest: &PatRest) -> Result<()> {
         let PatRest {
             attributes,
             dot_dot,
@@ -1490,7 +1448,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_binding(&mut self, binding: &PatBinding) -> Result<(), FormattingError> {
+    fn visit_pat_binding(&mut self, binding: &PatBinding) -> Result<()> {
         let PatBinding {
             attributes,
             key,
@@ -1516,7 +1474,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_object(&mut self, patobject: &PatObject) -> Result<(), FormattingError> {
+    fn visit_pat_object(&mut self, patobject: &PatObject) -> Result<()> {
         let PatObject {
             attributes,
             ident,
@@ -1582,7 +1540,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_tuple(&mut self, pattuple: &PatTuple) -> Result<(), FormattingError> {
+    fn visit_pat_tuple(&mut self, pattuple: &PatTuple) -> Result<()> {
         let PatTuple {
             attributes,
             items,
@@ -1613,7 +1571,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_vec(&mut self, patvec: &PatVec) -> Result<(), FormattingError> {
+    fn visit_pat_vec(&mut self, patvec: &PatVec) -> Result<()> {
         let PatVec { attributes, items } = patvec;
 
         for attribute in attributes {
@@ -1641,7 +1599,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_lit(&mut self, patit: &PatLit) -> Result<(), FormattingError> {
+    fn visit_pat_lit(&mut self, patit: &PatLit) -> Result<()> {
         let PatLit { attributes, expr } = patit;
 
         for attribute in attributes {
@@ -1653,7 +1611,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_ignore(&mut self, ignore: &PatIgnore) -> Result<(), FormattingError> {
+    fn visit_pat_ignore(&mut self, ignore: &PatIgnore) -> Result<()> {
         let PatIgnore {
             attributes,
             underscore,
@@ -1669,7 +1627,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_pat_path(&mut self, path: &PatPath) -> Result<(), FormattingError> {
+    fn visit_pat_path(&mut self, path: &PatPath) -> Result<()> {
         let PatPath { attributes, path } = path;
 
         for attribute in attributes {
@@ -1679,7 +1637,7 @@ impl<'a> Printer<'a> {
 
         Ok(())
     }
-    fn visit_let(&mut self, let_: &ExprLet) -> Result<(), FormattingError> {
+    fn visit_let(&mut self, let_: &ExprLet) -> Result<()> {
         let ExprLet {
             attributes,
             let_token,
@@ -1699,7 +1657,7 @@ impl<'a> Printer<'a> {
         self.visit_expr(expr)?;
         Ok(())
     }
-    fn visit_if(&mut self, ifexpr: &ExprIf) -> Result<(), FormattingError> {
+    fn visit_if(&mut self, ifexpr: &ExprIf) -> Result<()> {
         let ExprIf {
             attributes,
             if_,
@@ -1729,7 +1687,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_else_if(&mut self, expr_else_if: &ExprElseIf) -> Result<(), FormattingError> {
+    fn visit_expr_else_if(&mut self, expr_else_if: &ExprElseIf) -> Result<()> {
         let ExprElseIf {
             else_,
             if_,
@@ -1748,7 +1706,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_else(&mut self, expr_else: &ExprElse) -> Result<(), FormattingError> {
+    fn visit_expr_else(&mut self, expr_else: &ExprElse) -> Result<()> {
         let ExprElse { else_, block } = expr_else;
 
         self.writer.write_unspanned(" ")?;
@@ -1758,7 +1716,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_expr_block(&mut self, block: &ExprBlock) -> Result<(), FormattingError> {
+    fn visit_expr_block(&mut self, block: &ExprBlock) -> Result<()> {
         let ExprBlock {
             attributes,
             async_token,
@@ -1789,7 +1747,7 @@ impl<'a> Printer<'a> {
         self.visit_block(block)
     }
 
-    fn visit_block(&mut self, block: &Block) -> Result<(), FormattingError> {
+    fn visit_block(&mut self, block: &Block) -> Result<()> {
         let Block {
             id: _,
             open,
@@ -1810,7 +1768,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_statement(&mut self, statement: &Stmt) -> Result<(), FormattingError> {
+    fn visit_statement(&mut self, statement: &Stmt) -> Result<()> {
         match statement {
             Stmt::Local(local) => {
                 self.visit_local(local)?;
@@ -1853,7 +1811,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_local(&mut self, local: &Local) -> Result<(), FormattingError> {
+    fn visit_local(&mut self, local: &Local) -> Result<()> {
         let Local {
             attributes,
             let_token,
@@ -1877,7 +1835,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_unary(&mut self, unary: &ExprUnary) -> Result<(), FormattingError> {
+    fn visit_unary(&mut self, unary: &ExprUnary) -> Result<()> {
         let ExprUnary {
             op,
             expr,
@@ -1893,7 +1851,7 @@ impl<'a> Printer<'a> {
         self.visit_expr(expr)
     }
 
-    fn visit_group(&mut self, group: &ExprGroup) -> Result<(), FormattingError> {
+    fn visit_group(&mut self, group: &ExprGroup) -> Result<()> {
         let ExprGroup {
             attributes,
             open,
@@ -1912,7 +1870,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_path(&mut self, path: &Path) -> Result<(), FormattingError> {
+    fn visit_path(&mut self, path: &Path) -> Result<()> {
         let Path {
             id: _,
             global,
@@ -1938,7 +1896,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_lit(&mut self, lit: &ExprLit) -> Result<(), FormattingError> {
+    fn visit_lit(&mut self, lit: &ExprLit) -> Result<()> {
         let ExprLit { attributes, lit } = lit;
 
         for attribute in attributes {
@@ -1968,7 +1926,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_binary(&mut self, binary: &ExprBinary) -> Result<(), FormattingError> {
+    fn visit_binary(&mut self, binary: &ExprBinary) -> Result<()> {
         let ExprBinary {
             attributes,
             op,
@@ -1987,15 +1945,12 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_path_segment_expr(&mut self, expr: &PathSegmentExpr) -> Result<(), FormattingError> {
+    fn visit_path_segment_expr(&mut self, expr: &PathSegmentExpr) -> Result<()> {
         let PathSegmentExpr { expr } = expr;
         self.visit_expr(expr)
     }
 
-    fn visit_item_use_segment(
-        &mut self,
-        segment: &crate::ast::ItemUseSegment,
-    ) -> Result<(), FormattingError> {
+    fn visit_item_use_segment(&mut self, segment: &crate::ast::ItemUseSegment) -> Result<()> {
         match segment {
             crate::ast::ItemUseSegment::PathSegment(path) => {
                 self.visit_path_segment(path)?;
@@ -2026,10 +1981,7 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn emit_visibility(
-        &mut self,
-        visibility: &crate::ast::Visibility,
-    ) -> Result<(), FormattingError> {
+    fn emit_visibility(&mut self, visibility: &crate::ast::Visibility) -> Result<()> {
         match visibility {
             crate::ast::Visibility::Public(p) => {
                 self.writer.write_spanned_raw(p.span, false, true)?
