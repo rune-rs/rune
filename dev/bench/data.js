@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1682125746892,
+  "lastUpdate": 1683076111650,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -18812,6 +18812,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5691712,
             "range": "± 246792",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Tom Solberg",
+            "username": "tgolsson",
+            "email": "me@sbg.dev"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "802101c9abdda45588f9979f6b07c69751fb1aa4",
+          "message": "Add `rune fmt` subcommand  (#492)\n\n---------\n\nCo-authored-by: John-John Tedro <udoprog@tedro.se>",
+          "timestamp": "2023-05-02T14:14:55Z",
+          "url": "https://github.com/rune-rs/rune/commit/802101c9abdda45588f9979f6b07c69751fb1aa4"
+        },
+        "date": 1683076110933,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 287763,
+            "range": "± 16312",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 881180,
+            "range": "± 42438",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 393933827,
+            "range": "± 10519960",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 228656814,
+            "range": "± 5048834",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1178670,
+            "range": "± 54387",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 12402912,
+            "range": "± 517575",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 65862416,
+            "range": "± 2537306",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 10742917,
+            "range": "± 503724",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 456089,
+            "range": "± 15329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 4966289,
+            "range": "± 217170",
             "unit": "ns/iter"
           }
         ]
