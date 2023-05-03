@@ -19,8 +19,6 @@ pub(super) struct Flags {
     /// Open the generated documentation in a browser.
     #[arg(long)]
     open: bool,
-    #[command(flatten)]
-    pub(super) shared: SharedFlags,
 }
 
 pub(super) fn run<I>(
@@ -28,6 +26,7 @@ pub(super) fn run<I>(
     entry: &mut Entry<'_>,
     c: &Config,
     flags: &Flags,
+    shared: &SharedFlags,
     options: &Options,
     entrys: I,
 ) -> Result<ExitCode>
@@ -56,7 +55,7 @@ where
 
     writeln!(io.stdout, "Building documentation: {}", root.display())?;
 
-    let context = flags.shared.context(entry, c, None)?;
+    let context = shared.context(entry, c, None)?;
 
     let mut visitors = Vec::new();
 
@@ -70,7 +69,7 @@ where
             sources.insert(source);
         }
 
-        let mut diagnostics = if flags.shared.warnings || flags.warnings_are_errors {
+        let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
             Diagnostics::new()
         } else {
             Diagnostics::without_warnings()

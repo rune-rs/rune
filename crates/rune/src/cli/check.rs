@@ -13,9 +13,6 @@ pub(super) struct Flags {
     /// Exit with a non-zero exit-code even for warnings
     #[arg(long)]
     warnings_are_errors: bool,
-
-    #[command(flatten)]
-    pub(super) shared: SharedFlags,
 }
 
 pub(super) fn run(
@@ -23,12 +20,13 @@ pub(super) fn run(
     entry: &mut Entry<'_>,
     c: &Config,
     flags: &Flags,
+    shared: &SharedFlags,
     options: &Options,
     path: &Path,
 ) -> Result<ExitCode> {
     writeln!(io.stdout, "Checking: {}", path.display())?;
 
-    let context = flags.shared.context(entry, c, None)?;
+    let context = shared.context(entry, c, None)?;
 
     let source =
         Source::from_path(path).with_context(|| format!("reading file: {}", path.display()))?;
@@ -37,7 +35,7 @@ pub(super) fn run(
 
     sources.insert(source);
 
-    let mut diagnostics = if flags.shared.warnings || flags.warnings_are_errors {
+    let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
         Diagnostics::new()
     } else {
         Diagnostics::without_warnings()

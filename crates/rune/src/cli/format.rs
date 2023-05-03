@@ -3,7 +3,7 @@ use clap::Parser;
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::cli::{ExitCode, Io, SharedFlags};
+use crate::cli::{ExitCode, Io};
 use crate::termcolor::WriteColor;
 use crate::Source;
 
@@ -12,10 +12,8 @@ pub(super) struct Flags {
     /// Exit with a non-zero exit-code even for warnings
     #[arg(long)]
     warnings_are_errors: bool,
-
-    #[command(flatten)]
-    pub(super) shared: SharedFlags,
-
+    /// Perform format checking. If there's any files which needs to be changed
+    /// returns a non-successful exitcode.
     #[arg(long)]
     check: bool,
 }

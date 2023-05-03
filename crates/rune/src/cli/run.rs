@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::cli::{Config, ExitCode, Io, SharedFlags};
+use crate::cli::{Config, ExitCode, Io};
 use crate::runtime::{VmError, VmExecution, VmResult};
 use crate::{Context, Sources, Unit, Value, Vm};
 
@@ -46,8 +46,6 @@ pub(super) struct Flags {
     /// Include source code references where appropriate (only available if -O debug-info=true).
     #[arg(long)]
     with_source: bool,
-    #[command(flatten)]
-    pub(super) shared: SharedFlags,
 }
 
 impl Flags {

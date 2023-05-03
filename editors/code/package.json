@@ -109,14 +109,17 @@
           "default": true,
           "type": "boolean"
         },
+        "rune.server.cargoPackage": {
+          "title": "Cargo Package",
+          "markdownDescription": "Set the extension to use the given cargo package to run the language server, rather than a downloaded rune-languageserver.",
+          "type": "string",
+          "default": ""
+        },
         "rune.server.path": {
-          "type": [
-            "null",
-            "string"
-          ],
+          "markdownDescription": "Path to rune-languageserver executable (will be downloaded by default). If this is set, then `#rune.updates.channel#` setting is not used",
+          "type": "string",
           "scope": "machine-overridable",
-          "default": null,
-          "markdownDescription": "Path to rune-languageserver executable (will be downloaded by default). If this is set, then `#rune.updates.channel#` setting is not used"
+          "default": ""
         },
         "rune.server.extraEnv": {
           "type": [

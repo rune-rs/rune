@@ -31,7 +31,7 @@ use crate::workspace::WorkspaceFilter;
 use crate::{Context, ContextError, Options};
 
 /// Default about splash.
-const DEFAULT_ABOUT: &[u8] = b"The Rune Language Interpreter";
+const DEFAULT_ABOUT: &str = "The Rune Language Interpreter";
 
 /// Options for building context.
 #[non_exhaustive]
@@ -102,16 +102,12 @@ impl<'a> Entry<'a> {
         let args = match Args::try_parse() {
             Ok(args) => args,
             Err(e) => {
-                let about = self
-                    .about
-                    .as_deref()
-                    .map(|s| s.as_bytes())
-                    .unwrap_or(DEFAULT_ABOUT);
+                let about = self.about.as_deref().unwrap_or(DEFAULT_ABOUT);
 
                 let code = if e.use_stderr() {
                     let o = std::io::stderr();
                     let mut o = o.lock();
-                    o.write_all(about)?;
+                    o.write_all(about.as_bytes())?;
                     writeln!(o)?;
                     writeln!(o)?;
                     writeln!(o, "{}", e)?;
@@ -120,7 +116,7 @@ impl<'a> Entry<'a> {
                 } else {
                     let o = std::io::stdout();
                     let mut o = o.lock();
-                    o.write_all(about)?;
+                    o.write_all(about.as_bytes())?;
                     writeln!(o)?;
                     writeln!(o)?;
                     writeln!(o, "{}", e)?;
@@ -131,6 +127,15 @@ impl<'a> Entry<'a> {
                 return Ok(code);
             }
         };
+
+        if args.version {
+            let o = std::io::stdout();
+            let mut o = o.lock();
+            let about = self.about.as_deref().unwrap_or(DEFAULT_ABOUT);
+            o.write_all(about.as_bytes())?;
+            o.flush()?;
+            return Ok(ExitCode::Success);
+        }
 
         let choice = match args.color.as_str() {
             "always" => ColorChoice::Always,
@@ -182,30 +187,48 @@ struct Io<'a> {
     stderr: &'a mut StandardStream,
 }
 
+#[derive(Parser, Debug, Clone)]
+struct CommandShared<T>
+where
+    T: clap::Args,
+{
+    #[command(flatten)]
+    command: T,
+    #[command(flatten)]
+    shared: SharedFlags,
+}
+
 #[derive(Subcommand, Debug, Clone)]
 enum Command {
     /// Run checks but do not execute
-    Check(check::Flags),
+    Check(CommandShared<check::Flags>),
     /// Build documentation.
-    Doc(doc::Flags),
+    Doc(CommandShared<doc::Flags>),
     /// Run all tests but do not execute
-    Test(tests::Flags),
+    Test(CommandShared<tests::Flags>),
     /// Run the given program as a benchmark
-    Bench(benches::Flags),
+    Bench(CommandShared<benches::Flags>),
     /// Run the designated script
-    Run(run::Flags),
+    Run(CommandShared<run::Flags>),
     /// Format the provided file
-    Fmt(format::Flags),
+    Fmt(CommandShared<format::Flags>),
     /// Run a language server.
-    LanguageServer(languageserver::Flags),
+    LanguageServer(SharedFlags),
 }
 
 impl Command {
+    const ALL: [&str; 7] = [
+        "check",
+        "doc",
+        "test",
+        "bench",
+        "run",
+        "fmt",
+        "languageserver",
+    ];
+
     fn propagate_related_flags(&mut self, c: &mut Config) {
         match self {
-            Command::Check(..) => {}
-            Command::Doc(..) => {}
-            Command::Fmt(..) => {}
             Command::Test(..) => {
                 c.test = true;
             }
@@ -213,9 +236,9 @@ impl Command {
                 c.test = true;
             }
             Command::Run(args) => {
-                args.propagate_related_flags();
+                args.command.propagate_related_flags();
             }
-            Command::LanguageServer(..) => {}
+            _ => {}
         }
     }
 
@@ -239,7 +262,7 @@ impl Command {
             Command::Test(args) => &args.shared,
             Command::Bench(args) => &args.shared,
             Command::Run(args) => &args.shared,
-            Command::LanguageServer(args) => &args.shared,
+            Command::LanguageServer(shared) => shared,
         }
     }
 
@@ -366,6 +389,10 @@ impl SharedFlags {
 #[derive(Parser, Debug, Clone)]
 #[command(name = "rune", about = None)]
 struct Args {
+    /// Print the version of the command.
+    #[arg(long)]
+    version: bool,
+
     /// Control if output is colored or not.
     ///
     /// Valid options are:
@@ -379,7 +406,7 @@ struct Args {
 
     /// The command to execute
     #[command(subcommand)]
-    cmd: Command,
+    cmd: Option<Command>,
 }
 
 impl Args {
@@ -388,21 +415,16 @@ impl Args {
         let mut options = Options::default();
 
         // Command-specific override defaults.
-        match &self.cmd {
-            Command::Test(_) | Command::Check(_) => {
-                options.debug_info(true);
-                options.test(true);
-                options.bytecode(false);
-            }
-            Command::Bench(_)
-            | Command::Doc(..)
-            | Command::Run(_)
-            | Command::LanguageServer(_)
-            | Command::Fmt(..) => {}
+        if let Some(Command::Test(..) | Command::Check(..)) = &self.cmd {
+            options.debug_info(true);
+            options.test(true);
+            options.bytecode(false);
         }
 
-        for option in &self.cmd.shared().compiler_options {
-            options.parse_option(option)?;
+        if let Some(cmd) = &self.cmd {
+            for option in &cmd.shared().compiler_options {
+                options.parse_option(option)?;
+            }
         }
 
         Ok(options)
@@ -517,10 +539,9 @@ fn find_manifest() -> Result<(PathBuf, PathBuf)> {
     }
 }
 
-fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
+fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: &Command) -> Result<()> {
     c.build_paths.extend(
-        args.cmd
-            .shared()
+        cmd.shared()
             .paths
             .iter()
             .map(|p| BuildPath::Path(p.as_path().into())),
@@ -559,7 +580,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
 
     let manifest = result?;
 
-    if let Some(bin) = args.cmd.bins_test() {
+    if let Some(bin) = cmd.bins_test() {
         for found in manifest.find_bins(bin)? {
             let package = Package {
                 name: found.package.name.clone(),
@@ -568,7 +589,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
         }
     }
 
-    if let Some(test) = args.cmd.tests_test() {
+    if let Some(test) = cmd.tests_test() {
         for found in manifest.find_tests(test)? {
             let package = Package {
                 name: found.package.name.clone(),
@@ -577,7 +598,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
         }
     }
 
-    if let Some(example) = args.cmd.examples_test() {
+    if let Some(example) = cmd.examples_test() {
         for found in manifest.find_examples(example)? {
             let package = Package {
                 name: found.package.name.clone(),
@@ -586,7 +607,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
         }
     }
 
-    if let Some(bench) = args.cmd.benches_test() {
+    if let Some(bench) = cmd.benches_test() {
         for found in manifest.find_benches(bench)? {
             let package = Package {
                 name: found.package.name.clone(),
@@ -600,15 +621,28 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, args: &Args) -> Result<()> {
 
 async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -> Result<ExitCode> {
     let mut c = Config::default();
-    args.cmd.propagate_related_flags(&mut c);
-    populate_config(io, &mut c, &args)?;
+
+    if let Some(cmd) = &mut args.cmd {
+        cmd.propagate_related_flags(&mut c);
+    }
+
+    let cmd = match &args.cmd {
+        Some(cmd) => cmd,
+        None => {
+            let commands = Command::ALL.into_iter().collect::<Vec<_>>().join(", ");
+            writeln!(io.stdout, "Expected a subcommand: {commands}")?;
+            return Ok(ExitCode::Failure);
+        }
+    };
+
+    populate_config(io, &mut c, cmd)?;
 
     let entries = std::mem::take(&mut c.build_paths);
     let options = args.options()?;
 
-    let what = args.cmd.describe();
+    let what = cmd.describe();
     let verbose = c.verbose;
-    let recursive = args.cmd.shared().recursive;
+    let recursive = cmd.shared().recursive;
 
     let mut entrys = Vec::new();
 
@@ -638,7 +672,7 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
         entrys.push(EntryPoint { item, paths });
     }
 
-    match run_path(io, &c, &args, entry, &options, entrys).await? {
+    match run_path(io, &c, cmd, entry, &options, entrys).await? {
         ExitCode::Success => (),
         other => {
             return Ok(other);
@@ -652,7 +686,7 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
 async fn run_path<I>(
     io: &mut Io<'_>,
     c: &Config,
-    args: &Args,
+    cmd: &Command,
     entry: &mut Entry<'_>,
     options: &Options,
     entrys: I,
@@ -660,18 +694,18 @@ async fn run_path<I>(
 where
     I: IntoIterator<Item = EntryPoint>,
 {
-    match &args.cmd {
-        Command::Check(flags) => {
+    match cmd {
+        Command::Check(f) => {
             for e in entrys {
                 for path in &e.paths {
-                    match check::run(io, entry, c, flags, options, path)? {
+                    match check::run(io, entry, c, &f.command, &f.shared, options, path)? {
                         ExitCode::Success => (),
                         other => return Ok(other),
                     }
                 }
             }
         }
-        Command::Doc(flags) => return doc::run(io, entry, c, flags, options, entrys),
+        Command::Doc(f) => return doc::run(io, entry, c, &f.command, &f.shared, options, entrys),
         Command::Fmt(flags) => {
             let mut paths = vec![];
             for e in entrys {
@@ -680,20 +714,26 @@ where
                 }
             }
 
-            return format::run(io, &paths, flags);
+            return format::run(io, &paths, &flags.command);
         }
-        Command::Test(flags) => {
+        Command::Test(f) => {
             for e in entrys {
                 for path in &e.paths {
                     let capture = crate::modules::capture_io::CaptureIo::new();
-                    let context = flags.shared.context(entry, c, Some(&capture))?;
+                    let context = f.shared.context(entry, c, Some(&capture))?;
 
-                    let load =
-                        loader::load(io, &context, args, options, path, visitor::Attribute::Test)?;
+                    let load = loader::load(
+                        io,
+                        &context,
+                        &f.shared,
+                        options,
+                        path,
+                        visitor::Attribute::Test,
+                    )?;
 
                     match tests::run(
                         io,
-                        flags,
+                        &f.command,
                         &context,
                         Some(&capture),
                         load.unit,
@@ -708,18 +748,24 @@ where
                 }
             }
         }
-        Command::Bench(flags) => {
+        Command::Bench(f) => {
             for e in entrys {
                 for path in &e.paths {
                     let capture_io = crate::modules::capture_io::CaptureIo::new();
-                    let context = flags.shared.context(entry, c, Some(&capture_io))?;
+                    let context = f.shared.context(entry, c, Some(&capture_io))?;
 
-                    let load =
-                        loader::load(io, &context, args, options, path, visitor::Attribute::Bench)?;
+                    let load = loader::load(
+                        io,
+                        &context,
+                        &f.shared,
+                        options,
+                        path,
+                        visitor::Attribute::Bench,
+                    )?;
 
                     match benches::run(
                         io,
-                        flags,
+                        &f.command,
                         &context,
                         Some(&capture_io),
                         load.unit,
@@ -734,23 +780,29 @@ where
                 }
             }
         }
-        Command::Run(flags) => {
-            let context = flags.shared.context(entry, c, None)?;
+        Command::Run(f) => {
+            let context = f.shared.context(entry, c, None)?;
 
             for e in entrys {
                 for path in &e.paths {
-                    let load =
-                        loader::load(io, &context, args, options, path, visitor::Attribute::None)?;
+                    let load = loader::load(
+                        io,
+                        &context,
+                        &f.shared,
+                        options,
+                        path,
+                        visitor::Attribute::None,
+                    )?;
 
-                    match run::run(io, c, flags, &context, load.unit, &load.sources).await? {
+                    match run::run(io, c, &f.command, &context, load.unit, &load.sources).await? {
                         ExitCode::Success => (),
                         other => return Ok(other),
                     }
                 }
             }
         }
-        Command::LanguageServer(flags) => {
-            let context = flags.shared.context(entry, c, None)?;
+        Command::LanguageServer(shared) => {
+            let context = shared.context(entry, c, None)?;
             languageserver::run(context).await?;
         }
     }

@@ -156,6 +156,10 @@ export class Config {
         return this.get<null | string>("server.path");
     }
 
+    get serverCargoPackage() {
+        return this.get<string>("server.cargoPackage");
+    }
+
     get serverExtraEnv(): Env {
         const extraEnv =
             this.get<{ [key: string]: string | number } | null>("server.extraEnv") ?? {};
