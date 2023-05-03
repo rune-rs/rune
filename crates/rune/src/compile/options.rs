@@ -1,3 +1,7 @@
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
 use thiserror::Error;
 
 /// Error raised when trying to parse an invalid option.

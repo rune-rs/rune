@@ -1,8 +1,8 @@
+use core::cmp;
+use core::fmt;
+use core::ops;
+
 use serde::{Deserialize, Serialize};
-use std::cmp;
-use std::convert::{TryFrom, TryInto};
-use std::fmt;
-use std::ops;
 
 /// A span corresponding to a range in the source file being parsed.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

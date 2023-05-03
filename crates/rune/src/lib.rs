@@ -136,6 +136,7 @@
 //! [support-try]: https://rune-rs.github.io/book/try_operator.html
 //! [support-virtual-machine]: https://rune-rs.github.io/book/the_stack.html
 
+#![no_std]
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![allow(clippy::enum_variant_names)]
@@ -149,6 +150,13 @@
 #![allow(clippy::module_inception)]
 #![allow(clippy::self_named_constructors)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+
+#[cfg(feature = "std")]
+#[macro_use]
+extern crate std;
+#[cfg(not(feature = "std"))]
+#[macro_use]
+extern crate alloc;
 
 /// A macro that can be used to construct a [Span][crate::ast::Span] that can be
 /// pattern matched over.
@@ -175,10 +183,13 @@ macro_rules! span {
 
 /// Exported result type for convenience using [anyhow::Error] as the default
 /// error type.
-pub type Result<T, E = anyhow::Error> = ::std::result::Result<T, E>;
+pub type Result<T, E = crate::no_std::Error> = ::core::result::Result<T, E>;
 
 /// Boxed error type, which is an alias of [anyhow::Error].
-pub type Error = anyhow::Error;
+pub type Error = crate::no_std::Error;
+
+/// Helper prelude for #[no_std] support.
+pub mod no_std;
 
 #[macro_use]
 mod internal_macros;
@@ -267,12 +278,13 @@ pub mod doc;
 
 /// Internal collection re-export.
 mod collections {
-    pub use hashbrown::{hash_map, HashMap};
-    pub use hashbrown::{hash_set, HashSet};
-    pub use linked_hash_map::{self, LinkedHashMap};
-    pub use std::collections::{btree_map, BTreeMap};
-    pub use std::collections::{btree_set, BTreeSet};
-    pub use std::collections::{vec_deque, VecDeque};
+    #![allow(unused)]
+
+    pub(crate) use crate::no_std::collections::{btree_map, BTreeMap};
+    pub(crate) use crate::no_std::collections::{btree_set, BTreeSet};
+    pub(crate) use crate::no_std::collections::{hash_map, HashMap};
+    pub(crate) use crate::no_std::collections::{hash_set, HashSet};
+    pub(crate) use crate::no_std::collections::{vec_deque, VecDeque};
 }
 
 #[cfg(test)]

@@ -1,10 +1,14 @@
+use core::cmp;
+use core::fmt;
+use core::iter;
+use core::ops::Range;
+use core::slice;
+
+use crate::no_std::io;
+use crate::no_std::path::Path;
+use crate::no_std::prelude::*;
+
 use crate::ast::Span;
-use std::fmt;
-use std::fs;
-use std::io;
-use std::ops::Range;
-use std::path::Path;
-use std::slice;
 
 /// A single source file.
 #[derive(Default, Clone)]
@@ -28,13 +32,20 @@ impl Source {
         Self::with_path(name, source, None::<Box<Path>>)
     }
 
+    /// Constructing sources from paths is not supported in no-std environments.
+    #[cfg(not(feature = "std"))]
+    pub fn from_path<P>(_: P) -> io::Result<Self> {
+        Err(io::Error::new())
+    }
+
     /// Read and load a source from the given path.
+    #[cfg(feature = "std")]
     pub fn from_path<P>(path: P) -> io::Result<Self>
     where
         P: AsRef<Path>,
     {
         let name = path.as_ref().display().to_string();
-        let source = fs::read_to_string(path.as_ref())?;
+        let source = std::fs::read_to_string(path.as_ref())?;
         Ok(Self::with_path(name, source, Some(path)))
     }
 
@@ -157,12 +168,10 @@ impl Source {
     }
 
     fn line_start(&self, line_index: usize) -> Option<usize> {
-        use std::cmp::Ordering;
-
         match line_index.cmp(&self.line_starts.len()) {
-            Ordering::Less => self.line_starts.get(line_index).copied(),
-            Ordering::Equal => Some(self.source.as_ref().len()),
-            Ordering::Greater => None,
+            cmp::Ordering::Less => self.line_starts.get(line_index).copied(),
+            cmp::Ordering::Equal => Some(self.source.as_ref().len()),
+            cmp::Ordering::Greater => None,
         }
     }
 }
@@ -177,5 +186,5 @@ impl fmt::Debug for Source {
 }
 
 fn line_starts(source: &str) -> impl Iterator<Item = usize> + '_ {
-    std::iter::once(0).chain(source.match_indices('\n').map(|(i, _)| i + 1))
+    iter::once(0).chain(source.match_indices('\n').map(|(i, _)| i + 1))
 }

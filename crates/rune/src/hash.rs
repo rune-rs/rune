@@ -1,12 +1,12 @@
 mod into_hash;
 mod to_type_hash;
 
-use serde::{Deserialize, Serialize};
-use std::any;
-use std::fmt;
-use std::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
-use std::mem;
+use core::any;
+use core::fmt;
+use core::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
+use core::mem;
 
+use serde::{Deserialize, Serialize};
 use twox_hash::XxHash64;
 
 pub use self::into_hash::IntoHash;
@@ -136,7 +136,7 @@ impl Hash {
     pub(crate) fn parameters<I>(parameters: I) -> Self
     where
         I: IntoIterator,
-        I::Item: std::hash::Hash,
+        I::Item: hash::Hash,
     {
         let mut hasher = ParametersBuilder::new();
 
@@ -188,7 +188,7 @@ impl ParametersBuilder {
 
     pub(crate) fn add<P>(&mut self, p: P)
     where
-        P: std::hash::Hash,
+        P: hash::Hash,
     {
         SEP.hash(&mut self.hasher);
         p.hash(&mut self.hasher);

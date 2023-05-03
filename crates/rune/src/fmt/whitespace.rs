@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests;
 
-use super::error::FormattingError;
+use crate::no_std::prelude::*;
+
 use crate::ast::Span;
+use crate::fmt::FormattingError;
 
 /// A span of an empty line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

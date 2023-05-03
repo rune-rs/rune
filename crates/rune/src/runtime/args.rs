@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 use crate::runtime::{Stack, ToValue, Value, VmResult};
 
 /// Trait for converting arguments onto the stack.

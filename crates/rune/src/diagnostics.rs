@@ -30,6 +30,8 @@
 //! # Ok::<_, rune::Error>(())
 //! ```
 
+use crate::no_std::prelude::*;
+
 use crate::ast::Span;
 use crate::SourceId;
 

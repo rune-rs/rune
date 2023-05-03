@@ -1,8 +1,5 @@
-use crate::compile::meta::SignatureKind;
-use crate::compile::AssociatedFunctionKind;
-use crate::runtime::debug::DebugArgs;
-use crate::Context;
-use crate::Unit;
+use crate::no_std::prelude::*;
+
 use lsp::CompletionItem;
 use lsp::CompletionItemKind;
 use lsp::CompletionItemLabelDetails;
@@ -11,6 +8,12 @@ use lsp::Documentation;
 use lsp::MarkupContent;
 use lsp::MarkupKind;
 use lsp::TextEdit;
+
+use crate::compile::meta::SignatureKind;
+use crate::compile::AssociatedFunctionKind;
+use crate::runtime::debug::DebugArgs;
+use crate::Context;
+use crate::Unit;
 
 use super::state::Source;
 

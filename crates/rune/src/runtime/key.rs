@@ -1,13 +1,17 @@
+use core::cmp;
+use core::fmt;
+use core::hash;
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
+use crate::no_std::vec;
+
+use serde::{de, ser};
+
 use crate::runtime::{
     Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Variant,
     VariantData, VariantRtti, Vec, VmErrorKind, VmResult,
 };
-use serde::{de, ser};
-use std::cmp;
-use std::fmt;
-use std::hash;
-use std::sync::Arc;
-use std::vec;
 
 /// A key that can be used as an anonymous object key.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]

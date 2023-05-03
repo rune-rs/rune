@@ -1,5 +1,7 @@
-use std::fmt;
-use std::sync::Arc;
+use core::fmt;
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
 use tokio::io;

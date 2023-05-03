@@ -7,19 +7,19 @@
 //!
 //! See the corresponding function for documentation.
 
-use crate::runtime::{RuntimeContext, Unit, VmErrorKind, VmResult};
-use std::cell::Cell;
-use std::ptr;
-use std::sync::Arc;
+#[cfg_attr(feature = "std", path = "env/std.rs")]
+mod no_std;
 
-thread_local! { static ENV: Cell<Env> = Cell::new(Env::null()) }
+use crate::no_std::sync::Arc;
+
+use crate::runtime::{RuntimeContext, Unit, VmErrorKind, VmResult};
 
 /// Call the given closure with access to the checked environment.
 pub(crate) fn with<F, T>(c: F) -> VmResult<T>
 where
     F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>) -> VmResult<T>,
 {
-    let env = ENV.with(|env| env.get());
+    let env = self::no_std::rune_env_get();
     let Env { context, unit } = env;
 
     if context.is_null() || unit.is_null() {
@@ -43,15 +43,14 @@ impl Guard {
     ///
     /// The returned guard must be dropped before the pointed to elements are.
     pub(crate) fn new(context: *const Arc<RuntimeContext>, unit: *const Arc<Unit>) -> Guard {
-        let old = ENV.with(|e| e.replace(Env { context, unit }));
-
+        let old = self::no_std::rune_env_replace(Env { context, unit });
         Guard { old }
     }
 }
 
 impl Drop for Guard {
     fn drop(&mut self) {
-        ENV.with(|e| e.set(self.old));
+        let _ = self::no_std::rune_env_replace(self.old);
     }
 }
 
@@ -62,10 +61,11 @@ struct Env {
 }
 
 impl Env {
+    #[cfg(feature = "std")]
     const fn null() -> Self {
         Self {
-            context: ptr::null(),
-            unit: ptr::null(),
+            context: core::ptr::null(),
+            unit: core::ptr::null(),
         }
     }
 }

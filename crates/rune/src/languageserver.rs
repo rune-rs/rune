@@ -9,9 +9,8 @@ mod fs;
 mod state;
 mod url;
 
-use crate::workspace::MANIFEST_FILE;
-use crate::{Context, Options};
-use anyhow::Result;
+use crate::no_std::prelude::*;
+
 use lsp::notification::Notification;
 use lsp::request::Request;
 use serde::Deserialize;
@@ -20,6 +19,9 @@ use tokio::sync::Notify;
 use crate::languageserver::connection::stdio;
 use crate::languageserver::envelope::Code;
 use crate::languageserver::state::State;
+use crate::workspace::MANIFEST_FILE;
+use crate::Result;
+use crate::{Context, Options};
 
 enum Language {
     Rune,

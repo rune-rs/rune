@@ -1,6 +1,6 @@
-use std::fmt;
-use std::sync::Arc;
+use core::fmt;
 
+use crate::no_std::sync::Arc;
 use crate::runtime::{RawStr, Rtti, StaticType, VariantRtti};
 
 /// Type information about a value, that can be printed for human consumption

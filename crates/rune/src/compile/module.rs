@@ -3,9 +3,11 @@
 //! A native module is one that provides rune with functions and types through
 //! native code.
 
-use std::fmt;
-use std::future;
-use std::sync::Arc;
+use core::fmt;
+use core::future;
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use crate::collections::{HashMap, HashSet};
 use crate::compile::{
@@ -1118,7 +1120,7 @@ pub trait Function<Args>: 'static + Send + Sync {
 /// Trait used to provide the [async_function][Module::async_function] function.
 pub trait AsyncFunction<Args>: 'static + Send + Sync {
     /// The return type of the function.
-    type Return: std::future::Future<Output = Self::Output>;
+    type Return: future::Future<Output = Self::Output>;
     /// The output produces by the future.
     type Output;
 
@@ -1152,7 +1154,7 @@ pub trait AsyncInstFn<Args>: 'static + Send + Sync {
     /// The type of the instance.
     type Instance;
     /// The return type of the function.
-    type Return: std::future::Future<Output = Self::Output>;
+    type Return: future::Future<Output = Self::Output>;
     /// The output value of the async function.
     type Output;
 

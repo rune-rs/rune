@@ -1,12 +1,17 @@
+use core::cmp;
+use core::fmt;
+use core::iter;
+use core::ops;
+
+use crate::no_std::prelude::*;
+use crate::no_std::vec;
+
 use crate::compile::Named;
 use crate::runtime::{
     FromValue, Function, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
     VmErrorKind, VmResult,
 };
 use crate::InstallWith;
-use std::fmt;
-use std::iter;
-use std::vec;
 
 // Note: A fair amount of code in this module is duplicated from the Rust
 // project under the MIT license.
@@ -292,7 +297,7 @@ impl Iterator {
     pub fn peek(&mut self) -> VmResult<Option<Value>> {
         match &mut self.iter {
             IterRepr::Peekable(peekable) => peekable.peek(),
-            _ => VmResult::err(Panic::custom(format!(
+            _ => VmResult::err(Panic::msg(format_args!(
                 "`{:?}` is not a peekable iterator",
                 self.iter
             ))),
@@ -460,7 +465,7 @@ impl RuneIterator for IterRepr {
 
     fn next_back(&mut self) -> VmResult<Option<Value>> {
         match self {
-            Self::Iterator(iter) => VmResult::err(Panic::custom(format!(
+            Self::Iterator(iter) => VmResult::err(Panic::msg(format_args!(
                 "`{}` is not a double-ended iterator",
                 iter.name
             ))),
@@ -953,7 +958,7 @@ where
 
         let (lower, upper) = self.iter.size_hint();
 
-        let lower = std::cmp::min(lower, self.n);
+        let lower = cmp::min(lower, self.n);
 
         let upper = match upper {
             Some(x) if x < self.n => Some(x),
@@ -1131,7 +1136,7 @@ where
 
     fn resolve_internal_simple<T>(&mut self, first: T) -> VmResult<T>
     where
-        T: FromValue + std::ops::Mul<Output = T>,
+        T: FromValue + ops::Mul<Output = T>,
     {
         let mut product = first;
 
@@ -1190,7 +1195,7 @@ where
 
     fn resolve_internal_simple<T>(&mut self, first: T) -> VmResult<T>
     where
-        T: FromValue + std::ops::Add<Output = T>,
+        T: FromValue + ops::Add<Output = T>,
     {
         let mut sum = first;
 

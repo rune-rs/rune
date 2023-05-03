@@ -1,5 +1,7 @@
 //! The `std::object` module.
 
+use crate::no_std::prelude::*;
+
 use crate::runtime::{Iterator, Object, Protocol, Value};
 use crate::{ContextError, Module};
 

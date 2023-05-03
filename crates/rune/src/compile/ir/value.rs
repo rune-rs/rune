@@ -1,9 +1,10 @@
+use crate::no_std::prelude::*;
+
 use crate::ast::Spanned;
 use crate::collections::HashMap;
 use crate::compile::{IrError, IrErrorKind};
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
-use std::convert::TryFrom;
 
 /// A constant value.
 #[derive(Debug, Clone)]

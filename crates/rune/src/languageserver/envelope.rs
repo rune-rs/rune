@@ -1,7 +1,10 @@
 //! Types to deserialize.
 
+use core::fmt;
+
+use crate::no_std::prelude::*;
+
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged)]

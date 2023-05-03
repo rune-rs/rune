@@ -5,6 +5,8 @@ use core::mem;
 use core::ptr;
 use core::slice;
 
+use crate::no_std::prelude::*;
+
 #[non_exhaustive]
 pub struct ArenaWriteSliceOutOfBounds {
     pub index: usize,

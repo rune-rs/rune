@@ -1,11 +1,14 @@
+use core::fmt::Write;
+use core::ops::{Add, Mul, Shl, Shr, Sub};
+
+use crate::no_std::prelude::*;
+
 use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
 use crate::compile::ir;
 use crate::compile::ir::{IrError, IrInterpreter, IrValue};
 use crate::query::Used;
 use crate::runtime::Shared;
-use std::convert::TryFrom;
-use std::fmt::Write;
 
 /// Process an ir value as a boolean.
 fn as_bool(span: Span, value: IrValue) -> Result<bool, IrError> {
@@ -73,8 +76,6 @@ fn eval_ir_binary(
     interp: &mut IrInterpreter<'_>,
     used: Used,
 ) -> Result<IrValue, IrEvalOutcome> {
-    use std::ops::{Add, Mul, Shl, Shr, Sub};
-
     let span = ir.span();
     interp.budget.take(span)?;
 

@@ -1,11 +1,13 @@
 #[cfg(test)]
 mod tests;
 
-use std::collections::VecDeque;
 use std::fs;
 use std::io;
 use std::mem;
 use std::path::{Path, PathBuf};
+
+use crate::no_std::collections::VecDeque;
+use crate::no_std::prelude::*;
 
 use relative_path::RelativePath;
 

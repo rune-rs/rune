@@ -1,5 +1,6 @@
+use core::fmt;
+
 use crate::runtime::{Awaited, VmCall};
-use std::fmt;
 
 /// The reason why the virtual machine execution stopped.
 #[derive(Debug)]

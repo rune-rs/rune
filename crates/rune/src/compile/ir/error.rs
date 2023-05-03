@@ -1,3 +1,9 @@
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
+use thiserror::Error;
+
 use crate::ast::{Spanned, SpannedError};
 use crate::compile::{IrValue, MetaInfo};
 use crate::hir::{HirError, HirErrorKind};
@@ -5,7 +11,6 @@ use crate::parse::{ResolveError, ResolveErrorKind};
 use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::{ScopeError, ScopeErrorKind};
-use thiserror::Error;
 
 error! {
     /// An error raised during compiling.

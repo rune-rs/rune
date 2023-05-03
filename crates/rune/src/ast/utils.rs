@@ -1,7 +1,9 @@
+use core::char;
+use core::iter::Peekable;
+use core::ops;
+
 use crate::ast;
 use crate::parse::ResolveErrorKind;
-use std::iter::Peekable;
-use std::ops;
 
 /// Indicates if we are parsing template escapes.
 #[derive(Debug, Clone, Copy)]
@@ -107,7 +109,7 @@ pub(super) fn parse_char_escape(
                 return Err(ResolveErrorKind::BadHexEscapeChar);
             }
 
-            if let Some(c) = std::char::from_u32(result) {
+            if let Some(c) = char::from_u32(result) {
                 c
             } else {
                 return Err(ResolveErrorKind::BadByteEscape);
@@ -165,7 +167,7 @@ pub(super) fn parse_unicode_escape(
                     return Err(ResolveErrorKind::BadUnicodeEscape);
                 }
 
-                if let Some(c) = std::char::from_u32(result) {
+                if let Some(c) = char::from_u32(result) {
                     return Ok(c);
                 }
 
@@ -213,6 +215,7 @@ pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&T![,]>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{parse_hex_escape, parse_unicode_escape};
+    use crate::no_std::prelude::*;
 
     macro_rules! input {
         ($string:expr) => {

@@ -1,4 +1,7 @@
-use std::hash::{self, Hash};
+use core::hash::{self, Hash};
+
+use crate::no_std::borrow::Cow;
+use crate::no_std::prelude::*;
 
 use smallvec::SmallVec;
 
@@ -116,7 +119,7 @@ impl_into_component_for_str!(String, self, self.into());
 impl_into_component_for_str!(&String, self, self.clone().into());
 impl_into_component_for_str!(Box<str>, self, self);
 impl_into_component_for_str!(&Box<str>, self, self.clone());
-impl_into_component_for_str!(std::borrow::Cow<'_, str>, self, self.as_ref().into());
+impl_into_component_for_str!(Cow<'_, str>, self, self.as_ref().into());
 
 /// Convert into an owned component.
 fn into_component(component: ComponentRef<'_>) -> Component {

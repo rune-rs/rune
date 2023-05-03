@@ -1,14 +1,18 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
-use crate::{Sources};
-use crate::ast::{Spanned};
 use std::fmt;
 use std::io;
+
+use crate::no_std::prelude::*;
+
 use thiserror::Error;
 use codespan_reporting::diagnostic as d;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 pub use codespan_reporting::term::termcolor;
+
+use crate::{Sources};
+use crate::ast::{Spanned};
 use crate::workspace::{Diagnostics, Diagnostic, FatalDiagnostic};
 
 /// Errors that can be raised when formatting diagnostics.

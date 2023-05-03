@@ -1,7 +1,9 @@
+use core::fmt;
+
+use serde::{Deserialize, Serialize};
+
 use crate::runtime::{FormatSpec, Value};
 use crate::Hash;
-use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// Pre-canned panic reasons.
 ///

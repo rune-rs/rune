@@ -1,7 +1,10 @@
+use core::borrow::Borrow;
 use core::fmt;
 use core::hash::Hash;
 use core::ops::Deref;
-use std::borrow::Borrow;
+
+use crate::no_std::prelude::*;
+use crate::no_std::vec;
 
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -255,7 +258,7 @@ impl fmt::Debug for ItemBuf {
 }
 
 impl IntoIterator for ItemBuf {
-    type IntoIter = std::vec::IntoIter<Component>;
+    type IntoIter = vec::IntoIter<Component>;
     type Item = Component;
 
     fn into_iter(self) -> Self::IntoIter {

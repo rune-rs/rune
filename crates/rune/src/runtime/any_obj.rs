@@ -1,9 +1,13 @@
 //! Helper types for a holder of data.
 
-use std::any;
-use std::fmt;
-use std::mem::ManuallyDrop;
-use std::ops::{Deref, DerefMut};
+use core::any;
+use core::fmt;
+use core::mem::ManuallyDrop;
+use core::ops::{Deref, DerefMut};
+
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
 
 use thiserror::Error;
 

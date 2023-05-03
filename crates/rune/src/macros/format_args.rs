@@ -1,3 +1,8 @@
+use core::str;
+
+use crate::no_std::collections::{BTreeMap, BTreeSet};
+use crate::no_std::prelude::*;
+
 use crate::ast;
 use crate::ast::{Span, Spanned, SpannedError, WithSpan};
 use crate::collections::HashMap;
@@ -5,7 +10,6 @@ use crate::compile::IrValue;
 use crate::macros::{quote, MacroContext, Quote};
 use crate::parse::{Parse, ParseError, Parser, Peek, Peeker};
 use crate::runtime::format;
-use std::collections::{BTreeMap, BTreeSet};
 
 // NB: needed for quote macro.
 use crate as rune;
@@ -621,7 +625,7 @@ fn expand_format_spec<'a>(
 }
 
 struct Iter<'a> {
-    iter: std::str::Chars<'a>,
+    iter: str::Chars<'a>,
     a: Option<char>,
     b: Option<char>,
 }

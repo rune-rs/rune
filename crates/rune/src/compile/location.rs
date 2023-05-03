@@ -1,6 +1,7 @@
+use core::fmt;
+
 use crate::ast::Span;
 use crate::SourceId;
-use std::fmt;
 
 /// A fully descriptive location which is a combination of a [SourceId] and a
 /// [Span].

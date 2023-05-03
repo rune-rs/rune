@@ -1,9 +1,10 @@
+use core::fmt;
+
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, GeneratorState, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value,
     Vm, VmErrorKind, VmExecution, VmResult,
 };
-use std::fmt;
 
 /// A stream with a stored virtual machine.
 pub struct Stream<T>

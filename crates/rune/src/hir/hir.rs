@@ -1,5 +1,6 @@
-use std::borrow::Cow;
-use std::num::NonZeroUsize;
+use core::num::NonZeroUsize;
+
+use crate::no_std::borrow::Cow;
 
 use crate::ast::{self, Span, Spanned};
 use crate::parse::{

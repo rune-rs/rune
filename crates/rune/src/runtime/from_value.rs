@@ -1,4 +1,8 @@
-use std::sync::Arc;
+use core::any;
+
+use crate::no_std::collections::HashMap;
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use crate::runtime::{
     AnyObj, Mut, RawMut, RawRef, Ref, Shared, StaticString, Value, VmError, VmErrorKind,
@@ -444,14 +448,13 @@ macro_rules! impl_number {
     ($ty:ty) => {
         impl FromValue for $ty {
             fn from_value(value: Value) -> VmResult<Self> {
-                use std::convert::TryInto as _;
                 let integer = vm_try!(value.into_integer());
 
                 match integer.try_into() {
                     Ok(number) => VmResult::Ok(number),
                     Err(..) => VmResult::err(VmErrorKind::ValueToIntegerCoercionError {
                         from: VmIntegerRepr::from(integer),
-                        to: std::any::type_name::<Self>(),
+                        to: any::type_name::<Self>(),
                     }),
                 }
             }
@@ -508,4 +511,4 @@ macro_rules! impl_map {
     };
 }
 
-impl_map!(std::collections::HashMap<String, T>);
+impl_map!(HashMap<String, T>);

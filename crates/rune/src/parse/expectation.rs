@@ -1,4 +1,4 @@
-use std::fmt;
+use core::fmt;
 
 /// Something that describes an expectation or actuality.
 #[derive(Debug, Clone, Copy)]

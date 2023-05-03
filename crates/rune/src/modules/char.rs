@@ -1,8 +1,9 @@
 //! The `std::char` module.
 
+use core::char::ParseCharError;
+
 use crate::runtime::{Value, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
-use std::char::ParseCharError;
 
 use crate as rune;
 
@@ -52,7 +53,7 @@ fn from_int(value: i64) -> VmResult<Option<Value>> {
     } else if value > u32::MAX as i64 {
         VmResult::err(VmErrorKind::Overflow)
     } else {
-        VmResult::Ok(std::char::from_u32(value as u32).map(|v| v.into()))
+        VmResult::Ok(core::char::from_u32(value as u32).map(|v| v.into()))
     }
 }
 

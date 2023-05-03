@@ -3,9 +3,11 @@
 #[cfg(test)]
 mod tests;
 
-use std::io::{self, Write};
-use std::ops::{Deref, DerefMut};
-use std::str;
+use core::ops::{Deref, DerefMut};
+use core::str;
+
+use crate::no_std::io::{self, Write};
+use crate::no_std::prelude::*;
 
 use crate::ast::Span;
 use crate::Source;

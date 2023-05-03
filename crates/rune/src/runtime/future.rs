@@ -1,14 +1,17 @@
+use core::fmt;
+use core::future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
+use crate::no_std::prelude::*;
+
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
     VmErrorKind, VmResult,
 };
+
 use pin_project::pin_project;
-use std::fmt;
-/// A future which can be unsafely polled.
-use std::future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// dyn future alias.
 type DynFuture = dyn future::Future<Output = VmResult<Value>> + 'static;

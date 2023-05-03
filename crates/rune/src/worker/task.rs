@@ -1,7 +1,8 @@
+use crate::no_std::path::PathBuf;
+
 use crate::compile::ModId;
 use crate::worker::{Import, WildcardImport};
 use crate::SourceId;
-use std::path::PathBuf;
 
 /// A single task that can be fed to the worker.
 #[derive(Debug)]

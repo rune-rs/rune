@@ -3,6 +3,8 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::no_std::prelude::*;
+
 use clap::Parser;
 
 use crate::cli::{ExitCode, Io};

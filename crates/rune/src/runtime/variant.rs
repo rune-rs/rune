@@ -1,6 +1,7 @@
+use core::fmt;
+
+use crate::no_std::sync::Arc;
 use crate::runtime::{Object, Tuple, TypeInfo, VariantRtti, Vm, VmResult};
-use std::fmt;
-use std::sync::Arc;
 
 /// The variant of a type.
 pub struct Variant {

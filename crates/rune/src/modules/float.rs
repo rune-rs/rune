@@ -1,7 +1,8 @@
 //! The `std::float` module.
 
+use core::num::ParseFloatError;
+
 use crate::{ContextError, Module};
-use std::num::ParseFloatError;
 
 /// Parse an integer.
 fn parse(s: &str) -> Result<f64, ParseFloatError> {
@@ -23,8 +24,11 @@ pub fn module() -> Result<Module, ContextError> {
     module.function(["parse"], parse)?;
     module.inst_fn("max", f64::max)?;
     module.inst_fn("min", f64::min)?;
+    #[cfg(feature = "std")]
     module.inst_fn("abs", f64::abs)?;
+    #[cfg(feature = "std")]
     module.inst_fn("powf", f64::powf)?;
+    #[cfg(feature = "std")]
     module.inst_fn("powi", f64::powi)?;
 
     module.inst_fn("to_integer", to_integer)?;

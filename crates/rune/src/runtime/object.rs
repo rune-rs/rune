@@ -1,3 +1,11 @@
+use core::borrow;
+use core::cmp;
+use core::fmt;
+use core::hash;
+use core::iter;
+
+use crate::no_std::prelude::*;
+
 use crate::collections::{btree_map, BTreeMap};
 use crate::compile::{ItemBuf, Named};
 use crate::runtime::{
@@ -5,10 +13,6 @@ use crate::runtime::{
     VmResult,
 };
 use crate::InstallWith;
-use std::borrow;
-use std::cmp;
-use std::fmt;
-use std::hash;
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -271,7 +275,7 @@ impl fmt::Debug for Object {
     }
 }
 
-impl std::iter::FromIterator<(String, Value)> for Object {
+impl iter::FromIterator<(String, Value)> for Object {
     fn from_iter<T: IntoIterator<Item = (String, Value)>>(src: T) -> Self {
         Self {
             inner: src.into_iter().collect(),

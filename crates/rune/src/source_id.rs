@@ -1,5 +1,5 @@
-use std::convert::TryFrom;
-use std::fmt;
+use core::fmt;
+use core::num;
 
 /// The identifier of a source file.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -47,7 +47,7 @@ impl Default for SourceId {
 }
 
 impl TryFrom<usize> for SourceId {
-    type Error = std::num::TryFromIntError;
+    type Error = num::TryFromIntError;
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         Ok(Self {

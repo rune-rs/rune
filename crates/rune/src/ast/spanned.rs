@@ -1,5 +1,11 @@
+use core::slice;
+
+use crate::no_std::boxed::Box;
+use crate::no_std::vec::Vec;
+
 use crate::ast::Span;
 use crate::parse::{Id, NonZeroId};
+
 pub use rune_macros::{OptionSpanned, Spanned};
 
 /// Types for which we can get a span.
@@ -84,7 +90,7 @@ pub trait OptionSpanned {
     fn option_span(&self) -> Option<Span>;
 }
 
-impl<S> OptionSpanned for std::slice::Iter<'_, S>
+impl<S> OptionSpanned for slice::Iter<'_, S>
 where
     S: Spanned,
 {

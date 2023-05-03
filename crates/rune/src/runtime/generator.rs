@@ -1,10 +1,12 @@
+use core::fmt;
+use core::iter;
+
 use crate::compile::Named;
 use crate::runtime::{
     FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
     Value, Vm, VmErrorKind, VmExecution, VmResult,
 };
 use crate::InstallWith;
-use std::fmt;
 
 /// A generator with a stored virtual machine.
 pub struct Generator<T>
@@ -82,6 +84,7 @@ impl IntoIterator for Generator<Vm> {
     type Item = VmResult<Value>;
     type IntoIter = GeneratorIterator;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         GeneratorIterator { generator: self }
     }
@@ -91,9 +94,10 @@ pub struct GeneratorIterator {
     generator: Generator<Vm>,
 }
 
-impl std::iter::Iterator for GeneratorIterator {
+impl iter::Iterator for GeneratorIterator {
     type Item = VmResult<Value>;
 
+    #[inline]
     fn next(&mut self) -> Option<VmResult<Value>> {
         match self.generator.next() {
             VmResult::Ok(Some(value)) => Some(VmResult::Ok(value)),

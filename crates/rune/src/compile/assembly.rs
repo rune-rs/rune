@@ -1,5 +1,9 @@
 //! Helpers for building assembly.
 
+use core::fmt;
+
+use crate::no_std::prelude::*;
+
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::{CompileError, CompileErrorKind, Location};
@@ -131,14 +135,14 @@ impl Assembly {
     /// Push a raw instruction.
     pub(crate) fn push_with_comment<C>(&mut self, raw: Inst, span: Span, comment: C)
     where
-        C: AsRef<str>,
+        C: fmt::Display,
     {
         let pos = self.instructions.len();
 
         self.comments
             .entry(pos)
             .or_default()
-            .push(comment.as_ref().into());
+            .push(comment.to_string().into());
 
         self.push(raw, span);
     }

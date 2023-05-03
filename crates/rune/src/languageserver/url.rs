@@ -1,5 +1,7 @@
 // Implementation copied and adjusted from https://github.com/servo/rust-url
 
+use crate::no_std::prelude::*;
+
 use std::{fmt::Write, path::Path};
 
 use percent_encoding::{percent_encode, AsciiSet, CONTROLS};

@@ -3,14 +3,19 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
+use core::fmt;
+use core::iter;
+
+use crate::no_std::prelude::*;
+
+use serde::{Deserialize, Serialize};
+
 use crate::collections::HashMap;
+use crate::no_std::sync::Arc;
 use crate::runtime::{
     Call, ConstValue, DebugInfo, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind,
 };
 use crate::Hash;
-use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::sync::Arc;
 
 /// Instructions from a single source file.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -97,7 +102,7 @@ impl Unit {
     pub fn iter_static_object_keys(&self) -> impl Iterator<Item = (usize, &[String])> + '_ {
         let mut it = self.static_object_keys.iter().enumerate();
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             let (n, s) = it.next()?;
             Some((n, &s[..]))
         })

@@ -1,8 +1,12 @@
-use std::error;
-use std::fmt;
+use core::fmt;
+
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
 
 use thiserror::Error;
 
+#[cfg(feature = "emit")]
 use crate::ast::{Span, Spanned};
 use crate::compile::{CompileError, LinkerError};
 use crate::parse::ParseError;
@@ -36,6 +40,7 @@ impl FatalDiagnostic {
         *self.kind
     }
 
+    #[cfg(feature = "emit")]
     pub(crate) fn span(&self) -> Option<Span> {
         match &*self.kind {
             FatalDiagnosticKind::ParseError(error) => Some(error.span()),
@@ -53,8 +58,9 @@ impl fmt::Display for FatalDiagnostic {
     }
 }
 
-impl error::Error for FatalDiagnostic {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl crate::no_std::error::Error for FatalDiagnostic {
+    #[inline]
+    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
         self.kind.source()
     }
 }

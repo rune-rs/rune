@@ -1,5 +1,6 @@
+use core::fmt;
+
 use crate::compile::Item;
-use std::fmt;
 
 /// Information on the visibility of an item.
 #[derive(Debug, Clone, Copy)]

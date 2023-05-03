@@ -1,3 +1,5 @@
+use core::any;
+
 use crate::compile::Named;
 use crate::hash::Hash;
 
@@ -19,7 +21,7 @@ pub use rune_macros::Any;
 ///     name: String,
 /// }
 /// ```
-pub trait Any: Named + std::any::Any {
+pub trait Any: Named + any::Any {
     /// The type hash of the type.
     ///
     /// TODO: make const field when `TypeId::of` is const.
@@ -28,7 +30,7 @@ pub trait Any: Named + std::any::Any {
 
 // Internal any impls for useful types in the std library.
 
-crate::__internal_impl_any!(std::fmt::Error);
-crate::__internal_impl_any!(std::io::Error);
-crate::__internal_impl_any!(anyhow::Error);
-crate::__internal_impl_any!(std::cmp::Ordering);
+crate::__internal_impl_any!(crate::no_std::fmt::Error);
+crate::__internal_impl_any!(crate::no_std::io::Error);
+crate::__internal_impl_any!(crate::no_std::Error);
+crate::__internal_impl_any!(core::cmp::Ordering);

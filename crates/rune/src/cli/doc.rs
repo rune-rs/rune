@@ -1,6 +1,8 @@
 use std::io::Write;
 use std::path::PathBuf;
 
+use crate::no_std::prelude::*;
+
 use anyhow::{Context, Result};
 use clap::Parser;
 

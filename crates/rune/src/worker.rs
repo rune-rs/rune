@@ -1,8 +1,11 @@
 //! Worker used by compiler.
 
+use crate::no_std::prelude::*;
+
 use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
+use crate::collections::VecDeque;
 use crate::compile::{CompileVisitor, ModId, Options, Pool, Prelude, SourceLoader, UnitBuilder};
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
@@ -10,7 +13,6 @@ use crate::macros::Storage;
 use crate::query::{Query, QueryInner};
 use crate::shared::{Consts, Gen, Items};
 use crate::{Context, Diagnostics, SourceId, Sources};
-use std::collections::VecDeque;
 
 mod import;
 mod task;

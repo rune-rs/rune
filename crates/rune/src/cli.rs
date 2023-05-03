@@ -16,12 +16,14 @@ mod run;
 mod tests;
 mod visitor;
 
-use std::fmt;
+use core::fmt;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+
+use crate::no_std::prelude::*;
 
 use anyhow::{bail, Context as _, Error, Result};
 use clap::{Parser, Subcommand};
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
 use tracing_subscriber::filter::EnvFilter;
 
 use crate::compile::{ItemBuf, ParseOptionError};

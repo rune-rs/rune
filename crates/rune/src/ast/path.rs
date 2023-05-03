@@ -1,3 +1,5 @@
+use core::iter;
+
 use crate::ast::prelude::*;
 
 /// A path, where each element is separated by a `::`.
@@ -77,7 +79,7 @@ impl Path {
         let mut first = Some(&self.first);
         let mut it = self.rest.iter();
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             if let Some(first) = first.take() {
                 return Some(first);
             }

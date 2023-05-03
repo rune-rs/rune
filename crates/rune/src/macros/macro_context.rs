@@ -1,6 +1,6 @@
 //! Context for a macro.
 
-use std::fmt;
+use core::fmt;
 
 use crate::ast;
 use crate::ast::Span;

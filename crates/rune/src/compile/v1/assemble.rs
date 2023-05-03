@@ -1,8 +1,9 @@
-use std::convert::TryFrom;
-use std::ops::Neg;
+use core::mem::{replace, take};
+use core::ops::Neg;
+
+use crate::no_std::prelude::*;
 
 use num::ToPrimitive;
-use rune_macros::__instrument_ast as instrument;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
@@ -19,6 +20,8 @@ use crate::runtime::{
     InstVariant, Label, PanicReason, Protocol, TypeCheck,
 };
 use crate::Hash;
+
+use rune_macros::__instrument_ast as instrument;
 
 /// `self` variable.
 const SELF: &str = "self";
@@ -62,7 +65,7 @@ impl Asm {
         match self.kind {
             AsmKind::Top => (),
             AsmKind::Var(var, local) => {
-                var.copy(c, self.span, format!("var `{}`", local));
+                var.copy(c, self.span, format_args!("var `{}`", local));
             }
         }
 
@@ -895,7 +898,7 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileRe
     for stmt in hir.statements {
         let (e, semi) = match stmt {
             hir::Stmt::Local(l) => {
-                if let Some((e, _)) = std::mem::take(&mut last) {
+                if let Some((e, _)) = take(&mut last) {
                     // NB: terminated expressions do not need to produce a value.
                     expr(e, c, Needs::None)?.apply(c)?;
                 }
@@ -908,7 +911,7 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileRe
             hir::Stmt::Item(..) => continue,
         };
 
-        if let Some((e, _)) = std::mem::replace(&mut last, Some((e, semi))) {
+        if let Some((e, _)) = replace(&mut last, Some((e, semi))) {
             // NB: terminated expressions do not need to produce a value.
             expr(e, c, Needs::None)?.apply(c)?;
         }
@@ -946,7 +949,7 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileRe
     Ok(Asm::top(span))
 }
 
-/// Assemble #[builtin] format!(...) macro.
+/// Assemble #[builtin] format_args!(...) macro.
 #[instrument]
 fn builtin_format(
     format: &hir::BuiltInFormat<'_>,
@@ -1555,10 +1558,10 @@ fn expr_block(
             for ident in captures {
                 if do_move {
                     let var = c.scopes.take_var(c.q.visitor, ident, c.source_id, span)?;
-                    var.do_move(c.asm, span, format!("captures `{}`", ident));
+                    var.do_move(c.asm, span, format_args!("captures `{}`", ident));
                 } else {
                     let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
-                    var.copy(c, span, format!("captures `{}`", ident));
+                    var.copy(c, span, format_args!("captures `{}`", ident));
                 }
             }
 
@@ -1873,7 +1876,7 @@ fn expr_call(
                 c.scopes.decl_anon(span)?;
             }
 
-            var.copy(c, span, format!("var `{}`", name));
+            var.copy(c, span, format_args!("var `{}`", name));
             c.scopes.decl_anon(span)?;
 
             c.asm.push(Inst::CallFn { args }, span);
@@ -2024,17 +2027,17 @@ fn expr_closure(
         c.asm.push_with_comment(
             Inst::LoadFn { hash },
             span,
-            format!("closure `{}`", item.item),
+            format_args!("closure `{}`", item.item),
         );
     } else {
         // Construct a closure environment.
         for capture in captures {
             if do_move {
                 let var = c.scopes.take_var(c.q.visitor, capture, c.source_id, span)?;
-                var.do_move(c.asm, span, format!("capture `{}`", capture));
+                var.do_move(c.asm, span, format_args!("capture `{}`", capture));
             } else {
                 let var = c.scopes.get_var(c.q.visitor, capture, c.source_id, span)?;
-                var.copy(c, span, format!("capture `{}`", capture));
+                var.copy(c, span, format_args!("capture `{}`", capture));
             }
         }
 
@@ -2044,7 +2047,7 @@ fn expr_closure(
                 count: captures.len(),
             },
             span,
-            format!("closure `{}`", item.item),
+            format_args!("closure `{}`", item.item),
         );
     }
 
@@ -2219,7 +2222,7 @@ fn expr_for(
                 args: 0,
             },
             span,
-            format!("into_iter (offset: {})", iter_offset),
+            format_args!("into_iter (offset: {})", iter_offset),
         );
 
         (iter_offset, loop_scope_expected)
@@ -2618,8 +2621,8 @@ fn expr_object(
             let var = c
                 .scopes
                 .get_var(c.q.visitor, key.as_ref(), c.source_id, span)?;
-            let comment = format!("name `{}`", key);
-            var.copy(c, span, comment);
+            let key = key.clone().into_owned();
+            var.copy(c, span, format_args!("name `{}`", key));
         }
 
         c.scopes.decl_anon(span)?;

@@ -1,5 +1,8 @@
+use core::fmt;
+
+use crate::no_std::prelude::*;
+
 use crate::macros::{MacroContext, ToTokens, TokenStream};
-use std::fmt;
 
 type EncodeFn<'a> = dyn Fn(&mut MacroContext<'_>, &mut TokenStream) + Send + Sync + 'a;
 

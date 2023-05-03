@@ -1,5 +1,7 @@
-use std::error;
-use std::fmt;
+use core::fmt;
+
+use crate::no_std as std;
+use crate::no_std::thiserror;
 
 use thiserror::Error;
 
@@ -24,6 +26,7 @@ impl WarningDiagnostic {
     }
 
     /// The kind of the warning.
+    #[cfg(feature = "emit")]
     pub(crate) fn kind(&self) -> &WarningDiagnosticKind {
         &self.kind
     }
@@ -34,6 +37,7 @@ impl WarningDiagnostic {
     }
 
     /// Access context of warning, if any is available.
+    #[cfg(feature = "emit")]
     pub(crate) fn context(&self) -> Option<Span> {
         match &self.kind {
             WarningDiagnosticKind::LetPatternMightPanic { context, .. }
@@ -64,8 +68,8 @@ impl fmt::Display for WarningDiagnostic {
     }
 }
 
-impl error::Error for WarningDiagnostic {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl crate::no_std::error::Error for WarningDiagnostic {
+    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
         self.kind.source()
     }
 }

@@ -1,7 +1,8 @@
 //! The `std::int` module.
 
+use core::num::ParseIntError;
+
 use crate::{ContextError, Module};
-use std::num::ParseIntError;
 
 /// Construct the `std::int` module.
 pub fn module() -> Result<Module, ContextError> {

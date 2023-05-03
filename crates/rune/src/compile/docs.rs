@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 /// The documentation for a function.
 #[derive(Clone, Default)]
 pub struct Docs {

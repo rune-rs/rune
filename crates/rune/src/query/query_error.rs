@@ -1,3 +1,7 @@
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
 use thiserror::Error;
 
 use crate::compile::{ImportStep, IrError, IrErrorKind, ItemBuf, Location, MetaInfo, Visibility};

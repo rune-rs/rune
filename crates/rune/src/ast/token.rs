@@ -1,8 +1,11 @@
+use core::ascii;
+use core::fmt;
+use core::ops::Neg;
+
 use crate::ast::{Kind, Span, Spanned};
 use crate::macros::{MacroContext, SyntheticId, ToTokens, TokenStream};
 use crate::parse::{Expectation, IntoExpectation, ParseError, ParseErrorKind};
 use crate::SourceId;
-use std::fmt;
 
 /// A single token encountered during parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -135,7 +138,7 @@ impl Token {
         }
 
         fn bytes_escape_default(bytes: &[u8]) -> impl Iterator<Item = u8> + '_ {
-            bytes.iter().copied().flat_map(std::ascii::escape_default)
+            bytes.iter().copied().flat_map(ascii::escape_default)
         }
     }
 }
@@ -200,8 +203,6 @@ impl Number {
         neg: bool,
         to: impl FnOnce(&num::BigInt) -> Option<T>,
     ) -> Result<T, ParseError> {
-        use std::ops::Neg;
-
         let number = match self {
             Number::Float(_) => return Err(ParseError::new(span, ParseErrorKind::BadNumber)),
             Number::Integer(n) => {

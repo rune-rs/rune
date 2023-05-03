@@ -1,5 +1,5 @@
-use std::fmt;
-use std::num::NonZeroU32;
+use core::fmt;
+use core::num::NonZeroU32;
 
 /// A non-zero [Id] which definitely contains a value. We keep this distinct
 /// from `Id` to allow for safely using this as a key in a hashmap, preventing

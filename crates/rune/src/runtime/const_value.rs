@@ -1,11 +1,14 @@
+use serde::{Deserialize, Serialize};
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
+use crate::no_std::vec;
+
 use crate::collections::HashMap;
 use crate::runtime::{
     Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Vec,
     VmErrorKind, VmResult,
 };
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::vec;
 
 /// A constant value.
 #[derive(Debug, Clone, Deserialize, Serialize)]

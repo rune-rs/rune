@@ -2,14 +2,18 @@
 //!
 //! [Value::Bytes]: crate::Value::Bytes.
 
+use core::cmp;
+use core::fmt;
+use core::ops;
+
+use crate::no_std::prelude::*;
+
+use serde::{Deserialize, Serialize};
+
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Mut, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmResult,
 };
-use serde::{Deserialize, Serialize};
-use std::cmp;
-use std::fmt;
-use std::ops;
 
 /// A vector of bytes.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
@@ -202,6 +206,7 @@ impl cmp::PartialEq<Bytes> for [u8] {
 
 #[cfg(test)]
 mod tests {
+    use crate::no_std::prelude::*;
     use crate::runtime::{Bytes, Shared, Value};
 
     #[test]

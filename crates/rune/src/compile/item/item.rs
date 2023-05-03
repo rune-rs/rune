@@ -1,4 +1,6 @@
-use core::fmt;
+use core::fmt::{self, Write};
+
+use crate::no_std::prelude::*;
 
 use smallvec::ToSmallVec;
 
@@ -357,7 +359,6 @@ impl ToOwned for Item {
 /// ```
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use std::fmt::Write;
         let mut it = self.iter();
 
         if let Some(last) = it.next_back() {

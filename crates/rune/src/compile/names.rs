@@ -1,6 +1,7 @@
+use core::mem::replace;
+
 use crate::collections::BTreeMap;
 use crate::compile::{Component, ComponentRef, IntoComponent};
-use std::mem;
 
 /// A tree of names.
 #[derive(Default, Debug, Clone)]
@@ -21,7 +22,7 @@ impl Names {
             current = current.children.entry(c.into_component()).or_default();
         }
 
-        mem::replace(&mut current.term, true)
+        replace(&mut current.term, true)
     }
 
     /// Test if the given import exists.

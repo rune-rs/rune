@@ -1,3 +1,7 @@
+use core::mem::{replace, take};
+
+use crate::no_std::prelude::*;
+
 use crate::ast::{self, Span, Spanned};
 use crate::compile::ir::{self, IrError, IrValue};
 use crate::hir;
@@ -351,7 +355,7 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> Result<ir::
     for stmt in hir.statements {
         let (e, term) = match stmt {
             hir::Stmt::Local(l) => {
-                if let Some((e, _)) = std::mem::take(&mut last) {
+                if let Some((e, _)) = take(&mut last) {
                     instructions.push(expr(e, c)?);
                 }
 
@@ -363,7 +367,7 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> Result<ir::
             hir::Stmt::Item(..) => continue,
         };
 
-        if let Some((e, _)) = std::mem::replace(&mut last, Some((e, term))) {
+        if let Some((e, _)) = replace(&mut last, Some((e, term))) {
             instructions.push(expr(e, c)?);
         }
     }

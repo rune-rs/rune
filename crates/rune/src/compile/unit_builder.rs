@@ -3,6 +3,13 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
+use crate::no_std::thiserror;
+
+use thiserror::Error;
+
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::meta;
@@ -16,8 +23,6 @@ use crate::runtime::{
     UnitFn, VariantRtti,
 };
 use crate::{Context, Diagnostics, Hash, SourceId};
-use std::sync::Arc;
-use thiserror::Error;
 
 /// Errors that can be raised when linking units.
 #[derive(Debug, Error)]

@@ -1,3 +1,11 @@
+use crate::no_std as std;
+use crate::no_std::io;
+use crate::no_std::path::PathBuf;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
+use thiserror::Error;
+
 use crate::ast;
 use crate::ast::{Span, Spanned, SpannedError};
 use crate::compile::{IrError, IrErrorKind, ItemBuf, Location, MetaInfo};
@@ -7,9 +15,6 @@ use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::Label;
 use crate::{Error, Hash, SourceId};
-use std::io;
-use std::path::PathBuf;
-use thiserror::Error;
 
 error! {
     /// An error raised by the compiler.

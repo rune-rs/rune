@@ -1,5 +1,11 @@
 //! The `std::string` module.
 
+use core::char;
+use core::fmt::{self, Write};
+use core::num;
+
+use crate::no_std::prelude::*;
+
 use crate::runtime::{Bytes, Iterator, Panic, Protocol, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
@@ -53,8 +59,7 @@ pub fn module() -> Result<Module, ContextError> {
 struct NotCharBoundary(());
 
 impl NotCharBoundary {
-    fn string_display(&self, s: &mut String) -> std::fmt::Result {
-        use std::fmt::Write as _;
+    fn string_display(&self, s: &mut String) -> fmt::Result {
         write!(s, "index outside of character boundary")
     }
 
@@ -105,11 +110,11 @@ fn string_trim_end(this: &str) -> String {
     this.trim_end().to_owned()
 }
 
-fn parse_int(s: &str) -> Result<i64, std::num::ParseIntError> {
+fn parse_int(s: &str) -> Result<i64, num::ParseIntError> {
     str::parse::<i64>(s)
 }
 
-fn parse_char(s: &str) -> Result<char, std::char::ParseCharError> {
+fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
     str::parse::<char>(s)
 }
 
