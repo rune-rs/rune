@@ -7,7 +7,7 @@ use std::{path::Path, sync::Arc};
 
 use anyhow::{anyhow, Context as _, Result};
 
-use crate::cli::{visitor, Args, Io};
+use crate::cli::{visitor, Io, SharedFlags};
 use crate::compile::{FileSourceLoader, ItemBuf};
 use crate::Diagnostics;
 use crate::{Context, Hash, Options, Source, Sources, Unit};
@@ -22,13 +22,11 @@ pub(super) struct Load {
 pub(super) fn load(
     io: &mut Io<'_>,
     context: &Context,
-    args: &Args,
+    shared: &SharedFlags,
     options: &Options,
     path: &Path,
     attribute: visitor::Attribute,
 ) -> Result<Load> {
-    let shared = args.cmd.shared();
-
     let bytecode_path = path.with_extension("rnc");
 
     let source =

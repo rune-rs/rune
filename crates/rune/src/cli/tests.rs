@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::cli::{ExitCode, Io, SharedFlags};
+use crate::cli::{ExitCode, Io};
 use crate::compile::ItemBuf;
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Unit, Value, Vm, VmError, VmResult};
@@ -20,9 +20,6 @@ pub(super) struct Flags {
     /// Run all tests regardless of failure
     #[arg(long)]
     no_fail_fast: bool,
-
-    #[command(flatten)]
-    pub(super) shared: SharedFlags,
 }
 
 #[derive(Debug)]

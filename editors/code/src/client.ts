@@ -7,15 +7,18 @@ import { log } from "./util";
 
 export function createClient(
     serverPath: string,
-    extraEnv: Env
+    extraEnv: Env,
+    args?: string[]
 ): lc.LanguageClient {
     const newEnv = substituteVariablesInEnv(Object.assign({}, process.env, extraEnv));
     log.debug('newEnv', newEnv);
 
     const run: lc.Executable = {
         command: serverPath,
-        options: { env: newEnv }
+        options: { env: newEnv },
+        args
     };
+
     const serverOptions: lc.ServerOptions = {
         run,
         debug: run,

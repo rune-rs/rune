@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use clap::Parser;
 
-use crate::cli::{ExitCode, Io, SharedFlags};
+use crate::cli::{ExitCode, Io};
 use crate::compile::{Item, ItemBuf};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Function, Unit, Value};
@@ -22,9 +22,6 @@ pub(super) struct Flags {
     /// Iterations to run of the benchmark
     #[arg(long, default_value = "100")]
     iterations: u32,
-
-    #[command(flatten)]
-    pub(super) shared: SharedFlags,
 }
 
 #[derive(Default, Any)]
