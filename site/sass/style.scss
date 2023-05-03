@@ -451,6 +451,12 @@ nav.pagination {
     border: 1px solid $accent;
 }
 
+.footnote-definition {
+    p {
+        display: inline;
+    }
+}
+
 .rune {
     margin-top: 10px;
     margin-bottom: 10px;
