@@ -132,13 +132,13 @@ fn main() -> Result<()> {
     let span = &rust::import("crate::ast", "Span");
     let spanned = &rust::import("crate::ast", "Spanned");
     let lit_source = &rust::import("crate::ast", "LitSource");
-    let to_tokens= &rust::import("crate::macros", "ToTokens");
+    let to_tokens = &rust::import("crate::macros", "ToTokens");
     let token = &rust::import("crate::ast", "Token");
     let token_stream = &rust::import("crate::macros", "TokenStream");
 
     write_tokens(
         Path::new("crates/rune/src/ast/generated.rs"),
-        genco::quote!{
+        genco::quote! {
             $(format!("/// This file has been generated from `{}`", asset.display()))
             $("/// DO NOT modify by hand!")
 
@@ -197,7 +197,7 @@ fn main() -> Result<()> {
                     $$crate::ast::OpenBracket
                 };
                 (']') => {
-                    $$crate::ast::CloseBracket 
+                    $$crate::ast::CloseBracket
                 };
                 ('{') => {
                     $$crate::ast::OpenBrace
@@ -359,7 +359,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn buf_match<'a>(punct: &'a str) -> impl FormatInto<Rust> + 'a {
+fn buf_match(punct: &str) -> impl FormatInto<Rust> + '_ {
     genco::tokens::from_fn(move |mut tokens| {
         let chars = punct.chars().collect::<Vec<_>>();
         let len = chars.len();
