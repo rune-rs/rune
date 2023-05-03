@@ -1,8 +1,12 @@
+use core::fmt;
+use core::slice;
+
+use crate::no_std::prelude::*;
+use crate::no_std::vec;
+
 use crate::ast;
 use crate::ast::{OptionSpanned, Span};
 use crate::macros::MacroContext;
-use std::fmt;
-use std::slice;
 
 /// A token stream.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -85,7 +89,7 @@ impl DoubleEndedIterator for TokenStreamIter<'_> {
 
 impl<'a> IntoIterator for &'a TokenStream {
     type Item = &'a ast::Token;
-    type IntoIter = std::slice::Iter<'a, ast::Token>;
+    type IntoIter = slice::Iter<'a, ast::Token>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.stream.iter()
@@ -94,7 +98,7 @@ impl<'a> IntoIterator for &'a TokenStream {
 
 impl IntoIterator for TokenStream {
     type Item = ast::Token;
-    type IntoIter = std::vec::IntoIter<ast::Token>;
+    type IntoIter = vec::IntoIter<ast::Token>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.stream.into_iter()

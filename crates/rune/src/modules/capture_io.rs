@@ -11,9 +11,12 @@
 //! # Ok::<_, ContextError>(())
 //! ```
 
-use std::io::{self, Write};
-use std::string::FromUtf8Error;
-use std::sync::Arc;
+use core::mem::take;
+
+use crate::no_std::io::{self, Write};
+use crate::no_std::prelude::*;
+use crate::no_std::string::FromUtf8Error;
+use crate::no_std::sync::Arc;
 
 use parking_lot::Mutex;
 
@@ -35,7 +38,7 @@ impl CaptureIo {
     /// Drain all captured I/O that has been written to output functions.
     pub fn drain(&self) -> Vec<u8> {
         let mut o = self.inner.lock();
-        std::mem::take(&mut *o)
+        take(&mut *o)
     }
 
     /// Drain all captured I/O that has been written to output functions into
@@ -83,16 +86,13 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
 
     module.raw_fn(["dbg"], move |stack, args| {
         let mut o = o.inner.lock();
-        dbg_impl(&mut *o, stack, args)
+        dbg_impl(&mut o, stack, args)
     })?;
 
     Ok(module)
 }
 
-fn dbg_impl<O>(o: &mut O, stack: &mut Stack, args: usize) -> VmResult<()>
-where
-    O: Write,
-{
+fn dbg_impl(o: &mut Vec<u8>, stack: &mut Stack, args: usize) -> VmResult<()> {
     for value in vm_try!(stack.drain(args)) {
         vm_try!(writeln!(o, "{:?}", value).map_err(VmError::panic));
     }

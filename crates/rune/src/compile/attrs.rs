@@ -1,7 +1,9 @@
+use crate::no_std::prelude::*;
+
 use crate::ast;
 use crate::ast::{LitStr, Span, Spanned};
+use crate::collections::BTreeSet;
 use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveContext};
-use std::collections::BTreeSet;
 
 /// Helper for parsing internal attributes.
 pub(crate) struct Attributes {

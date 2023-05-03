@@ -1,5 +1,6 @@
+use crate::no_std::borrow::Cow;
+
 use crate::ast::prelude::*;
-use std::borrow::Cow;
 
 /// An object expression.
 ///

@@ -3,11 +3,12 @@
 #[cfg(test)]
 mod tests;
 
-use std::str::CharIndices;
+use core::str::CharIndices;
+
+use crate::no_std::prelude::*;
 
 use crate::ast::Span;
-
-use super::error::FormattingError;
+use crate::fmt::FormattingError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum CommentKind {

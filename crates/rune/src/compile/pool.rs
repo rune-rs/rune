@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 use core::fmt;
 
 use crate::collections::HashMap;

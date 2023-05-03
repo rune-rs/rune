@@ -1,8 +1,10 @@
 //! Compiler metadata for Rune.
 
-use std::fmt;
-use std::path::Path;
-use std::sync::Arc;
+use core::fmt;
+
+use crate::no_std::path::Path;
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;

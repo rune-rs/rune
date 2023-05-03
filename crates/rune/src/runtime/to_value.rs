@@ -1,3 +1,8 @@
+use core::any;
+
+use crate::no_std::collections::HashMap;
+use crate::no_std::prelude::*;
+
 use crate::runtime::{
     AnyObj, Object, Shared, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult,
 };
@@ -188,13 +193,11 @@ macro_rules! number_value_trait {
     ($ty:ty) => {
         impl ToValue for $ty {
             fn to_value(self) -> VmResult<Value> {
-                use std::convert::TryInto as _;
-
                 match self.try_into() {
                     Ok(number) => VmResult::Ok(Value::Integer(number)),
                     Err(..) => VmResult::err(VmErrorKind::IntegerToValueCoercionError {
                         from: VmIntegerRepr::from(self),
-                        to: std::any::type_name::<i64>(),
+                        to: any::type_name::<i64>(),
                     }),
                 }
             }
@@ -240,4 +243,4 @@ macro_rules! impl_map {
     };
 }
 
-impl_map!(std::collections::HashMap<String, T>);
+impl_map!(HashMap<String, T>);

@@ -1,11 +1,14 @@
+use core::fmt;
+use core::future::Future;
+use core::mem::take;
+
+use crate::no_std::prelude::*;
+
 use crate::runtime::budget;
 use crate::runtime::{
     Generator, GeneratorState, Stream, Value, Vm, VmErrorKind, VmHalt, VmHaltInfo, VmResult,
 };
 use crate::shared::AssertSend;
-use std::fmt;
-use std::future::Future;
-use std::mem::take;
 
 /// The state of an execution. We keep track of this because it's important to
 /// correctly interact with functions that yield (like generators and streams)

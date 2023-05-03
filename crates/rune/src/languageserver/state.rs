@@ -1,3 +1,15 @@
+use std::collections::{BTreeMap, HashSet};
+use std::fmt;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use crate::no_std::prelude::*;
+
+use anyhow::{anyhow, Context as _, Result};
+use lsp::Url;
+use ropey::Rope;
+use tokio::sync::Notify;
+
 use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
 use crate::compile;
@@ -17,14 +29,6 @@ use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
 use crate::workspace::{self, WorkspaceError};
 use crate::{BuildError, Context, Options, SourceId, Unit};
-use anyhow::{anyhow, Context as _, Result};
-use lsp::Url;
-use ropey::Rope;
-use std::collections::{BTreeMap, HashSet};
-use std::fmt;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use tokio::sync::Notify;
 
 #[derive(Default)]
 struct Reporter {

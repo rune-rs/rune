@@ -1,9 +1,10 @@
+use crate::no_std::path::Path;
+use crate::no_std::prelude::*;
+
 use crate::ast::Span;
 use crate::{Source, SourceId};
 #[cfg(feature = "codespan-reporting")]
 use codespan_reporting::files;
-use std::convert::TryFrom;
-use std::path::Path;
 
 /// Helper macro to define a collection of sources populatedc with the given
 /// entries.

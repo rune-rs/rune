@@ -1,5 +1,7 @@
 //! Macro compiler.
 
+use crate::no_std::prelude::*;
+
 use crate::ast;
 use crate::ast::{Spanned, SpannedError};
 use crate::compile::{CompileError, CompileErrorKind, CompileResult, IrError, ItemMeta, Options};

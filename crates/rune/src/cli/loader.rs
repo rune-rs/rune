@@ -1,9 +1,11 @@
-use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
+
+use crate::no_std::collections::VecDeque;
+use crate::no_std::prelude::*;
 
 use anyhow::{anyhow, Context as _, Result};
 

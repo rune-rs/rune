@@ -1,6 +1,7 @@
+use core::mem::take;
+use core::ops;
+
 use crate::ast::prelude::*;
-use std::mem::take;
-use std::ops;
 
 /// Indicator that an expression should be parsed with an eager brace.
 #[derive(Debug, Clone, Copy)]
@@ -337,7 +338,7 @@ impl Expr {
         if p.peek::<T![!]>()? {
             return Ok(Self::MacroCall(ast::MacroCall::parse_with_meta_path(
                 p,
-                std::mem::take(attributes),
+                take(attributes),
                 path,
             )?));
         }

@@ -1,9 +1,11 @@
+use core::fmt;
+
+use crate::no_std::sync::Arc;
+
 use crate::collections::HashMap;
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{ConstValue, Stack, VmResult};
 use crate::Hash;
-use std::fmt;
-use std::sync::Arc;
 
 /// A type-reduced function handler.
 pub(crate) type FunctionHandler = dyn Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync;

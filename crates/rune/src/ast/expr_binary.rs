@@ -1,5 +1,6 @@
+use core::fmt;
+
 use crate::ast::prelude::*;
-use std::fmt;
 
 /// A binary expression.
 ///

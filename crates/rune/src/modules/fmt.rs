@@ -1,7 +1,8 @@
 //! The `std::fmt` module.
 
-use std::fmt;
-use std::fmt::Write;
+use core::fmt::{self, Write};
+
+use crate::no_std::prelude::*;
 
 use crate::macros::{FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
@@ -11,7 +12,7 @@ use crate::{ContextError, Module};
 /// Construct the `std::fmt` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["fmt"]).with_unique("std::fmt");
-    module.ty::<std::fmt::Error>()?;
+    module.ty::<fmt::Error>()?;
     module.inst_fn(Protocol::STRING_DISPLAY, format_fmt_error)?;
     module.macro_(["format"], format_macro)?;
 
@@ -19,7 +20,7 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn format_fmt_error(error: &std::fmt::Error, buf: &mut String) -> fmt::Result {
+fn format_fmt_error(error: &fmt::Error, buf: &mut String) -> fmt::Result {
     write!(buf, "{}", error)
 }
 

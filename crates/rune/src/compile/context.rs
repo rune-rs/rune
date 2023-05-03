@@ -1,5 +1,8 @@
-use std::fmt;
-use std::sync::Arc;
+use core::fmt;
+use core::iter;
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use crate::collections::{hash_map, HashMap, HashSet};
 use crate::compile::meta;
@@ -142,7 +145,7 @@ impl Context {
     /// * `::std::io::dbg`
     /// * `::std::io::print`
     /// * `::std::io::println`
-    pub fn with_config(stdio: bool) -> Result<Self, ContextError> {
+    pub fn with_config(#[allow(unused)] stdio: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
         // This must go first, because it includes types which are used in other modules.
         this.install(crate::modules::core::module()?)?;
@@ -157,6 +160,7 @@ impl Context {
         this.install(crate::modules::future::module()?)?;
         this.install(crate::modules::generator::module()?)?;
         this.install(crate::modules::int::module()?)?;
+        #[cfg(feature = "std")]
         this.install(crate::modules::io::module(stdio)?)?;
         this.install(crate::modules::iter::module()?)?;
         this.install(crate::modules::macros::module()?)?;
@@ -255,7 +259,7 @@ impl Context {
     pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &meta::Signature)> {
         let mut it = self.functions_info.iter();
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             let (hash, signature) = it.next()?;
             Some((*hash, signature))
         })
@@ -265,7 +269,7 @@ impl Context {
     pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &Item)> {
         let mut it = self.types.iter();
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             let (hash, ty) = it.next()?;
             Some((*hash, ty.item.as_ref()))
         })

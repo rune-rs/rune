@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 use crate::compile::context::PrivMeta;
 use crate::compile::meta;
 use crate::compile::{AssociatedFunction, ComponentRef, IntoComponent, Item};

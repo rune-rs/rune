@@ -325,6 +325,8 @@ macro_rules! assert_matches {
 macro_rules! prelude {
     () => {
         #[allow(unused_imports)]
+        use crate::no_std::prelude::*;
+        #[allow(unused_imports)]
         use crate::tests::prelude::*;
     };
 }

@@ -1,5 +1,6 @@
+use core::mem::take;
+
 use crate::ast::prelude::*;
-use std::mem::take;
 
 /// A statement within a block.
 ///

@@ -4,10 +4,12 @@
 
 #![allow(unused)]
 
-use std::fmt;
-use std::mem::discriminant;
-use std::ops;
-use std::str::FromStr;
+use core::fmt;
+use core::mem::discriminant;
+use core::ops;
+use core::str::FromStr;
+
+use crate::no_std::prelude::*;
 
 use serde::de;
 use serde::ser;
@@ -248,7 +250,7 @@ impl<'a> From<&'a str> for Value {
     }
 }
 
-impl<V: Into<SpannedValue>> From<Vec<V>> for Value {
+impl<V> From<Vec<V>> for Value where V: Into<SpannedValue> {
     fn from(val: Vec<V>) -> Value {
         Value::Array(val.into_iter().map(|v| v.into()).collect())
     }

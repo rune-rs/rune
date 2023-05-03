@@ -1,10 +1,12 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
-use std::convert::TryInto;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
 use std::io;
+
+use crate::no_std::thiserror;
+use crate::no_std::prelude::*;
 
 use thiserror::Error;
 use codespan_reporting::diagnostic as d;
@@ -114,7 +116,7 @@ impl VmError {
 
         for at in [&self.inner.error].into_iter().chain(&self.inner.chain) {
             let get = || {
-                let l = self.inner.stacktrace.get(at.index)?;
+                let l = self.inner.stacktrace.get(at.instruction())?;
                 let debug_info = l.unit.debug_info()?;
                 let debug_inst = debug_info.instruction_at(l.ip)?;
                 Some(debug_inst)
@@ -123,7 +125,7 @@ impl VmError {
             let debug_inst = match get() {
                 Some(debug_inst) => debug_inst,
                 None => {
-                    println!("error: {} (no debug information)", at.kind);
+                    println!("error: {} (no debug information)", at);
                     continue;
                 }
             };
@@ -133,7 +135,7 @@ impl VmError {
 
             let mut labels = Vec::new();
 
-            let (reason, notes) = match &at.kind {
+            let (reason, notes) = match at.kind() {
                 VmErrorKind::Panic { reason } => {
                     labels.push(d::Label::primary(source_id, span.range()).with_message("panicked"));
                     ("panic in runtime".to_owned(), vec![reason.to_string()])

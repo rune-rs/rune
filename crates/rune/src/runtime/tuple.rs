@@ -1,9 +1,12 @@
+use core::fmt;
+use core::ops;
+use core::slice;
+
+use crate::no_std::prelude::*;
+
 use crate::runtime::{
     ConstValue, FromValue, Mut, Ref, ToValue, Value, Vm, VmErrorKind, VmResult, TUPLE_TYPE,
 };
-use std::fmt;
-use std::ops;
-use std::slice;
 
 /// Struct representing a dynamic anonymous object.
 #[derive(Clone)]

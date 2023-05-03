@@ -1,9 +1,9 @@
 //! The `std::io` module.
 
-use std::fmt;
-use std::fmt::Write as _;
-use std::io;
-use std::io::Write as _;
+use std::fmt::{self, Write as _};
+use std::io::{self, Write as _};
+
+use crate::no_std::prelude::*;
 
 use crate as rune;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
@@ -32,7 +32,7 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn format_io_error(error: &std::io::Error, buf: &mut String) -> fmt::Result {
+fn format_io_error(error: &io::Error, buf: &mut String) -> fmt::Result {
     write!(buf, "{}", error)
 }
 

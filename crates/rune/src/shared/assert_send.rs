@@ -1,6 +1,6 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 
 /// Internal helper struct to assert that a future is send.
 #[pin_project::pin_project]

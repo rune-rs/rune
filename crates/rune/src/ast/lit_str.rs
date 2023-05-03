@@ -1,5 +1,6 @@
+use crate::no_std::borrow::Cow;
+
 use crate::ast::prelude::*;
-use std::borrow::Cow;
 
 /// A string literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]

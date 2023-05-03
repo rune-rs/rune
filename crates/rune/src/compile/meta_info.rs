@@ -1,4 +1,6 @@
-use std::fmt;
+use core::fmt;
+
+use crate::no_std::prelude::*;
 
 use crate::compile::meta;
 use crate::compile::{Item, ItemBuf};

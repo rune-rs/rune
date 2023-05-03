@@ -1,13 +1,16 @@
+use core::cmp;
+use core::fmt;
+use core::ops;
+use core::slice;
+
+use crate::no_std::prelude::*;
+use crate::no_std::vec;
+
 use crate::compile::{InstallWith, Named};
 use crate::runtime::{
     FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
     Vm, VmErrorKind, VmResult,
 };
-use std::cmp;
-use std::fmt;
-use std::ops;
-use std::slice;
-use std::vec;
 
 /// Struct representing a dynamic vector.
 ///

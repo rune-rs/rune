@@ -1,9 +1,15 @@
-use crate::runtime::{InstAddress, Value};
-use std::borrow::Cow;
-use std::iter;
-use std::mem;
-use std::slice;
+use core::iter;
+use core::mem;
+use core::slice;
+
+use crate::no_std as std;
+use crate::no_std::borrow::Cow;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
 use thiserror::Error;
+
+use crate::runtime::{InstAddress, Value};
 
 /// An error raised when interacting with the stack.
 #[derive(Debug, Error)]

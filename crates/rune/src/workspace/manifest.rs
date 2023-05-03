@@ -1,7 +1,10 @@
 use std::path::{PathBuf, Path};
+use std::{iter};
 use std::io;
 use std::fs;
 use std::ffi::OsStr;
+
+use crate::no_std::prelude::*;
 
 use relative_path::{RelativePathBuf, RelativePath};
 use semver::Version;
@@ -384,7 +387,7 @@ fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(S
         Err(e) => return Err(e),
     };
 
-    Ok(std::iter::from_fn(move || {
+    Ok(iter::from_fn(move || {
         loop {
             let e = dir.as_mut()?.next()?;
 

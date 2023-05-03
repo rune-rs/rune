@@ -1,4 +1,5 @@
-use std::path::Path;
+use crate::no_std::path::Path;
+use crate::no_std::prelude::*;
 
 use crate::ast::Span;
 use crate::compile::{CompileError, CompileErrorKind, ComponentRef, Item};

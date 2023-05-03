@@ -425,13 +425,13 @@ where
             fn type_hash() -> #hash {
                 // Safety: `Hash` asserts that it is layout compatible with `TypeId`.
                 // TODO: remove this once we can have transmute-like functionality in a const fn.
-                #hash::from_type_id(std::any::TypeId::of::<Self>())
+                #hash::from_type_id(core::any::TypeId::of::<Self>())
             }
         }
 
         #[automatically_derived]
         impl #impl_generics #install_with for #ident #ty_generics #where_clause {
-            fn install_with(module: &mut #module) -> ::std::result::Result<(), #context_error> {
+            fn install_with(module: &mut #module) -> core::result::Result<(), #context_error> {
                 #installers
             }
         }
@@ -447,7 +447,7 @@ where
 
             #[inline]
             fn type_info() -> #type_info {
-                #type_info::Any(#any_type_info::new(#raw_str::from_str(std::any::type_name::<Self>())))
+                #type_info::Any(#any_type_info::new(#raw_str::from_str(core::any::type_name::<Self>())))
             }
         }
 

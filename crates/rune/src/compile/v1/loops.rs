@@ -1,11 +1,14 @@
+use core::cell::RefCell;
+
+use crate::no_std::prelude::*;
+use crate::no_std::rc::Rc;
+
 use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::v1::Needs;
 use crate::compile::{CompileError, CompileErrorKind, CompileResult};
 use crate::parse::ResolveContext;
 use crate::runtime::Label;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub(crate) struct LoopGuard {
     loops: Rc<RefCell<Vec<Loop>>>,

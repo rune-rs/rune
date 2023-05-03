@@ -19,6 +19,7 @@ pub mod fmt;
 pub mod future;
 pub mod generator;
 pub mod int;
+#[cfg(feature = "std")]
 pub mod io;
 pub mod iter;
 pub mod macros;

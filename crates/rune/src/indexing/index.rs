@@ -1,3 +1,12 @@
+use core::num::NonZeroUsize;
+
+use core::mem::replace;
+
+use crate::no_std::collections::VecDeque;
+use crate::no_std::path::PathBuf;
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
+
 use crate::ast;
 use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::collections::HashMap;
@@ -19,11 +28,8 @@ use crate::runtime::Call;
 use crate::shared::{Items, MissingLastId};
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{Context, Diagnostics, SourceId};
+
 use rune_macros::__instrument_ast as instrument;
-use std::collections::VecDeque;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::Arc;
 
 /// `self` variable.
 const SELF: &str = "self";
@@ -1392,7 +1398,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> CompileResult<()
     }
 
     let new = idx.q.pool.alloc_item(&*idx.items.item());
-    let old = std::mem::replace(&mut idx.impl_item, Some(new));
+    let old = replace(&mut idx.impl_item, Some(new));
 
     for i in &mut ast.functions {
         item_fn(i, idx)?;
@@ -1436,7 +1442,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> CompileResult<()> 
             ast.id
                 .set(idx.items.id().map_err(missing_last_id(name_span))?);
 
-            let replaced = std::mem::replace(&mut idx.mod_item, mod_item);
+            let replaced = replace(&mut idx.mod_item, mod_item);
             file(&mut body.file, idx)?;
             idx.mod_item = replaced;
         }

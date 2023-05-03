@@ -1,6 +1,6 @@
 use crate::ast::prelude::*;
+
 use num::Num;
-use std::str::FromStr;
 
 /// A number literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
@@ -67,7 +67,7 @@ impl<'a> Resolve<'a> for LitNumber {
             .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
 
         if text.is_fractional {
-            let number = f64::from_str(string).map_err(err_span(span))?;
+            let number: f64 = string.parse().map_err(err_span(span))?;
             return Ok(ast::Number::Float(number));
         }
 

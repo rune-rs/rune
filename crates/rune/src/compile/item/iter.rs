@@ -1,3 +1,5 @@
+use core::str;
+
 use crate::compile::item::internal;
 use crate::compile::item::{ComponentRef, Item, ItemBuf};
 
@@ -142,7 +144,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
             );
 
             // Safety: we control the construction of the item.
-            let s = unsafe { std::str::from_utf8_unchecked(buf) };
+            let s = unsafe { str::from_utf8_unchecked(buf) };
 
             (s, content)
         }

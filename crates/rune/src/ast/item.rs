@@ -1,3 +1,5 @@
+use core::mem::take;
+
 use crate::ast::prelude::*;
 
 /// A declaration.
@@ -70,8 +72,6 @@ impl Item {
         mut visibility: ast::Visibility,
         path: Option<ast::Path>,
     ) -> Result<Self, ParseError> {
-        use std::mem::take;
-
         let item = if let Some(path) = path {
             Self::MacroCall(ast::MacroCall::parse_with_meta_path(
                 p,

@@ -1,21 +1,22 @@
 //! Types for dealing with formatting specifications.
 
+use core::fmt;
+use core::fmt::Write;
+use core::iter;
+use core::mem::take;
+use core::num::NonZeroUsize;
+use core::str;
+
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
 use crate::compile::Named;
 use crate::runtime::{FromValue, ProtocolCaller, RawStr, Value, VmErrorKind, VmResult};
 use crate::InstallWith;
-use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
-use std::fmt;
-use std::fmt::Write;
-use std::iter;
-use std::num::NonZeroUsize;
-use thiserror::Error;
-
-std::thread_local! {
-    /// Shared thread-local string buffer used intermediately when formatting
-    /// values into strings.
-    pub static FORMAT_BUF: RefCell<String> = RefCell::new(String::with_capacity(64));
-}
 
 /// Error raised when trying to parse a type string and it fails.
 #[derive(Debug, Clone, Copy, Error)]
@@ -376,7 +377,7 @@ pub enum Type {
     Pointer,
 }
 
-impl std::str::FromStr for Type {
+impl str::FromStr for Type {
     type Err = TypeFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -443,7 +444,7 @@ impl Default for Alignment {
     }
 }
 
-impl std::str::FromStr for Alignment {
+impl str::FromStr for Alignment {
     type Err = AlignmentFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -530,7 +531,7 @@ impl fmt::Debug for Flags {
         macro_rules! fmt_flag {
             ($flag:ident, $o:ident, $spec:literal) => {
                 if self.test(Flag::$flag) {
-                    if !std::mem::take(&mut $o) {
+                    if !take(&mut $o) {
                         write!(f, ", ")?;
                     }
 

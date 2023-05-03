@@ -1,8 +1,13 @@
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
+use thiserror::Error;
+
 use crate::ast;
 use crate::ast::{Spanned, SpannedError};
 use crate::parse::{Expectation, IntoExpectation, LexerMode, ResolveError, ResolveErrorKind};
 use crate::SourceId;
-use thiserror::Error;
 
 error! {
     /// An error raised during parsing.

@@ -1,6 +1,7 @@
+use core::cell::Cell;
+use core::num::NonZeroU32;
+
 use crate::parse::NonZeroId;
-use std::cell::Cell;
-use std::num::NonZeroU32;
 
 #[derive(Debug)]
 pub(crate) struct Gen {

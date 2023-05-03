@@ -1,9 +1,13 @@
+use core::cmp;
+use core::hash;
+
+use crate::no_std::collections::HashMap;
+use crate::no_std::prelude::*;
+use crate::no_std::vec;
+
 use crate::runtime as rt;
 use crate::runtime::RawStr;
 use crate::Hash;
-use std::cmp;
-use std::hash;
-use std::vec;
 
 /// Static type information.
 #[derive(Debug)]
@@ -200,7 +204,7 @@ pub static FUNCTION_TYPE: &StaticType = &StaticType {
 
 impl_static_type!(rt::Function => FUNCTION_TYPE);
 impl_static_type!(rt::Shared<rt::Function> => FUNCTION_TYPE);
-impl_static_type!(impl<T> std::collections::HashMap<String, T> => OBJECT_TYPE);
+impl_static_type!(impl<T> HashMap<String, T> => OBJECT_TYPE);
 
 /// The specialized type information for a fmt spec types.
 pub static FORMAT_TYPE: &StaticType = &StaticType {

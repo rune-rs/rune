@@ -1,3 +1,7 @@
+use core::slice;
+
+use crate::no_std::vec;
+
 use crate::ast::prelude::*;
 
 macro_rules! grouped {
@@ -36,12 +40,12 @@ macro_rules! grouped {
             }
 
             /// Iterate over elements in the group.
-            pub fn iter(&self) -> std::slice::Iter<'_, (T, Option<S>)> {
+            pub fn iter(&self) -> slice::Iter<'_, (T, Option<S>)> {
                 self.$field.iter()
             }
 
             /// Iterate mutably over elements in the group.
-            pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, (T, Option<S>)> {
+            pub fn iter_mut(&mut self) -> slice::IterMut<'_, (T, Option<S>)> {
                 self.$field.iter_mut()
             }
 
@@ -58,7 +62,7 @@ macro_rules! grouped {
 
         impl<'a, T, S> IntoIterator for &'a $name<T, S> {
             type Item = &'a (T, Option<S>);
-            type IntoIter = std::slice::Iter<'a, (T, Option<S>)>;
+            type IntoIter = slice::Iter<'a, (T, Option<S>)>;
 
             fn into_iter(self) -> Self::IntoIter {
                 self.iter()
@@ -67,7 +71,7 @@ macro_rules! grouped {
 
         impl<'a, T, S> IntoIterator for &'a mut $name<T, S> {
             type Item = &'a mut (T, Option<S>);
-            type IntoIter = std::slice::IterMut<'a, (T, Option<S>)>;
+            type IntoIter = slice::IterMut<'a, (T, Option<S>)>;
 
             fn into_iter(self) -> Self::IntoIter {
                 self.iter_mut()
@@ -76,7 +80,7 @@ macro_rules! grouped {
 
         impl<T, S> IntoIterator for $name<T, S> {
             type Item = (T, Option<S>);
-            type IntoIter = std::vec::IntoIter<(T, Option<S>)>;
+            type IntoIter = vec::IntoIter<(T, Option<S>)>;
 
             fn into_iter(self) -> Self::IntoIter {
                 self.$field.into_iter()

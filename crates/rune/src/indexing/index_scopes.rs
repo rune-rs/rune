@@ -1,10 +1,13 @@
 //! Simplified scope implementation used for indexing.
 
+use core::cell::RefCell;
+
+use crate::no_std::prelude::*;
+use crate::no_std::rc::Rc;
+
 use crate::ast::Span;
 use crate::collections::{HashMap, HashSet};
 use crate::compile::{CompileError, CompileErrorKind};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// The kind of an indexed function.
 #[derive(Debug, Clone, Copy)]

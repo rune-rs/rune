@@ -1,9 +1,16 @@
+use core::mem::take;
+
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
+use thiserror::Error;
+
 use crate::ast::Span;
 use crate::compile;
 use crate::compile::{CompileVisitor, FileSourceLoader, Options, Pool, SourceLoader};
 use crate::runtime::Unit;
 use crate::{Context, Diagnostics, SourceId, Sources};
-use thiserror::Error;
 
 /// Error raised when we failed to load sources.
 ///
@@ -226,7 +233,7 @@ impl<'a> Build<'a> {
                 &mut default_visitors
             }
             false => {
-                let v = std::mem::take(&mut self.visitors);
+                let v = take(&mut self.visitors);
                 default_visitors = CompileVisitorGroup { visitors: v };
 
                 &mut default_visitors

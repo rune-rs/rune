@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 use crate::ast::{Span, Spanned};
 use crate::compile::{ir, meta, IrError, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId};
 use crate::query::{Query, Used};

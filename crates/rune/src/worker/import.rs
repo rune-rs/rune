@@ -1,11 +1,15 @@
+use core::mem::take;
+
+use crate::no_std::prelude::*;
+
 use crate::ast;
 use crate::ast::Spanned;
+use crate::collections::VecDeque;
 use crate::compile::{CompileError, CompileErrorKind, CompileResult, ItemBuf, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
 use crate::{Context, SourceId};
-use std::collections::VecDeque;
 
 /// Import to process.
 #[derive(Debug)]
@@ -88,7 +92,7 @@ impl Import {
 
                 // Only the first ever segment loaded counts as the initial
                 // segment.
-                let initial = std::mem::take(&mut initial);
+                let initial = take(&mut initial);
 
                 match segment {
                     ast::ItemUseSegment::PathSegment(segment) => match segment {

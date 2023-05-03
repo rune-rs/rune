@@ -1,6 +1,7 @@
 use core::hash::{self, Hash};
+use core::str;
 
-use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
+use byteorder::{ByteOrder, NativeEndian};
 use smallvec::SmallVec;
 
 // Types available.
@@ -47,9 +48,9 @@ pub(super) fn write_tag(output: &mut SmallVec<[u8; INLINE]>, Tag(tag): Tag, n: u
         "item data overflow, index or string size larger than MAX_DATA"
     );
     let n = u16::try_from(n << TYPE_BITS | tag).expect("tag out of bounds");
-    output
-        .write_u16::<NativeEndian>(n)
-        .expect("failed to write native endian");
+    let mut buf = [0, 0];
+    NativeEndian::write_u16(&mut buf[..], n);
+    output.extend_from_slice(&buf[..]);
 }
 
 /// Internal function to write only the crate of a component.
@@ -82,7 +83,7 @@ pub(super) fn read_string(content: &[u8], n: usize) -> (&str, &[u8], &[u8]) {
     let (tail_tag, content) = content.split_at(TAG_BYTES);
 
     // Safety: we control the construction of the item.
-    let s = unsafe { std::str::from_utf8_unchecked(buf) };
+    let s = unsafe { str::from_utf8_unchecked(buf) };
 
     (s, content, tail_tag)
 }

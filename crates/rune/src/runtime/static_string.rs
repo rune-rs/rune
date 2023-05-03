@@ -1,7 +1,9 @@
-use std::cmp;
-use std::fmt;
-use std::hash;
-use std::ops;
+use core::cmp;
+use core::fmt;
+use core::hash;
+use core::ops;
+
+use crate::no_std::prelude::*;
 
 use serde::{Deserialize, Serialize};
 

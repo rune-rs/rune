@@ -1,8 +1,11 @@
-use std::fmt;
-use std::process::Termination;
-use std::sync::Arc;
+use core::fmt;
 
 use thiserror::Error;
+
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
+use crate::no_std::thiserror;
 
 use crate::compile::ItemBuf;
 use crate::hash::Hash;
@@ -83,9 +86,30 @@ pub struct VmErrorLocation {
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub(crate) struct VmErrorAt {
-    pub(crate) index: usize,
-    pub(crate) kind: VmErrorKind,
+pub struct VmErrorAt {
+    /// The instruction which caused the error.
+    instruction: usize,
+    /// The kind of error.
+    kind: VmErrorKind,
+}
+
+impl VmErrorAt {
+    /// Get the instruction which caused the error.
+    pub fn instruction(&self) -> usize {
+        self.instruction
+    }
+
+    #[cfg(feature = "emit")]
+    pub(crate) fn kind(&self) -> &VmErrorKind {
+        &self.kind
+    }
+}
+
+impl fmt::Display for VmErrorAt {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
 }
 
 #[non_exhaustive]
@@ -104,9 +128,19 @@ impl VmError {
     /// Construct an error containing a panic.
     pub fn panic<D>(message: D) -> Self
     where
-        D: BoxedPanic,
+        D: 'static + BoxedPanic,
     {
         Self::from(Panic::custom(message))
+    }
+
+    /// Get the location where the error happened.
+    pub fn at(&self) -> &VmErrorAt {
+        &self.inner.error
+    }
+
+    /// Get the full backtrace of errors and their corresponding instructions.
+    pub fn chain(&self) -> &[VmErrorAt] {
+        &self.inner.chain
     }
 
     /// Construct an expectation error. The actual type received is `actual`,
@@ -140,7 +174,7 @@ impl VmError {
 impl fmt::Display for VmError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.error.kind.fmt(f)
+        self.inner.error.fmt(f)
     }
 }
 
@@ -154,7 +188,7 @@ impl fmt::Debug for VmError {
     }
 }
 
-impl std::error::Error for VmError {}
+impl crate::no_std::error::Error for VmError {}
 
 /// A result produced by the virtual machine.
 #[must_use]
@@ -169,7 +203,7 @@ impl<T> VmResult<T> {
     /// Construct a result containing a panic.
     pub fn panic<D>(message: D) -> Self
     where
-        D: BoxedPanic,
+        D: 'static + BoxedPanic,
     {
         Self::err(Panic::custom(message))
     }
@@ -230,7 +264,7 @@ impl<T> VmResult<T> {
                 let index = err.inner.stacktrace.len();
 
                 err.inner.chain.push(VmErrorAt {
-                    index,
+                    instruction: index,
                     kind: VmErrorKind::from(error()),
                 });
 
@@ -315,7 +349,8 @@ where
     }
 }
 
-impl<T> Termination for VmResult<T> {
+#[cfg(feature = "std")]
+impl<T> std::process::Termination for VmResult<T> {
     #[inline]
     fn report(self) -> std::process::ExitCode {
         match self {
@@ -333,7 +368,7 @@ where
         Self {
             inner: Box::new(VmErrorInner {
                 error: VmErrorAt {
-                    index: 0,
+                    instruction: 0,
                     kind: VmErrorKind::from(error),
                 },
                 chain: Vec::new(),
@@ -546,14 +581,14 @@ impl VmErrorKind {
 
 /// A type-erased rust number.
 #[derive(Debug, Clone)]
-pub struct VmIntegerRepr(num_bigint::BigInt);
+pub struct VmIntegerRepr(num::BigInt);
 
 impl<T> From<T> for VmIntegerRepr
 where
-    num_bigint::BigInt: From<T>,
+    num::BigInt: From<T>,
 {
     fn from(value: T) -> Self {
-        Self(num_bigint::BigInt::from(value))
+        Self(num::BigInt::from(value))
     }
 }
 

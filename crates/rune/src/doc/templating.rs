@@ -1,10 +1,12 @@
-use std::sync::Arc;
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
-use anyhow::Result;
 use handlebars::{
     Context, Handlebars, Helper, HelperResult, Output, RenderContext, Renderable, StringOutput,
 };
 use serde::Serialize;
+
+use crate::Result;
 
 /// A compiled template.
 pub(crate) struct Template {

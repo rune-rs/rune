@@ -1,8 +1,10 @@
-use crate::runtime::PanicReason;
-use std::fmt;
+use core::fmt;
 
-pub trait BoxedPanic: 'static + fmt::Display + fmt::Debug + Send + Sync {}
-impl<T> BoxedPanic for T where T: 'static + fmt::Display + fmt::Debug + Send + Sync {}
+use crate::no_std::prelude::*;
+use crate::runtime::PanicReason;
+
+pub trait BoxedPanic: fmt::Display + fmt::Debug + Send + Sync {}
+impl<T> BoxedPanic for T where T: ?Sized + fmt::Display + fmt::Debug + Send + Sync {}
 
 /// A descriptive panic.
 ///
@@ -15,9 +17,19 @@ pub struct Panic {
 
 impl Panic {
     /// A custom panic reason.
+    pub(crate) fn msg<D>(message: D) -> Self
+    where
+        D: fmt::Display,
+    {
+        Self {
+            inner: Box::new(message.to_string()),
+        }
+    }
+
+    /// A custom panic reason.
     pub(crate) fn custom<D>(message: D) -> Self
     where
-        D: BoxedPanic,
+        D: 'static + BoxedPanic,
     {
         Self {
             inner: Box::new(message),

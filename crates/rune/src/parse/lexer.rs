@@ -1,9 +1,13 @@
+use core::fmt;
+use core::mem::take;
+
+use crate::no_std::prelude::*;
+
 use crate::ast;
 use crate::ast::Span;
+use crate::collections::VecDeque;
 use crate::parse::{ParseError, ParseErrorKind};
 use crate::SourceId;
-use std::collections::VecDeque;
-use std::fmt;
 
 /// Lexer for the rune language.
 #[derive(Debug)]
@@ -408,8 +412,6 @@ impl<'a> Lexer<'a> {
     }
 
     fn template_next(&mut self) -> Result<(), ParseError> {
-        use std::mem::take;
-
         let start = self.iter.pos();
         let mut escaped = false;
 

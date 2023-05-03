@@ -1,8 +1,13 @@
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
+use thiserror::Error;
+
 use crate::ast::{Spanned, SpannedError};
 use crate::macros::{Storage, SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation};
 use crate::Sources;
-use thiserror::Error;
 
 error! {
     /// An error during resolving.

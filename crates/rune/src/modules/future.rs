@@ -1,5 +1,7 @@
 //! The `std::future` module.
 
+use crate::no_std::prelude::*;
+
 use crate::runtime::{Future, SelectFuture, Shared, Stack, Value, VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 

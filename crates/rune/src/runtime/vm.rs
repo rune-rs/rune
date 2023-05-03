@@ -1,9 +1,12 @@
-use std::fmt;
-use std::mem;
-use std::sync::Arc;
-use std::vec;
+use core::fmt;
+use core::mem;
+use core::ops;
+use core::slice;
 
 use crate::hash::{Hash, IntoHash, ToTypeHash};
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
+use crate::no_std::vec;
 use crate::runtime::budget;
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::UnitFn;
@@ -1002,8 +1005,6 @@ impl Vm {
     where
         F: FnOnce(&[Value]) -> O,
     {
-        use std::slice;
-
         VmResult::Ok(match (ty, value) {
             (TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&vm_try!(tuple.borrow_ref()))),
             (TypeCheck::Vec, Value::Vec(vec)) => Some(f(&vm_try!(vec.borrow_ref()))),
@@ -1633,15 +1634,13 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_op(&mut self, op: InstOp, lhs: InstAddress, rhs: InstAddress) -> VmResult<()> {
-        use std::convert::TryFrom as _;
-
         match op {
             InstOp::Add => {
                 vm_try!(self.internal_num(
                     Protocol::ADD,
                     || VmErrorKind::Overflow,
                     i64::checked_add,
-                    std::ops::Add::add,
+                    ops::Add::add,
                     lhs,
                     rhs,
                 ));
@@ -1651,7 +1650,7 @@ impl Vm {
                     Protocol::SUB,
                     || VmErrorKind::Underflow,
                     i64::checked_sub,
-                    std::ops::Sub::sub,
+                    ops::Sub::sub,
                     lhs,
                     rhs,
                 ));
@@ -1661,7 +1660,7 @@ impl Vm {
                     Protocol::MUL,
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
-                    std::ops::Mul::mul,
+                    ops::Mul::mul,
                     lhs,
                     rhs,
                 ));
@@ -1671,7 +1670,7 @@ impl Vm {
                     Protocol::DIV,
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
-                    std::ops::Div::div,
+                    ops::Div::div,
                     lhs,
                     rhs,
                 ));
@@ -1681,13 +1680,13 @@ impl Vm {
                     Protocol::REM,
                     || VmErrorKind::DivideByZero,
                     i64::checked_rem,
-                    std::ops::Rem::rem,
+                    ops::Rem::rem,
                     lhs,
                     rhs,
                 ));
             }
             InstOp::BitAnd => {
-                use std::ops::BitAnd as _;
+                use ops::BitAnd as _;
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_AND,
                     i64::bitand,
@@ -1697,7 +1696,7 @@ impl Vm {
                 ));
             }
             InstOp::BitXor => {
-                use std::ops::BitXor as _;
+                use ops::BitXor as _;
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_XOR,
                     i64::bitxor,
@@ -1707,7 +1706,7 @@ impl Vm {
                 ));
             }
             InstOp::BitOr => {
-                use std::ops::BitOr as _;
+                use ops::BitOr as _;
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_OR,
                     i64::bitor,
@@ -1726,12 +1725,7 @@ impl Vm {
                 ));
             }
             InstOp::Shr => {
-                vm_try!(self.internal_infallible_bitwise(
-                    Protocol::SHR,
-                    std::ops::Shr::shr,
-                    lhs,
-                    rhs
-                ));
+                vm_try!(self.internal_infallible_bitwise(Protocol::SHR, ops::Shr::shr, lhs, rhs));
             }
             InstOp::Gt => {
                 vm_try!(self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">", lhs, rhs));
@@ -1778,8 +1772,6 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_assign(&mut self, target: InstTarget, op: InstAssignOp) -> VmResult<()> {
-        use std::convert::TryFrom as _;
-
         match op {
             InstAssignOp::Add => {
                 vm_try!(self.internal_num_assign(
@@ -1787,7 +1779,7 @@ impl Vm {
                     Protocol::ADD_ASSIGN,
                     || VmErrorKind::Overflow,
                     i64::checked_add,
-                    std::ops::Add::add,
+                    ops::Add::add,
                 ));
             }
             InstAssignOp::Sub => {
@@ -1796,7 +1788,7 @@ impl Vm {
                     Protocol::SUB_ASSIGN,
                     || VmErrorKind::Underflow,
                     i64::checked_sub,
-                    std::ops::Sub::sub,
+                    ops::Sub::sub,
                 ));
             }
             InstAssignOp::Mul => {
@@ -1805,7 +1797,7 @@ impl Vm {
                     Protocol::MUL_ASSIGN,
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
-                    std::ops::Mul::mul,
+                    ops::Mul::mul,
                 ));
             }
             InstAssignOp::Div => {
@@ -1814,7 +1806,7 @@ impl Vm {
                     Protocol::DIV_ASSIGN,
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
-                    std::ops::Div::div,
+                    ops::Div::div,
                 ));
             }
             InstAssignOp::Rem => {
@@ -1823,28 +1815,28 @@ impl Vm {
                     Protocol::REM_ASSIGN,
                     || VmErrorKind::DivideByZero,
                     i64::checked_rem,
-                    std::ops::Rem::rem,
+                    ops::Rem::rem,
                 ));
             }
             InstAssignOp::BitAnd => {
                 vm_try!(self.internal_infallible_bitwise_assign(
                     target,
                     Protocol::BIT_AND_ASSIGN,
-                    std::ops::BitAndAssign::bitand_assign,
+                    ops::BitAndAssign::bitand_assign,
                 ));
             }
             InstAssignOp::BitXor => {
                 vm_try!(self.internal_infallible_bitwise_assign(
                     target,
                     Protocol::BIT_XOR_ASSIGN,
-                    std::ops::BitXorAssign::bitxor_assign,
+                    ops::BitXorAssign::bitxor_assign,
                 ));
             }
             InstAssignOp::BitOr => {
                 vm_try!(self.internal_infallible_bitwise_assign(
                     target,
                     Protocol::BIT_OR_ASSIGN,
-                    std::ops::BitOrAssign::bitor_assign,
+                    ops::BitOrAssign::bitor_assign,
                 ));
             }
             InstAssignOp::Shl => {
@@ -1859,7 +1851,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_assign(
                     target,
                     Protocol::SHR_ASSIGN,
-                    std::ops::ShrAssign::shr_assign,
+                    ops::ShrAssign::shr_assign,
                 ));
             }
         }
@@ -2064,8 +2056,6 @@ impl Vm {
                 }
             }
             Value::Integer(index) => {
-                use std::convert::TryInto as _;
-
                 let index = match (*index).try_into() {
                     Result::Ok(index) => index,
                     Result::Err(..) => {

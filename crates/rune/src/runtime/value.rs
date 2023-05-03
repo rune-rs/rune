@@ -1,3 +1,15 @@
+use core::borrow::Borrow;
+use core::cmp;
+use core::cmp::Ord;
+use core::fmt;
+use core::fmt::Write;
+use core::hash;
+use core::mem::{replace, take};
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
+use crate::no_std::vec;
+
 use crate::compile::ItemBuf;
 use crate::runtime::vm::CallResult;
 use crate::runtime::{
@@ -7,13 +19,8 @@ use crate::runtime::{
     TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmResult,
 };
 use crate::{Any, Hash};
+
 use serde::{de, ser, Deserialize, Serialize};
-use std::cmp;
-use std::fmt;
-use std::fmt::Write;
-use std::hash;
-use std::sync::Arc;
-use std::vec;
 
 // Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
@@ -131,8 +138,8 @@ impl Struct {
     /// Get the given key in the object.
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
     where
-        String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq + std::cmp::Ord,
+        String: Borrow<Q>,
+        Q: hash::Hash + Eq + Ord,
     {
         self.data.get(k)
     }
@@ -140,8 +147,8 @@ impl Struct {
     /// Get the given mutable value by key in the object.
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
     where
-        String: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + std::cmp::Eq + std::cmp::Ord,
+        String: Borrow<Q>,
+        Q: hash::Hash + Eq + Ord,
     {
         self.data.get_mut(k)
     }
@@ -347,7 +354,7 @@ impl Value {
                 return VmResult::Ok(write!(s, "{:#04X}", byte));
             }
             value => {
-                let b = Shared::new(std::mem::take(s));
+                let b = Shared::new(take(s));
 
                 let result = vm_try!(caller.call_protocol_fn(
                     Protocol::STRING_DISPLAY,
@@ -356,7 +363,7 @@ impl Value {
                 ));
 
                 let result = vm_try!(fmt::Result::from_value(result));
-                drop(std::mem::replace(s, vm_try!(b.take())));
+                drop(replace(s, vm_try!(b.take())));
                 return VmResult::Ok(result);
             }
         }
@@ -382,8 +389,6 @@ impl Value {
         s: &mut String,
         caller: impl ProtocolCaller,
     ) -> VmResult<fmt::Result> {
-        use std::fmt::Write as _;
-
         let result = match self {
             Value::Unit => {
                 write!(s, "()")
@@ -467,7 +472,7 @@ impl Value {
                 write!(s, "{:?}", value)
             }
             value => {
-                let b = Shared::new(std::mem::take(s));
+                let b = Shared::new(take(s));
 
                 let result = vm_try!(caller.call_protocol_fn(
                     Protocol::STRING_DEBUG,
@@ -476,7 +481,7 @@ impl Value {
                 ));
 
                 let result = vm_try!(fmt::Result::from_value(result));
-                drop(std::mem::replace(s, vm_try!(b.take())));
+                drop(replace(s, vm_try!(b.take())));
                 return VmResult::Ok(result);
             }
         };

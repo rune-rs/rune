@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 use crate::ast::Span;
 use crate::compile::ir;
 use crate::compile::meta;

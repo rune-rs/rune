@@ -1,6 +1,8 @@
-use crate::runtime::{Future, Generator, Stream, Value, Vm, VmResult};
+use core::fmt;
+
 use serde::{Deserialize, Serialize};
-use std::fmt;
+
+use crate::runtime::{Future, Generator, Stream, Value, Vm, VmResult};
 
 /// The calling convention of a function.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

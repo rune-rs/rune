@@ -1,6 +1,6 @@
-use std::future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use core::future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 
 use futures_core::Stream;
 use futures_util::stream::FuturesUnordered;

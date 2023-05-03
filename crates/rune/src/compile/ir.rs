@@ -19,6 +19,10 @@ pub(crate) use self::interpreter::{IrBudget, IrInterpreter};
 mod value;
 pub use self::value::IrValue;
 
+use core::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
+
+use crate::no_std::prelude::*;
+
 use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;
@@ -564,8 +568,6 @@ impl IrAssignOp {
     where
         S: Copy + Spanned,
     {
-        use std::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
-
         match self {
             IrAssignOp::Add => {
                 target.add_assign(operand);

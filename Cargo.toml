@@ -7,6 +7,7 @@ members = [
     "crates/rune-modules",
     "crates/rune-wasm",
     "examples",
+    "no-std-examples",
     "benches",
     "tools/builder",
     "tools/site",

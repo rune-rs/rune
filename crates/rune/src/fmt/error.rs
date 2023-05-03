@@ -2,7 +2,10 @@
 Error types for the formatting functionality.
  */
 
-use std::io;
+use crate::no_std as std;
+use crate::no_std::io;
+use crate::no_std::thiserror;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]

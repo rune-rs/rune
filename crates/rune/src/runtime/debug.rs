@@ -1,12 +1,16 @@
 //! Debug information for units.
 
+use core::fmt;
+
+use crate::no_std::prelude::*;
+
+use serde::{Deserialize, Serialize};
+
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::ItemBuf;
 use crate::runtime::DebugLabel;
 use crate::{Hash, SourceId};
-use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// Debug information about a unit.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

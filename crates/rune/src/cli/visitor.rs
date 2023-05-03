@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 use crate::compile::meta;
 use crate::compile::{CompileVisitor, ItemBuf, MetaRef};
 use crate::Hash;

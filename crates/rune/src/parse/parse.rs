@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 use crate::parse::{ParseError, Parser, Peek};
 pub use rune_macros::Parse;
 

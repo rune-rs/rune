@@ -1,5 +1,7 @@
-use std::fmt;
-use std::ops;
+use core::fmt;
+use core::ops;
+use core::slice;
+use core::str;
 
 /// A raw static string.
 ///
@@ -34,7 +36,7 @@ impl ops::Deref for RawStr {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(self.data, self.len)) }
+        unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.data, self.len)) }
     }
 }
 

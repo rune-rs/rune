@@ -1,5 +1,7 @@
 use core::fmt;
 
+use crate::no_std::prelude::*;
+
 use serde::{Deserialize, Serialize};
 
 use crate::compile::ComponentRef;

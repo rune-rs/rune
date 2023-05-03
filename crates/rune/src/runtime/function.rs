@@ -1,3 +1,9 @@
+use core::fmt;
+use core::future::Future;
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
+
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, RawRef, Ref, Rtti, RuntimeContext, Shared,
     Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt,
@@ -5,9 +11,6 @@ use crate::runtime::{
 };
 use crate::shared::AssertSend;
 use crate::Hash;
-use std::fmt;
-use std::future::Future;
-use std::sync::Arc;
 
 /// A callable non-sync function.
 #[repr(transparent)]

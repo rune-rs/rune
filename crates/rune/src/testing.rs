@@ -1,6 +1,6 @@
 //! Internal testing module.
 
-use std::fmt;
+use core::fmt;
 
 use crate::macros::{MacroContext, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser};

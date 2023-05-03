@@ -3,6 +3,8 @@
 //! The main entry to compiling rune source is [prepare][crate::prepare] which
 //! uses this compiler. In here you'll just find compiler-specific types.
 
+use crate::no_std::prelude::*;
+
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::hir;
@@ -95,7 +97,7 @@ mod visibility;
 pub(crate) use self::visibility::Visibility;
 
 /// A compile result alias.
-pub(crate) type CompileResult<T> = ::std::result::Result<T, CompileError>;
+pub(crate) type CompileResult<T> = ::core::result::Result<T, CompileError>;
 
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile(

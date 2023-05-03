@@ -1,9 +1,12 @@
+use core::cell::{Ref, RefCell};
+use core::fmt;
+
+use crate::no_std::prelude::*;
+use crate::no_std::rc::Rc;
+
 use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::parse::NonZeroId;
 use crate::shared::Gen;
-use std::cell::{Ref, RefCell};
-use std::fmt;
-use std::rc::Rc;
 
 #[non_exhaustive]
 pub(crate) struct MissingLastId;

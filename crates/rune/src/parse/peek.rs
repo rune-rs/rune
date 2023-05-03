@@ -1,3 +1,5 @@
+use crate::no_std::prelude::*;
+
 use crate::parse::{Parse, Peeker};
 
 /// Implemented by tokens that can be peeked for.

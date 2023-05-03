@@ -5,6 +5,8 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+use crate::no_std::prelude::*;
+
 use anyhow::{anyhow, bail, Context as _, Error, Result};
 use relative_path::{RelativePath, RelativePathBuf};
 use rust_embed::EmbeddedFile;

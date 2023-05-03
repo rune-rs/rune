@@ -1,10 +1,12 @@
+use core::fmt;
+use core::ops;
+
+use crate::no_std::collections::VecDeque;
+
 use crate::ast::{Kind, OptionSpanned, Span, Token};
 use crate::macros::{TokenStream, TokenStreamIter};
 use crate::parse::{Lexer, Parse, ParseError, ParseErrorKind, Peek};
 use crate::SourceId;
-use std::collections::VecDeque;
-use std::fmt;
-use std::ops;
 
 /// Parser for the rune language.
 ///

@@ -1,6 +1,8 @@
+use core::fmt;
+
+use crate::no_std;
+
 use crate::ast::{Span, Spanned};
-use std::error;
-use std::fmt;
 
 /// Trait to coerce a result of a non-spanned error into a spanned error.
 pub(crate) trait WithSpan<T> {
@@ -11,7 +13,7 @@ pub(crate) trait WithSpan<T> {
 /// Blanket implementation that is helpful.
 impl<T, E> WithSpan<T> for Result<T, E>
 where
-    anyhow::Error: From<E>,
+    no_std::Error: From<E>,
 {
     fn with_span(self, span: Span) -> Result<T, SpannedError> {
         match self {
@@ -25,18 +27,18 @@ where
 #[derive(Debug)]
 pub struct SpannedError {
     span: Span,
-    inner: anyhow::Error,
+    inner: no_std::Error,
 }
 
 impl SpannedError {
     /// Construct a new error with the associated span.
     pub fn new<E>(span: Span, error: E) -> Self
     where
-        anyhow::Error: From<E>,
+        no_std::Error: From<E>,
     {
         Self {
             span,
-            inner: anyhow::Error::from(error),
+            inner: no_std::Error::from(error),
         }
     }
 
@@ -47,12 +49,12 @@ impl SpannedError {
     {
         Self {
             span,
-            inner: anyhow::Error::msg(message),
+            inner: no_std::Error::msg(message),
         }
     }
 
     /// Convert into inner.
-    pub(crate) fn into_inner(self) -> anyhow::Error {
+    pub(crate) fn into_inner(self) -> no_std::Error {
         self.inner
     }
 }
@@ -69,8 +71,8 @@ impl fmt::Display for SpannedError {
     }
 }
 
-impl error::Error for SpannedError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl crate::no_std::error::Error for SpannedError {
+    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
         self.inner.source()
     }
 }

@@ -1,3 +1,7 @@
+use core::fmt;
+
+use crate::no_std::prelude::*;
+
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::v1::Assembler;
@@ -21,7 +25,7 @@ impl Var {
     /// Copy the declared variable.
     pub(crate) fn copy<C>(&self, c: &mut Assembler<'_>, span: Span, comment: C)
     where
-        C: AsRef<str>,
+        C: fmt::Display,
     {
         c.asm.push_with_comment(
             Inst::Copy {
@@ -35,7 +39,7 @@ impl Var {
     /// Move the declared variable.
     pub(crate) fn do_move<C>(&self, asm: &mut Assembly, span: Span, comment: C)
     where
-        C: AsRef<str>,
+        C: fmt::Display,
     {
         asm.push_with_comment(
             Inst::Move {

@@ -1,5 +1,7 @@
 //! The `std::iter` module.
 
+use crate::no_std::prelude::*;
+
 use crate as rune;
 use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, TypeOf, Value, Vec, VmResult};
 use crate::{ContextError, Module, Params};

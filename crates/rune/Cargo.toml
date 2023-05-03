@@ -14,51 +14,53 @@ keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
 [features]
-default = ["emit"]
+default = ["emit", "std"]
 emit = ["codespan-reporting"]
 bench = []
-workspace = ["toml", "semver", "relative-path", "serde-hashkey"]
+workspace = ["toml", "semver", "relative-path", "serde-hashkey", "linked-hash-map"]
 doc = ["rust-embed", "handlebars", "pulldown-cmark", "syntect"]
-cli = ["doc", "bincode", "atty", "tracing-subscriber", "anyhow/std", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt"]
+cli = ["doc", "bincode", "atty", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt"]
 languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "tokio/macros", "tokio/io-std", "workspace", "doc"]
 capture-io = ["parking_lot"]
 disable-io = []
 fmt = []
+std = ["alloc", "anyhow", "thiserror", "num/std", "serde/std"]
+alloc = []
 
 [dependencies]
 rune-macros = { version = "=0.12.3", path = "../rune-macros" }
 
-anyhow = "1.0.70"
+byteorder = { version = "1.4.3", default-features = false }
+futures-core = { version = "0.3.28", default-features = false }
+futures-util = { version = "0.3.28", default-features = false, features = ["alloc"] }
+itoa = "1.0.6"
+num = { version = "0.4.0", default-features = false, features = ["alloc"] }
+pin-project = "1.0.12"
+ryu = "1.0.13"
+serde = { version = "1.0.160", default-features = false, features = ["derive", "alloc", "rc"] }
+serde_bytes = { version = "0.11.9", default-features = false, features = ["alloc"] }
+smallvec = { version = "1.10.0", default-features = false, features = ["serde", "const_new"] }
+thiserror-impl = { version = "1.0.40", default-features = false }
+tracing =  { version = "0.1.37", default-features = false, features = ["attributes"] }
+twox-hash = { version = "1.6.3", default-features = false }
+hashbrown = { version = "0.13.2", features = ["serde"] }
+
+anyhow = { version = "1.0.70", features = ["std"], optional = true }
 atty = { version = "0.2.14", optional = true }
 bincode = { version = "1.3.3", optional = true }
-byteorder = "1.4.3"
 clap = { version = "4.2.2", features = ["derive"], optional = true }
 codespan-reporting = { version = "0.11.1", optional = true }
-futures-core = "0.3.28"
-futures-util = "0.3.28"
 handlebars = { version = "4.3.6", optional = true }
-hashbrown = { version = "0.13.2", features = ["serde"] }
-itoa = "1.0.6"
-linked-hash-map = { version = "0.5.6", features = ["serde"] }
-num = "0.4.0"
-num-bigint = "0.4.3"
-pin-project = "1.0.12"
 pulldown-cmark = { version = "0.9.2", optional = true }
 relative-path = { version = "1.8.0", optional = true, features = ["serde"] }
 rust-embed = { version = "6.6.1", optional = true }
-ryu = "1.0.13"
 semver = { version = "1.0.17", optional = true, features = ["serde"] }
-serde = { version = "1.0.160", features = ["derive", "rc"] }
-serde_bytes = "0.11.9"
 serde-hashkey = { version = "0.4.5", optional = true }
-smallvec = { version = "1.10.0", features = ["write", "serde", "const_new"] }
 syntect = { version = "5.0.0", optional = true }
-thiserror = "1.0.40"
+thiserror = { version = "1.0.40", optional = true }
 tokio = { version = "1.27.0", features = ["rt-multi-thread", "fs"], optional = true }
 toml = { version = "0.7.3", optional = true, features = ["parse"] }
-tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"], optional = true }
-twox-hash = { version = "1.6.3", default-features = false }
 webbrowser = { version = "0.8.9", optional = true }
 parking_lot = { version = "0.12.1", optional = true }
 lsp = { version = "0.94.0", package = "lsp-types", optional = true }
@@ -66,6 +68,7 @@ ropey = { version = "1.6.0", optional = true }
 percent-encoding = { version = "2.2.0", optional = true }
 url = { version = "2.3.1", optional = true }
 serde_json = { version = "1.0.96", optional = true }
+linked-hash-map = { version = "0.5.6", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.27.0", features = ["full"] }

@@ -1,8 +1,10 @@
 //! A simple label used to jump to a code location.
 
+use core::fmt;
+
+use crate::no_std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::fmt;
 
 /// A label that can be jumped to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

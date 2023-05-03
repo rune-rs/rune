@@ -1,4 +1,4 @@
-use std::hash::{Hash as _, Hasher};
+use core::hash::{self, Hash as _, Hasher as _};
 
 use crate::compile::{IntoComponent, ItemBuf};
 use crate::hash::{Hash, TYPE};
@@ -20,7 +20,7 @@ pub trait ToTypeHash {
     #[doc(hidden)]
     fn hash_type<H>(&self, hasher: &mut H)
     where
-        H: Hasher;
+        H: hash::Hasher;
 }
 
 impl<I> ToTypeHash for I
@@ -43,7 +43,7 @@ where
     #[inline]
     fn hash_type<H>(&self, hasher: &mut H)
     where
-        H: Hasher,
+        H: hash::Hasher,
     {
         TYPE.hash(hasher);
 
@@ -67,7 +67,7 @@ impl ToTypeHash for Hash {
     #[inline]
     fn hash_type<H>(&self, hasher: &mut H)
     where
-        H: Hasher,
+        H: hash::Hasher,
     {
         self.hash(hasher);
     }

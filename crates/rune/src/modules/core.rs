@@ -1,5 +1,7 @@
 //! The core `std` module.
 
+use crate::no_std::prelude::*;
+
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::{Panic, Tuple, Value, VmResult};

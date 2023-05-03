@@ -1,7 +1,7 @@
-use std::cmp;
-use std::fmt;
-use std::hash;
-use std::hash::Hash as _;
+use core::cmp;
+use core::fmt;
+use core::hash::{self, Hash as _};
+use core::ops;
 
 use crate::compile::{AssociatedFunctionKind, AssociatedFunctionName, ItemBuf, ToInstance};
 use crate::hash::IntoHash;
@@ -65,7 +65,7 @@ impl ToTypeHash for Protocol {
     }
 }
 
-impl std::ops::Deref for Protocol {
+impl ops::Deref for Protocol {
     type Target = Hash;
 
     fn deref(&self) -> &Self::Target {

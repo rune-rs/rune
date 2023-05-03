@@ -6,6 +6,8 @@ mod indent_writer;
 mod printer;
 mod whitespace;
 
+use crate::no_std::prelude::*;
+
 use crate::ast;
 use crate::parse::{Parse, Parser};
 use crate::{Source, SourceId};

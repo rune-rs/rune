@@ -1,7 +1,12 @@
+use crate::no_std as std;
+use crate::no_std::prelude::*;
+use crate::no_std::thiserror;
+
+use thiserror::Error;
+
 use crate::ast::Spanned;
 use crate::collections::HashMap;
 use crate::shared::Custom;
-use thiserror::Error;
 
 /// A hierarchy of constant scopes.
 pub(crate) struct Scopes<T> {
@@ -181,8 +186,8 @@ error! {
     }
 }
 
-#[allow(missing_docs)]
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
 #[non_exhaustive]
 pub(crate) enum ScopeErrorKind {
     #[error("{message}")]

@@ -1,18 +1,21 @@
 //! `std::any` module.
 
+use core::any;
+use core::fmt::{self, Write};
+use core::mem::transmute;
+
+use crate::no_std::prelude::*;
+
 use crate::runtime::{Protocol, Value, VmResult};
 use crate::{Any, ContextError, Module};
-use std::any::TypeId as StdTypeId;
-use std::fmt;
-use std::fmt::Write;
 
 #[derive(Any, Debug)]
 #[rune(module = "crate")]
 #[repr(transparent)]
-struct TypeId(StdTypeId);
+struct TypeId(any::TypeId);
 
 fn type_id_of_val(item: Value) -> VmResult<TypeId> {
-    VmResult::Ok(unsafe { std::mem::transmute(vm_try!(item.type_hash())) })
+    VmResult::Ok(unsafe { transmute(vm_try!(item.type_hash())) })
 }
 
 fn format_type_id(item: &TypeId, buf: &mut String) -> fmt::Result {

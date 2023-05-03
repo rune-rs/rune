@@ -2,6 +2,8 @@
 
 use std::io::Write;
 
+use crate::no_std::prelude::*;
+
 use crate::ast::{
     self, AngleBracketed, AttrStyle, Block, Braced, BuiltIn, Comma, Condition, Expr, ExprAssign,
     ExprAwait, ExprBinary, ExprBlock, ExprBreak, ExprBreakValue, ExprCall, ExprClosure,
@@ -20,7 +22,7 @@ use super::error::FormattingError;
 use super::indent_writer::IndentedWriter;
 use super::indent_writer::SpanInjectionWriter;
 
-type Result<T> = std::result::Result<T, FormattingError>;
+type Result<T> = core::result::Result<T, FormattingError>;
 
 pub(super) struct Printer<'a> {
     writer: SpanInjectionWriter<'a>,

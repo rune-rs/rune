@@ -1,6 +1,8 @@
-use std::fmt;
-use std::future::Future;
-use std::sync::Arc;
+use core::fmt;
+use core::future::Future;
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use crate::compile::module::{
     AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn,

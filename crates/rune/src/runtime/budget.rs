@@ -6,13 +6,18 @@
 //! By default the budget is disabled, but can be enabled by wrapping your
 //! function call in [with].
 
-use pin_project::pin_project;
-use std::cell::Cell;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+#[cfg_attr(feature = "std", path = "budget/std.rs")]
+mod no_std;
 
-thread_local!(static BUDGET: Cell<usize> = Cell::new(usize::max_value()));
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
+use pin_project::pin_project;
+
+#[cfg(feature = "std")]
+#[cfg(not(feature = "std"))]
+static BUDGET: Cell<usize> = Cell::new(usize::max_value());
 
 /// Something being budgeted.
 #[pin_project]
@@ -33,18 +38,7 @@ pub fn with<T>(budget: usize, value: T) -> Budget<T> {
 /// maintained
 #[inline(never)]
 pub(crate) fn take() -> bool {
-    BUDGET.with(|tls| {
-        let v = tls.get();
-
-        if v == usize::max_value() {
-            true
-        } else if v == 0 {
-            false
-        } else {
-            tls.set(v - 1);
-            true
-        }
-    })
+    self::no_std::rune_budget_take()
 }
 
 #[repr(transparent)]
@@ -52,9 +46,7 @@ struct BudgetGuard(usize);
 
 impl Drop for BudgetGuard {
     fn drop(&mut self) {
-        BUDGET.with(|tls| {
-            tls.set(self.0);
-        });
+        let _ = self::no_std::rune_budget_replace(self.0);
     }
 }
 
@@ -64,11 +56,8 @@ where
 {
     /// Call the wrapped function.
     pub(crate) fn call(self) -> O {
-        BUDGET.with(|tls| {
-            let _guard = BudgetGuard(tls.get());
-            tls.set(self.budget);
-            (self.value)()
-        })
+        let _guard = BudgetGuard(self::no_std::rune_budget_replace(self.budget));
+        (self.value)()
     }
 }
 
@@ -81,12 +70,9 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        BUDGET.with(|tls| {
-            let _guard = BudgetGuard(tls.get());
-            tls.set(*this.budget);
-            let poll = this.value.poll(cx);
-            *this.budget = tls.get();
-            poll
-        })
+        let _guard = BudgetGuard(self::no_std::rune_budget_replace(*this.budget));
+        let poll = this.value.poll(cx);
+        *this.budget = self::no_std::rune_budget_get();
+        poll
     }
 }

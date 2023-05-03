@@ -1,15 +1,16 @@
 //! Lazy query system, used to compile and build items on demand and keep track
 //! of what's being used and not.
 
-use std::collections::VecDeque;
-use std::fmt;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
+use core::fmt;
+use core::mem::take;
+use core::num::NonZeroUsize;
+
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::collections::LinkedHashMap;
-use crate::collections::{hash_map, HashMap, HashSet};
+use crate::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 use crate::compile::context;
 use crate::compile::ir;
 use crate::compile::meta;
@@ -104,7 +105,7 @@ pub(crate) struct QueryInner {
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
-    indexed: LinkedHashMap<ItemId, Vec<IndexedEntry>>,
+    indexed: BTreeMap<ItemId, Vec<IndexedEntry>>,
     /// Compiled constant functions.
     const_fns: HashMap<NonZeroId, Arc<QueryConstFn>>,
     /// Query paths.
@@ -1379,7 +1380,7 @@ impl<'a> Query<'a> {
                 return Err(QueryError::new(
                     span,
                     QueryErrorKind::NotVisibleMod {
-                        chain: into_chain(std::mem::take(chain)),
+                        chain: into_chain(take(chain)),
                         location: m.location,
                         visibility: m.visibility,
                         item: current_module,
@@ -1393,7 +1394,7 @@ impl<'a> Query<'a> {
             return Err(QueryError::new(
                 span,
                 QueryErrorKind::NotVisible {
-                    chain: into_chain(std::mem::take(chain)),
+                    chain: into_chain(take(chain)),
                     location,
                     visibility,
                     item: self.pool.item(item).to_owned(),

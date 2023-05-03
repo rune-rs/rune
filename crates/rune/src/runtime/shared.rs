@@ -1,14 +1,14 @@
-use std::any;
-use std::cell::{Cell, UnsafeCell};
-use std::fmt;
-use std::future::Future;
-use std::mem;
-use std::mem::ManuallyDrop;
-use std::ops;
-use std::pin::Pin;
-use std::process;
-use std::ptr;
-use std::task::{Context, Poll};
+use core::any;
+use core::cell::{Cell, UnsafeCell};
+use core::fmt;
+use core::future::Future;
+use core::mem::{self, transmute, ManuallyDrop};
+use core::ops;
+use core::pin::Pin;
+use core::ptr;
+use core::task::{Context, Poll};
+
+use crate::no_std::prelude::*;
 
 use crate::runtime::{
     Access, AccessError, AccessKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, RawAccessGuard,
@@ -760,7 +760,7 @@ impl<T: ?Sized> SharedBox<T> {
         let count = (*this).count.get();
 
         if count == 0 || count == usize::max_value() {
-            process::abort();
+            crate::no_std::abort();
         }
 
         (*this).count.set(count + 1);
@@ -776,7 +776,7 @@ impl<T: ?Sized> SharedBox<T> {
         let count = (*this).count.get();
 
         if count == 0 {
-            process::abort();
+            crate::no_std::abort();
         }
 
         let count = count - 1;
@@ -793,9 +793,7 @@ impl<T: ?Sized> SharedBox<T> {
             // has already been taken (as indicated by `is_taken`).
             //
             // If it has been taken, the shared box contains invalid memory.
-            drop(std::mem::transmute::<_, Box<SharedBox<ManuallyDrop<T>>>>(
-                this,
-            ));
+            drop(transmute::<_, Box<SharedBox<ManuallyDrop<T>>>>(this));
         } else {
             // NB: At the point of the final drop, no on else should be using
             // this.

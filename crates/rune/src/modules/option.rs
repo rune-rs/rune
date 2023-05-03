@@ -1,5 +1,7 @@
 //! The `std::option` module.
 
+use crate::no_std::prelude::*;
+
 use crate as rune;
 use crate::runtime::{Function, Iterator, Panic, Protocol, Shared, Value, VmResult};
 use crate::{ContextError, Module};

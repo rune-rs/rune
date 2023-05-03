@@ -24,7 +24,7 @@ macro_rules! error {
             {
                 Self {
                     span: $crate::ast::Spanned::span(&spanned),
-                    kind: Box::new($kind::from(kind)),
+                    kind: $crate::no_std::boxed::Box::new($kind::from(kind)),
                 }
             }
 
@@ -38,7 +38,7 @@ macro_rules! error {
                 S: $crate::ast::Spanned,
                 M: ::core::fmt::Display,
             {
-                Self::new(spanned, $kind::Custom { message: message.to_string().into() })
+                Self::new(spanned, $kind::Custom { message: $crate::no_std::prelude::ToString::to_string(&message).into() })
             }
 
             /// Get the kind of the error.
@@ -60,15 +60,15 @@ macro_rules! error {
             }
         }
 
-        impl std::error::Error for $error_ty {
-            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        impl $crate::no_std::error::Error for $error_ty {
+            fn source(&self) -> Option<&(dyn $crate::no_std::error::Error + 'static)> {
                 self.kind.source()
             }
         }
 
-        impl std::fmt::Display for $error_ty {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                std::fmt::Display::fmt(&self.kind, f)
+        impl ::core::fmt::Display for $error_ty {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                ::core::fmt::Display::fmt(&self.kind, f)
             }
         }
 
@@ -88,7 +88,7 @@ macro_rules! error {
                 fn from(error: $from_error) -> Self {
                     $error_ty {
                         span: crate::ast::Spanned::span(&error),
-                        kind: Box::new($kind::$from_error {
+                        kind: $crate::no_std::boxed::Box::new($kind::$from_error {
                             error: From::from(error.into_kind()),
                         }),
                     }

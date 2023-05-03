@@ -1,12 +1,17 @@
-use crate::runtime::{AnyObjError, RawStr};
-use std::cell::Cell;
-use std::fmt;
-use std::future::Future;
-use std::mem::ManuallyDrop;
-use std::ops;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use core::cell::Cell;
+use core::fmt;
+use core::future::Future;
+use core::mem::ManuallyDrop;
+use core::ops;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
+use crate::no_std as std;
+use crate::no_std::thiserror;
+
 use thiserror::Error;
+
+use crate::runtime::{AnyObjError, RawStr};
 
 /// Bitflag which if set indicates that the accessed value is an external
 /// reference (exclusive or not).
@@ -182,7 +187,7 @@ impl Access {
         let state = self.get();
 
         if state == MAX_USES {
-            std::process::abort();
+            crate::no_std::abort();
         }
 
         let n = state.wrapping_sub(1);
