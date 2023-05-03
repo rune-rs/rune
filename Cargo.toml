@@ -11,9 +11,6 @@ members = [
     "benches",
     "tools/builder",
     "tools/site",
-]
-
-exclude = [
     "tools/generate",
 ]
 

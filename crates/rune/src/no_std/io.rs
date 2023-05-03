@@ -23,7 +23,8 @@ impl StdError for Error {}
 
 pub(crate) type Result<T> = ::core::result::Result<T, Error>;
 
-pub(crate) trait Write {
+/// A trait for objects which are byte-oriented sinks.
+pub trait Write {
     /// Attempts to write an entire buffer into this writer.
     fn write_all(&mut self, buf: &[u8]) -> Result<()>;
 
