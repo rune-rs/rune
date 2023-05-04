@@ -627,6 +627,7 @@ impl<'a> Query<'a> {
     ) -> Result<meta::Meta, QueryError> {
         let meta = meta::Meta {
             hash: context_meta.hash,
+            associated_container: context_meta.associated_container,
             item_meta: ItemMeta {
                 id: Default::default(),
                 location: Default::default(),
@@ -996,6 +997,7 @@ impl<'a> Query<'a> {
 
         let meta = meta::Meta {
             hash: self.pool.item_type_hash(entry.item_meta.item),
+            associated_container: None,
             item_meta: entry.item_meta,
             kind: meta::Kind::Import(import),
             source: None,
@@ -1014,10 +1016,10 @@ impl<'a> Query<'a> {
     ) -> Result<meta::Meta, QueryError> {
         let IndexedEntry { item_meta, indexed } = entry;
 
-        let (hash, kind) = match indexed {
+        let (hash, container, kind) = match indexed {
             Indexed::Enum => {
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, meta::Kind::Enum)
+                (hash, None, meta::Kind::Enum)
             }
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((item_meta.location.span, variant.enum_id))?;
@@ -1026,18 +1028,24 @@ impl<'a> Query<'a> {
                 self.query_meta(span, enum_item.item, Default::default())?;
                 let enum_hash = self.pool.item_type_hash(enum_item.item);
 
-                variant_into_item_decl(
+                let (hash, kind) = variant_into_item_decl(
                     self.pool.item(item_meta.item),
                     variant.ast.body,
                     Some((enum_hash, variant.index)),
                     resolve_context!(self),
-                )?
+                )?;
+
+                (hash, Some(enum_hash), kind)
             }
-            Indexed::Struct(st) => struct_into_item_decl(
-                self.pool.item(item_meta.item),
-                st.ast.body,
-                resolve_context!(self),
-            )?,
+            Indexed::Struct(st) => {
+                let (hash, kind) = struct_into_item_decl(
+                    self.pool.item(item_meta.item),
+                    st.ast.body,
+                    resolve_context!(self),
+                )?;
+
+                (hash, None, kind)
+            }
             Indexed::Function(f) => {
                 let hash = self.pool.item_type_hash(item_meta.item);
 
@@ -1055,10 +1063,11 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                (hash, kind)
+                (hash, None, kind)
             }
             Indexed::InstanceFunction(f) => {
                 let hash = self.pool.item_type_hash(item_meta.item);
+                let container = self.pool.item_type_hash(f.impl_item);
 
                 let kind = meta::Kind::Function {
                     is_async: f.function.ast.async_token.is_some(),
@@ -1074,7 +1083,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                (hash, kind)
+                (hash, Some(container), kind)
             }
             Indexed::Closure(c) => {
                 let captures = c.captures.clone();
@@ -1090,7 +1099,7 @@ impl<'a> Query<'a> {
 
                 let kind = meta::Kind::Closure { captures, do_move };
 
-                (hash, kind)
+                (hash, None, kind)
             }
             Indexed::AsyncBlock(b) => {
                 let captures = b.captures.clone();
@@ -1106,7 +1115,7 @@ impl<'a> Query<'a> {
 
                 let kind = meta::Kind::AsyncBlock { captures, do_move };
 
-                (hash, kind)
+                (hash, None, kind)
             }
             Indexed::Const(c) => {
                 let mut const_compiler = IrInterpreter {
@@ -1128,7 +1137,7 @@ impl<'a> Query<'a> {
                 }
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, meta::Kind::Const { const_value })
+                (hash, None, meta::Kind::Const { const_value })
             }
             Indexed::ConstFn(c) => {
                 let ir_fn = {
@@ -1154,7 +1163,7 @@ impl<'a> Query<'a> {
                 }
 
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, meta::Kind::ConstFn { id: Id::new(id) })
+                (hash, None, meta::Kind::ConstFn { id: Id::new(id) })
             }
             Indexed::Import(import) => {
                 if !import.wildcard {
@@ -1167,11 +1176,11 @@ impl<'a> Query<'a> {
 
                 let hash = self.pool.item_type_hash(item_meta.item);
                 let kind = meta::Kind::Import(import.entry);
-                (hash, kind)
+                (hash, None, kind)
             }
             Indexed::Module => {
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, meta::Kind::Module)
+                (hash, None, meta::Kind::Module)
             }
         };
 
@@ -1185,6 +1194,7 @@ impl<'a> Query<'a> {
 
         Ok(meta::Meta {
             hash,
+            associated_container: container,
             item_meta,
             kind,
             source: Some(source),

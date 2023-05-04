@@ -22,6 +22,8 @@ use crate::runtime::{ConstValue, TypeInfo};
 pub struct MetaRef<'a> {
     /// The hash of a meta item.
     pub hash: Hash,
+    /// The container of this meta, if it is an associated item.
+    pub associated_container: Option<Hash>,
     /// The item being described.
     pub item: &'a Item,
     /// The kind of the item.
@@ -71,6 +73,8 @@ impl Doc {
 pub(crate) struct Meta {
     /// Hash of the private metadata.
     pub(crate) hash: Hash,
+    /// The container of this meta, if it is an associated item.
+    pub(crate) associated_container: Option<Hash>,
     /// The item of the returned compile meta.
     pub(crate) item_meta: ItemMeta,
     /// The kind of the compile meta.
@@ -89,6 +93,7 @@ impl Meta {
     pub(crate) fn as_meta_ref<'a>(&'a self, pool: &'a Pool) -> MetaRef<'a> {
         MetaRef {
             hash: self.hash,
+            associated_container: self.associated_container,
             item: pool.item(self.item_meta.item),
             kind: &self.kind,
             source: self.source.as_ref(),

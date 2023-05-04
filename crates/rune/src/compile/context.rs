@@ -22,24 +22,27 @@ use crate::Hash;
 
 /// Context metadata.
 #[non_exhaustive]
-pub struct PrivMeta {
+pub(crate) struct PrivMeta {
     /// The module that the declared item belongs to.
     #[cfg(feature = "doc")]
-    pub module: ItemBuf,
+    pub(crate) module: ItemBuf,
     /// Type hash for the given meta item.
-    pub hash: Hash,
+    pub(crate) hash: Hash,
+    /// The container this item belongs to.
+    pub(crate) associated_container: Option<Hash>,
     /// The item of the returned compile meta.
-    pub item: ItemBuf,
+    pub(crate) item: ItemBuf,
     /// The kind of the compile meta.
-    pub kind: meta::Kind,
+    pub(crate) kind: meta::Kind,
     /// Documentation associated with a context meta.
-    pub docs: Docs,
+    pub(crate) docs: Docs,
 }
 
 impl PrivMeta {
     pub(crate) fn new(
         #[cfg_attr(not(feature = "doc"), allow(unused))] module: &Module,
         hash: Hash,
+        associated_container: Option<Hash>,
         item: ItemBuf,
         kind: meta::Kind,
         docs: Docs,
@@ -48,6 +51,7 @@ impl PrivMeta {
             #[cfg(feature = "doc")]
             module: module.item.clone(),
             hash,
+            associated_container,
             item,
             kind,
             docs,
@@ -62,7 +66,7 @@ impl PrivMeta {
 /// Information on a specific type.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct PrivTypeInfo {
+pub(crate) struct PrivTypeInfo {
     /// The type check used for the current type.
     type_check: Option<TypeCheck>,
     /// Complete detailed information on the hash.
@@ -256,7 +260,8 @@ impl Context {
     }
 
     /// Iterate over all available functions in the [Context].
-    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &meta::Signature)> {
+    #[cfg(feature = "cli")]
+    pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &meta::Signature)> {
         let mut it = self.functions_info.iter();
 
         iter::from_fn(move || {
@@ -266,7 +271,7 @@ impl Context {
     }
 
     /// Iterate over all available types in the [Context].
-    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &Item)> {
+    pub(crate) fn iter_types(&self) -> impl Iterator<Item = (Hash, &Item)> {
         let mut it = self.types.iter();
 
         iter::from_fn(move || {
@@ -306,7 +311,7 @@ impl Context {
     }
 
     /// Iterate over all metadata in the context.
-    pub fn iter_meta(&self) -> impl Iterator<Item = &PrivMeta> + '_ {
+    pub(crate) fn iter_meta(&self) -> impl Iterator<Item = &PrivMeta> + '_ {
         self.meta.values()
     }
 
@@ -464,6 +469,7 @@ impl Context {
                         self.install_meta(PrivMeta::new(
                             module,
                             hash,
+                            Some(enum_hash),
                             item,
                             kind,
                             Docs::default(),
@@ -477,7 +483,7 @@ impl Context {
             meta::Kind::Unknown
         };
 
-        self.install_meta(PrivMeta::new(module, type_hash, item, kind, docs))?;
+        self.install_meta(PrivMeta::new(module, type_hash, None, item, kind, docs))?;
         Ok(())
     }
 
@@ -541,6 +547,7 @@ impl Context {
         self.install_meta(PrivMeta::new(
             module,
             hash,
+            None,
             item,
             meta::Kind::Function {
                 is_async: f.is_async,
@@ -590,6 +597,7 @@ impl Context {
         self.install_meta(PrivMeta::new(
             module,
             hash,
+            None,
             item,
             meta::Kind::Const {
                 const_value: v.clone(),
@@ -690,6 +698,7 @@ impl Context {
                 self.install_meta(PrivMeta::new(
                     module,
                     type_hash,
+                    Some(key.type_hash),
                     item,
                     meta::Kind::Function {
                         is_async: assoc.is_async,
@@ -749,6 +758,7 @@ impl Context {
         self.install_meta(PrivMeta::new(
             module,
             internal_enum.static_type.hash,
+            None,
             enum_item.clone(),
             meta::Kind::Enum,
             docs,
@@ -781,6 +791,7 @@ impl Context {
             self.install_meta(PrivMeta::new(
                 module,
                 hash,
+                Some(internal_enum.static_type.hash),
                 item.clone(),
                 meta::Kind::Variant {
                     enum_hash,
@@ -837,6 +848,7 @@ impl Context {
             Some((enum_hash, index)) => PrivMeta::new(
                 module,
                 type_hash,
+                Some(enum_hash),
                 item.clone(),
                 meta::Kind::Variant {
                     enum_hash,
@@ -848,6 +860,7 @@ impl Context {
             None => PrivMeta::new(
                 module,
                 type_hash,
+                None,
                 item.clone(),
                 meta::Kind::Struct {
                     variant: meta::Variant::Tuple(tuple),

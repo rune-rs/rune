@@ -75,7 +75,7 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
 }
 
 /// Lower a function item.
-pub fn item_fn<'hir>(
+pub(crate) fn item_fn<'hir>(
     ctx: &Ctx<'hir, '_>,
     ast: &ast::ItemFn,
 ) -> Result<hir::ItemFn<'hir>, HirError> {
@@ -90,7 +90,7 @@ pub fn item_fn<'hir>(
 }
 
 /// Lower a closure expression.
-pub fn expr_closure<'hir>(
+pub(crate) fn expr_closure<'hir>(
     ctx: &Ctx<'hir, '_>,
     ast: &ast::ExprClosure,
 ) -> Result<hir::ExprClosure<'hir>, HirError> {
@@ -107,7 +107,10 @@ pub fn expr_closure<'hir>(
 }
 
 /// Lower the specified block.
-pub fn block<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Block) -> Result<hir::Block<'hir>, HirError> {
+pub(crate) fn block<'hir>(
+    ctx: &Ctx<'hir, '_>,
+    ast: &ast::Block,
+) -> Result<hir::Block<'hir>, HirError> {
     Ok(hir::Block {
         id: ast.id,
         span: ast.span(),
@@ -116,7 +119,10 @@ pub fn block<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Block) -> Result<hir::Block<'
 }
 
 /// Lower an expression.
-pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir>, HirError> {
+pub(crate) fn expr<'hir>(
+    ctx: &Ctx<'hir, '_>,
+    ast: &ast::Expr,
+) -> Result<hir::Expr<'hir>, HirError> {
     let kind = match ast {
         ast::Expr::Path(ast) => hir::ExprKind::Path(alloc!(ctx, ast; path(ctx, ast)?)),
         ast::Expr::Assign(ast) => hir::ExprKind::Assign(alloc!(ctx, ast; hir::ExprAssign {
@@ -290,7 +296,7 @@ pub fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir
 }
 
 /// Lower a block expression.
-pub fn expr_block<'hir>(
+pub(crate) fn expr_block<'hir>(
     ctx: &Ctx<'hir, '_>,
     ast: &ast::ExprBlock,
 ) -> Result<hir::ExprBlock<'hir>, HirError> {
@@ -424,7 +430,10 @@ fn object_ident<'hir>(
 }
 
 /// Lower the given path.
-pub fn path<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Path) -> Result<hir::Path<'hir>, HirError> {
+pub(crate) fn path<'hir>(
+    ctx: &Ctx<'hir, '_>,
+    ast: &ast::Path,
+) -> Result<hir::Path<'hir>, HirError> {
     Ok(hir::Path {
         id: ast.id,
         span: ast.span(),

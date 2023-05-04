@@ -30,7 +30,7 @@ pub struct SpannedError {
 
 impl SpannedError {
     /// Construct a new error with the associated span.
-    pub fn new<E>(span: Span, error: E) -> Self
+    pub(crate) fn new<E>(span: Span, error: E) -> Self
     where
         anyhow::Error: From<E>,
     {
@@ -41,7 +41,7 @@ impl SpannedError {
     }
 
     /// Construct a new error out of the given message.
-    pub fn msg<M>(span: Span, message: M) -> Self
+    pub(crate) fn msg<M>(span: Span, message: M) -> Self
     where
         M: fmt::Display + fmt::Debug + Send + Sync + 'static,
     {
@@ -52,12 +52,12 @@ impl SpannedError {
     }
 
     /// Convert into inner.
-    pub fn into_inner(self) -> anyhow::Error {
+    pub(crate) fn into_inner(self) -> anyhow::Error {
         self.inner
     }
 
     /// Get the span of the error.
-    pub fn span(&self) -> Span {
+    pub(crate) fn span(&self) -> Span {
         self.span
     }
 }

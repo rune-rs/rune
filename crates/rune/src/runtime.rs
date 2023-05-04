@@ -126,7 +126,8 @@ mod type_of;
 pub use self::type_of::{FullTypeOf, MaybeTypeOf, TypeOf};
 
 mod unit;
-pub use self::unit::{Unit, UnitFn};
+pub use self::unit::Unit;
+pub(crate) use self::unit::UnitFn;
 
 mod value;
 pub use self::value::{Rtti, Struct, TupleStruct, UnitStruct, Value, VariantRtti};

@@ -42,11 +42,6 @@ impl Sources {
         }
     }
 
-    /// Get the source matching the given source id.
-    pub fn get(&self, id: SourceId) -> Option<&Source> {
-        self.sources.get(id.into_index())
-    }
-
     /// Insert a source to be built and return its id.
     pub fn insert(&mut self, source: Source) -> SourceId {
         let id =
@@ -55,26 +50,31 @@ impl Sources {
         id
     }
 
+    /// Get the source matching the given source id.
+    pub fn get(&self, id: SourceId) -> Option<&Source> {
+        self.sources.get(id.into_index())
+    }
+
     /// Fetch name for the given source id.
-    pub fn name(&self, id: SourceId) -> Option<&str> {
+    pub(crate) fn name(&self, id: SourceId) -> Option<&str> {
         let source = self.sources.get(id.into_index())?;
         Some(source.name())
     }
 
     /// Fetch source for the given span.
-    pub fn source(&self, id: SourceId, span: Span) -> Option<&str> {
+    pub(crate) fn source(&self, id: SourceId, span: Span) -> Option<&str> {
         let source = self.sources.get(id.into_index())?;
         source.get(span.range())
     }
 
     /// Access the optional path of the given source id.
-    pub fn path(&self, id: SourceId) -> Option<&Path> {
+    pub(crate) fn path(&self, id: SourceId) -> Option<&Path> {
         let source = self.sources.get(id.into_index())?;
         source.path()
     }
 
     /// Get all available source ids.
-    pub fn source_ids(&self) -> impl Iterator<Item = SourceId> {
+    pub(crate) fn source_ids(&self) -> impl Iterator<Item = SourceId> {
         (0..self.sources.len()).map(|index| SourceId::new(index as u32))
     }
 }

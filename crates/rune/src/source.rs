@@ -67,27 +67,27 @@ impl Source {
     }
 
     /// Access all line starts in the source.
-    pub fn line_starts(&self) -> &[usize] {
+    pub(crate) fn line_starts(&self) -> &[usize] {
         &self.line_starts
     }
 
     /// Test if the source is empty.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.source.is_empty()
     }
 
     /// Get the length of the source.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.source.len()
     }
 
     /// Get the name of the source.
-    pub fn name(&self) -> &str {
+    pub(crate) fn name(&self) -> &str {
         &self.name
     }
 
     ///  et the given range from the source.
-    pub fn get<I>(&self, i: I) -> Option<&I::Output>
+    pub(crate) fn get<I>(&self, i: I) -> Option<&I::Output>
     where
         I: slice::SliceIndex<str>,
     {
@@ -95,17 +95,17 @@ impl Source {
     }
 
     /// Access the underlying string for the source.
-    pub fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         &self.source
     }
 
     /// Get the (optional) path of the source.
-    pub fn path(&self) -> Option<&Path> {
+    pub(crate) fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
 
     /// Convert the given offset to a utf-16 line and character.
-    pub fn pos_to_utf16cu_linecol(&self, offset: usize) -> (usize, usize) {
+    pub(crate) fn pos_to_utf16cu_linecol(&self, offset: usize) -> (usize, usize) {
         let (line, offset, rest) = self.position(offset);
         let col = rest
             .char_indices()
@@ -122,26 +122,26 @@ impl Source {
     }
 
     /// Get the line index for the given byte.
-    pub fn line_index(&self, byte_index: usize) -> usize {
+    pub(crate) fn line_index(&self, byte_index: usize) -> usize {
         self.line_starts
             .binary_search(&byte_index)
             .unwrap_or_else(|next_line| next_line.saturating_sub(1))
     }
 
     /// Get the range corresponding to the given line index.
-    pub fn line_range(&self, line_index: usize) -> Option<Range<usize>> {
+    pub(crate) fn line_range(&self, line_index: usize) -> Option<Range<usize>> {
         let line_start = self.line_start(line_index)?;
         let next_line_start = self.line_start(line_index.saturating_add(1))?;
         Some(line_start..next_line_start)
     }
 
     /// Get the number of lines in the source.
-    pub fn line_count(&self) -> usize {
+    pub(crate) fn line_count(&self) -> usize {
         self.line_starts.len()
     }
 
     /// Access the line number of content that starts with the given span.
-    pub fn line(&self, span: Span) -> Option<(usize, usize, &str)> {
+    pub(crate) fn line(&self, span: Span) -> Option<(usize, usize, &str)> {
         let start = span.start.into_usize();
         let (line, col) = self.pos_to_utf8_linecol(start);
         let range = self.line_range(line)?;

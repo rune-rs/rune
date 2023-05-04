@@ -94,7 +94,7 @@ struct IndexScope {
 
 impl IndexScope {
     /// Construct a new scope.
-    pub fn new(id: usize) -> Self {
+    pub(crate) fn new(id: usize) -> Self {
         Self {
             id,
             locals: HashMap::new(),
