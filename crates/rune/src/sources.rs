@@ -1,8 +1,11 @@
+use core::fmt;
+use core::num;
+
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
-use crate::{Source, SourceId};
+use crate::source::Source;
 #[cfg(feature = "codespan-reporting")]
 use codespan_reporting::files;
 
@@ -27,7 +30,7 @@ macro_rules! sources {
     }};
 }
 
-/// A collection of source files, and a queue of things to compile.
+/// A collection of source files.
 #[derive(Debug, Default)]
 pub struct Sources {
     /// Sources associated.
@@ -42,7 +45,18 @@ impl Sources {
         }
     }
 
-    /// Insert a source to be built and return its id.
+    /// Insert a source and return its [`SourceId`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Sources, Source};
+    ///
+    /// let mut sources = Sources::new();
+    /// let id = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"));
+    /// let id2 = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"));
+    /// assert_ne!(id, id2);
+    /// ```
     pub fn insert(&mut self, source: Source) -> SourceId {
         let id =
             SourceId::try_from(self.sources.len()).expect("could not build a source identifier");
@@ -51,6 +65,21 @@ impl Sources {
     }
 
     /// Get the source matching the given source id.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::{Context, Error};
+    /// use rune::{Sources, Source};
+    ///
+    /// let mut sources = Sources::new();
+    /// let id = sources.insert(Source::new("<memory>", "pub fn main() { 10 }"));
+    ///
+    /// let source = sources.get(id).context("expected source")?;
+    ///
+    /// assert_eq!(source.name(), "<memory>");
+    /// # Ok::<_, Error>(())
+    /// ```
     pub fn get(&self, id: SourceId) -> Option<&Source> {
         self.sources.get(id.into_index())
     }
@@ -113,5 +142,84 @@ impl<'a> files::Files<'a> for Sources {
                 max: source.line_count(),
             })?;
         Ok(range)
+    }
+}
+
+/// The opaque identifier of a source file, as returned by
+/// [`Sources::insert`].
+///
+/// It can be used to reference the inserted source file in the future through
+/// methods such as [`Sources::get`].
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct SourceId {
+    index: u32,
+}
+
+impl SourceId {
+    /// The empty source identifier.
+    pub const EMPTY: Self = Self::empty();
+
+    /// Construct a source identifier from an index.
+    pub const fn new(index: u32) -> Self {
+        Self { index }
+    }
+
+    /// Define an empty source identifier that cannot reference a source.
+    pub const fn empty() -> Self {
+        Self { index: u32::MAX }
+    }
+
+    /// Access the source identifier as an index.
+    pub fn into_index(self) -> usize {
+        usize::try_from(self.index).expect("source id out of bounds")
+    }
+}
+
+impl fmt::Debug for SourceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.index.fmt(f)
+    }
+}
+
+impl fmt::Display for SourceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.index.fmt(f)
+    }
+}
+
+impl Default for SourceId {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl TryFrom<usize> for SourceId {
+    type Error = num::TryFromIntError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Ok(Self {
+            index: u32::try_from(value)?,
+        })
+    }
+}
+
+impl serde::Serialize for SourceId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.index.serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SourceId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self {
+            index: u32::deserialize(deserializer)?,
+        })
     }
 }

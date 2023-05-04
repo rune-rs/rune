@@ -123,7 +123,7 @@ impl<'a> Parser<'a> {
 
     /// Try to consume a single thing matching `T`, returns `true` if any tokens
     /// were consumed.
-    pub(crate) fn try_consume<T>(&mut self) -> Result<bool>
+    pub fn try_consume<T>(&mut self) -> Result<bool>
     where
         T: Parse + Peek,
     {
@@ -137,7 +137,7 @@ impl<'a> Parser<'a> {
 
     /// Try to consume all things matching `T`, returns `true` if any tokens
     /// were consumed.
-    pub(crate) fn try_consume_all<T>(&mut self) -> Result<bool>
+    pub fn try_consume_all<T>(&mut self) -> Result<bool>
     where
         T: Parse + Peek,
     {

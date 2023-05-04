@@ -14,7 +14,7 @@ use crate::ast::Span;
 #[derive(Default, Clone)]
 pub struct Source {
     /// The name of the source.
-    name: Box<str>,
+    name: SourceName,
     /// The source string.
     source: Box<str>,
     /// The path the source was loaded from.
@@ -25,11 +25,37 @@ pub struct Source {
 
 impl Source {
     /// Construct a new source with the given name.
-    pub fn new<S>(name: impl AsRef<str>, source: S) -> Self
-    where
-        S: AsRef<str>,
-    {
-        Self::with_path(name, source, None::<Box<Path>>)
+    pub fn new(name: impl AsRef<str>, source: impl AsRef<str>) -> Self {
+        let source = source.as_ref();
+        let line_starts = line_starts(source).collect::<Box<[_]>>();
+
+        Self {
+            name: SourceName::Name(name.as_ref().into()),
+            source: source.into(),
+            path: None,
+            line_starts,
+        }
+    }
+
+    /// Construct a new anonymously named `<memory>` source.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Source;
+    /// let source = Source::memory("pub fn main() { 42 }");
+    /// assert_eq!(source.name(), "<memory>");
+    /// ```
+    pub fn memory(source: impl AsRef<str>) -> Self {
+        let source = source.as_ref();
+        let line_starts = line_starts(source).collect::<Box<[_]>>();
+
+        Self {
+            name: SourceName::Memory,
+            source: source.into(),
+            path: None,
+            line_starts,
+        }
     }
 
     /// Constructing sources from paths is not supported in no-std environments.
@@ -38,30 +64,44 @@ impl Source {
         Err(io::Error::new())
     }
 
-    /// Read and load a source from the given path.
+    /// Read and load a source from the given filesystem path.
     #[cfg(feature = "std")]
-    pub fn from_path<P>(path: P) -> io::Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        let name = path.as_ref().display().to_string();
+    pub fn from_path(path: impl AsRef<Path>) -> io::Result<Self> {
         let source = std::fs::read_to_string(path.as_ref())?;
-        Ok(Self::with_path(name, source, Some(path)))
+        let line_starts = line_starts(&source).collect::<Box<[_]>>();
+
+        Ok(Self {
+            name: SourceName::Name(path.as_ref().to_string_lossy().into_owned().into()),
+            source: source.into(),
+            path: Some(path.as_ref().into()),
+            line_starts,
+        })
     }
 
-    /// Construct a new source with the given name.
+    /// Construct a new source with the given content and path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::path::Path;
+    /// use rune::Source;
+    ///
+    /// let source = Source::with_path("test", "pub fn main() { 42 }", "test.rn");
+    /// assert_eq!(source.name(), "test");
+    /// assert_eq!(source.path(), Some(Path::new("test.rn")));
+    /// ```
     pub fn with_path(
         name: impl AsRef<str>,
         source: impl AsRef<str>,
-        path: Option<impl AsRef<Path>>,
+        path: impl AsRef<Path>,
     ) -> Self {
         let source = source.as_ref();
         let line_starts = line_starts(source).collect::<Box<[_]>>();
 
         Self {
-            name: name.as_ref().into(),
+            name: SourceName::Name(name.as_ref().into()),
             source: source.into(),
-            path: path.map(|p| p.as_ref().into()),
+            path: Some(path.as_ref().into()),
             line_starts,
         }
     }
@@ -71,19 +111,12 @@ impl Source {
         &self.line_starts
     }
 
-    /// Test if the source is empty.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.source.is_empty()
-    }
-
-    /// Get the length of the source.
-    pub(crate) fn len(&self) -> usize {
-        self.source.len()
-    }
-
     /// Get the name of the source.
-    pub(crate) fn name(&self) -> &str {
-        &self.name
+    pub fn name(&self) -> &str {
+        match &self.name {
+            SourceName::Memory => "<memory>",
+            SourceName::Name(name) => name,
+        }
     }
 
     ///  et the given range from the source.
@@ -99,8 +132,19 @@ impl Source {
         &self.source
     }
 
-    /// Get the (optional) path of the source.
-    pub(crate) fn path(&self) -> Option<&Path> {
+    /// Get the path associated with the source.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::path::Path;
+    /// use rune::Source;
+    ///
+    /// let source = Source::with_path("test", "pub fn main() { 42 }", "test.rn");
+    /// assert_eq!(source.name(), "test");
+    /// assert_eq!(source.path(), Some(Path::new("test.rn")));
+    /// ```
+    pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
 
@@ -174,6 +218,11 @@ impl Source {
             cmp::Ordering::Greater => None,
         }
     }
+
+    #[cfg(feature = "workspace")]
+    pub(crate) fn len(&self) -> usize {
+        self.source.len()
+    }
 }
 
 impl fmt::Debug for Source {
@@ -183,6 +232,17 @@ impl fmt::Debug for Source {
             .field("path", &self.path)
             .finish()
     }
+}
+
+/// Holder for the name of a source.
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+enum SourceName {
+    /// An in-memory source, will use `<memory>` when the source is being
+    /// referred to in diagnostics.
+    #[default]
+    Memory,
+    /// A named source.
+    Name(Box<str>),
 }
 
 fn line_starts(source: &str) -> impl Iterator<Item = usize> + '_ {

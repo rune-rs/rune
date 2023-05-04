@@ -310,7 +310,11 @@ impl<'a> State<'a> {
             tracing::trace!(url = url.to_string(), "build plain source");
 
             let mut build = Build::default();
-            let input = crate::Source::with_path(url, source.to_string(), url.to_file_path().ok());
+
+            let input = match url.to_file_path() {
+                Ok(path) => crate::Source::with_path(url, source.to_string(), path),
+                Err(..) => crate::Source::new(url, source.to_string()),
+            };
 
             build.sources.insert(input);
             script_results.push(self.build_scripts(build, None));
@@ -389,7 +393,7 @@ impl<'a> State<'a> {
 
         manifest_build
             .sources
-            .insert(crate::Source::with_path(url, source, Some(path)));
+            .insert(crate::Source::with_path(url, source, path));
 
         let mut source_loader = WorkspaceSourceLoader::new(&self.workspace.sources);
 
@@ -416,7 +420,7 @@ impl<'a> State<'a> {
             let mut build = Build::default();
             build
                 .sources
-                .insert(crate::Source::with_path(&url, source, Some(found.path)));
+                .insert(crate::Source::with_path(&url, source, found.path));
 
             script_builds.push(build);
         }
@@ -1014,7 +1018,7 @@ impl<'a> crate::compile::SourceLoader for ScriptSourceLoader<'a> {
         if let Some(candidates) = Self::candidates(root, item) {
             for (url, path) in candidates {
                 if let Some(s) = self.sources.get(&url) {
-                    return Ok(crate::Source::with_path(url, s.to_string(), Some(path)));
+                    return Ok(crate::Source::with_path(url, s.to_string(), path));
                 }
             }
         }
@@ -1042,7 +1046,7 @@ impl<'a> crate::workspace::SourceLoader for WorkspaceSourceLoader<'a> {
     fn load(&mut self, span: Span, path: &Path) -> Result<crate::Source, WorkspaceError> {
         if let Ok(url) = crate::languageserver::url::from_file_path(path) {
             if let Some(s) = self.sources.get(&url) {
-                return Ok(crate::Source::with_path(url, s.to_string(), Some(path)));
+                return Ok(crate::Source::with_path(url, s.to_string(), path));
             }
         }
 
