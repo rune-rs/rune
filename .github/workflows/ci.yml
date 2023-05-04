@@ -23,8 +23,8 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo build -p rune --no-default-features
     - run: cargo build -p rune --no-default-features --features capture-io
-    - run: cargo test --workspace --exclude rune-no-std-examples --all-targets
-    - run: cargo test --workspace --exclude rune-no-std-examples --doc
+    - run: cargo test --workspace --exclude no-std-examples --all-targets
+    - run: cargo test --workspace --exclude no-std-examples --doc
     - run: cargo run --bin rune -- check --recursive --experimental scripts
     - run: cargo run --bin rune -- test --recursive --experimental scripts
 
@@ -73,4 +73,4 @@ jobs:
       with:
         components: clippy
     - uses: Swatinem/rust-cache@v2
-    - run: cargo clippy --workspace --exclude rune-no-std-examples --exclude generate --all-features --all-targets -- -D warnings
+    - run: cargo clippy --workspace --exclude no-std-examples --exclude generate --all-features --all-targets -- -D warnings
