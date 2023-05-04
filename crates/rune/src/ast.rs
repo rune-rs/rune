@@ -9,11 +9,12 @@
 //! ```
 //! use rune::{Context, FromValue, Module, Vm};
 //! use rune::ast;
+//! use rune::compile;
 //! use rune::macros::{quote, MacroContext, TokenStream};
 //! use rune::parse::Parser;
 //! use std::sync::Arc;
 //!
-//! fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+//! fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
 //!     let ident = p.parse_all::<ast::Ident>()?;
 //!     let ident = ctx.resolve(ident)?.to_owned();
