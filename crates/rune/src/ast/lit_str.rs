@@ -18,7 +18,7 @@ impl LitStr {
     pub(crate) fn resolve_template_string<'a>(
         &self,
         ctx: ResolveContext<'a>,
-    ) -> Result<Cow<'a, str>, ResolveError> {
+    ) -> Result<Cow<'a, str>, CompileError> {
         self.resolve_string(ctx, ast::utils::WithTemplate(true))
     }
 
@@ -27,14 +27,14 @@ impl LitStr {
         &self,
         ctx: ResolveContext<'a>,
         with_template: ast::utils::WithTemplate,
-    ) -> Result<Cow<'a, str>, ResolveError> {
+    ) -> Result<Cow<'a, str>, CompileError> {
         let span = self.span;
 
         let text = match self.source {
             ast::StrSource::Text(text) => text,
             ast::StrSource::Synthetic(id) => {
                 let bytes = ctx.storage.get_string(id).ok_or_else(|| {
-                    ResolveError::new(
+                    CompileError::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
                             kind: SyntheticKind::String,
@@ -56,7 +56,7 @@ impl LitStr {
         let string = ctx
             .sources
             .source(text.source_id, span)
-            .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| CompileError::new(span, ResolveErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
             Cow::Owned(Self::parse_escaped(span, string, with_template)?)
@@ -69,7 +69,7 @@ impl LitStr {
         span: Span,
         source: &str,
         with_template: ast::utils::WithTemplate,
-    ) -> Result<String, ResolveError> {
+    ) -> Result<String, CompileError> {
         let mut buffer = String::with_capacity(source.len());
 
         let start = span.start.into_usize();
@@ -92,7 +92,7 @@ impl LitStr {
                             .next()
                             .map(|n| n.0)
                             .unwrap_or_else(|| span.end.into_usize());
-                        return Err(ResolveError::new(Span::new(start, end), kind));
+                        return Err(CompileError::new(Span::new(start, end), kind));
                     }
                 },
                 c => Some(c),
@@ -130,7 +130,7 @@ impl Parse for LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, str>, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, str>, CompileError> {
         self.resolve_string(ctx, ast::utils::WithTemplate(false))
     }
 }

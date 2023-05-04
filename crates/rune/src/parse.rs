@@ -20,8 +20,7 @@ pub use self::parse_error::ParseError;
 pub(crate) use self::parse_error::ParseErrorKind;
 pub use self::parser::{Parser, Peeker};
 pub use self::peek::Peek;
-pub(crate) use self::resolve::ResolveErrorKind;
-pub use self::resolve::{Resolve, ResolveContext, ResolveError};
+pub(crate) use self::resolve::{Resolve, ResolveContext};
 
 use crate::SourceId;
 

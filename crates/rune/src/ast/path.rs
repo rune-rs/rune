@@ -105,7 +105,7 @@ impl IntoExpectation for &Path {
 impl<'a> Resolve<'a> for Path {
     type Output = Box<str>;
 
-    fn resolve(&self, ctx: ResolveContext<'_>) -> Result<Self::Output, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'_>) -> Result<Self::Output, CompileError> {
         let mut buf = String::new();
 
         if self.global.is_some() {

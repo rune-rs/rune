@@ -6,17 +6,18 @@ use thiserror::Error;
 
 use crate::ast;
 use crate::ast::{Spanned, SpannedError};
-use crate::parse::{Expectation, IntoExpectation, LexerMode, ResolveError, ResolveErrorKind};
+use crate::compile::{CompileError, CompileErrorKind};
+use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::SourceId;
 
 error! {
     /// An error raised during parsing.
-    #[derive(Debug, Clone)]
+    #[derive(Debug)]
     pub struct ParseError {
         kind: ParseErrorKind,
     }
 
-    impl From<ResolveError>;
+    impl From<CompileError>;
 }
 
 impl ParseError {
@@ -57,14 +58,14 @@ impl From<ParseError> for SpannedError {
 }
 
 /// Error when parsing.
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub(crate) enum ParseErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
     #[error("{error}")]
-    ResolveError { error: ResolveErrorKind },
+    CompileError { error: Box<CompileErrorKind> },
     #[error("Expected end of file, but got `{actual}`")]
     ExpectedEof { actual: ast::Kind },
     #[error("Unexpected end of file")]

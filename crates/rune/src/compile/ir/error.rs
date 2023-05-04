@@ -7,7 +7,6 @@ use thiserror::Error;
 use crate::ast::{Spanned, SpannedError};
 use crate::compile::{CompileError, CompileErrorKind, IrValue, MetaInfo};
 use crate::hir::{HirError, HirErrorKind};
-use crate::parse::{ResolveError, ResolveErrorKind};
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::{ScopeError, ScopeErrorKind};
 
@@ -18,7 +17,6 @@ error! {
         kind: IrErrorKind,
     }
 
-    impl From<ResolveError>;
     impl From<CompileError>;
     impl From<ScopeError>;
     impl From<HirError>;
@@ -77,12 +75,6 @@ pub(crate) enum IrErrorKind {
         #[source]
         #[from]
         error: Box<CompileErrorKind>,
-    },
-    #[error("{error}")]
-    ResolveError {
-        #[source]
-        #[from]
-        error: ResolveErrorKind,
     },
     /// A scope error.
     #[error("Scope error: {error}")]

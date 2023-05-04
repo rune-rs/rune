@@ -18,7 +18,6 @@ use crate::compile::{IrErrorKind, CompileErrorKind, Location, LinkerError, Query
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
-use crate::parse::ResolveErrorKind;
 use crate::runtime::{Unit, VmErrorKind, VmError};
 use crate::{Source, Diagnostics, SourceId, Sources};
 use crate::ast::{Span, Spanned};
@@ -641,17 +640,6 @@ where
             format_compile_error(this, sources, error_span, error, labels, notes)?;
         }
 
-        Ok(())
-    }
-
-    fn format_resolve_error(
-        _: &FatalDiagnostic,
-        _: &Sources,
-        _: Span,
-        _: &ResolveErrorKind,
-        _: &mut Vec<d::Label<SourceId>>,
-        _: &mut Vec<String>,
-    ) -> fmt::Result {
         Ok(())
     }
 }

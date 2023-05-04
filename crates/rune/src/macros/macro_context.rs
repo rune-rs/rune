@@ -5,11 +5,11 @@ use core::fmt;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, Pool,
-    Prelude, UnitBuilder,
+    CompileError, IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta,
+    NoopCompileVisitor, Pool, Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
-use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve, ResolveError};
+use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve};
 use crate::query::Query;
 use crate::shared::{Consts, Gen};
 use crate::{Source, SourceId, Sources};
@@ -188,7 +188,7 @@ impl<'a> MacroContext<'a> {
     }
 
     /// Resolve the value of a token.
-    pub fn resolve<'r, T>(&'r self, item: T) -> Result<T::Output, ResolveError>
+    pub fn resolve<'r, T>(&'r self, item: T) -> Result<T::Output, CompileError>
     where
         T: Resolve<'r>,
     {

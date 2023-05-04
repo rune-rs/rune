@@ -10,7 +10,8 @@ use crate::ast;
 use crate::ast::{Span, Spanned, SpannedError};
 use crate::compile::{IrError, IrErrorKind, ItemBuf, Location, MetaInfo, Visibility};
 use crate::hir::{HirError, HirErrorKind};
-use crate::parse::{Id, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
+use crate::macros::{SyntheticId, SyntheticKind};
+use crate::parse::{Expectation, Id, IntoExpectation, ParseError, ParseErrorKind};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::Label;
 use crate::{Error, Hash, SourceId};
@@ -24,7 +25,6 @@ error! {
 
     impl From<ParseError>;
     impl From<IrError>;
-    impl From<ResolveError>;
     impl From<HirError>;
 }
 
@@ -61,6 +61,21 @@ impl CompileError {
     {
         Self::new(spanned, CompileErrorKind::ExpectedMeta { meta, expected })
     }
+
+    /// Construct an resolve expected error.
+    pub(crate) fn expected<A, E>(actual: A, expected: E) -> Self
+    where
+        A: IntoExpectation + Spanned,
+        E: IntoExpectation,
+    {
+        Self::new(
+            actual.span(),
+            ResolveErrorKind::Expected {
+                actual: actual.into_expectation(),
+                expected: expected.into_expectation(),
+            },
+        )
+    }
 }
 
 /// Compiler error.
@@ -78,17 +93,13 @@ pub(crate) enum CompileErrorKind {
     },
     #[error("{0}")]
     QueryError(#[from] QueryErrorKind),
+    #[error("{0}")]
+    ResolveError(#[from] ResolveErrorKind),
     #[error("{error}")]
     ParseError {
         #[source]
         #[from]
         error: ParseErrorKind,
-    },
-    #[error("{error}")]
-    ResolveError {
-        #[source]
-        #[from]
-        error: ResolveErrorKind,
     },
     #[error("{error}")]
     HirError {
@@ -332,6 +343,47 @@ pub(crate) enum QueryErrorKind {
     TypeRttiConflict { hash: Hash },
     #[error("Conflicting function signature already exists `{existing}`")]
     FunctionConflict { existing: DebugSignature },
+}
+
+/// The kind of a resolve error.
+#[derive(Debug, Clone, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub(crate) enum ResolveErrorKind {
+    #[error("Expected `{expected}`, but got `{actual}`")]
+    Expected {
+        actual: Expectation,
+        expected: Expectation,
+    },
+    #[error("Tried to read bad slice from source")]
+    BadSlice,
+    #[error("Tried to get bad synthetic identifier `{id}` for `{kind}`")]
+    BadSyntheticId {
+        kind: SyntheticKind,
+        id: SyntheticId,
+    },
+    #[error("Bad escape sequence")]
+    BadEscapeSequence,
+    #[error("Bad unicode escape")]
+    BadUnicodeEscape,
+    #[error(
+        "This form of character escape may only be used with characters in the range [\\x00-\\x7f]"
+    )]
+    BadHexEscapeChar,
+    #[error(
+        "This form of byte escape may only be used with characters in the range [\\x00-\\xff]"
+    )]
+    BadHexEscapeByte,
+    #[error("Bad byte escape")]
+    BadByteEscape,
+    #[error("Bad character literal")]
+    BadCharLiteral,
+    #[error("Bad byte literal")]
+    BadByteLiteral,
+    #[error("Unicode escapes are not supported as a byte or byte string")]
+    BadUnicodeEscapeInByteString,
+    #[error("Number literal not valid")]
+    BadNumberLiteral,
 }
 
 /// A single step in an import.

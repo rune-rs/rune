@@ -22,7 +22,7 @@ pub(crate) mod attrs;
 
 mod compile_error;
 pub use self::compile_error::{CompileError, ImportStep};
-pub(crate) use self::compile_error::{CompileErrorKind, QueryErrorKind};
+pub(crate) use self::compile_error::{CompileErrorKind, QueryErrorKind, ResolveErrorKind};
 
 mod compile_visitor;
 pub use self::compile_visitor::CompileVisitor;

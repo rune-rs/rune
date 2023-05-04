@@ -3,9 +3,8 @@ use core::num::NonZeroUsize;
 use crate::no_std::borrow::Cow;
 
 use crate::ast::{self, Span, Spanned};
-use crate::parse::{
-    Expectation, Id, IntoExpectation, Opaque, Resolve, ResolveContext, ResolveError,
-};
+use crate::compile::CompileError;
+use crate::parse::{Expectation, Id, IntoExpectation, Opaque, Resolve, ResolveContext};
 use crate::runtime::format;
 
 /// Visibility level restricted to some path: pub(self) or pub(super) or pub or pub(in some::module).
@@ -493,14 +492,14 @@ pub enum ObjectKey<'hir> {
 impl<'a, 'hir> Resolve<'a> for ObjectKey<'hir> {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Self::Output, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Self::Output, CompileError> {
         Ok(match *self {
             Self::LitStr(lit_str) => lit_str.resolve(ctx)?,
             Self::Path(path) => {
                 let ident = match path.try_as_ident() {
                     Some(ident) => ident,
                     None => {
-                        return Err(ResolveError::expected(path, "object key"));
+                        return Err(CompileError::expected(path, "object key"));
                     }
                 };
 
