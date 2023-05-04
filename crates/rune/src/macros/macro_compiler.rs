@@ -4,7 +4,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, ItemMeta, Options};
+use crate::compile::{self, CompileError, CompileErrorKind, ItemMeta, Options};
 use crate::macros::MacroContext;
 use crate::parse::{Parse, Parser};
 use crate::query::Query;
@@ -19,7 +19,7 @@ pub(crate) struct MacroCompiler<'a> {
 
 impl MacroCompiler<'_> {
     /// Compile the given macro into the given output type.
-    pub(crate) fn eval_macro<T>(&mut self, macro_call: &ast::MacroCall) -> CompileResult<T>
+    pub(crate) fn eval_macro<T>(&mut self, macro_call: &ast::MacroCall) -> compile::Result<T>
     where
         T: Parse,
     {
@@ -57,9 +57,7 @@ impl MacroCompiler<'_> {
 
         let input_stream = &macro_call.stream;
 
-        // SAFETY: Macro context only needs to live for the duration of the
-        // `handler` call.
-        let result = {
+        let token_stream = {
             let mut macro_context = MacroContext {
                 macro_span: macro_call.span(),
                 stream_span: macro_call.stream_span(),
@@ -67,25 +65,7 @@ impl MacroCompiler<'_> {
                 q: self.query.borrow(),
             };
 
-            handler(&mut macro_context, input_stream)
-        };
-
-        let token_stream = match result {
-            Ok(output) => output,
-            Err(error) => {
-                let error = match error.downcast::<CompileError>() {
-                    Ok(error) => return Err(error),
-                    Err(error) => error,
-                };
-
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::CallMacroError {
-                        item: self.query.pool.item(named.item).to_owned(),
-                        error,
-                    },
-                ));
-            }
+            handler(&mut macro_context, input_stream)?
         };
 
         let mut parser = Parser::from_token_stream(&token_stream, span);

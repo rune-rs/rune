@@ -14,7 +14,7 @@ use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::{AccessError, Label, TypeInfo, TypeOf};
 use crate::shared::ScopeError;
-use crate::{Error, Hash, SourceId};
+use crate::{Hash, SourceId};
 
 error! {
     /// An error raised by the compiler.
@@ -156,8 +156,6 @@ pub(crate) enum CompileErrorKind {
     VariableConflict { name: String, existing_span: Span },
     #[error("Missing macro `{item}`")]
     MissingMacro { item: ItemBuf },
-    #[error("{error}")]
-    CallMacroError { item: ItemBuf, error: Error },
     #[error("No local variable `{name}`")]
     MissingLocal { name: String },
     #[error("Missing item `{item}`")]

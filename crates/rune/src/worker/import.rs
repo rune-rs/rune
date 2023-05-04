@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 use crate::ast;
 use crate::ast::Spanned;
 use crate::collections::VecDeque;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, ItemBuf, ModId, Visibility};
+use crate::compile::{self, CompileError, CompileErrorKind, ItemBuf, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
@@ -46,7 +46,7 @@ impl Import {
         context: &Context,
         q: &mut Query,
         add_task: &mut impl FnMut(Task),
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         let (name, first, initial) = match self.kind {
             ImportKind::Global => {
                 match self.ast.path.global {

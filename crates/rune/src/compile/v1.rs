@@ -4,8 +4,8 @@ use crate::ast::Span;
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
-    Assembly, CompileError, CompileErrorKind, CompileResult, IrBudget, IrCompiler, IrInterpreter,
-    ItemId, ItemMeta, Location, Options,
+    self, Assembly, CompileError, CompileErrorKind, IrBudget, IrCompiler, IrInterpreter, ItemId,
+    ItemMeta, Location, Options,
 };
 use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -63,7 +63,7 @@ impl<'a> Assembler<'a> {
         &mut self,
         span: Span,
         item: ItemId,
-    ) -> CompileResult<Option<meta::Meta>> {
+    ) -> compile::Result<Option<meta::Meta>> {
         tracing::trace!("lookup meta: {:?}", item);
 
         if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
@@ -89,7 +89,7 @@ impl<'a> Assembler<'a> {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, spanned: Span, item: ItemId) -> CompileResult<meta::Meta> {
+    pub fn lookup_meta(&mut self, spanned: Span, item: ItemId) -> compile::Result<meta::Meta> {
         if let Some(meta) = self.try_lookup_meta(spanned, item)? {
             return Ok(meta);
         }
@@ -133,7 +133,7 @@ impl<'a> Assembler<'a> {
     pub(crate) fn convert_path<'hir>(
         &mut self,
         path: &'hir hir::Path<'hir>,
-    ) -> CompileResult<Named<'hir>> {
+    ) -> compile::Result<Named<'hir>> {
         self.q.convert_path(self.context, path)
     }
 
@@ -143,7 +143,7 @@ impl<'a> Assembler<'a> {
         span: Span,
         expected: ScopeGuard,
         needs: Needs,
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         let scope = self.scopes.pop(expected, span)?;
 
         if needs.value() {

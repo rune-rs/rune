@@ -10,7 +10,7 @@ use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, ParseErrorKind};
+use crate::compile::{self, CompileError, CompileErrorKind, Item, ParseErrorKind};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::{Id, Resolve};
@@ -61,7 +61,7 @@ pub(crate) enum AsmKind {
 
 impl Asm {
     /// Assemble into an instruction.
-    fn apply(self, c: &mut Assembler) -> CompileResult<()> {
+    fn apply(self, c: &mut Assembler) -> compile::Result<()> {
         match self.kind {
             AsmKind::Top => (),
             AsmKind::Var(var, local) => {
@@ -73,7 +73,7 @@ impl Asm {
     }
 
     /// Assemble into an instruction declaring an anonymous variable if appropriate.
-    fn apply_targeted(self, c: &mut Assembler) -> CompileResult<InstAddress> {
+    fn apply_targeted(self, c: &mut Assembler) -> compile::Result<InstAddress> {
         let address = match self.kind {
             AsmKind::Top => {
                 c.scopes.decl_anon(self.span)?;
@@ -94,7 +94,7 @@ fn meta(
     meta: &meta::Meta,
     needs: Needs,
     named: Named<'_>,
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     if let Needs::Value = needs {
         match &meta.kind {
             meta::Kind::Struct {
@@ -208,8 +208,8 @@ fn return_<T>(
     c: &mut Assembler<'_>,
     span: Span,
     hir: &T,
-    asm: impl FnOnce(&T, &mut Assembler<'_>, Needs) -> CompileResult<Asm>,
-) -> CompileResult<()> {
+    asm: impl FnOnce(&T, &mut Assembler<'_>, Needs) -> compile::Result<Asm>,
+) -> compile::Result<()> {
     let clean = c.scopes.total_var_count(span)?;
 
     let address = asm(hir, c, Needs::Value)?.apply_targeted(c)?;
@@ -226,7 +226,11 @@ fn return_<T>(
 
 /// Compile a pattern based on the given offset.
 #[instrument]
-fn pat_with_offset(hir: &hir::Pat<'_>, c: &mut Assembler<'_>, offset: usize) -> CompileResult<()> {
+fn pat_with_offset(
+    hir: &hir::Pat<'_>,
+    c: &mut Assembler<'_>,
+    offset: usize,
+) -> compile::Result<()> {
     let span = hir.span();
 
     let load = |c: &mut Assembler, needs: Needs| {
@@ -270,8 +274,8 @@ fn pat(
     hir: &hir::Pat<'_>,
     c: &mut Assembler<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<bool> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<bool> {
     let span = hir.span();
 
     match hir.kind {
@@ -328,8 +332,8 @@ fn pat_lit(
     hir: &hir::Expr<'_>,
     c: &mut Assembler<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<bool> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<bool> {
     let span = hir.span();
 
     let inst = match pat_lit_inst(span, c, hir)? {
@@ -354,7 +358,7 @@ fn pat_lit_inst(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
-) -> CompileResult<Option<Inst>> {
+) -> compile::Result<Option<Inst>> {
     match hir.kind {
         hir::ExprKind::Unary(hir::ExprUnary {
             op: ast::UnOp::Neg(..),
@@ -407,7 +411,7 @@ fn condition(
     condition: &hir::Condition<'_>,
     c: &mut Assembler<'_>,
     then_label: Label,
-) -> CompileResult<Scope> {
+) -> compile::Result<Scope> {
     match condition {
         hir::Condition::Expr(e) => {
             let span = e.span();
@@ -450,8 +454,8 @@ fn pat_vec(
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<()> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<()> {
     // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
     // interact with it multiple times.
     load(c, Needs::Value)?;
@@ -572,8 +576,8 @@ fn pat_tuple(
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<()> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<()> {
     load(c, Needs::Value)?;
 
     if hir.items.is_empty() {
@@ -659,8 +663,8 @@ fn pat_object(
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<()> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<()> {
     // NB: bind the loaded variable (once) to an anonymous var.
     // We reduce the number of copy operations by having specialized
     // operations perform the load from the given offset.
@@ -851,8 +855,8 @@ fn pat_meta_binding(
     c: &mut Assembler<'_>,
     meta: &meta::Meta,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<bool> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<bool> {
     let inst = match tuple_match_for(span, c, meta) {
         Some((args, inst)) if args == 0 => inst,
         _ => return Ok(false),
@@ -871,7 +875,7 @@ pub(crate) fn closure_from_block(
     hir: &hir::Block<'_>,
     c: &mut Assembler<'_>,
     captures: &[String],
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     let span = hir.span();
 
     let guard = c.scopes.push_child(span)?;
@@ -887,7 +891,7 @@ pub(crate) fn closure_from_block(
 
 /// Call a block.
 #[instrument]
-fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     c.contexts.push(span);
@@ -955,7 +959,7 @@ fn builtin_format(
     format: &hir::BuiltInFormat<'_>,
     c: &mut Assembler<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     use crate::runtime::format;
 
     let span = format.span();
@@ -1014,7 +1018,7 @@ fn builtin_template(
     template: &hir::BuiltInTemplate<'_>,
     c: &mut Assembler<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let span = template.span();
 
     let expected = c.scopes.push_child(span)?;
@@ -1066,7 +1070,7 @@ fn const_(
     c: &mut Assembler<'_>,
     value: &ConstValue,
     needs: Needs,
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     if !needs.value() {
         c.diagnostics.not_used(c.source_id, span, c.context());
         return Ok(());
@@ -1167,7 +1171,7 @@ fn const_(
 
 /// Assemble an expression.
 #[instrument]
-fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     let asm = match hir.kind {
@@ -1216,7 +1220,7 @@ fn expr_assign(
     c: &mut Assembler<'_>,
     hir: &hir::ExprAssign<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let supported = match hir.lhs.kind {
         // <var> = <value>
         hir::ExprKind::Path(path) if path.rest.is_empty() => {
@@ -1307,7 +1311,7 @@ fn expr_await(
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     expr(hir, c, Needs::Value)?.apply(c)?;
     c.asm.push(Inst::Await, span);
 
@@ -1325,7 +1329,7 @@ fn expr_binary(
     c: &mut Assembler<'_>,
     hir: &hir::ExprBinary<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     // Special expressions which operates on the stack in special ways.
     if hir.op.is_assign() {
         compile_assign_binop(span, c, hir.lhs, hir.rhs, &hir.op, needs)?;
@@ -1402,7 +1406,7 @@ fn expr_binary(
         rhs: &hir::Expr<'_>,
         bin_op: &ast::BinOp,
         needs: Needs,
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         let end_label = c.asm.new_label("conditional_end");
 
         expr(lhs, c, Needs::Value)?.apply(c)?;
@@ -1440,7 +1444,7 @@ fn expr_binary(
         rhs: &hir::Expr<'_>,
         bin_op: &ast::BinOp,
         needs: Needs,
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         let supported = match lhs.kind {
             // <var> <op> <expr>
             hir::ExprKind::Path(path) if path.rest.is_empty() => {
@@ -1537,7 +1541,7 @@ fn expr_block(
     c: &mut Assembler<'_>,
     hir: &hir::ExprBlock<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     if let hir::ExprBlockKind::Default = hir.kind {
         return block(hir.block, c, needs);
     }
@@ -1604,7 +1608,7 @@ fn expr_break(
     c: &mut Assembler<'_>,
     hir: Option<&hir::ExprBreakValue<'_>>,
     _: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let current_loop = match c.loops.last() {
         Some(current_loop) => current_loop,
         None => {
@@ -1733,7 +1737,7 @@ fn convert_expr_call(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprCall<'_>,
-) -> CompileResult<Call> {
+) -> compile::Result<Call> {
     match hir.expr.kind {
         hir::ExprKind::Path(path) => {
             let named = c.convert_path(path)?;
@@ -1864,7 +1868,7 @@ fn expr_call(
     c: &mut Assembler<'_>,
     hir: &hir::ExprCall<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let call = convert_expr_call(span, c, hir)?;
 
     let args = hir.args.len();
@@ -1946,7 +1950,7 @@ pub(crate) fn closure_from_expr_closure(
     c: &mut Assembler<'_>,
     hir: &hir::ExprClosure<'_>,
     captures: &[String],
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     let mut patterns = Vec::new();
 
     for arg in hir.args {
@@ -1985,7 +1989,7 @@ fn expr_closure(
     c: &mut Assembler<'_>,
     hir: &hir::ExprClosure<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     if !needs.value() {
         c.diagnostics.not_used(c.source_id, span, c.context());
         return Ok(Asm::top(span));
@@ -2061,7 +2065,7 @@ fn expr_continue(
     c: &mut Assembler<'_>,
     hir: Option<&ast::Label>,
     _: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let current_loop = match c.loops.last() {
         Some(current_loop) => current_loop,
         None => {
@@ -2098,7 +2102,7 @@ fn expr_field_access(
     c: &mut Assembler<'_>,
     hir: &hir::ExprFieldAccess<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     // Optimizations!
     //
     // TODO: perform deferred compilation for expressions instead, so we can
@@ -2154,7 +2158,7 @@ fn expr_field_access(
         path: &hir::Path<'_>,
         n: &ast::LitNumber,
         needs: Needs,
-    ) -> CompileResult<bool> {
+    ) -> compile::Result<bool> {
         let ident = match path.try_as_ident() {
             Some(ident) => ident,
             None => return Ok(false),
@@ -2204,7 +2208,7 @@ fn expr_for(
     c: &mut Assembler<'_>,
     hir: &hir::ExprFor<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let continue_label = c.asm.new_label("for_continue");
     let end_label = c.asm.new_label("for_end");
     let break_label = c.asm.new_label("for_break");
@@ -2370,7 +2374,7 @@ fn expr_if(
     c: &mut Assembler<'_>,
     hir: &hir::ExprIf<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let then_label = c.asm.new_label("if_then");
     let end_label = c.asm.new_label("if_end");
 
@@ -2433,7 +2437,7 @@ fn expr_index(
     c: &mut Assembler<'_>,
     hir: &hir::ExprIndex<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
     let target = expr(hir.target, c, Needs::Value)?.apply_targeted(c)?;
@@ -2453,7 +2457,7 @@ fn expr_index(
 
 /// Assemble a let expression.
 #[instrument]
-fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     let load = |c: &mut Assembler, needs: Needs| {
@@ -2495,7 +2499,7 @@ fn expr_match(
     c: &mut Assembler<'_>,
     hir: &hir::ExprMatch<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let expected_scopes = c.scopes.push_child(span)?;
 
     expr(hir.expr, c, Needs::Value)?.apply(c)?;
@@ -2587,7 +2591,7 @@ fn expr_object(
     c: &mut Assembler<'_>,
     hir: &hir::ExprObject<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
     let mut keys = Vec::<Box<str>>::new();
@@ -2695,7 +2699,7 @@ fn expr_object(
         check_keys: Vec<(Box<str>, Span)>,
         span: Span,
         item: &Item,
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         let mut fields = fields.clone();
 
         for (field, span) in check_keys {
@@ -2726,7 +2730,7 @@ fn expr_object(
 
 /// Assemble a path.
 #[instrument]
-fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     if let Some(ast::PathKind::SelfValue) = hir.as_kind() {
@@ -2785,7 +2789,7 @@ fn expr_range(
     c: &mut Assembler<'_>,
     hir: &hir::ExprRange<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
     if needs.value() {
@@ -2859,7 +2863,7 @@ fn expr_return(
     c: &mut Assembler<'_>,
     hir: Option<&hir::Expr<'_>>,
     _: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     // NB: drop any loop temporaries.
     for l in c.loops.iter() {
         if let Some(offset) = l.drop {
@@ -2887,7 +2891,7 @@ fn expr_select(
     c: &mut Assembler<'_>,
     hir: &hir::ExprSelect<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let len = hir.branches.len();
     c.contexts.push(span);
 
@@ -2996,7 +3000,7 @@ fn expr_try(
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let clean = c.scopes.total_var_count(span)?;
     let address = expr(hir, c, Needs::Value)?.apply_targeted(c)?;
 
@@ -3030,7 +3034,7 @@ fn expr_tuple(
     c: &mut Assembler<'_>,
     hir: &hir::ExprSeq<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     macro_rules! tuple {
         ($variant:ident, $c:ident, $span:expr, $($var:ident),*) => {{
             let guard = $c.scopes.push_child($span)?;
@@ -3094,7 +3098,7 @@ fn expr_unary(
     c: &mut Assembler<'_>,
     hir: &hir::ExprUnary<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     // NB: special unary expressions.
     if let ast::UnOp::BorrowRef { .. } = hir.op {
         return Err(CompileError::new(span, CompileErrorKind::UnsupportedRef));
@@ -3156,7 +3160,7 @@ fn expr_vec(
     c: &mut Assembler<'_>,
     hir: &hir::ExprSeq<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let count = hir.items.len();
 
     for e in hir.items {
@@ -3184,7 +3188,7 @@ fn expr_loop(
     c: &mut Assembler<'_>,
     hir: &hir::ExprLoop<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let continue_label = c.asm.new_label("while_continue");
     let then_label = c.asm.new_label("whiel_then");
     let end_label = c.asm.new_label("while_end");
@@ -3240,7 +3244,7 @@ fn expr_yield(
     c: &mut Assembler<'_>,
     hir: Option<&hir::Expr<'_>>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     if let Some(e) = hir {
         expr(e, c, Needs::Value)?.apply(c)?;
         c.asm.push(Inst::Yield, span);
@@ -3261,7 +3265,7 @@ pub(crate) fn fn_from_item_fn(
     hir: &hir::ItemFn<'_>,
     c: &mut Assembler<'_>,
     instance_fn: bool,
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     let span = hir.span();
 
     let mut patterns = Vec::new();
@@ -3312,7 +3316,7 @@ pub(crate) fn fn_from_item_fn(
 
 /// Assemble a literal value.
 #[instrument]
-fn lit(hir: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn lit(hir: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     // Elide the entire literal if it's not needed.
@@ -3350,7 +3354,7 @@ fn lit(hir: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm
 }
 
 #[instrument]
-fn lit_str(hir: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn lit_str(hir: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     // Elide the entire literal if it's not needed.
@@ -3367,7 +3371,7 @@ fn lit_str(hir: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileRes
 
 /// Assemble a literal number.
 #[instrument]
-fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     // Elide the entire literal if it's not needed.
@@ -3403,7 +3407,7 @@ fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> Comp
 
 /// Assemble a local expression.
 #[instrument]
-fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     let load = |c: &mut Assembler, needs: Needs| {

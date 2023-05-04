@@ -11,9 +11,9 @@ use crate::no_std::sync::Arc;
 
 use crate::collections::{HashMap, HashSet};
 use crate::compile::{
-    AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, ContextError, Docs,
-    FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent, ItemBuf, Named, ToFieldFunction,
-    ToInstance,
+    self, AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, ContextError,
+    Docs, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent, ItemBuf, Named,
+    ToFieldFunction, ToInstance,
 };
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
@@ -702,7 +702,7 @@ impl Module {
         M: 'static
             + Send
             + Sync
-            + Fn(&mut MacroContext<'_>, &TokenStream) -> crate::Result<TokenStream>,
+            + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,
         N: IntoIterator,
         N::Item: IntoComponent,
     {

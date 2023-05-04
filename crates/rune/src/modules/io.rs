@@ -6,6 +6,7 @@ use std::io::{self, Write as _};
 use crate::no_std::prelude::*;
 
 use crate as rune;
+use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::{Panic, Protocol, Stack, Value, VmResult};
@@ -52,7 +53,7 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
 pub(crate) fn dbg_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     Ok(quote!(::std::io::dbg(#stream)).into_token_stream(ctx))
 }
 
@@ -60,7 +61,7 @@ pub(crate) fn dbg_macro(
 pub(crate) fn print_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;
@@ -93,7 +94,7 @@ fn print_impl(m: &str) -> VmResult<()> {
 pub(crate) fn println_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;

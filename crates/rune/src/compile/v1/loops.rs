@@ -6,7 +6,7 @@ use crate::no_std::rc::Rc;
 use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::v1::Needs;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult};
+use crate::compile::{self, CompileError, CompileErrorKind};
 use crate::parse::ResolveContext;
 use crate::runtime::Label;
 
@@ -71,7 +71,7 @@ impl Loops {
         &self,
         ctx: ResolveContext<'_>,
         expected: &ast::Label,
-    ) -> CompileResult<(Loop, Vec<usize>)> {
+    ) -> compile::Result<(Loop, Vec<usize>)> {
         use crate::parse::Resolve;
 
         let span = expected.span();

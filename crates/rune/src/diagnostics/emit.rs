@@ -516,9 +516,6 @@ where
                         .with_message("Moved here"),
                 );
             }
-            CompileErrorKind::CallMacroError { item, .. } => {
-                notes.push(format!("Error originated in the `{}` macro", item));
-            }
             CompileErrorKind::NestedTest { nested_span } => {
                 labels.push(
                     d::Label::secondary(this.source_id(), nested_span.range())

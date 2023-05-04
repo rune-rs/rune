@@ -96,8 +96,8 @@ pub(crate) use self::names::Names;
 mod visibility;
 pub(crate) use self::visibility::Visibility;
 
-/// A compile result alias.
-pub(crate) type CompileResult<T> = ::core::result::Result<T, CompileError>;
+/// Helper alias for compile results.
+pub type Result<T, E = CompileError> = ::core::result::Result<T, E>;
 
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile(

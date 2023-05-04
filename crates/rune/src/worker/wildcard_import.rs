@@ -2,7 +2,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast::Span;
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileResult, IntoComponent, ItemBuf, ModId, Visibility,
+    self, CompileError, CompileErrorKind, IntoComponent, ItemBuf, ModId, Visibility,
 };
 use crate::query::Query;
 use crate::{Context, SourceId};
@@ -23,7 +23,7 @@ impl WildcardImport {
         &mut self,
         query: &mut Query,
         context: &Context,
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         if context.contains_prefix(&self.name) {
             for c in context.iter_components(&self.name) {
                 let name = self.name.extended(c);
@@ -47,7 +47,7 @@ impl WildcardImport {
     }
 
     /// Process a local wildcard import.
-    pub(crate) fn process_local(mut self, query: &mut Query) -> CompileResult<()> {
+    pub(crate) fn process_local(mut self, query: &mut Query) -> compile::Result<()> {
         if query.contains_prefix(&self.name) {
             let components = query
                 .iter_components(&self.name)
