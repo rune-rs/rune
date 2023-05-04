@@ -1,6 +1,8 @@
+#[cfg(feature = "emit")]
 use core::cmp;
 use core::fmt;
 use core::iter;
+#[cfg(feature = "emit")]
 use core::ops::Range;
 use core::slice;
 
@@ -8,6 +10,7 @@ use crate::no_std::io;
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
+#[cfg(feature = "emit")]
 use crate::ast::Span;
 
 /// A single source file.
@@ -107,6 +110,7 @@ impl Source {
     }
 
     /// Access all line starts in the source.
+    #[cfg(feature = "emit")]
     pub(crate) fn line_starts(&self) -> &[usize] {
         &self.line_starts
     }
@@ -166,6 +170,7 @@ impl Source {
     }
 
     /// Get the line index for the given byte.
+    #[cfg(feature = "emit")]
     pub(crate) fn line_index(&self, byte_index: usize) -> usize {
         self.line_starts
             .binary_search(&byte_index)
@@ -173,6 +178,7 @@ impl Source {
     }
 
     /// Get the range corresponding to the given line index.
+    #[cfg(feature = "emit")]
     pub(crate) fn line_range(&self, line_index: usize) -> Option<Range<usize>> {
         let line_start = self.line_start(line_index)?;
         let next_line_start = self.line_start(line_index.saturating_add(1))?;
@@ -180,11 +186,13 @@ impl Source {
     }
 
     /// Get the number of lines in the source.
+    #[cfg(feature = "emit")]
     pub(crate) fn line_count(&self) -> usize {
         self.line_starts.len()
     }
 
     /// Access the line number of content that starts with the given span.
+    #[cfg(feature = "emit")]
     pub(crate) fn line(&self, span: Span) -> Option<(usize, usize, &str)> {
         let start = span.start.into_usize();
         let (line, col) = self.pos_to_utf8_linecol(start);
@@ -211,6 +219,7 @@ impl Source {
         (line, offset, rest)
     }
 
+    #[cfg(feature = "emit")]
     fn line_start(&self, line_index: usize) -> Option<usize> {
         match line_index.cmp(&self.line_starts.len()) {
             cmp::Ordering::Less => self.line_starts.get(line_index).copied(),

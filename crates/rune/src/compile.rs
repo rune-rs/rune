@@ -85,7 +85,7 @@ mod visibility;
 pub(crate) use self::visibility::Visibility;
 
 mod with_span;
-pub(crate) use self::with_span::{WithSpan, WithSpanExt};
+pub use self::with_span::{HasSpan, WithSpan};
 
 /// Helper alias for compile results.
 pub type Result<T, E = Error> = ::core::result::Result<T, E>;

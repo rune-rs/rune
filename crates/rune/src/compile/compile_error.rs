@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::compile::{IrValue, ItemBuf, Location, MetaInfo, Visibility, WithSpan};
+use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
@@ -24,11 +24,11 @@ error! {
     }
 }
 
-impl<E> From<WithSpan<E>> for Error
+impl<E> From<HasSpan<E>> for Error
 where
     CompileErrorKind: From<E>,
 {
-    fn from(spanned: WithSpan<E>) -> Self {
+    fn from(spanned: HasSpan<E>) -> Self {
         Error {
             span: spanned.span,
             kind: Box::new(CompileErrorKind::from(spanned.error)),

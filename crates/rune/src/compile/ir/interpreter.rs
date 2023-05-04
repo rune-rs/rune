@@ -1,7 +1,7 @@
 use crate::no_std::prelude::*;
 
 use crate::ast::{Span, Spanned};
-use crate::compile::{self, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId, WithSpanExt};
+use crate::compile::{self, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId, WithSpan};
 use crate::compile::{ir, meta};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};

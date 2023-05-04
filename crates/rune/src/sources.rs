@@ -124,11 +124,13 @@ impl<'a> files::Files<'a> for Sources {
         Ok(source.as_str())
     }
 
+    #[cfg(feature = "emit")]
     fn line_index(&self, file_id: SourceId, byte_index: usize) -> Result<usize, files::Error> {
         let source = self.get(file_id).ok_or(files::Error::FileMissing)?;
         Ok(source.line_index(byte_index))
     }
 
+    #[cfg(feature = "emit")]
     fn line_range(
         &self,
         file_id: SourceId,

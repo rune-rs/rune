@@ -13,7 +13,7 @@ use crate::collections::HashMap;
 use crate::compile::attrs::Attributes;
 use crate::compile::{
     self, attrs, ir, CompileErrorKind, Doc, ItemId, Location, ModId, Options, ParseErrorKind,
-    SourceLoader, Visibility, WithSpanExt,
+    SourceLoader, Visibility, WithSpan,
 };
 use crate::indexing::locals;
 use crate::indexing::{IndexFnKind, IndexScopes};

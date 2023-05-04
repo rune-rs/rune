@@ -7,7 +7,7 @@ use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
 use crate::compile::ir;
 use crate::compile::ir::{IrInterpreter, IrValue};
-use crate::compile::{self, WithSpanExt};
+use crate::compile::{self, WithSpan};
 use crate::query::Used;
 use crate::runtime::Shared;
 

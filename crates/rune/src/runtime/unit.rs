@@ -4,7 +4,6 @@
 //! metadata like function locations.
 
 use core::fmt;
-use core::iter;
 
 use crate::no_std::prelude::*;
 
@@ -89,17 +88,22 @@ impl Unit {
     }
 
     /// Iterate over all static strings in the unit.
+    #[cfg(feature = "cli")]
     pub(crate) fn iter_static_strings(&self) -> impl Iterator<Item = &Arc<StaticString>> + '_ {
         self.static_strings.iter()
     }
 
     /// Iterate over all constants in the unit.
+    #[cfg(feature = "cli")]
     pub(crate) fn iter_constants(&self) -> impl Iterator<Item = (&Hash, &ConstValue)> + '_ {
         self.constants.iter()
     }
 
     /// Iterate over all static object keys in the unit.
+    #[cfg(feature = "cli")]
     pub(crate) fn iter_static_object_keys(&self) -> impl Iterator<Item = (usize, &[String])> + '_ {
+        use core::iter;
+
         let mut it = self.static_object_keys.iter().enumerate();
 
         iter::from_fn(move || {
@@ -109,11 +113,13 @@ impl Unit {
     }
 
     /// Iterate over all instructions in order.
+    #[cfg(feature = "emit")]
     pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = Inst> + '_ {
         self.instructions.iter().copied()
     }
 
     /// Iterate over dynamic functions.
+    #[cfg(feature = "cli")]
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFn)> + '_ {
         self.functions.iter().map(|(h, f)| (*h, f))
     }

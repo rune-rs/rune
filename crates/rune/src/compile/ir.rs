@@ -23,7 +23,7 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;
 use crate::compile::ir::eval::IrEvalBreak;
-use crate::compile::{self, ItemMeta, WithSpanExt};
+use crate::compile::{self, ItemMeta, WithSpan};
 use crate::hir;
 use crate::query::Used;
 

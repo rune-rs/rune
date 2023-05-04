@@ -1,5 +1,4 @@
 use core::fmt;
-use core::iter;
 
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
@@ -35,6 +34,7 @@ pub(crate) struct PrivMeta {
     /// The kind of the compile meta.
     pub(crate) kind: meta::Kind,
     /// Documentation associated with a context meta.
+    #[cfg_attr(not(feature = "doc"), allow(unused))]
     pub(crate) docs: Docs,
 }
 
@@ -262,6 +262,8 @@ impl Context {
     /// Iterate over all available functions in the [Context].
     #[cfg(feature = "cli")]
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &meta::Signature)> {
+        use core::iter;
+
         let mut it = self.functions_info.iter();
 
         iter::from_fn(move || {
@@ -271,7 +273,10 @@ impl Context {
     }
 
     /// Iterate over all available types in the [Context].
+    #[cfg(feature = "cli")]
     pub(crate) fn iter_types(&self) -> impl Iterator<Item = (Hash, &Item)> {
+        use core::iter;
+
         let mut it = self.types.iter();
 
         iter::from_fn(move || {
@@ -311,6 +316,7 @@ impl Context {
     }
 
     /// Iterate over all metadata in the context.
+    #[cfg(feature = "cli")]
     pub(crate) fn iter_meta(&self) -> impl Iterator<Item = &PrivMeta> + '_ {
         self.meta.values()
     }

@@ -15,7 +15,7 @@ use crate::collections::HashMap;
 use crate::compile::meta;
 use crate::compile::{
     self, Assembly, AssemblyInst, CompileErrorKind, Item, ItemBuf, Location, Pool, QueryErrorKind,
-    WithSpanExt,
+    WithSpan,
 };
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{

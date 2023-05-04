@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::v1::Assembler;
-use crate::compile::{self, Assembly, CompileErrorKind, CompileVisitor, WithSpanExt};
+use crate::compile::{self, Assembly, CompileErrorKind, CompileVisitor, WithSpan};
 use crate::runtime::Inst;
 use crate::SourceId;
 

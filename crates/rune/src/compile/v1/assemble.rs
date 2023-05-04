@@ -10,7 +10,7 @@ use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
-use crate::compile::{self, CompileErrorKind, Item, ParseErrorKind, WithSpanExt};
+use crate::compile::{self, CompileErrorKind, Item, ParseErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::{Id, Resolve};

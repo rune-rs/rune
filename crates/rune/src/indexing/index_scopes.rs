@@ -7,7 +7,7 @@ use crate::no_std::rc::Rc;
 
 use crate::ast::Span;
 use crate::collections::{HashMap, HashSet};
-use crate::compile::{self, CompileErrorKind, WithSpanExt};
+use crate::compile::{self, CompileErrorKind, WithSpan};
 
 /// The kind of an indexed function.
 #[derive(Debug, Clone, Copy)]
