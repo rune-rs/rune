@@ -97,7 +97,7 @@ macro_rules! grouped {
                 parser: &mut Parser<'_>,
                 open: $open,
                 mut current: T,
-            ) -> Result<Self, ParseError> {
+            ) -> Result<Self> {
                 let mut $field = Vec::new();
 
                 loop {
@@ -127,7 +127,7 @@ macro_rules! grouped {
             T: Parse,
             S: Peek + Parse,
         {
-            fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+            fn parse(parser: &mut Parser<'_>) -> Result<Self> {
                 let open = parser.parse()?;
 
                 let mut $field = Vec::new();

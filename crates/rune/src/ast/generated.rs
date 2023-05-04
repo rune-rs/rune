@@ -1,8 +1,8 @@
-use core::fmt;
-
 use crate::ast;
+use crate::compile;
 use crate::macros;
 use crate::parse;
+use std::fmt;
 
 /// This file has been generated from `assets\tokens.yaml`
 /// DO NOT modify by hand!
@@ -22,12 +22,12 @@ impl ast::Spanned for Abstract {
 }
 
 impl parse::Parse for Abstract {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Abstract => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Abstract)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Abstract)),
         }
     }
 }
@@ -62,12 +62,12 @@ impl ast::Spanned for AlignOf {
 }
 
 impl parse::Parse for AlignOf {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::AlignOf => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::AlignOf)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::AlignOf)),
         }
     }
 }
@@ -102,12 +102,12 @@ impl ast::Spanned for Amp {
 }
 
 impl parse::Parse for Amp {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Amp => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Amp)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Amp)),
         }
     }
 }
@@ -142,12 +142,12 @@ impl ast::Spanned for AmpAmp {
 }
 
 impl parse::Parse for AmpAmp {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::AmpAmp => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::AmpAmp)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::AmpAmp)),
         }
     }
 }
@@ -182,12 +182,12 @@ impl ast::Spanned for AmpEq {
 }
 
 impl parse::Parse for AmpEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::AmpEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::AmpEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::AmpEq)),
         }
     }
 }
@@ -222,12 +222,12 @@ impl ast::Spanned for Arrow {
 }
 
 impl parse::Parse for Arrow {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Arrow => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Arrow)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Arrow)),
         }
     }
 }
@@ -262,12 +262,12 @@ impl ast::Spanned for As {
 }
 
 impl parse::Parse for As {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::As => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::As)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::As)),
         }
     }
 }
@@ -302,12 +302,12 @@ impl ast::Spanned for Async {
 }
 
 impl parse::Parse for Async {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Async => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Async)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Async)),
         }
     }
 }
@@ -342,12 +342,12 @@ impl ast::Spanned for At {
 }
 
 impl parse::Parse for At {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::At => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::At)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::At)),
         }
     }
 }
@@ -382,12 +382,12 @@ impl ast::Spanned for Await {
 }
 
 impl parse::Parse for Await {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Await => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Await)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Await)),
         }
     }
 }
@@ -422,12 +422,12 @@ impl ast::Spanned for Bang {
 }
 
 impl parse::Parse for Bang {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Bang => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Bang)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Bang)),
         }
     }
 }
@@ -462,12 +462,12 @@ impl ast::Spanned for BangEq {
 }
 
 impl parse::Parse for BangEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::BangEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::BangEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::BangEq)),
         }
     }
 }
@@ -502,12 +502,12 @@ impl ast::Spanned for Become {
 }
 
 impl parse::Parse for Become {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Become => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Become)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Become)),
         }
     }
 }
@@ -542,12 +542,12 @@ impl ast::Spanned for Break {
 }
 
 impl parse::Parse for Break {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Break => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Break)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Break)),
         }
     }
 }
@@ -582,12 +582,12 @@ impl ast::Spanned for Caret {
 }
 
 impl parse::Parse for Caret {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Caret => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Caret)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Caret)),
         }
     }
 }
@@ -622,12 +622,12 @@ impl ast::Spanned for CaretEq {
 }
 
 impl parse::Parse for CaretEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::CaretEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::CaretEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::CaretEq)),
         }
     }
 }
@@ -662,12 +662,12 @@ impl ast::Spanned for Colon {
 }
 
 impl parse::Parse for Colon {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Colon => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Colon)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Colon)),
         }
     }
 }
@@ -702,12 +702,15 @@ impl ast::Spanned for ColonColon {
 }
 
 impl parse::Parse for ColonColon {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::ColonColon => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::ColonColon)),
+            _ => Err(compile::CompileError::expected(
+                token,
+                ast::Kind::ColonColon,
+            )),
         }
     }
 }
@@ -742,12 +745,12 @@ impl ast::Spanned for Comma {
 }
 
 impl parse::Parse for Comma {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Comma => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Comma)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Comma)),
         }
     }
 }
@@ -782,12 +785,12 @@ impl ast::Spanned for Const {
 }
 
 impl parse::Parse for Const {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Const => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Const)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Const)),
         }
     }
 }
@@ -822,12 +825,12 @@ impl ast::Spanned for Continue {
 }
 
 impl parse::Parse for Continue {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Continue => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Continue)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Continue)),
         }
     }
 }
@@ -862,12 +865,12 @@ impl ast::Spanned for Crate {
 }
 
 impl parse::Parse for Crate {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Crate => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Crate)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Crate)),
         }
     }
 }
@@ -902,12 +905,12 @@ impl ast::Spanned for Dash {
 }
 
 impl parse::Parse for Dash {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Dash => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Dash)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Dash)),
         }
     }
 }
@@ -942,12 +945,12 @@ impl ast::Spanned for DashEq {
 }
 
 impl parse::Parse for DashEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::DashEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::DashEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::DashEq)),
         }
     }
 }
@@ -982,12 +985,12 @@ impl ast::Spanned for Default {
 }
 
 impl parse::Parse for Default {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Default => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Default)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Default)),
         }
     }
 }
@@ -1022,12 +1025,12 @@ impl ast::Spanned for Div {
 }
 
 impl parse::Parse for Div {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Div => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Div)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Div)),
         }
     }
 }
@@ -1062,12 +1065,12 @@ impl ast::Spanned for Do {
 }
 
 impl parse::Parse for Do {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Do => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Do)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Do)),
         }
     }
 }
@@ -1102,12 +1105,12 @@ impl ast::Spanned for Dollar {
 }
 
 impl parse::Parse for Dollar {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Dollar => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Dollar)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Dollar)),
         }
     }
 }
@@ -1142,12 +1145,12 @@ impl ast::Spanned for Dot {
 }
 
 impl parse::Parse for Dot {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Dot => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Dot)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Dot)),
         }
     }
 }
@@ -1182,12 +1185,12 @@ impl ast::Spanned for DotDot {
 }
 
 impl parse::Parse for DotDot {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::DotDot => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::DotDot)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::DotDot)),
         }
     }
 }
@@ -1222,12 +1225,12 @@ impl ast::Spanned for DotDotEq {
 }
 
 impl parse::Parse for DotDotEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::DotDotEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::DotDotEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::DotDotEq)),
         }
     }
 }
@@ -1262,12 +1265,12 @@ impl ast::Spanned for Else {
 }
 
 impl parse::Parse for Else {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Else => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Else)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Else)),
         }
     }
 }
@@ -1302,12 +1305,12 @@ impl ast::Spanned for Enum {
 }
 
 impl parse::Parse for Enum {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Enum => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Enum)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Enum)),
         }
     }
 }
@@ -1342,12 +1345,12 @@ impl ast::Spanned for Eq {
 }
 
 impl parse::Parse for Eq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Eq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Eq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Eq)),
         }
     }
 }
@@ -1382,12 +1385,12 @@ impl ast::Spanned for EqEq {
 }
 
 impl parse::Parse for EqEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::EqEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::EqEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::EqEq)),
         }
     }
 }
@@ -1422,12 +1425,12 @@ impl ast::Spanned for Extern {
 }
 
 impl parse::Parse for Extern {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Extern => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Extern)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Extern)),
         }
     }
 }
@@ -1462,12 +1465,12 @@ impl ast::Spanned for False {
 }
 
 impl parse::Parse for False {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::False => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::False)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::False)),
         }
     }
 }
@@ -1502,12 +1505,12 @@ impl ast::Spanned for Final {
 }
 
 impl parse::Parse for Final {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Final => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Final)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Final)),
         }
     }
 }
@@ -1542,12 +1545,12 @@ impl ast::Spanned for Fn {
 }
 
 impl parse::Parse for Fn {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Fn => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Fn)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Fn)),
         }
     }
 }
@@ -1582,12 +1585,12 @@ impl ast::Spanned for For {
 }
 
 impl parse::Parse for For {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::For => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::For)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::For)),
         }
     }
 }
@@ -1622,12 +1625,12 @@ impl ast::Spanned for Gt {
 }
 
 impl parse::Parse for Gt {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Gt => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Gt)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Gt)),
         }
     }
 }
@@ -1662,12 +1665,12 @@ impl ast::Spanned for GtEq {
 }
 
 impl parse::Parse for GtEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::GtEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::GtEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::GtEq)),
         }
     }
 }
@@ -1702,12 +1705,12 @@ impl ast::Spanned for GtGt {
 }
 
 impl parse::Parse for GtGt {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::GtGt => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::GtGt)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::GtGt)),
         }
     }
 }
@@ -1742,12 +1745,12 @@ impl ast::Spanned for GtGtEq {
 }
 
 impl parse::Parse for GtGtEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::GtGtEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::GtGtEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::GtGtEq)),
         }
     }
 }
@@ -1782,12 +1785,12 @@ impl ast::Spanned for If {
 }
 
 impl parse::Parse for If {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::If => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::If)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::If)),
         }
     }
 }
@@ -1822,12 +1825,12 @@ impl ast::Spanned for Impl {
 }
 
 impl parse::Parse for Impl {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Impl => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Impl)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Impl)),
         }
     }
 }
@@ -1862,12 +1865,12 @@ impl ast::Spanned for In {
 }
 
 impl parse::Parse for In {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::In => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::In)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::In)),
         }
     }
 }
@@ -1902,12 +1905,12 @@ impl ast::Spanned for Is {
 }
 
 impl parse::Parse for Is {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Is => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Is)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Is)),
         }
     }
 }
@@ -1942,12 +1945,12 @@ impl ast::Spanned for Let {
 }
 
 impl parse::Parse for Let {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Let => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Let)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Let)),
         }
     }
 }
@@ -1982,12 +1985,12 @@ impl ast::Spanned for Loop {
 }
 
 impl parse::Parse for Loop {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Loop => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Loop)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Loop)),
         }
     }
 }
@@ -2022,12 +2025,12 @@ impl ast::Spanned for Lt {
 }
 
 impl parse::Parse for Lt {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Lt => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Lt)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Lt)),
         }
     }
 }
@@ -2062,12 +2065,12 @@ impl ast::Spanned for LtEq {
 }
 
 impl parse::Parse for LtEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::LtEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::LtEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::LtEq)),
         }
     }
 }
@@ -2102,12 +2105,12 @@ impl ast::Spanned for LtLt {
 }
 
 impl parse::Parse for LtLt {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::LtLt => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::LtLt)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::LtLt)),
         }
     }
 }
@@ -2142,12 +2145,12 @@ impl ast::Spanned for LtLtEq {
 }
 
 impl parse::Parse for LtLtEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::LtLtEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::LtLtEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::LtLtEq)),
         }
     }
 }
@@ -2182,12 +2185,12 @@ impl ast::Spanned for Macro {
 }
 
 impl parse::Parse for Macro {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Macro => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Macro)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Macro)),
         }
     }
 }
@@ -2222,12 +2225,12 @@ impl ast::Spanned for Match {
 }
 
 impl parse::Parse for Match {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Match => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Match)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Match)),
         }
     }
 }
@@ -2262,12 +2265,12 @@ impl ast::Spanned for Mod {
 }
 
 impl parse::Parse for Mod {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Mod => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Mod)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Mod)),
         }
     }
 }
@@ -2302,12 +2305,12 @@ impl ast::Spanned for Move {
 }
 
 impl parse::Parse for Move {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Move => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Move)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Move)),
         }
     }
 }
@@ -2342,12 +2345,12 @@ impl ast::Spanned for Not {
 }
 
 impl parse::Parse for Not {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Not => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Not)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Not)),
         }
     }
 }
@@ -2382,12 +2385,12 @@ impl ast::Spanned for OffsetOf {
 }
 
 impl parse::Parse for OffsetOf {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::OffsetOf => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::OffsetOf)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::OffsetOf)),
         }
     }
 }
@@ -2422,12 +2425,12 @@ impl ast::Spanned for Override {
 }
 
 impl parse::Parse for Override {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Override => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Override)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Override)),
         }
     }
 }
@@ -2462,12 +2465,12 @@ impl ast::Spanned for Perc {
 }
 
 impl parse::Parse for Perc {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Perc => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Perc)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Perc)),
         }
     }
 }
@@ -2502,12 +2505,12 @@ impl ast::Spanned for PercEq {
 }
 
 impl parse::Parse for PercEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::PercEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::PercEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::PercEq)),
         }
     }
 }
@@ -2542,12 +2545,12 @@ impl ast::Spanned for Pipe {
 }
 
 impl parse::Parse for Pipe {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Pipe => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Pipe)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Pipe)),
         }
     }
 }
@@ -2582,12 +2585,12 @@ impl ast::Spanned for PipeEq {
 }
 
 impl parse::Parse for PipeEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::PipeEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::PipeEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::PipeEq)),
         }
     }
 }
@@ -2622,12 +2625,12 @@ impl ast::Spanned for PipePipe {
 }
 
 impl parse::Parse for PipePipe {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::PipePipe => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::PipePipe)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::PipePipe)),
         }
     }
 }
@@ -2662,12 +2665,12 @@ impl ast::Spanned for Plus {
 }
 
 impl parse::Parse for Plus {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Plus => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Plus)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Plus)),
         }
     }
 }
@@ -2702,12 +2705,12 @@ impl ast::Spanned for PlusEq {
 }
 
 impl parse::Parse for PlusEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::PlusEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::PlusEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::PlusEq)),
         }
     }
 }
@@ -2742,12 +2745,12 @@ impl ast::Spanned for Pound {
 }
 
 impl parse::Parse for Pound {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Pound => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Pound)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Pound)),
         }
     }
 }
@@ -2782,12 +2785,12 @@ impl ast::Spanned for Priv {
 }
 
 impl parse::Parse for Priv {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Priv => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Priv)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Priv)),
         }
     }
 }
@@ -2822,12 +2825,12 @@ impl ast::Spanned for Proc {
 }
 
 impl parse::Parse for Proc {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Proc => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Proc)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Proc)),
         }
     }
 }
@@ -2862,12 +2865,12 @@ impl ast::Spanned for Pub {
 }
 
 impl parse::Parse for Pub {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Pub => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Pub)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Pub)),
         }
     }
 }
@@ -2902,12 +2905,12 @@ impl ast::Spanned for Pure {
 }
 
 impl parse::Parse for Pure {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Pure => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Pure)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Pure)),
         }
     }
 }
@@ -2942,12 +2945,15 @@ impl ast::Spanned for QuestionMark {
 }
 
 impl parse::Parse for QuestionMark {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::QuestionMark => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::QuestionMark)),
+            _ => Err(compile::CompileError::expected(
+                token,
+                ast::Kind::QuestionMark,
+            )),
         }
     }
 }
@@ -2982,12 +2988,12 @@ impl ast::Spanned for Ref {
 }
 
 impl parse::Parse for Ref {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Ref => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Ref)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Ref)),
         }
     }
 }
@@ -3022,12 +3028,12 @@ impl ast::Spanned for Return {
 }
 
 impl parse::Parse for Return {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Return => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Return)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Return)),
         }
     }
 }
@@ -3062,12 +3068,12 @@ impl ast::Spanned for Rocket {
 }
 
 impl parse::Parse for Rocket {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Rocket => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Rocket)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Rocket)),
         }
     }
 }
@@ -3102,12 +3108,12 @@ impl ast::Spanned for Select {
 }
 
 impl parse::Parse for Select {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Select => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Select)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Select)),
         }
     }
 }
@@ -3142,12 +3148,12 @@ impl ast::Spanned for SelfType {
 }
 
 impl parse::Parse for SelfType {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SelfType => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::SelfType)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::SelfType)),
         }
     }
 }
@@ -3182,12 +3188,12 @@ impl ast::Spanned for SelfValue {
 }
 
 impl parse::Parse for SelfValue {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SelfValue => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::SelfValue)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::SelfValue)),
         }
     }
 }
@@ -3222,12 +3228,12 @@ impl ast::Spanned for SemiColon {
 }
 
 impl parse::Parse for SemiColon {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SemiColon => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::SemiColon)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::SemiColon)),
         }
     }
 }
@@ -3262,12 +3268,12 @@ impl ast::Spanned for SizeOf {
 }
 
 impl parse::Parse for SizeOf {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SizeOf => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::SizeOf)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::SizeOf)),
         }
     }
 }
@@ -3302,12 +3308,12 @@ impl ast::Spanned for SlashEq {
 }
 
 impl parse::Parse for SlashEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::SlashEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::SlashEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::SlashEq)),
         }
     }
 }
@@ -3342,12 +3348,12 @@ impl ast::Spanned for Star {
 }
 
 impl parse::Parse for Star {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Star => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Star)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Star)),
         }
     }
 }
@@ -3382,12 +3388,12 @@ impl ast::Spanned for StarEq {
 }
 
 impl parse::Parse for StarEq {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::StarEq => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::StarEq)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::StarEq)),
         }
     }
 }
@@ -3422,12 +3428,12 @@ impl ast::Spanned for Static {
 }
 
 impl parse::Parse for Static {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Static => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Static)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Static)),
         }
     }
 }
@@ -3462,12 +3468,12 @@ impl ast::Spanned for Struct {
 }
 
 impl parse::Parse for Struct {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Struct => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Struct)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Struct)),
         }
     }
 }
@@ -3502,12 +3508,12 @@ impl ast::Spanned for Super {
 }
 
 impl parse::Parse for Super {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Super => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Super)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Super)),
         }
     }
 }
@@ -3542,12 +3548,12 @@ impl ast::Spanned for Tilde {
 }
 
 impl parse::Parse for Tilde {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Tilde => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Tilde)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Tilde)),
         }
     }
 }
@@ -3582,12 +3588,12 @@ impl ast::Spanned for True {
 }
 
 impl parse::Parse for True {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::True => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::True)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::True)),
         }
     }
 }
@@ -3622,12 +3628,12 @@ impl ast::Spanned for TypeOf {
 }
 
 impl parse::Parse for TypeOf {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::TypeOf => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::TypeOf)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::TypeOf)),
         }
     }
 }
@@ -3662,12 +3668,15 @@ impl ast::Spanned for Underscore {
 }
 
 impl parse::Parse for Underscore {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Underscore => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Underscore)),
+            _ => Err(compile::CompileError::expected(
+                token,
+                ast::Kind::Underscore,
+            )),
         }
     }
 }
@@ -3702,12 +3711,12 @@ impl ast::Spanned for Unsafe {
 }
 
 impl parse::Parse for Unsafe {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Unsafe => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Unsafe)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Unsafe)),
         }
     }
 }
@@ -3742,12 +3751,12 @@ impl ast::Spanned for Use {
 }
 
 impl parse::Parse for Use {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Use => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Use)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Use)),
         }
     }
 }
@@ -3782,12 +3791,12 @@ impl ast::Spanned for Virtual {
 }
 
 impl parse::Parse for Virtual {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Virtual => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Virtual)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Virtual)),
         }
     }
 }
@@ -3822,12 +3831,12 @@ impl ast::Spanned for While {
 }
 
 impl parse::Parse for While {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::While => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::While)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::While)),
         }
     }
 }
@@ -3862,12 +3871,12 @@ impl ast::Spanned for Yield {
 }
 
 impl parse::Parse for Yield {
-    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, parse::ParseError> {
+    fn parse(p: &mut parse::Parser<'_>) -> Result<Self, compile::CompileError> {
         let token = p.next()?;
 
         match token.kind {
             ast::Kind::Yield => Ok(Self { span: token.span }),
-            _ => Err(parse::ParseError::expected(token, ast::Kind::Yield)),
+            _ => Err(compile::CompileError::expected(token, ast::Kind::Yield)),
         }
     }
 }

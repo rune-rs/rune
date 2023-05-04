@@ -6,10 +6,10 @@ use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
     CompileError, IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta,
-    NoopCompileVisitor, Pool, Prelude, UnitBuilder,
+    NoopCompileVisitor, ParseErrorKind, Pool, Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
-use crate::parse::{Parse, ParseError, ParseErrorKind, Resolve};
+use crate::parse::{Parse, Resolve};
 use crate::query::Query;
 use crate::shared::{Consts, Gen};
 use crate::{Source, SourceId, Sources};
@@ -213,12 +213,12 @@ impl<'a> MacroContext<'a> {
 
     /// Parse the given input as the given type that implements
     /// [Parse][crate::parse::Parse].
-    pub fn parse_source<T>(&self, id: SourceId) -> Result<T, ParseError>
+    pub fn parse_source<T>(&self, id: SourceId) -> Result<T, CompileError>
     where
         T: Parse,
     {
         let source = self.q.sources.get(id).ok_or_else(|| {
-            ParseError::new(
+            CompileError::new(
                 Span::empty(),
                 ParseErrorKind::MissingSourceId { source_id: id },
             )

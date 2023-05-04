@@ -6,10 +6,12 @@
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
     pub(crate) use crate::ast;
-    pub(crate) use crate::compile::{self, CompileErrorKind, Item, Location, Named};
+    pub(crate) use crate::compile::{
+        self, CompileErrorKind, Item, Location, Named, ParseErrorKind, ResolveErrorKind,
+    };
     pub(crate) use crate::diagnostics;
     pub(crate) use crate::macros;
-    pub(crate) use crate::parse::{self, ParseErrorKind, ResolveErrorKind};
+    pub(crate) use crate::parse;
     pub(crate) use crate::query::QueryErrorKind;
     pub(crate) use crate::runtime::{
         self, AnyObj, AnyTypeInfo, Bytes, Function, MaybeTypeOf, Object, Protocol, RawRef, RawStr,
@@ -265,7 +267,7 @@ macro_rules! assert_errors {
 /// Assert that the given rune program raises a compile error.
 macro_rules! assert_compile_error {
     ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
-        assert_errors!($source, $span, CompileError($pat) => $cond)
+        assert_errors!($source, $span, $pat => $cond)
     }};
 }
 

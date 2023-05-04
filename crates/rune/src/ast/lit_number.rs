@@ -26,7 +26,7 @@ pub struct LitNumber {
 /// testing::roundtrip::<ast::LitNumber>("0.42e10");
 /// ```
 impl Parse for LitNumber {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
 
         match t.kind {
@@ -34,7 +34,7 @@ impl Parse for LitNumber {
                 source,
                 span: t.span,
             }),
-            _ => Err(ParseError::expected(t, "number")),
+            _ => Err(CompileError::expected(t, "number")),
         }
     }
 }

@@ -10,10 +10,10 @@ use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item};
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item, ParseErrorKind};
 use crate::hash::ParametersBuilder;
 use crate::hir;
-use crate::parse::{Id, ParseErrorKind, Resolve};
+use crate::parse::{Id, Resolve};
 use crate::query::Named;
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,

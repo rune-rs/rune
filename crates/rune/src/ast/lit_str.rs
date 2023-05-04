@@ -114,7 +114,7 @@ impl LitStr {
 /// testing::roundtrip::<ast::LitStr>("\"hello\\nworld\"");
 /// ```
 impl Parse for LitStr {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
 
         match t.kind {
@@ -122,7 +122,7 @@ impl Parse for LitStr {
                 span: t.span,
                 source,
             }),
-            _ => Err(ParseError::expected(t, "string literal")),
+            _ => Err(CompileError::expected(t, "string literal")),
         }
     }
 }

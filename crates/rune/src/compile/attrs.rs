@@ -3,7 +3,8 @@ use crate::no_std::prelude::*;
 use crate::ast;
 use crate::ast::{LitStr, Span, Spanned};
 use crate::collections::BTreeSet;
-use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveContext};
+use crate::compile::{CompileError, ParseErrorKind};
+use crate::parse::{Parse, Parser, Resolve, ResolveContext};
 
 /// Helper for parsing internal attributes.
 pub(crate) struct Attributes {
@@ -34,7 +35,7 @@ impl Attributes {
     pub(crate) fn try_parse_collect<T>(
         &mut self,
         ctx: ResolveContext<'_>,
-    ) -> Result<Vec<(Span, T)>, ParseError>
+    ) -> Result<Vec<(Span, T)>, CompileError>
     where
         T: Attribute + Parse,
     {
@@ -79,7 +80,7 @@ impl Attributes {
     pub(crate) fn try_parse<T>(
         &mut self,
         ctx: ResolveContext<'_>,
-    ) -> Result<Option<(Span, T)>, ParseError>
+    ) -> Result<Option<(Span, T)>, CompileError>
     where
         T: Attribute + Parse,
     {
@@ -87,7 +88,7 @@ impl Attributes {
         match vec.len() {
             0 => Ok(None),
             1 => Ok(Some(vec.swap_remove(0))),
-            _ => Err(ParseError::new(
+            _ => Err(CompileError::new(
                 vec.swap_remove(1).0,
                 ParseErrorKind::MultipleMatchingAttributes { name: T::PATH },
             )),
@@ -123,7 +124,7 @@ pub(crate) struct BuiltIn {
 
 impl BuiltIn {
     /// Parse built-in arguments.
-    pub(crate) fn args(&self, ctx: ResolveContext<'_>) -> Result<BuiltInArgs, ParseError> {
+    pub(crate) fn args(&self, ctx: ResolveContext<'_>) -> Result<BuiltInArgs, CompileError> {
         let mut out = BuiltInArgs::default();
 
         if let Some(args) = &self.args {
@@ -133,7 +134,7 @@ impl BuiltIn {
                         out.literal = true;
                     }
                     _ => {
-                        return Err(ParseError::msg(ident, "unsupported attribute"));
+                        return Err(CompileError::msg(ident, "unsupported attribute"));
                     }
                 }
             }

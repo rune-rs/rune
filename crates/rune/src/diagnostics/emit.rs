@@ -455,7 +455,6 @@ where
                 &mut notes,
             )?;
         }
-        FatalDiagnosticKind::ParseError(..) => {},
     };
 
     let diagnostic = d::Diagnostic::error()
@@ -476,7 +475,17 @@ where
     ) -> fmt::Result {
         match kind {
             CompileErrorKind::QueryError(kind) => {
-                format_query_error(this, sources, error_span, kind, labels, notes)?;
+                format_query_error(kind, labels)?;
+            }
+            CompileErrorKind::IrError { error } => {
+                format_ir_error(
+                    this,
+                    sources,
+                    error_span,
+                    error,
+                    labels,
+                    notes,
+                )?;
             }
             CompileErrorKind::DuplicateObjectKey { existing, object } => {
                 labels.push(
@@ -555,12 +564,8 @@ where
     }
 
     fn format_query_error(
-        this: &FatalDiagnostic,
-        sources: &Sources,
-        error_span: Span,
         kind: &QueryErrorKind,
         labels: &mut Vec<d::Label<SourceId>>,
-        notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
             QueryErrorKind::ImportCycle { path } => {

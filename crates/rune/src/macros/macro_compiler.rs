@@ -3,10 +3,10 @@
 use crate::no_std::prelude::*;
 
 use crate::ast;
-use crate::ast::{Spanned, SpannedError};
+use crate::ast::Spanned;
 use crate::compile::{CompileError, CompileErrorKind, CompileResult, IrError, ItemMeta, Options};
 use crate::macros::MacroContext;
-use crate::parse::{Parse, ParseError, Parser};
+use crate::parse::{Parse, Parser};
 use crate::query::Query;
 use crate::Context;
 
@@ -73,11 +73,6 @@ impl MacroCompiler<'_> {
         let token_stream = match result {
             Ok(output) => output,
             Err(error) => {
-                let error = match error.downcast::<ParseError>() {
-                    Ok(error) => return Err(CompileError::from(error)),
-                    Err(error) => error,
-                };
-
                 let error = match error.downcast::<IrError>() {
                     Ok(error) => return Err(CompileError::from(error)),
                     Err(error) => error,
@@ -85,19 +80,6 @@ impl MacroCompiler<'_> {
 
                 let error = match error.downcast::<CompileError>() {
                     Ok(error) => return Err(error),
-                    Err(error) => error,
-                };
-
-                let error = match error.downcast::<SpannedError>() {
-                    Ok(error) => {
-                        return Err(CompileError::new(
-                            error.span(),
-                            CompileErrorKind::CallMacroError {
-                                item: self.query.pool.item(named.item).to_owned(),
-                                error: error.into_inner(),
-                            },
-                        ));
-                    }
                     Err(error) => error,
                 };
 

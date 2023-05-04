@@ -1,5 +1,5 @@
 use rune::ast;
-use rune::ast::{Spanned, SpannedError};
+use rune::compile::CompileError;
 use rune::macros::{quote, MacroContext, TokenStream};
 use rune::parse::Parser;
 
@@ -21,7 +21,7 @@ pub(crate) fn stringy_math(
             "sub" => quote!((#output) - #arg),
             "div" => quote!((#output) / #arg),
             "mul" => quote!((#output) * #arg),
-            _ => return Err(SpannedError::msg(op.span(), "unsupported operation").into()),
+            _ => return Err(CompileError::msg(op, "unsupported operation").into()),
         }
     }
 

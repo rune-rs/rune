@@ -30,7 +30,7 @@ impl ExprTuple {
         attributes: Vec<ast::Attribute>,
         open: ast::OpenParen,
         expr: ast::Expr,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         Ok(Self {
             attributes,
             items: ast::Parenthesized::parse_from_first(parser, open, expr)?,

@@ -47,7 +47,7 @@ pub enum ObjectIdent {
 }
 
 impl Parse for ObjectIdent {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![#] => Self::Anonymous(p.parse()?),
             _ => Self::Named(p.parse()?),
@@ -77,7 +77,7 @@ pub struct FieldAssign {
 }
 
 impl Parse for FieldAssign {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         let key = p.parse()?;
 
         let assign = if p.peek::<T![:]>()? {
@@ -113,12 +113,12 @@ pub enum ObjectKey {
 /// testing::roundtrip::<ast::ObjectKey>("\"foo \\n bar\"");
 /// ```
 impl Parse for ObjectKey {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![str] => Self::LitStr(p.parse()?),
             K![ident] => Self::Path(p.parse()?),
             _ => {
-                return Err(ParseError::expected(p.tok_at(0)?, "literal object key"));
+                return Err(CompileError::expected(p.tok_at(0)?, "literal object key"));
             }
         })
     }

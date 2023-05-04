@@ -4,7 +4,7 @@ use crate::no_std::thiserror;
 
 use thiserror::Error;
 
-use crate::ast::{Spanned, SpannedError};
+use crate::ast::Spanned;
 use crate::compile::{CompileError, CompileErrorKind, IrValue, MetaInfo};
 use crate::hir::{HirError, HirErrorKind};
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
@@ -44,12 +44,6 @@ impl IrError {
         S: Spanned,
     {
         move |error| Self::new(spanned, error)
-    }
-}
-
-impl From<IrError> for SpannedError {
-    fn from(error: IrError) -> Self {
-        SpannedError::new(error.span, *error.kind)
     }
 }
 

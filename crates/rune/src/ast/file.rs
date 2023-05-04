@@ -100,7 +100,7 @@ impl OptionSpanned for File {
 }
 
 impl Parse for File {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let shebang = p.parse()?;
 
         let mut attributes = vec![];
@@ -134,11 +134,11 @@ impl Parse for File {
 
         // meta without items. maybe use different error kind?
         if let Some(span) = item_attributes.option_span() {
-            return Err(ParseError::unsupported(span, "attributes"));
+            return Err(CompileError::unsupported(span, "attributes"));
         }
 
         if let Some(span) = item_visibility.option_span() {
-            return Err(ParseError::unsupported(span, "visibility"));
+            return Err(CompileError::unsupported(span, "visibility"));
         }
 
         Ok(Self {
@@ -166,7 +166,7 @@ impl Peek for Shebang {
 }
 
 impl Parse for Shebang {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         let token = p.next()?;
 
         match token.kind {
@@ -174,7 +174,7 @@ impl Parse for Shebang {
                 span: token.span,
                 source,
             }),
-            _ => Err(ParseError::expected(token, Expectation::Shebang)),
+            _ => Err(CompileError::expected(token, Expectation::Shebang)),
         }
     }
 }

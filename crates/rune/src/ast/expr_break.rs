@@ -37,7 +37,7 @@ pub enum ExprBreakValue {
 }
 
 impl Parse for ExprBreakValue {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K!['label] => Self::Label(p.parse()?),
             _ => Self::Expr(p.parse()?),

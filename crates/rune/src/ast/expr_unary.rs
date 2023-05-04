@@ -34,7 +34,7 @@ impl ExprUnary {
         p: &mut Parser,
         attributes: Vec<ast::Attribute>,
         eager_brace: ast::expr::EagerBrace,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         Ok(Self {
             attributes,
             op: p.parse()?,
@@ -76,7 +76,7 @@ pub enum UnOp {
 /// testing::roundtrip::<ast::UnOp>("*");
 /// ```
 impl Parse for UnOp {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         let token = p.next()?;
 
         match token.kind {
@@ -84,7 +84,7 @@ impl Parse for UnOp {
             K![-] => Ok(Self::Neg(ast::Dash { span: token.span })),
             K![&] => Ok(Self::BorrowRef(ast::Amp { span: token.span })),
             K![*] => Ok(Self::Deref(ast::Star { span: token.span })),
-            _ => Err(ParseError::expected(
+            _ => Err(CompileError::expected(
                 token,
                 "unary operator, like `!` or `-`",
             )),

@@ -101,7 +101,7 @@ impl ExprClosureArgs {
 }
 
 impl Parse for ExprClosureArgs {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         if let Some(token) = p.parse::<Option<T![||]>>()? {
             return Ok(ExprClosureArgs::Empty { token });
         }

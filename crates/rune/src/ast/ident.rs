@@ -38,7 +38,7 @@ pub struct Ident {
 }
 
 impl Parse for Ident {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
 
         match t.kind {
@@ -46,7 +46,7 @@ impl Parse for Ident {
                 span: t.span,
                 source,
             }),
-            _ => Err(ParseError::expected(t, "ident")),
+            _ => Err(CompileError::expected(t, "ident")),
         }
     }
 }

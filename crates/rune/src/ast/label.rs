@@ -38,7 +38,7 @@ pub struct Label {
 }
 
 impl Parse for Label {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let t = p.next()?;
 
         match t.kind {
@@ -46,7 +46,7 @@ impl Parse for Label {
                 span: t.span,
                 source,
             }),
-            _ => Err(ParseError::expected(t, "label")),
+            _ => Err(CompileError::expected(t, "label")),
         }
     }
 }

@@ -57,7 +57,7 @@ impl LitByteStr {
 /// testing::roundtrip::<ast::LitByteStr>("b\"hello\\nworld\"");
 /// ```
 impl Parse for LitByteStr {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
 
         match t.kind {
@@ -65,7 +65,7 @@ impl Parse for LitByteStr {
                 span: t.span,
                 source,
             }),
-            _ => Err(ParseError::expected(t, "byte string")),
+            _ => Err(CompileError::expected(t, "byte string")),
         }
     }
 }

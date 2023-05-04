@@ -156,7 +156,8 @@ impl Expander {
 
         let parse = &self.tokens.parse;
         let parser = &self.tokens.parser;
-        let parse_error = &self.tokens.parse_error;
+        let compile_error = &self.tokens.compile_error;
+        let result = &self.tokens.result;
 
         let inner = if let ParseKind::MetaOnly = ty_attrs.parse {
             None
@@ -165,7 +166,7 @@ impl Expander {
                 named.span() =>
                 #[automatically_derived]
                 impl #parse for #ident {
-                    fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
+                    fn parse(parser: &mut #parser<'_>) -> #result<Self, #compile_error> {
                         #(#meta_parse;)*
                         Self::parse_with_meta(parser, #(#meta_fields,)*)
                      }
@@ -179,7 +180,7 @@ impl Expander {
                 impl #ident {
                     #[doc = "Parse #ident and attach the given meta"]
                     pub fn parse_with_meta(#parser_ident: &mut #parser<'_>, #(#meta_args,)*)
-                        -> Result<Self, #parse_error>
+                        -> #result<Self, #compile_error>
                     {
                         Ok(Self {
                             #(#fields,)*
@@ -193,7 +194,7 @@ impl Expander {
             quote_spanned! { named.span() =>
                 #[automatically_derived]
                 impl #parse for #ident {
-                    fn parse(#parser_ident: &mut #parser<'_>) -> Result<Self, #parse_error> {
+                    fn parse(#parser_ident: &mut #parser<'_>) -> #result<Self, #compile_error> {
                         Ok(Self {
                             #(#fields,)*
                         })

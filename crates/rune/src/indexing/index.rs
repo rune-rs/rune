@@ -13,12 +13,12 @@ use crate::collections::HashMap;
 use crate::compile::attrs::Attributes;
 use crate::compile::{
     attrs, ir, CompileError, CompileErrorKind, CompileResult, Doc, ItemId, Location, ModId,
-    Options, SourceLoader, Visibility,
+    Options, ParseErrorKind, SourceLoader, Visibility,
 };
 use crate::indexing::locals;
 use crate::indexing::{IndexFnKind, IndexScopes};
 use crate::macros::MacroCompiler;
-use crate::parse::{Parse, ParseError, ParseErrorKind, Parser, Resolve};
+use crate::parse::{Parse, Parser, Resolve};
 use crate::query::{
     BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Function, Indexed,
     IndexedEntry, IndexedFunction, InstanceFunction, Query,
@@ -30,6 +30,8 @@ use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{Context, Diagnostics, SourceId};
 
 use rune_macros::__instrument_ast as instrument;
+
+type Result<T> = core::result::Result<T, CompileError>;
 
 /// `self` variable.
 const SELF: &str = "self";
@@ -88,7 +90,7 @@ impl<'a> Indexer<'a> {
         &mut self,
         attributes: &mut attrs::Attributes,
         ast: &mut ast::MacroCall,
-    ) -> Result<bool, CompileError> {
+    ) -> Result<bool> {
         let (_, builtin) = match attributes.try_parse::<attrs::BuiltIn>(resolve_context!(self.q))? {
             Some(builtin) => builtin,
             None => return Ok(false),
@@ -149,7 +151,7 @@ impl<'a> Indexer<'a> {
         &mut self,
         ast: &mut ast::MacroCall,
         args: &attrs::BuiltInArgs,
-    ) -> Result<BuiltInMacro, ParseError> {
+    ) -> Result<BuiltInMacro> {
         let mut p = Parser::from_token_stream(&ast.stream, ast.span());
         let mut exprs = Vec::new();
 
@@ -175,7 +177,7 @@ impl<'a> Indexer<'a> {
         &mut self,
         ast: &mut ast::MacroCall,
         _: &attrs::BuiltInArgs,
-    ) -> Result<BuiltInMacro, ParseError> {
+    ) -> Result<BuiltInMacro> {
         let mut p = Parser::from_token_stream(&ast.stream, ast.span());
 
         let value = p.parse::<ast::Expr>()?;
@@ -197,7 +199,7 @@ impl<'a> Indexer<'a> {
             match k {
                 "fill" => {
                     if fill.is_some() {
-                        return Err(ParseError::unsupported(
+                        return Err(CompileError::unsupported(
                             key.span(),
                             "multiple `format!(.., fill = ..)`",
                         ));
@@ -210,7 +212,7 @@ impl<'a> Indexer<'a> {
                 }
                 "align" => {
                     if align.is_some() {
-                        return Err(ParseError::unsupported(
+                        return Err(CompileError::unsupported(
                             key.span(),
                             "multiple `format!(.., align = ..)`",
                         ));
@@ -222,7 +224,7 @@ impl<'a> Indexer<'a> {
                     align = Some(match str::parse::<format::Alignment>(a) {
                         Ok(a) => (arg, a),
                         _ => {
-                            return Err(ParseError::unsupported(
+                            return Err(CompileError::unsupported(
                                 key.span(),
                                 "`format!(.., align = ..)`",
                             ));
@@ -231,7 +233,7 @@ impl<'a> Indexer<'a> {
                 }
                 "flags" => {
                     if flags.is_some() {
-                        return Err(ParseError::unsupported(
+                        return Err(CompileError::unsupported(
                             key.span(),
                             "multiple `format!(.., flags = ..)`",
                         ));
@@ -247,7 +249,7 @@ impl<'a> Indexer<'a> {
                 }
                 "width" => {
                     if width.is_some() {
-                        return Err(ParseError::unsupported(
+                        return Err(CompileError::unsupported(
                             key.span(),
                             "multiple `format!(.., width = ..)`",
                         ));
@@ -262,7 +264,7 @@ impl<'a> Indexer<'a> {
                 }
                 "precision" => {
                     if precision.is_some() {
-                        return Err(ParseError::unsupported(
+                        return Err(CompileError::unsupported(
                             key.span(),
                             "multiple `format!(.., precision = ..)`",
                         ));
@@ -277,7 +279,7 @@ impl<'a> Indexer<'a> {
                 }
                 "type" => {
                     if format_type.is_some() {
-                        return Err(ParseError::unsupported(
+                        return Err(CompileError::unsupported(
                             key.span(),
                             "multiple `format!(.., type = ..)`",
                         ));
@@ -289,7 +291,7 @@ impl<'a> Indexer<'a> {
                     format_type = Some(match str::parse::<format::Type>(a) {
                         Ok(format_type) => (arg, format_type),
                         _ => {
-                            return Err(ParseError::unsupported(
+                            return Err(CompileError::unsupported(
                                 key.span(),
                                 "`format!(.., type = ..)`",
                             ));
@@ -297,7 +299,10 @@ impl<'a> Indexer<'a> {
                     });
                 }
                 _ => {
-                    return Err(ParseError::unsupported(key.span(), "`format!(.., <key>)`"));
+                    return Err(CompileError::unsupported(
+                        key.span(),
+                        "`format!(.., <key>)`",
+                    ));
                 }
             }
         }
@@ -317,9 +322,9 @@ impl<'a> Indexer<'a> {
     }
 
     /// Expand a macro returning the current file
-    fn expand_file_macro(&mut self, ast: &mut ast::MacroCall) -> Result<BuiltInMacro, ParseError> {
+    fn expand_file_macro(&mut self, ast: &mut ast::MacroCall) -> Result<BuiltInMacro> {
         let name = self.q.sources.name(self.source_id).ok_or_else(|| {
-            ParseError::new(
+            CompileError::new(
                 ast.span(),
                 ParseErrorKind::MissingSourceId {
                     source_id: self.source_id,
@@ -339,7 +344,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Expand a macro returning the current line for where the macro invocation begins
-    fn expand_line_macro(&mut self, ast: &mut ast::MacroCall) -> Result<BuiltInMacro, ParseError> {
+    fn expand_line_macro(&mut self, ast: &mut ast::MacroCall) -> Result<BuiltInMacro> {
         let (l, _) = self
             .q
             .sources
@@ -360,7 +365,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Perform a macro expansion.
-    fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> Result<T, CompileError>
+    fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> Result<T>
     where
         T: Parse,
     {
@@ -393,10 +398,7 @@ impl<'a> Indexer<'a> {
     /// Uses are processed first in a file, and once processed any potential
     /// macro expansions are expanded.
     /// If these produce uses, these are processed, and so forth.
-    fn preprocess_items(
-        &mut self,
-        items: &mut Vec<(ast::Item, Option<T![;]>)>,
-    ) -> Result<(), CompileError> {
+    fn preprocess_items(&mut self, items: &mut Vec<(ast::Item, Option<T![;]>)>) -> Result<()> {
         let mut queue = items.drain(..).collect::<VecDeque<_>>();
 
         while let Some((item, semi)) = queue.pop_front() {
@@ -446,7 +448,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Preprocess uses in statements.
-    fn preprocess_stmts(&mut self, stmts: &mut Vec<ast::Stmt>) -> Result<(), CompileError> {
+    fn preprocess_stmts(&mut self, stmts: &mut Vec<ast::Stmt>) -> Result<()> {
         stmts.sort_by_key(|s| s.sort_key());
 
         let mut queue = stmts.drain(..).collect::<VecDeque<_>>();
@@ -1861,7 +1863,7 @@ fn expr_range(ast: &mut ast::ExprRange, idx: &mut Indexer<'_>) -> CompileResult<
 }
 
 /// Construct visibility from ast.
-fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility, CompileError> {
+fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility> {
     let span = match vis {
         ast::Visibility::Inherited => return Ok(Visibility::Inherited),
         ast::Visibility::Public(..) => return Ok(Visibility::Public),

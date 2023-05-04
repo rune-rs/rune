@@ -502,13 +502,7 @@ fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut R
 
         match diagnostic {
             Diagnostic::Fatal(f) => match f.kind() {
-                FatalDiagnosticKind::ParseError(e) => {
-                    report(build, reporter, f.source_id(), e, to_error);
-                }
                 FatalDiagnosticKind::CompileError(e) => {
-                    report(build, reporter, f.source_id(), e, to_error);
-                }
-                FatalDiagnosticKind::QueryError(e) => {
                     report(build, reporter, f.source_id(), e, to_error);
                 }
                 FatalDiagnosticKind::LinkError(e) => match e {

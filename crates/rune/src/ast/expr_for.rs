@@ -40,7 +40,7 @@ impl ExprFor {
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
         label: Option<(ast::Label, T![:])>,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         Ok(Self {
             attributes,
             label,

@@ -71,7 +71,7 @@ impl Item {
         mut attributes: Vec<ast::Attribute>,
         mut visibility: ast::Visibility,
         path: Option<ast::Path>,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         let item = if let Some(path) = path {
             Self::MacroCall(ast::MacroCall::parse_with_meta_path(
                 p,
@@ -127,7 +127,7 @@ impl Item {
                     }
                 }
                 _ => {
-                    return Err(ParseError::expected(
+                    return Err(CompileError::expected(
                         p.tok_at(0)?,
                         "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
                     ))
@@ -135,22 +135,22 @@ impl Item {
             };
 
             if let Some(span) = const_token.option_span() {
-                return Err(ParseError::unsupported(span, "const modifier"));
+                return Err(CompileError::unsupported(span, "const modifier"));
             }
 
             if let Some(span) = async_token.option_span() {
-                return Err(ParseError::unsupported(span, "async modifier"));
+                return Err(CompileError::unsupported(span, "async modifier"));
             }
 
             item
         };
 
         if let Some(span) = attributes.option_span() {
-            return Err(ParseError::unsupported(span, "attribute"));
+            return Err(CompileError::unsupported(span, "attribute"));
         }
 
         if let Some(span) = visibility.option_span() {
-            return Err(ParseError::unsupported(span, "visibility modifier"));
+            return Err(CompileError::unsupported(span, "visibility modifier"));
         }
 
         Ok(item)
@@ -158,7 +158,7 @@ impl Item {
 }
 
 impl Parse for Item {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         let attributes = p.parse()?;
         let visibility = p.parse()?;
         let path = p.parse()?;

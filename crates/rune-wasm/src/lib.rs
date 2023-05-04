@@ -200,41 +200,7 @@ async fn inner_compile(
             Diagnostic::Fatal(error) => {
                 if let Some(source) = sources.get(error.source_id()) {
                     match error.kind() {
-                        FatalDiagnosticKind::ParseError(error) => {
-                            let span = error.span();
-
-                            let start = WasmPosition::from(
-                                source.pos_to_utf8_linecol(span.start.into_usize()),
-                            );
-                            let end = WasmPosition::from(
-                                source.pos_to_utf8_linecol(span.end.into_usize()),
-                            );
-
-                            diagnostics.push(WasmDiagnostic {
-                                kind: WasmDiagnosticKind::Error,
-                                start,
-                                end,
-                                message: error.to_string(),
-                            });
-                        }
                         FatalDiagnosticKind::CompileError(error) => {
-                            let span = error.span();
-
-                            let start = WasmPosition::from(
-                                source.pos_to_utf8_linecol(span.start.into_usize()),
-                            );
-                            let end = WasmPosition::from(
-                                source.pos_to_utf8_linecol(span.end.into_usize()),
-                            );
-
-                            diagnostics.push(WasmDiagnostic {
-                                kind: WasmDiagnosticKind::Error,
-                                start,
-                                end,
-                                message: error.to_string(),
-                            });
-                        }
-                        FatalDiagnosticKind::QueryError(error) => {
                             let span = error.span();
 
                             let start = WasmPosition::from(

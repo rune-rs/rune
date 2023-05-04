@@ -79,7 +79,7 @@ impl Peek for ItemUseSegment {
 }
 
 impl Parse for ItemUseSegment {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![*] => Self::Wildcard(p.parse()?),
             K!['{'] => Self::Group(p.parse()?),

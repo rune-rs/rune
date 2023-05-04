@@ -25,7 +25,7 @@ pub struct LitByte {
 /// testing::roundtrip::<ast::LitByte>("b'\\\\''");
 /// ```
 impl Parse for LitByte {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
 
         match t.kind {
@@ -33,7 +33,7 @@ impl Parse for LitByte {
                 span: t.span,
                 source,
             }),
-            _ => Err(ParseError::expected(t, "byte")),
+            _ => Err(CompileError::expected(t, "byte")),
         }
     }
 }

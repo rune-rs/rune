@@ -9,7 +9,6 @@ use thiserror::Error;
 #[cfg(feature = "emit")]
 use crate::ast::{Span, Spanned};
 use crate::compile::{CompileError, LinkerError};
-use crate::parse::ParseError;
 use crate::SourceId;
 
 /// Fatal diagnostic emitted during compilation. Fatal diagnostics indicates an
@@ -42,7 +41,6 @@ impl FatalDiagnostic {
     #[cfg(feature = "emit")]
     pub(crate) fn span(&self) -> Option<Span> {
         match &*self.kind {
-            FatalDiagnosticKind::ParseError(error) => Some(error.span()),
             FatalDiagnosticKind::CompileError(error) => Some(error.span()),
             FatalDiagnosticKind::LinkError(..) => None,
             FatalDiagnosticKind::Internal(..) => None,
@@ -68,12 +66,6 @@ impl crate::no_std::error::Error for FatalDiagnostic {
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum FatalDiagnosticKind {
-    #[error("parse error")]
-    ParseError(
-        #[from]
-        #[source]
-        ParseError,
-    ),
     #[error("compile error")]
     CompileError(
         #[from]

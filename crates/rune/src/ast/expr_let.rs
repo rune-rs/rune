@@ -31,7 +31,7 @@ impl ExprLet {
     pub(crate) fn parse_with_meta(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         Ok(Self {
             attributes,
             let_token: parser.parse()?,
@@ -42,7 +42,7 @@ impl ExprLet {
     }
 
     /// Parse a let expression without eager bracing.
-    pub(crate) fn parse_without_eager_brace(parser: &mut Parser) -> Result<Self, ParseError> {
+    pub(crate) fn parse_without_eager_brace(parser: &mut Parser) -> Result<Self> {
         Ok(Self {
             attributes: vec![],
             let_token: parser.parse()?,

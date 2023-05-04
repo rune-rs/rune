@@ -1,6 +1,3 @@
-use crate::no_std as std;
-use crate::no_std::prelude::*;
-
 use crate::compile::CompileError;
 use crate::macros::Storage;
 use crate::Sources;

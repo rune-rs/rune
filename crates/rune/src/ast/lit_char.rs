@@ -25,7 +25,7 @@ pub struct LitChar {
 /// testing::roundtrip::<ast::LitChar>("'\\''");
 /// ```
 impl Parse for LitChar {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
 
         match t.kind {
@@ -33,7 +33,7 @@ impl Parse for LitChar {
                 span: t.span,
                 source,
             }),
-            _ => Err(ParseError::expected(t, "char")),
+            _ => Err(CompileError::expected(t, "char")),
         }
     }
 }

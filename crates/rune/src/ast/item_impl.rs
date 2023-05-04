@@ -35,7 +35,7 @@ impl ItemImpl {
     pub(crate) fn parse_with_attributes(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         let impl_ = parser.parse()?;
         let path = parser.parse()?;
         let open = parser.parse()?;

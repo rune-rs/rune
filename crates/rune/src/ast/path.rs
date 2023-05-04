@@ -227,7 +227,7 @@ impl IntoExpectation for PathSegment {
 }
 
 impl Parse for PathSegment {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let segment = match p.nth(0)? {
             K![Self] => Self::SelfType(p.parse()?),
             K![self] => Self::SelfValue(p.parse()?),
@@ -236,7 +236,7 @@ impl Parse for PathSegment {
             K![super] => Self::Super(p.parse()?),
             K![<] => Self::Generics(p.parse()?),
             _ => {
-                return Err(ParseError::expected(p.tok_at(0)?, "path segment"));
+                return Err(CompileError::expected(p.tok_at(0)?, "path segment"));
             }
         };
 
@@ -262,7 +262,7 @@ pub struct PathSegmentExpr {
 }
 
 impl Parse for PathSegmentExpr {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         let expr = ast::Expr::parse_with(
             p,
             ast::expr::NOT_EAGER_BRACE,

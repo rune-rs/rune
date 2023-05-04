@@ -4,11 +4,12 @@ use core::ops;
 use crate::no_std::collections::VecDeque;
 
 use crate::ast::{Kind, OptionSpanned, Span, Token};
+use crate::compile::{CompileError, ParseErrorKind};
 use crate::macros::{TokenStream, TokenStreamIter};
-use crate::parse::{Lexer, Parse, ParseError, ParseErrorKind, Peek};
+use crate::parse::{Lexer, Parse, Peek};
 use crate::SourceId;
 
-type Result<T> = core::result::Result<T, ParseError>;
+type Result<T> = core::result::Result<T, CompileError>;
 
 /// Parser for the rune language.
 ///
@@ -91,7 +92,7 @@ impl<'a> Parser<'a> {
     /// Assert that the parser has reached its end-of-file.
     pub fn eof(&mut self) -> Result<()> {
         if let Some(token) = self.peeker.at(0)? {
-            return Err(ParseError::new(
+            return Err(CompileError::new(
                 token,
                 ParseErrorKind::ExpectedEof { actual: token.kind },
             ));
@@ -174,7 +175,7 @@ impl<'a> Parser<'a> {
 
         match self.peeker.next()? {
             Some(t) => Ok(t),
-            None => Err(ParseError::new(
+            None => Err(CompileError::new(
                 self.last_span().tail(),
                 ParseErrorKind::UnexpectedEof,
             )),
@@ -225,7 +226,7 @@ pub struct Peeker<'a> {
     /// The buffer of tokens seen.
     buf: VecDeque<Token>,
     // NB: parse errors encountered during peeking.
-    error: Option<ParseError>,
+    error: Option<CompileError>,
     /// The last span we encountered. Used to provide better EOF diagnostics.
     last: Option<Span>,
     /// The default span to use in case no better one is available.
@@ -301,7 +302,7 @@ impl<'a> Peeker<'a> {
                 }
                 Kind::MultilineComment(term) => {
                     if !term {
-                        return Err(ParseError::new(
+                        return Err(CompileError::new(
                             token.span,
                             ParseErrorKind::ExpectedMultilineCommentTerm,
                         ));

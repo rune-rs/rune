@@ -7,13 +7,13 @@ use crate::no_std::thiserror;
 use thiserror::Error;
 
 use crate::ast;
-use crate::ast::{Span, Spanned, SpannedError};
+use crate::ast::{Span, Spanned, WithSpan};
 use crate::compile::{IrError, IrErrorKind, ItemBuf, Location, MetaInfo, Visibility};
 use crate::hir::{HirError, HirErrorKind};
 use crate::macros::{SyntheticId, SyntheticKind};
-use crate::parse::{Expectation, Id, IntoExpectation, ParseError, ParseErrorKind};
+use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
-use crate::runtime::Label;
+use crate::runtime::{AccessError, Label};
 use crate::{Error, Hash, SourceId};
 
 error! {
@@ -23,14 +23,19 @@ error! {
         kind: CompileErrorKind,
     }
 
-    impl From<ParseError>;
     impl From<IrError>;
     impl From<HirError>;
 }
 
-impl From<CompileError> for SpannedError {
-    fn from(error: CompileError) -> Self {
-        SpannedError::new(error.span, *error.kind)
+impl<E> From<WithSpan<E>> for CompileError
+where
+    CompileErrorKind: From<E>,
+{
+    fn from(spanned: WithSpan<E>) -> Self {
+        CompileError {
+            span: spanned.span,
+            kind: Box::new(CompileErrorKind::from(spanned.error)),
+        }
     }
 }
 
@@ -70,9 +75,23 @@ impl CompileError {
     {
         Self::new(
             actual.span(),
-            ResolveErrorKind::Expected {
+            CompileErrorKind::Expected {
                 actual: actual.into_expectation(),
                 expected: expected.into_expectation(),
+            },
+        )
+    }
+
+    /// Construct an unsupported error.
+    pub(crate) fn unsupported<T, E>(actual: T, what: E) -> Self
+    where
+        T: Spanned,
+        E: IntoExpectation,
+    {
+        Self::new(
+            actual.span(),
+            CompileErrorKind::Unsupported {
+                what: what.into_expectation(),
             },
         )
     }
@@ -85,6 +104,13 @@ impl CompileError {
 pub(crate) enum CompileErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
+    #[error("Expected `{expected}`, but got `{actual}`")]
+    Expected {
+        actual: Expectation,
+        expected: Expectation,
+    },
+    #[error("Unsupported `{what}`")]
+    Unsupported { what: Expectation },
     #[error("{error}")]
     IrError {
         #[source]
@@ -95,12 +121,10 @@ pub(crate) enum CompileErrorKind {
     QueryError(#[from] QueryErrorKind),
     #[error("{0}")]
     ResolveError(#[from] ResolveErrorKind),
-    #[error("{error}")]
-    ParseError {
-        #[source]
-        #[from]
-        error: ParseErrorKind,
-    },
+    #[error("{0}")]
+    ParseError(#[from] ParseErrorKind),
+    #[error("{0}")]
+    AccessError(#[from] AccessError),
     #[error("{error}")]
     HirError {
         #[source]
@@ -350,11 +374,6 @@ pub(crate) enum QueryErrorKind {
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub(crate) enum ResolveErrorKind {
-    #[error("Expected `{expected}`, but got `{actual}`")]
-    Expected {
-        actual: Expectation,
-        expected: Expectation,
-    },
     #[error("Tried to read bad slice from source")]
     BadSlice,
     #[error("Tried to get bad synthetic identifier `{id}` for `{kind}`")]
@@ -384,6 +403,59 @@ pub(crate) enum ResolveErrorKind {
     BadUnicodeEscapeInByteString,
     #[error("Number literal not valid")]
     BadNumberLiteral,
+}
+
+/// Error when parsing.
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub(crate) enum ParseErrorKind {
+    #[error("Expected end of file, but got `{actual}`")]
+    ExpectedEof { actual: ast::Kind },
+    #[error("Unexpected end of file")]
+    UnexpectedEof,
+    #[error("Bad lexer mode `{actual}`, expected `{expected}`")]
+    BadLexerMode {
+        actual: LexerMode,
+        expected: LexerMode,
+    },
+    #[error("Expected escape sequence")]
+    ExpectedEscape,
+    #[error("Unterminated string literal")]
+    UnterminatedStrLit,
+    #[error("Unterminated byte string literal")]
+    UnterminatedByteStrLit,
+    #[error("Unterminated character literal")]
+    UnterminatedCharLit,
+    #[error("Unterminated byte literal")]
+    UnterminatedByteLit,
+    #[error("Expected character literal to be closed")]
+    ExpectedCharClose,
+    #[error("Expected label or character")]
+    ExpectedCharOrLabel,
+    #[error("Expected byte literal to be closed")]
+    ExpectedByteClose,
+    #[error("Unexpected character `{c}`")]
+    UnexpectedChar { c: char },
+    #[error("Group required in expression to determine precedence")]
+    PrecedenceGroupRequired,
+    #[error("Number literal out of bounds `-9223372036854775808` to `9223372036854775807`")]
+    BadNumberOutOfBounds,
+    #[error("Unsupported field access")]
+    BadFieldAccess,
+    #[error("Expected close delimiter `{expected}`, but got `{actual}`")]
+    ExpectedMacroCloseDelimiter {
+        expected: ast::Kind,
+        actual: ast::Kind,
+    },
+    #[error("Bad number literal")]
+    BadNumber,
+    #[error("Can only specify one attribute named `{name}`")]
+    MultipleMatchingAttributes { name: &'static str },
+    #[error("Missing source id `{source_id}`")]
+    MissingSourceId { source_id: SourceId },
+    #[error("Expected multiline comment to be terminated with a `*/`")]
+    ExpectedMultilineCommentTerm,
 }
 
 /// A single step in an import.
