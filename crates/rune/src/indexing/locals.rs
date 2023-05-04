@@ -1,13 +1,13 @@
 /// Indexing for local declarations.
-use crate::ast;
-use crate::ast::Spanned;
-use crate::compile::CompileResult;
+use crate::ast::{self, Spanned};
+use crate::compile;
 use crate::indexing::Indexer;
 use crate::parse::Resolve;
+
 use rune_macros::__instrument_ast as instrument;
 
 #[instrument]
-pub(crate) fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()> {
+pub(crate) fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> compile::Result<()> {
     match ast {
         ast::Pat::PatPath(p) => {
             pat_path(p, idx)?;
@@ -33,13 +33,13 @@ pub(crate) fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> CompileResult<()
 }
 
 #[instrument]
-fn pat_path(ast: &mut ast::PatPath, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn pat_path(ast: &mut ast::PatPath, idx: &mut Indexer<'_>) -> compile::Result<()> {
     path(&mut ast.path, idx)?;
     Ok(())
 }
 
 #[instrument]
-fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> compile::Result<()> {
     let id = idx
         .q
         .insert_path(idx.mod_item, idx.impl_item, &idx.items.item());
@@ -53,7 +53,7 @@ fn path(ast: &mut ast::Path, idx: &mut Indexer<'_>) -> CompileResult<()> {
 }
 
 #[instrument]
-fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> compile::Result<()> {
     let span = ast.span();
     let ident = ast.resolve(resolve_context!(idx.q))?;
     idx.scopes.declare(ident.as_ref(), span)?;
@@ -61,7 +61,7 @@ fn ident(ast: &mut ast::Ident, idx: &mut Indexer<'_>) -> CompileResult<()> {
 }
 
 #[instrument]
-fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> compile::Result<()> {
     match &mut ast.ident {
         ast::ObjectIdent::Anonymous(_) => {}
         ast::ObjectIdent::Named(p) => {
@@ -77,7 +77,7 @@ fn pat_object(ast: &mut ast::PatObject, idx: &mut Indexer<'_>) -> CompileResult<
 }
 
 #[instrument]
-fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> compile::Result<()> {
     for (p, _) in &mut ast.items {
         pat(p, idx)?;
     }
@@ -86,7 +86,7 @@ fn pat_vec(ast: &mut ast::PatVec, idx: &mut Indexer<'_>) -> CompileResult<()> {
 }
 
 #[instrument]
-fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> compile::Result<()> {
     if let Some(p) = &mut ast.path {
         path(p, idx)?;
     }
@@ -99,7 +99,7 @@ fn pat_tuple(ast: &mut ast::PatTuple, idx: &mut Indexer<'_>) -> CompileResult<()
 }
 
 #[instrument]
-fn pat_binding(ast: &mut ast::PatBinding, idx: &mut Indexer<'_>) -> CompileResult<()> {
+fn pat_binding(ast: &mut ast::PatBinding, idx: &mut Indexer<'_>) -> compile::Result<()> {
     pat(&mut ast.pat, idx)?;
     Ok(())
 }

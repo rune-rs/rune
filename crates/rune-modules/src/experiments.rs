@@ -19,6 +19,7 @@
 //! ```
 
 use rune::ast;
+use rune::compile;
 use rune::macros::{quote, MacroContext, TokenStream};
 use rune::parse::Parser;
 use rune::T;
@@ -36,12 +37,15 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 }
 
 /// Implementation for the `passthrough!` macro.
-fn passthrough_impl(_: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+fn passthrough_impl(
+    _: &mut MacroContext<'_>,
+    stream: &TokenStream,
+) -> compile::Result<TokenStream> {
     Ok(stream.clone())
 }
 
 /// Implementation for the `make_function!` macro.
-fn make_function(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+fn make_function(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
 
     let ident = parser.parse::<ast::Ident>()?;

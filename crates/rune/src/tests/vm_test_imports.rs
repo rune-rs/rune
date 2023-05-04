@@ -67,7 +67,7 @@ fn test_access() {
         mod c { use a; fn test() { a::Test } }
         pub fn main() { c::test() }
         "#,
-        span, CompileErrorKind::QueryError { error: NotVisible { .. } } => {
+        span, CompileErrorKind::QueryError(NotVisible { .. }) => {
             assert_eq!(span, span!(103, 110));
         }
     };

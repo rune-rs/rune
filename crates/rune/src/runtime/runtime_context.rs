@@ -3,6 +3,7 @@ use core::fmt;
 use crate::no_std::sync::Arc;
 
 use crate::collections::HashMap;
+use crate::compile;
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{ConstValue, Stack, VmResult};
 use crate::Hash;
@@ -12,7 +13,7 @@ pub(crate) type FunctionHandler = dyn Fn(&mut Stack, usize) -> VmResult<()> + Se
 
 /// A (type erased) macro handler.
 pub(crate) type MacroHandler =
-    dyn Fn(&mut MacroContext, &TokenStream) -> crate::Result<TokenStream> + Send + Sync;
+    dyn Fn(&mut MacroContext, &TokenStream) -> compile::Result<TokenStream> + Send + Sync;
 
 /// Static run context visible to the virtual machine.
 ///

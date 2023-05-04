@@ -7,53 +7,50 @@ use crate::no_std::thiserror;
 use thiserror::Error;
 
 use crate::ast;
-use crate::ast::{Span, Spanned, SpannedError};
-use crate::compile::{IrError, IrErrorKind, ItemBuf, Location, MetaInfo};
-use crate::hir::{HirError, HirErrorKind};
-use crate::parse::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind};
-use crate::query::{QueryError, QueryErrorKind};
+use crate::ast::{Span, Spanned};
+use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
+use crate::macros::{SyntheticId, SyntheticKind};
+use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
-use crate::runtime::Label;
-use crate::{Error, Hash, SourceId};
+use crate::runtime::{AccessError, Label, TypeInfo, TypeOf};
+use crate::shared::ScopeError;
+use crate::{Hash, SourceId};
 
 error! {
     /// An error raised by the compiler.
     #[derive(Debug)]
-    pub struct CompileError {
+    pub struct Error {
         kind: CompileErrorKind,
     }
-
-    impl From<ParseError>;
-    impl From<IrError>;
-    impl From<QueryError>;
-    impl From<ResolveError>;
-    impl From<HirError>;
 }
 
-impl From<CompileError> for SpannedError {
-    fn from(error: CompileError) -> Self {
-        SpannedError::new(error.span, *error.kind)
+impl<E> From<HasSpan<E>> for Error
+where
+    CompileErrorKind: From<E>,
+{
+    fn from(spanned: HasSpan<E>) -> Self {
+        Error {
+            span: spanned.span,
+            kind: Box::new(CompileErrorKind::from(spanned.error)),
+        }
     }
 }
 
-impl CompileError {
+impl From<&'static str> for CompileErrorKind {
+    fn from(value: &'static str) -> Self {
+        CompileErrorKind::Custom {
+            message: Box::from(value),
+        }
+    }
+}
+
+impl Error {
     /// Construct a factor for unsupported super.
     pub fn unsupported_super<S>(spanned: S) -> impl FnOnce() -> Self
     where
         S: Spanned,
     {
-        || CompileError::new(spanned, CompileErrorKind::UnsupportedSuper)
-    }
-
-    /// Construct an experimental error.
-    ///
-    /// This should be used when an experimental feature is used which hasn't
-    /// been enabled.
-    pub fn experimental<S>(spanned: S, msg: &'static str) -> Self
-    where
-        S: Spanned,
-    {
-        Self::new(spanned, CompileErrorKind::Experimental { msg })
+        || Error::new(spanned, CompileErrorKind::UnsupportedSuper)
     }
 
     /// Error when we got mismatched meta.
@@ -62,6 +59,50 @@ impl CompileError {
         S: Spanned,
     {
         Self::new(spanned, CompileErrorKind::ExpectedMeta { meta, expected })
+    }
+
+    /// Construct an resolve expected error.
+    pub(crate) fn expected<A, E>(actual: A, expected: E) -> Self
+    where
+        A: IntoExpectation + Spanned,
+        E: IntoExpectation,
+    {
+        Self::new(
+            actual.span(),
+            CompileErrorKind::Expected {
+                actual: actual.into_expectation(),
+                expected: expected.into_expectation(),
+            },
+        )
+    }
+
+    /// Construct an unsupported error.
+    pub(crate) fn unsupported<T, E>(actual: T, what: E) -> Self
+    where
+        T: Spanned,
+        E: IntoExpectation,
+    {
+        Self::new(
+            actual.span(),
+            CompileErrorKind::Unsupported {
+                what: what.into_expectation(),
+            },
+        )
+    }
+
+    /// An error raised when we expect a certain constant value but get another.
+    pub(crate) fn expected_type<S, E>(spanned: S, actual: &IrValue) -> Self
+    where
+        S: Spanned,
+        E: TypeOf,
+    {
+        Self::new(
+            spanned,
+            IrErrorKind::Expected {
+                expected: E::type_info(),
+                actual: actual.type_info(),
+            },
+        )
     }
 }
 
@@ -72,44 +113,33 @@ impl CompileError {
 pub(crate) enum CompileErrorKind {
     #[error("{message}")]
     Custom { message: Box<str> },
-    #[error("{error}")]
-    IrError {
-        #[source]
-        #[from]
-        error: IrErrorKind,
+    #[error("Expected `{expected}`, but got `{actual}`")]
+    Expected {
+        actual: Expectation,
+        expected: Expectation,
     },
-    #[error("{error}")]
-    QueryError {
-        #[source]
-        #[from]
-        error: QueryErrorKind,
-    },
-    #[error("{error}")]
-    ParseError {
-        #[source]
-        #[from]
-        error: ParseErrorKind,
-    },
-    #[error("{error}")]
-    ResolveError {
-        #[source]
-        #[from]
-        error: ResolveErrorKind,
-    },
-    #[error("{error}")]
-    HirError {
-        #[source]
-        #[from]
-        error: HirErrorKind,
-    },
+    #[error("Unsupported `{what}`")]
+    Unsupported { what: Expectation },
+    #[error("{0}")]
+    IrError(#[from] IrErrorKind),
+    #[error("{0}")]
+    QueryError(#[from] QueryErrorKind),
+    #[error("{0}")]
+    ResolveError(#[from] ResolveErrorKind),
+    #[error("{0}")]
+    ParseError(#[from] ParseErrorKind),
+    #[error("{0}")]
+    AccessError(#[from] AccessError),
+    #[error("{0}")]
+    HirError(#[from] HirErrorKind),
+    #[error("{0}")]
+    ScopeError(#[from] ScopeError),
     #[error("Failed to load `{path}`: {error}")]
     FileError {
         path: PathBuf,
         #[source]
         error: io::Error,
     },
-    #[error("Experimental feature: {msg}")]
-    Experimental { msg: &'static str },
     #[error("File not found, expected a module file like `{path}.rn`")]
     ModNotFound { path: PathBuf },
     #[error("Module `{item}` has already been loaded")]
@@ -121,8 +151,6 @@ pub(crate) enum CompileErrorKind {
     VariableConflict { name: String, existing_span: Span },
     #[error("Missing macro `{item}`")]
     MissingMacro { item: ItemBuf },
-    #[error("{error}")]
-    CallMacroError { item: ItemBuf, error: Error },
     #[error("No local variable `{name}`")]
     MissingLocal { name: String },
     #[error("Missing item `{item}`")]
@@ -282,6 +310,228 @@ pub(crate) enum CompileErrorKind {
         item: ItemBuf,
         fields: Box<[Box<str>]>,
     },
+}
+
+/// Error raised during queries.
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub(crate) enum QueryErrorKind {
+    #[error("Missing {what} for id {id:?}")]
+    MissingId { what: &'static str, id: Id },
+    #[error("Item `{item}` can refer to multiple things")]
+    AmbiguousItem {
+        item: ItemBuf,
+        locations: Vec<(Location, ItemBuf)>,
+    },
+    #[error(
+        "Item `{item}` with visibility `{visibility}`, is not accessible from module `{from}`"
+    )]
+    NotVisible {
+        chain: Vec<Location>,
+        location: Location,
+        visibility: Visibility,
+        item: ItemBuf,
+        from: ItemBuf,
+    },
+    #[error(
+        "Module `{item}` with {visibility} visibility, is not accessible from module `{from}`"
+    )]
+    NotVisibleMod {
+        chain: Vec<Location>,
+        location: Location,
+        visibility: Visibility,
+        item: ItemBuf,
+        from: ItemBuf,
+    },
+    #[error("Missing query meta for module {item}")]
+    MissingMod { item: ItemBuf },
+    #[error("Cycle in import")]
+    ImportCycle { path: Vec<ImportStep> },
+    #[error("Import recursion limit reached ({count})")]
+    ImportRecursionLimit { count: usize, path: Vec<ImportStep> },
+    #[error("Missing last use component")]
+    LastUseComponent,
+    /// Tried to add an item that already exists.
+    #[error("Item `{current}` but conflicting meta `{existing}` already exists")]
+    MetaConflict {
+        /// The meta we tried to insert.
+        current: MetaInfo,
+        /// The existing item.
+        existing: MetaInfo,
+    },
+    #[error("Tried to insert variant runtime type information, but conflicted with hash `{hash}`")]
+    VariantRttiConflict { hash: Hash },
+    #[error("Tried to insert runtime type information, but conflicted with hash `{hash}`")]
+    TypeRttiConflict { hash: Hash },
+    #[error("Conflicting function signature already exists `{existing}`")]
+    FunctionConflict { existing: DebugSignature },
+}
+
+/// The kind of a resolve error.
+#[derive(Debug, Clone, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub(crate) enum ResolveErrorKind {
+    #[error("Tried to read bad slice from source")]
+    BadSlice,
+    #[error("Tried to get bad synthetic identifier `{id}` for `{kind}`")]
+    BadSyntheticId {
+        kind: SyntheticKind,
+        id: SyntheticId,
+    },
+    #[error("Bad escape sequence")]
+    BadEscapeSequence,
+    #[error("Bad unicode escape")]
+    BadUnicodeEscape,
+    #[error(
+        "This form of character escape may only be used with characters in the range [\\x00-\\x7f]"
+    )]
+    BadHexEscapeChar,
+    #[error(
+        "This form of byte escape may only be used with characters in the range [\\x00-\\xff]"
+    )]
+    BadHexEscapeByte,
+    #[error("Bad byte escape")]
+    BadByteEscape,
+    #[error("Bad character literal")]
+    BadCharLiteral,
+    #[error("Bad byte literal")]
+    BadByteLiteral,
+    #[error("Unicode escapes are not supported as a byte or byte string")]
+    BadUnicodeEscapeInByteString,
+    #[error("Number literal not valid")]
+    BadNumberLiteral,
+}
+
+/// Error when parsing.
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub(crate) enum ParseErrorKind {
+    #[error("Expected end of file, but got `{actual}`")]
+    ExpectedEof { actual: ast::Kind },
+    #[error("Unexpected end of file")]
+    UnexpectedEof,
+    #[error("Bad lexer mode `{actual}`, expected `{expected}`")]
+    BadLexerMode {
+        actual: LexerMode,
+        expected: LexerMode,
+    },
+    #[error("Expected escape sequence")]
+    ExpectedEscape,
+    #[error("Unterminated string literal")]
+    UnterminatedStrLit,
+    #[error("Unterminated byte string literal")]
+    UnterminatedByteStrLit,
+    #[error("Unterminated character literal")]
+    UnterminatedCharLit,
+    #[error("Unterminated byte literal")]
+    UnterminatedByteLit,
+    #[error("Expected character literal to be closed")]
+    ExpectedCharClose,
+    #[error("Expected label or character")]
+    ExpectedCharOrLabel,
+    #[error("Expected byte literal to be closed")]
+    ExpectedByteClose,
+    #[error("Unexpected character `{c}`")]
+    UnexpectedChar { c: char },
+    #[error("Group required in expression to determine precedence")]
+    PrecedenceGroupRequired,
+    #[error("Number literal out of bounds `-9223372036854775808` to `9223372036854775807`")]
+    BadNumberOutOfBounds,
+    #[error("Unsupported field access")]
+    BadFieldAccess,
+    #[error("Expected close delimiter `{expected}`, but got `{actual}`")]
+    ExpectedMacroCloseDelimiter {
+        expected: ast::Kind,
+        actual: ast::Kind,
+    },
+    #[error("Bad number literal")]
+    BadNumber,
+    #[error("Can only specify one attribute named `{name}`")]
+    MultipleMatchingAttributes { name: &'static str },
+    #[error("Missing source id `{source_id}`")]
+    MissingSourceId { source_id: SourceId },
+    #[error("Expected multiline comment to be terminated with a `*/`")]
+    ExpectedMultilineCommentTerm,
+}
+
+/// Error when encoding AST.
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub(crate) enum IrErrorKind {
+    /// Encountered an expression that is not supported as a constant
+    /// expression.
+    #[error("Expected a constant expression")]
+    NotConst,
+    /// Trying to process a cycle of constants.
+    #[error("Constant cycle detected")]
+    ConstCycle,
+    /// Encountered a compile meta used in an inappropriate position.
+    #[error("Item `{meta}` is not supported here")]
+    UnsupportedMeta {
+        /// Unsupported compile meta.
+        meta: MetaInfo,
+    },
+    /// A constant evaluation errored.
+    #[error("Expected a value of type {expected} but got {actual}")]
+    Expected {
+        /// The expected value.
+        expected: TypeInfo,
+        /// The value we got instead.
+        actual: TypeInfo,
+    },
+    /// Exceeded evaluation budget.
+    #[error("Evaluation budget exceeded")]
+    BudgetExceeded,
+    /// Missing a tuple index.
+    #[error("Missing index {index}")]
+    MissingIndex {
+        /// The index that was missing.
+        index: usize,
+    },
+    /// Missing an object field.
+    #[error("Missing field `{field}`")]
+    MissingField {
+        /// The field that was missing.
+        field: Box<str>,
+    },
+    /// Missing local with the given name.
+    #[error("Missing local `{name}`")]
+    MissingLocal {
+        /// Name of the missing local.
+        name: Box<str>,
+    },
+    /// Missing const or local with the given name.
+    #[error("No constant or local matching `{name}`")]
+    MissingConst {
+        /// Name of the missing thing.
+        name: Box<str>,
+    },
+    /// Error raised when trying to use a break outside of a loop.
+    #[error("Break outside of supported loop")]
+    BreakOutsideOfLoop,
+    #[error("Function not found")]
+    FnNotFound,
+    #[error("Argument count mismatch, got {actual} but expected {expected}")]
+    ArgumentCountMismatch { actual: usize, expected: usize },
+    #[error("Value `{value}` is outside of the supported integer range")]
+    NotInteger { value: num::BigInt },
+}
+
+/// The kind of a hir error.
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
+#[non_exhaustive]
+pub(crate) enum HirErrorKind {
+    #[error("Writing arena slice out of bounds for index {index}")]
+    ArenaWriteSliceOutOfBounds { index: usize },
+    #[error("Allocation error for {requested} bytes")]
+    ArenaAllocError { requested: usize },
+    #[error("Pattern `..` is not supported in this location")]
+    UnsupportedPatternRest,
 }
 
 /// A single step in an import.

@@ -3,7 +3,8 @@ use core::mem::{replace, take};
 use crate::no_std::prelude::*;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile::ir::{self, IrError, IrValue};
+use crate::compile;
+use crate::compile::ir::{self, IrValue};
 use crate::hir;
 use crate::parse::Resolve;
 use crate::query::Query;
@@ -22,15 +23,15 @@ pub(crate) struct IrCompiler<'a> {
 
 impl IrCompiler<'_> {
     /// Resolve the given resolvable value.
-    pub(crate) fn resolve<'s, T>(&'s self, value: &T) -> Result<T::Output, IrError>
+    pub(crate) fn resolve<'s, T>(&'s self, value: &T) -> compile::Result<T::Output>
     where
         T: Resolve<'s>,
     {
-        Ok(value.resolve(resolve_context!(self.q))?)
+        value.resolve(resolve_context!(self.q))
     }
 
     /// Resolve an ir target from an expression.
-    fn ir_target(&self, expr: &hir::Expr<'_>) -> Result<ir::IrTarget, IrError> {
+    fn ir_target(&self, expr: &hir::Expr<'_>) -> compile::Result<ir::IrTarget> {
         match expr.kind {
             hir::ExprKind::Path(path) => {
                 if let Some(ident) = path.try_as_ident() {
@@ -71,12 +72,12 @@ impl IrCompiler<'_> {
             _ => (),
         }
 
-        Err(IrError::msg(expr, "not supported as a target"))
+        Err(compile::Error::msg(expr, "not supported as a target"))
     }
 }
 
 #[instrument]
-pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
+pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
     Ok(match hir.kind {
@@ -114,10 +115,10 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir
                 ir::Ir::new(line.span, const_value)
             }
             _ => {
-                return Err(IrError::msg(hir, "unsupported builtin macro"));
+                return Err(compile::Error::msg(hir, "unsupported builtin macro"));
             }
         },
-        _ => return Err(IrError::msg(hir, "not supported yet")),
+        _ => return Err(compile::Error::msg(hir, "not supported yet")),
     })
 }
 
@@ -126,7 +127,7 @@ fn expr_assign(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprAssign<'_>,
-) -> Result<ir::Ir, IrError> {
+) -> compile::Result<ir::Ir> {
     let target = c.ir_target(hir.lhs)?;
 
     Ok(ir::Ir::new(
@@ -144,7 +145,7 @@ fn expr_call(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprCall<'_>,
-) -> Result<ir::IrCall, IrError> {
+) -> compile::Result<ir::IrCall> {
     let mut args = Vec::with_capacity(hir.args.len());
 
     for e in hir.args {
@@ -163,7 +164,7 @@ fn expr_call(
         }
     }
 
-    Err(IrError::msg(span, "call not supported"))
+    Err(compile::Error::msg(span, "call not supported"))
 }
 
 #[instrument]
@@ -171,7 +172,7 @@ fn expr_binary(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprBinary<'_>,
-) -> Result<ir::Ir, IrError> {
+) -> compile::Result<ir::Ir> {
     if hir.op.is_assign() {
         let op = match hir.op {
             ast::BinOp::AddAssign(..) => ir::IrAssignOp::Add,
@@ -180,7 +181,7 @@ fn expr_binary(
             ast::BinOp::DivAssign(..) => ir::IrAssignOp::Div,
             ast::BinOp::ShlAssign(..) => ir::IrAssignOp::Shl,
             ast::BinOp::ShrAssign(..) => ir::IrAssignOp::Shr,
-            _ => return Err(IrError::msg(hir.op, "op not supported yet")),
+            _ => return Err(compile::Error::msg(hir.op, "op not supported yet")),
         };
 
         let target = c.ir_target(hir.lhs)?;
@@ -211,7 +212,7 @@ fn expr_binary(
         ast::BinOp::Eq(..) => ir::IrBinaryOp::Eq,
         ast::BinOp::Gt(..) => ir::IrBinaryOp::Gt,
         ast::BinOp::Gte(..) => ir::IrBinaryOp::Gte,
-        _ => return Err(IrError::msg(hir.op, "op not supported yet")),
+        _ => return Err(compile::Error::msg(hir.op, "op not supported yet")),
     };
 
     Ok(ir::Ir::new(
@@ -226,7 +227,7 @@ fn expr_binary(
 }
 
 #[instrument]
-fn lit(hir: &ast::Lit, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
+fn lit(hir: &ast::Lit, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
     Ok(match hir {
@@ -266,7 +267,7 @@ fn expr_tuple(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprSeq<'_>,
-) -> Result<ir::Ir, IrError> {
+) -> compile::Result<ir::Ir> {
     if hir.items.is_empty() {
         return Ok(ir::Ir::new(span, IrValue::Unit));
     }
@@ -291,7 +292,7 @@ fn expr_vec(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprSeq<'_>,
-) -> Result<ir::IrVec, IrError> {
+) -> compile::Result<ir::IrVec> {
     let mut items = Vec::new();
 
     for e in hir.items {
@@ -309,7 +310,7 @@ fn expr_object(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprObject<'_>,
-) -> Result<ir::IrObject, IrError> {
+) -> compile::Result<ir::IrObject> {
     let mut assignments = Vec::new();
 
     for assign in hir.assignments {
@@ -341,12 +342,12 @@ pub(crate) fn expr_block(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprBlock<'_>,
-) -> Result<ir::Ir, IrError> {
+) -> compile::Result<ir::Ir> {
     Ok(ir::Ir::new(span, block(hir.block, c)?))
 }
 
 #[instrument]
-pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrScope, IrError> {
+pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::IrScope> {
     let span = hir.span();
 
     let mut last = None::<(&hir::Expr<'_>, bool)>;
@@ -394,7 +395,7 @@ pub(crate) fn block(hir: &hir::Block<'_>, c: &mut IrCompiler<'_>) -> Result<ir::
 fn builtin_template(
     template: &hir::BuiltInTemplate,
     c: &mut IrCompiler<'_>,
-) -> Result<ir::IrTemplate, IrError> {
+) -> compile::Result<ir::IrTemplate> {
     let span = template.span;
     let mut components = Vec::new();
 
@@ -417,7 +418,7 @@ fn builtin_template(
 }
 
 #[instrument]
-fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
+fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
     if let Some(name) = hir.try_as_ident() {
@@ -425,11 +426,11 @@ fn path(hir: &hir::Path<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> 
         return Ok(ir::Ir::new(span, <Box<str>>::from(name)));
     }
 
-    Err(IrError::msg(span, "not supported yet"))
+    Err(compile::Error::msg(span, "not supported yet"))
 }
 
 #[instrument]
-fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError> {
+fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::Ir> {
     let span = hir.span();
 
     let name = loop {
@@ -445,7 +446,7 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError
             _ => (),
         }
 
-        return Err(IrError::msg(span, "not supported yet"));
+        return Err(compile::Error::msg(span, "not supported yet"));
     };
 
     Ok(ir::Ir::new(
@@ -459,7 +460,7 @@ fn local(hir: &hir::Local<'_>, c: &mut IrCompiler<'_>) -> Result<ir::Ir, IrError
 }
 
 #[instrument]
-fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> Result<ir::IrCondition, IrError> {
+fn condition(hir: &hir::Condition<'_>, c: &mut IrCompiler<'_>) -> compile::Result<ir::IrCondition> {
     match hir {
         hir::Condition::Expr(e) => Ok(ir::IrCondition::Ir(expr(e, c)?)),
         hir::Condition::ExprLet(expr_let) => {
@@ -480,7 +481,7 @@ fn expr_if(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprIf<'_>,
-) -> Result<ir::IrBranches, IrError> {
+) -> compile::Result<ir::IrBranches> {
     let mut branches = Vec::new();
     let mut default_branch = None;
 
@@ -511,7 +512,7 @@ fn expr_loop(
     span: Span,
     c: &mut IrCompiler<'_>,
     hir: &hir::ExprLoop<'_>,
-) -> Result<ir::IrLoop, IrError> {
+) -> compile::Result<ir::IrLoop> {
     Ok(ir::IrLoop {
         span,
         label: match hir.label {

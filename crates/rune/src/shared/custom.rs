@@ -1,4 +1,4 @@
-use crate::ast::{Span, Spanned, SpannedError};
+use crate::ast::{Span, Spanned};
 
 /// A custom opaque error helper.
 pub(crate) struct Custom {
@@ -24,13 +24,8 @@ impl Custom {
     }
 }
 
-impl From<Custom> for SpannedError {
-    fn from(error: Custom) -> Self {
-        SpannedError::msg(error.span, error.message)
-    }
-}
-
 impl Spanned for Custom {
+    #[inline]
     fn span(&self) -> Span {
         self.span
     }

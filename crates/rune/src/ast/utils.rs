@@ -3,7 +3,7 @@ use core::iter::Peekable;
 use core::ops;
 
 use crate::ast;
-use crate::parse::ResolveErrorKind;
+use crate::compile::ResolveErrorKind;
 
 /// Indicates if we are parsing template escapes.
 #[derive(Debug, Clone, Copy)]

@@ -116,7 +116,7 @@ impl Arena {
     }
 
     #[inline]
-    pub fn alloc_raw(&self, layout: Layout) -> Result<*mut u8, ArenaAllocError> {
+    pub(crate) fn alloc_raw(&self, layout: Layout) -> Result<*mut u8, ArenaAllocError> {
         assert!(layout.size() != 0);
 
         loop {
@@ -147,12 +147,12 @@ impl Arena {
 }
 
 #[inline]
-pub fn addr(this: *mut u8) -> usize {
+pub(crate) fn addr(this: *mut u8) -> usize {
     this as usize
 }
 
 #[inline]
-pub fn with_addr(this: *mut u8, a: usize) -> *mut u8 {
+pub(crate) fn with_addr(this: *mut u8, a: usize) -> *mut u8 {
     let this_addr = addr(this) as isize;
     let dest_addr = a as isize;
     let offset = dest_addr.wrapping_sub(this_addr);
@@ -169,7 +169,7 @@ pub struct AllocIter<'hir, T> {
 
 impl<'hir, T> AllocIter<'hir, T> {
     /// Write the next element into the slice.
-    pub fn write(&mut self, object: T) -> Result<(), ArenaWriteSliceOutOfBounds> {
+    pub(crate) fn write(&mut self, object: T) -> Result<(), ArenaWriteSliceOutOfBounds> {
         // Sanity check is necessary to ensure memory safety.
         if self.index >= self.len {
             return Err(ArenaWriteSliceOutOfBounds { index: self.index });
@@ -183,7 +183,7 @@ impl<'hir, T> AllocIter<'hir, T> {
     }
 
     /// Finalize the iterator being written and return the appropriate closure.
-    pub fn finish(self) -> &'hir mut [T] {
+    pub(crate) fn finish(self) -> &'hir mut [T] {
         if self.mem.is_null() {
             return &mut [];
         }

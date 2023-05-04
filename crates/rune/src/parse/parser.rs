@@ -4,8 +4,9 @@ use core::ops;
 use crate::no_std::collections::VecDeque;
 
 use crate::ast::{Kind, OptionSpanned, Span, Token};
+use crate::compile::{self, ParseErrorKind};
 use crate::macros::{TokenStream, TokenStreamIter};
-use crate::parse::{Lexer, Parse, ParseError, ParseErrorKind, Peek};
+use crate::parse::{Lexer, Parse, Peek};
 use crate::SourceId;
 
 /// Parser for the rune language.
@@ -39,36 +40,6 @@ impl<'a> Parser<'a> {
         )
     }
 
-    /// Try to consume a single thing matching `T`, returns `true` if any tokens
-    /// were consumed.
-    pub fn try_consume<T>(&mut self) -> Result<bool, ParseError>
-    where
-        T: Parse + Peek,
-    {
-        Ok(if self.peek::<T>()? {
-            self.parse::<T>()?;
-            true
-        } else {
-            false
-        })
-    }
-
-    /// Try to consume all things matching `T`, returns `true` if any tokens
-    /// were consumed.
-    pub fn try_consume_all<T>(&mut self) -> Result<bool, ParseError>
-    where
-        T: Parse + Peek,
-    {
-        let mut consumed = false;
-
-        while self.peek::<T>()? {
-            self.parse::<T>()?;
-            consumed = true;
-        }
-
-        Ok(consumed)
-    }
-
     /// Construct a parser from a token stream. The second argument `span` is
     /// the span to use if the stream is empty.
     pub fn from_token_stream(token_stream: &'a TokenStream, span: Span) -> Self {
@@ -78,6 +49,60 @@ impl<'a> Parser<'a> {
             },
             span,
         )
+    }
+
+    /// Parse a specific item from the parser.
+    pub fn parse<T>(&mut self) -> compile::Result<T>
+    where
+        T: Parse,
+    {
+        T::parse(self)
+    }
+
+    /// Parse a specific item from the parser and then expect end of input.
+    pub fn parse_all<T>(&mut self) -> compile::Result<T>
+    where
+        T: Parse,
+    {
+        let item = self.parse::<T>()?;
+        self.eof()?;
+        Ok(item)
+    }
+
+    /// Peek for the given token.
+    pub fn peek<T>(&mut self) -> compile::Result<bool>
+    where
+        T: Peek,
+    {
+        if let Some(error) = self.peeker.error.take() {
+            return Err(error);
+        }
+
+        let result = T::peek(&mut self.peeker);
+
+        if let Some(error) = self.peeker.error.take() {
+            return Err(error);
+        }
+
+        Ok(result)
+    }
+
+    /// Assert that the parser has reached its end-of-file.
+    pub fn eof(&mut self) -> compile::Result<()> {
+        if let Some(token) = self.peeker.at(0)? {
+            return Err(compile::Error::new(
+                token,
+                ParseErrorKind::ExpectedEof { actual: token.kind },
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Test if the parser is at end-of-file, after which there is no more input
+    /// to parse.
+    pub fn is_eof(&mut self) -> compile::Result<bool> {
+        Ok(self.peeker.at(0)?.is_none())
     }
 
     /// Construct a new parser with a source.
@@ -95,55 +120,49 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Try to consume a single thing matching `T`, returns `true` if any tokens
+    /// were consumed.
+    pub fn try_consume<T>(&mut self) -> compile::Result<bool>
+    where
+        T: Parse + Peek,
+    {
+        Ok(if self.peek::<T>()? {
+            self.parse::<T>()?;
+            true
+        } else {
+            false
+        })
+    }
+
+    /// Try to consume all things matching `T`, returns `true` if any tokens
+    /// were consumed.
+    pub fn try_consume_all<T>(&mut self) -> compile::Result<bool>
+    where
+        T: Parse + Peek,
+    {
+        let mut consumed = false;
+
+        while self.peek::<T>()? {
+            self.parse::<T>()?;
+            consumed = true;
+        }
+
+        Ok(consumed)
+    }
+
     /// Get the span for the given range offset of tokens.
-    pub fn span(&mut self, range: ops::Range<usize>) -> Span {
+    pub(crate) fn span(&mut self, range: ops::Range<usize>) -> Span {
         self.span_at(range.start).join(self.span_at(range.end))
     }
 
-    /// Parse a specific item from the parser.
-    pub fn parse<T>(&mut self) -> Result<T, ParseError>
-    where
-        T: Parse,
-    {
-        T::parse(self)
-    }
-
-    /// Parse a specific item from the parser and then expect end of input.
-    pub fn parse_all<T>(&mut self) -> Result<T, ParseError>
-    where
-        T: Parse,
-    {
-        let item = self.parse::<T>()?;
-        self.eof()?;
-        Ok(item)
-    }
-
-    /// Peek for the given token.
-    pub fn peek<T>(&mut self) -> Result<bool, ParseError>
-    where
-        T: Peek,
-    {
-        if let Some(error) = self.peeker.error.take() {
-            return Err(error);
-        }
-
-        let result = T::peek(&mut self.peeker);
-
-        if let Some(error) = self.peeker.error.take() {
-            return Err(error);
-        }
-
-        Ok(result)
-    }
-
     /// Access the interior peeker of the parser.
-    pub fn peeker(&mut self) -> &mut Peeker<'a> {
+    pub(crate) fn peeker(&mut self) -> &mut Peeker<'a> {
         &mut self.peeker
     }
 
     /// Consume the next token from the parser.
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Result<Token, ParseError> {
+    pub(crate) fn next(&mut self) -> compile::Result<Token> {
         if let Some(error) = self.peeker.error.take() {
             return Err(error);
         }
@@ -154,33 +173,15 @@ impl<'a> Parser<'a> {
 
         match self.peeker.next()? {
             Some(t) => Ok(t),
-            None => Err(ParseError::new(
+            None => Err(compile::Error::new(
                 self.last_span().tail(),
                 ParseErrorKind::UnexpectedEof,
             )),
         }
     }
 
-    /// Test if the parser is at end-of-file, after which there is no more input
-    /// to parse.
-    pub fn is_eof(&mut self) -> Result<bool, ParseError> {
-        Ok(self.peeker.at(0)?.is_none())
-    }
-
-    /// Assert that the parser has reached its end-of-file.
-    pub fn eof(&mut self) -> Result<(), ParseError> {
-        if let Some(token) = self.peeker.at(0)? {
-            return Err(ParseError::new(
-                token,
-                ParseErrorKind::ExpectedEof { actual: token.kind },
-            ));
-        }
-
-        Ok(())
-    }
-
     /// Peek the token kind at the given position.
-    pub fn nth(&mut self, n: usize) -> Result<Kind, ParseError> {
+    pub(crate) fn nth(&mut self, n: usize) -> compile::Result<Kind> {
         if let Some(t) = self.peeker.at(n)? {
             Ok(t.kind)
         } else {
@@ -189,7 +190,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Get the span for the given offset.
-    pub fn span_at(&mut self, n: usize) -> Span {
+    pub(crate) fn span_at(&mut self, n: usize) -> Span {
         if let Ok(Some(t)) = self.peeker.at(n) {
             t.span
         } else {
@@ -198,7 +199,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Get the token at the given offset.
-    pub fn tok_at(&mut self, n: usize) -> Result<Token, ParseError> {
+    pub(crate) fn tok_at(&mut self, n: usize) -> compile::Result<Token> {
         Ok(if let Some(t) = self.peeker.at(n)? {
             t
         } else {
@@ -210,7 +211,7 @@ impl<'a> Parser<'a> {
     }
 
     /// The last known span in this parser.
-    pub fn last_span(&self) -> Span {
+    pub(crate) fn last_span(&self) -> Span {
         self.peeker.last_span()
     }
 }
@@ -223,7 +224,7 @@ pub struct Peeker<'a> {
     /// The buffer of tokens seen.
     buf: VecDeque<Token>,
     // NB: parse errors encountered during peeking.
-    error: Option<ParseError>,
+    error: Option<compile::Error>,
     /// The last span we encountered. Used to provide better EOF diagnostics.
     last: Option<Span>,
     /// The default span to use in case no better one is available.
@@ -232,7 +233,7 @@ pub struct Peeker<'a> {
 
 impl<'a> Peeker<'a> {
     /// Peek the token kind at the given position.
-    pub fn nth(&mut self, n: usize) -> Kind {
+    pub(crate) fn nth(&mut self, n: usize) -> Kind {
         // Error tripped already, this peeker returns nothing but errors from
         // here on out.
         if self.error.is_some() {
@@ -252,7 +253,7 @@ impl<'a> Peeker<'a> {
     }
 
     /// Get the span at the given position.
-    pub fn tok_at(&mut self, n: usize) -> Token {
+    pub(crate) fn tok_at(&mut self, n: usize) -> Token {
         let kind = match self.at(n) {
             Ok(t) => {
                 if let Some(t) = t {
@@ -274,7 +275,7 @@ impl<'a> Peeker<'a> {
     }
 
     /// Test if we are at end of file.
-    pub fn is_eof(&mut self) -> bool {
+    pub(crate) fn is_eof(&mut self) -> bool {
         match self.at(0) {
             Ok(t) => t.is_none(),
             Err(error) => {
@@ -286,7 +287,7 @@ impl<'a> Peeker<'a> {
 
     /// Advance the internals of the peeker and return the next token (without
     /// buffering).
-    fn next(&mut self) -> Result<Option<Token>, ParseError> {
+    fn next(&mut self) -> compile::Result<Option<Token>> {
         loop {
             let token = match self.source.next()? {
                 Some(token) => token,
@@ -299,7 +300,7 @@ impl<'a> Peeker<'a> {
                 }
                 Kind::MultilineComment(term) => {
                     if !term {
-                        return Err(ParseError::new(
+                        return Err(compile::Error::new(
                             token.span,
                             ParseErrorKind::ExpectedMultilineCommentTerm,
                         ));
@@ -316,7 +317,7 @@ impl<'a> Peeker<'a> {
 
     /// Make sure there are at least `n` items in the buffer, and return the
     /// item at that point.
-    fn at(&mut self, n: usize) -> Result<Option<Token>, ParseError> {
+    fn at(&mut self, n: usize) -> compile::Result<Option<Token>> {
         if let Some(error) = self.error.take() {
             return Err(error);
         }
@@ -355,7 +356,7 @@ impl Source<'_> {
     }
 
     /// Get the next token in the stream.
-    fn next(&mut self) -> Result<Option<Token>, ParseError> {
+    fn next(&mut self) -> compile::Result<Option<Token>> {
         match &mut self.inner {
             SourceInner::Lexer(lexer) => lexer.next(),
             SourceInner::TokenStream(token_stream) => Ok(token_stream.next()),

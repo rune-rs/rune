@@ -7,7 +7,7 @@ use crate::no_std::rc::Rc;
 
 use crate::ast::Span;
 use crate::collections::{HashMap, HashSet};
-use crate::compile::{CompileError, CompileErrorKind};
+use crate::compile::{self, CompileErrorKind, WithSpan};
 
 /// The kind of an indexed function.
 #[derive(Debug, Clone, Copy)]
@@ -27,14 +27,15 @@ pub struct IndexScopeGuard {
 
 impl IndexScopeGuard {
     /// Pop the last closure scope and return captured variables.
-    pub(crate) fn into_closure(mut self, span: Span) -> Result<Closure, CompileError> {
+    pub(crate) fn into_closure(mut self, span: Span) -> compile::Result<Closure> {
         self.consumed = true;
 
         let level = self
             .levels
             .borrow_mut()
             .pop()
-            .ok_or_else(|| CompileError::msg(span, "missing scope"))?;
+            .ok_or("missing scope")
+            .with_span(span)?;
 
         debug_assert_eq!(level.scope().id, self.id);
 
@@ -46,19 +47,20 @@ impl IndexScopeGuard {
                 generator: closure.generator,
                 has_await: closure.has_await,
             }),
-            _ => Err(CompileError::msg(span, "expected closure")),
+            _ => Err(compile::Error::msg(span, "expected closure")),
         }
     }
 
     /// Pop the last function scope and return function information.
-    pub(crate) fn into_function(mut self, span: Span) -> Result<Function, CompileError> {
+    pub(crate) fn into_function(mut self, span: Span) -> compile::Result<Function> {
         self.consumed = true;
 
         let level = self
             .levels
             .borrow_mut()
             .pop()
-            .ok_or_else(|| CompileError::msg(span, "missing function"))?;
+            .ok_or("missing function")
+            .with_span(span)?;
 
         debug_assert_eq!(level.scope().id, self.id);
 
@@ -68,7 +70,7 @@ impl IndexScopeGuard {
                 kind: fun.kind,
                 has_await: fun.has_await,
             }),
-            _ => Err(CompileError::msg(span, "expected function")),
+            _ => Err(compile::Error::msg(span, "expected function")),
         }
     }
 }
@@ -94,7 +96,7 @@ struct IndexScope {
 
 impl IndexScope {
     /// Construct a new scope.
-    pub fn new(id: usize) -> Self {
+    pub(crate) fn new(id: usize) -> Self {
         Self {
             id,
             locals: HashMap::new(),
@@ -208,12 +210,12 @@ impl IndexScopes {
     }
 
     /// Declare the given variable in the last scope.
-    pub(crate) fn declare(&mut self, var: &str, span: Span) -> Result<(), CompileError> {
+    pub(crate) fn declare(&mut self, var: &str, span: Span) -> compile::Result<()> {
         let mut levels = self.levels.borrow_mut();
 
         let level = levels
             .last_mut()
-            .ok_or_else(|| CompileError::msg(span, "empty scopes"))?;
+            .ok_or_else(|| compile::Error::msg(span, "empty scopes"))?;
 
         let scope = match level {
             IndexScopeLevel::IndexScope(scope) => scope,
@@ -275,7 +277,7 @@ impl IndexScopes {
 
     /// Mark that a yield was used, meaning the encapsulating function is a
     /// generator.
-    pub(crate) fn mark_yield(&mut self, span: Span) -> Result<(), CompileError> {
+    pub(crate) fn mark_yield(&mut self, span: Span) -> compile::Result<()> {
         let mut levels = self.levels.borrow_mut();
         let iter = levels.iter_mut().rev();
 
@@ -293,7 +295,7 @@ impl IndexScopes {
             }
         }
 
-        Err(CompileError::new(
+        Err(compile::Error::new(
             span,
             CompileErrorKind::YieldOutsideFunction,
         ))
@@ -301,7 +303,7 @@ impl IndexScopes {
 
     /// Mark that a yield was used, meaning the encapsulating function is a
     /// generator.
-    pub(crate) fn mark_await(&mut self, span: Span) -> Result<(), CompileError> {
+    pub(crate) fn mark_await(&mut self, span: Span) -> compile::Result<()> {
         let mut levels = self.levels.borrow_mut();
         let iter = levels.iter_mut().rev();
 
@@ -327,7 +329,7 @@ impl IndexScopes {
             }
         }
 
-        Err(CompileError::new(
+        Err(compile::Error::new(
             span,
             CompileErrorKind::AwaitOutsideFunction,
         ))

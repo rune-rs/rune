@@ -12,17 +12,10 @@ use tokio::sync::Notify;
 
 use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
-use crate::compile;
 use crate::compile::meta;
-use crate::compile::CompileError;
-use crate::compile::CompileVisitor;
-use crate::compile::ComponentRef;
-use crate::compile::Item;
-use crate::compile::ItemBuf;
-use crate::compile::LinkerError;
-use crate::compile::Location;
-use crate::compile::MetaRef;
-use crate::compile::SourceMeta;
+use crate::compile::{
+    self, CompileVisitor, ComponentRef, Item, ItemBuf, LinkerError, Location, MetaRef, SourceMeta,
+};
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
 use crate::languageserver::connection::Output;
@@ -310,7 +303,11 @@ impl<'a> State<'a> {
             tracing::trace!(url = url.to_string(), "build plain source");
 
             let mut build = Build::default();
-            let input = crate::Source::with_path(url, source.to_string(), url.to_file_path().ok());
+
+            let input = match url.to_file_path() {
+                Ok(path) => crate::Source::with_path(url, source.to_string(), path),
+                Err(..) => crate::Source::new(url, source.to_string()),
+            };
 
             build.sources.insert(input);
             script_results.push(self.build_scripts(build, None));
@@ -389,7 +386,7 @@ impl<'a> State<'a> {
 
         manifest_build
             .sources
-            .insert(crate::Source::with_path(url, source, Some(path)));
+            .insert(crate::Source::with_path(url, source, path));
 
         let mut source_loader = WorkspaceSourceLoader::new(&self.workspace.sources);
 
@@ -416,7 +413,7 @@ impl<'a> State<'a> {
             let mut build = Build::default();
             build
                 .sources
-                .insert(crate::Source::with_path(&url, source, Some(found.path)));
+                .insert(crate::Source::with_path(&url, source, found.path));
 
             script_builds.push(build);
         }
@@ -498,13 +495,7 @@ fn emit_scripts(diagnostics: crate::Diagnostics, build: &Build, reporter: &mut R
 
         match diagnostic {
             Diagnostic::Fatal(f) => match f.kind() {
-                FatalDiagnosticKind::ParseError(e) => {
-                    report(build, reporter, f.source_id(), e, to_error);
-                }
                 FatalDiagnosticKind::CompileError(e) => {
-                    report(build, reporter, f.source_id(), e, to_error);
-                }
-                FatalDiagnosticKind::QueryError(e) => {
                     report(build, reporter, f.source_id(), e, to_error);
                 }
                 FatalDiagnosticKind::LinkError(e) => match e {
@@ -1003,18 +994,13 @@ impl<'a> ScriptSourceLoader<'a> {
 }
 
 impl<'a> crate::compile::SourceLoader for ScriptSourceLoader<'a> {
-    fn load(
-        &mut self,
-        root: &Path,
-        item: &Item,
-        span: Span,
-    ) -> Result<crate::Source, CompileError> {
+    fn load(&mut self, root: &Path, item: &Item, span: Span) -> compile::Result<crate::Source> {
         tracing::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {
             for (url, path) in candidates {
                 if let Some(s) = self.sources.get(&url) {
-                    return Ok(crate::Source::with_path(url, s.to_string(), Some(path)));
+                    return Ok(crate::Source::with_path(url, s.to_string(), path));
                 }
             }
         }
@@ -1042,7 +1028,7 @@ impl<'a> crate::workspace::SourceLoader for WorkspaceSourceLoader<'a> {
     fn load(&mut self, span: Span, path: &Path) -> Result<crate::Source, WorkspaceError> {
         if let Ok(url) = crate::languageserver::url::from_file_path(path) {
             if let Some(s) = self.sources.get(&url) {
-                return Ok(crate::Source::with_path(url, s.to_string(), Some(path)));
+                return Ok(crate::Source::with_path(url, s.to_string(), path));
             }
         }
 

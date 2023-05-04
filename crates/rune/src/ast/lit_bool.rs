@@ -22,14 +22,14 @@ pub struct LitBool {
 /// testing::roundtrip::<ast::LitBool>("false");
 /// ```
 impl Parse for LitBool {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         let t = p.next()?;
 
         let value = match t.kind {
             K![true] => true,
             K![false] => false,
             _ => {
-                return Err(ParseError::expected(t, Expectation::Boolean));
+                return Err(compile::Error::expected(t, Expectation::Boolean));
             }
         };
 

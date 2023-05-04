@@ -3,6 +3,7 @@
 //! [Rune Language]: https://rune-rs.github.io
 
 use crate::ast;
+use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::{ContextError, Module, T};
@@ -19,7 +20,7 @@ pub fn module() -> Result<Module, ContextError> {
 pub(crate) fn assert_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     use crate as rune;
 
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
@@ -53,7 +54,7 @@ pub(crate) fn assert_macro(
 pub(crate) fn assert_eq_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     use crate as rune;
 
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());

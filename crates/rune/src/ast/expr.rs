@@ -278,7 +278,7 @@ impl Expr {
     /// This is used to solve a syntax ambiguity when parsing expressions that
     /// are arguments to statements immediately followed by blocks. Like `if`,
     /// `while`, and `match`.
-    pub(crate) fn parse_without_eager_brace(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    pub(crate) fn parse_without_eager_brace(p: &mut Parser<'_>) -> Result<Self> {
         Self::parse_with(p, NOT_EAGER_BRACE, EAGER_BINARY, CALLABLE)
     }
 
@@ -287,7 +287,7 @@ impl Expr {
         p: &mut Parser<'_>,
         attributes: &mut Vec<ast::Attribute>,
         callable: Callable,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         let lhs = primary(p, attributes, EAGER_BRACE, callable)?;
         let lookahead = ast::BinOp::from_peeker(p.peeker());
         binary(p, lhs, lookahead, 0, EAGER_BRACE)
@@ -299,7 +299,7 @@ impl Expr {
         eager_brace: EagerBrace,
         eager_binary: EagerBinary,
         callable: Callable,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         let mut attributes = p.parse()?;
 
         let expr = primary(p, &mut attributes, eager_brace, callable)?;
@@ -312,7 +312,7 @@ impl Expr {
         };
 
         if let Some(span) = attributes.option_span() {
-            return Err(ParseError::unsupported(span, "attributes"));
+            return Err(compile::Error::unsupported(span, "attributes"));
         }
 
         Ok(expr)
@@ -324,7 +324,7 @@ impl Expr {
         attributes: &mut Vec<ast::Attribute>,
         path: ast::Path,
         eager_brace: EagerBrace,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         if *eager_brace && p.peek::<T!['{']>()? {
             let ident = ast::ObjectIdent::Named(path);
 
@@ -390,7 +390,7 @@ impl Expr {
 /// testing::roundtrip::<ast::Expr>("[false, 1, 'b']");
 /// ```
 impl Parse for Expr {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Self::parse_with(p, EAGER_BRACE, EAGER_BINARY, CALLABLE)
     }
 }
@@ -439,7 +439,7 @@ fn primary(
     attributes: &mut Vec<ast::Attribute>,
     eager_brace: EagerBrace,
     callable: Callable,
-) -> Result<Expr, ParseError> {
+) -> Result<Expr> {
     let expr = base(p, attributes, eager_brace)?;
     chain(p, expr, callable)
 }
@@ -449,7 +449,7 @@ fn base(
     p: &mut Parser<'_>,
     attributes: &mut Vec<ast::Attribute>,
     eager_brace: EagerBrace,
-) -> Result<Expr, ParseError> {
+) -> Result<Expr> {
     if let Some(path) = p.parse::<Option<ast::Path>>()? {
         return Expr::parse_with_meta_path(p, attributes, path, eager_brace);
     }
@@ -529,31 +529,34 @@ fn base(
         K![yield] => Expr::Yield(ast::ExprYield::parse_with_meta(p, take(attributes))?),
         K![return] => Expr::Return(ast::ExprReturn::parse_with_meta(p, take(attributes))?),
         _ => {
-            return Err(ParseError::expected(p.tok_at(0)?, Expectation::Expression));
+            return Err(compile::Error::expected(
+                p.tok_at(0)?,
+                Expectation::Expression,
+            ));
         }
     };
 
     if let Some(span) = label.option_span() {
-        return Err(ParseError::unsupported(span, "label"));
+        return Err(compile::Error::unsupported(span, "label"));
     }
 
     if let Some(span) = async_token.option_span() {
-        return Err(ParseError::unsupported(span, "async modifier"));
+        return Err(compile::Error::unsupported(span, "async modifier"));
     }
 
     if let Some(span) = const_token.option_span() {
-        return Err(ParseError::unsupported(span, "const modifier"));
+        return Err(compile::Error::unsupported(span, "const modifier"));
     }
 
     if let Some(span) = move_token.option_span() {
-        return Err(ParseError::unsupported(span, "move modifier"));
+        return Err(compile::Error::unsupported(span, "move modifier"));
     }
 
     Ok(expr)
 }
 
 /// Parse an expression chain.
-fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr, ParseError> {
+fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr> {
     while !p.is_eof()? {
         let is_callable = expr.is_callable(*callable);
 
@@ -626,7 +629,7 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr,
                         });
                     }
                     _ => {
-                        return Err(ParseError::new(
+                        return Err(compile::Error::new(
                             p.span(0..1),
                             ParseErrorKind::BadFieldAccess,
                         ));
@@ -647,7 +650,7 @@ fn binary(
     mut lookahead: Option<ast::BinOp>,
     min_precedence: usize,
     eager_brace: EagerBrace,
-) -> Result<Expr, ParseError> {
+) -> Result<Expr> {
     while let Some(op) = lookahead {
         let precedence = op.precedence();
 
@@ -696,7 +699,7 @@ fn binary(
                 }
                 (lh, rh) if lh == rh => {
                     if !next.is_assoc() {
-                        return Err(ParseError::new(
+                        return Err(compile::Error::new(
                             lhs.span().join(rhs.span()),
                             ParseErrorKind::PrecedenceGroupRequired,
                         ));
@@ -726,7 +729,7 @@ fn range(
     from: Option<Box<Expr>>,
     limits: ast::ExprRangeLimits,
     eager_brace: EagerBrace,
-) -> Result<Expr, ParseError> {
+) -> Result<Expr> {
     let to = if Expr::peek(p.peeker()) {
         Some(Box::new(Expr::parse_with(
             p,
@@ -747,7 +750,7 @@ fn range(
 }
 
 /// Parsing something that opens with an empty group marker.
-fn empty_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Expr, ParseError> {
+fn empty_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Expr> {
     let open = p.parse::<ast::OpenEmpty>()?;
     let expr = p.parse::<Expr>()?;
     let close = p.parse::<ast::CloseEmpty>()?;
@@ -761,7 +764,7 @@ fn empty_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Ex
 }
 
 /// Parsing something that opens with a parenthesis.
-fn paren_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Expr, ParseError> {
+fn paren_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Expr> {
     // Empty tuple.
     if let (K!['('], K![')']) = (p.nth(0)?, p.nth(1)?) {
         return Ok(Expr::Tuple(ast::ExprTuple::parse_with_meta(p, attributes)?));

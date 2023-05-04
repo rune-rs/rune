@@ -2,6 +2,7 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
+use crate::compile;
 use crate::macros::{quote, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::{ContextError, Module};
@@ -19,7 +20,7 @@ pub fn module() -> Result<Module, ContextError> {
 pub(crate) fn emit_line(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     use crate as rune;
 
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
@@ -36,7 +37,7 @@ pub(crate) fn emit_line(
 pub(crate) fn emit_file(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     use crate as rune;
 
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());

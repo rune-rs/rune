@@ -4,7 +4,6 @@
 //! metadata like function locations.
 
 use core::fmt;
-use core::iter;
 
 use crate::no_std::prelude::*;
 
@@ -84,22 +83,27 @@ impl Unit {
     }
 
     /// Get the instruction at the given instruction pointer.
-    pub fn instruction_at(&self, ip: usize) -> Option<&Inst> {
+    pub(crate) fn instruction_at(&self, ip: usize) -> Option<&Inst> {
         self.instructions.get(ip)
     }
 
     /// Iterate over all static strings in the unit.
-    pub fn iter_static_strings(&self) -> impl Iterator<Item = &Arc<StaticString>> + '_ {
+    #[cfg(feature = "cli")]
+    pub(crate) fn iter_static_strings(&self) -> impl Iterator<Item = &Arc<StaticString>> + '_ {
         self.static_strings.iter()
     }
 
     /// Iterate over all constants in the unit.
-    pub fn iter_constants(&self) -> impl Iterator<Item = (&Hash, &ConstValue)> + '_ {
+    #[cfg(feature = "cli")]
+    pub(crate) fn iter_constants(&self) -> impl Iterator<Item = (&Hash, &ConstValue)> + '_ {
         self.constants.iter()
     }
 
     /// Iterate over all static object keys in the unit.
-    pub fn iter_static_object_keys(&self) -> impl Iterator<Item = (usize, &[String])> + '_ {
+    #[cfg(feature = "cli")]
+    pub(crate) fn iter_static_object_keys(&self) -> impl Iterator<Item = (usize, &[String])> + '_ {
+        use core::iter;
+
         let mut it = self.static_object_keys.iter().enumerate();
 
         iter::from_fn(move || {
@@ -109,17 +113,19 @@ impl Unit {
     }
 
     /// Iterate over all instructions in order.
-    pub fn iter_instructions(&self) -> impl Iterator<Item = Inst> + '_ {
+    #[cfg(feature = "emit")]
+    pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = Inst> + '_ {
         self.instructions.iter().copied()
     }
 
     /// Iterate over dynamic functions.
-    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFn)> + '_ {
+    #[cfg(feature = "cli")]
+    pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFn)> + '_ {
         self.functions.iter().map(|(h, f)| (*h, f))
     }
 
     /// Lookup the static string by slot, if it exists.
-    pub fn lookup_string(&self, slot: usize) -> Result<&Arc<StaticString>, VmError> {
+    pub(crate) fn lookup_string(&self, slot: usize) -> Result<&Arc<StaticString>, VmError> {
         Ok(self
             .static_strings
             .get(slot)
@@ -127,7 +133,7 @@ impl Unit {
     }
 
     /// Lookup the static byte string by slot, if it exists.
-    pub fn lookup_bytes(&self, slot: usize) -> Result<&[u8], VmError> {
+    pub(crate) fn lookup_bytes(&self, slot: usize) -> Result<&[u8], VmError> {
         Ok(self
             .static_bytes
             .get(slot)
@@ -136,27 +142,27 @@ impl Unit {
     }
 
     /// Lookup the static object keys by slot, if it exists.
-    pub fn lookup_object_keys(&self, slot: usize) -> Option<&[String]> {
+    pub(crate) fn lookup_object_keys(&self, slot: usize) -> Option<&[String]> {
         self.static_object_keys.get(slot).map(|keys| &keys[..])
     }
 
     /// Lookup runt-time information for the given type hash.
-    pub fn lookup_rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
+    pub(crate) fn lookup_rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
         self.rtti.get(&hash)
     }
 
     /// Lookup variant runt-time information for the given variant hash.
-    pub fn lookup_variant_rtti(&self, hash: Hash) -> Option<&Arc<VariantRtti>> {
+    pub(crate) fn lookup_variant_rtti(&self, hash: Hash) -> Option<&Arc<VariantRtti>> {
         self.variant_rtti.get(&hash)
     }
 
     /// Lookup a function in the unit.
-    pub fn function(&self, hash: Hash) -> Option<UnitFn> {
+    pub(crate) fn function(&self, hash: Hash) -> Option<UnitFn> {
         self.functions.get(&hash).copied()
     }
 
     /// Lookup a constant from the unit.
-    pub fn constant(&self, hash: Hash) -> Option<&ConstValue> {
+    pub(crate) fn constant(&self, hash: Hash) -> Option<&ConstValue> {
         self.constants.get(&hash)
     }
 }
@@ -164,7 +170,7 @@ impl Unit {
 /// The kind and necessary information on registered functions.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum UnitFn {
+pub(crate) enum UnitFn {
     /// Instruction offset of a function inside of the unit.
     Offset {
         /// Offset of the registered function.

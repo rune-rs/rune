@@ -58,10 +58,7 @@ impl<T> Scopes<T> {
     }
 
     /// Get the given variable.
-    pub(crate) fn get_name<'a, S>(&'a self, name: &str, spanned: S) -> Result<&'a T, ScopeError>
-    where
-        S: Spanned,
-    {
+    pub(crate) fn get_name<'a>(&'a self, name: &str) -> Result<&'a T, ScopeError> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Ok(current);
@@ -73,21 +70,11 @@ impl<T> Scopes<T> {
             }
         }
 
-        Err(ScopeError::new(
-            spanned,
-            ScopeErrorKind::MissingLocal { name: name.into() },
-        ))
+        Err(ScopeError::MissingLocal { name: name.into() })
     }
 
     /// Get the given variable as mutable.
-    pub(crate) fn get_name_mut<'a, S>(
-        &'a mut self,
-        name: &str,
-        spanned: S,
-    ) -> Result<&'a mut T, ScopeError>
-    where
-        S: Spanned,
-    {
+    pub(crate) fn get_name_mut<'a>(&'a mut self, name: &str) -> Result<&'a mut T, ScopeError> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(current) = scope.locals.get_mut(name) {
                 return Ok(current);
@@ -99,10 +86,7 @@ impl<T> Scopes<T> {
             }
         }
 
-        Err(ScopeError::new(
-            spanned,
-            ScopeErrorKind::MissingLocal { name: name.into() },
-        ))
+        Err(ScopeError::MissingLocal { name: name.into() })
     }
 
     /// Push a scope and return the guard associated with the scope.
@@ -178,20 +162,10 @@ impl<T> Default for Scope<T> {
     }
 }
 
-error! {
-    /// An error cause by issues with scoping.
-    #[derive(Debug)]
-    pub struct ScopeError {
-        kind: ScopeErrorKind,
-    }
-}
-
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub(crate) enum ScopeErrorKind {
-    #[error("{message}")]
-    Custom { message: Box<str> },
+pub(crate) enum ScopeError {
     #[error("missing local {name}")]
     MissingLocal { name: Box<str> },
 }

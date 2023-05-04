@@ -2,6 +2,7 @@
 
 use crate::no_std::prelude::*;
 
+use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::{Panic, Tuple, Value, VmResult};
@@ -68,7 +69,7 @@ fn is_writable(value: Value) -> bool {
 pub(crate) fn stringify_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     use crate as rune;
 
     let lit = ctx.stringify(stream).to_string();
@@ -79,7 +80,7 @@ pub(crate) fn stringify_macro(
 pub(crate) fn panic_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> crate::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     use crate as rune;
 
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());

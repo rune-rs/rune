@@ -32,7 +32,7 @@ pub struct Attribute {
 }
 
 impl Parse for Attribute {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let hash = p.parse()?;
         let style = p.parse()?;
         let open = p.parse()?;
@@ -103,7 +103,7 @@ pub enum AttrStyle {
 }
 
 impl Parse for AttrStyle {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         Ok(if p.peek::<T![!]>()? {
             Self::Outer(p.parse()?)
         } else {
@@ -116,12 +116,12 @@ impl Parse for AttrStyle {
 pub(crate) struct InnerAttribute(pub(crate) Attribute);
 
 impl Parse for InnerAttribute {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         let attribute: Attribute = p.parse()?;
 
         match attribute.style {
             AttrStyle::Inner => Ok(Self(attribute)),
-            _ => Err(ParseError::expected(
+            _ => Err(compile::Error::expected(
                 attribute,
                 "inner attribute like `#![allow(unused)]`",
             )),

@@ -85,7 +85,7 @@ impl ItemVariantBody {
 /// testing::roundtrip::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }");
 /// ```
 impl Parse for ItemVariantBody {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K!['('] => Self::TupleBody(p.parse()?),
             K!['{'] => Self::StructBody(p.parse()?),

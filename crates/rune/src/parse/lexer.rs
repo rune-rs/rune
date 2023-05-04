@@ -6,7 +6,7 @@ use crate::no_std::prelude::*;
 use crate::ast;
 use crate::ast::Span;
 use crate::collections::VecDeque;
-use crate::parse::{ParseError, ParseErrorKind};
+use crate::compile::{self, ParseErrorKind};
 use crate::SourceId;
 
 /// Lexer for the rune language.
@@ -134,7 +134,7 @@ impl<'a> Lexer<'a> {
         });
     }
 
-    fn next_ident(&mut self, start: usize) -> Result<Option<ast::Token>, ParseError> {
+    fn next_ident(&mut self, start: usize) -> compile::Result<Option<ast::Token>> {
         while let Some(c) = self.iter.peek() {
             if !matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9') {
                 break;
@@ -154,7 +154,7 @@ impl<'a> Lexer<'a> {
         &mut self,
         c: char,
         start: usize,
-    ) -> Result<Option<ast::Token>, ParseError> {
+    ) -> compile::Result<Option<ast::Token>> {
         let base = if let ('0', Some(m)) = (c, self.iter.peek()) {
             // This loop is useful.
             #[allow(clippy::never_loop)]
@@ -228,7 +228,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
-    fn next_char_or_label(&mut self, start: usize) -> Result<Option<ast::Token>, ParseError> {
+    fn next_char_or_label(&mut self, start: usize) -> compile::Result<Option<ast::Token>> {
         let mut is_label = true;
         let mut count = 0;
 
@@ -238,7 +238,7 @@ impl<'a> Lexer<'a> {
                     self.iter.next();
 
                     if self.iter.next().is_none() {
-                        return Err(ParseError::new(
+                        return Err(compile::Error::new(
                             self.iter.span_to_pos(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
@@ -259,7 +259,10 @@ impl<'a> Lexer<'a> {
                 }
                 c if c.is_control() => {
                     let span = self.iter.span_to_pos(start);
-                    return Err(ParseError::new(span, ParseErrorKind::UnterminatedCharLit));
+                    return Err(compile::Error::new(
+                        span,
+                        ParseErrorKind::UnterminatedCharLit,
+                    ));
                 }
                 _ if is_label && count > 0 => {
                     break;
@@ -276,10 +279,13 @@ impl<'a> Lexer<'a> {
             let span = self.iter.span_to_len(start);
 
             if !is_label {
-                return Err(ParseError::new(span, ParseErrorKind::ExpectedCharClose));
+                return Err(compile::Error::new(span, ParseErrorKind::ExpectedCharClose));
             }
 
-            return Err(ParseError::new(span, ParseErrorKind::ExpectedCharOrLabel));
+            return Err(compile::Error::new(
+                span,
+                ParseErrorKind::ExpectedCharOrLabel,
+            ));
         }
 
         if is_label {
@@ -296,12 +302,12 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
-    fn next_lit_byte(&mut self, start: usize) -> Result<Option<ast::Token>, ParseError> {
+    fn next_lit_byte(&mut self, start: usize) -> compile::Result<Option<ast::Token>> {
         loop {
             let (s, c) = match self.iter.next_with_pos() {
                 Some(c) => c,
                 None => {
-                    return Err(ParseError::new(
+                    return Err(compile::Error::new(
                         self.iter.span_to_pos(start),
                         ParseErrorKind::ExpectedByteClose,
                     ));
@@ -311,7 +317,7 @@ impl<'a> Lexer<'a> {
             match c {
                 '\\' => {
                     if self.iter.next().is_none() {
-                        return Err(ParseError::new(
+                        return Err(compile::Error::new(
                             self.iter.span_to_pos(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
@@ -322,7 +328,10 @@ impl<'a> Lexer<'a> {
                 }
                 c if c.is_control() => {
                     let span = self.iter.span_to_pos(start);
-                    return Err(ParseError::new(span, ParseErrorKind::UnterminatedByteLit));
+                    return Err(compile::Error::new(
+                        span,
+                        ParseErrorKind::UnterminatedByteLit,
+                    ));
                 }
                 _ => (),
             }
@@ -340,14 +349,17 @@ impl<'a> Lexer<'a> {
         start: usize,
         error_kind: impl FnOnce() -> ParseErrorKind + Copy,
         kind: impl FnOnce(ast::StrSource) -> ast::Kind,
-    ) -> Result<Option<ast::Token>, ParseError> {
+    ) -> compile::Result<Option<ast::Token>> {
         let mut escaped = false;
 
         loop {
             let (s, c) = match self.iter.next_with_pos() {
                 Some(next) => next,
                 None => {
-                    return Err(ParseError::new(self.iter.span_to_pos(start), error_kind()));
+                    return Err(compile::Error::new(
+                        self.iter.span_to_pos(start),
+                        error_kind(),
+                    ));
                 }
             };
 
@@ -355,7 +367,7 @@ impl<'a> Lexer<'a> {
                 '"' => break,
                 '\\' => {
                     if self.iter.next().is_none() {
-                        return Err(ParseError::new(
+                        return Err(compile::Error::new(
                             self.iter.span_to_pos(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
@@ -411,7 +423,7 @@ impl<'a> Lexer<'a> {
         false
     }
 
-    fn template_next(&mut self) -> Result<(), ParseError> {
+    fn template_next(&mut self) -> compile::Result<()> {
         let start = self.iter.pos();
         let mut escaped = false;
 
@@ -430,14 +442,14 @@ impl<'a> Lexer<'a> {
                         Some((_, '{')) => (),
                         Some((start, c)) => {
                             let span = self.iter.span_to_pos(start);
-                            return Err(ParseError::new(
+                            return Err(compile::Error::new(
                                 span,
                                 ParseErrorKind::UnexpectedChar { c },
                             ));
                         }
                         None => {
                             let span = self.iter.span_to_len(start);
-                            return Err(ParseError::new(span, ParseErrorKind::UnexpectedEof));
+                            return Err(compile::Error::new(span, ParseErrorKind::UnexpectedEof));
                         }
                     }
 
@@ -475,7 +487,7 @@ impl<'a> Lexer<'a> {
                     self.iter.next();
 
                     if self.iter.next().is_none() {
-                        return Err(ParseError::new(
+                        return Err(compile::Error::new(
                             self.iter.span_to_pos(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
@@ -533,7 +545,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Err(ParseError::new(
+        Err(compile::Error::new(
             self.iter.point_span(),
             ParseErrorKind::UnexpectedEof,
         ))
@@ -541,7 +553,7 @@ impl<'a> Lexer<'a> {
 
     /// Consume the next token from the lexer.
     #[allow(clippy::should_implement_trait)]
-    pub(crate) fn next(&mut self) -> Result<Option<ast::Token>, ParseError> {
+    pub(crate) fn next(&mut self) -> compile::Result<Option<ast::Token>> {
         'outer: loop {
             if let Some(token) = self.buffer.pop_front() {
                 return Ok(Some(token));
@@ -836,7 +848,10 @@ impl<'a> Lexer<'a> {
                     }
                     _ => {
                         let span = self.iter.span_to_pos(start);
-                        return Err(ParseError::new(span, ParseErrorKind::UnexpectedChar { c }));
+                        return Err(compile::Error::new(
+                            span,
+                            ParseErrorKind::UnexpectedChar { c },
+                        ));
                     }
                 };
             };
@@ -953,11 +968,11 @@ impl LexerModes {
     }
 
     /// Pop the expected lexer mode.
-    fn pop(&mut self, iter: &SourceIter<'_>, expected: LexerMode) -> Result<(), ParseError> {
+    fn pop(&mut self, iter: &SourceIter<'_>, expected: LexerMode) -> compile::Result<()> {
         let actual = self.modes.pop().unwrap_or_default();
 
         if actual != expected {
-            return Err(ParseError::new(
+            return Err(compile::Error::new(
                 iter.point_span(),
                 ParseErrorKind::BadLexerMode { actual, expected },
             ));
@@ -971,12 +986,12 @@ impl LexerModes {
         &'a mut self,
         iter: &SourceIter<'_>,
         start: usize,
-    ) -> Result<&'a mut usize, ParseError> {
+    ) -> compile::Result<&'a mut usize> {
         match self.modes.last_mut() {
             Some(LexerMode::Template(expression)) => Ok(expression),
             _ => {
                 let span = iter.span_to_pos(start);
-                Err(ParseError::new(
+                Err(compile::Error::new(
                     span,
                     ParseErrorKind::BadLexerMode {
                         actual: LexerMode::default(),

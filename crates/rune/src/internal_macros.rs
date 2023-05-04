@@ -11,7 +11,7 @@ macro_rules! error {
         $(#[$meta])*
         $vis struct $error_ty {
             span: $crate::ast::Span,
-            kind: Box<$kind>,
+            kind: $crate::no_std::boxed::Box<$kind>,
         }
 
         impl $error_ty {
@@ -33,7 +33,7 @@ macro_rules! error {
             /// This should be used for programming invariants of the encoder which are
             /// broken for some reason.
             #[allow(unused)]
-            pub(crate) fn msg<S, M>(spanned: S, message: M) -> Self
+            pub fn msg<S, M>(spanned: S, message: M) -> Self
             where
                 S: $crate::ast::Spanned,
                 M: ::core::fmt::Display,

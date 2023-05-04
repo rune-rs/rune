@@ -117,15 +117,16 @@ fn main() -> Result<()> {
     let delimiter = &rust::import("crate::ast", "Delimiter");
     let into_expectation = &rust::import("crate::parse", "IntoExpectation");
     let expectation = &rust::import("crate::parse", "Expectation");
-    let display = &rust::import("std::fmt", "Display");
-    let fmt_result = &rust::import("std::fmt", "Result");
-    let formatter = &rust::import("std::fmt", "Formatter");
+    let display = &rust::import("core::fmt", "Display");
+    let fmt_result = &rust::import("core::fmt", "Result");
+    let formatter = &rust::import("core::fmt", "Formatter");
     let kind = &rust::import("crate::ast", "Kind");
     let lit_str_source = &rust::import("crate::ast", "StrSource");
     let macro_context = &rust::import("crate::macros", "MacroContext");
     let number_source = &rust::import("crate::ast", "NumberSource");
     let parse = &rust::import("crate::parse", "Parse");
-    let parse_error = &rust::import("crate::parse", "ParseError");
+    let compile_error = &rust::import("crate::compile", "Error");
+    let compile_result = &rust::import("crate::compile", "Result");
     let parser = &rust::import("crate::parse", "Parser");
     let peeker = &rust::import("crate::parse", "Peeker");
     let peek = &rust::import("crate::parse", "Peek");
@@ -158,12 +159,12 @@ fn main() -> Result<()> {
                 }
 
                 impl $parse for $(t.variant()) {
-                    fn parse(p: &mut $parser<'_>) -> Result<Self, $parse_error> {
+                    fn parse(p: &mut $parser<'_>) -> $compile_result<Self> {
                         let token = p.next()?;
 
                         match token.kind {
                             $kind::$(t.variant()) => Ok(Self { span: token.span }),
-                            _ => Err($parse_error::expected(token, $kind::$(t.variant()))),
+                            _ => Err($compile_error::expected(token, $kind::$(t.variant()))),
                         }
                     }
                 }

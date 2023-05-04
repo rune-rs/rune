@@ -92,7 +92,7 @@ impl ItemStructBody {
 /// testing::roundtrip::<ast::ItemStructBody>("()");
 /// ```
 impl Parse for ItemStructBody {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K!['('] => Self::TupleBody(p.parse()?),
             K!['{'] => Self::StructBody(p.parse()?),

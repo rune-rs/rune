@@ -247,12 +247,9 @@ mod shared;
 mod source;
 pub use self::source::Source;
 
-mod source_id;
-pub use self::source_id::SourceId;
-
 #[macro_use]
 mod sources;
-pub use self::sources::Sources;
+pub use self::sources::{SourceId, Sources};
 
 mod worker;
 

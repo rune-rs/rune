@@ -14,12 +14,10 @@ use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 pub use codespan_reporting::term::termcolor;
 
-use crate::compile::{IrErrorKind, CompileErrorKind, Location, LinkerError};
+use crate::compile::{CompileErrorKind, Location, LinkerError, QueryErrorKind};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
-use crate::parse::ResolveErrorKind;
-use crate::query::QueryErrorKind;
 use crate::runtime::{Unit, VmErrorKind, VmError};
 use crate::{Source, Diagnostics, SourceId, Sources};
 use crate::ast::{Span, Spanned};
@@ -457,17 +455,6 @@ where
                 &mut notes,
             )?;
         }
-        FatalDiagnosticKind::QueryError(error) => {
-            format_query_error(
-                this,
-                sources,
-                error.span(),
-                error.kind(),
-                &mut labels,
-                &mut notes,
-            )?;
-        }
-        FatalDiagnosticKind::ParseError(..) => {},
     };
 
     let diagnostic = d::Diagnostic::error()
@@ -487,8 +474,8 @@ where
         notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
-            CompileErrorKind::QueryError { error } => {
-                format_query_error(this, sources, error_span, error, labels, notes)?;
+            CompileErrorKind::QueryError(kind) => {
+                format_query_error(kind, labels)?;
             }
             CompileErrorKind::DuplicateObjectKey { existing, object } => {
                 labels.push(
@@ -529,9 +516,6 @@ where
                         .with_message("Moved here"),
                 );
             }
-            CompileErrorKind::CallMacroError { item, .. } => {
-                notes.push(format!("Error originated in the `{}` macro", item));
-            }
             CompileErrorKind::NestedTest { nested_span } => {
                 labels.push(
                     d::Label::secondary(this.source_id(), nested_span.range())
@@ -567,20 +551,10 @@ where
     }
 
     fn format_query_error(
-        this: &FatalDiagnostic,
-        sources: &Sources,
-        error_span: Span,
         kind: &QueryErrorKind,
         labels: &mut Vec<d::Label<SourceId>>,
-        notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
-            QueryErrorKind::ResolveError { error } => {
-                format_resolve_error(this, sources, error_span, error, labels, notes)?;
-            }
-            QueryErrorKind::IrError { error } => {
-                format_ir_error(this, sources, error_span, error, labels, notes)?;
-            }
             QueryErrorKind::ImportCycle { path } => {
                 let mut it = path.iter();
                 let last = it.next_back();
@@ -643,32 +617,6 @@ where
             _ => (),
         }
 
-        Ok(())
-    }
-
-    fn format_ir_error(
-        this: &FatalDiagnostic,
-        sources: &Sources,
-        error_span: Span,
-        kind: &IrErrorKind,
-        labels: &mut Vec<d::Label<SourceId>>,
-        notes: &mut Vec<String>,
-    ) -> fmt::Result {
-        if let IrErrorKind::QueryError { error } = kind {
-            format_query_error(this, sources, error_span, error, labels, notes)?;
-        }
-
-        Ok(())
-    }
-
-    fn format_resolve_error(
-        _: &FatalDiagnostic,
-        _: &Sources,
-        _: Span,
-        _: &ResolveErrorKind,
-        _: &mut Vec<d::Label<SourceId>>,
-        _: &mut Vec<String>,
-    ) -> fmt::Result {
         Ok(())
     }
 }

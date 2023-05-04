@@ -74,7 +74,7 @@ impl Lit {
 /// testing::roundtrip::<ast::Lit>("\"mary had a little lamb\"");
 /// ```
 impl Parse for Lit {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         match p.nth(0)? {
             K![true] | K![false] => return Ok(Lit::Bool(p.parse()?)),
             K![byte(_)] => return Ok(Lit::Byte(p.parse()?)),
@@ -85,6 +85,6 @@ impl Parse for Lit {
             _ => (),
         }
 
-        Err(ParseError::expected(p.next()?, Expectation::Literal))
+        Err(compile::Error::expected(p.next()?, Expectation::Literal))
     }
 }

@@ -629,7 +629,7 @@ impl Context {
             object: quote!(#module::runtime::Object),
             opaque: quote!(#module::parse::Opaque),
             option_spanned: quote!(#module::ast::OptionSpanned),
-            parse_error: quote!(#module::parse::ParseError),
+            compile_error: quote!(#module::compile::Error),
             parse: quote!(#module::parse::Parse),
             parser: quote!(#module::parse::Parser),
             pointer_guard: quote!(#module::runtime::SharedPointerGuard),
@@ -659,6 +659,7 @@ impl Context {
             vm_result: quote!(#module::runtime::VmResult),
             try_result: quote!(#module::runtime::try_result),
             type_name: quote!(::core::any::type_name),
+            result: quote!(::core::result::Result),
         }
     }
 }
@@ -676,7 +677,7 @@ pub(crate) struct Tokens {
     pub(crate) object: TokenStream,
     pub(crate) opaque: TokenStream,
     pub(crate) option_spanned: TokenStream,
-    pub(crate) parse_error: TokenStream,
+    pub(crate) compile_error: TokenStream,
     pub(crate) parse: TokenStream,
     pub(crate) parser: TokenStream,
     pub(crate) pointer_guard: TokenStream,
@@ -706,6 +707,7 @@ pub(crate) struct Tokens {
     pub(crate) vm_result: TokenStream,
     pub(crate) try_result: TokenStream,
     pub(crate) type_name: TokenStream,
+    pub(crate) result: TokenStream,
 }
 
 impl Tokens {

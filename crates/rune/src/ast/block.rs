@@ -46,7 +46,7 @@ pub struct Block {
 }
 
 impl Parse for Block {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let mut statements = Vec::new();
 
         let open = parser.parse()?;

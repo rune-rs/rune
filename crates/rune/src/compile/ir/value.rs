@@ -2,7 +2,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast::Spanned;
 use crate::collections::HashMap;
-use crate::compile::{IrError, IrErrorKind};
+use crate::compile::{self, IrErrorKind, WithSpan};
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 
@@ -101,7 +101,7 @@ impl IrValue {
     }
 
     /// Convert into constant value.
-    pub(crate) fn into_const<S>(self, spanned: S) -> Result<ConstValue, IrError>
+    pub(crate) fn into_const<S>(self, spanned: S) -> compile::Result<ConstValue>
     where
         S: Copy + Spanned,
     {
@@ -116,7 +116,10 @@ impl IrValue {
                 let n = match n.clone().to_i64() {
                     Some(n) => n,
                     None => {
-                        return Err(IrError::new(spanned, IrErrorKind::NotInteger { value: n }))
+                        return Err(compile::Error::new(
+                            spanned,
+                            IrErrorKind::NotInteger { value: n },
+                        ))
                     }
                 };
 
@@ -124,21 +127,19 @@ impl IrValue {
             }
             IrValue::Float(f) => ConstValue::Float(f),
             IrValue::String(s) => {
-                let s = s.take().map_err(IrError::access(spanned))?;
+                let s = s.take().with_span(spanned)?;
                 ConstValue::String(s)
             }
             IrValue::Bytes(b) => {
-                let b = b.take().map_err(IrError::access(spanned))?;
+                let b = b.take().with_span(spanned)?;
                 ConstValue::Bytes(b)
             }
-            Self::Option(option) => {
-                ConstValue::Option(match option.take().map_err(IrError::access(spanned))? {
-                    Some(value) => Some(Box::new(value.into_const(spanned)?)),
-                    None => None,
-                })
-            }
+            Self::Option(option) => ConstValue::Option(match option.take().with_span(spanned)? {
+                Some(value) => Some(Box::new(value.into_const(spanned)?)),
+                None => None,
+            }),
             IrValue::Vec(vec) => {
-                let vec = vec.take().map_err(IrError::access(spanned))?;
+                let vec = vec.take().with_span(spanned)?;
                 let mut const_vec = Vec::with_capacity(vec.len());
 
                 for value in vec {
@@ -148,7 +149,7 @@ impl IrValue {
                 ConstValue::Vec(const_vec)
             }
             IrValue::Tuple(tuple) => {
-                let tuple = tuple.take().map_err(IrError::access(spanned))?;
+                let tuple = tuple.take().with_span(spanned)?;
                 let mut const_tuple = Vec::with_capacity(tuple.len());
 
                 for value in Vec::from(tuple) {
@@ -158,7 +159,7 @@ impl IrValue {
                 ConstValue::Tuple(const_tuple.into_boxed_slice())
             }
             IrValue::Object(object) => {
-                let object = object.take().map_err(IrError::access(spanned))?;
+                let object = object.take().with_span(spanned)?;
                 let mut const_object = HashMap::with_capacity(object.len());
 
                 for (key, value) in object {

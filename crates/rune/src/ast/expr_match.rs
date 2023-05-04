@@ -34,7 +34,7 @@ impl ExprMatch {
     pub(crate) fn parse_with_attributes(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         let match_ = parser.parse()?;
         let expr = ast::Expr::parse_without_eager_brace(parser)?;
 

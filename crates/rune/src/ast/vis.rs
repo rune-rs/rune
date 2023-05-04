@@ -74,7 +74,7 @@ impl Default for Visibility {
 /// });
 /// ```
 impl Parse for Visibility {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let pub_token = match parser.parse::<Option<T![pub]>>()? {
             Some(pub_token) => pub_token,
             None => return Ok(Self::Inherited),

@@ -43,7 +43,7 @@ pub enum Pat {
 /// testing::roundtrip::<ast::Pat>("Foo(n)");
 /// ```
 impl Parse for Pat {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let attributes = p.parse::<Vec<ast::Attribute>>()?;
 
         match p.nth(0)? {
@@ -163,7 +163,7 @@ impl Parse for Pat {
             _ => (),
         }
 
-        Err(ParseError::expected(p.tok_at(0)?, "pattern"))
+        Err(compile::Error::expected(p.tok_at(0)?, "pattern"))
     }
 }
 

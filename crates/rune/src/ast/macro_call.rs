@@ -53,7 +53,7 @@ impl MacroCall {
         parser: &mut Parser,
         attributes: Vec<ast::Attribute>,
         path: ast::Path,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         let bang = parser.parse()?;
 
         let mut level = 1;
@@ -62,7 +62,7 @@ impl MacroCall {
         let delim = match open.kind {
             ast::Kind::Open(delim) => delim,
             _ => {
-                return Err(ParseError::expected(open, Expectation::OpenDelimiter));
+                return Err(compile::Error::expected(open, Expectation::OpenDelimiter));
             }
         };
 
@@ -80,7 +80,7 @@ impl MacroCall {
 
                     if level == 0 {
                         if actual != delim {
-                            return Err(ParseError::new(
+                            return Err(compile::Error::new(
                                 open,
                                 ParseErrorKind::ExpectedMacroCloseDelimiter {
                                     actual: token.kind,
@@ -112,7 +112,7 @@ impl MacroCall {
 }
 
 impl Parse for MacroCall {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let attributes = parser.parse()?;
         let path = parser.parse()?;
         Self::parse_with_meta_path(parser, attributes, path)

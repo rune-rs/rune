@@ -42,7 +42,7 @@ impl ExprSelect {
     pub(crate) fn parse_with_attributes(
         p: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         let select = p.parse()?;
         let open = p.parse()?;
 
@@ -95,7 +95,7 @@ impl ExprSelectBranch {
 }
 
 impl Parse for ExprSelectBranch {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> Result<Self> {
         Ok(if p.peek::<T![default]>()? {
             Self::Default(p.parse()?)
         } else {

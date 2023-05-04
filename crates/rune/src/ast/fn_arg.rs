@@ -21,7 +21,7 @@ pub enum FnArg {
 }
 
 impl Parse for FnArg {
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
             K![self] => Self::SelfValue(p.parse()?),
             _ => Self::Pat(p.parse()?),

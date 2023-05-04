@@ -6,11 +6,13 @@
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
     pub(crate) use crate::ast;
-    pub(crate) use crate::compile::{self, CompileErrorKind, Item, Location, Named};
+    pub(crate) use crate::compile::{
+        self, CompileErrorKind, Item, Location, Named, ParseErrorKind, QueryErrorKind,
+        ResolveErrorKind,
+    };
     pub(crate) use crate::diagnostics;
     pub(crate) use crate::macros;
-    pub(crate) use crate::parse::{self, ParseErrorKind, ResolveErrorKind};
-    pub(crate) use crate::query::QueryErrorKind;
+    pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
         self, AnyObj, AnyTypeInfo, Bytes, Function, MaybeTypeOf, Object, Protocol, RawRef, RawStr,
         Shared, Stack, Tuple, TypeInfo, TypeOf, UnsafeFromValue, VecTuple, VmErrorKind, VmResult,
@@ -224,7 +226,7 @@ macro_rules! assert_parse {
 
 /// Assert that the given rune program raises a query error.
 macro_rules! assert_errors {
-    ($source:expr, $span:ident, $($variant:ident($pat:pat) => $cond:expr),+ $(,)?) => {{
+    ($source:expr, $span:ident, $($pat:pat => $cond:expr),+ $(,)?) => {{
         let mut diagnostics = Default::default();
         let _ = $crate::tests::compile_helper($source, &mut diagnostics).unwrap_err();
 
@@ -243,9 +245,9 @@ macro_rules! assert_errors {
             };
 
             let e = match e.into_kind() {
-                rune::diagnostics::FatalDiagnosticKind::$variant(e) => (e),
+                rune::diagnostics::FatalDiagnosticKind::CompileError(e) => (e),
                 kind => {
-                    panic!("expected error of variant `{}` but was `{:?}`", stringify!($variant), kind);
+                    panic!("Expected CompileError but was `{:?}`", kind);
                 }
             };
 
@@ -265,14 +267,7 @@ macro_rules! assert_errors {
 /// Assert that the given rune program raises a compile error.
 macro_rules! assert_compile_error {
     ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
-        assert_errors!($source, $span, CompileError($pat) => $cond)
-    }};
-}
-
-/// Assert that the given parse error happens with the given rune program.
-macro_rules! assert_parse_error {
-    ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
-        assert_errors!($source, $span, ParseError($pat) => $cond)
+        assert_errors!($source, $span, $pat => $cond)
     }};
 }
 

@@ -26,7 +26,7 @@ pub struct LitNumber {
 /// testing::roundtrip::<ast::LitNumber>("0.42e10");
 /// ```
 impl Parse for LitNumber {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
 
         match t.kind {
@@ -34,7 +34,7 @@ impl Parse for LitNumber {
                 source,
                 span: t.span,
             }),
-            _ => Err(ParseError::expected(t, "number")),
+            _ => Err(compile::Error::expected(t, "number")),
         }
     }
 }
@@ -42,14 +42,14 @@ impl Parse for LitNumber {
 impl<'a> Resolve<'a> for LitNumber {
     type Output = ast::Number;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<ast::Number, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<ast::Number> {
         let span = self.span;
 
         let text = match self.source {
             ast::NumberSource::Synthetic(id) => match ctx.storage.get_number(id) {
                 Some(number) => return Ok(number.clone()),
                 None => {
-                    return Err(ResolveError::new(
+                    return Err(compile::Error::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
                             kind: SyntheticKind::Number,
@@ -64,7 +64,7 @@ impl<'a> Resolve<'a> for LitNumber {
         let string = ctx
             .sources
             .source(text.source_id, span)
-            .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
 
         if text.is_fractional {
             let number: f64 = string.parse().map_err(err_span(span))?;
@@ -81,8 +81,8 @@ impl<'a> Resolve<'a> for LitNumber {
         let number = num::BigInt::from_str_radix(&string[s..], radix).map_err(err_span(span))?;
         return Ok(ast::Number::Integer(number));
 
-        fn err_span<E>(span: Span) -> impl Fn(E) -> ResolveError {
-            move |_| ResolveError::new(span, ResolveErrorKind::BadNumberLiteral)
+        fn err_span<E>(span: Span) -> impl Fn(E) -> compile::Error {
+            move |_| compile::Error::new(span, ResolveErrorKind::BadNumberLiteral)
         }
     }
 }

@@ -38,7 +38,7 @@ pub struct Ident {
 }
 
 impl Parse for Ident {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;
 
         match t.kind {
@@ -46,7 +46,7 @@ impl Parse for Ident {
                 span: t.span,
                 source,
             }),
-            _ => Err(ParseError::expected(t, "ident")),
+            _ => Err(compile::Error::expected(t, "ident")),
         }
     }
 }
@@ -60,7 +60,7 @@ impl Peek for Ident {
 impl<'a> Resolve<'a> for Ident {
     type Output = &'a str;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<&'a str, ResolveError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<&'a str> {
         let span = self.span;
 
         match self.source {
@@ -68,13 +68,13 @@ impl<'a> Resolve<'a> for Ident {
                 let ident = ctx
                     .sources
                     .source(source_id, span)
-                    .ok_or_else(|| ResolveError::new(span, ResolveErrorKind::BadSlice))?;
+                    .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
 
                 Ok(ident)
             }
             ast::LitSource::Synthetic(id) => {
                 let ident = ctx.storage.get_string(id).ok_or_else(|| {
-                    ResolveError::new(
+                    compile::Error::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
                             kind: SyntheticKind::Label,

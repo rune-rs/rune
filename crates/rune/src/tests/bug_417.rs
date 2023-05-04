@@ -1,5 +1,6 @@
 prelude!();
 
+use CompileErrorKind::*;
 use QueryErrorKind::*;
 
 /// This tests that all items can be successfully queried for when unused (but
@@ -10,7 +11,7 @@ fn ensure_unambigious_items() {
     assert_errors! {
         r#"enum Foo { Variant } mod Foo { struct Variant; }"#,
         span,
-        CompileError(_) => {
+        _ => {
             assert_eq!(span, span!(21, 28));
         },
         QueryError(AmbiguousItem { .. }) => {

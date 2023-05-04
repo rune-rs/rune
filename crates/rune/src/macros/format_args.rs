@@ -4,11 +4,11 @@ use crate::no_std::collections::{BTreeMap, BTreeSet};
 use crate::no_std::prelude::*;
 
 use crate::ast;
-use crate::ast::{Span, Spanned, SpannedError, WithSpan};
+use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
-use crate::compile::IrValue;
+use crate::compile::{self, IrValue, WithSpan};
 use crate::macros::{quote, MacroContext, Quote};
-use crate::parse::{Parse, ParseError, Parser, Peek, Peeker};
+use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
 
 // NB: needed for quote macro.
@@ -28,7 +28,7 @@ pub struct FormatArgs {
 
 impl FormatArgs {
     /// Expand the format specification.
-    pub fn expand(&self, ctx: &mut MacroContext<'_>) -> Result<Quote<'_>, SpannedError> {
+    pub fn expand(&self, ctx: &mut MacroContext<'_>) -> compile::Result<Quote<'_>> {
         let format = ctx.eval(&self.format)?;
 
         let mut pos = Vec::new();
@@ -38,7 +38,7 @@ impl FormatArgs {
             match a {
                 FormatArg::Positional(expr) => {
                     if !named.is_empty() {
-                        return Err(SpannedError::msg(
+                        return Err(compile::Error::msg(
                             expr.span(),
                             "unnamed positional arguments must come before named ones",
                         ));
@@ -54,10 +54,10 @@ impl FormatArgs {
         }
 
         let format = match format {
-            IrValue::String(string) => string.take().with_span(self.format.span())?,
+            IrValue::String(string) => string.take().with_span(&self.format)?,
             _ => {
-                return Err(SpannedError::msg(
-                    self.format.span(),
+                return Err(compile::Error::msg(
+                    &self.format,
                     "format argument must be a string",
                 ));
             }
@@ -80,16 +80,19 @@ impl FormatArgs {
         ) {
             Ok(expanded) => expanded,
             Err(message) => {
-                return Err(SpannedError::msg(self.format.span(), message));
+                return Err(compile::Error::msg(self.format.span(), message));
             }
         };
 
         if let Some(expr) = unused_pos.into_iter().flat_map(|n| pos.get(n)).next() {
-            return Err(SpannedError::msg(expr.span(), "unused positional argument"));
+            return Err(compile::Error::msg(
+                expr.span(),
+                "unused positional argument",
+            ));
         }
 
         if let Some((key, span)) = unused_named.into_iter().next() {
-            return Err(SpannedError::msg(
+            return Err(compile::Error::msg(
                 span,
                 format!("unused named argument `{}`", key),
             ));
@@ -101,9 +104,12 @@ impl FormatArgs {
 
 impl Parse for FormatArgs {
     /// Parse format arguments inside of a macro.
-    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
         if p.is_eof()? {
-            return Err(ParseError::msg(p.last_span(), "expected format specifier"));
+            return Err(compile::Error::msg(
+                p.last_span(),
+                "expected format specifier",
+            ));
         }
 
         let format = p.parse::<ast::Expr>()?;
@@ -149,7 +155,7 @@ pub enum FormatArg {
 }
 
 impl Parse for FormatArg {
-    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser) -> compile::Result<Self> {
         Ok(if let (K![ident], K![=]) = (p.nth(0)?, p.nth(1)?) {
             FormatArg::Named(p.parse()?)
         } else {
@@ -166,7 +172,7 @@ fn expand_format_spec<'a>(
     unused_pos: &mut BTreeSet<usize>,
     named: &HashMap<Box<str>, &'a NamedFormatArg>,
     unused_named: &mut BTreeMap<Box<str>, Span>,
-) -> Result<Quote<'a>, SpannedError> {
+) -> compile::Result<Quote<'a>> {
     let mut iter = Iter::new(input);
 
     let mut name = String::new();
@@ -188,7 +194,7 @@ fn expand_format_spec<'a>(
                 iter.next();
             }
             ('}', _) => {
-                return Err(SpannedError::msg(
+                return Err(compile::Error::msg(
                     span,
                     "unsupported close `}`, if you meant to escape this use `}}`",
                 ));
@@ -341,7 +347,7 @@ fn expand_format_spec<'a>(
         unused_pos: &mut BTreeSet<usize>,
         named: &HashMap<Box<str>, &'a NamedFormatArg>,
         unused_named: &mut BTreeMap<Box<str>, Span>,
-    ) -> Result<C<'a>, SpannedError> {
+    ) -> compile::Result<C<'a>> {
         use num::ToPrimitive as _;
 
         // Parsed flags.
@@ -366,7 +372,7 @@ fn expand_format_spec<'a>(
             let (a, b) = match iter.current() {
                 Some(item) => item,
                 _ => {
-                    return Err(SpannedError::msg(span, "unexpected end of format string"));
+                    return Err(compile::Error::msg(span, "unexpected end of format string"));
                 }
             };
 
@@ -494,7 +500,7 @@ fn expand_format_spec<'a>(
                     match a {
                         '}' => (),
                         c => {
-                            return Err(SpannedError::msg(
+                            return Err(compile::Error::msg(
                                 span,
                                 format!("unsupported char `{}` in spec", c),
                             ));
@@ -511,7 +517,7 @@ fn expand_format_spec<'a>(
             let expr = match pos.get(*count) {
                 Some(expr) => expr,
                 None => {
-                    return Err(SpannedError::msg(
+                    return Err(compile::Error::msg(
                         span,
                         format!(
                             "missing positional argument #{} \
@@ -534,7 +540,7 @@ fn expand_format_spec<'a>(
             let precision = if let Some(number) = number {
                 number
             } else {
-                return Err(SpannedError::msg(
+                return Err(compile::Error::msg(
                     expr.span(),
                     format!(
                         "expected position argument #{} \
@@ -559,7 +565,7 @@ fn expand_format_spec<'a>(
                 let expr = match pos.get(n) {
                     Some(expr) => *expr,
                     None => {
-                        return Err(SpannedError::msg(
+                        return Err(compile::Error::msg(
                             span,
                             format!("missing positional argument #{}", n),
                         ));
@@ -572,7 +578,7 @@ fn expand_format_spec<'a>(
                 let expr = match named.get(name.as_str()) {
                     Some(n) => &n.expr,
                     None => {
-                        return Err(SpannedError::msg(
+                        return Err(compile::Error::msg(
                             span,
                             format!("missing named argument `{}`", name),
                         ));
@@ -586,7 +592,7 @@ fn expand_format_spec<'a>(
             let expr = match pos.get(*count) {
                 Some(expr) => *expr,
                 None => {
-                    return Err(SpannedError::msg(
+                    return Err(compile::Error::msg(
                         span,
                         format!("missing positional argument #{}", count),
                     ));

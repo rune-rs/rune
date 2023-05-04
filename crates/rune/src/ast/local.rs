@@ -30,7 +30,7 @@ pub struct Local {
     pub semi: T![;],
 }
 
-fn parse_expr(p: &mut Parser<'_>) -> Result<ast::Expr, ParseError> {
+fn parse_expr(p: &mut Parser<'_>) -> Result<ast::Expr> {
     ast::Expr::parse_with(
         p,
         ast::expr::EAGER_BRACE,

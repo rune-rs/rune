@@ -5,15 +5,15 @@ use crate::no_std::prelude::*;
 
 use num::ToPrimitive;
 
-use crate::ast;
+use crate::ast::{self};
 use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, Item};
+use crate::compile::{self, CompileErrorKind, Item, ParseErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
-use crate::parse::{Id, ParseErrorKind, Resolve};
+use crate::parse::{Id, Resolve};
 use crate::query::Named;
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
@@ -61,7 +61,7 @@ pub(crate) enum AsmKind {
 
 impl Asm {
     /// Assemble into an instruction.
-    fn apply(self, c: &mut Assembler) -> CompileResult<()> {
+    fn apply(self, c: &mut Assembler) -> compile::Result<()> {
         match self.kind {
             AsmKind::Top => (),
             AsmKind::Var(var, local) => {
@@ -73,7 +73,7 @@ impl Asm {
     }
 
     /// Assemble into an instruction declaring an anonymous variable if appropriate.
-    fn apply_targeted(self, c: &mut Assembler) -> CompileResult<InstAddress> {
+    fn apply_targeted(self, c: &mut Assembler) -> compile::Result<InstAddress> {
         let address = match self.kind {
             AsmKind::Top => {
                 c.scopes.decl_anon(self.span)?;
@@ -94,7 +94,7 @@ fn meta(
     meta: &meta::Meta,
     needs: Needs,
     named: Named<'_>,
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     if let Needs::Value = needs {
         match &meta.kind {
             meta::Kind::Struct {
@@ -174,7 +174,7 @@ fn meta(
                 const_(span, c, const_value, Needs::Value)?;
             }
             _ => {
-                return Err(CompileError::expected_meta(
+                return Err(compile::Error::expected_meta(
                     span,
                     meta.info(c.q.pool),
                     "something that can be used as a value",
@@ -185,7 +185,7 @@ fn meta(
         named.assert_not_generic()?;
 
         let type_hash = meta.type_hash_of().ok_or_else(|| {
-            CompileError::expected_meta(span, meta.info(c.q.pool), "something that has a type")
+            compile::Error::expected_meta(span, meta.info(c.q.pool), "something that has a type")
         })?;
 
         c.asm.push(
@@ -208,8 +208,8 @@ fn return_<T>(
     c: &mut Assembler<'_>,
     span: Span,
     hir: &T,
-    asm: impl FnOnce(&T, &mut Assembler<'_>, Needs) -> CompileResult<Asm>,
-) -> CompileResult<()> {
+    asm: impl FnOnce(&T, &mut Assembler<'_>, Needs) -> compile::Result<Asm>,
+) -> compile::Result<()> {
     let clean = c.scopes.total_var_count(span)?;
 
     let address = asm(hir, c, Needs::Value)?.apply_targeted(c)?;
@@ -226,7 +226,11 @@ fn return_<T>(
 
 /// Compile a pattern based on the given offset.
 #[instrument]
-fn pat_with_offset(hir: &hir::Pat<'_>, c: &mut Assembler<'_>, offset: usize) -> CompileResult<()> {
+fn pat_with_offset(
+    hir: &hir::Pat<'_>,
+    c: &mut Assembler<'_>,
+    offset: usize,
+) -> compile::Result<()> {
     let span = hir.span();
 
     let load = |c: &mut Assembler, needs: Needs| {
@@ -270,8 +274,8 @@ fn pat(
     hir: &hir::Pat<'_>,
     c: &mut Assembler<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<bool> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<bool> {
     let span = hir.span();
 
     match hir.kind {
@@ -297,7 +301,7 @@ fn pat(
                 return Ok(false);
             }
 
-            Err(CompileError::new(
+            Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedBinding,
             ))
@@ -315,7 +319,7 @@ fn pat(
             pat_object(span, c, hir, false_label, &load)?;
             Ok(true)
         }
-        _ => Err(CompileError::new(
+        _ => Err(compile::Error::new(
             hir,
             CompileErrorKind::UnsupportedPatternExpr,
         )),
@@ -328,14 +332,14 @@ fn pat_lit(
     hir: &hir::Expr<'_>,
     c: &mut Assembler<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<bool> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<bool> {
     let span = hir.span();
 
     let inst = match pat_lit_inst(span, c, hir)? {
         Some(inst) => inst,
         None => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 hir,
                 CompileErrorKind::UnsupportedPatternExpr,
             ));
@@ -354,7 +358,7 @@ fn pat_lit_inst(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
-) -> CompileResult<Option<Inst>> {
+) -> compile::Result<Option<Inst>> {
     match hir.kind {
         hir::ExprKind::Unary(hir::ExprUnary {
             op: ast::UnOp::Neg(..),
@@ -365,7 +369,10 @@ fn pat_lit_inst(
                 },
             ..
         }) => {
-            let integer = lit.resolve(resolve_context!(c.q))?.as_i64(span, true)?;
+            let integer = lit
+                .resolve(resolve_context!(c.q))?
+                .as_i64(true)
+                .with_span(span)?;
             return Ok(Some(Inst::EqInteger { integer }));
         }
         hir::ExprKind::Lit(lit) => match lit {
@@ -388,7 +395,11 @@ fn pat_lit_inst(
                 return Ok(Some(Inst::EqBytes { slot }));
             }
             ast::Lit::Number(lit) => {
-                let integer = lit.resolve(resolve_context!(c.q))?.as_i64(span, false)?;
+                let integer = lit
+                    .resolve(resolve_context!(c.q))?
+                    .as_i64(false)
+                    .with_span(lit)?;
+
                 return Ok(Some(Inst::EqInteger { integer }));
             }
             ast::Lit::Bool(lit) => {
@@ -407,7 +418,7 @@ fn condition(
     condition: &hir::Condition<'_>,
     c: &mut Assembler<'_>,
     then_label: Label,
-) -> CompileResult<Scope> {
+) -> compile::Result<Scope> {
     match condition {
         hir::Condition::Expr(e) => {
             let span = e.span();
@@ -450,8 +461,8 @@ fn pat_vec(
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<()> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<()> {
     // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
     // interact with it multiple times.
     load(c, Needs::Value)?;
@@ -572,8 +583,8 @@ fn pat_tuple(
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<()> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<()> {
     load(c, Needs::Value)?;
 
     if hir.items.is_empty() {
@@ -599,7 +610,7 @@ fn pat_tuple(
         let (args, inst) = match tuple_match_for(span, c, &meta) {
             Some(out) => out,
             None => {
-                return Err(CompileError::expected_meta(
+                return Err(compile::Error::expected_meta(
                     span,
                     meta.info(c.q.pool),
                     "type that can be used in a tuple pattern",
@@ -608,7 +619,7 @@ fn pat_tuple(
         };
 
         if !(args == hir.count || hir.count < args && hir.is_open) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
                     meta: meta.info(c.q.pool),
@@ -659,8 +670,8 @@ fn pat_object(
     c: &mut Assembler<'_>,
     hir: &hir::PatItems<'_>,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<()> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<()> {
     // NB: bind the loaded variable (once) to an anonymous var.
     // We reduce the number of copy operations by having specialized
     // operations perform the load from the given offset.
@@ -690,7 +701,7 @@ fn pat_object(
                 let ident = match path.try_as_ident() {
                     Some(ident) => ident,
                     None => {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             CompileErrorKind::UnsupportedPatternExpr,
                         ));
@@ -702,7 +713,7 @@ fn pat_object(
                 key
             }
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedPatternExpr,
                 ));
@@ -712,7 +723,7 @@ fn pat_object(
         string_slots.push(c.q.unit.new_static_string(span, key)?);
 
         if let Some(existing) = keys_dup.insert(key.to_string(), span) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::DuplicateObjectKey {
                     existing,
@@ -736,7 +747,7 @@ fn pat_object(
             let (st, inst) = match struct_match_for(span, c, &meta) {
                 Some(out) => out,
                 None => {
-                    return Err(CompileError::expected_meta(
+                    return Err(compile::Error::expected_meta(
                         path_span,
                         meta.info(c.q.pool),
                         "type that can be used in a struct pattern",
@@ -748,7 +759,7 @@ fn pat_object(
 
             for binding in &bindings {
                 if !fields.remove(binding.key()) {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         CompileErrorKind::LitObjectNotField {
                             field: binding.key().into(),
@@ -765,7 +776,7 @@ fn pat_object(
                     .collect::<Box<[_]>>();
                 fields.sort();
 
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::PatternMissingFields {
                         item: c.q.pool.item(meta.item_meta.item).to_owned(),
@@ -851,8 +862,8 @@ fn pat_meta_binding(
     c: &mut Assembler<'_>,
     meta: &meta::Meta,
     false_label: Label,
-    load: &dyn Fn(&mut Assembler<'_>, Needs) -> CompileResult<()>,
-) -> CompileResult<bool> {
+    load: &dyn Fn(&mut Assembler<'_>, Needs) -> compile::Result<()>,
+) -> compile::Result<bool> {
     let inst = match tuple_match_for(span, c, meta) {
         Some((args, inst)) if args == 0 => inst,
         _ => return Ok(false),
@@ -871,7 +882,7 @@ pub(crate) fn closure_from_block(
     hir: &hir::Block<'_>,
     c: &mut Assembler<'_>,
     captures: &[String],
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     let span = hir.span();
 
     let guard = c.scopes.push_child(span)?;
@@ -887,7 +898,7 @@ pub(crate) fn closure_from_block(
 
 /// Call a block.
 #[instrument]
-fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     c.contexts.push(span);
@@ -944,7 +955,7 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileRe
 
     c.contexts
         .pop()
-        .ok_or_else(|| CompileError::msg(span, "missing parent context"))?;
+        .ok_or_else(|| compile::Error::msg(span, "missing parent context"))?;
 
     Ok(Asm::top(span))
 }
@@ -955,7 +966,7 @@ fn builtin_format(
     format: &hir::BuiltInFormat<'_>,
     c: &mut Assembler<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     use crate::runtime::format;
 
     let span = format.span();
@@ -1014,7 +1025,7 @@ fn builtin_template(
     template: &hir::BuiltInTemplate<'_>,
     c: &mut Assembler<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let span = template.span();
 
     let expected = c.scopes.push_child(span)?;
@@ -1066,7 +1077,7 @@ fn const_(
     c: &mut Assembler<'_>,
     value: &ConstValue,
     needs: Needs,
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     if !needs.value() {
         c.diagnostics.not_used(c.source_id, span, c.context());
         return Ok(());
@@ -1086,7 +1097,7 @@ fn const_(
             let n = match n.to_i64() {
                 Some(n) => n,
                 None => {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         ParseErrorKind::BadNumberOutOfBounds,
                     ));
@@ -1167,7 +1178,7 @@ fn const_(
 
 /// Assemble an expression.
 #[instrument]
-fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn expr(hir: &hir::Expr<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     let asm = match hir.kind {
@@ -1216,7 +1227,7 @@ fn expr_assign(
     c: &mut Assembler<'_>,
     hir: &hir::ExprAssign<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let supported = match hir.lhs.kind {
         // <var> = <value>
         hir::ExprKind::Path(path) if path.rest.is_empty() => {
@@ -1225,7 +1236,7 @@ fn expr_assign(
             let segment = path
                 .first
                 .try_as_ident()
-                .ok_or_else(|| CompileError::msg(path, "unsupported path"))?;
+                .ok_or_else(|| compile::Error::msg(path, "unsupported path"))?;
             let ident = segment.resolve(resolve_context!(c.q))?;
             let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
@@ -1256,7 +1267,10 @@ fn expr_assign(
                 hir::ExprField::LitNumber(field) => {
                     let number = field.resolve(resolve_context!(c.q))?;
                     let index = number.as_tuple_index().ok_or_else(|| {
-                        CompileError::new(span, CompileErrorKind::UnsupportedTupleIndex { number })
+                        compile::Error::new(
+                            span,
+                            CompileErrorKind::UnsupportedTupleIndex { number },
+                        )
                     })?;
 
                     expr(hir.rhs, c, Needs::Value)?.apply(c)?;
@@ -1287,7 +1301,7 @@ fn expr_assign(
     };
 
     if !supported {
-        return Err(CompileError::new(
+        return Err(compile::Error::new(
             span,
             CompileErrorKind::UnsupportedAssignExpr,
         ));
@@ -1307,7 +1321,7 @@ fn expr_await(
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     expr(hir, c, Needs::Value)?.apply(c)?;
     c.asm.push(Inst::Await, span);
 
@@ -1325,7 +1339,7 @@ fn expr_binary(
     c: &mut Assembler<'_>,
     hir: &hir::ExprBinary<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     // Special expressions which operates on the stack in special ways.
     if hir.op.is_assign() {
         compile_assign_binop(span, c, hir.lhs, hir.rhs, &hir.op, needs)?;
@@ -1368,7 +1382,7 @@ fn expr_binary(
         ast::BinOp::Shr(..) => InstOp::Shr,
 
         op => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedBinaryOp { op },
             ));
@@ -1402,7 +1416,7 @@ fn expr_binary(
         rhs: &hir::Expr<'_>,
         bin_op: &ast::BinOp,
         needs: Needs,
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         let end_label = c.asm.new_label("conditional_end");
 
         expr(lhs, c, Needs::Value)?.apply(c)?;
@@ -1415,7 +1429,7 @@ fn expr_binary(
                 c.asm.jump_if_or_pop(end_label, lhs.span());
             }
             op => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedBinaryOp { op: *op },
                 ));
@@ -1440,7 +1454,7 @@ fn expr_binary(
         rhs: &hir::Expr<'_>,
         bin_op: &ast::BinOp,
         needs: Needs,
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         let supported = match lhs.kind {
             // <var> <op> <expr>
             hir::ExprKind::Path(path) if path.rest.is_empty() => {
@@ -1449,7 +1463,7 @@ fn expr_binary(
                 let segment = path
                     .first
                     .try_as_ident()
-                    .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
+                    .ok_or_else(|| compile::Error::msg(path, "unsupported path segment"))?;
 
                 let ident = segment.resolve(resolve_context!(c.q))?;
                 let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
@@ -1478,7 +1492,7 @@ fn expr_binary(
 
                         let number = field.resolve(resolve_context!(c.q))?;
                         let index = number.as_tuple_index().ok_or_else(|| {
-                            CompileError::new(
+                            compile::Error::new(
                                 span,
                                 CompileErrorKind::UnsupportedTupleIndex { number },
                             )
@@ -1494,7 +1508,7 @@ fn expr_binary(
         let target = match supported {
             Some(target) => target,
             None => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedBinaryExpr,
                 ));
@@ -1513,7 +1527,7 @@ fn expr_binary(
             ast::BinOp::ShlAssign(..) => InstAssignOp::Shl,
             ast::BinOp::ShrAssign(..) => InstAssignOp::Shr,
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedBinaryExpr,
                 ));
@@ -1537,7 +1551,7 @@ fn expr_block(
     c: &mut Assembler<'_>,
     hir: &hir::ExprBlock<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     if let hir::ExprBlockKind::Default = hir.kind {
         return block(hir.block, c, needs);
     }
@@ -1584,7 +1598,7 @@ fn expr_block(
             const_(span, c, const_value, needs)?;
         }
         _ => {
-            return Err(CompileError::expected_meta(
+            return Err(compile::Error::expected_meta(
                 span,
                 meta.info(c.q.pool),
                 "async or const block",
@@ -1604,11 +1618,11 @@ fn expr_break(
     c: &mut Assembler<'_>,
     hir: Option<&hir::ExprBreakValue<'_>>,
     _: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let current_loop = match c.loops.last() {
         Some(current_loop) => current_loop,
         None => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::BreakOutsideOfLoop,
             ));
@@ -1640,7 +1654,7 @@ fn expr_break(
         .scopes
         .total_var_count(span)?
         .checked_sub(last_loop.break_var_count)
-        .ok_or_else(|| CompileError::msg(span, "var count should be larger"))?;
+        .ok_or_else(|| compile::Error::msg(span, "var count should be larger"))?;
 
     if last_loop.needs.value() {
         if has_value {
@@ -1662,14 +1676,14 @@ fn generics_parameters(
     span: Span,
     c: &mut Assembler<'_>,
     generics: &[hir::Expr<'_>],
-) -> Result<Hash, CompileError> {
+) -> compile::Result<Hash> {
     let mut parameters = ParametersBuilder::new();
 
     for expr in generics {
         let path = match expr.kind {
             hir::ExprKind::Path(path) => path,
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedGenerics,
                 ));
@@ -1686,7 +1700,7 @@ fn generics_parameters(
                 meta.hash
             }
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedGenerics,
                 ));
@@ -1733,7 +1747,7 @@ fn convert_expr_call(
     span: Span,
     c: &mut Assembler<'_>,
     hir: &hir::ExprCall<'_>,
-) -> CompileResult<Call> {
+) -> compile::Result<Call> {
     match hir.expr.kind {
         hir::ExprKind::Path(path) => {
             let named = c.convert_path(path)?;
@@ -1766,7 +1780,7 @@ fn convert_expr_call(
                     named.assert_not_generic()?;
 
                     if !hir.args.is_empty() {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
                                 meta: meta.info(c.q.pool),
@@ -1787,7 +1801,7 @@ fn convert_expr_call(
                     named.assert_not_generic()?;
 
                     if tuple.args != hir.args.len() {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
                                 meta: meta.info(c.q.pool),
@@ -1814,7 +1828,7 @@ fn convert_expr_call(
                     return Ok(Call::ConstFn { meta, id });
                 }
                 _ => {
-                    return Err(CompileError::expected_meta(
+                    return Err(compile::Error::expected_meta(
                         span,
                         meta.info(c.q.pool),
                         "something that can be called as a function",
@@ -1864,7 +1878,7 @@ fn expr_call(
     c: &mut Assembler<'_>,
     hir: &hir::ExprCall<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let call = convert_expr_call(span, c, hir)?;
 
     let args = hir.args.len();
@@ -1946,13 +1960,13 @@ pub(crate) fn closure_from_expr_closure(
     c: &mut Assembler<'_>,
     hir: &hir::ExprClosure<'_>,
     captures: &[String],
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     let mut patterns = Vec::new();
 
     for arg in hir.args {
         match arg {
             hir::FnArg::SelfValue(s) => {
-                return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf))
+                return Err(compile::Error::new(s, CompileErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
                 let offset = c.scopes.decl_anon(pat.span())?;
@@ -1985,7 +1999,7 @@ fn expr_closure(
     c: &mut Assembler<'_>,
     hir: &hir::ExprClosure<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     if !needs.value() {
         c.diagnostics.not_used(c.source_id, span, c.context());
         return Ok(Asm::top(span));
@@ -1997,7 +2011,7 @@ fn expr_closure(
     let meta = match c.q.query_meta(span, item.item, Default::default())? {
         Some(meta) => meta,
         None => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::MissingItem {
                     item: c.q.pool.item(item.item).to_owned(),
@@ -2011,7 +2025,7 @@ fn expr_closure(
             captures, do_move, ..
         } => (captures.as_ref(), *do_move),
         _ => {
-            return Err(CompileError::expected_meta(
+            return Err(compile::Error::expected_meta(
                 span,
                 meta.info(c.q.pool),
                 "a closure",
@@ -2061,11 +2075,11 @@ fn expr_continue(
     c: &mut Assembler<'_>,
     hir: Option<&ast::Label>,
     _: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let current_loop = match c.loops.last() {
         Some(current_loop) => current_loop,
         None => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::ContinueOutsideOfLoop,
             ));
@@ -2083,7 +2097,7 @@ fn expr_continue(
         .scopes
         .total_var_count(span)?
         .checked_sub(last_loop.continue_var_count)
-        .ok_or_else(|| CompileError::msg(span, "var count should be larger"))?;
+        .ok_or_else(|| compile::Error::msg(span, "var count should be larger"))?;
 
     c.locals_pop(vars, span);
 
@@ -2098,7 +2112,7 @@ fn expr_field_access(
     c: &mut Assembler<'_>,
     hir: &hir::ExprFieldAccess<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     // Optimizations!
     //
     // TODO: perform deferred compilation for expressions instead, so we can
@@ -2146,7 +2160,7 @@ fn expr_field_access(
         }
     }
 
-    return Err(CompileError::new(span, CompileErrorKind::BadFieldAccess));
+    return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
 
     fn try_immediate_field_access_optimization(
         c: &mut Assembler<'_>,
@@ -2154,7 +2168,7 @@ fn expr_field_access(
         path: &hir::Path<'_>,
         n: &ast::LitNumber,
         needs: Needs,
-    ) -> CompileResult<bool> {
+    ) -> compile::Result<bool> {
         let ident = match path.try_as_ident() {
             Some(ident) => ident,
             None => return Ok(false),
@@ -2204,7 +2218,7 @@ fn expr_for(
     c: &mut Assembler<'_>,
     hir: &hir::ExprFor<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let continue_label = c.asm.new_label("for_continue");
     let end_label = c.asm.new_label("for_end");
     let break_label = c.asm.new_label("for_break");
@@ -2370,7 +2384,7 @@ fn expr_if(
     c: &mut Assembler<'_>,
     hir: &hir::ExprIf<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let then_label = c.asm.new_label("if_then");
     let end_label = c.asm.new_label("if_end");
 
@@ -2433,7 +2447,7 @@ fn expr_index(
     c: &mut Assembler<'_>,
     hir: &hir::ExprIndex<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
     let target = expr(hir.target, c, Needs::Value)?.apply_targeted(c)?;
@@ -2453,7 +2467,7 @@ fn expr_index(
 
 /// Assemble a let expression.
 #[instrument]
-fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn expr_let(hir: &hir::ExprLet<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     let load = |c: &mut Assembler, needs: Needs| {
@@ -2495,7 +2509,7 @@ fn expr_match(
     c: &mut Assembler<'_>,
     hir: &hir::ExprMatch<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let expected_scopes = c.scopes.push_child(span)?;
 
     expr(hir.expr, c, Needs::Value)?.apply(c)?;
@@ -2587,7 +2601,7 @@ fn expr_object(
     c: &mut Assembler<'_>,
     hir: &hir::ExprObject<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
     let mut keys = Vec::<Box<str>>::new();
@@ -2601,7 +2615,7 @@ fn expr_object(
         check_keys.push((key.as_ref().into(), assign.key.span()));
 
         if let Some(existing) = keys_dup.insert(key.into_owned(), span) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::DuplicateObjectKey {
                     existing,
@@ -2667,7 +2681,7 @@ fn expr_object(
                     c.asm.push(Inst::StructVariant { hash, slot }, span);
                 }
                 _ => {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         CompileErrorKind::UnsupportedLitObject {
                             meta: meta.info(c.q.pool),
@@ -2695,12 +2709,12 @@ fn expr_object(
         check_keys: Vec<(Box<str>, Span)>,
         span: Span,
         item: &Item,
-    ) -> CompileResult<()> {
+    ) -> compile::Result<()> {
         let mut fields = fields.clone();
 
         for (field, span) in check_keys {
             if !fields.remove(&field) {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::LitObjectNotField {
                         field,
@@ -2711,7 +2725,7 @@ fn expr_object(
         }
 
         if let Some(field) = fields.into_iter().next() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::LitObjectMissingField {
                     field,
@@ -2726,7 +2740,7 @@ fn expr_object(
 
 /// Assemble a path.
 #[instrument]
-fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     if let Some(ast::PathKind::SelfValue) = hir.as_kind() {
@@ -2761,7 +2775,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResu
         // light heuristics, treat it as a type error in case the first
         // character is uppercase.
         if !local.starts_with(char::is_uppercase) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::MissingLocal {
                     name: local.to_owned(),
@@ -2770,7 +2784,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResu
         }
     }
 
-    Err(CompileError::new(
+    Err(compile::Error::new(
         span,
         CompileErrorKind::MissingItem {
             item: c.q.pool.item(named.item).to_owned(),
@@ -2785,7 +2799,7 @@ fn expr_range(
     c: &mut Assembler<'_>,
     hir: &hir::ExprRange<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let guard = c.scopes.push_child(span)?;
 
     if needs.value() {
@@ -2859,7 +2873,7 @@ fn expr_return(
     c: &mut Assembler<'_>,
     hir: Option<&hir::Expr<'_>>,
     _: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     // NB: drop any loop temporaries.
     for l in c.loops.iter() {
         if let Some(offset) = l.drop {
@@ -2887,7 +2901,7 @@ fn expr_select(
     c: &mut Assembler<'_>,
     hir: &hir::ExprSelect<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let len = hir.branches.len();
     c.contexts.push(span);
 
@@ -2904,7 +2918,7 @@ fn expr_select(
             }
             hir::ExprSelectBranch::Default(def) => {
                 if default_branch.is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         CompileErrorKind::SelectMultipleDefaults,
                     ));
@@ -2963,7 +2977,7 @@ fn expr_select(
                 _ => (),
             }
 
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 branch,
                 CompileErrorKind::UnsupportedSelectPattern,
             ));
@@ -2984,7 +2998,7 @@ fn expr_select(
 
     c.contexts
         .pop()
-        .ok_or_else(|| CompileError::msg(span, "missing parent context"))?;
+        .ok_or_else(|| compile::Error::msg(span, "missing parent context"))?;
 
     Ok(Asm::top(span))
 }
@@ -2996,7 +3010,7 @@ fn expr_try(
     c: &mut Assembler<'_>,
     hir: &hir::Expr<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let clean = c.scopes.total_var_count(span)?;
     let address = expr(hir, c, Needs::Value)?.apply_targeted(c)?;
 
@@ -3030,7 +3044,7 @@ fn expr_tuple(
     c: &mut Assembler<'_>,
     hir: &hir::ExprSeq<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     macro_rules! tuple {
         ($variant:ident, $c:ident, $span:expr, $($var:ident),*) => {{
             let guard = $c.scopes.push_child($span)?;
@@ -3038,7 +3052,7 @@ fn expr_tuple(
             let mut it = hir.items.iter();
 
             $(
-            let $var = it.next().ok_or_else(|| CompileError::msg($span, "items ended unexpectedly"))?;
+            let $var = it.next().ok_or_else(|| compile::Error::msg($span, "items ended unexpectedly"))?;
             let $var = expr($var, $c, Needs::Value)?.apply_targeted($c)?;
             )*
 
@@ -3094,10 +3108,10 @@ fn expr_unary(
     c: &mut Assembler<'_>,
     hir: &hir::ExprUnary<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     // NB: special unary expressions.
     if let ast::UnOp::BorrowRef { .. } = hir.op {
-        return Err(CompileError::new(span, CompileErrorKind::UnsupportedRef));
+        return Err(compile::Error::new(span, CompileErrorKind::UnsupportedRef));
     }
 
     if let (ast::UnOp::Neg(..), hir::ExprKind::Lit(ast::Lit::Number(n))) = (hir.op, hir.expr.kind) {
@@ -3109,7 +3123,7 @@ fn expr_unary(
                 let n = match int.neg().to_i64() {
                     Some(n) => n,
                     None => {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             ParseErrorKind::BadNumberOutOfBounds,
                         ));
@@ -3133,7 +3147,7 @@ fn expr_unary(
             c.asm.push(Inst::Neg, span);
         }
         op => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedUnaryOp { op },
             ));
@@ -3156,7 +3170,7 @@ fn expr_vec(
     c: &mut Assembler<'_>,
     hir: &hir::ExprSeq<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let count = hir.items.len();
 
     for e in hir.items {
@@ -3184,7 +3198,7 @@ fn expr_loop(
     c: &mut Assembler<'_>,
     hir: &hir::ExprLoop<'_>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     let continue_label = c.asm.new_label("while_continue");
     let then_label = c.asm.new_label("whiel_then");
     let end_label = c.asm.new_label("while_end");
@@ -3240,7 +3254,7 @@ fn expr_yield(
     c: &mut Assembler<'_>,
     hir: Option<&hir::Expr<'_>>,
     needs: Needs,
-) -> CompileResult<Asm> {
+) -> compile::Result<Asm> {
     if let Some(e) = hir {
         expr(e, c, Needs::Value)?.apply(c)?;
         c.asm.push(Inst::Yield, span);
@@ -3261,7 +3275,7 @@ pub(crate) fn fn_from_item_fn(
     hir: &hir::ItemFn<'_>,
     c: &mut Assembler<'_>,
     instance_fn: bool,
-) -> CompileResult<()> {
+) -> compile::Result<()> {
     let span = hir.span();
 
     let mut patterns = Vec::new();
@@ -3271,7 +3285,10 @@ pub(crate) fn fn_from_item_fn(
         match arg {
             hir::FnArg::SelfValue(span) => {
                 if !instance_fn || !first {
-                    return Err(CompileError::new(*span, CompileErrorKind::UnsupportedSelf));
+                    return Err(compile::Error::new(
+                        *span,
+                        CompileErrorKind::UnsupportedSelf,
+                    ));
                 }
 
                 c.scopes.new_var(SELF, *span)?;
@@ -3312,7 +3329,7 @@ pub(crate) fn fn_from_item_fn(
 
 /// Assemble a literal value.
 #[instrument]
-fn lit(hir: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn lit(hir: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     // Elide the entire literal if it's not needed.
@@ -3350,7 +3367,7 @@ fn lit(hir: &ast::Lit, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm
 }
 
 #[instrument]
-fn lit_str(hir: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn lit_str(hir: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     // Elide the entire literal if it's not needed.
@@ -3367,7 +3384,7 @@ fn lit_str(hir: &ast::LitStr, c: &mut Assembler<'_>, needs: Needs) -> CompileRes
 
 /// Assemble a literal number.
 #[instrument]
-fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     // Elide the entire literal if it's not needed.
@@ -3387,7 +3404,7 @@ fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> Comp
             let n = match number.to_i64() {
                 Some(n) => n,
                 None => {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         ParseErrorKind::BadNumberOutOfBounds,
                     ));
@@ -3403,7 +3420,7 @@ fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> Comp
 
 /// Assemble a local expression.
 #[instrument]
-fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> CompileResult<Asm> {
+fn local(hir: &hir::Local<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Result<Asm> {
     let span = hir.span();
 
     let load = |c: &mut Assembler, needs: Needs| {

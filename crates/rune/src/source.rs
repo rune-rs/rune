@@ -1,6 +1,8 @@
+#[cfg(feature = "emit")]
 use core::cmp;
 use core::fmt;
 use core::iter;
+#[cfg(feature = "emit")]
 use core::ops::Range;
 use core::slice;
 
@@ -8,13 +10,14 @@ use crate::no_std::io;
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
+#[cfg(feature = "emit")]
 use crate::ast::Span;
 
 /// A single source file.
 #[derive(Default, Clone)]
 pub struct Source {
     /// The name of the source.
-    name: Box<str>,
+    name: SourceName,
     /// The source string.
     source: Box<str>,
     /// The path the source was loaded from.
@@ -25,11 +28,37 @@ pub struct Source {
 
 impl Source {
     /// Construct a new source with the given name.
-    pub fn new<S>(name: impl AsRef<str>, source: S) -> Self
-    where
-        S: AsRef<str>,
-    {
-        Self::with_path(name, source, None::<Box<Path>>)
+    pub fn new(name: impl AsRef<str>, source: impl AsRef<str>) -> Self {
+        let source = source.as_ref();
+        let line_starts = line_starts(source).collect::<Box<[_]>>();
+
+        Self {
+            name: SourceName::Name(name.as_ref().into()),
+            source: source.into(),
+            path: None,
+            line_starts,
+        }
+    }
+
+    /// Construct a new anonymously named `<memory>` source.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Source;
+    /// let source = Source::memory("pub fn main() { 42 }");
+    /// assert_eq!(source.name(), "<memory>");
+    /// ```
+    pub fn memory(source: impl AsRef<str>) -> Self {
+        let source = source.as_ref();
+        let line_starts = line_starts(source).collect::<Box<[_]>>();
+
+        Self {
+            name: SourceName::Memory,
+            source: source.into(),
+            path: None,
+            line_starts,
+        }
     }
 
     /// Constructing sources from paths is not supported in no-std environments.
@@ -38,56 +67,64 @@ impl Source {
         Err(io::Error::new())
     }
 
-    /// Read and load a source from the given path.
+    /// Read and load a source from the given filesystem path.
     #[cfg(feature = "std")]
-    pub fn from_path<P>(path: P) -> io::Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        let name = path.as_ref().display().to_string();
+    pub fn from_path(path: impl AsRef<Path>) -> io::Result<Self> {
         let source = std::fs::read_to_string(path.as_ref())?;
-        Ok(Self::with_path(name, source, Some(path)))
+        let line_starts = line_starts(&source).collect::<Box<[_]>>();
+
+        Ok(Self {
+            name: SourceName::Name(path.as_ref().to_string_lossy().into_owned().into()),
+            source: source.into(),
+            path: Some(path.as_ref().into()),
+            line_starts,
+        })
     }
 
-    /// Construct a new source with the given name.
+    /// Construct a new source with the given content and path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::path::Path;
+    /// use rune::Source;
+    ///
+    /// let source = Source::with_path("test", "pub fn main() { 42 }", "test.rn");
+    /// assert_eq!(source.name(), "test");
+    /// assert_eq!(source.path(), Some(Path::new("test.rn")));
+    /// ```
     pub fn with_path(
         name: impl AsRef<str>,
         source: impl AsRef<str>,
-        path: Option<impl AsRef<Path>>,
+        path: impl AsRef<Path>,
     ) -> Self {
         let source = source.as_ref();
         let line_starts = line_starts(source).collect::<Box<[_]>>();
 
         Self {
-            name: name.as_ref().into(),
+            name: SourceName::Name(name.as_ref().into()),
             source: source.into(),
-            path: path.map(|p| p.as_ref().into()),
+            path: Some(path.as_ref().into()),
             line_starts,
         }
     }
 
     /// Access all line starts in the source.
-    pub fn line_starts(&self) -> &[usize] {
+    #[cfg(feature = "emit")]
+    pub(crate) fn line_starts(&self) -> &[usize] {
         &self.line_starts
-    }
-
-    /// Test if the source is empty.
-    pub fn is_empty(&self) -> bool {
-        self.source.is_empty()
-    }
-
-    /// Get the length of the source.
-    pub fn len(&self) -> usize {
-        self.source.len()
     }
 
     /// Get the name of the source.
     pub fn name(&self) -> &str {
-        &self.name
+        match &self.name {
+            SourceName::Memory => "<memory>",
+            SourceName::Name(name) => name,
+        }
     }
 
     ///  et the given range from the source.
-    pub fn get<I>(&self, i: I) -> Option<&I::Output>
+    pub(crate) fn get<I>(&self, i: I) -> Option<&I::Output>
     where
         I: slice::SliceIndex<str>,
     {
@@ -95,17 +132,28 @@ impl Source {
     }
 
     /// Access the underlying string for the source.
-    pub fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         &self.source
     }
 
-    /// Get the (optional) path of the source.
+    /// Get the path associated with the source.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::path::Path;
+    /// use rune::Source;
+    ///
+    /// let source = Source::with_path("test", "pub fn main() { 42 }", "test.rn");
+    /// assert_eq!(source.name(), "test");
+    /// assert_eq!(source.path(), Some(Path::new("test.rn")));
+    /// ```
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
 
     /// Convert the given offset to a utf-16 line and character.
-    pub fn pos_to_utf16cu_linecol(&self, offset: usize) -> (usize, usize) {
+    pub(crate) fn pos_to_utf16cu_linecol(&self, offset: usize) -> (usize, usize) {
         let (line, offset, rest) = self.position(offset);
         let col = rest
             .char_indices()
@@ -122,26 +170,30 @@ impl Source {
     }
 
     /// Get the line index for the given byte.
-    pub fn line_index(&self, byte_index: usize) -> usize {
+    #[cfg(feature = "emit")]
+    pub(crate) fn line_index(&self, byte_index: usize) -> usize {
         self.line_starts
             .binary_search(&byte_index)
             .unwrap_or_else(|next_line| next_line.saturating_sub(1))
     }
 
     /// Get the range corresponding to the given line index.
-    pub fn line_range(&self, line_index: usize) -> Option<Range<usize>> {
+    #[cfg(feature = "emit")]
+    pub(crate) fn line_range(&self, line_index: usize) -> Option<Range<usize>> {
         let line_start = self.line_start(line_index)?;
         let next_line_start = self.line_start(line_index.saturating_add(1))?;
         Some(line_start..next_line_start)
     }
 
     /// Get the number of lines in the source.
-    pub fn line_count(&self) -> usize {
+    #[cfg(feature = "emit")]
+    pub(crate) fn line_count(&self) -> usize {
         self.line_starts.len()
     }
 
     /// Access the line number of content that starts with the given span.
-    pub fn line(&self, span: Span) -> Option<(usize, usize, &str)> {
+    #[cfg(feature = "emit")]
+    pub(crate) fn line(&self, span: Span) -> Option<(usize, usize, &str)> {
         let start = span.start.into_usize();
         let (line, col) = self.pos_to_utf8_linecol(start);
         let range = self.line_range(line)?;
@@ -167,12 +219,18 @@ impl Source {
         (line, offset, rest)
     }
 
+    #[cfg(feature = "emit")]
     fn line_start(&self, line_index: usize) -> Option<usize> {
         match line_index.cmp(&self.line_starts.len()) {
             cmp::Ordering::Less => self.line_starts.get(line_index).copied(),
             cmp::Ordering::Equal => Some(self.source.as_ref().len()),
             cmp::Ordering::Greater => None,
         }
+    }
+
+    #[cfg(feature = "workspace")]
+    pub(crate) fn len(&self) -> usize {
+        self.source.len()
     }
 }
 
@@ -183,6 +241,17 @@ impl fmt::Debug for Source {
             .field("path", &self.path)
             .finish()
     }
+}
+
+/// Holder for the name of a source.
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+enum SourceName {
+    /// An in-memory source, will use `<memory>` when the source is being
+    /// referred to in diagnostics.
+    #[default]
+    Memory,
+    /// A named source.
+    Name(Box<str>),
 }
 
 fn line_starts(source: &str) -> impl Iterator<Item = usize> + '_ {

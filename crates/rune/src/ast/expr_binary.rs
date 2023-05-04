@@ -223,7 +223,7 @@ impl BinOp {
     }
 
     /// Get how many tokens to advance for this operator.
-    pub(crate) fn advance(&self, p: &mut Parser<'_>) -> Result<(), ParseError> {
+    pub(crate) fn advance(&self, p: &mut Parser<'_>) -> Result<()> {
         match self {
             Self::IsNot(..) => {
                 p.next()?;
