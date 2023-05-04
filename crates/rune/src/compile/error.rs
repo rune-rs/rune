@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::no_std as std;
 use crate::no_std::io;
 use crate::no_std::path::PathBuf;
@@ -13,14 +15,73 @@ use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::{AccessError, Label, TypeInfo, TypeOf};
-use crate::shared::ScopeError;
+use crate::shared::scopes::MissingLocal;
 use crate::{Hash, SourceId};
 
-error! {
-    /// An error raised by the compiler.
-    #[derive(Debug)]
-    pub struct Error {
-        kind: CompileErrorKind,
+/// An error raised by the compiler.
+#[derive(Debug)]
+pub struct Error {
+    span: Span,
+    kind: Box<CompileErrorKind>,
+}
+
+impl Error {
+    /// Construct a new compile error.
+    #[allow(unused)]
+    pub(crate) fn new<S, K>(spanned: S, kind: K) -> Self
+    where
+        S: Spanned,
+        CompileErrorKind: From<K>,
+    {
+        Self {
+            span: spanned.span(),
+            kind: Box::new(CompileErrorKind::from(kind)),
+        }
+    }
+
+    /// Construct an error which is made of a single message.
+    pub fn msg<S, M>(spanned: S, message: M) -> Self
+    where
+        S: Spanned,
+        M: fmt::Display,
+    {
+        Self {
+            span: Spanned::span(&spanned),
+            kind: Box::new(CompileErrorKind::Custom {
+                message: message.to_string().into(),
+            }),
+        }
+    }
+
+    /// Get the kind of the error.
+    #[cfg(feature = "emit")]
+    pub(crate) fn kind(&self) -> &CompileErrorKind {
+        &self.kind
+    }
+
+    /// Convert into the kind of the error.
+    #[cfg(test)]
+    pub(crate) fn into_kind(self) -> CompileErrorKind {
+        *self.kind
+    }
+}
+
+impl Spanned for Error {
+    #[inline]
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl crate::no_std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn crate::no_std::error::Error + 'static)> {
+        self.kind.source()
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        ::core::fmt::Display::fmt(&self.kind, f)
     }
 }
 
@@ -33,6 +94,13 @@ where
             span: spanned.span,
             kind: Box::new(CompileErrorKind::from(spanned.error)),
         }
+    }
+}
+
+impl From<MissingLocal<'_>> for CompileErrorKind {
+    #[inline]
+    fn from(MissingLocal(name): MissingLocal<'_>) -> Self {
+        CompileErrorKind::MissingLocal { name: name.into() }
     }
 }
 
@@ -132,8 +200,6 @@ pub(crate) enum CompileErrorKind {
     AccessError(#[from] AccessError),
     #[error("{0}")]
     HirError(#[from] HirErrorKind),
-    #[error("{0}")]
-    ScopeError(#[from] ScopeError),
     #[error("Failed to load `{path}`: {error}")]
     FileError {
         path: PathBuf,
@@ -497,12 +563,6 @@ pub(crate) enum IrErrorKind {
     MissingField {
         /// The field that was missing.
         field: Box<str>,
-    },
-    /// Missing local with the given name.
-    #[error("Missing local `{name}`")]
-    MissingLocal {
-        /// Name of the missing local.
-        name: Box<str>,
     },
     /// Missing const or local with the given name.
     #[error("No constant or local matching `{name}`")]

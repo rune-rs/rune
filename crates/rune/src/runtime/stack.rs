@@ -1,20 +1,26 @@
+use core::fmt;
 use core::iter;
 use core::mem;
 use core::slice;
 
-use crate::no_std as std;
 use crate::no_std::borrow::Cow;
 use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
-
-use thiserror::Error;
 
 use crate::runtime::{InstAddress, Value};
 
 /// An error raised when interacting with the stack.
-#[derive(Debug, Error)]
-#[error("tried to access out-of-bounds stack entry")]
-pub struct StackError(());
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct StackError;
+
+impl fmt::Display for StackError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Tried to access out-of-bounds stack entry")
+    }
+}
+
+impl crate::no_std::error::Error for StackError {}
 
 /// The stack of the virtual machine, where all values are stored.
 #[derive(Default, Debug, Clone)]
@@ -150,10 +156,10 @@ impl Stack {
     /// ```
     pub fn pop(&mut self) -> Result<Value, StackError> {
         if self.stack.len() == self.stack_bottom {
-            return Err(StackError(()));
+            return Err(StackError);
         }
 
-        self.stack.pop().ok_or(StackError(()))
+        self.stack.pop().ok_or(StackError)
     }
 
     /// Drain the top `count` elements of the stack in the order that they were
@@ -182,7 +188,7 @@ impl Stack {
     ) -> Result<impl DoubleEndedIterator<Item = Value> + '_, StackError> {
         match self.stack.len().checked_sub(count) {
             Some(start) if start >= self.stack_bottom => Ok(self.stack.drain(start..)),
-            _ => Err(StackError(())),
+            _ => Err(StackError),
         }
     }
 
@@ -219,7 +225,7 @@ impl Stack {
     /// Get the last position on the stack.
     #[inline]
     pub fn last(&self) -> Result<&Value, StackError> {
-        self.stack.last().ok_or(StackError(()))
+        self.stack.last().ok_or(StackError)
     }
 
     /// Get the last position on the stack.
@@ -247,7 +253,7 @@ impl Stack {
         self.stack_bottom
             .checked_add(offset)
             .and_then(|n| self.stack.get(n))
-            .ok_or(StackError(()))
+            .ok_or(StackError)
     }
 
     /// Peek the value at the given offset from the top.
@@ -260,7 +266,7 @@ impl Stack {
             .and_then(|n| self.stack.get(n))
         {
             Some(value) => Ok(value),
-            None => Err(StackError(())),
+            None => Err(StackError),
         }
     }
 
@@ -268,12 +274,12 @@ impl Stack {
     pub(crate) fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
         let n = match self.stack_bottom.checked_add(offset) {
             Some(n) => n,
-            None => return Err(StackError(())),
+            None => return Err(StackError),
         };
 
         match self.stack.get_mut(n) {
             Some(value) => Ok(value),
-            None => Err(StackError(())),
+            None => Err(StackError),
         }
     }
 
@@ -316,7 +322,7 @@ impl Stack {
     pub(crate) fn swap_stack_bottom(&mut self, count: usize) -> Result<usize, StackError> {
         match self.stack.len().checked_sub(count) {
             Some(new_top) => Ok(mem::replace(&mut self.stack_bottom, new_top)),
-            None => Err(StackError(())),
+            None => Err(StackError),
         }
     }
 
@@ -333,7 +339,7 @@ impl Stack {
             return Ok(());
         }
 
-        Err(StackError(()))
+        Err(StackError)
     }
 
     /// Pop the current stack top and modify it to a different one.

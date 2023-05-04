@@ -176,7 +176,7 @@ fn eval_ir_branches(
             None
         };
 
-        interp.scopes.pop(branch, guard)?;
+        interp.scopes.pop(guard).with_span(branch)?;
 
         if let Some(output) = output {
             return Ok(output);
@@ -228,7 +228,7 @@ fn eval_ir_decl(
 ) -> Result<IrValue, IrEvalOutcome> {
     interp.budget.take(ir)?;
     let value = eval_ir(&ir.value, interp, used)?;
-    interp.scopes.decl(&ir.name, value, ir)?;
+    interp.scopes.decl(&ir.name, value).with_span(ir)?;
     Ok(IrValue::Unit)
 }
 
@@ -244,7 +244,7 @@ fn eval_ir_loop(
 
     loop {
         if let Some(condition) = &ir.condition {
-            interp.scopes.clear_current(condition)?;
+            interp.scopes.clear_current().with_span(condition)?;
 
             let value = eval_ir_condition(condition, interp, used)?;
 
@@ -281,7 +281,7 @@ fn eval_ir_loop(
         };
     }
 
-    interp.scopes.pop(ir, guard)?;
+    interp.scopes.pop(guard).with_span(ir)?;
     Ok(IrValue::Unit)
 }
 
@@ -317,7 +317,7 @@ fn eval_ir_scope(
         IrValue::Unit
     };
 
-    interp.scopes.pop(ir, guard)?;
+    interp.scopes.pop(guard).with_span(ir)?;
     Ok(value)
 }
 

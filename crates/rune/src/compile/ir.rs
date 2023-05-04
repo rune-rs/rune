@@ -366,7 +366,7 @@ impl IrPat {
         match self {
             IrPat::Ignore => Ok(true),
             IrPat::Binding(name) => {
-                interp.scopes.decl(name, value, spanned)?;
+                interp.scopes.decl(name, value).with_span(spanned)?;
                 Ok(true)
             }
         }
