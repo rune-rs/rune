@@ -85,6 +85,6 @@ impl Parse for Lit {
             _ => (),
         }
 
-        Err(CompileError::expected(p.next()?, Expectation::Literal))
+        Err(compile::Error::expected(p.next()?, Expectation::Literal))
     }
 }

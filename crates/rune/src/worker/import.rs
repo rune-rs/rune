@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 use crate::ast;
 use crate::ast::Spanned;
 use crate::collections::VecDeque;
-use crate::compile::{self, CompileError, CompileErrorKind, ItemBuf, ModId, Visibility};
+use crate::compile::{self, CompileErrorKind, ItemBuf, ModId, Visibility};
 use crate::parse::Resolve;
 use crate::query::Query;
 use crate::worker::{ImportKind, Task, WildcardImport};
@@ -56,7 +56,7 @@ impl Import {
                             (ItemBuf::with_crate(ident), None, false)
                         }
                         _ => {
-                            return Err(CompileError::new(
+                            return Err(compile::Error::new(
                                 global.span(),
                                 CompileErrorKind::UnsupportedGlobal,
                             ));
@@ -107,14 +107,14 @@ impl Import {
                             name = self.lookup_local(context, q, ident);
                         }
                         ast::PathSegment::SelfType(self_type) => {
-                            return Err(CompileError::new(
+                            return Err(compile::Error::new(
                                 self_type.span(),
                                 CompileErrorKind::ExpectedLeadingPathSegment,
                             ));
                         }
                         ast::PathSegment::SelfValue(self_value) => {
                             if !initial {
-                                return Err(CompileError::new(
+                                return Err(compile::Error::new(
                                     self_value.span(),
                                     CompileErrorKind::ExpectedLeadingPathSegment,
                                 ));
@@ -124,7 +124,7 @@ impl Import {
                         }
                         ast::PathSegment::Crate(crate_token) => {
                             if !initial {
-                                return Err(CompileError::new(
+                                return Err(compile::Error::new(
                                     crate_token,
                                     CompileErrorKind::ExpectedLeadingPathSegment,
                                 ));
@@ -138,11 +138,11 @@ impl Import {
                             }
 
                             name.pop().ok_or_else(|| {
-                                CompileError::new(super_token, CompileErrorKind::UnsupportedSuper)
+                                compile::Error::new(super_token, CompileErrorKind::UnsupportedSuper)
                             })?;
                         }
                         ast::PathSegment::Generics(arguments) => {
-                            return Err(CompileError::new(
+                            return Err(compile::Error::new(
                                 arguments,
                                 CompileErrorKind::UnsupportedGenerics,
                             ));
@@ -166,7 +166,7 @@ impl Import {
                     ast::ItemUseSegment::Group(group) => {
                         for (path, _) in group {
                             if let Some(global) = &path.global {
-                                return Err(CompileError::new(
+                                return Err(compile::Error::new(
                                     global.span(),
                                     CompileErrorKind::UnsupportedGlobal,
                                 ));
@@ -181,7 +181,7 @@ impl Import {
             };
 
             if let Some(segment) = it.next() {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     segment,
                     CompileErrorKind::IllegalUseSegment,
                 ));
@@ -190,7 +190,7 @@ impl Import {
             let alias = match &path.alias {
                 Some((_, ident)) => {
                     if let Some(span) = complete {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span.join(ident.span()),
                             CompileErrorKind::UseAliasNotSupported,
                         ));

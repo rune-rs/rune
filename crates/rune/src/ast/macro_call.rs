@@ -62,7 +62,7 @@ impl MacroCall {
         let delim = match open.kind {
             ast::Kind::Open(delim) => delim,
             _ => {
-                return Err(CompileError::expected(open, Expectation::OpenDelimiter));
+                return Err(compile::Error::expected(open, Expectation::OpenDelimiter));
             }
         };
 
@@ -80,7 +80,7 @@ impl MacroCall {
 
                     if level == 0 {
                         if actual != delim {
-                            return Err(CompileError::new(
+                            return Err(compile::Error::new(
                                 open,
                                 ParseErrorKind::ExpectedMacroCloseDelimiter {
                                     actual: token.kind,

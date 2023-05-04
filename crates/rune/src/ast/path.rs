@@ -105,7 +105,7 @@ impl IntoExpectation for &Path {
 impl<'a> Resolve<'a> for Path {
     type Output = Box<str>;
 
-    fn resolve(&self, ctx: ResolveContext<'_>) -> Result<Self::Output, CompileError> {
+    fn resolve(&self, ctx: ResolveContext<'_>) -> Result<Self::Output> {
         let mut buf = String::new();
 
         if self.global.is_some() {
@@ -236,7 +236,7 @@ impl Parse for PathSegment {
             K![super] => Self::Super(p.parse()?),
             K![<] => Self::Generics(p.parse()?),
             _ => {
-                return Err(CompileError::expected(p.tok_at(0)?, "path segment"));
+                return Err(compile::Error::expected(p.tok_at(0)?, "path segment"));
             }
         };
 

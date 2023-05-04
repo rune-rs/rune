@@ -15,9 +15,9 @@ use crate::compile::context;
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
-    CompileError, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep, IntoComponent,
-    IrBudget, IrCompiler, IrInterpreter, Item, ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta,
-    Names, Pool, Prelude, QueryErrorKind, SourceMeta, UnitBuilder, Visibility,
+    self, CompileErrorKind, CompileVisitor, ComponentRef, Doc, ImportStep, IntoComponent, IrBudget,
+    IrCompiler, IrInterpreter, Item, ItemBuf, ItemId, ItemMeta, Location, ModId, ModMeta, Names,
+    Pool, Prelude, QueryErrorKind, SourceMeta, UnitBuilder, Visibility,
 };
 use crate::hir;
 use crate::macros::Storage;
@@ -26,8 +26,6 @@ use crate::runtime::format;
 use crate::runtime::Call;
 use crate::shared::{Consts, Gen, Items};
 use crate::{Context, Hash, SourceId, Sources};
-
-type Result<T, E = CompileError> = core::result::Result<T, E>;
 
 /// The permitted number of import recursions when constructing a path.
 const IMPORT_RECURSION_LIMIT: usize = 128;
@@ -228,7 +226,7 @@ impl<'a> Query<'a> {
         parent: ModId,
         visibility: Visibility,
         docs: &[Doc],
-    ) -> Result<ModId> {
+    ) -> compile::Result<ModId> {
         let item = self.insert_new_item(items, location, parent, visibility, docs)?;
 
         let query_mod = self.pool.alloc_module(ModMeta {
@@ -246,7 +244,11 @@ impl<'a> Query<'a> {
     }
 
     /// Insert module and associated metadata.
-    pub(crate) fn insert_root_mod(&mut self, source_id: SourceId, spanned: Span) -> Result<ModId> {
+    pub(crate) fn insert_root_mod(
+        &mut self,
+        source_id: SourceId,
+        spanned: Span,
+    ) -> compile::Result<ModId> {
         let query_mod = self.pool.alloc_module(ModMeta {
             location: Location::new(source_id, spanned),
             item: ItemId::default(),
@@ -269,21 +271,21 @@ impl<'a> Query<'a> {
         module: ModId,
         visibility: Visibility,
         docs: &[Doc],
-    ) -> Result<ItemMeta> {
+    ) -> compile::Result<ItemMeta> {
         let id = items
             .id()
-            .map_err(|e| CompileError::msg(location.span, e))?;
+            .map_err(|e| compile::Error::msg(location.span, e))?;
         let item = self.pool.alloc_item(&*items.item());
         self.insert_new_item_with(id, item, location, module, visibility, docs)
     }
 
     /// Insert the given compile meta.
-    fn insert_meta(&mut self, span: Span, meta: meta::Meta) -> Result<()> {
+    fn insert_meta(&mut self, span: Span, meta: meta::Meta) -> compile::Result<()> {
         self.visitor.register_meta(meta.as_meta_ref(self.pool));
 
         match self.inner.meta.entry(meta.item_meta.item) {
             hash_map::Entry::Occupied(e) => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     QueryErrorKind::MetaConflict {
                         current: meta.info(self.pool),
@@ -309,7 +311,7 @@ impl<'a> Query<'a> {
         module: ModId,
         visibility: Visibility,
         docs: &[Doc],
-    ) -> Result<ItemMeta> {
+    ) -> compile::Result<ItemMeta> {
         // Emit documentation comments for the given item.
         if !docs.is_empty() {
             let ctx = resolve_context!(self);
@@ -340,20 +342,20 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_new_builtin_macro(
         &mut self,
         internal_macro: BuiltInMacro,
-    ) -> Result<NonZeroId> {
+    ) -> compile::Result<NonZeroId> {
         let id = self.gen.next();
         self.inner.internal_macros.insert(id, internal_macro);
         Ok(id)
     }
 
     /// Get the item for the given identifier.
-    pub(crate) fn item_for<T>(&self, ast: T) -> Result<ItemMeta>
+    pub(crate) fn item_for<T>(&self, ast: T) -> compile::Result<ItemMeta>
     where
         T: Spanned + Opaque,
     {
         match ast.id().as_ref().and_then(|n| self.inner.items.get(n)) {
             Some(item_meta) => Ok(*item_meta),
-            None => Err(CompileError::new(
+            None => Err(compile::Error::new(
                 ast.span(),
                 QueryErrorKind::MissingId {
                     what: "item",
@@ -364,7 +366,7 @@ impl<'a> Query<'a> {
     }
 
     /// Get the built-in macro matching the given ast.
-    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> Result<&BuiltInMacro>
+    pub(crate) fn builtin_macro_for<T>(&self, ast: T) -> compile::Result<&BuiltInMacro>
     where
         T: Spanned + Opaque,
     {
@@ -374,7 +376,7 @@ impl<'a> Query<'a> {
             .and_then(|n| self.inner.internal_macros.get(n))
         {
             Some(internal_macro) => Ok(internal_macro),
-            None => Err(CompileError::new(
+            None => Err(compile::Error::new(
                 ast.span(),
                 QueryErrorKind::MissingId {
                     what: "builtin macro",
@@ -398,13 +400,13 @@ impl<'a> Query<'a> {
     }
 
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for<T>(&self, ast: T) -> Result<Arc<QueryConstFn>>
+    pub(crate) fn const_fn_for<T>(&self, ast: T) -> compile::Result<Arc<QueryConstFn>>
     where
         T: Spanned + Opaque,
     {
         match ast.id().as_ref().and_then(|n| self.inner.const_fns.get(n)) {
             Some(const_fn) => Ok(const_fn.clone()),
-            None => Err(CompileError::new(
+            None => Err(compile::Error::new(
                 ast.span(),
                 QueryErrorKind::MissingId {
                     what: "constant function",
@@ -446,8 +448,8 @@ impl<'a> Query<'a> {
         &mut self,
         item_meta: ItemMeta,
         value: &T,
-        f: fn(&T, &mut IrCompiler) -> Result<ir::Ir>,
-    ) -> Result<()> {
+        f: fn(&T, &mut IrCompiler) -> compile::Result<ir::Ir>,
+    ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         let mut c = IrCompiler {
@@ -473,7 +475,7 @@ impl<'a> Query<'a> {
         &mut self,
         item_meta: ItemMeta,
         item_fn: Box<ast::ItemFn>,
-    ) -> Result<()> {
+    ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(IndexedEntry {
@@ -489,7 +491,7 @@ impl<'a> Query<'a> {
 
     /// Add a new enum item.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn index_enum(&mut self, item_meta: ItemMeta) -> Result<()> {
+    pub(crate) fn index_enum(&mut self, item_meta: ItemMeta) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(IndexedEntry {
@@ -506,7 +508,7 @@ impl<'a> Query<'a> {
         &mut self,
         item_meta: ItemMeta,
         ast: Box<ast::ItemStruct>,
-    ) -> Result<()> {
+    ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(IndexedEntry {
@@ -525,7 +527,7 @@ impl<'a> Query<'a> {
         enum_id: Id,
         ast: ast::ItemVariant,
         index: usize,
-    ) -> Result<()> {
+    ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(IndexedEntry {
@@ -545,7 +547,7 @@ impl<'a> Query<'a> {
         captures: Arc<[String]>,
         call: Call,
         do_move: bool,
-    ) -> Result<()> {
+    ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(IndexedEntry {
@@ -570,7 +572,7 @@ impl<'a> Query<'a> {
         captures: Arc<[String]>,
         call: Call,
         do_move: bool,
-    ) -> Result<()> {
+    ) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 
         self.index(IndexedEntry {
@@ -590,7 +592,9 @@ impl<'a> Query<'a> {
     ///
     /// Returns boolean indicating if any unused entries were queued up.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn queue_unused_entries(&mut self) -> Result<bool, (SourceId, CompileError)> {
+    pub(crate) fn queue_unused_entries(
+        &mut self,
+    ) -> compile::Result<bool, (SourceId, compile::Error)> {
         tracing::trace!("queue unused");
 
         let unused = self
@@ -619,7 +623,7 @@ impl<'a> Query<'a> {
         &mut self,
         span: Span,
         context_meta: &context::PrivMeta,
-    ) -> Result<meta::Meta> {
+    ) -> compile::Result<meta::Meta> {
         let meta = meta::Meta {
             hash: context_meta.hash,
             associated_container: context_meta.associated_container,
@@ -646,7 +650,7 @@ impl<'a> Query<'a> {
         span: Span,
         item: ItemId,
         used: Used,
-    ) -> Result<Option<meta::Meta>> {
+    ) -> compile::Result<Option<meta::Meta>> {
         if let Some(meta) = self.inner.meta.get(&item) {
             tracing::trace!(item = ?item, meta = ?meta, "cached");
             // Ensure that the given item is not indexed, cause if it is
@@ -665,7 +669,7 @@ impl<'a> Query<'a> {
         span: Span,
         item: ItemId,
         used: Used,
-    ) -> Result<Option<meta::Meta>> {
+    ) -> compile::Result<Option<meta::Meta>> {
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
             self.unit.insert_meta(span, &meta, self.pool)?;
@@ -683,14 +687,14 @@ impl<'a> Query<'a> {
         &mut self,
         context: &Context,
         path: &'hir hir::Path<'hir>,
-    ) -> Result<Named<'hir>> {
+    ) -> compile::Result<Named<'hir>> {
         let id = path.id();
 
         let qp = *id
             .as_ref()
             .and_then(|id| self.inner.query_paths.get(id))
             .ok_or_else(|| {
-                CompileError::new(path, QueryErrorKind::MissingId { what: "path", id })
+                compile::Error::new(path, QueryErrorKind::MissingId { what: "path", id })
             })?;
 
         let mut in_self_type = false;
@@ -708,7 +712,10 @@ impl<'a> Query<'a> {
                 .pool
                 .alloc_item(ItemBuf::with_crate(ident.resolve(resolve_context!(self))?)),
             (Some(span), _) => {
-                return Err(CompileError::new(span, CompileErrorKind::UnsupportedGlobal));
+                return Err(compile::Error::new(
+                    span,
+                    CompileErrorKind::UnsupportedGlobal,
+                ));
             }
             (None, segment) => match segment.kind {
                 hir::PathSegmentKind::Ident(ident) => {
@@ -721,10 +728,10 @@ impl<'a> Query<'a> {
                 hir::PathSegmentKind::Super => self
                     .pool
                     .try_map_alloc(self.pool.module(qp.module).item, Item::parent)
-                    .ok_or_else(CompileError::unsupported_super(segment.span()))?,
+                    .ok_or_else(compile::Error::unsupported_super(segment.span()))?,
                 hir::PathSegmentKind::SelfType => {
                     let impl_item = qp.impl_item.ok_or_else(|| {
-                        CompileError::new(segment.span(), CompileErrorKind::UnsupportedSelfType)
+                        compile::Error::new(segment.span(), CompileErrorKind::UnsupportedSelfType)
                     })?;
 
                     in_self_type = true;
@@ -733,7 +740,7 @@ impl<'a> Query<'a> {
                 hir::PathSegmentKind::SelfValue => self.pool.module(qp.module).item,
                 hir::PathSegmentKind::Crate => ItemId::default(),
                 hir::PathSegmentKind::Generics(..) => {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         segment.span(),
                         CompileErrorKind::UnsupportedGenerics,
                     ));
@@ -747,7 +754,7 @@ impl<'a> Query<'a> {
             tracing::trace!("item = {}", item);
 
             if generics.is_some() {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     segment,
                     CompileErrorKind::UnsupportedAfterGeneric,
                 ));
@@ -760,18 +767,18 @@ impl<'a> Query<'a> {
                 }
                 hir::PathSegmentKind::Super => {
                     if in_self_type {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             segment.span(),
                             CompileErrorKind::UnsupportedSuperInSelfType,
                         ));
                     }
 
                     item.pop()
-                        .ok_or_else(CompileError::unsupported_super(segment.span()))?;
+                        .ok_or_else(compile::Error::unsupported_super(segment.span()))?;
                 }
                 hir::PathSegmentKind::Generics(arguments) => {
                     if generics.is_some() {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             segment.span(),
                             CompileErrorKind::UnsupportedGenerics,
                         ));
@@ -780,7 +787,7 @@ impl<'a> Query<'a> {
                     generics = Some((segment.span(), arguments));
                 }
                 _ => {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         segment.span(),
                         CompileErrorKind::ExpectedLeadingPathSegment,
                     ));
@@ -824,7 +831,7 @@ impl<'a> Query<'a> {
         target: ItemBuf,
         alias: Option<ast::Ident>,
         wildcard: bool,
-    ) -> Result<()> {
+    ) -> compile::Result<()> {
         tracing::trace!(at = ?at, target = ?target);
 
         let alias = match alias {
@@ -836,7 +843,7 @@ impl<'a> Query<'a> {
             .as_ref()
             .map(IntoComponent::as_component_ref)
             .or_else(|| target.last())
-            .ok_or_else(|| CompileError::new(span, QueryErrorKind::LastUseComponent))?;
+            .ok_or_else(|| compile::Error::new(span, QueryErrorKind::LastUseComponent))?;
 
         let item = self.pool.alloc_item(at.extended(last));
         let target = self.pool.alloc_item(target);
@@ -893,7 +900,7 @@ impl<'a> Query<'a> {
         mut module: ModId,
         item: ItemId,
         used: Used,
-    ) -> Result<Option<ItemId>> {
+    ) -> compile::Result<Option<ItemId>> {
         let mut visited = HashSet::<ItemId>::new();
         let mut path = Vec::new();
         let mut item = self.pool.item(item).to_owned();
@@ -903,7 +910,7 @@ impl<'a> Query<'a> {
 
         'outer: loop {
             if count > IMPORT_RECURSION_LIMIT {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     QueryErrorKind::ImportRecursionLimit { count, path },
                 ));
@@ -931,7 +938,7 @@ impl<'a> Query<'a> {
                 });
 
                 if !visited.insert(self.pool.alloc_item(&item)) {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::ImportCycle { path },
                     ));
@@ -962,7 +969,7 @@ impl<'a> Query<'a> {
         item: ItemId,
         used: Used,
         path: &mut Vec<ImportStep>,
-    ) -> Result<Option<meta::Import>> {
+    ) -> compile::Result<Option<meta::Import>> {
         // already resolved query.
         if let Some(meta) = self.inner.meta.get(&item) {
             return Ok(match meta.kind {
@@ -1013,7 +1020,7 @@ impl<'a> Query<'a> {
         span: Span,
         entry: IndexedEntry,
         used: Used,
-    ) -> Result<meta::Meta> {
+    ) -> compile::Result<meta::Meta> {
         let IndexedEntry { item_meta, indexed } = entry;
 
         let (hash, container, kind) = match indexed {
@@ -1214,7 +1221,7 @@ impl<'a> Query<'a> {
         item_meta: ItemMeta,
         indexed: Indexed,
         used: Used,
-    ) -> Result<()> {
+    ) -> compile::Result<()> {
         // NB: if we find another indexed entry, queue it up for
         // building and clone its built meta to the other
         // results.
@@ -1227,7 +1234,11 @@ impl<'a> Query<'a> {
     }
 
     /// Remove the indexed entry corresponding to the given item..
-    fn remove_indexed(&mut self, span: Span, item: ItemId) -> Result<Option<IndexedEntry>> {
+    fn remove_indexed(
+        &mut self,
+        span: Span,
+        item: ItemId,
+    ) -> compile::Result<Option<IndexedEntry>> {
         // See if there's an index entry we can construct and insert.
         let entries = match self.inner.indexed.remove(&item) {
             Some(entries) => entries,
@@ -1265,7 +1276,7 @@ impl<'a> Query<'a> {
                 locations.push((oth.item_meta.location, oth.item().to_owned()));
             }
 
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 QueryErrorKind::AmbiguousItem {
                     item: self.pool.item(cur.item_meta.item).to_owned(),
@@ -1278,7 +1289,7 @@ impl<'a> Query<'a> {
         }
 
         if let Indexed::Import(Import { wildcard: true, .. }) = &cur.indexed {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 QueryErrorKind::AmbiguousItem {
                     item: self.pool.item(cur.item_meta.item).to_owned(),
@@ -1301,7 +1312,7 @@ impl<'a> Query<'a> {
         module: ModId,
         base: ItemId,
         local: &ast::Ident,
-    ) -> Result<ItemId> {
+    ) -> compile::Result<ItemId> {
         let span = local.span;
         let mut base = self.pool.item(base).to_owned();
         debug_assert!(base.starts_with(self.pool.module_item(module)));
@@ -1361,7 +1372,7 @@ impl<'a> Query<'a> {
         location: Location,
         visibility: Visibility,
         chain: &mut Vec<ImportStep>,
-    ) -> Result<()> {
+    ) -> compile::Result<()> {
         let (common, tree) = self
             .pool
             .module_item(from)
@@ -1374,7 +1385,7 @@ impl<'a> Query<'a> {
             let current_module_id = self.pool.alloc_item(&current_module);
 
             let m = self.pool.module_by_item(current_module_id).ok_or_else(|| {
-                CompileError::new(
+                compile::Error::new(
                     span,
                     QueryErrorKind::MissingMod {
                         item: current_module.clone(),
@@ -1383,7 +1394,7 @@ impl<'a> Query<'a> {
             })?;
 
             if !m.visibility.is_visible(&common, &current_module) {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     QueryErrorKind::NotVisibleMod {
                         chain: into_chain(take(chain)),
@@ -1397,7 +1408,7 @@ impl<'a> Query<'a> {
         }
 
         if !visibility.is_visible_inside(&common, self.pool.module_item(module)) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 QueryErrorKind::NotVisible {
                     chain: into_chain(take(chain)),
@@ -1656,9 +1667,9 @@ impl Named<'_> {
     }
 
     /// Assert that this named type is not generic.
-    pub(crate) fn assert_not_generic(&self) -> Result<()> {
+    pub(crate) fn assert_not_generic(&self) -> compile::Result<()> {
         if let Some((span, _)) = self.generics {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedGenerics,
             ));
@@ -1725,7 +1736,7 @@ fn struct_body_meta(
     enum_: Option<(Hash, usize)>,
     ctx: ResolveContext<'_>,
     st: ast::Braced<ast::Field, T![,]>,
-) -> Result<(Hash, meta::Kind)> {
+) -> compile::Result<(Hash, meta::Kind)> {
     let type_hash = Hash::type_hash(item);
 
     let mut fields = HashSet::new();
@@ -1757,7 +1768,7 @@ fn variant_into_item_decl(
     body: ast::ItemVariantBody,
     enum_: Option<(Hash, usize)>,
     ctx: ResolveContext<'_>,
-) -> Result<(Hash, meta::Kind)> {
+) -> compile::Result<(Hash, meta::Kind)> {
     Ok(match body {
         ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_),
         ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
@@ -1770,7 +1781,7 @@ fn struct_into_item_decl(
     item: &Item,
     body: ast::ItemStructBody,
     ctx: ResolveContext<'_>,
-) -> Result<(Hash, meta::Kind)> {
+) -> compile::Result<(Hash, meta::Kind)> {
     Ok(match body {
         ast::ItemStructBody::UnitBody => unit_body_meta(item, None),
         ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, None, tuple),

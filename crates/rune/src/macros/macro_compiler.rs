@@ -4,7 +4,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{self, CompileError, CompileErrorKind, ItemMeta, Options};
+use crate::compile::{self, CompileErrorKind, ItemMeta, Options};
 use crate::macros::MacroContext;
 use crate::parse::{Parse, Parser};
 use crate::query::Query;
@@ -26,7 +26,7 @@ impl MacroCompiler<'_> {
         let span = macro_call.span();
 
         if !self.options.macros {
-            return Err(CompileError::experimental(
+            return Err(compile::Error::msg(
                 span,
                 "macros must be enabled with `-O macros=true`",
             ));
@@ -46,7 +46,7 @@ impl MacroCompiler<'_> {
         let handler = match self.context.lookup_macro(hash) {
             Some(handler) => handler,
             None => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::MissingMacro {
                         item: self.query.pool.item(named.item).to_owned(),

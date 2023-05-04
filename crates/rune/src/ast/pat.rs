@@ -163,7 +163,7 @@ impl Parse for Pat {
             _ => (),
         }
 
-        Err(CompileError::expected(p.tok_at(0)?, "pattern"))
+        Err(compile::Error::expected(p.tok_at(0)?, "pattern"))
     }
 }
 

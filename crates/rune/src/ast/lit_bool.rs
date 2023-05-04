@@ -29,7 +29,7 @@ impl Parse for LitBool {
             K![true] => true,
             K![false] => false,
             _ => {
-                return Err(CompileError::expected(t, Expectation::Boolean));
+                return Err(compile::Error::expected(t, Expectation::Boolean));
             }
         };
 

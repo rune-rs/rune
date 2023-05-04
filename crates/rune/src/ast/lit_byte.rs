@@ -33,7 +33,7 @@ impl Parse for LitByte {
                 span: t.span,
                 source,
             }),
-            _ => Err(CompileError::expected(t, "byte")),
+            _ => Err(compile::Error::expected(t, "byte")),
         }
     }
 }
@@ -41,7 +41,7 @@ impl Parse for LitByte {
 impl<'a> Resolve<'a> for LitByte {
     type Output = u8;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<u8, CompileError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<u8> {
         let source_id = match self.source {
             ast::CopySource::Inline(b) => return Ok(b),
             ast::CopySource::Text(source_id) => source_id,
@@ -52,7 +52,7 @@ impl<'a> Resolve<'a> for LitByte {
         let string = ctx
             .sources
             .source(source_id, span.trim_start(2u32).trim_end(1u32))
-            .ok_or_else(|| CompileError::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();
 
@@ -64,7 +64,7 @@ impl<'a> Resolve<'a> for LitByte {
         let (start, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(CompileError::new(span, ResolveErrorKind::BadByteLiteral));
+                return Err(compile::Error::new(span, ResolveErrorKind::BadByteLiteral));
             }
         };
 
@@ -78,7 +78,7 @@ impl<'a> Resolve<'a> for LitByte {
                                 .next()
                                 .map(|n| n.0)
                                 .unwrap_or_else(|| span.end.into_usize());
-                            return Err(CompileError::new(Span::new(start, end), kind));
+                            return Err(compile::Error::new(Span::new(start, end), kind));
                         }
                     };
 
@@ -89,7 +89,7 @@ impl<'a> Resolve<'a> for LitByte {
                             .next()
                             .map(|n| n.0)
                             .unwrap_or_else(|| span.end.into_usize());
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             Span::new(start, end),
                             ResolveErrorKind::BadByteLiteral,
                         ));
@@ -98,13 +98,13 @@ impl<'a> Resolve<'a> for LitByte {
             }
             c if c.is_ascii() && !c.is_control() => c as u8,
             _ => {
-                return Err(CompileError::new(span, ResolveErrorKind::BadByteLiteral));
+                return Err(compile::Error::new(span, ResolveErrorKind::BadByteLiteral));
             }
         };
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(CompileError::new(span, ResolveErrorKind::BadByteLiteral));
+            return Err(compile::Error::new(span, ResolveErrorKind::BadByteLiteral));
         }
 
         Ok(c)

@@ -7,13 +7,13 @@ use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::ast;
+use crate::ast::{self};
 use crate::ast::{OptionSpanned, Span, Spanned};
 use crate::collections::HashMap;
 use crate::compile::attrs::Attributes;
 use crate::compile::{
-    self, attrs, ir, CompileError, CompileErrorKind, Doc, ItemId, Location, ModId, Options,
-    ParseErrorKind, SourceLoader, Visibility,
+    self, attrs, ir, CompileErrorKind, Doc, ItemId, Location, ModId, Options, ParseErrorKind,
+    SourceLoader, Visibility, WithSpanExt,
 };
 use crate::indexing::locals;
 use crate::indexing::{IndexFnKind, IndexScopes};
@@ -30,8 +30,6 @@ use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{Context, Diagnostics, SourceId};
 
 use rune_macros::__instrument_ast as instrument;
-
-type Result<T> = core::result::Result<T, CompileError>;
 
 /// `self` variable.
 const SELF: &str = "self";
@@ -90,7 +88,7 @@ impl<'a> Indexer<'a> {
         &mut self,
         attributes: &mut attrs::Attributes,
         ast: &mut ast::MacroCall,
-    ) -> Result<bool> {
+    ) -> compile::Result<bool> {
         let (_, builtin) = match attributes.try_parse::<attrs::BuiltIn>(resolve_context!(self.q))? {
             Some(builtin) => builtin,
             None => return Ok(false),
@@ -102,7 +100,7 @@ impl<'a> Indexer<'a> {
         let ident = match ast.path.try_as_ident() {
             Some(ident) => ident,
             None => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     ast.path.span(),
                     CompileErrorKind::NoSuchBuiltInMacro {
                         name: ast.path.resolve(resolve_context!(self.q))?,
@@ -119,7 +117,7 @@ impl<'a> Indexer<'a> {
             "file" => self.expand_file_macro(ast)?,
             "line" => self.expand_line_macro(ast)?,
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     ast.path.span(),
                     CompileErrorKind::NoSuchBuiltInMacro {
                         name: ast.path.resolve(resolve_context!(self.q))?,
@@ -151,7 +149,7 @@ impl<'a> Indexer<'a> {
         &mut self,
         ast: &mut ast::MacroCall,
         args: &attrs::BuiltInArgs,
-    ) -> Result<BuiltInMacro> {
+    ) -> compile::Result<BuiltInMacro> {
         let mut p = Parser::from_token_stream(&ast.stream, ast.span());
         let mut exprs = Vec::new();
 
@@ -177,7 +175,7 @@ impl<'a> Indexer<'a> {
         &mut self,
         ast: &mut ast::MacroCall,
         _: &attrs::BuiltInArgs,
-    ) -> Result<BuiltInMacro> {
+    ) -> compile::Result<BuiltInMacro> {
         let mut p = Parser::from_token_stream(&ast.stream, ast.span());
 
         let value = p.parse::<ast::Expr>()?;
@@ -199,7 +197,7 @@ impl<'a> Indexer<'a> {
             match k {
                 "fill" => {
                     if fill.is_some() {
-                        return Err(CompileError::unsupported(
+                        return Err(compile::Error::unsupported(
                             key.span(),
                             "multiple `format!(.., fill = ..)`",
                         ));
@@ -212,7 +210,7 @@ impl<'a> Indexer<'a> {
                 }
                 "align" => {
                     if align.is_some() {
-                        return Err(CompileError::unsupported(
+                        return Err(compile::Error::unsupported(
                             key.span(),
                             "multiple `format!(.., align = ..)`",
                         ));
@@ -224,7 +222,7 @@ impl<'a> Indexer<'a> {
                     align = Some(match str::parse::<format::Alignment>(a) {
                         Ok(a) => (arg, a),
                         _ => {
-                            return Err(CompileError::unsupported(
+                            return Err(compile::Error::unsupported(
                                 key.span(),
                                 "`format!(.., align = ..)`",
                             ));
@@ -233,53 +231,59 @@ impl<'a> Indexer<'a> {
                 }
                 "flags" => {
                     if flags.is_some() {
-                        return Err(CompileError::unsupported(
+                        return Err(compile::Error::unsupported(
                             key.span(),
                             "multiple `format!(.., flags = ..)`",
                         ));
                     }
 
                     let arg = p.parse::<ast::LitNumber>()?;
+
                     let f = arg
                         .resolve(resolve_context!(self.q))?
-                        .as_u32(arg.span(), false)?;
+                        .as_u32(false)
+                        .with_span(arg)?;
 
                     let f = format::Flags::from(f);
                     flags = Some((arg, f));
                 }
                 "width" => {
                     if width.is_some() {
-                        return Err(CompileError::unsupported(
+                        return Err(compile::Error::unsupported(
                             key.span(),
                             "multiple `format!(.., width = ..)`",
                         ));
                     }
 
                     let arg = p.parse::<ast::LitNumber>()?;
+
                     let f = arg
                         .resolve(resolve_context!(self.q))?
-                        .as_usize(arg.span(), false)?;
+                        .as_usize(false)
+                        .with_span(arg)?;
 
                     width = Some((arg, NonZeroUsize::new(f)));
                 }
                 "precision" => {
                     if precision.is_some() {
-                        return Err(CompileError::unsupported(
+                        return Err(compile::Error::unsupported(
                             key.span(),
                             "multiple `format!(.., precision = ..)`",
                         ));
                     }
 
                     let arg = p.parse::<ast::LitNumber>()?;
+
                     let f = arg
                         .resolve(resolve_context!(self.q))?
-                        .as_usize(arg.span(), false)?;
+                        .as_usize(false)
+                        .with_span(arg)?;
 
                     precision = Some((arg, NonZeroUsize::new(f)));
                 }
                 "type" => {
                     if format_type.is_some() {
-                        return Err(CompileError::unsupported(
+                        return Err(compile::Error::unsupported(
                             key.span(),
                             "multiple `format!(.., type = ..)`",
                         ));
@@ -291,7 +295,7 @@ impl<'a> Indexer<'a> {
                     format_type = Some(match str::parse::<format::Type>(a) {
                         Ok(format_type) => (arg, format_type),
                         _ => {
-                            return Err(CompileError::unsupported(
+                            return Err(compile::Error::unsupported(
                                 key.span(),
                                 "`format!(.., type = ..)`",
                             ));
@@ -299,7 +303,7 @@ impl<'a> Indexer<'a> {
                     });
                 }
                 _ => {
-                    return Err(CompileError::unsupported(
+                    return Err(compile::Error::unsupported(
                         key.span(),
                         "`format!(.., <key>)`",
                     ));
@@ -322,9 +326,9 @@ impl<'a> Indexer<'a> {
     }
 
     /// Expand a macro returning the current file
-    fn expand_file_macro(&mut self, ast: &mut ast::MacroCall) -> Result<BuiltInMacro> {
+    fn expand_file_macro(&mut self, ast: &mut ast::MacroCall) -> compile::Result<BuiltInMacro> {
         let name = self.q.sources.name(self.source_id).ok_or_else(|| {
-            CompileError::new(
+            compile::Error::new(
                 ast.span(),
                 ParseErrorKind::MissingSourceId {
                     source_id: self.source_id,
@@ -344,7 +348,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Expand a macro returning the current line for where the macro invocation begins
-    fn expand_line_macro(&mut self, ast: &mut ast::MacroCall) -> Result<BuiltInMacro> {
+    fn expand_line_macro(&mut self, ast: &mut ast::MacroCall) -> compile::Result<BuiltInMacro> {
         let (l, _) = self
             .q
             .sources
@@ -365,7 +369,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Perform a macro expansion.
-    fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> Result<T>
+    fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> compile::Result<T>
     where
         T: Parse,
     {
@@ -377,7 +381,7 @@ impl<'a> Indexer<'a> {
         let id = self
             .items
             .id()
-            .map_err(|e| CompileError::msg(ast.span(), e))?;
+            .map_err(|e| compile::Error::msg(ast.span(), e))?;
 
         let item = self.q.item_for((ast.span(), id))?;
 
@@ -398,7 +402,10 @@ impl<'a> Indexer<'a> {
     /// Uses are processed first in a file, and once processed any potential
     /// macro expansions are expanded.
     /// If these produce uses, these are processed, and so forth.
-    fn preprocess_items(&mut self, items: &mut Vec<(ast::Item, Option<T![;]>)>) -> Result<()> {
+    fn preprocess_items(
+        &mut self,
+        items: &mut Vec<(ast::Item, Option<T![;]>)>,
+    ) -> compile::Result<()> {
         let mut queue = items.drain(..).collect::<VecDeque<_>>();
 
         while let Some((item, semi)) = queue.pop_front() {
@@ -435,7 +442,7 @@ impl<'a> Indexer<'a> {
                     }
 
                     if let Some(span) = attributes.remaining() {
-                        return Err(CompileError::msg(span, "unsupported item attribute"));
+                        return Err(compile::Error::msg(span, "unsupported item attribute"));
                     }
                 }
                 item => {
@@ -448,7 +455,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Preprocess uses in statements.
-    fn preprocess_stmts(&mut self, stmts: &mut Vec<ast::Stmt>) -> Result<()> {
+    fn preprocess_stmts(&mut self, stmts: &mut Vec<ast::Stmt>) -> compile::Result<()> {
         stmts.sort_by_key(|s| s.sort_key());
 
         let mut queue = stmts.drain(..).collect::<VecDeque<_>>();
@@ -505,7 +512,7 @@ impl<'a> Indexer<'a> {
                     }
 
                     if let Some(span) = attributes.remaining() {
-                        return Err(CompileError::msg(span, "unsupported statement attribute"));
+                        return Err(compile::Error::msg(span, "unsupported statement attribute"));
                     }
                 }
                 ast::Stmt::Item(mut i, semi) => {
@@ -545,7 +552,7 @@ impl<'a> Indexer<'a> {
         let root = match &self.root {
             Some(root) => root,
             None => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedModuleSource,
                 ));
@@ -571,7 +578,7 @@ impl<'a> Indexer<'a> {
             .load(root, self.q.pool.module_item(mod_item), span)?;
 
         if let Some(existing) = self.loaded.insert(mod_item, (self.source_id, span)) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::ModAlreadyLoaded {
                     item: self.q.pool.module_item(mod_item).to_owned(),
@@ -613,7 +620,7 @@ pub(crate) fn file(ast: &mut ast::File, idx: &mut Indexer<'_>) -> compile::Resul
     }
 
     if let Some(first) = attrs.remaining() {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             first,
             "file attributes are not supported",
         ));
@@ -656,7 +663,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
 
     let kind = match (ast.const_token, ast.async_token) {
         (Some(const_token), Some(async_token)) => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 const_token.span().join(async_token.span()),
                 CompileErrorKind::FnConstAsyncConflict,
             ));
@@ -667,7 +674,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
     };
 
     if let (Some(const_token), Some(async_token)) = (ast.const_token, ast.async_token) {
-        return Err(CompileError::new(
+        return Err(compile::Error::new(
             const_token.span().join(async_token.span()),
             CompileErrorKind::FnConstAsyncConflict,
         ));
@@ -700,7 +707,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
         // const function.
         None => {
             if f.generator {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::FnConstNotGenerator,
                 ));
@@ -725,7 +732,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
             if let Some(nested_span) = idx.nested_item {
                 let span = span.join(ast.descriptive_span());
 
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::NestedTest { nested_span },
                 ));
@@ -741,7 +748,7 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
             if let Some(nested_span) = idx.nested_item {
                 let span = span.join(ast.descriptive_span());
 
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::NestedBench { nested_span },
                 ));
@@ -753,26 +760,29 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
     };
 
     if let Some(attrs) = attributes.remaining() {
-        return Err(CompileError::msg(attrs, "unrecognized function attribute"));
+        return Err(compile::Error::msg(
+            attrs,
+            "unrecognized function attribute",
+        ));
     }
 
     if ast.is_instance() {
         if is_test {
-            return Err(CompileError::msg(
+            return Err(compile::Error::msg(
                 span,
                 "#[test] is not supported on member functions",
             ));
         }
 
         if is_bench {
-            return Err(CompileError::msg(
+            return Err(compile::Error::msg(
                 span,
                 "#[bench] is not supported on member functions",
             ));
         }
 
         let impl_item = idx.impl_item.ok_or_else(|| {
-            CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
+            compile::Error::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
         })?;
 
         idx.q.index_and_build(IndexedEntry {
@@ -808,7 +818,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
     let span = ast.span();
 
     if let Some(span) = ast.attributes.option_span() {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             span,
             "block attributes are not supported yet",
         ));
@@ -816,7 +826,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
 
     if ast.async_token.is_none() && ast.const_token.is_none() {
         if let Some(span) = ast.move_token.option_span() {
-            return Err(CompileError::msg(
+            return Err(compile::Error::msg(
                 span,
                 "move modifier not support on blocks",
             ));
@@ -839,7 +849,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
 
     if ast.const_token.is_some() {
         if let Some(async_token) = ast.async_token {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 async_token.span(),
                 CompileErrorKind::BlockConstAsyncConflict,
             ));
@@ -852,7 +862,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
             let arena = crate::hir::Arena::new();
             let ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
             let hir = crate::hir::lowering::expr_block(&ctx, ast)?;
-            ir::compile::expr_block(ast.span(), c, &hir)
+            ir::compiler::expr_block(ast.span(), c, &hir)
         })?;
 
         return Ok(());
@@ -871,7 +881,7 @@ fn expr_block(ast: &mut ast::ExprBlock, idx: &mut Indexer<'_>) -> compile::Resul
     let call = match Indexer::call(c.generator, c.kind) {
         Some(call) => call,
         None => {
-            return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
+            return Err(compile::Error::new(span, CompileErrorKind::ClosureKind));
         }
     };
 
@@ -901,7 +911,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
 
     for stmt in &mut ast.statements {
         if let Some(span) = must_be_last {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::ExpectedBlockSemiColon {
                     followed_span: stmt.span(),
@@ -945,7 +955,7 @@ fn block(ast: &mut ast::Block, idx: &mut Indexer<'_>) -> compile::Result<()> {
 #[instrument]
 fn local(ast: &mut ast::Local, idx: &mut Indexer<'_>) -> compile::Result<()> {
     if let Some(span) = ast.attributes.option_span() {
-        return Err(CompileError::msg(span, "attributes are not supported"));
+        return Err(compile::Error::msg(span, "attributes are not supported"));
     }
 
     // We index the rhs expression first so that it doesn't see it's own
@@ -1165,7 +1175,10 @@ fn expr(ast: &mut ast::Expr, idx: &mut Indexer<'_>, is_used: IsUsed) -> compile:
     }
 
     if let Some(span) = attributes.remaining() {
-        return Err(CompileError::msg(span, "unsupported expression attribute"));
+        return Err(compile::Error::msg(
+            span,
+            "unsupported expression attribute",
+        ));
     }
 
     Ok(())
@@ -1240,7 +1253,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> compile::Result<
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
     if let Some(first) = attrs.remaining() {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             first,
             "enum attributes are not supported",
         ));
@@ -1265,7 +1278,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> compile::Result<
         let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
         if let Some(first) = attrs.remaining() {
-            return Err(CompileError::msg(
+            return Err(compile::Error::msg(
                 first,
                 "variant attributes are not supported yet",
             ));
@@ -1302,7 +1315,7 @@ fn item_enum(ast: &mut ast::ItemEnum, idx: &mut Indexer<'_>) -> compile::Result<
             }
 
             if let Some(first) = attrs.remaining() {
-                return Err(CompileError::msg(
+                return Err(compile::Error::msg(
                     first,
                     "field attributes are not supported",
                 ));
@@ -1324,7 +1337,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> compile::Res
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
     if let Some(first) = attrs.remaining() {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             first,
             "struct attributes are not supported",
         ));
@@ -1361,12 +1374,12 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> compile::Res
         }
 
         if let Some(first) = attrs.remaining() {
-            return Err(CompileError::msg(
+            return Err(compile::Error::msg(
                 first,
                 "field attributes are not supported",
             ));
         } else if !field.visibility.is_inherited() {
-            return Err(CompileError::msg(
+            return Err(compile::Error::msg(
                 field,
                 "field visibility levels are not supported",
             ));
@@ -1380,7 +1393,7 @@ fn item_struct(ast: &mut ast::ItemStruct, idx: &mut Indexer<'_>) -> compile::Res
 #[instrument]
 fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> compile::Result<()> {
     if let Some(first) = ast.attributes.first() {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             first,
             "impl attributes are not supported",
         ));
@@ -1389,7 +1402,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> compile::Result<
     let mut guards = Vec::new();
 
     if let Some(global) = &ast.path.global {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             global,
             "global scopes are not supported yet",
         ));
@@ -1398,7 +1411,7 @@ fn item_impl(ast: &mut ast::ItemImpl, idx: &mut Indexer<'_>) -> compile::Result<
     for path_segment in ast.path.as_components() {
         let ident_segment = path_segment
             .try_as_ident()
-            .ok_or_else(|| CompileError::msg(path_segment, "unsupported path segment"))?;
+            .ok_or_else(|| compile::Error::msg(path_segment, "unsupported path segment"))?;
         let ident = ident_segment.resolve(resolve_context!(idx.q))?;
         guards.push(idx.items.push_name(ident));
     }
@@ -1420,7 +1433,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> compile::Result<()
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
     if let Some(first) = attrs.remaining() {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             first,
             "module attributes are not supported",
         ));
@@ -1463,7 +1476,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> compile::Resul
     let docs = Doc::collect_from(resolve_context!(idx.q), &mut attrs)?;
 
     if let Some(first) = attrs.remaining() {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             first,
             "attributes on constants are not supported",
         ));
@@ -1492,7 +1505,7 @@ fn item_const(ast: &mut ast::ItemConst, idx: &mut Indexer<'_>) -> compile::Resul
         let arena = crate::hir::Arena::new();
         let hir_ctx = crate::hir::lowering::Ctx::new(&arena, c.q.borrow());
         let hir = crate::hir::lowering::expr(&hir_ctx, ast)?;
-        ir::compile::expr(&hir, c)
+        ir::compiler::expr(&hir, c)
     })?;
 
     Ok(())
@@ -1541,7 +1554,7 @@ fn item(ast: &mut ast::Item, idx: &mut Indexer<'_>) -> compile::Result<()> {
 
     attributes.try_parse_collect::<attrs::Doc>(resolve_context!(idx.q))?;
     if let Some(span) = attributes.remaining() {
-        return Err(CompileError::msg(span, "unsupported item attribute"));
+        return Err(compile::Error::msg(span, "unsupported item attribute"));
     }
 
     Ok(())
@@ -1642,7 +1655,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> compile::R
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
             ast::FnArg::SelfValue(s) => {
-                return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
+                return Err(compile::Error::new(s, CompileErrorKind::UnsupportedSelf));
             }
             ast::FnArg::Pat(p) => {
                 locals::pat(p, idx)?;
@@ -1659,7 +1672,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> compile::R
     let call = match Indexer::call(c.generator, c.kind) {
         Some(call) => call,
         None => {
-            return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
+            return Err(compile::Error::new(span, CompileErrorKind::ClosureKind));
         }
     };
 
@@ -1796,7 +1809,7 @@ fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> compile::Result<
 #[instrument]
 fn expr_lit(ast: &mut ast::ExprLit, _: &mut Indexer<'_>) -> compile::Result<()> {
     if let Some(first) = ast.attributes.first() {
-        return Err(CompileError::msg(
+        return Err(compile::Error::msg(
             first,
             "literal attributes are not supported",
         ));
@@ -1867,7 +1880,7 @@ fn expr_range(ast: &mut ast::ExprRange, idx: &mut Indexer<'_>) -> compile::Resul
 }
 
 /// Construct visibility from ast.
-fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility> {
+fn ast_to_visibility(vis: &ast::Visibility) -> compile::Result<Visibility> {
     let span = match vis {
         ast::Visibility::Inherited => return Ok(Visibility::Inherited),
         ast::Visibility::Public(..) => return Ok(Visibility::Public),
@@ -1877,13 +1890,13 @@ fn ast_to_visibility(vis: &ast::Visibility) -> Result<Visibility> {
         ast::Visibility::In(restrict) => restrict.span(),
     };
 
-    Err(CompileError::new(
+    Err(compile::Error::new(
         span,
         CompileErrorKind::UnsupportedVisibility,
     ))
 }
 
 /// Coerce an internal MissingLastId into an internal diagnostical message.
-fn missing_last_id(span: Span) -> impl FnOnce(MissingLastId) -> CompileError {
-    move |e| CompileError::msg(span, e)
+fn missing_last_id(span: Span) -> impl FnOnce(MissingLastId) -> compile::Error {
+    move |e| compile::Error::msg(span, e)
 }

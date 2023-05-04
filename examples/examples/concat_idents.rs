@@ -1,11 +1,12 @@
 use rune::ast;
+use rune::compile;
 use rune::macros::{quote, MacroContext, TokenStream};
 use rune::parse::Parser;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Context, Diagnostics, Module, Vm, T};
 use std::sync::Arc;
 
-fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> rune::Result<TokenStream> {
+fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     let mut output = String::new();
 
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());

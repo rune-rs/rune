@@ -6,6 +6,8 @@ use crate::no_std as std;
 use crate::no_std::io;
 use crate::no_std::thiserror;
 
+use crate::compile;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -17,7 +19,7 @@ pub enum FormattingError {
     InvalidSpan(usize, usize, usize),
 
     #[error("Error while parsing source")]
-    CompileError(#[from] crate::compile::CompileError),
+    CompileError(#[from] compile::Error),
 
     #[error("Unexpected end of input")]
     Eof,

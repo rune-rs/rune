@@ -3,7 +3,7 @@ use crate::no_std::prelude::*;
 use crate::ast;
 use crate::ast::{LitStr, Span, Spanned};
 use crate::collections::BTreeSet;
-use crate::compile::{CompileError, ParseErrorKind};
+use crate::compile::{self, ParseErrorKind};
 use crate::parse::{Parse, Parser, Resolve, ResolveContext};
 
 /// Helper for parsing internal attributes.
@@ -35,7 +35,7 @@ impl Attributes {
     pub(crate) fn try_parse_collect<T>(
         &mut self,
         ctx: ResolveContext<'_>,
-    ) -> Result<Vec<(Span, T)>, CompileError>
+    ) -> compile::Result<Vec<(Span, T)>>
     where
         T: Attribute + Parse,
     {
@@ -80,7 +80,7 @@ impl Attributes {
     pub(crate) fn try_parse<T>(
         &mut self,
         ctx: ResolveContext<'_>,
-    ) -> Result<Option<(Span, T)>, CompileError>
+    ) -> compile::Result<Option<(Span, T)>>
     where
         T: Attribute + Parse,
     {
@@ -88,7 +88,7 @@ impl Attributes {
         match vec.len() {
             0 => Ok(None),
             1 => Ok(Some(vec.swap_remove(0))),
-            _ => Err(CompileError::new(
+            _ => Err(compile::Error::new(
                 vec.swap_remove(1).0,
                 ParseErrorKind::MultipleMatchingAttributes { name: T::PATH },
             )),
@@ -124,7 +124,7 @@ pub(crate) struct BuiltIn {
 
 impl BuiltIn {
     /// Parse built-in arguments.
-    pub(crate) fn args(&self, ctx: ResolveContext<'_>) -> Result<BuiltInArgs, CompileError> {
+    pub(crate) fn args(&self, ctx: ResolveContext<'_>) -> compile::Result<BuiltInArgs> {
         let mut out = BuiltInArgs::default();
 
         if let Some(args) = &self.args {
@@ -134,7 +134,7 @@ impl BuiltIn {
                         out.literal = true;
                     }
                     _ => {
-                        return Err(CompileError::msg(ident, "unsupported attribute"));
+                        return Err(compile::Error::msg(ident, "unsupported attribute"));
                     }
                 }
             }

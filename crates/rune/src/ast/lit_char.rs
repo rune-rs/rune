@@ -33,7 +33,7 @@ impl Parse for LitChar {
                 span: t.span,
                 source,
             }),
-            _ => Err(CompileError::expected(t, "char")),
+            _ => Err(compile::Error::expected(t, "char")),
         }
     }
 }
@@ -41,7 +41,7 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<char, CompileError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<char> {
         let source_id = match self.source {
             ast::CopySource::Inline(c) => return Ok(c),
             ast::CopySource::Text(source_id) => source_id,
@@ -52,7 +52,7 @@ impl<'a> Resolve<'a> for LitChar {
         let string = ctx
             .sources
             .source(source_id, span.narrow(1u32))
-            .ok_or_else(|| CompileError::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
 
         let start = span.start.into_usize();
 
@@ -64,7 +64,7 @@ impl<'a> Resolve<'a> for LitChar {
         let (start, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(CompileError::new(span, ResolveErrorKind::BadCharLiteral));
+                return Err(compile::Error::new(span, ResolveErrorKind::BadCharLiteral));
             }
         };
 
@@ -81,7 +81,7 @@ impl<'a> Resolve<'a> for LitChar {
                             .next()
                             .map(|n| n.0)
                             .unwrap_or_else(|| span.end.into_usize());
-                        return Err(CompileError::new(Span::new(start, end), kind));
+                        return Err(compile::Error::new(Span::new(start, end), kind));
                     }
                 };
 
@@ -92,7 +92,7 @@ impl<'a> Resolve<'a> for LitChar {
                             .next()
                             .map(|n| n.0)
                             .unwrap_or_else(|| span.end.into_usize());
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             Span::new(start, end),
                             ResolveErrorKind::BadCharLiteral,
                         ));
@@ -104,7 +104,7 @@ impl<'a> Resolve<'a> for LitChar {
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(CompileError::new(span, ResolveErrorKind::BadCharLiteral));
+            return Err(compile::Error::new(span, ResolveErrorKind::BadCharLiteral));
         }
 
         Ok(c)

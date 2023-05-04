@@ -5,8 +5,8 @@ use core::fmt;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    CompileError, IrCompiler, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor,
-    ParseErrorKind, Pool, Prelude, UnitBuilder,
+    self, IrCompiler, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor, ParseErrorKind,
+    Pool, Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
@@ -97,7 +97,7 @@ impl<'a> MacroContext<'a> {
     ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
     /// });
     /// ```
-    pub fn eval<T>(&mut self, target: &T) -> Result<IrValue, CompileError>
+    pub fn eval<T>(&mut self, target: &T) -> compile::Result<IrValue>
     where
         T: IrEval,
     {
@@ -188,7 +188,7 @@ impl<'a> MacroContext<'a> {
     }
 
     /// Resolve the value of a token.
-    pub fn resolve<'r, T>(&'r self, item: T) -> Result<T::Output, CompileError>
+    pub fn resolve<'r, T>(&'r self, item: T) -> compile::Result<T::Output>
     where
         T: Resolve<'r>,
     {
@@ -213,12 +213,12 @@ impl<'a> MacroContext<'a> {
 
     /// Parse the given input as the given type that implements
     /// [Parse][crate::parse::Parse].
-    pub fn parse_source<T>(&self, id: SourceId) -> Result<T, CompileError>
+    pub fn parse_source<T>(&self, id: SourceId) -> compile::Result<T>
     where
         T: Parse,
     {
         let source = self.q.sources.get(id).ok_or_else(|| {
-            CompileError::new(
+            compile::Error::new(
                 Span::empty(),
                 ParseErrorKind::MissingSourceId { source_id: id },
             )

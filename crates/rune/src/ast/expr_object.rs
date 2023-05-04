@@ -118,7 +118,7 @@ impl Parse for ObjectKey {
             K![str] => Self::LitStr(p.parse()?),
             K![ident] => Self::Path(p.parse()?),
             _ => {
-                return Err(CompileError::expected(p.tok_at(0)?, "literal object key"));
+                return Err(compile::Error::expected(p.tok_at(0)?, "literal object key"));
             }
         })
     }
@@ -139,14 +139,14 @@ impl Peek for AnonExprObject {
 impl<'a> Resolve<'a> for ObjectKey {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Self::Output, CompileError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Self::Output> {
         Ok(match self {
             Self::LitStr(lit_str) => lit_str.resolve(ctx)?,
             Self::Path(path) => {
                 let ident = match path.try_as_ident() {
                     Some(ident) => ident,
                     None => {
-                        return Err(CompileError::expected(path, "object key"));
+                        return Err(compile::Error::expected(path, "object key"));
                     }
                 };
 

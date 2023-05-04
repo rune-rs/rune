@@ -134,11 +134,11 @@ impl Parse for File {
 
         // meta without items. maybe use different error kind?
         if let Some(span) = item_attributes.option_span() {
-            return Err(CompileError::unsupported(span, "attributes"));
+            return Err(compile::Error::unsupported(span, "attributes"));
         }
 
         if let Some(span) = item_visibility.option_span() {
-            return Err(CompileError::unsupported(span, "visibility"));
+            return Err(compile::Error::unsupported(span, "visibility"));
         }
 
         Ok(Self {
@@ -174,7 +174,7 @@ impl Parse for Shebang {
                 span: token.span,
                 source,
             }),
-            _ => Err(CompileError::expected(token, Expectation::Shebang)),
+            _ => Err(compile::Error::expected(token, Expectation::Shebang)),
         }
     }
 }

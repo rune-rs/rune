@@ -40,7 +40,7 @@ impl Parse for ExprRangeLimits {
         Ok(match p.nth(0)? {
             K![..] => Self::HalfOpen(p.parse()?),
             K![..=] => Self::Closed(p.parse()?),
-            _ => return Err(CompileError::expected(p.tok_at(0)?, "range limits")),
+            _ => return Err(compile::Error::expected(p.tok_at(0)?, "range limits")),
         })
     }
 }

@@ -4,8 +4,8 @@ use crate::ast::Span;
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
-    self, Assembly, CompileError, CompileErrorKind, IrBudget, IrCompiler, IrInterpreter, ItemId,
-    ItemMeta, Location, Options,
+    self, Assembly, CompileErrorKind, IrBudget, IrCompiler, IrInterpreter, ItemId, ItemMeta,
+    Location, Options,
 };
 use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -94,7 +94,7 @@ impl<'a> Assembler<'a> {
             return Ok(meta);
         }
 
-        Err(CompileError::new(
+        Err(compile::Error::new(
             spanned,
             CompileErrorKind::MissingItem {
                 item: self.q.pool.item(item).to_owned(),
@@ -168,9 +168,9 @@ impl<'a> Assembler<'a> {
         from: &ItemMeta,
         query_const_fn: &QueryConstFn,
         args: &[hir::Expr<'_>],
-    ) -> Result<ConstValue, CompileError> {
+    ) -> compile::Result<ConstValue> {
         if query_const_fn.ir_fn.args.len() != args.len() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
                     meta: meta.info(self.q.pool),
@@ -189,7 +189,7 @@ impl<'a> Assembler<'a> {
 
         // TODO: precompile these and fetch using opaque id?
         for (hir, name) in args.iter().zip(&query_const_fn.ir_fn.args) {
-            compiled.push((ir::compile::expr(hir, &mut compiler)?, name));
+            compiled.push((ir::compiler::expr(hir, &mut compiler)?, name));
         }
 
         let mut interpreter = IrInterpreter {
@@ -208,6 +208,6 @@ impl<'a> Assembler<'a> {
         interpreter.module = query_const_fn.item_meta.module;
         interpreter.item = query_const_fn.item_meta.item;
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
-        Ok(value.into_const(span)?)
+        value.into_const(span)
     }
 }

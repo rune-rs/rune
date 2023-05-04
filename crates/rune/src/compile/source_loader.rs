@@ -2,13 +2,13 @@ use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
-use crate::compile::{CompileError, CompileErrorKind, ComponentRef, Item};
+use crate::compile::{self, CompileErrorKind, ComponentRef, Item};
 use crate::Source;
 
 /// A source loader.
 pub trait SourceLoader {
     /// Load the given URL.
-    fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<Source, CompileError>;
+    fn load(&mut self, root: &Path, item: &Item, span: Span) -> compile::Result<Source>;
 }
 
 /// A filesystem-based source loader.
@@ -23,11 +23,11 @@ impl FileSourceLoader {
 }
 
 impl SourceLoader for FileSourceLoader {
-    fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<Source, CompileError> {
+    fn load(&mut self, root: &Path, item: &Item, span: Span) -> compile::Result<Source> {
         let mut base = root.to_owned();
 
         if !base.pop() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedModuleRoot {
                     root: root.to_owned(),
@@ -39,7 +39,7 @@ impl SourceLoader for FileSourceLoader {
             if let ComponentRef::Str(string) = c {
                 base.push(string);
             } else {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedModuleItem {
                         item: item.to_owned(),
@@ -62,7 +62,7 @@ impl SourceLoader for FileSourceLoader {
         let path = match found {
             Some(path) => path,
             None => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::ModNotFound { path: base },
                 ));
@@ -71,7 +71,7 @@ impl SourceLoader for FileSourceLoader {
 
         match Source::from_path(path) {
             Ok(source) => Ok(source),
-            Err(error) => Err(CompileError::new(
+            Err(error) => Err(compile::Error::new(
                 span,
                 CompileErrorKind::FileError {
                     path: path.to_owned(),

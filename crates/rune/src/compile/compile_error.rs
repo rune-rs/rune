@@ -7,8 +7,8 @@ use crate::no_std::thiserror;
 use thiserror::Error;
 
 use crate::ast;
-use crate::ast::{Span, Spanned, WithSpan};
-use crate::compile::{IrValue, ItemBuf, Location, MetaInfo, Visibility};
+use crate::ast::{Span, Spanned};
+use crate::compile::{IrValue, ItemBuf, Location, MetaInfo, Visibility, WithSpan};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
@@ -19,41 +19,38 @@ use crate::{Hash, SourceId};
 error! {
     /// An error raised by the compiler.
     #[derive(Debug)]
-    pub struct CompileError {
+    pub struct Error {
         kind: CompileErrorKind,
     }
 }
 
-impl<E> From<WithSpan<E>> for CompileError
+impl<E> From<WithSpan<E>> for Error
 where
     CompileErrorKind: From<E>,
 {
     fn from(spanned: WithSpan<E>) -> Self {
-        CompileError {
+        Error {
             span: spanned.span,
             kind: Box::new(CompileErrorKind::from(spanned.error)),
         }
     }
 }
 
-impl CompileError {
+impl From<&'static str> for CompileErrorKind {
+    fn from(value: &'static str) -> Self {
+        CompileErrorKind::Custom {
+            message: Box::from(value),
+        }
+    }
+}
+
+impl Error {
     /// Construct a factor for unsupported super.
     pub fn unsupported_super<S>(spanned: S) -> impl FnOnce() -> Self
     where
         S: Spanned,
     {
-        || CompileError::new(spanned, CompileErrorKind::UnsupportedSuper)
-    }
-
-    /// Construct an experimental error.
-    ///
-    /// This should be used when an experimental feature is used which hasn't
-    /// been enabled.
-    pub fn experimental<S>(spanned: S, msg: &'static str) -> Self
-    where
-        S: Spanned,
-    {
-        Self::new(spanned, CompileErrorKind::Experimental { msg })
+        || Error::new(spanned, CompileErrorKind::UnsupportedSuper)
     }
 
     /// Error when we got mismatched meta.
@@ -143,8 +140,6 @@ pub(crate) enum CompileErrorKind {
         #[source]
         error: io::Error,
     },
-    #[error("Experimental feature: {msg}")]
-    Experimental { msg: &'static str },
     #[error("File not found, expected a module file like `{path}.rn`")]
     ModNotFound { path: PathBuf },
     #[error("Module `{item}` has already been loaded")]

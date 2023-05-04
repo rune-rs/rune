@@ -74,7 +74,7 @@ impl Parse for Stmt {
         }
 
         if let Some(span) = visibility.option_span() {
-            return Err(CompileError::unsupported(span, "visibility modifier"));
+            return Err(compile::Error::unsupported(span, "visibility modifier"));
         }
 
         let stmt = if let K![let] = p.nth(0)? {
@@ -94,7 +94,7 @@ impl Parse for Stmt {
         };
 
         if let Some(span) = attributes.option_span() {
-            return Err(CompileError::unsupported(span, "attributes"));
+            return Err(compile::Error::unsupported(span, "attributes"));
         }
 
         Ok(stmt)
@@ -142,13 +142,13 @@ impl Parse for ItemOrExpr {
         }
 
         if let Some(span) = visibility.option_span() {
-            return Err(CompileError::unsupported(span, "visibility modifier"));
+            return Err(compile::Error::unsupported(span, "visibility modifier"));
         }
 
         let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::CALLABLE)?;
 
         if let Some(span) = attributes.option_span() {
-            return Err(CompileError::unsupported(span, "attributes"));
+            return Err(compile::Error::unsupported(span, "attributes"));
         }
 
         Ok(Self::Expr(expr))

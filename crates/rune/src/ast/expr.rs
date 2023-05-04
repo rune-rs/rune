@@ -312,7 +312,7 @@ impl Expr {
         };
 
         if let Some(span) = attributes.option_span() {
-            return Err(CompileError::unsupported(span, "attributes"));
+            return Err(compile::Error::unsupported(span, "attributes"));
         }
 
         Ok(expr)
@@ -529,7 +529,7 @@ fn base(
         K![yield] => Expr::Yield(ast::ExprYield::parse_with_meta(p, take(attributes))?),
         K![return] => Expr::Return(ast::ExprReturn::parse_with_meta(p, take(attributes))?),
         _ => {
-            return Err(CompileError::expected(
+            return Err(compile::Error::expected(
                 p.tok_at(0)?,
                 Expectation::Expression,
             ));
@@ -537,19 +537,19 @@ fn base(
     };
 
     if let Some(span) = label.option_span() {
-        return Err(CompileError::unsupported(span, "label"));
+        return Err(compile::Error::unsupported(span, "label"));
     }
 
     if let Some(span) = async_token.option_span() {
-        return Err(CompileError::unsupported(span, "async modifier"));
+        return Err(compile::Error::unsupported(span, "async modifier"));
     }
 
     if let Some(span) = const_token.option_span() {
-        return Err(CompileError::unsupported(span, "const modifier"));
+        return Err(compile::Error::unsupported(span, "const modifier"));
     }
 
     if let Some(span) = move_token.option_span() {
-        return Err(CompileError::unsupported(span, "move modifier"));
+        return Err(compile::Error::unsupported(span, "move modifier"));
     }
 
     Ok(expr)
@@ -629,7 +629,7 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                         });
                     }
                     _ => {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             p.span(0..1),
                             ParseErrorKind::BadFieldAccess,
                         ));
@@ -699,7 +699,7 @@ fn binary(
                 }
                 (lh, rh) if lh == rh => {
                     if !next.is_assoc() {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             lhs.span().join(rhs.span()),
                             ParseErrorKind::PrecedenceGroupRequired,
                         ));

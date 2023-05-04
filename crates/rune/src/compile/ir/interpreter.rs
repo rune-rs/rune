@@ -1,11 +1,10 @@
 use crate::no_std::prelude::*;
 
-use crate::ast::{Span, Spanned, WithSpanExt};
-use crate::compile::{ir, meta, CompileError, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId};
+use crate::ast::{Span, Spanned};
+use crate::compile::{self, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId, WithSpanExt};
+use crate::compile::{ir, meta};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
-
-type Result<T> = core::result::Result<T, CompileError>;
 
 /// Ir Scopes.
 pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
@@ -27,7 +26,7 @@ pub struct IrInterpreter<'a> {
 
 impl IrInterpreter<'_> {
     /// Outer evaluation for an expression which performs caching into `consts`.
-    pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue> {
+    pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> compile::Result<ConstValue> {
         tracing::trace!("processing constant: {}", self.q.pool.item(self.item));
 
         if let Some(const_value) = self.q.consts.get(self.item) {
@@ -35,7 +34,7 @@ impl IrInterpreter<'_> {
         }
 
         if !self.q.consts.mark(self.item) {
-            return Err(CompileError::new(ir, IrErrorKind::ConstCycle));
+            return Err(compile::Error::new(ir, IrErrorKind::ConstCycle));
         }
 
         let ir_value = match ir::eval_ir(ir, self, used) {
@@ -45,10 +44,10 @@ impl IrInterpreter<'_> {
                     return Err(error);
                 }
                 IrEvalOutcome::NotConst(span) => {
-                    return Err(CompileError::new(span, IrErrorKind::NotConst))
+                    return Err(compile::Error::new(span, IrErrorKind::NotConst))
                 }
                 IrEvalOutcome::Break(span, _) => {
-                    return Err(CompileError::new(span, IrErrorKind::BreakOutsideOfLoop))
+                    return Err(compile::Error::new(span, IrErrorKind::BreakOutsideOfLoop))
                 }
             },
         };
@@ -61,23 +60,23 @@ impl IrInterpreter<'_> {
             .insert(self.item, const_value.clone())
             .is_some()
         {
-            return Err(CompileError::new(ir, IrErrorKind::ConstCycle));
+            return Err(compile::Error::new(ir, IrErrorKind::ConstCycle));
         }
 
         Ok(const_value)
     }
 
     /// Evaluate to an ir value.
-    pub(crate) fn eval_value(&mut self, ir: &ir::Ir, used: Used) -> Result<IrValue> {
+    pub(crate) fn eval_value(&mut self, ir: &ir::Ir, used: Used) -> compile::Result<IrValue> {
         match ir::eval_ir(ir, self, used) {
             Ok(ir_value) => Ok(ir_value),
             Err(outcome) => match outcome {
                 IrEvalOutcome::Error(error) => Err(error),
                 IrEvalOutcome::NotConst(span) => {
-                    Err(CompileError::new(span, IrErrorKind::NotConst))
+                    Err(compile::Error::new(span, IrErrorKind::NotConst))
                 }
                 IrEvalOutcome::Break(span, _) => {
-                    Err(CompileError::new(span, IrErrorKind::BreakOutsideOfLoop))
+                    Err(compile::Error::new(span, IrErrorKind::BreakOutsideOfLoop))
                 }
             },
         }
@@ -87,7 +86,12 @@ impl IrInterpreter<'_> {
     ///
     /// This looks up `const <ident> = <expr>` and evaluates them while caching
     /// their result.
-    pub(crate) fn resolve_var(&mut self, spanned: Span, name: &str, used: Used) -> Result<IrValue> {
+    pub(crate) fn resolve_var(
+        &mut self,
+        spanned: Span,
+        name: &str,
+        used: Used,
+    ) -> compile::Result<IrValue> {
         if let Some(ir_value) = self.scopes.try_get(name) {
             return Ok(ir_value.clone());
         }
@@ -107,7 +111,7 @@ impl IrInterpreter<'_> {
                         return Ok(IrValue::from_const(const_value));
                     }
                     _ => {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             spanned,
                             IrErrorKind::UnsupportedMeta {
                                 meta: meta.info(self.q.pool),
@@ -125,12 +129,12 @@ impl IrInterpreter<'_> {
         }
 
         if name.starts_with(char::is_lowercase) {
-            Err(CompileError::new(
+            Err(compile::Error::new(
                 spanned,
                 IrErrorKind::MissingLocal { name: name.into() },
             ))
         } else {
-            Err(CompileError::new(
+            Err(compile::Error::new(
                 spanned,
                 IrErrorKind::MissingConst { name: name.into() },
             ))
@@ -143,7 +147,7 @@ impl IrInterpreter<'_> {
         target: &str,
         args: Vec<IrValue>,
         used: Used,
-    ) -> Result<IrValue>
+    ) -> compile::Result<IrValue>
     where
         S: Copy + Spanned,
     {
@@ -159,7 +163,7 @@ impl IrInterpreter<'_> {
                         break *id;
                     }
                     _ => {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             IrErrorKind::UnsupportedMeta {
                                 meta: meta.info(self.q.pool),
@@ -170,7 +174,7 @@ impl IrInterpreter<'_> {
             }
 
             if base.is_empty() {
-                return Err(CompileError::new(spanned, IrErrorKind::FnNotFound));
+                return Err(compile::Error::new(spanned, IrErrorKind::FnNotFound));
             }
 
             base.pop();
@@ -179,7 +183,7 @@ impl IrInterpreter<'_> {
         let const_fn = self.q.const_fn_for((spanned.span(), id))?;
 
         if const_fn.ir_fn.args.len() != args.len() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 spanned,
                 IrErrorKind::ArgumentCountMismatch {
                     actual: args.len(),
@@ -202,7 +206,7 @@ impl IrInterpreter<'_> {
 
 impl IrScopes {
     /// Get the given target as mut.
-    pub(crate) fn get_target(&mut self, ir_target: &ir::IrTarget) -> Result<IrValue> {
+    pub(crate) fn get_target(&mut self, ir_target: &ir::IrTarget) -> compile::Result<IrValue> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => Ok(self.get_name(name).with_span(ir_target)?.clone()),
             ir::IrTargetKind::Field(ir_target, field) => {
@@ -210,18 +214,20 @@ impl IrScopes {
 
                 match value {
                     IrValue::Object(object) => {
-                        let object = object.borrow_ref().with_span(&ir_target)?;
+                        let object = object.borrow_ref().with_span(ir_target)?;
 
                         if let Some(value) = object.get(field.as_ref()).cloned() {
                             return Ok(value);
                         }
                     }
                     actual => {
-                        return Err(CompileError::expected_type::<_, Tuple>(ir_target, &actual))
+                        return Err(compile::Error::expected_type::<_, Tuple>(
+                            ir_target, &actual,
+                        ))
                     }
                 };
 
-                Err(CompileError::new(
+                Err(compile::Error::new(
                     ir_target,
                     IrErrorKind::MissingField {
                         field: field.clone(),
@@ -233,25 +239,27 @@ impl IrScopes {
 
                 match value {
                     IrValue::Vec(vec) => {
-                        let vec = vec.borrow_ref().with_span(&ir_target)?;
+                        let vec = vec.borrow_ref().with_span(ir_target)?;
 
                         if let Some(value) = vec.get(*index).cloned() {
                             return Ok(value);
                         }
                     }
                     IrValue::Tuple(tuple) => {
-                        let tuple = tuple.borrow_ref().with_span(&ir_target)?;
+                        let tuple = tuple.borrow_ref().with_span(ir_target)?;
 
                         if let Some(value) = tuple.get(*index).cloned() {
                             return Ok(value);
                         }
                     }
                     actual => {
-                        return Err(CompileError::expected_type::<_, Tuple>(ir_target, &actual))
+                        return Err(compile::Error::expected_type::<_, Tuple>(
+                            ir_target, &actual,
+                        ))
                     }
                 };
 
-                Err(CompileError::new(
+                Err(compile::Error::new(
                     ir_target,
                     IrErrorKind::MissingIndex { index: *index },
                 ))
@@ -260,7 +268,11 @@ impl IrScopes {
     }
 
     /// Update the given target with the given constant value.
-    pub(crate) fn set_target(&mut self, ir_target: &ir::IrTarget, value: IrValue) -> Result<()> {
+    pub(crate) fn set_target(
+        &mut self,
+        ir_target: &ir::IrTarget,
+        value: IrValue,
+    ) -> compile::Result<()> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
                 *self.get_name_mut(name.as_ref()).with_span(ir_target)? = value;
@@ -271,11 +283,13 @@ impl IrScopes {
 
                 match current {
                     IrValue::Object(object) => {
-                        let mut object = object.borrow_mut().with_span(&ir_target)?;
+                        let mut object = object.borrow_mut().with_span(ir_target)?;
                         object.insert(field.as_ref().to_owned(), value);
                     }
                     actual => {
-                        return Err(CompileError::expected_type::<_, Object>(ir_target, &actual));
+                        return Err(compile::Error::expected_type::<_, Object>(
+                            ir_target, &actual,
+                        ));
                     }
                 }
 
@@ -286,7 +300,7 @@ impl IrScopes {
 
                 match current {
                     IrValue::Vec(vec) => {
-                        let mut vec = vec.borrow_mut().with_span(&ir_target)?;
+                        let mut vec = vec.borrow_mut().with_span(ir_target)?;
 
                         if let Some(current) = vec.get_mut(*index) {
                             *current = value;
@@ -294,7 +308,7 @@ impl IrScopes {
                         }
                     }
                     IrValue::Tuple(tuple) => {
-                        let mut tuple = tuple.borrow_mut().with_span(&ir_target)?;
+                        let mut tuple = tuple.borrow_mut().with_span(ir_target)?;
 
                         if let Some(current) = tuple.get_mut(*index) {
                             *current = value;
@@ -302,11 +316,13 @@ impl IrScopes {
                         }
                     }
                     actual => {
-                        return Err(CompileError::expected_type::<_, Tuple>(ir_target, &actual));
+                        return Err(compile::Error::expected_type::<_, Tuple>(
+                            ir_target, &actual,
+                        ));
                     }
                 };
 
-                Err(CompileError::msg(ir_target, "missing index"))
+                Err(compile::Error::msg(ir_target, "missing index"))
             }
         }
     }
@@ -315,8 +331,8 @@ impl IrScopes {
     pub(crate) fn mut_target(
         &mut self,
         ir_target: &ir::IrTarget,
-        op: impl FnOnce(&mut IrValue) -> Result<()>,
-    ) -> Result<()> {
+        op: impl FnOnce(&mut IrValue) -> compile::Result<()>,
+    ) -> compile::Result<()> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
                 let value = self.get_name_mut(name.as_ref()).with_span(ir_target)?;
@@ -327,10 +343,10 @@ impl IrScopes {
 
                 match current {
                     IrValue::Object(object) => {
-                        let mut object = object.borrow_mut().with_span(&ir_target)?;
+                        let mut object = object.borrow_mut().with_span(ir_target)?;
 
                         let value = object.get_mut(field.as_ref()).ok_or_else(|| {
-                            CompileError::new(
+                            compile::Error::new(
                                 ir_target,
                                 IrErrorKind::MissingField {
                                     field: field.clone(),
@@ -340,7 +356,9 @@ impl IrScopes {
 
                         op(value)
                     }
-                    actual => Err(CompileError::expected_type::<_, Object>(ir_target, &actual)),
+                    actual => Err(compile::Error::expected_type::<_, Object>(
+                        ir_target, &actual,
+                    )),
                 }
             }
             ir::IrTargetKind::Index(target, index) => {
@@ -348,10 +366,10 @@ impl IrScopes {
 
                 match current {
                     IrValue::Vec(vec) => {
-                        let mut vec = vec.borrow_mut().with_span(&ir_target)?;
+                        let mut vec = vec.borrow_mut().with_span(ir_target)?;
 
                         let value = vec.get_mut(*index).ok_or_else(|| {
-                            CompileError::new(
+                            compile::Error::new(
                                 ir_target,
                                 IrErrorKind::MissingIndex { index: *index },
                             )
@@ -360,10 +378,10 @@ impl IrScopes {
                         op(value)
                     }
                     IrValue::Tuple(tuple) => {
-                        let mut tuple = tuple.borrow_mut().with_span(&ir_target)?;
+                        let mut tuple = tuple.borrow_mut().with_span(ir_target)?;
 
                         let value = tuple.get_mut(*index).ok_or_else(|| {
-                            CompileError::new(
+                            compile::Error::new(
                                 ir_target,
                                 IrErrorKind::MissingIndex { index: *index },
                             )
@@ -371,7 +389,9 @@ impl IrScopes {
 
                         op(value)
                     }
-                    actual => Err(CompileError::expected_type::<_, Tuple>(ir_target, &actual)),
+                    actual => Err(compile::Error::expected_type::<_, Tuple>(
+                        ir_target, &actual,
+                    )),
                 }
             }
         }
@@ -390,12 +410,12 @@ impl IrBudget {
     }
 
     /// Take an item from the budget. Errors if the budget is exceeded.
-    pub(crate) fn take<S>(&mut self, spanned: S) -> Result<()>
+    pub(crate) fn take<S>(&mut self, spanned: S) -> compile::Result<()>
     where
         S: Spanned,
     {
         if self.budget == 0 {
-            return Err(CompileError::new(spanned, IrErrorKind::BudgetExceeded));
+            return Err(compile::Error::new(spanned, IrErrorKind::BudgetExceeded));
         }
 
         self.budget -= 1;

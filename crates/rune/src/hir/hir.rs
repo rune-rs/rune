@@ -3,7 +3,7 @@ use core::num::NonZeroUsize;
 use crate::no_std::borrow::Cow;
 
 use crate::ast::{self, Span, Spanned};
-use crate::compile::CompileError;
+use crate::compile;
 use crate::parse::{Expectation, Id, IntoExpectation, Opaque, Resolve, ResolveContext};
 use crate::runtime::format;
 
@@ -492,14 +492,14 @@ pub enum ObjectKey<'hir> {
 impl<'a, 'hir> Resolve<'a> for ObjectKey<'hir> {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Self::Output, CompileError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> compile::Result<Self::Output> {
         Ok(match *self {
             Self::LitStr(lit_str) => lit_str.resolve(ctx)?,
             Self::Path(path) => {
                 let ident = match path.try_as_ident() {
                     Some(ident) => ident,
                     None => {
-                        return Err(CompileError::expected(path, "object key"));
+                        return Err(compile::Error::expected(path, "object key"));
                     }
                 };
 

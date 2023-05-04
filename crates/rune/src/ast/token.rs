@@ -3,12 +3,10 @@ use core::fmt;
 use core::ops::Neg;
 
 use crate::ast::{Kind, Span, Spanned};
-use crate::compile::{CompileError, ParseErrorKind};
+use crate::compile::ParseErrorKind;
 use crate::macros::{MacroContext, SyntheticId, ToTokens, TokenStream};
 use crate::parse::{Expectation, IntoExpectation};
 use crate::SourceId;
-
-type Result<T> = core::result::Result<T, CompileError>;
 
 /// A single token encountered during parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -176,18 +174,18 @@ pub enum Number {
 
 impl Number {
     /// Convert into a 32-bit unsigned number.
-    pub(crate) fn as_u32(&self, spanned: Span, neg: bool) -> Result<u32> {
-        self.as_primitive(spanned, neg, num::ToPrimitive::to_u32)
+    pub(crate) fn as_u32(&self, neg: bool) -> Result<u32, ParseErrorKind> {
+        self.as_primitive(neg, num::ToPrimitive::to_u32)
     }
 
     /// Convert into a 64-bit signed number.
-    pub(crate) fn as_i64(&self, spanned: Span, neg: bool) -> Result<i64> {
-        self.as_primitive(spanned, neg, num::ToPrimitive::to_i64)
+    pub(crate) fn as_i64(&self, neg: bool) -> Result<i64, ParseErrorKind> {
+        self.as_primitive(neg, num::ToPrimitive::to_i64)
     }
 
     /// Convert into usize.
-    pub(crate) fn as_usize(&self, spanned: Span, neg: bool) -> Result<usize> {
-        self.as_primitive(spanned, neg, num::ToPrimitive::to_usize)
+    pub(crate) fn as_usize(&self, neg: bool) -> Result<usize, ParseErrorKind> {
+        self.as_primitive(neg, num::ToPrimitive::to_usize)
     }
 
     /// Try to convert number into a tuple index.
@@ -202,12 +200,11 @@ impl Number {
 
     fn as_primitive<T>(
         &self,
-        span: Span,
         neg: bool,
         to: impl FnOnce(&num::BigInt) -> Option<T>,
-    ) -> Result<T> {
+    ) -> Result<T, ParseErrorKind> {
         let number = match self {
-            Number::Float(_) => return Err(CompileError::new(span, ParseErrorKind::BadNumber)),
+            Number::Float(_) => return Err(ParseErrorKind::BadNumber),
             Number::Integer(n) => {
                 if neg {
                     to(&n.clone().neg())
@@ -219,10 +216,7 @@ impl Number {
 
         match number {
             Some(n) => Ok(n),
-            None => Err(CompileError::new(
-                span,
-                ParseErrorKind::BadNumberOutOfBounds,
-            )),
+            None => Err(ParseErrorKind::BadNumberOutOfBounds),
         }
     }
 }

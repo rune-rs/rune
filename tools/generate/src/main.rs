@@ -125,7 +125,8 @@ fn main() -> Result<()> {
     let macro_context = &rust::import("crate::macros", "MacroContext");
     let number_source = &rust::import("crate::ast", "NumberSource");
     let parse = &rust::import("crate::parse", "Parse");
-    let compile_error = &rust::import("crate::compile", "CompileError");
+    let compile_error = &rust::import("crate::compile", "Error");
+    let compile_result = &rust::import("crate::compile", "Result");
     let parser = &rust::import("crate::parse", "Parser");
     let peeker = &rust::import("crate::parse", "Peeker");
     let peek = &rust::import("crate::parse", "Peek");
@@ -158,7 +159,7 @@ fn main() -> Result<()> {
                 }
 
                 impl $parse for $(t.variant()) {
-                    fn parse(p: &mut $parser<'_>) -> Result<Self, $compile_error> {
+                    fn parse(p: &mut $parser<'_>) -> $compile_result<Self> {
                         let token = p.next()?;
 
                         match token.kind {

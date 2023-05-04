@@ -6,7 +6,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast::Span;
 use crate::collections::HashMap;
-use crate::compile::{CompileError, CompileErrorKind, Location};
+use crate::compile::{self, CompileErrorKind, Location};
 use crate::runtime::{Inst, Label};
 use crate::{Hash, SourceId};
 
@@ -63,11 +63,11 @@ impl Assembly {
     }
 
     /// Apply the label at the current instruction offset.
-    pub(crate) fn label(&mut self, label: Label) -> Result<Label, CompileError> {
+    pub(crate) fn label(&mut self, label: Label) -> compile::Result<Label> {
         let offset = self.instructions.len();
 
         if self.labels.insert(label, offset).is_some() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 self.location.span,
                 CompileErrorKind::DuplicateLabel { label },
             ));

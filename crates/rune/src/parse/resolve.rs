@@ -1,4 +1,4 @@
-use crate::compile::CompileError;
+use crate::compile;
 use crate::macros::Storage;
 use crate::Sources;
 
@@ -17,5 +17,5 @@ pub trait Resolve<'a> {
     type Output: 'a;
 
     /// Resolve the value from parsed AST.
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Self::Output, CompileError>;
+    fn resolve(&self, ctx: ResolveContext<'a>) -> compile::Result<Self::Output>;
 }

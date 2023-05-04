@@ -1,9 +1,7 @@
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
-use crate::compile::{
-    self, CompileError, CompileErrorKind, IntoComponent, ItemBuf, ModId, Visibility,
-};
+use crate::compile::{self, CompileErrorKind, IntoComponent, ItemBuf, ModId, Visibility};
 use crate::query::Query;
 use crate::{Context, SourceId};
 
@@ -73,7 +71,7 @@ impl WildcardImport {
         }
 
         if !self.found {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 self.span,
                 CompileErrorKind::MissingItem { item: self.name },
             ));

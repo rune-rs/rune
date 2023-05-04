@@ -19,7 +19,7 @@ pub use self::parser::{Parser, Peeker};
 pub use self::peek::Peek;
 pub(crate) use self::resolve::{Resolve, ResolveContext};
 
-use crate::compile::CompileError;
+use crate::compile;
 use crate::SourceId;
 
 /// Parse the given input as the given type that implements
@@ -29,7 +29,7 @@ use crate::SourceId;
 ///
 /// This will raise an error through [Parser::eof] if the specified `source` is
 /// not fully consumed by the parser.
-pub fn parse_all<T>(source: &str, source_id: SourceId, shebang: bool) -> Result<T, CompileError>
+pub fn parse_all<T>(source: &str, source_id: SourceId, shebang: bool) -> compile::Result<T>
 where
     T: Parse,
 {

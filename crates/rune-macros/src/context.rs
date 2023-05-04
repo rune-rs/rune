@@ -629,7 +629,7 @@ impl Context {
             object: quote!(#module::runtime::Object),
             opaque: quote!(#module::parse::Opaque),
             option_spanned: quote!(#module::ast::OptionSpanned),
-            compile_error: quote!(#module::compile::CompileError),
+            compile_error: quote!(#module::compile::Error),
             parse: quote!(#module::parse::Parse),
             parser: quote!(#module::parse::Parser),
             pointer_guard: quote!(#module::runtime::SharedPointerGuard),

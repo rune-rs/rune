@@ -14,8 +14,8 @@ use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::meta;
 use crate::compile::{
-    Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, Pool,
-    QueryErrorKind,
+    self, Assembly, AssemblyInst, CompileErrorKind, Item, ItemBuf, Location, Pool, QueryErrorKind,
+    WithSpanExt,
 };
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{
@@ -82,7 +82,7 @@ impl UnitBuilder {
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
-    pub(crate) fn build(mut self, span: Span) -> Result<Unit, CompileError> {
+    pub(crate) fn build(mut self, span: Span) -> compile::Result<Unit> {
         if let Some(debug) = &mut self.debug {
             debug.functions_rev = self.functions_rev;
         }
@@ -91,7 +91,7 @@ impl UnitBuilder {
             if let Some(info) = self.functions.get(&to) {
                 let info = *info;
                 if self.functions.insert(from, info).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         CompileErrorKind::FunctionConflictHash { hash: from },
                     ));
@@ -102,7 +102,7 @@ impl UnitBuilder {
             if let Some(value) = self.constants.get(&to) {
                 let const_value = value.clone();
                 if self.constants.insert(from, const_value).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         CompileErrorKind::ConstantConflict {
                             item: ItemBuf::with_item(["unknown"]),
@@ -113,7 +113,7 @@ impl UnitBuilder {
                 continue;
             }
 
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::MissingFunctionHash { hash: to },
             ));
@@ -140,13 +140,13 @@ impl UnitBuilder {
         &mut self,
         span: Span,
         current: &str,
-    ) -> Result<usize, CompileError> {
+    ) -> compile::Result<usize> {
         let current = StaticString::new(current);
         let hash = current.hash();
 
         if let Some(existing_slot) = self.static_string_rev.get(&hash).copied() {
             let existing = self.static_strings.get(existing_slot).ok_or_else(|| {
-                CompileError::new(
+                compile::Error::new(
                     span,
                     CompileErrorKind::StaticStringMissing {
                         hash,
@@ -156,7 +156,7 @@ impl UnitBuilder {
             })?;
 
             if ***existing != *current {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::StaticStringHashConflict {
                         hash,
@@ -183,12 +183,12 @@ impl UnitBuilder {
         &mut self,
         span: Span,
         current: &[u8],
-    ) -> Result<usize, CompileError> {
+    ) -> compile::Result<usize> {
         let hash = Hash::static_bytes(current);
 
         if let Some(existing_slot) = self.static_bytes_rev.get(&hash).copied() {
             let existing = self.static_bytes.get(existing_slot).ok_or_else(|| {
-                CompileError::new(
+                compile::Error::new(
                     span,
                     CompileErrorKind::StaticBytesMissing {
                         hash,
@@ -198,7 +198,7 @@ impl UnitBuilder {
             })?;
 
             if &**existing != current {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::StaticBytesHashConflict {
                         hash,
@@ -223,7 +223,7 @@ impl UnitBuilder {
         &mut self,
         span: Span,
         current: I,
-    ) -> Result<usize, CompileError>
+    ) -> compile::Result<usize>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -242,12 +242,12 @@ impl UnitBuilder {
         &mut self,
         span: Span,
         current: Box<[String]>,
-    ) -> Result<usize, CompileError> {
+    ) -> compile::Result<usize> {
         let hash = Hash::object_keys(&current[..]);
 
         if let Some(existing_slot) = self.static_object_keys_rev.get(&hash).copied() {
             let existing = self.static_object_keys.get(existing_slot).ok_or_else(|| {
-                CompileError::new(
+                compile::Error::new(
                     span,
                     CompileErrorKind::StaticObjectKeysMissing {
                         hash,
@@ -257,7 +257,7 @@ impl UnitBuilder {
             })?;
 
             if *existing != current {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::StaticObjectKeysHashConflict {
                         hash,
@@ -282,7 +282,7 @@ impl UnitBuilder {
         span: Span,
         meta: &meta::Meta,
         pool: &mut Pool,
-    ) -> Result<(), CompileError> {
+    ) -> compile::Result<()> {
         match meta.kind {
             meta::Kind::Unknown { .. } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
@@ -298,7 +298,7 @@ impl UnitBuilder {
                 );
 
                 if self.rtti.insert(hash, rtti).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::TypeRttiConflict { hash },
                     ));
@@ -321,14 +321,14 @@ impl UnitBuilder {
                 });
 
                 if self.rtti.insert(meta.hash, rtti).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
 
                 if self.functions.insert(meta.hash, info).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::FunctionConflict {
                             existing: signature,
@@ -363,14 +363,14 @@ impl UnitBuilder {
                 });
 
                 if self.rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::TypeRttiConflict { hash: tuple.hash },
                     ));
                 }
 
                 if self.functions.insert(tuple.hash, info).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::FunctionConflict {
                             existing: signature,
@@ -401,7 +401,7 @@ impl UnitBuilder {
                 );
 
                 if self.rtti.insert(hash, rtti).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::TypeRttiConflict { hash },
                     ));
@@ -419,7 +419,7 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(meta.hash, rtti).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::VariantRttiConflict { hash: meta.hash },
                     ));
@@ -433,7 +433,7 @@ impl UnitBuilder {
                 );
 
                 if self.functions.insert(meta.hash, info).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::FunctionConflict {
                             existing: signature,
@@ -455,7 +455,7 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::VariantRttiConflict { hash: tuple.hash },
                     ));
@@ -472,7 +472,7 @@ impl UnitBuilder {
                 );
 
                 if self.functions.insert(tuple.hash, info).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::FunctionConflict {
                             existing: signature,
@@ -498,7 +498,7 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(hash, rtti).is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         QueryErrorKind::VariantRttiConflict { hash },
                     ));
@@ -541,7 +541,7 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
-    ) -> Result<(), CompileError> {
+    ) -> compile::Result<()> {
         let offset = self.instructions.len();
         let hash = Hash::type_hash(item);
 
@@ -550,7 +550,7 @@ impl UnitBuilder {
         let signature = DebugSignature::new(item.to_owned(), DebugArgs::Named(debug_args));
 
         if self.functions.insert(hash, info).is_some() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 location.span,
                 CompileErrorKind::FunctionConflict {
                     existing: signature,
@@ -575,12 +575,12 @@ impl UnitBuilder {
         location: Location,
         item: &Item,
         target: &Item,
-    ) -> Result<(), CompileError> {
+    ) -> compile::Result<()> {
         let hash = Hash::type_hash(item);
         let target = Hash::type_hash(target);
 
         if self.reexports.insert(hash, target).is_some() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 location.span,
                 CompileErrorKind::FunctionReExportConflict { hash },
             ));
@@ -600,7 +600,7 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Box<[Box<str>]>,
-    ) -> Result<(), CompileError> {
+    ) -> compile::Result<()> {
         tracing::trace!("instance fn: {}", item);
 
         let offset = self.instructions.len();
@@ -611,7 +611,7 @@ impl UnitBuilder {
         let signature = DebugSignature::new(item.to_owned(), DebugArgs::Named(debug_args));
 
         if self.functions.insert(instance_fn, info).is_some() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 location.span,
                 CompileErrorKind::FunctionConflict {
                     existing: signature,
@@ -620,7 +620,7 @@ impl UnitBuilder {
         }
 
         if self.functions.insert(hash, info).is_some() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 location.span,
                 CompileErrorKind::FunctionConflict {
                     existing: signature,
@@ -665,7 +665,7 @@ impl UnitBuilder {
     }
 
     /// Translate the given assembly into instructions.
-    fn add_assembly(&mut self, location: Location, assembly: Assembly) -> Result<(), CompileError> {
+    fn add_assembly(&mut self, location: Location, assembly: Assembly) -> compile::Result<()> {
         self.label_count = assembly.label_count;
 
         self.required_functions.extend(assembly.required_functions);
@@ -744,16 +744,19 @@ impl UnitBuilder {
             base: usize,
             label: Label,
             labels: &HashMap<Label, usize>,
-        ) -> Result<isize, CompileError> {
+        ) -> compile::Result<isize> {
             let offset = labels
                 .get(&label)
                 .copied()
-                .ok_or_else(|| CompileError::new(span, CompileErrorKind::MissingLabel { label }))?;
+                .ok_or(CompileErrorKind::MissingLabel { label })
+                .with_span(span)?;
 
             let base = isize::try_from(base)
-                .map_err(|_| CompileError::new(span, CompileErrorKind::BaseOverflow))?;
+                .map_err(|_| CompileErrorKind::BaseOverflow)
+                .with_span(span)?;
             let offset = isize::try_from(offset)
-                .map_err(|_| CompileError::new(span, CompileErrorKind::OffsetOverflow))?;
+                .map_err(|_| CompileErrorKind::OffsetOverflow)
+                .with_span(span)?;
 
             let (base, _) = base.overflowing_add(1);
             let (offset, _) = offset.overflowing_sub(base);

@@ -12,17 +12,10 @@ use tokio::sync::Notify;
 
 use crate::ast::{Span, Spanned};
 use crate::collections::HashMap;
-use crate::compile;
 use crate::compile::meta;
-use crate::compile::CompileError;
-use crate::compile::CompileVisitor;
-use crate::compile::ComponentRef;
-use crate::compile::Item;
-use crate::compile::ItemBuf;
-use crate::compile::LinkerError;
-use crate::compile::Location;
-use crate::compile::MetaRef;
-use crate::compile::SourceMeta;
+use crate::compile::{
+    self, CompileVisitor, ComponentRef, Item, ItemBuf, LinkerError, Location, MetaRef, SourceMeta,
+};
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
 use crate::languageserver::connection::Output;
@@ -1001,12 +994,7 @@ impl<'a> ScriptSourceLoader<'a> {
 }
 
 impl<'a> crate::compile::SourceLoader for ScriptSourceLoader<'a> {
-    fn load(
-        &mut self,
-        root: &Path,
-        item: &Item,
-        span: Span,
-    ) -> Result<crate::Source, CompileError> {
+    fn load(&mut self, root: &Path, item: &Item, span: Span) -> compile::Result<crate::Source> {
         tracing::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {

@@ -46,7 +46,7 @@ impl Parse for Label {
                 span: t.span,
                 source,
             }),
-            _ => Err(CompileError::expected(t, "label")),
+            _ => Err(compile::Error::expected(t, "label")),
         }
     }
 }
@@ -60,7 +60,7 @@ impl Peek for Label {
 impl<'a> Resolve<'a> for Label {
     type Output = &'a str;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<&'a str, CompileError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<&'a str> {
         let span = self.span;
 
         match self.source {
@@ -68,13 +68,13 @@ impl<'a> Resolve<'a> for Label {
                 let ident = ctx
                     .sources
                     .source(source_id, span.trim_start(1u32))
-                    .ok_or_else(|| CompileError::new(span, ResolveErrorKind::BadSlice))?;
+                    .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
 
                 Ok(ident)
             }
             ast::LitSource::Synthetic(id) => {
                 let ident = ctx.storage.get_string(id).ok_or_else(|| {
-                    CompileError::new(
+                    compile::Error::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
                             kind: SyntheticKind::Ident,

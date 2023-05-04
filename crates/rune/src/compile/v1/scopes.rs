@@ -5,7 +5,7 @@ use crate::no_std::prelude::*;
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::v1::Assembler;
-use crate::compile::{self, Assembly, CompileError, CompileErrorKind, CompileVisitor};
+use crate::compile::{self, Assembly, CompileErrorKind, CompileVisitor, WithSpanExt};
 use crate::runtime::Inst;
 use crate::SourceId;
 
@@ -94,7 +94,7 @@ impl Scope {
         self.local_var_count += 1;
 
         if let Some(old) = self.locals.insert(name.to_owned(), local) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::VariableConflict {
                     name: name.to_owned(),
@@ -141,12 +141,14 @@ impl Scope {
         self.total_var_count = self
             .total_var_count
             .checked_sub(n)
-            .ok_or_else(|| CompileError::msg(span, "totals out of bounds"))?;
+            .ok_or("totals out of bounds")
+            .with_span(span)?;
 
         self.local_var_count = self
             .local_var_count
             .checked_sub(n)
-            .ok_or_else(|| CompileError::msg(span, "locals out of bounds"))?;
+            .ok_or("locals out of bounds")
+            .with_span(span)?;
 
         Ok(())
     }
@@ -155,7 +157,7 @@ impl Scope {
     fn get(&self, name: &str, span: Span) -> compile::Result<Option<Var>> {
         if let Some(var) = self.locals.get(name) {
             if let Some(moved_at) = var.moved_at {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::VariableMoved { moved_at },
                 ));
@@ -171,7 +173,7 @@ impl Scope {
     fn take(&mut self, name: &str, span: Span) -> compile::Result<Option<&Var>> {
         if let Some(var) = self.locals.get_mut(name) {
             if let Some(moved_at) = var.moved_at {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::VariableMoved { moved_at },
                 ));
@@ -258,7 +260,7 @@ impl Scopes {
     ) -> compile::Result<Var> {
         match self.try_get_var(visitor, name, source_id, span)? {
             Some(var) => Ok(var),
-            None => Err(CompileError::new(
+            None => Err(compile::Error::new(
                 span,
                 CompileErrorKind::MissingLocal {
                     name: name.to_owned(),
@@ -277,7 +279,7 @@ impl Scopes {
     ) -> compile::Result<&Var> {
         match self.try_take_var(visitor, name, source_id, span)? {
             Some(var) => Ok(var),
-            None => Err(CompileError::new(
+            None => Err(compile::Error::new(
                 span,
                 CompileErrorKind::MissingLocal {
                     name: name.to_owned(),
@@ -317,7 +319,10 @@ impl Scopes {
         let ScopeGuard(expected) = expected;
 
         if self.scopes.len() != expected {
-            return Err(CompileError::msg(span, "the number of scopes do not match"));
+            return Err(compile::Error::msg(
+                span,
+                "the number of scopes do not match",
+            ));
         }
 
         self.pop_unchecked(span)
@@ -333,7 +338,7 @@ impl Scopes {
         let scope = self
             .scopes
             .pop()
-            .ok_or_else(|| CompileError::msg(span, "missing parent scope"))?;
+            .ok_or_else(|| compile::Error::msg(span, "missing parent scope"))?;
 
         Ok(scope)
     }
@@ -363,13 +368,13 @@ impl Scopes {
     fn last(&self, span: Span) -> compile::Result<&Scope> {
         self.scopes
             .last()
-            .ok_or_else(|| CompileError::msg(span, "missing head of locals"))
+            .ok_or_else(|| compile::Error::msg(span, "missing head of locals"))
     }
 
     /// Get the last locals scope.
     fn last_mut(&mut self, span: Span) -> compile::Result<&mut Scope> {
         self.scopes
             .last_mut()
-            .ok_or_else(|| CompileError::msg(span, "missing head of locals"))
+            .ok_or_else(|| compile::Error::msg(span, "missing head of locals"))
     }
 }

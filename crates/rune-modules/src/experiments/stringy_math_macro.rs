@@ -1,5 +1,5 @@
 use rune::ast;
-use rune::compile::CompileError;
+use rune::compile;
 use rune::macros::{quote, MacroContext, TokenStream};
 use rune::parse::Parser;
 
@@ -7,7 +7,7 @@ use rune::parse::Parser;
 pub(crate) fn stringy_math(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
-) -> rune::Result<TokenStream> {
+) -> compile::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
 
     let mut output = quote!(0);
@@ -21,7 +21,7 @@ pub(crate) fn stringy_math(
             "sub" => quote!((#output) - #arg),
             "div" => quote!((#output) / #arg),
             "mul" => quote!((#output) * #arg),
-            _ => return Err(CompileError::msg(op, "unsupported operation").into()),
+            _ => return Err(compile::Error::msg(op, "unsupported operation")),
         }
     }
 

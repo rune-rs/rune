@@ -3,8 +3,8 @@
 //!
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
-pub(crate) mod compile;
-pub(crate) use self::compile::IrCompiler;
+pub(crate) mod compiler;
+pub(crate) use self::compiler::IrCompiler;
 
 mod eval;
 pub(crate) use self::eval::{eval_ir, IrEvalOutcome};
@@ -23,11 +23,9 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;
 use crate::compile::ir::eval::IrEvalBreak;
-use crate::compile::{CompileError, ItemMeta};
+use crate::compile::{self, ItemMeta, WithSpanExt};
 use crate::hir;
 use crate::query::Used;
-
-type Result<T, E = CompileError> = core::result::Result<T, E>;
 
 /// Context used for [IrEval].
 pub struct IrEvalContext<'a> {
@@ -41,17 +39,17 @@ pub struct IrEvalContext<'a> {
 pub trait IrEval {
     /// Evaluate the current value as a constant expression and return its value
     /// through its intermediate representation [IrValue].
-    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue>;
+    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> compile::Result<IrValue>;
 }
 
 impl IrEval for ast::Expr {
-    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue> {
+    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> compile::Result<IrValue> {
         let ir = {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
             let hir_ctx = crate::hir::lowering::Ctx::new(&arena, ctx.c.q.borrow());
             let hir = crate::hir::lowering::expr(&hir_ctx, self)?;
-            compile::expr(&hir, &mut ctx.c)?
+            compiler::expr(&hir, &mut ctx.c)?
         };
 
         let mut ir_interpreter = IrInterpreter {
@@ -184,7 +182,10 @@ pub struct IrFn {
 }
 
 impl IrFn {
-    pub(crate) fn compile_ast(hir: &hir::ItemFn<'_>, c: &mut IrCompiler<'_>) -> Result<Self> {
+    pub(crate) fn compile_ast(
+        hir: &hir::ItemFn<'_>,
+        c: &mut IrCompiler<'_>,
+    ) -> compile::Result<Self> {
         let mut args = Vec::new();
 
         for arg in hir.args {
@@ -199,10 +200,10 @@ impl IrFn {
                 }
             }
 
-            return Err(CompileError::msg(arg, "unsupported argument in const fn"));
+            return Err(compile::Error::msg(arg, "unsupported argument in const fn"));
         }
 
-        let ir_scope = compile::block(hir.body, c)?;
+        let ir_scope = compiler::block(hir.body, c)?;
 
         Ok(ir::IrFn {
             span: hir.span(),
@@ -338,7 +339,7 @@ pub enum IrPat {
 }
 
 impl IrPat {
-    fn compile_ast(hir: &hir::Pat<'_>, c: &mut IrCompiler<'_>) -> Result<Self> {
+    fn compile_ast(hir: &hir::Pat<'_>, c: &mut IrCompiler<'_>) -> compile::Result<Self> {
         match hir.kind {
             hir::PatKind::PatIgnore => return Ok(ir::IrPat::Ignore),
             hir::PatKind::PatPath(path) => {
@@ -350,7 +351,7 @@ impl IrPat {
             _ => (),
         }
 
-        Err(CompileError::msg(hir, "pattern not supported yet"))
+        Err(compile::Error::msg(hir, "pattern not supported yet"))
     }
 
     fn matches<S>(
@@ -401,10 +402,12 @@ impl IrBreak {
         span: Span,
         c: &mut IrCompiler<'_>,
         hir: Option<&hir::ExprBreakValue>,
-    ) -> Result<Self> {
+    ) -> compile::Result<Self> {
         let kind = match hir {
             Some(expr) => match *expr {
-                hir::ExprBreakValue::Expr(e) => ir::IrBreakKind::Ir(Box::new(compile::expr(e, c)?)),
+                hir::ExprBreakValue::Expr(e) => {
+                    ir::IrBreakKind::Ir(Box::new(compiler::expr(e, c)?))
+                }
                 hir::ExprBreakValue::Label(label) => {
                     ir::IrBreakKind::Label(c.resolve(label)?.into())
                 }
@@ -535,7 +538,12 @@ pub enum IrAssignOp {
 
 impl IrAssignOp {
     /// Perform the given assign operation.
-    pub(crate) fn assign<S>(self, spanned: S, target: &mut IrValue, operand: IrValue) -> Result<()>
+    pub(crate) fn assign<S>(
+        self,
+        spanned: S,
+        target: &mut IrValue,
+        operand: IrValue,
+    ) -> compile::Result<()>
     where
         S: Copy + Spanned,
     {
@@ -545,11 +553,16 @@ impl IrAssignOp {
             }
         }
 
-        Err(CompileError::msg(spanned, "unsupported operands"))
+        Err(compile::Error::msg(spanned, "unsupported operands"))
     }
 
     /// Perform the given assign operation.
-    fn assign_int<S>(self, spanned: S, target: &mut num::BigInt, operand: num::BigInt) -> Result<()>
+    fn assign_int<S>(
+        self,
+        spanned: S,
+        target: &mut num::BigInt,
+        operand: num::BigInt,
+    ) -> compile::Result<()>
     where
         S: Copy + Spanned,
     {
@@ -566,17 +579,20 @@ impl IrAssignOp {
             IrAssignOp::Div => {
                 *target = target
                     .checked_div(&operand)
-                    .ok_or_else(|| CompileError::msg(spanned, "division by zero"))?;
+                    .ok_or("division by zero")
+                    .with_span(spanned)?;
             }
             IrAssignOp::Shl => {
                 let operand = u32::try_from(operand)
-                    .map_err(|_| CompileError::msg(spanned, "bad operand"))?;
+                    .map_err(|_| "bad operand")
+                    .with_span(spanned)?;
 
                 target.shl_assign(operand);
             }
             IrAssignOp::Shr => {
                 let operand = u32::try_from(operand)
-                    .map_err(|_| CompileError::msg(spanned, "bad operand"))?;
+                    .map_err(|_| "bad operand")
+                    .with_span(spanned)?;
 
                 target.shr_assign(operand);
             }

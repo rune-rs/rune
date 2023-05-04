@@ -1,8 +1,8 @@
 use crate::no_std::prelude::*;
 
-use crate::ast::{Spanned, WithSpanExt};
+use crate::ast::Spanned;
 use crate::collections::HashMap;
-use crate::compile::{CompileError, IrErrorKind};
+use crate::compile::{self, IrErrorKind, WithSpanExt};
 use crate::runtime as rt;
 use crate::runtime::{Bytes, ConstValue, Shared, TypeInfo};
 
@@ -101,7 +101,7 @@ impl IrValue {
     }
 
     /// Convert into constant value.
-    pub(crate) fn into_const<S>(self, spanned: S) -> Result<ConstValue, CompileError>
+    pub(crate) fn into_const<S>(self, spanned: S) -> compile::Result<ConstValue>
     where
         S: Copy + Spanned,
     {
@@ -116,7 +116,7 @@ impl IrValue {
                 let n = match n.clone().to_i64() {
                     Some(n) => n,
                     None => {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             spanned,
                             IrErrorKind::NotInteger { value: n },
                         ))

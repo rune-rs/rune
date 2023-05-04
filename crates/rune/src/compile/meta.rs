@@ -10,7 +10,7 @@ use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
 use crate::compile::{
-    AssociatedFunctionKind, CompileError, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool,
+    self, AssociatedFunctionKind, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool,
     Visibility,
 };
 use crate::hash::Hash;
@@ -56,7 +56,7 @@ impl Doc {
     pub(crate) fn collect_from(
         ctx: ResolveContext<'_>,
         attrs: &mut Attributes,
-    ) -> Result<Vec<Doc>, CompileError> {
+    ) -> compile::Result<Vec<Doc>> {
         Ok(attrs
             .try_parse_collect::<crate::compile::attrs::Doc>(ctx)?
             .into_iter()

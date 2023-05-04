@@ -3,28 +3,16 @@
 //! The main entry to compiling rune source is [prepare][crate::prepare] which
 //! uses this compiler. In here you'll just find compiler-specific types.
 
-use crate::no_std::prelude::*;
-
-use crate::ast;
-use crate::ast::{Span, Spanned};
-use crate::hir;
-use crate::macros::Storage;
-use crate::parse::Resolve;
-use crate::query::{Build, BuildEntry, Query};
-use crate::shared::{Consts, Gen};
-use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Diagnostics, Sources};
-
 mod assembly;
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
 
 pub(crate) mod attrs;
 
 mod compile_error;
-pub use self::compile_error::{CompileError, ImportStep};
 pub(crate) use self::compile_error::{
     CompileErrorKind, HirErrorKind, IrErrorKind, ParseErrorKind, QueryErrorKind, ResolveErrorKind,
 };
+pub use self::compile_error::{Error, ImportStep};
 
 mod compile_visitor;
 pub use self::compile_visitor::CompileVisitor;
@@ -96,8 +84,23 @@ pub(crate) use self::names::Names;
 mod visibility;
 pub(crate) use self::visibility::Visibility;
 
+mod with_span;
+pub(crate) use self::with_span::{WithSpan, WithSpanExt};
+
 /// Helper alias for compile results.
-pub type Result<T, E = CompileError> = ::core::result::Result<T, E>;
+pub type Result<T, E = Error> = ::core::result::Result<T, E>;
+
+use crate::no_std::prelude::*;
+
+use crate::ast;
+use crate::ast::{Span, Spanned};
+use crate::hir;
+use crate::macros::Storage;
+use crate::parse::Resolve;
+use crate::query::{Build, BuildEntry, Query};
+use crate::shared::{Consts, Gen};
+use crate::worker::{LoadFileKind, Task, Worker};
+use crate::{Diagnostics, Sources};
 
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile(
@@ -218,7 +221,7 @@ impl CompileBuildEntry<'_> {
     }
 
     #[tracing::instrument(skip(self, entry))]
-    fn compile(mut self, entry: BuildEntry) -> Result<(), CompileError> {
+    fn compile(mut self, entry: BuildEntry) -> Result<()> {
         let BuildEntry {
             item_meta,
             build,
@@ -238,7 +241,7 @@ impl CompileBuildEntry<'_> {
                     .query_meta(item_meta.location.span, item_meta.item, used)?
                     .is_none()
                 {
-                    return Err(CompileError::new(
+                    return Err(Error::new(
                         item_meta.location.span,
                         CompileErrorKind::MissingItem {
                             item: self.q.pool.item(item_meta.item).to_owned(),
@@ -294,7 +297,7 @@ impl CompileBuildEntry<'_> {
                 let meta = c.lookup_meta(f.instance_span, f.impl_item)?;
 
                 let type_hash = meta.type_hash_of().ok_or_else(|| {
-                    CompileError::expected_meta(span, meta.info(c.q.pool), "instance function")
+                    Error::expected_meta(span, meta.info(c.q.pool), "instance function")
                 })?;
 
                 let arena = hir::Arena::new();
@@ -415,7 +418,7 @@ impl CompileBuildEntry<'_> {
                 };
 
                 if let Some(item) = missing {
-                    return Err(CompileError::new(
+                    return Err(Error::new(
                         location.span,
                         CompileErrorKind::MissingItem {
                             item: self.q.pool.item(item).to_owned(),
@@ -433,7 +436,7 @@ impl CompileBuildEntry<'_> {
                     {
                         Some(item) => item,
                         None => {
-                            return Err(CompileError::new(
+                            return Err(Error::new(
                                 location.span,
                                 CompileErrorKind::MissingItem {
                                     item: self.q.pool.item(item_meta.item).to_owned(),
@@ -458,7 +461,7 @@ fn format_fn_args<'a, I>(
     sources: &Sources,
     location: Location,
     arguments: I,
-) -> Result<Box<[Box<str>]>, CompileError>
+) -> Result<Box<[Box<str>]>>
 where
     I: IntoIterator<Item = &'a ast::FnArg>,
 {

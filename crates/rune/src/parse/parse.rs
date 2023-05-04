@@ -1,10 +1,8 @@
 use crate::no_std::prelude::*;
 
-use crate::compile::CompileError;
+use crate::compile;
 use crate::parse::{Parser, Peek};
 pub use rune_macros::Parse;
-
-type Result<T> = core::result::Result<T, CompileError>;
 
 /// The parse trait, implemented by items that can be parsed.
 pub trait Parse
@@ -12,7 +10,7 @@ where
     Self: Sized,
 {
     /// Parse the current item from the parser.
-    fn parse(p: &mut Parser) -> Result<Self>;
+    fn parse(p: &mut Parser) -> compile::Result<Self>;
 }
 
 impl<A, B> Parse for (A, B)
@@ -20,7 +18,7 @@ where
     A: Parse + Peek,
     B: Parse,
 {
-    fn parse(parser: &mut Parser) -> Result<Self> {
+    fn parse(parser: &mut Parser) -> compile::Result<Self> {
         Ok((parser.parse()?, parser.parse()?))
     }
 }
@@ -30,7 +28,7 @@ impl<T> Parse for Option<T>
 where
     T: Parse + Peek,
 {
-    fn parse(parser: &mut Parser) -> Result<Self> {
+    fn parse(parser: &mut Parser) -> compile::Result<Self> {
         Ok(if parser.peek::<T>()? {
             Some(parser.parse()?)
         } else {
@@ -45,7 +43,7 @@ where
     T: Parse,
 {
     #[inline]
-    fn parse(parser: &mut Parser) -> Result<Self> {
+    fn parse(parser: &mut Parser) -> compile::Result<Self> {
         Ok(Box::new(parser.parse()?))
     }
 }
@@ -55,7 +53,7 @@ impl<T> Parse for Vec<T>
 where
     T: Parse + Peek,
 {
-    fn parse(parser: &mut Parser) -> Result<Self> {
+    fn parse(parser: &mut Parser) -> compile::Result<Self> {
         let mut output = Vec::new();
 
         while parser.peek::<T>()? {

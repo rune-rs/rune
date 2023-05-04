@@ -8,7 +8,7 @@ use thiserror::Error;
 
 #[cfg(feature = "emit")]
 use crate::ast::{Span, Spanned};
-use crate::compile::{CompileError, LinkerError};
+use crate::compile::{self, LinkerError};
 use crate::SourceId;
 
 /// Fatal diagnostic emitted during compilation. Fatal diagnostics indicates an
@@ -70,7 +70,7 @@ pub enum FatalDiagnosticKind {
     CompileError(
         #[from]
         #[source]
-        CompileError,
+        compile::Error,
     ),
     #[error("linker error")]
     LinkError(

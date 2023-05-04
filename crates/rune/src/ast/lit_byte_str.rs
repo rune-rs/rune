@@ -14,7 +14,7 @@ pub struct LitByteStr {
 }
 
 impl LitByteStr {
-    fn parse_escaped(&self, span: Span, source: &str) -> Result<Vec<u8>, CompileError> {
+    fn parse_escaped(&self, span: Span, source: &str) -> Result<Vec<u8>> {
         let mut buffer = Vec::with_capacity(source.len());
 
         let start = span.start.into_usize();
@@ -34,7 +34,7 @@ impl LitByteStr {
                                 .next()
                                 .map(|n| n.0)
                                 .unwrap_or_else(|| span.end.into_usize());
-                            return Err(CompileError::new(Span::new(start, end), kind));
+                            return Err(compile::Error::new(Span::new(start, end), kind));
                         }
                     }
                 }
@@ -65,7 +65,7 @@ impl Parse for LitByteStr {
                 span: t.span,
                 source,
             }),
-            _ => Err(CompileError::expected(t, "byte string")),
+            _ => Err(compile::Error::expected(t, "byte string")),
         }
     }
 }
@@ -73,14 +73,14 @@ impl Parse for LitByteStr {
 impl<'a> Resolve<'a> for LitByteStr {
     type Output = Cow<'a, [u8]>;
 
-    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, [u8]>, CompileError> {
+    fn resolve(&self, ctx: ResolveContext<'a>) -> Result<Cow<'a, [u8]>> {
         let span = self.span;
 
         let text = match self.source {
             ast::StrSource::Text(text) => text,
             ast::StrSource::Synthetic(id) => {
                 let bytes = ctx.storage.get_byte_string(id).ok_or_else(|| {
-                    CompileError::new(
+                    compile::Error::new(
                         span,
                         ResolveErrorKind::BadSyntheticId {
                             kind: SyntheticKind::ByteString,
@@ -97,7 +97,7 @@ impl<'a> Resolve<'a> for LitByteStr {
         let string = ctx
             .sources
             .source(text.source_id, span)
-            .ok_or_else(|| CompileError::new(span, ResolveErrorKind::BadSlice))?;
+            .ok_or_else(|| compile::Error::new(span, ResolveErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
             Cow::Owned(self.parse_escaped(span, string)?)

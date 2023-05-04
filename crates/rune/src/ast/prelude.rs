@@ -3,7 +3,7 @@
 pub(crate) use crate::ast;
 pub(crate) use crate::ast::utils;
 pub(crate) use crate::ast::{OptionSpanned, Span, Spanned};
-pub(crate) use crate::compile::{CompileError, ParseErrorKind, ResolveErrorKind};
+pub(crate) use crate::compile::{self, ParseErrorKind, ResolveErrorKind};
 pub(crate) use crate::macros::{MacroContext, SyntheticKind, ToTokens, TokenStream};
 pub(crate) use crate::no_std::prelude::*;
 pub(crate) use crate::parse::Opaque;
@@ -11,4 +11,4 @@ pub(crate) use crate::parse::{
     Expectation, Id, IntoExpectation, Parse, Parser, Peek, Peeker, Resolve, ResolveContext,
 };
 
-pub(crate) type Result<T, E = CompileError> = core::result::Result<T, E>;
+pub(crate) type Result<T, E = compile::Error> = core::result::Result<T, E>;

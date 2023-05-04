@@ -84,7 +84,7 @@ impl Parse for UnOp {
             K![-] => Ok(Self::Neg(ast::Dash { span: token.span })),
             K![&] => Ok(Self::BorrowRef(ast::Amp { span: token.span })),
             K![*] => Ok(Self::Deref(ast::Star { span: token.span })),
-            _ => Err(CompileError::expected(
+            _ => Err(compile::Error::expected(
                 token,
                 "unary operator, like `!` or `-`",
             )),

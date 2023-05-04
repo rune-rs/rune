@@ -51,7 +51,6 @@
 //! # Ok::<_, rune::Error>(())
 //! ```
 
-use crate::compile::CompileError;
 use crate::macros::{MacroContext, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser, Peek};
 
@@ -63,14 +62,12 @@ pub use self::generated::*;
 macro_rules! expr_parse {
     ($ty:ident, $local:ty, $expected:literal) => {
         impl $crate::parse::Parse for $local {
-            fn parse(
-                p: &mut $crate::parse::Parser<'_>,
-            ) -> Result<Self, $crate::compile::CompileError> {
+            fn parse(p: &mut $crate::parse::Parser<'_>) -> $crate::compile::Result<Self> {
                 let t = p.tok_at(0)?;
 
                 match $crate::ast::Expr::parse(p)? {
                     $crate::ast::Expr::$ty(expr) => Ok(expr),
-                    _ => Err($crate::compile::CompileError::expected(t, $expected)),
+                    _ => Err($crate::compile::Error::expected(t, $expected)),
                 }
             }
         }
@@ -80,14 +77,12 @@ macro_rules! expr_parse {
 macro_rules! item_parse {
     ($ty:ident, $local:ty, $expected:literal) => {
         impl $crate::parse::Parse for $local {
-            fn parse(
-                p: &mut $crate::parse::Parser<'_>,
-            ) -> Result<Self, $crate::compile::CompileError> {
+            fn parse(p: &mut $crate::parse::Parser<'_>) -> $crate::compile::Result<Self> {
                 let t = p.tok_at(0)?;
 
                 match $crate::ast::Item::parse(p)? {
                     $crate::ast::Item::$ty(item) => Ok(item),
-                    _ => Err($crate::compile::CompileError::expected(t, $expected)),
+                    _ => Err($crate::compile::Error::expected(t, $expected)),
                 }
             }
         }
@@ -157,7 +152,6 @@ mod stmt;
 mod token;
 pub(super) mod utils;
 mod vis;
-mod with_span;
 
 pub use self::attribute::{AttrStyle, Attribute};
 pub use self::block::Block;
@@ -225,7 +219,6 @@ pub use self::token::{
     StrSource, StrText, Token,
 };
 pub use self::vis::Visibility;
-pub(crate) use self::with_span::{WithSpan, WithSpanExt};
 
 macro_rules! decl_tokens {
     ($(($parser:ident, $name:expr, $doc:expr, $($kind:tt)*),)*) => {
@@ -244,12 +237,12 @@ macro_rules! decl_tokens {
             }
 
             impl Parse for $parser {
-                fn parse(parser: &mut Parser<'_>) -> core::result::Result<Self, $crate::compile::CompileError> {
+                fn parse(parser: &mut Parser<'_>) -> $crate::compile::Result<Self> {
                     let t = parser.next()?;
 
                     match t.kind {
                         $($kind)* => Ok(Self { span: t.span }),
-                        _ => Err(CompileError::expected(t, $name)),
+                        _ => Err($crate::compile::Error::expected(t, $name)),
                     }
                 }
             }

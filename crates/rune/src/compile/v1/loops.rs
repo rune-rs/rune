@@ -6,7 +6,7 @@ use crate::no_std::rc::Rc;
 use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::v1::Needs;
-use crate::compile::{self, CompileError, CompileErrorKind};
+use crate::compile::{self, CompileErrorKind};
 use crate::parse::ResolveContext;
 use crate::runtime::Label;
 
@@ -95,7 +95,7 @@ impl Loops {
             }
         }
 
-        Err(CompileError::new(
+        Err(compile::Error::new(
             span,
             CompileErrorKind::MissingLoopLabel {
                 label: expected.into(),

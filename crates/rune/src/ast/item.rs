@@ -127,7 +127,7 @@ impl Item {
                     }
                 }
                 _ => {
-                    return Err(CompileError::expected(
+                    return Err(compile::Error::expected(
                         p.tok_at(0)?,
                         "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
                     ))
@@ -135,22 +135,22 @@ impl Item {
             };
 
             if let Some(span) = const_token.option_span() {
-                return Err(CompileError::unsupported(span, "const modifier"));
+                return Err(compile::Error::unsupported(span, "const modifier"));
             }
 
             if let Some(span) = async_token.option_span() {
-                return Err(CompileError::unsupported(span, "async modifier"));
+                return Err(compile::Error::unsupported(span, "async modifier"));
             }
 
             item
         };
 
         if let Some(span) = attributes.option_span() {
-            return Err(CompileError::unsupported(span, "attribute"));
+            return Err(compile::Error::unsupported(span, "attribute"));
         }
 
         if let Some(span) = visibility.option_span() {
-            return Err(CompileError::unsupported(span, "visibility modifier"));
+            return Err(compile::Error::unsupported(span, "visibility modifier"));
         }
 
         Ok(item)

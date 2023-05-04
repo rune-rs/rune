@@ -5,12 +5,12 @@ use crate::no_std::prelude::*;
 
 use num::ToPrimitive;
 
-use crate::ast;
+use crate::ast::{self};
 use crate::ast::{Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
-use crate::compile::{self, CompileError, CompileErrorKind, Item, ParseErrorKind};
+use crate::compile::{self, CompileErrorKind, Item, ParseErrorKind, WithSpanExt};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::{Id, Resolve};
@@ -174,7 +174,7 @@ fn meta(
                 const_(span, c, const_value, Needs::Value)?;
             }
             _ => {
-                return Err(CompileError::expected_meta(
+                return Err(compile::Error::expected_meta(
                     span,
                     meta.info(c.q.pool),
                     "something that can be used as a value",
@@ -185,7 +185,7 @@ fn meta(
         named.assert_not_generic()?;
 
         let type_hash = meta.type_hash_of().ok_or_else(|| {
-            CompileError::expected_meta(span, meta.info(c.q.pool), "something that has a type")
+            compile::Error::expected_meta(span, meta.info(c.q.pool), "something that has a type")
         })?;
 
         c.asm.push(
@@ -301,7 +301,7 @@ fn pat(
                 return Ok(false);
             }
 
-            Err(CompileError::new(
+            Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedBinding,
             ))
@@ -319,7 +319,7 @@ fn pat(
             pat_object(span, c, hir, false_label, &load)?;
             Ok(true)
         }
-        _ => Err(CompileError::new(
+        _ => Err(compile::Error::new(
             hir,
             CompileErrorKind::UnsupportedPatternExpr,
         )),
@@ -339,7 +339,7 @@ fn pat_lit(
     let inst = match pat_lit_inst(span, c, hir)? {
         Some(inst) => inst,
         None => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 hir,
                 CompileErrorKind::UnsupportedPatternExpr,
             ));
@@ -369,7 +369,10 @@ fn pat_lit_inst(
                 },
             ..
         }) => {
-            let integer = lit.resolve(resolve_context!(c.q))?.as_i64(span, true)?;
+            let integer = lit
+                .resolve(resolve_context!(c.q))?
+                .as_i64(true)
+                .with_span(span)?;
             return Ok(Some(Inst::EqInteger { integer }));
         }
         hir::ExprKind::Lit(lit) => match lit {
@@ -392,7 +395,11 @@ fn pat_lit_inst(
                 return Ok(Some(Inst::EqBytes { slot }));
             }
             ast::Lit::Number(lit) => {
-                let integer = lit.resolve(resolve_context!(c.q))?.as_i64(span, false)?;
+                let integer = lit
+                    .resolve(resolve_context!(c.q))?
+                    .as_i64(false)
+                    .with_span(lit)?;
+
                 return Ok(Some(Inst::EqInteger { integer }));
             }
             ast::Lit::Bool(lit) => {
@@ -603,7 +610,7 @@ fn pat_tuple(
         let (args, inst) = match tuple_match_for(span, c, &meta) {
             Some(out) => out,
             None => {
-                return Err(CompileError::expected_meta(
+                return Err(compile::Error::expected_meta(
                     span,
                     meta.info(c.q.pool),
                     "type that can be used in a tuple pattern",
@@ -612,7 +619,7 @@ fn pat_tuple(
         };
 
         if !(args == hir.count || hir.count < args && hir.is_open) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedArgumentCount {
                     meta: meta.info(c.q.pool),
@@ -694,7 +701,7 @@ fn pat_object(
                 let ident = match path.try_as_ident() {
                     Some(ident) => ident,
                     None => {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             CompileErrorKind::UnsupportedPatternExpr,
                         ));
@@ -706,7 +713,7 @@ fn pat_object(
                 key
             }
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedPatternExpr,
                 ));
@@ -716,7 +723,7 @@ fn pat_object(
         string_slots.push(c.q.unit.new_static_string(span, key)?);
 
         if let Some(existing) = keys_dup.insert(key.to_string(), span) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::DuplicateObjectKey {
                     existing,
@@ -740,7 +747,7 @@ fn pat_object(
             let (st, inst) = match struct_match_for(span, c, &meta) {
                 Some(out) => out,
                 None => {
-                    return Err(CompileError::expected_meta(
+                    return Err(compile::Error::expected_meta(
                         path_span,
                         meta.info(c.q.pool),
                         "type that can be used in a struct pattern",
@@ -752,7 +759,7 @@ fn pat_object(
 
             for binding in &bindings {
                 if !fields.remove(binding.key()) {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         CompileErrorKind::LitObjectNotField {
                             field: binding.key().into(),
@@ -769,7 +776,7 @@ fn pat_object(
                     .collect::<Box<[_]>>();
                 fields.sort();
 
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::PatternMissingFields {
                         item: c.q.pool.item(meta.item_meta.item).to_owned(),
@@ -948,7 +955,7 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::
 
     c.contexts
         .pop()
-        .ok_or_else(|| CompileError::msg(span, "missing parent context"))?;
+        .ok_or_else(|| compile::Error::msg(span, "missing parent context"))?;
 
     Ok(Asm::top(span))
 }
@@ -1090,7 +1097,7 @@ fn const_(
             let n = match n.to_i64() {
                 Some(n) => n,
                 None => {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         ParseErrorKind::BadNumberOutOfBounds,
                     ));
@@ -1229,7 +1236,7 @@ fn expr_assign(
             let segment = path
                 .first
                 .try_as_ident()
-                .ok_or_else(|| CompileError::msg(path, "unsupported path"))?;
+                .ok_or_else(|| compile::Error::msg(path, "unsupported path"))?;
             let ident = segment.resolve(resolve_context!(c.q))?;
             let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
@@ -1260,7 +1267,10 @@ fn expr_assign(
                 hir::ExprField::LitNumber(field) => {
                     let number = field.resolve(resolve_context!(c.q))?;
                     let index = number.as_tuple_index().ok_or_else(|| {
-                        CompileError::new(span, CompileErrorKind::UnsupportedTupleIndex { number })
+                        compile::Error::new(
+                            span,
+                            CompileErrorKind::UnsupportedTupleIndex { number },
+                        )
                     })?;
 
                     expr(hir.rhs, c, Needs::Value)?.apply(c)?;
@@ -1291,7 +1301,7 @@ fn expr_assign(
     };
 
     if !supported {
-        return Err(CompileError::new(
+        return Err(compile::Error::new(
             span,
             CompileErrorKind::UnsupportedAssignExpr,
         ));
@@ -1372,7 +1382,7 @@ fn expr_binary(
         ast::BinOp::Shr(..) => InstOp::Shr,
 
         op => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedBinaryOp { op },
             ));
@@ -1419,7 +1429,7 @@ fn expr_binary(
                 c.asm.jump_if_or_pop(end_label, lhs.span());
             }
             op => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedBinaryOp { op: *op },
                 ));
@@ -1453,7 +1463,7 @@ fn expr_binary(
                 let segment = path
                     .first
                     .try_as_ident()
-                    .ok_or_else(|| CompileError::msg(path, "unsupported path segment"))?;
+                    .ok_or_else(|| compile::Error::msg(path, "unsupported path segment"))?;
 
                 let ident = segment.resolve(resolve_context!(c.q))?;
                 let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
@@ -1482,7 +1492,7 @@ fn expr_binary(
 
                         let number = field.resolve(resolve_context!(c.q))?;
                         let index = number.as_tuple_index().ok_or_else(|| {
-                            CompileError::new(
+                            compile::Error::new(
                                 span,
                                 CompileErrorKind::UnsupportedTupleIndex { number },
                             )
@@ -1498,7 +1508,7 @@ fn expr_binary(
         let target = match supported {
             Some(target) => target,
             None => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedBinaryExpr,
                 ));
@@ -1517,7 +1527,7 @@ fn expr_binary(
             ast::BinOp::ShlAssign(..) => InstAssignOp::Shl,
             ast::BinOp::ShrAssign(..) => InstAssignOp::Shr,
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedBinaryExpr,
                 ));
@@ -1588,7 +1598,7 @@ fn expr_block(
             const_(span, c, const_value, needs)?;
         }
         _ => {
-            return Err(CompileError::expected_meta(
+            return Err(compile::Error::expected_meta(
                 span,
                 meta.info(c.q.pool),
                 "async or const block",
@@ -1612,7 +1622,7 @@ fn expr_break(
     let current_loop = match c.loops.last() {
         Some(current_loop) => current_loop,
         None => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::BreakOutsideOfLoop,
             ));
@@ -1644,7 +1654,7 @@ fn expr_break(
         .scopes
         .total_var_count(span)?
         .checked_sub(last_loop.break_var_count)
-        .ok_or_else(|| CompileError::msg(span, "var count should be larger"))?;
+        .ok_or_else(|| compile::Error::msg(span, "var count should be larger"))?;
 
     if last_loop.needs.value() {
         if has_value {
@@ -1666,14 +1676,14 @@ fn generics_parameters(
     span: Span,
     c: &mut Assembler<'_>,
     generics: &[hir::Expr<'_>],
-) -> Result<Hash, CompileError> {
+) -> compile::Result<Hash> {
     let mut parameters = ParametersBuilder::new();
 
     for expr in generics {
         let path = match expr.kind {
             hir::ExprKind::Path(path) => path,
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedGenerics,
                 ));
@@ -1690,7 +1700,7 @@ fn generics_parameters(
                 meta.hash
             }
             _ => {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::UnsupportedGenerics,
                 ));
@@ -1770,7 +1780,7 @@ fn convert_expr_call(
                     named.assert_not_generic()?;
 
                     if !hir.args.is_empty() {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
                                 meta: meta.info(c.q.pool),
@@ -1791,7 +1801,7 @@ fn convert_expr_call(
                     named.assert_not_generic()?;
 
                     if tuple.args != hir.args.len() {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
                                 meta: meta.info(c.q.pool),
@@ -1818,7 +1828,7 @@ fn convert_expr_call(
                     return Ok(Call::ConstFn { meta, id });
                 }
                 _ => {
-                    return Err(CompileError::expected_meta(
+                    return Err(compile::Error::expected_meta(
                         span,
                         meta.info(c.q.pool),
                         "something that can be called as a function",
@@ -1956,7 +1966,7 @@ pub(crate) fn closure_from_expr_closure(
     for arg in hir.args {
         match arg {
             hir::FnArg::SelfValue(s) => {
-                return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf))
+                return Err(compile::Error::new(s, CompileErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
                 let offset = c.scopes.decl_anon(pat.span())?;
@@ -2001,7 +2011,7 @@ fn expr_closure(
     let meta = match c.q.query_meta(span, item.item, Default::default())? {
         Some(meta) => meta,
         None => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::MissingItem {
                     item: c.q.pool.item(item.item).to_owned(),
@@ -2015,7 +2025,7 @@ fn expr_closure(
             captures, do_move, ..
         } => (captures.as_ref(), *do_move),
         _ => {
-            return Err(CompileError::expected_meta(
+            return Err(compile::Error::expected_meta(
                 span,
                 meta.info(c.q.pool),
                 "a closure",
@@ -2069,7 +2079,7 @@ fn expr_continue(
     let current_loop = match c.loops.last() {
         Some(current_loop) => current_loop,
         None => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::ContinueOutsideOfLoop,
             ));
@@ -2087,7 +2097,7 @@ fn expr_continue(
         .scopes
         .total_var_count(span)?
         .checked_sub(last_loop.continue_var_count)
-        .ok_or_else(|| CompileError::msg(span, "var count should be larger"))?;
+        .ok_or_else(|| compile::Error::msg(span, "var count should be larger"))?;
 
     c.locals_pop(vars, span);
 
@@ -2150,7 +2160,7 @@ fn expr_field_access(
         }
     }
 
-    return Err(CompileError::new(span, CompileErrorKind::BadFieldAccess));
+    return Err(compile::Error::new(span, CompileErrorKind::BadFieldAccess));
 
     fn try_immediate_field_access_optimization(
         c: &mut Assembler<'_>,
@@ -2605,7 +2615,7 @@ fn expr_object(
         check_keys.push((key.as_ref().into(), assign.key.span()));
 
         if let Some(existing) = keys_dup.insert(key.into_owned(), span) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::DuplicateObjectKey {
                     existing,
@@ -2671,7 +2681,7 @@ fn expr_object(
                     c.asm.push(Inst::StructVariant { hash, slot }, span);
                 }
                 _ => {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         CompileErrorKind::UnsupportedLitObject {
                             meta: meta.info(c.q.pool),
@@ -2704,7 +2714,7 @@ fn expr_object(
 
         for (field, span) in check_keys {
             if !fields.remove(&field) {
-                return Err(CompileError::new(
+                return Err(compile::Error::new(
                     span,
                     CompileErrorKind::LitObjectNotField {
                         field,
@@ -2715,7 +2725,7 @@ fn expr_object(
         }
 
         if let Some(field) = fields.into_iter().next() {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::LitObjectMissingField {
                     field,
@@ -2765,7 +2775,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         // light heuristics, treat it as a type error in case the first
         // character is uppercase.
         if !local.starts_with(char::is_uppercase) {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::MissingLocal {
                     name: local.to_owned(),
@@ -2774,7 +2784,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         }
     }
 
-    Err(CompileError::new(
+    Err(compile::Error::new(
         span,
         CompileErrorKind::MissingItem {
             item: c.q.pool.item(named.item).to_owned(),
@@ -2908,7 +2918,7 @@ fn expr_select(
             }
             hir::ExprSelectBranch::Default(def) => {
                 if default_branch.is_some() {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         CompileErrorKind::SelectMultipleDefaults,
                     ));
@@ -2967,7 +2977,7 @@ fn expr_select(
                 _ => (),
             }
 
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 branch,
                 CompileErrorKind::UnsupportedSelectPattern,
             ));
@@ -2988,7 +2998,7 @@ fn expr_select(
 
     c.contexts
         .pop()
-        .ok_or_else(|| CompileError::msg(span, "missing parent context"))?;
+        .ok_or_else(|| compile::Error::msg(span, "missing parent context"))?;
 
     Ok(Asm::top(span))
 }
@@ -3042,7 +3052,7 @@ fn expr_tuple(
             let mut it = hir.items.iter();
 
             $(
-            let $var = it.next().ok_or_else(|| CompileError::msg($span, "items ended unexpectedly"))?;
+            let $var = it.next().ok_or_else(|| compile::Error::msg($span, "items ended unexpectedly"))?;
             let $var = expr($var, $c, Needs::Value)?.apply_targeted($c)?;
             )*
 
@@ -3101,7 +3111,7 @@ fn expr_unary(
 ) -> compile::Result<Asm> {
     // NB: special unary expressions.
     if let ast::UnOp::BorrowRef { .. } = hir.op {
-        return Err(CompileError::new(span, CompileErrorKind::UnsupportedRef));
+        return Err(compile::Error::new(span, CompileErrorKind::UnsupportedRef));
     }
 
     if let (ast::UnOp::Neg(..), hir::ExprKind::Lit(ast::Lit::Number(n))) = (hir.op, hir.expr.kind) {
@@ -3113,7 +3123,7 @@ fn expr_unary(
                 let n = match int.neg().to_i64() {
                     Some(n) => n,
                     None => {
-                        return Err(CompileError::new(
+                        return Err(compile::Error::new(
                             span,
                             ParseErrorKind::BadNumberOutOfBounds,
                         ));
@@ -3137,7 +3147,7 @@ fn expr_unary(
             c.asm.push(Inst::Neg, span);
         }
         op => {
-            return Err(CompileError::new(
+            return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedUnaryOp { op },
             ));
@@ -3275,7 +3285,10 @@ pub(crate) fn fn_from_item_fn(
         match arg {
             hir::FnArg::SelfValue(span) => {
                 if !instance_fn || !first {
-                    return Err(CompileError::new(*span, CompileErrorKind::UnsupportedSelf));
+                    return Err(compile::Error::new(
+                        *span,
+                        CompileErrorKind::UnsupportedSelf,
+                    ));
                 }
 
                 c.scopes.new_var(SELF, *span)?;
@@ -3391,7 +3404,7 @@ fn lit_number(hir: &ast::LitNumber, c: &mut Assembler<'_>, needs: Needs) -> comp
             let n = match number.to_i64() {
                 Some(n) => n,
                 None => {
-                    return Err(CompileError::new(
+                    return Err(compile::Error::new(
                         span,
                         ParseErrorKind::BadNumberOutOfBounds,
                     ));

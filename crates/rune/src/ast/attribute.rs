@@ -121,7 +121,7 @@ impl Parse for InnerAttribute {
 
         match attribute.style {
             AttrStyle::Inner => Ok(Self(attribute)),
-            _ => Err(CompileError::expected(
+            _ => Err(compile::Error::expected(
                 attribute,
                 "inner attribute like `#![allow(unused)]`",
             )),
