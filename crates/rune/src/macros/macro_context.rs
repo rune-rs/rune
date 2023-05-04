@@ -5,8 +5,8 @@ use core::fmt;
 use crate::ast;
 use crate::ast::Span;
 use crate::compile::{
-    CompileError, IrCompiler, IrError, IrEval, IrEvalContext, IrValue, ItemMeta,
-    NoopCompileVisitor, ParseErrorKind, Pool, Prelude, UnitBuilder,
+    CompileError, IrCompiler, IrEval, IrEvalContext, IrValue, ItemMeta, NoopCompileVisitor,
+    ParseErrorKind, Pool, Prelude, UnitBuilder,
 };
 use crate::macros::{IntoLit, Storage, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
@@ -97,7 +97,7 @@ impl<'a> MacroContext<'a> {
     ///     assert_eq!(3, value.into_integer::<u32>().unwrap());
     /// });
     /// ```
-    pub fn eval<T>(&mut self, target: &T) -> Result<IrValue, IrError>
+    pub fn eval<T>(&mut self, target: &T) -> Result<IrValue, CompileError>
     where
         T: IrEval,
     {

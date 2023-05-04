@@ -23,7 +23,7 @@ pub(crate) mod attrs;
 mod compile_error;
 pub use self::compile_error::{CompileError, ImportStep};
 pub(crate) use self::compile_error::{
-    CompileErrorKind, ParseErrorKind, QueryErrorKind, ResolveErrorKind,
+    CompileErrorKind, HirErrorKind, IrErrorKind, ParseErrorKind, QueryErrorKind, ResolveErrorKind,
 };
 
 mod compile_visitor;
@@ -46,10 +46,8 @@ mod prelude;
 pub(crate) use self::prelude::Prelude;
 
 pub(crate) mod ir;
-pub(crate) use self::ir::{
-    IrBudget, IrCompiler, IrErrorKind, IrEvalContext, IrEvalOutcome, IrInterpreter,
-};
-pub use self::ir::{IrError, IrEval, IrValue};
+pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, IrInterpreter};
+pub use self::ir::{IrEval, IrValue};
 
 pub(crate) mod item;
 pub use self::item::{Component, ComponentRef, IntoComponent, Item, ItemBuf};

@@ -4,7 +4,7 @@ use crate::no_std::prelude::*;
 
 use crate::ast;
 use crate::ast::Spanned;
-use crate::compile::{CompileError, CompileErrorKind, CompileResult, IrError, ItemMeta, Options};
+use crate::compile::{CompileError, CompileErrorKind, CompileResult, ItemMeta, Options};
 use crate::macros::MacroContext;
 use crate::parse::{Parse, Parser};
 use crate::query::Query;
@@ -73,11 +73,6 @@ impl MacroCompiler<'_> {
         let token_stream = match result {
             Ok(output) => output,
             Err(error) => {
-                let error = match error.downcast::<IrError>() {
-                    Ok(error) => return Err(CompileError::from(error)),
-                    Err(error) => error,
-                };
-
                 let error = match error.downcast::<CompileError>() {
                     Ok(error) => return Err(error),
                     Err(error) => error,

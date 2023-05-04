@@ -33,7 +33,7 @@ impl<'a> Parser<'a> {
     /// Construct a new parser around the given source.
     ///
     /// `shebang` indicates if the parser should try and parse a shebang or not.
-    pub(crate) fn new(source: &'a str, source_id: SourceId, shebang: bool) -> Self {
+    pub fn new(source: &'a str, source_id: SourceId, shebang: bool) -> Self {
         Self::with_source(
             Source {
                 inner: SourceInner::Lexer(Lexer::new(source, source_id, shebang)),

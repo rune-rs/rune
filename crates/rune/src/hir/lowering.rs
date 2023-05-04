@@ -1,13 +1,15 @@
 use crate::ast::{self, Spanned};
+use crate::compile::{CompileError, HirErrorKind};
 use crate::hir;
-use crate::hir::{HirError, HirErrorKind};
 use crate::query::{self, Query};
+
+type Result<T> = core::result::Result<T, CompileError>;
 
 /// Allocate a single object in the arena.
 macro_rules! alloc {
     ($ctx:expr, $span:expr; $value:expr) => {
         $ctx.arena.alloc($value).map_err(|e| {
-            HirError::new(
+            CompileError::new(
                 $span,
                 HirErrorKind::ArenaAllocError {
                     requested: e.requested,
@@ -39,7 +41,7 @@ macro_rules! iter {
         let mut writer = match $ctx.arena.alloc_iter(ExactSizeIterator::len(&it)) {
             Ok(writer) => writer,
             Err(e) => {
-                return Err(HirError::new(
+                return Err(CompileError::new(
                     $span,
                     HirErrorKind::ArenaAllocError {
                         requested: e.requested,
@@ -50,7 +52,7 @@ macro_rules! iter {
 
         while let Some($pat) = it.next() {
             if let Err(e) = writer.write($closure) {
-                return Err(HirError::new(
+                return Err(CompileError::new(
                     $span,
                     HirErrorKind::ArenaWriteSliceOutOfBounds { index: e.index },
                 ));
@@ -75,10 +77,7 @@ impl<'hir, 'a> Ctx<'hir, 'a> {
 }
 
 /// Lower a function item.
-pub(crate) fn item_fn<'hir>(
-    ctx: &Ctx<'hir, '_>,
-    ast: &ast::ItemFn,
-) -> Result<hir::ItemFn<'hir>, HirError> {
+pub(crate) fn item_fn<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::ItemFn) -> Result<hir::ItemFn<'hir>> {
     Ok(hir::ItemFn {
         id: ast.id,
         span: ast.span(),
@@ -93,7 +92,7 @@ pub(crate) fn item_fn<'hir>(
 pub(crate) fn expr_closure<'hir>(
     ctx: &Ctx<'hir, '_>,
     ast: &ast::ExprClosure,
-) -> Result<hir::ExprClosure<'hir>, HirError> {
+) -> Result<hir::ExprClosure<'hir>> {
     Ok(hir::ExprClosure {
         id: ast.id,
         args: match &ast.args {
@@ -107,10 +106,7 @@ pub(crate) fn expr_closure<'hir>(
 }
 
 /// Lower the specified block.
-pub(crate) fn block<'hir>(
-    ctx: &Ctx<'hir, '_>,
-    ast: &ast::Block,
-) -> Result<hir::Block<'hir>, HirError> {
+pub(crate) fn block<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Block) -> Result<hir::Block<'hir>> {
     Ok(hir::Block {
         id: ast.id,
         span: ast.span(),
@@ -119,10 +115,7 @@ pub(crate) fn block<'hir>(
 }
 
 /// Lower an expression.
-pub(crate) fn expr<'hir>(
-    ctx: &Ctx<'hir, '_>,
-    ast: &ast::Expr,
-) -> Result<hir::Expr<'hir>, HirError> {
+pub(crate) fn expr<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Expr) -> Result<hir::Expr<'hir>> {
     let kind = match ast {
         ast::Expr::Path(ast) => hir::ExprKind::Path(alloc!(ctx, ast; path(ctx, ast)?)),
         ast::Expr::Assign(ast) => hir::ExprKind::Assign(alloc!(ctx, ast; hir::ExprAssign {
@@ -299,7 +292,7 @@ pub(crate) fn expr<'hir>(
 pub(crate) fn expr_block<'hir>(
     ctx: &Ctx<'hir, '_>,
     ast: &ast::ExprBlock,
-) -> Result<hir::ExprBlock<'hir>, HirError> {
+) -> Result<hir::ExprBlock<'hir>> {
     Ok(hir::ExprBlock {
         kind: match (&ast.async_token, &ast.const_token) {
             (Some(..), None) => hir::ExprBlockKind::Async,
@@ -312,10 +305,7 @@ pub(crate) fn expr_block<'hir>(
 }
 
 /// Visibility covnersion.
-fn visibility<'hir>(
-    ctx: &Ctx<'hir, '_>,
-    ast: &ast::Visibility,
-) -> Result<hir::Visibility<'hir>, HirError> {
+fn visibility<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Visibility) -> Result<hir::Visibility<'hir>> {
     Ok(match ast {
         ast::Visibility::Inherited => hir::Visibility::Inherited,
         ast::Visibility::Public(_) => hir::Visibility::Public,
@@ -329,7 +319,7 @@ fn visibility<'hir>(
 }
 
 /// Lower a function argument.
-fn fn_arg<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::FnArg) -> Result<hir::FnArg<'hir>, HirError> {
+fn fn_arg<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::FnArg) -> Result<hir::FnArg<'hir>> {
     Ok(match ast {
         ast::FnArg::SelfValue(ast) => hir::FnArg::SelfValue(ast.span()),
         ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(ctx, ast; pat(ctx, ast)?)),
@@ -337,7 +327,7 @@ fn fn_arg<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::FnArg) -> Result<hir::FnArg<'hir
 }
 
 /// Lower an assignment.
-fn local<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Local) -> Result<hir::Local<'hir>, HirError> {
+fn local<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Local) -> Result<hir::Local<'hir>> {
     Ok(hir::Local {
         span: ast.span(),
         pat: alloc!(ctx, ast; pat(ctx, &ast.pat)?),
@@ -346,7 +336,7 @@ fn local<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Local) -> Result<hir::Local<'hir>
 }
 
 /// Lower a statement
-fn stmt<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Stmt) -> Result<hir::Stmt<'hir>, HirError> {
+fn stmt<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Stmt) -> Result<hir::Stmt<'hir>> {
     Ok(match ast {
         ast::Stmt::Local(ast) => hir::Stmt::Local(alloc!(ctx, ast; local(ctx, ast)?)),
         ast::Stmt::Expr(ast) => hir::Stmt::Expr(alloc!(ctx, ast; expr(ctx, ast)?)),
@@ -355,7 +345,7 @@ fn stmt<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Stmt) -> Result<hir::Stmt<'hir>, H
     })
 }
 
-fn pat<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Pat) -> Result<hir::Pat<'hir>, HirError> {
+fn pat<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Pat) -> Result<hir::Pat<'hir>> {
     Ok(hir::Pat {
         span: ast.span(),
         kind: match ast {
@@ -408,10 +398,7 @@ fn pat<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Pat) -> Result<hir::Pat<'hir>, HirE
     })
 }
 
-fn object_key<'hir>(
-    ctx: &Ctx<'hir, '_>,
-    ast: &ast::ObjectKey,
-) -> Result<hir::ObjectKey<'hir>, HirError> {
+fn object_key<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::ObjectKey) -> Result<hir::ObjectKey<'hir>> {
     Ok(match ast {
         ast::ObjectKey::LitStr(ast) => hir::ObjectKey::LitStr(alloc!(ctx, ast; *ast)),
         ast::ObjectKey::Path(ast) => hir::ObjectKey::Path(alloc!(ctx, ast; path(ctx, ast)?)),
@@ -422,7 +409,7 @@ fn object_key<'hir>(
 fn object_ident<'hir>(
     ctx: &Ctx<'hir, '_>,
     ast: &ast::ObjectIdent,
-) -> Result<Option<&'hir hir::Path<'hir>>, HirError> {
+) -> Result<Option<&'hir hir::Path<'hir>>> {
     Ok(match ast {
         ast::ObjectIdent::Anonymous(_) => None,
         ast::ObjectIdent::Named(ast) => Some(alloc!(ctx, ast; path(ctx, ast)?)),
@@ -430,10 +417,7 @@ fn object_ident<'hir>(
 }
 
 /// Lower the given path.
-pub(crate) fn path<'hir>(
-    ctx: &Ctx<'hir, '_>,
-    ast: &ast::Path,
-) -> Result<hir::Path<'hir>, HirError> {
+pub(crate) fn path<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Path) -> Result<hir::Path<'hir>> {
     Ok(hir::Path {
         id: ast.id,
         span: ast.span(),
@@ -447,7 +431,7 @@ pub(crate) fn path<'hir>(
 fn path_segment<'hir>(
     ctx: &Ctx<'hir, '_>,
     ast: &ast::PathSegment,
-) -> Result<hir::PathSegment<'hir>, HirError> {
+) -> Result<hir::PathSegment<'hir>> {
     let kind = match ast {
         ast::PathSegment::SelfType(..) => hir::PathSegmentKind::SelfType,
         ast::PathSegment::SelfValue(..) => hir::PathSegmentKind::SelfValue,
@@ -465,17 +449,14 @@ fn path_segment<'hir>(
     })
 }
 
-fn label(_: &Ctx<'_, '_>, ast: &ast::Label) -> Result<ast::Label, HirError> {
+fn label(_: &Ctx<'_, '_>, ast: &ast::Label) -> Result<ast::Label> {
     Ok(ast::Label {
         span: ast.span,
         source: ast.source,
     })
 }
 
-fn condition<'hir>(
-    ctx: &Ctx<'hir, '_>,
-    ast: &ast::Condition,
-) -> Result<hir::Condition<'hir>, HirError> {
+fn condition<'hir>(ctx: &Ctx<'hir, '_>, ast: &ast::Condition) -> Result<hir::Condition<'hir>> {
     Ok(match ast {
         ast::Condition::Expr(ast) => hir::Condition::Expr(alloc!(ctx, ast; expr(ctx, ast)?)),
         ast::Condition::ExprLet(ast) => hir::Condition::ExprLet(alloc!(ctx, ast; hir::ExprLet {
@@ -486,7 +467,7 @@ fn condition<'hir>(
 }
 
 /// Test if the given pattern is open or not.
-fn pat_items_count(items: &[hir::Pat<'_>]) -> Result<(bool, usize), HirError> {
+fn pat_items_count(items: &[hir::Pat<'_>]) -> Result<(bool, usize)> {
     let mut it = items.iter();
 
     let (is_open, mut count) = match it.next_back() {
@@ -498,7 +479,7 @@ fn pat_items_count(items: &[hir::Pat<'_>]) -> Result<(bool, usize), HirError> {
 
     for pat in it {
         if let hir::PatKind::PatRest = pat.kind {
-            return Err(HirError::new(
+            return Err(CompileError::new(
                 pat.span(),
                 HirErrorKind::UnsupportedPatternRest,
             ));

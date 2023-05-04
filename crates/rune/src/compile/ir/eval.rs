@@ -3,18 +3,19 @@ use core::ops::{Add, Mul, Shl, Shr, Sub};
 
 use crate::no_std::prelude::*;
 
-use crate::ast::{Span, Spanned};
+use crate::ast::{Span, Spanned, WithSpanExt};
 use crate::collections::HashMap;
 use crate::compile::ir;
-use crate::compile::ir::{IrError, IrInterpreter, IrValue};
+use crate::compile::ir::{IrInterpreter, IrValue};
+use crate::compile::CompileError;
 use crate::query::Used;
 use crate::runtime::Shared;
 
 /// Process an ir value as a boolean.
-fn as_bool(span: Span, value: IrValue) -> Result<bool, IrError> {
+fn as_bool(span: Span, value: IrValue) -> Result<bool, CompileError> {
     value
         .into_bool()
-        .map_err(|actual| IrError::expected::<_, bool>(span, &actual))
+        .map_err(|actual| CompileError::expected_type::<_, bool>(span, &actual))
 }
 
 /// The outcome of a constant evaluation.
@@ -22,7 +23,7 @@ pub enum IrEvalOutcome {
     /// Encountered expression that is not a valid constant expression.
     NotConst(Span),
     /// A compile error.
-    Error(IrError),
+    Error(CompileError),
     /// Break until the next loop, or the optional label.
     Break(Span, IrEvalBreak),
 }
@@ -39,10 +40,10 @@ impl IrEvalOutcome {
 
 impl<T> From<T> for IrEvalOutcome
 where
-    IrError: From<T>,
+    CompileError: From<T>,
 {
     fn from(error: T) -> Self {
-        Self::Error(IrError::from(error))
+        Self::Error(CompileError::from(error))
     }
 }
 
@@ -96,19 +97,21 @@ fn eval_ir_binary(
             ir::IrBinaryOp::Div => {
                 let number = a
                     .checked_div(&b)
-                    .ok_or_else(|| IrError::msg(span, "division by zero"))?;
+                    .ok_or_else(|| CompileError::msg(span, "division by zero"))?;
                 return Ok(IrValue::Integer(number));
             }
             ir::IrBinaryOp::Shl => {
-                let b = u32::try_from(b)
-                    .map_err(|_| IrError::msg(&ir.rhs, "cannot be converted to shift operand"))?;
+                let b = u32::try_from(b).map_err(|_| {
+                    CompileError::msg(&ir.rhs, "cannot be converted to shift operand")
+                })?;
 
                 let n = a.shl(b);
                 return Ok(IrValue::Integer(n));
             }
             ir::IrBinaryOp::Shr => {
-                let b = u32::try_from(b)
-                    .map_err(|_| IrError::msg(&ir.rhs, "cannot be converted to shift operand"))?;
+                let b = u32::try_from(b).map_err(|_| {
+                    CompileError::msg(&ir.rhs, "cannot be converted to shift operand")
+                })?;
 
                 let n = a.shr(b);
                 return Ok(IrValue::Integer(n));
@@ -148,9 +151,9 @@ fn eval_ir_binary(
         span: Span,
         a: &Shared<String>,
         b: &Shared<String>,
-    ) -> Result<Shared<String>, IrError> {
-        let a = a.borrow_ref().map_err(|e| IrError::new(span, e))?;
-        let b = b.borrow_ref().map_err(|e| IrError::new(span, e))?;
+    ) -> Result<Shared<String>, CompileError> {
+        let a = a.borrow_ref().map_err(|e| CompileError::new(span, e))?;
+        let b = b.borrow_ref().map_err(|e| CompileError::new(span, e))?;
 
         let mut a = String::from(&*a);
         a.push_str(&b);
@@ -268,7 +271,7 @@ fn eval_ir_loop(
                             return Ok(value);
                         }
 
-                        return Err(IrEvalOutcome::from(IrError::msg(
+                        return Err(IrEvalOutcome::from(CompileError::msg(
                             span,
                             "break with value is not supported for unconditional loops",
                         )));
@@ -359,7 +362,7 @@ fn eval_ir_template(
                         write!(buf, "{}", b).unwrap();
                     }
                     IrValue::String(s) => {
-                        let s = s.borrow_ref().map_err(IrError::access(ir))?;
+                        let s = s.borrow_ref().with_span(ir)?;
                         buf.push_str(&s);
                     }
                     _ => {

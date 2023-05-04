@@ -11,7 +11,7 @@ macro_rules! error {
         $(#[$meta])*
         $vis struct $error_ty {
             span: $crate::ast::Span,
-            kind: Box<$kind>,
+            kind: $crate::no_std::boxed::Box<$kind>,
         }
 
         impl $error_ty {

@@ -117,9 +117,9 @@ fn main() -> Result<()> {
     let delimiter = &rust::import("crate::ast", "Delimiter");
     let into_expectation = &rust::import("crate::parse", "IntoExpectation");
     let expectation = &rust::import("crate::parse", "Expectation");
-    let display = &rust::import("std::fmt", "Display");
-    let fmt_result = &rust::import("std::fmt", "Result");
-    let formatter = &rust::import("std::fmt", "Formatter");
+    let display = &rust::import("core::fmt", "Display");
+    let fmt_result = &rust::import("core::fmt", "Result");
+    let formatter = &rust::import("core::fmt", "Formatter");
     let kind = &rust::import("crate::ast", "Kind");
     let lit_str_source = &rust::import("crate::ast", "StrSource");
     let macro_context = &rust::import("crate::macros", "MacroContext");

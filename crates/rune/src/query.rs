@@ -446,7 +446,7 @@ impl<'a> Query<'a> {
         &mut self,
         item_meta: ItemMeta,
         value: &T,
-        f: fn(&T, &mut IrCompiler) -> Result<ir::Ir, ir::IrError>,
+        f: fn(&T, &mut IrCompiler) -> Result<ir::Ir>,
     ) -> Result<()> {
         tracing::trace!(item = ?self.pool.item(item_meta.item));
 

@@ -6,10 +6,6 @@
 pub(crate) mod compile;
 pub(crate) use self::compile::IrCompiler;
 
-mod error;
-pub use self::error::IrError;
-pub(crate) use self::error::IrErrorKind;
-
 mod eval;
 pub(crate) use self::eval::{eval_ir, IrEvalOutcome};
 
@@ -27,9 +23,11 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ast;
 use crate::compile::ir;
 use crate::compile::ir::eval::IrEvalBreak;
-use crate::compile::ItemMeta;
+use crate::compile::{CompileError, ItemMeta};
 use crate::hir;
 use crate::query::Used;
+
+type Result<T, E = CompileError> = core::result::Result<T, E>;
 
 /// Context used for [IrEval].
 pub struct IrEvalContext<'a> {
@@ -43,11 +41,11 @@ pub struct IrEvalContext<'a> {
 pub trait IrEval {
     /// Evaluate the current value as a constant expression and return its value
     /// through its intermediate representation [IrValue].
-    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue, IrError>;
+    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue>;
 }
 
 impl IrEval for ast::Expr {
-    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue, IrError> {
+    fn eval(&self, ctx: &mut IrEvalContext<'_>) -> Result<IrValue> {
         let ir = {
             // TODO: avoid this arena?
             let arena = crate::hir::Arena::new();
@@ -186,10 +184,7 @@ pub struct IrFn {
 }
 
 impl IrFn {
-    pub(crate) fn compile_ast(
-        hir: &hir::ItemFn<'_>,
-        c: &mut IrCompiler<'_>,
-    ) -> Result<Self, IrError> {
+    pub(crate) fn compile_ast(hir: &hir::ItemFn<'_>, c: &mut IrCompiler<'_>) -> Result<Self> {
         let mut args = Vec::new();
 
         for arg in hir.args {
@@ -204,7 +199,7 @@ impl IrFn {
                 }
             }
 
-            return Err(IrError::msg(arg, "unsupported argument in const fn"));
+            return Err(CompileError::msg(arg, "unsupported argument in const fn"));
         }
 
         let ir_scope = compile::block(hir.body, c)?;
@@ -343,7 +338,7 @@ pub enum IrPat {
 }
 
 impl IrPat {
-    fn compile_ast(hir: &hir::Pat<'_>, c: &mut IrCompiler<'_>) -> Result<Self, IrError> {
+    fn compile_ast(hir: &hir::Pat<'_>, c: &mut IrCompiler<'_>) -> Result<Self> {
         match hir.kind {
             hir::PatKind::PatIgnore => return Ok(ir::IrPat::Ignore),
             hir::PatKind::PatPath(path) => {
@@ -355,7 +350,7 @@ impl IrPat {
             _ => (),
         }
 
-        Err(IrError::msg(hir, "pattern not supported yet"))
+        Err(CompileError::msg(hir, "pattern not supported yet"))
     }
 
     fn matches<S>(
@@ -406,7 +401,7 @@ impl IrBreak {
         span: Span,
         c: &mut IrCompiler<'_>,
         hir: Option<&hir::ExprBreakValue>,
-    ) -> Result<Self, IrError> {
+    ) -> Result<Self> {
         let kind = match hir {
             Some(expr) => match *expr {
                 hir::ExprBreakValue::Expr(e) => ir::IrBreakKind::Ir(Box::new(compile::expr(e, c)?)),
@@ -540,12 +535,7 @@ pub enum IrAssignOp {
 
 impl IrAssignOp {
     /// Perform the given assign operation.
-    pub(crate) fn assign<S>(
-        self,
-        spanned: S,
-        target: &mut IrValue,
-        operand: IrValue,
-    ) -> Result<(), IrError>
+    pub(crate) fn assign<S>(self, spanned: S, target: &mut IrValue, operand: IrValue) -> Result<()>
     where
         S: Copy + Spanned,
     {
@@ -555,16 +545,11 @@ impl IrAssignOp {
             }
         }
 
-        Err(IrError::msg(spanned, "unsupported operands"))
+        Err(CompileError::msg(spanned, "unsupported operands"))
     }
 
     /// Perform the given assign operation.
-    fn assign_int<S>(
-        self,
-        spanned: S,
-        target: &mut num::BigInt,
-        operand: num::BigInt,
-    ) -> Result<(), IrError>
+    fn assign_int<S>(self, spanned: S, target: &mut num::BigInt, operand: num::BigInt) -> Result<()>
     where
         S: Copy + Spanned,
     {
@@ -581,17 +566,17 @@ impl IrAssignOp {
             IrAssignOp::Div => {
                 *target = target
                     .checked_div(&operand)
-                    .ok_or_else(|| IrError::msg(spanned, "division by zero"))?;
+                    .ok_or_else(|| CompileError::msg(spanned, "division by zero"))?;
             }
             IrAssignOp::Shl => {
-                let operand =
-                    u32::try_from(operand).map_err(|_| IrError::msg(spanned, "bad operand"))?;
+                let operand = u32::try_from(operand)
+                    .map_err(|_| CompileError::msg(spanned, "bad operand"))?;
 
                 target.shl_assign(operand);
             }
             IrAssignOp::Shr => {
-                let operand =
-                    u32::try_from(operand).map_err(|_| IrError::msg(spanned, "bad operand"))?;
+                let operand = u32::try_from(operand)
+                    .map_err(|_| CompileError::msg(spanned, "bad operand"))?;
 
                 target.shr_assign(operand);
             }

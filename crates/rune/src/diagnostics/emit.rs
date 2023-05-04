@@ -14,7 +14,7 @@ use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 pub use codespan_reporting::term::termcolor;
 
-use crate::compile::{IrErrorKind, CompileErrorKind, Location, LinkerError, QueryErrorKind};
+use crate::compile::{CompileErrorKind, Location, LinkerError, QueryErrorKind};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
@@ -477,16 +477,6 @@ where
             CompileErrorKind::QueryError(kind) => {
                 format_query_error(kind, labels)?;
             }
-            CompileErrorKind::IrError { error } => {
-                format_ir_error(
-                    this,
-                    sources,
-                    error_span,
-                    error,
-                    labels,
-                    notes,
-                )?;
-            }
             CompileErrorKind::DuplicateObjectKey { existing, object } => {
                 labels.push(
                     d::Label::secondary(this.source_id(), existing.range())
@@ -628,21 +618,6 @@ where
                 }
             }
             _ => (),
-        }
-
-        Ok(())
-    }
-
-    fn format_ir_error(
-        this: &FatalDiagnostic,
-        sources: &Sources,
-        error_span: Span,
-        kind: &IrErrorKind,
-        labels: &mut Vec<d::Label<SourceId>>,
-        notes: &mut Vec<String>,
-    ) -> fmt::Result {
-        if let IrErrorKind::CompileError { error } = kind {
-            format_compile_error(this, sources, error_span, error, labels, notes)?;
         }
 
         Ok(())

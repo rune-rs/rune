@@ -2,7 +2,7 @@ use crate::ast;
 use crate::compile;
 use crate::macros;
 use crate::parse;
-use std::fmt;
+use core::fmt;
 
 /// This file has been generated from `assets\tokens.yaml`
 /// DO NOT modify by hand!
