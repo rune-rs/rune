@@ -14,12 +14,11 @@ use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 pub use codespan_reporting::term::termcolor;
 
-use crate::compile::{IrErrorKind, CompileErrorKind, Location, LinkerError};
+use crate::compile::{IrErrorKind, CompileErrorKind, Location, LinkerError, QueryErrorKind};
 use crate::diagnostics::{
     Diagnostic, FatalDiagnostic, FatalDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
 };
 use crate::parse::ResolveErrorKind;
-use crate::query::QueryErrorKind;
 use crate::runtime::{Unit, VmErrorKind, VmError};
 use crate::{Source, Diagnostics, SourceId, Sources};
 use crate::ast::{Span, Spanned};
@@ -457,16 +456,6 @@ where
                 &mut notes,
             )?;
         }
-        FatalDiagnosticKind::QueryError(error) => {
-            format_query_error(
-                this,
-                sources,
-                error.span(),
-                error.kind(),
-                &mut labels,
-                &mut notes,
-            )?;
-        }
         FatalDiagnosticKind::ParseError(..) => {},
     };
 
@@ -487,8 +476,8 @@ where
         notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
-            CompileErrorKind::QueryError { error } => {
-                format_query_error(this, sources, error_span, error, labels, notes)?;
+            CompileErrorKind::QueryError(kind) => {
+                format_query_error(this, sources, error_span, kind, labels, notes)?;
             }
             CompileErrorKind::DuplicateObjectKey { existing, object } => {
                 labels.push(
@@ -575,12 +564,6 @@ where
         notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
-            QueryErrorKind::ResolveError { error } => {
-                format_resolve_error(this, sources, error_span, error, labels, notes)?;
-            }
-            QueryErrorKind::IrError { error } => {
-                format_ir_error(this, sources, error_span, error, labels, notes)?;
-            }
             QueryErrorKind::ImportCycle { path } => {
                 let mut it = path.iter();
                 let last = it.next_back();
@@ -654,8 +637,8 @@ where
         labels: &mut Vec<d::Label<SourceId>>,
         notes: &mut Vec<String>,
     ) -> fmt::Result {
-        if let IrErrorKind::QueryError { error } = kind {
-            format_query_error(this, sources, error_span, error, labels, notes)?;
+        if let IrErrorKind::CompileError { error } = kind {
+            format_compile_error(this, sources, error_span, error, labels, notes)?;
         }
 
         Ok(())

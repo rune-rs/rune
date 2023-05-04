@@ -10,7 +10,6 @@ use thiserror::Error;
 use crate::ast::{Span, Spanned};
 use crate::compile::{CompileError, LinkerError};
 use crate::parse::ParseError;
-use crate::query::QueryError;
 use crate::SourceId;
 
 /// Fatal diagnostic emitted during compilation. Fatal diagnostics indicates an
@@ -45,7 +44,6 @@ impl FatalDiagnostic {
         match &*self.kind {
             FatalDiagnosticKind::ParseError(error) => Some(error.span()),
             FatalDiagnosticKind::CompileError(error) => Some(error.span()),
-            FatalDiagnosticKind::QueryError(error) => Some(error.span()),
             FatalDiagnosticKind::LinkError(..) => None,
             FatalDiagnosticKind::Internal(..) => None,
         }
@@ -81,12 +79,6 @@ pub enum FatalDiagnosticKind {
         #[from]
         #[source]
         CompileError,
-    ),
-    #[error("query error")]
-    QueryError(
-        #[from]
-        #[source]
-        QueryError,
     ),
     #[error("linker error")]
     LinkError(

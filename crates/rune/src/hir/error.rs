@@ -4,7 +4,7 @@ use crate::no_std::thiserror;
 
 use thiserror::Error;
 
-use crate::query::{QueryError, QueryErrorKind};
+use crate::compile::{CompileError, CompileErrorKind};
 
 error! {
     /// An error while constructing HIR representation.
@@ -13,7 +13,7 @@ error! {
         kind: HirErrorKind,
     }
 
-    impl From<QueryError>;
+    impl From<CompileError>;
 }
 
 /// The kind of a hir error.
@@ -22,10 +22,10 @@ error! {
 #[non_exhaustive]
 pub(crate) enum HirErrorKind {
     #[error("{error}")]
-    QueryError {
+    CompileError {
         #[source]
         #[from]
-        error: Box<QueryErrorKind>,
+        error: Box<CompileErrorKind>,
     },
     #[error("{message}")]
     Custom { message: Box<str> },

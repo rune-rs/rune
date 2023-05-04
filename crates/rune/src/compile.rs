@@ -21,8 +21,8 @@ pub(crate) use self::assembly::{Assembly, AssemblyInst};
 pub(crate) mod attrs;
 
 mod compile_error;
-pub(crate) use self::compile_error::CompileErrorKind;
 pub use self::compile_error::{CompileError, ImportStep};
+pub(crate) use self::compile_error::{CompileErrorKind, QueryErrorKind};
 
 mod compile_visitor;
 pub use self::compile_visitor::CompileVisitor;

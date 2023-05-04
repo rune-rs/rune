@@ -15,8 +15,8 @@ use crate::collections::HashMap;
 use crate::compile::meta;
 use crate::compile::{
     Assembly, AssemblyInst, CompileError, CompileErrorKind, Item, ItemBuf, Location, Pool,
+    QueryErrorKind,
 };
-use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{
     Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit,
@@ -282,7 +282,7 @@ impl UnitBuilder {
         span: Span,
         meta: &meta::Meta,
         pool: &mut Pool,
-    ) -> Result<(), QueryError> {
+    ) -> Result<(), CompileError> {
         match meta.kind {
             meta::Kind::Unknown { .. } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
@@ -298,7 +298,7 @@ impl UnitBuilder {
                 );
 
                 if self.rtti.insert(hash, rtti).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::TypeRttiConflict { hash },
                     ));
@@ -321,14 +321,14 @@ impl UnitBuilder {
                 });
 
                 if self.rtti.insert(meta.hash, rtti).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
 
                 if self.functions.insert(meta.hash, info).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
                             existing: signature,
@@ -363,14 +363,14 @@ impl UnitBuilder {
                 });
 
                 if self.rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::TypeRttiConflict { hash: tuple.hash },
                     ));
                 }
 
                 if self.functions.insert(tuple.hash, info).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
                             existing: signature,
@@ -401,7 +401,7 @@ impl UnitBuilder {
                 );
 
                 if self.rtti.insert(hash, rtti).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::TypeRttiConflict { hash },
                     ));
@@ -419,7 +419,7 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(meta.hash, rtti).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::VariantRttiConflict { hash: meta.hash },
                     ));
@@ -433,7 +433,7 @@ impl UnitBuilder {
                 );
 
                 if self.functions.insert(meta.hash, info).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
                             existing: signature,
@@ -455,7 +455,7 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::VariantRttiConflict { hash: tuple.hash },
                     ));
@@ -472,7 +472,7 @@ impl UnitBuilder {
                 );
 
                 if self.functions.insert(tuple.hash, info).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::FunctionConflict {
                             existing: signature,
@@ -498,7 +498,7 @@ impl UnitBuilder {
                 });
 
                 if self.variant_rtti.insert(hash, rtti).is_some() {
-                    return Err(QueryError::new(
+                    return Err(CompileError::new(
                         span,
                         QueryErrorKind::VariantRttiConflict { hash },
                     ));

@@ -5,10 +5,9 @@ use crate::no_std::thiserror;
 use thiserror::Error;
 
 use crate::ast::{Spanned, SpannedError};
-use crate::compile::{IrValue, MetaInfo};
+use crate::compile::{CompileError, CompileErrorKind, IrValue, MetaInfo};
 use crate::hir::{HirError, HirErrorKind};
 use crate::parse::{ResolveError, ResolveErrorKind};
-use crate::query::{QueryError, QueryErrorKind};
 use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::{ScopeError, ScopeErrorKind};
 
@@ -20,7 +19,7 @@ error! {
     }
 
     impl From<ResolveError>;
-    impl From<QueryError>;
+    impl From<CompileError>;
     impl From<ScopeError>;
     impl From<HirError>;
 }
@@ -73,11 +72,11 @@ pub(crate) enum IrErrorKind {
     },
     /// An access error raised during queries.
     #[error("{error}")]
-    QueryError {
+    CompileError {
         /// The source error.
         #[source]
         #[from]
-        error: Box<QueryErrorKind>,
+        error: Box<CompileErrorKind>,
     },
     #[error("{error}")]
     ResolveError {
