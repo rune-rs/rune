@@ -1,11 +1,11 @@
 use core::fmt;
 
-use thiserror::Error;
-
 use crate::no_std as std;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 use crate::no_std::thiserror;
+
+use thiserror::Error;
 
 use crate::compile::ItemBuf;
 use crate::hash::Hash;

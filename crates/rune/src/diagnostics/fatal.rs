@@ -66,19 +66,19 @@ impl crate::no_std::error::Error for FatalDiagnostic {
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum FatalDiagnosticKind {
-    #[error("compile error")]
+    #[error("Compile error")]
     CompileError(
         #[from]
         #[source]
         compile::Error,
     ),
-    #[error("linker error")]
+    #[error("Linker error")]
     LinkError(
         #[from]
         #[source]
         LinkerError,
     ),
     /// An internal error.
-    #[error("internal error: {0}")]
+    #[error("Internal error: {0}")]
     Internal(&'static str),
 }

@@ -7,26 +7,36 @@ use core::mem::take;
 use core::num::NonZeroUsize;
 use core::str;
 
-use crate::no_std as std;
 use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
 
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::compile::Named;
 use crate::runtime::{FromValue, ProtocolCaller, RawStr, Value, VmErrorKind, VmResult};
 use crate::InstallWith;
 
 /// Error raised when trying to parse a type string and it fails.
-#[derive(Debug, Clone, Copy, Error)]
-#[error("bad type string")]
-pub struct TypeFromStrError(());
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct TypeFromStrError;
+
+impl fmt::Display for TypeFromStrError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Bad type string")
+    }
+}
 
 /// Error raised when trying to parse an alignment string and it fails.
-#[derive(Debug, Clone, Copy, Error)]
-#[error("bad alignment string")]
-pub struct AlignmentFromStrError(());
+#[derive(Debug, Clone, Copy)]
+pub struct AlignmentFromStrError;
+
+impl fmt::Display for AlignmentFromStrError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Bad alignment string")
+    }
+}
 
 /// A format specification, wrapping an inner value.
 #[derive(Debug, Clone)]
@@ -388,7 +398,7 @@ impl str::FromStr for Type {
             "lower_hex" => Ok(Self::LowerHex),
             "binary" => Ok(Self::Binary),
             "pointer" => Ok(Self::Pointer),
-            _ => Err(TypeFromStrError(())),
+            _ => Err(TypeFromStrError),
         }
     }
 }
@@ -452,7 +462,7 @@ impl str::FromStr for Alignment {
             "left" => Ok(Self::Left),
             "center" => Ok(Self::Center),
             "right" => Ok(Self::Right),
-            _ => Err(AlignmentFromStrError(())),
+            _ => Err(AlignmentFromStrError),
         }
     }
 }

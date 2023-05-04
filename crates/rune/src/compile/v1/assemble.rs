@@ -373,6 +373,7 @@ fn pat_lit_inst(
                 .resolve(resolve_context!(c.q))?
                 .as_i64(true)
                 .with_span(span)?;
+
             return Ok(Some(Inst::EqInteger { integer }));
         }
         hir::ExprKind::Lit(lit) => match lit {
@@ -955,7 +956,8 @@ fn block(hir: &hir::Block<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::
 
     c.contexts
         .pop()
-        .ok_or_else(|| compile::Error::msg(span, "missing parent context"))?;
+        .ok_or("Missing parent context")
+        .with_span(span)?;
 
     Ok(Asm::top(span))
 }
@@ -1236,7 +1238,9 @@ fn expr_assign(
             let segment = path
                 .first
                 .try_as_ident()
-                .ok_or_else(|| compile::Error::msg(path, "unsupported path"))?;
+                .ok_or("Unsupported path")
+                .with_span(path)?;
+
             let ident = segment.resolve(resolve_context!(c.q))?;
             let var = c.scopes.get_var(c.q.visitor, ident, c.source_id, span)?;
             c.asm.push(Inst::Replace { offset: var.offset }, span);
@@ -1654,7 +1658,8 @@ fn expr_break(
         .scopes
         .total_var_count(span)?
         .checked_sub(last_loop.break_var_count)
-        .ok_or_else(|| compile::Error::msg(span, "var count should be larger"))?;
+        .ok_or("Var count should be larger")
+        .with_span(span)?;
 
     if last_loop.needs.value() {
         if has_value {
@@ -2097,7 +2102,8 @@ fn expr_continue(
         .scopes
         .total_var_count(span)?
         .checked_sub(last_loop.continue_var_count)
-        .ok_or_else(|| compile::Error::msg(span, "var count should be larger"))?;
+        .ok_or("Var count should be larger")
+        .with_span(span)?;
 
     c.locals_pop(vars, span);
 
@@ -2998,7 +3004,8 @@ fn expr_select(
 
     c.contexts
         .pop()
-        .ok_or_else(|| compile::Error::msg(span, "missing parent context"))?;
+        .ok_or("Missing parent context")
+        .with_span(span)?;
 
     Ok(Asm::top(span))
 }

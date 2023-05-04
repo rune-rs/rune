@@ -1,12 +1,9 @@
-use crate::no_std as std;
 use crate::no_std::prelude::*;
-use crate::no_std::thiserror;
 
-use thiserror::Error;
+/// Error indicating that a local variable is missing.
+pub(crate) struct MissingLocal<'a>(pub(crate) &'a str);
 
-use crate::ast::Spanned;
 use crate::collections::HashMap;
-use crate::shared::Custom;
 
 /// A hierarchy of constant scopes.
 pub(crate) struct Scopes<T> {
@@ -15,28 +12,19 @@ pub(crate) struct Scopes<T> {
 
 impl<T> Scopes<T> {
     /// Clear the current scope.
-    pub(crate) fn clear_current<S>(&mut self, spanned: S) -> Result<(), Custom>
-    where
-        S: Spanned,
-    {
+    pub(crate) fn clear_current(&mut self) -> Result<(), &'static str> {
         let last = self
             .scopes
             .last_mut()
-            .ok_or_else(|| Custom::new(spanned, "expected at least one scope"))?;
+            .ok_or("expected at least one scope")?;
 
         last.locals.clear();
         Ok(())
     }
 
     /// Declare a value in the scope.
-    pub(crate) fn decl<S>(&mut self, name: &str, value: T, spanned: S) -> Result<(), Custom>
-    where
-        S: Spanned,
-    {
-        let last = self
-            .last_mut()
-            .ok_or_else(|| Custom::new(spanned, "expected at least one scope"))?;
-
+    pub(crate) fn decl(&mut self, name: &str, value: T) -> Result<(), &'static str> {
+        let last = self.last_mut().ok_or("expected at least one scope")?;
         last.locals.insert(name.to_owned(), value);
         Ok(())
     }
@@ -58,7 +46,7 @@ impl<T> Scopes<T> {
     }
 
     /// Get the given variable.
-    pub(crate) fn get_name<'a>(&'a self, name: &str) -> Result<&'a T, ScopeError> {
+    pub(crate) fn get_name<'a, 'n>(&'a self, name: &'n str) -> Result<&'a T, MissingLocal<'n>> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Ok(current);
@@ -70,11 +58,14 @@ impl<T> Scopes<T> {
             }
         }
 
-        Err(ScopeError::MissingLocal { name: name.into() })
+        Err(MissingLocal(name))
     }
 
     /// Get the given variable as mutable.
-    pub(crate) fn get_name_mut<'a>(&'a mut self, name: &str) -> Result<&'a mut T, ScopeError> {
+    pub(crate) fn get_name_mut<'a, 'n>(
+        &'a mut self,
+        name: &'n str,
+    ) -> Result<&'a mut T, MissingLocal<'n>> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(current) = scope.locals.get_mut(name) {
                 return Ok(current);
@@ -86,7 +77,7 @@ impl<T> Scopes<T> {
             }
         }
 
-        Err(ScopeError::MissingLocal { name: name.into() })
+        Err(MissingLocal(name))
     }
 
     /// Push a scope and return the guard associated with the scope.
@@ -107,16 +98,13 @@ impl<T> Scopes<T> {
         ScopeGuard { length }
     }
 
-    pub(crate) fn pop<S>(&mut self, spanned: S, guard: ScopeGuard) -> Result<(), Custom>
-    where
-        S: Spanned,
-    {
+    pub(crate) fn pop(&mut self, guard: ScopeGuard) -> Result<(), &'static str> {
         if self.scopes.pop().is_none() {
-            return Err(Custom::new(spanned, "expected at least one scope to pop"));
+            return Err("expected at least one scope to pop");
         }
 
         if self.scopes.len() != guard.length {
-            return Err(Custom::new(spanned, "scope length mismatch"));
+            return Err("scope length mismatch");
         }
 
         Ok(())
@@ -160,12 +148,4 @@ impl<T> Default for Scope<T> {
             locals: Default::default(),
         }
     }
-}
-
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub(crate) enum ScopeError {
-    #[error("missing local {name}")]
-    MissingLocal { name: Box<str> },
 }

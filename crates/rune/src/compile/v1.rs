@@ -5,7 +5,7 @@ use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
     self, Assembly, CompileErrorKind, IrBudget, IrCompiler, IrInterpreter, ItemId, ItemMeta,
-    Location, Options,
+    Location, Options, WithSpan,
 };
 use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -202,7 +202,7 @@ impl<'a> Assembler<'a> {
 
         for (ir, name) in compiled {
             let value = interpreter.eval_value(&ir, Used::Used)?;
-            interpreter.scopes.decl(name, value, span)?;
+            interpreter.scopes.decl(name, value).with_span(span)?;
         }
 
         interpreter.module = query_const_fn.item_meta.module;

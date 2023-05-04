@@ -27,7 +27,7 @@ const MAX_USES: isize = 0b11isize.rotate_right(2);
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum AccessError {
-    #[error("expected data of type `{expected}`, but found `{actual}`")]
+    #[error("Expected data of type `{expected}`, but found `{actual}`")]
     UnexpectedType { expected: RawStr, actual: RawStr },
     #[error("{error}")]
     NotAccessibleRef {

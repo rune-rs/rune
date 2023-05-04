@@ -5,9 +5,10 @@ use crate::compile::{self, IrErrorKind, IrEvalOutcome, IrValue, ItemId, ModId, W
 use crate::compile::{ir, meta};
 use crate::query::{Query, Used};
 use crate::runtime::{ConstValue, Object, Tuple};
+use crate::shared::scopes::MissingLocal;
 
 /// Ir Scopes.
-pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
+pub(crate) type IrScopes = crate::shared::scopes::Scopes<IrValue>;
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
 pub struct IrInterpreter<'a> {
@@ -129,10 +130,7 @@ impl IrInterpreter<'_> {
         }
 
         if name.starts_with(char::is_lowercase) {
-            Err(compile::Error::new(
-                spanned,
-                IrErrorKind::MissingLocal { name: name.into() },
-            ))
+            Err(compile::Error::new(spanned, MissingLocal(name)))
         } else {
             Err(compile::Error::new(
                 spanned,
@@ -174,17 +172,17 @@ impl IrInterpreter<'_> {
             }
 
             if base.is_empty() {
-                return Err(compile::Error::new(spanned, IrErrorKind::FnNotFound));
+                return Err(compile::Error::new(span, IrErrorKind::FnNotFound));
             }
 
             base.pop();
         };
 
-        let const_fn = self.q.const_fn_for((spanned.span(), id))?;
+        let const_fn = self.q.const_fn_for((span, id))?;
 
         if const_fn.ir_fn.args.len() != args.len() {
             return Err(compile::Error::new(
-                spanned,
+                span,
                 IrErrorKind::ArgumentCountMismatch {
                     actual: args.len(),
                     expected: const_fn.ir_fn.args.len(),
@@ -195,11 +193,11 @@ impl IrInterpreter<'_> {
         let guard = self.scopes.isolate();
 
         for (name, value) in const_fn.ir_fn.args.iter().zip(args) {
-            self.scopes.decl(name, value, spanned)?;
+            self.scopes.decl(name, value).with_span(span)?;
         }
 
         let value = self.eval_value(&const_fn.ir_fn.ir, used)?;
-        self.scopes.pop(spanned, guard)?;
+        self.scopes.pop(guard).with_span(span)?;
         Ok(value)
     }
 }

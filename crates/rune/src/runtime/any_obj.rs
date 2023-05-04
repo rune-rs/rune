@@ -21,13 +21,13 @@ use crate::runtime::{RawStr, TypeInfo};
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum AnyObjError {
-    #[error("cannot borrow a shared reference `&{name}` mutably as `&mut {name}`")]
+    #[error("Cannot borrow a shared reference `&{name}` mutably as `&mut {name}`")]
     RefAsMut { name: RawStr },
-    #[error("cannot take ownership of a shared reference `&{name}`")]
+    #[error("Cannot take ownership of a shared reference `&{name}`")]
     RefAsOwned { name: RawStr },
-    #[error("cannot take ownership of a mutable reference `&mut {name}`")]
+    #[error("Cannot take ownership of a mutable reference `&mut {name}`")]
     MutAsOwned { name: RawStr },
-    #[error("cast failed")]
+    #[error("Cast failed")]
     Cast,
 }
 

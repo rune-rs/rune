@@ -1,19 +1,65 @@
+use core::fmt;
+
 use crate::no_std::prelude::*;
 use crate::no_std::thiserror;
 
-use std::path::Path;
-use std::io;
+use crate::no_std::error;
+use crate::no_std::path::Path;
+use crate::no_std::io;
 
 use thiserror::Error;
 
 use crate::{SourceId};
-use crate::ast::Span;
+use crate::ast::{Span, Spanned};
 
-error! {
-    /// An error raised when interacting with workspaces.
-    #[derive(Debug)]
-    pub struct WorkspaceError {
-        kind: WorkspaceErrorKind,
+/// An error raised when interacting with workspaces.
+#[derive(Debug)]
+pub struct WorkspaceError {
+    span: Span,
+    kind: Box<WorkspaceErrorKind>,
+}
+
+impl WorkspaceError {
+    /// Construct a new workspace error with the given span and kind.
+    #[allow(unused)]
+    pub(crate) fn new<S, K>(spanned: S, kind: K) -> Self
+    where
+        S: Spanned,
+        WorkspaceErrorKind: From<K>,
+    {
+        Self {
+            span: spanned.span(),
+            kind: Box::new(WorkspaceErrorKind::from(kind)),
+        }
+    }
+
+    /// Construct a custom message as an error.
+    pub fn msg<S, M>(spanned: S, message: M) -> Self
+    where
+        S: Spanned,
+        M: fmt::Display,
+    {
+        Self::new(spanned, WorkspaceErrorKind::Custom { message: message.to_string().into() })
+    }
+}
+
+impl Spanned for WorkspaceError {
+    #[inline]
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl error::Error for WorkspaceError {
+    #[inline]
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        self.kind.source()
+    }
+}
+
+impl fmt::Display for WorkspaceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.kind, f)
     }
 }
 
