@@ -118,6 +118,7 @@ impl Meta {
             Kind::Const { .. } => None,
             Kind::ConstFn { .. } => None,
             Kind::Import { .. } => None,
+            Kind::Macro => None,
             Kind::Module => None,
         }
     }
@@ -157,6 +158,8 @@ pub enum Kind {
     },
     /// An enum item.
     Enum,
+    /// A macro item.
+    Macro,
     /// A function declaration.
     Function {
         /// If the function is asynchronous.

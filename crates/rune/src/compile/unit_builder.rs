@@ -510,6 +510,7 @@ impl UnitBuilder {
                     ConstValue::String(pool.item(meta.item_meta.item).to_string()),
                 );
             }
+            meta::Kind::Macro { .. } => (),
             meta::Kind::Function { .. } => (),
             meta::Kind::Closure { .. } => (),
             meta::Kind::AsyncBlock { .. } => (),
