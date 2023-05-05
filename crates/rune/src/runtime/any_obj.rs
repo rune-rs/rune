@@ -13,8 +13,7 @@ use thiserror::Error;
 
 use crate::any::Any;
 use crate::hash::Hash;
-use crate::runtime::AnyTypeInfo;
-use crate::runtime::{RawStr, TypeInfo};
+use crate::runtime::{AnyTypeInfo, FullTypeOf, MaybeTypeOf, RawStr, TypeInfo};
 
 /// Errors raised during casting operations.
 #[derive(Debug, Error)]
@@ -460,6 +459,12 @@ impl AnyObj {
     /// Access full type info for type.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Any(AnyTypeInfo::new((self.vtable.type_name)()))
+    }
+}
+
+impl MaybeTypeOf for AnyObj {
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        None
     }
 }
 

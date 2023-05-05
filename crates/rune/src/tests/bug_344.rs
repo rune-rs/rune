@@ -192,6 +192,13 @@ impl TypeOf for GuardCheck {
     }
 }
 
+impl MaybeTypeOf for GuardCheck {
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        Some(Self::type_of())
+    }
+}
+
 impl InstallWith for GuardCheck {}
 
 impl UnsafeFromValue for &GuardCheck {
