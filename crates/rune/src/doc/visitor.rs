@@ -32,6 +32,8 @@ pub struct Visitor {
     pub(crate) names: Names,
     pub(crate) data: HashMap<Hash, VisitorData>,
     pub(crate) item_to_hash: HashMap<ItemBuf, Hash>,
+    /// Associated items.
+    pub(crate) associated: HashMap<Hash, Vec<Hash>>,
 }
 
 impl Visitor {
@@ -46,6 +48,7 @@ impl Visitor {
             names: Names::default(),
             data: HashMap::default(),
             item_to_hash: HashMap::new(),
+            associated: HashMap::new(),
         }
     }
 
@@ -76,6 +79,13 @@ impl CompileVisitor for Visitor {
             hash_map::Entry::Vacant(e) => {
                 e.insert(VisitorData::new(item, meta.hash, meta.kind.clone()));
             }
+        }
+
+        if let Some(container) = meta.associated_container {
+            self.associated
+                .entry(container)
+                .or_default()
+                .push(meta.hash);
         }
     }
 

@@ -1,10 +1,11 @@
 use crate::no_std::prelude::*;
 
 use crate::compile::context::PrivMeta;
-use crate::compile::meta;
+use crate::compile::{meta, AssociatedFunctionKind};
 use crate::compile::{AssociatedFunction, ComponentRef, IntoComponent, Item};
 use crate::doc::{Visitor, VisitorData};
 use crate::runtime::ConstValue;
+use crate::runtime::Protocol;
 use crate::Hash;
 
 #[derive(Debug, Clone, Copy)]
@@ -25,6 +26,28 @@ pub(crate) struct Function<'a> {
     pub(crate) args: Option<&'a [String]>,
     pub(crate) signature: Signature,
     pub(crate) return_type: Option<Hash>,
+}
+
+pub enum AssociatedKind<'a> {
+    /// A protocol function implemented on the type itself.
+    Protocol(Protocol),
+    /// A field function with the given protocol.
+    FieldFn(Protocol, &'a str),
+    /// An index function with the given protocol.
+    IndexFn(Protocol, usize),
+    /// The instance function refers to the given named instance fn.
+    Instance(&'a str),
+}
+
+/// Data about an associated type.
+pub(crate) struct Associated<'a> {
+    pub(crate) is_async: bool,
+    pub(crate) return_type: Option<Hash>,
+    pub(crate) docs: &'a [String],
+    pub(crate) docs_args: Option<&'a [String]>,
+    pub(crate) kind: AssociatedKind<'a>,
+    pub(crate) args: Option<usize>,
+    pub(crate) parameter_types: &'a [Hash],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -58,8 +81,72 @@ impl<'a> Context<'a> {
     }
 
     /// Iterate over all types associated with the given hash.
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &AssociatedFunction> {
-        self.context.associated(hash)
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Associated<'_>> + '_ {
+        fn visitor_to_associated<'a>(
+            hash: Hash,
+            visitor: &'a Visitor,
+        ) -> Option<impl Iterator<Item = Associated<'a>> + 'a> {
+            let associated = visitor.associated.get(&hash)?;
+
+            Some(associated.iter().flat_map(move |hash| {
+                let data = visitor.data.get(hash)?;
+
+                let (is_async, kind, args) = match data.kind {
+                    meta::Kind::Function {
+                        is_async,
+                        instance_function,
+                        args,
+                        ..
+                    } if instance_function => (
+                        is_async,
+                        AssociatedKind::Instance(data.item.last()?.as_str()?),
+                        args,
+                    ),
+                    _ => return None,
+                };
+
+                Some(Associated {
+                    is_async,
+                    return_type: None,
+                    docs: &data.docs,
+                    docs_args: None,
+                    kind,
+                    args,
+                    parameter_types: &[],
+                })
+            }))
+        }
+
+        fn context_to_associated(associated: &AssociatedFunction) -> Associated<'_> {
+            let kind = match associated.name.kind {
+                AssociatedFunctionKind::Protocol(protocol) => AssociatedKind::Protocol(protocol),
+                AssociatedFunctionKind::FieldFn(protocol, ref field) => {
+                    AssociatedKind::FieldFn(protocol, field)
+                }
+                AssociatedFunctionKind::IndexFn(protocol, index) => {
+                    AssociatedKind::IndexFn(protocol, index)
+                }
+                AssociatedFunctionKind::Instance(ref name) => AssociatedKind::Instance(name),
+            };
+
+            Associated {
+                is_async: associated.is_async,
+                return_type: associated.return_type.as_ref().map(|f| f.hash),
+                docs: associated.docs.lines(),
+                docs_args: associated.docs.args(),
+                kind,
+                args: associated.args,
+                parameter_types: &associated.name.parameter_types,
+            }
+        }
+
+        let visitors = self
+            .visitors
+            .iter()
+            .flat_map(move |v| visitor_to_associated(hash, v).into_iter().flatten());
+
+        let context = self.context.associated(hash).map(context_to_associated);
+        visitors.chain(context)
     }
 
     /// Iterate over known child components of the given name.
