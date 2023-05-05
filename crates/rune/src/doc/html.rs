@@ -53,30 +53,6 @@ enum ItemPath {
     Function,
 }
 
-fn build_item_path(name: &str, item: &Item, kind: ItemPath, path: &mut RelativePathBuf) {
-    if item.is_empty() {
-        path.push(name);
-    } else {
-        for c in item.iter() {
-            let string = match c {
-                ComponentRef::Crate(string) => string,
-                ComponentRef::Str(string) => string,
-                _ => continue,
-            };
-
-            path.push(string);
-        }
-    }
-
-    path.set_extension(match kind {
-        ItemPath::Type => "type.html",
-        ItemPath::Struct => "struct.html",
-        ItemPath::Enum => "enum.html",
-        ItemPath::Module => "module.html",
-        ItemPath::Function => "fn.html",
-    });
-}
-
 struct Ctxt<'a> {
     root: &'a Path,
     item: ItemBuf,
@@ -293,18 +269,17 @@ impl Ctxt<'_> {
     fn item_path(&self, item: &Item, kind: ItemPath) -> RelativePathBuf {
         let mut path = RelativePathBuf::new();
         build_item_path(self.name, item, kind, &mut path);
-        path
+        self.dir().relative(path)
     }
 
     /// Build banklinks for the current item.
     fn module_path_html(&self, is_module: bool) -> String {
         let mut module = Vec::new();
         let mut iter = self.item.iter();
-        let dir = self.dir();
 
         while iter.next_back().is_some() {
             if let Some(name) = iter.as_item().last() {
-                let url = dir.relative(self.item_path(iter.as_item(), ItemPath::Module));
+                let url = self.item_path(iter.as_item(), ItemPath::Module);
                 module.push(format!("<a class=\"module\" href=\"{url}\">{name}</a>"));
             }
         }
@@ -334,21 +309,15 @@ impl Ctxt<'_> {
 
             match &meta.kind {
                 Kind::Unknown => {
-                    let path = self
-                        .dir()
-                        .relative(self.item_path(meta.item, ItemPath::Type));
+                    let path = self.item_path(meta.item, ItemPath::Type);
                     format!("<a class=\"type\" href=\"{path}\">{name}</a>")
                 }
                 Kind::Struct => {
-                    let path = self
-                        .dir()
-                        .relative(self.item_path(meta.item, ItemPath::Struct));
+                    let path = self.item_path(meta.item, ItemPath::Struct);
                     format!("<a class=\"struct\" href=\"{path}\">{name}</a>")
                 }
                 Kind::Enum => {
-                    let path = self
-                        .dir()
-                        .relative(self.item_path(meta.item, ItemPath::Enum));
+                    let path = self.item_path(meta.item, ItemPath::Enum);
                     format!("<a class=\"enum\" href=\"{path}\">{name}</a>")
                 }
                 kind => format!("{kind:?}"),
@@ -714,7 +683,7 @@ fn module(
         match meta.kind {
             Kind::Unknown { .. } => {
                 queue.push_front(Build::Type(item.clone(), meta.hash));
-                let path = cx.dir().relative(cx.item_path(&item, ItemPath::Type));
+                let path = cx.item_path(&item, ItemPath::Type);
                 types.push(Type {
                     item,
                     path,
@@ -724,7 +693,7 @@ fn module(
             }
             Kind::Struct { .. } => {
                 queue.push_front(Build::Struct(item.clone(), meta.hash));
-                let path = cx.dir().relative(cx.item_path(&item, ItemPath::Struct));
+                let path = cx.item_path(&item, ItemPath::Struct);
                 structs.push(Struct {
                     item,
                     path,
@@ -734,7 +703,7 @@ fn module(
             }
             Kind::Enum { .. } => {
                 queue.push_front(Build::Enum(item.clone(), meta.hash));
-                let path = cx.dir().relative(cx.item_path(&item, ItemPath::Enum));
+                let path = cx.item_path(&item, ItemPath::Enum);
                 enums.push(Enum {
                     item,
                     path,
@@ -748,7 +717,7 @@ fn module(
 
                     functions.push(Function {
                         is_async: f.is_async,
-                        path: cx.dir().relative(cx.item_path(&item, ItemPath::Function)),
+                        path: cx.item_path(&item, ItemPath::Function),
                         item,
                         name,
                         args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
@@ -763,7 +732,7 @@ fn module(
     }
 
     for item in children.get(&cx.item).into_iter().flatten() {
-        let path = cx.dir().relative(cx.item_path(item, ItemPath::Module));
+        let path = cx.item_path(item, ItemPath::Module);
         let name = item.last().context("missing name of module")?;
 
         modules.push(Module { item, name, path })
@@ -867,4 +836,29 @@ fn ensure_parent_dir(path: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Helper for building an item path.
+fn build_item_path(name: &str, item: &Item, kind: ItemPath, path: &mut RelativePathBuf) {
+    if item.is_empty() {
+        path.push(name);
+    } else {
+        for c in item.iter() {
+            let string = match c {
+                ComponentRef::Crate(string) => string,
+                ComponentRef::Str(string) => string,
+                _ => continue,
+            };
+
+            path.push(string);
+        }
+    }
+
+    path.set_extension(match kind {
+        ItemPath::Type => "type.html",
+        ItemPath::Struct => "struct.html",
+        ItemPath::Enum => "enum.html",
+        ItemPath::Module => "module.html",
+        ItemPath::Function => "fn.html",
+    });
 }
