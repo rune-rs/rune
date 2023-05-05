@@ -108,7 +108,6 @@ pub static BYTES_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x957fa73126817683),
 };
 
-impl_static_type!(rt::Shared<rt::Bytes> => BYTES_TYPE);
 impl_static_type!(rt::Bytes => BYTES_TYPE);
 impl_static_type!([u8] => BYTES_TYPE);
 
@@ -203,7 +202,6 @@ pub static FUNCTION_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(rt::Function => FUNCTION_TYPE);
-impl_static_type!(rt::Shared<rt::Function> => FUNCTION_TYPE);
 impl_static_type!(impl<T> HashMap<String, T> => OBJECT_TYPE);
 
 /// The specialized type information for a fmt spec types.

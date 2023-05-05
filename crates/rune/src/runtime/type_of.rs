@@ -1,4 +1,4 @@
-use crate::runtime::{Mut, Ref, TypeInfo};
+use crate::runtime::{Mut, Ref, Shared, TypeInfo};
 use crate::Hash;
 
 /// Full type information.
@@ -52,7 +52,7 @@ where
 
 impl<T> MaybeTypeOf for Ref<T>
 where
-    T: MaybeTypeOf,
+    T: ?Sized + MaybeTypeOf,
 {
     #[inline]
     fn maybe_type_of() -> Option<FullTypeOf> {
@@ -62,7 +62,17 @@ where
 
 impl<T> MaybeTypeOf for Mut<T>
 where
-    T: MaybeTypeOf,
+    T: ?Sized + MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        T::maybe_type_of()
+    }
+}
+
+impl<T> MaybeTypeOf for Shared<T>
+where
+    T: ?Sized + MaybeTypeOf,
 {
     #[inline]
     fn maybe_type_of() -> Option<FullTypeOf> {
@@ -120,6 +130,22 @@ where
 
 /// Blanket implementation for owned mutable references.
 impl<T> TypeOf for Mut<T>
+where
+    T: ?Sized + TypeOf,
+{
+    #[inline]
+    fn type_hash() -> Hash {
+        T::type_hash()
+    }
+
+    #[inline]
+    fn type_info() -> TypeInfo {
+        T::type_info()
+    }
+}
+
+/// Blanket implementation for owned shared values.
+impl<T> TypeOf for Shared<T>
 where
     T: ?Sized + TypeOf,
 {
