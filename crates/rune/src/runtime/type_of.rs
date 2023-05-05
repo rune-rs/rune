@@ -30,6 +30,46 @@ pub trait MaybeTypeOf {
     fn maybe_type_of() -> Option<FullTypeOf>;
 }
 
+impl<T> MaybeTypeOf for &T
+where
+    T: ?Sized + MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        T::maybe_type_of()
+    }
+}
+
+impl<T> MaybeTypeOf for &mut T
+where
+    T: ?Sized + MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        T::maybe_type_of()
+    }
+}
+
+impl<T> MaybeTypeOf for Ref<T>
+where
+    T: MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        T::maybe_type_of()
+    }
+}
+
+impl<T> MaybeTypeOf for Mut<T>
+where
+    T: MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        T::maybe_type_of()
+    }
+}
+
 /// Blanket implementation for references.
 impl<T> TypeOf for &T
 where

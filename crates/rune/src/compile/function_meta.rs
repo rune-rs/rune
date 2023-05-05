@@ -41,6 +41,7 @@ pub struct FunctionData {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
+    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
 }
 
 impl FunctionData {
@@ -51,13 +52,18 @@ impl FunctionData {
         Func::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
+        Args: IterFunctionArgs,
     {
+        let mut argument_types = Vec::with_capacity(Args::len());
+        Args::iter_args(|ty| argument_types.push(ty));
+
         Self {
             is_async: false,
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(Func::args()),
             return_type: Func::Return::maybe_type_of(),
+            argument_types: argument_types.into(),
         }
     }
 
@@ -68,13 +74,18 @@ impl FunctionData {
         Func::Output: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
+        Args: IterFunctionArgs,
     {
+        let mut argument_types = Vec::with_capacity(Args::len());
+        Args::iter_args(|ty| argument_types.push(ty));
+
         Self {
             is_async: true,
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(Func::args()),
             return_type: Func::Output::maybe_type_of(),
+            argument_types: argument_types.into(),
         }
     }
 }
@@ -194,6 +205,7 @@ pub struct AssociatedFunctionData {
     pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
+    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
 }
 
 impl AssociatedFunctionData {
@@ -202,7 +214,11 @@ impl AssociatedFunctionData {
     where
         Func: InstFn<Args>,
         Func::Return: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
+        let mut argument_types = Vec::with_capacity(Args::len());
+        Args::iter_args(|ty| argument_types.push(ty));
+
         Self {
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
@@ -210,6 +226,7 @@ impl AssociatedFunctionData {
             is_async: false,
             args: Some(Func::args()),
             return_type: Func::Return::maybe_type_of(),
+            argument_types: argument_types.into(),
         }
     }
 
@@ -218,7 +235,11 @@ impl AssociatedFunctionData {
     where
         Func: AsyncInstFn<Args>,
         Func::Output: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
+        let mut argument_types = Vec::with_capacity(Args::len());
+        Args::iter_args(|ty| argument_types.push(ty));
+
         Self {
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
@@ -226,6 +247,7 @@ impl AssociatedFunctionData {
             is_async: true,
             args: Some(Func::args()),
             return_type: <Func::Return as Future>::Output::maybe_type_of(),
+            argument_types: argument_types.into(),
         }
     }
 
@@ -261,6 +283,7 @@ impl FunctionMetaKind {
         N::Item: IntoComponent,
         Func: Function<Args>,
         Func::Return: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         Self::Function(FunctionData::new(name, f))
     }
@@ -274,6 +297,7 @@ impl FunctionMetaKind {
         N::Item: IntoComponent,
         Func: Function<Args>,
         Func::Return: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         let name = [IntoComponent::into_component(T::BASE_NAME)]
             .into_iter()
@@ -289,6 +313,7 @@ impl FunctionMetaKind {
         N::Item: IntoComponent,
         Func: AsyncFunction<Args>,
         Func::Output: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         Self::Function(FunctionData::new_async(name, f))
     }
@@ -302,6 +327,7 @@ impl FunctionMetaKind {
         N::Item: IntoComponent,
         Func: AsyncFunction<Args>,
         Func::Output: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         let name = [IntoComponent::into_component(T::BASE_NAME)]
             .into_iter()
@@ -316,6 +342,7 @@ impl FunctionMetaKind {
         N: ToInstance,
         Func: InstFn<Args>,
         Func::Return: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new(name.to_instance(), f))
     }
@@ -327,6 +354,7 @@ impl FunctionMetaKind {
         N: ToInstance,
         Func: AsyncInstFn<Args>,
         Func::Output: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new_async(name.to_instance(), f))
     }
@@ -348,3 +376,38 @@ pub struct FunctionMetaData {
     #[doc(hidden)]
     pub arguments: &'static [&'static str],
 }
+
+/// Trait implement allowing the collection of function argument types.
+#[doc(hidden)]
+pub trait IterFunctionArgs {
+    /// The number of arguments being passed in.
+    fn len() -> usize;
+
+    /// Iterate over arguments providing their full type information in the
+    /// process.
+    #[doc(hidden)]
+    fn iter_args<Receiver>(receiver: Receiver)
+    where
+        Receiver: FnMut(Option<FullTypeOf>);
+}
+
+macro_rules! iter_function_args {
+    ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
+        impl<$($ty,)*> IterFunctionArgs for ($($ty,)*)
+        where
+            $($ty: MaybeTypeOf,)*
+        {
+            #[inline]
+            fn len() -> usize {
+                $count
+            }
+
+            #[inline]
+            fn iter_args<Receiver>(#[allow(unused)] mut receiver: Receiver) where Receiver: FnMut(Option<FullTypeOf>) {
+                $(receiver(<$ty>::maybe_type_of());)*
+            }
+        }
+    }
+}
+
+repeat_macro!(iter_function_args);

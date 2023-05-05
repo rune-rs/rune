@@ -15,16 +15,7 @@ pub trait Args {
 }
 
 macro_rules! impl_into_args {
-    () => {
-        impl_into_args!{@impl 0,}
-    };
-
-    ({$ty:ident, $value:ident, $count:expr}, $({$l_ty:ident, $l_value:ident, $l_count:expr},)*) => {
-        impl_into_args!{@impl $count, {$ty, $value, $count}, $({$l_ty, $l_value, $l_count},)*}
-        impl_into_args!{$({$l_ty, $l_value, $l_count},)*}
-    };
-
-    (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
+    ($count:expr $(, $ty:ident $value:ident $_:expr)*) => {
         impl<$($ty,)*> Args for ($($ty,)*)
         where
             $($ty: ToValue,)*

@@ -453,6 +453,7 @@ impl Context {
                                 is_async: false,
                                 args: Some(args),
                                 return_type: Some(enum_hash),
+                                argument_types: Box::from([]),
                                 kind: meta::SignatureKind::Function,
                             };
 
@@ -538,6 +539,11 @@ impl Context {
             is_async: false,
             args: f.args,
             return_type: f.return_type.as_ref().map(|f| f.hash),
+            argument_types: f
+                .argument_types
+                .iter()
+                .map(|f| f.as_ref().map(|f| f.hash))
+                .collect(),
             kind: meta::SignatureKind::Function,
         };
 
@@ -644,6 +650,11 @@ impl Context {
             is_async: assoc.is_async,
             args: assoc.args,
             return_type: assoc.return_type.as_ref().map(|f| f.hash),
+            argument_types: assoc
+                .argument_types
+                .iter()
+                .map(|f| f.as_ref().map(|f| f.hash))
+                .collect(),
             kind: meta::SignatureKind::Instance {
                 name: assoc.name.kind.clone(),
                 self_type_info: info.type_info.clone(),
@@ -688,6 +699,11 @@ impl Context {
                 is_async: assoc.is_async,
                 args: assoc.args,
                 return_type: assoc.return_type.as_ref().map(|f| f.hash),
+                argument_types: assoc
+                    .argument_types
+                    .iter()
+                    .map(|f| f.as_ref().map(|f| f.hash))
+                    .collect(),
                 kind: meta::SignatureKind::Function,
             };
 
@@ -815,6 +831,7 @@ impl Context {
                 is_async: false,
                 args: Some(variant.args),
                 return_type: Some(enum_hash),
+                argument_types: Box::from([]),
                 kind: meta::SignatureKind::Function,
             };
 
@@ -890,6 +907,7 @@ impl Context {
             is_async: false,
             args: Some(args),
             return_type: Some(type_hash),
+            argument_types: Box::from([]),
             kind: meta::SignatureKind::Function,
         };
 
