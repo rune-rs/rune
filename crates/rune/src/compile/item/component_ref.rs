@@ -18,7 +18,15 @@ pub enum ComponentRef<'a> {
     Id(usize),
 }
 
-impl ComponentRef<'_> {
+impl<'a> ComponentRef<'a> {
+    /// Get the component as a string.
+    pub(crate) fn as_str(&self) -> Option<&'a str> {
+        match self {
+            ComponentRef::Str(string) => Some(string),
+            _ => None,
+        }
+    }
+
     /// Get the identifier of the component if it is an identifier component.
     pub fn id(self) -> Option<usize> {
         match self {

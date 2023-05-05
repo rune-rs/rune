@@ -333,7 +333,7 @@ impl Context {
 
     /// Get all associated types for the given hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &AssociatedFunction> {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &AssociatedFunction> + '_ {
         self.associated
             .get(&hash)
             .into_iter()

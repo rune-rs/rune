@@ -3,8 +3,8 @@ use crate::no_std::prelude::*;
 use anyhow::{Context, Result};
 use serde::Serialize;
 
-use crate::compile::{AssociatedFunctionKind, ComponentRef, Item};
-use crate::doc::context::{Kind, Signature};
+use crate::compile::{ComponentRef, Item};
+use crate::doc::context::{AssociatedKind, Kind, Signature};
 use crate::hash::Hash;
 
 use super::Ctxt;
@@ -69,40 +69,40 @@ pub(super) fn build_assoc<'a>(
         }
     }
 
-    for f in cx.context.associated(hash) {
+    for assoc in cx.context.associated(hash) {
         let value;
 
-        let (protocol, value) = match &f.name.kind {
-            AssociatedFunctionKind::Protocol(protocol) => (protocol, "value"),
-            AssociatedFunctionKind::FieldFn(protocol, field) => {
+        let (protocol, value) = match assoc.kind {
+            AssociatedKind::Protocol(protocol) => (protocol, "value"),
+            AssociatedKind::FieldFn(protocol, field) => {
                 value = format!("value.{field}");
                 (protocol, value.as_str())
             }
-            AssociatedFunctionKind::IndexFn(protocol, index) => {
+            AssociatedKind::IndexFn(protocol, index) => {
                 value = format!("value.{index}");
                 (protocol, value.as_str())
             }
-            AssociatedFunctionKind::Instance(name) => {
-                let doc = cx.render_docs(f.docs.lines())?;
+            AssociatedKind::Instance(name) => {
+                let doc = cx.render_docs(assoc.docs)?;
 
                 let mut list = Vec::new();
 
-                for hash in &f.name.parameter_types {
+                for hash in assoc.parameter_types {
                     list.push(cx.hash_to_link(*hash)?);
                 }
 
                 let parameters = (!list.is_empty()).then(|| list.join(", "));
 
                 methods.push(Method {
-                    is_async: f.is_async,
+                    is_async: assoc.is_async,
                     name,
                     args: super::args_to_string(
-                        f.docs.args(),
-                        Signature::Instance { args: f.args },
+                        assoc.docs_args,
+                        Signature::Instance { args: assoc.args },
                     )?,
                     parameters,
-                    return_type: match &f.return_type {
-                        Some(f) => Some(cx.hash_to_link(f.hash)?),
+                    return_type: match assoc.return_type {
+                        Some(hash) => Some(cx.hash_to_link(hash)?),
                         None => None,
                     },
                     doc,
@@ -112,10 +112,10 @@ pub(super) fn build_assoc<'a>(
             }
         };
 
-        let doc = if f.docs.lines().is_empty() {
+        let doc = if assoc.docs.is_empty() {
             cx.render_docs(protocol.doc)?
         } else {
-            cx.render_docs(f.docs.lines())?
+            cx.render_docs(assoc.docs)?
         };
 
         let repr = protocol
@@ -125,8 +125,8 @@ pub(super) fn build_assoc<'a>(
         protocols.push(Protocol {
             name: protocol.name,
             repr,
-            return_type: match &f.return_type {
-                Some(f) => Some(cx.hash_to_link(f.hash)?),
+            return_type: match assoc.return_type {
+                Some(hash) => Some(cx.hash_to_link(hash)?),
                 None => None,
             },
             doc,
