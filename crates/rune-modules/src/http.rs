@@ -74,7 +74,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.inst_fn("status", Response::status)?;
 
     module.async_inst_fn("send", RequestBuilder::send)?;
-    module.inst_fn("header", RequestBuilder::header)?;
+    module.function_meta(RequestBuilder::header)?;
     module.async_inst_fn("body_bytes", RequestBuilder::body_bytes)?;
 
     module.inst_fn(Protocol::STRING_DISPLAY, Error::display)?;
@@ -152,6 +152,7 @@ impl RequestBuilder {
     }
 
     /// Modify a header in the request.
+    #[rune::function]
     fn header(self, key: &str, value: &str) -> Self {
         Self {
             request: self.request.header(key, value),

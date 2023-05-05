@@ -59,6 +59,19 @@ code {
     padding: 0;
 }
 
+.inline-sep {
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+}
+
+.inline-docs p {
+    display: inline;
+}
+
+.inline-docs div {
+    display: inline;
+}
+
 a {
     text-decoration: none;
 }

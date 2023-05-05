@@ -367,82 +367,90 @@ impl Ctxt<'_> {
         sig: Signature,
         argument_types: &[Option<Hash>],
     ) -> Result<String> {
+        use std::borrow::Cow;
         use std::fmt::Write;
 
-        if let Some(args) = args {
-            return Ok(args.join(", "));
-        }
-
         let mut string = String::new();
-
         let mut types = argument_types.iter();
 
-        match sig {
-            Signature::Function { args, .. } => {
-                let mut string = String::new();
+        let mut args_iter;
+        let mut function_iter;
+        let mut instance_iter;
 
-                if let Some(count) = args {
-                    let mut it = (0..count).map(|n| {
-                        if n != 0 {
-                            format!("{}", n)
+        let it: &mut dyn Iterator<Item = Cow<'_, str>> = if let Some(args) = args {
+            args_iter = args.iter().map(|s| Cow::Borrowed(s.as_str()));
+            &mut args_iter
+        } else {
+            match sig {
+                Signature::Function { args, .. } => {
+                    let mut string = String::new();
+
+                    let Some(count) = args else {
+                        write!(string, "..")?;
+                        return Ok(string);
+                    };
+
+                    function_iter = (0..count).map(|n| {
+                        if n == 0 {
+                            Cow::Borrowed("value")
                         } else {
-                            String::new()
+                            Cow::Owned(format!("value{}", n))
                         }
                     });
 
-                    let last = it.next_back();
-
-                    for n in it {
-                        write!(string, "value{n}")?;
-
-                        if let Some(Some(hash)) = types.next() {
-                            string.push_str(": ");
-                            string.push_str(&self.link(*hash, None)?);
-                        }
-
-                        write!(string, ", ")?;
-                    }
-
-                    if let Some(n) = last {
-                        write!(string, "value{n}")?;
-
-                        if let Some(Some(hash)) = types.next() {
-                            string.push_str(": ");
-                            string.push_str(&self.link(*hash, None)?);
-                        }
-                    }
-                } else {
-                    write!(string, "..")?;
+                    &mut function_iter
                 }
+                Signature::Instance { args, .. } => {
+                    let s = [Cow::Borrowed("self")];
 
-                Ok(string)
+                    let (n, f): (usize, fn(usize) -> Cow<'static, str>) = match args {
+                        Some(n) => {
+                            let f = move |n| {
+                                if n != 1 {
+                                    Cow::Owned(format!("value{n}"))
+                                } else {
+                                    Cow::Borrowed("value")
+                                }
+                            };
+
+                            (n, f)
+                        }
+                        None => {
+                            let f = move |_| Cow::Borrowed("..");
+                            (2, f)
+                        }
+                    };
+
+                    instance_iter = s.into_iter().chain((1..n).map(f));
+                    &mut instance_iter
+                }
             }
-            Signature::Instance { args, .. } => {
+        };
+
+        let mut it = it.peekable();
+
+        while let Some(arg) = it.next() {
+            if arg == "self" {
                 if let Some(Some(hash)) = types.next() {
                     string.push_str(&self.link(*hash, Some("self"))?);
                 } else {
-                    write!(string, "self")?;
+                    string.push_str("self");
                 }
+            } else {
+                string.push_str(arg.as_ref());
 
-                match args {
-                    Some(n) => {
-                        for n in 1..n {
-                            write!(string, ", value{n}")?;
-
-                            if let Some(Some(hash)) = types.next() {
-                                string.push_str(": ");
-                                string.push_str(&self.link(*hash, None)?);
-                            }
-                        }
-                    }
-                    None => {
-                        write!(string, ", ..")?;
-                    }
+                if let Some(Some(hash)) = types.next() {
+                    string.push_str(": ");
+                    string.push_str(&self.link(*hash, None)?);
                 }
+            }
 
-                Ok(string)
+            if it.peek().is_some() {
+                write!(string, ", ")?;
             }
         }
+
+        Ok(string)
     }
 }
 
@@ -744,7 +752,7 @@ fn module(
                         item,
                         name,
                         args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
-                        doc: cx.render_docs(meta.docs)?,
+                        doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
                     });
                 }
             }
