@@ -27,7 +27,7 @@ pub(super) fn build(cx: &Ctxt<'_>, hash: Hash) -> Result<()> {
     let module = cx.module_path_html(false);
     let name = cx.item.last().context("missing module name")?;
 
-    let (protocols, methods) = super::type_::build_assoc(cx, hash)?;
+    let (protocols, methods) = super::type_::build_assoc_fns(cx, hash)?;
 
     cx.write_file(|cx| {
         cx.enum_template.render(&Params {

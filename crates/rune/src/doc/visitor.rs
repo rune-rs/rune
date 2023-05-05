@@ -90,6 +90,13 @@ impl CompileVisitor for Visitor {
     }
 
     fn visit_doc_comment(&mut self, _location: Location, item: &Item, hash: Hash, string: &str) {
+        // Documentation comments are literal source lines, so they're newline
+        // terminated. Since we perform our own internal newlines conversion
+        // these need to be trimmed - at least between each doc item.
+        fn newlines(c: char) -> bool {
+            matches!(c, '\n' | '\r')
+        }
+
         let item = self.base.join(item);
         tracing::trace!(?item, "visiting comment");
 
@@ -97,7 +104,8 @@ impl CompileVisitor for Visitor {
             .data
             .entry(hash)
             .or_insert_with(|| VisitorData::new(item.to_owned(), hash, meta::Kind::Unknown));
-        data.docs.push(string.to_owned());
+
+        data.docs.push(string.trim_end_matches(newlines).to_owned());
     }
 
     fn visit_field_doc_comment(

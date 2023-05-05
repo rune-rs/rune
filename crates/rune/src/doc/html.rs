@@ -698,21 +698,28 @@ fn function(cx: &Ctxt<'_>) -> Result<()> {
         name: ComponentRef<'a>,
         args: String,
         doc: Option<String>,
+        return_type: Option<String>,
     }
 
     let meta = cx.context.meta(&cx.item).context("missing function")?;
 
-    let (args, signature) = match meta.kind {
+    let (args, signature, return_type) = match meta.kind {
         Kind::Function(Function {
             args,
             signature: signature @ Signature::Function { .. },
+            return_type,
             ..
-        }) => (args, signature),
+        }) => (args, signature, return_type),
         _ => bail!("found meta, but not a function"),
     };
 
     let name = cx.item.last().context("missing function name")?;
     let doc = cx.render_docs(meta.docs)?;
+
+    let return_type = match return_type {
+        Some(hash) => Some(cx.hash_to_link(hash)?),
+        None => None,
+    };
 
     cx.write_file(|cx| {
         cx.function_template.render(&Params {
@@ -722,6 +729,7 @@ fn function(cx: &Ctxt<'_>) -> Result<()> {
             name,
             args: args_to_string(args, signature)?,
             doc,
+            return_type,
         })
     })
 }
@@ -776,15 +784,22 @@ fn args_to_string(args: Option<&[String]>, sig: Signature) -> Result<String> {
             let mut string = String::new();
 
             if let Some(count) = args {
-                let mut it = 0..count;
+                let mut it = (0..count).map(|n| {
+                    if n != 0 {
+                        format!("{}", n)
+                    } else {
+                        String::new()
+                    }
+                });
+
                 let last = it.next_back();
 
                 for n in it {
-                    write!(string, "arg{n}, ")?;
+                    write!(string, "value{n}, ")?;
                 }
 
                 if let Some(n) = last {
-                    write!(string, "arg{n}")?;
+                    write!(string, "value{n}")?;
                 }
             } else {
                 write!(string, "..")?;
