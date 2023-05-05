@@ -5,7 +5,7 @@ use crate::no_std::thiserror;
 use thiserror::Error;
 
 use crate::compile::meta;
-use crate::compile::{ItemBuf, MetaInfo};
+use crate::compile::ItemBuf;
 use crate::runtime::{TypeInfo, VmError};
 use crate::Hash;
 
@@ -14,60 +14,61 @@ use crate::Hash;
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum ContextError {
-    #[error("`()` types are already present")]
+    #[error("Unit `()` type is already present")]
     UnitAlreadyPresent,
-    #[error("`{name}` types are already present")]
+    #[error("Type for name `{name}` is already present")]
     InternalAlreadyPresent { name: &'static str },
-    #[error("conflicting meta {existing} while trying to insert {current}")]
-    ConflictingMeta {
-        current: Box<MetaInfo>,
-        existing: Box<MetaInfo>,
-    },
-    #[error("function `{signature}` ({hash}) already exists")]
+    #[error("Function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
         signature: Box<meta::Signature>,
         hash: Hash,
     },
-    #[error("function with name `{name}` already exists")]
+    #[error("Function with name `{name}` already exists")]
     ConflictingFunctionName { name: ItemBuf },
-    #[error("constant with name `{name}` already exists")]
+    #[error("Constant with name `{name}` already exists")]
     ConflictingConstantName { name: ItemBuf },
-    #[error("instance function `{name}` for type `{type_info}` already exists")]
+    #[error("Instance function `{name}` for type `{type_info}` already exists")]
     ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
-    #[error("protocol function `{name}` for type `{type_info}` already exists")]
+    #[error("Protocol function `{name}` for type `{type_info}` already exists")]
     ConflictingProtocolFunction { type_info: TypeInfo, name: Box<str> },
-    #[error("field function `{name}` for field `{field}` and type `{type_info}` already exists")]
+    #[error("Field function `{name}` for field `{field}` and type `{type_info}` already exists")]
     ConflictingFieldFunction {
         type_info: TypeInfo,
         name: Box<str>,
         field: Box<str>,
     },
-    #[error("index function `{name}` for index `{index}` and type `{type_info}` already exists")]
+    #[error("Index function `{name}` for index `{index}` and type `{type_info}` already exists")]
     ConflictingIndexFunction {
         type_info: TypeInfo,
         name: Box<str>,
         index: usize,
     },
-    #[error("module `{item}` with hash `{hash}` already exists")]
+    #[error("Module `{item}` with hash `{hash}` already exists")]
     ConflictingModule { item: ItemBuf, hash: Hash },
-    #[error("type `{item}` already exists `{type_info}`")]
+    #[error("Type `{item}` already exists `{type_info}`")]
     ConflictingType { item: ItemBuf, type_info: TypeInfo },
-    #[error("type `{item}` at `{type_info}` already has a specification")]
+    #[error("Type `{item}` at `{type_info}` already has a specification")]
     ConflictingTypeMeta { item: ItemBuf, type_info: TypeInfo },
-    #[error("type `{item}` with info `{type_info}` isn't registered")]
+    #[error("Type `{item}` with info `{type_info}` isn't registered")]
     MissingType { item: ItemBuf, type_info: TypeInfo },
-    #[error("type `{item}` with info `{type_info}` is registered but is not an enum")]
+    #[error("Type `{item}` with info `{type_info}` is registered but is not an enum")]
     MissingEnum { item: ItemBuf, type_info: TypeInfo },
-    #[error("tried to insert conflicting hash `{hash}` for `{existing}`")]
+    #[error("Conflicting meta hash `{hash}` for `{existing}` when inserting item `{item}`")]
+    ConflictingMetaHash {
+        item: ItemBuf,
+        hash: Hash,
+        existing: Hash,
+    },
+    #[error("Tried to insert conflicting hash `{hash}` for `{existing}`")]
     ConflictingTypeHash { hash: Hash, existing: Hash },
-    #[error("variant with `{item}` already exists")]
+    #[error("Variant with `{item}` already exists")]
     ConflictingVariant { item: ItemBuf },
-    #[error("instance `{instance_type}` does not exist in module")]
+    #[error("Instance `{instance_type}` does not exist in module")]
     MissingInstance { instance_type: TypeInfo },
-    #[error("error when converting to constant value: {error}")]
+    #[error("Error when converting to constant value: {error}")]
     ValueError { error: VmError },
-    #[error("missing variant {index} for `{type_info}`")]
+    #[error("Missing variant {index} for `{type_info}`")]
     MissingVariant { type_info: TypeInfo, index: usize },
-    #[error("constructor for variant {index} in `{type_info}` has already been registered")]
+    #[error("Constructor for variant {index} in `{type_info}` has already been registered")]
     VariantConstructorConflict { type_info: TypeInfo, index: usize },
 }

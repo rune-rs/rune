@@ -75,6 +75,7 @@ pub(crate) enum Kind<'a> {
     Struct,
     Variant,
     Enum,
+    Macro,
     Function(Function<'a>),
     Const(&'a ConstValue),
 }
@@ -190,27 +191,37 @@ impl<'a> Context<'a> {
     }
 
     /// Get a meta item by its hash.
-    pub(crate) fn meta_by_hash(&self, hash: Hash) -> Option<Meta<'_>> {
+    pub(crate) fn meta_by_hash(&self, hash: Hash) -> Vec<Meta<'_>> {
+        let mut out = Vec::new();
+
         for visitor in self.visitors {
             if let Some(data) = visitor.get_by_hash(hash) {
-                return Some(visitor_meta_to_meta(data));
+                out.push(visitor_meta_to_meta(data));
             }
         }
 
-        let meta = self.context.lookup_meta_by_hash(hash)?;
-        self.context_meta_to_meta(meta)
+        for meta in self.context.lookup_meta_by_hash(hash) {
+            out.extend(self.context_meta_to_meta(meta));
+        }
+
+        out
     }
 
-    /// Lookup Meta.
-    pub(crate) fn meta(&self, item: &Item) -> Option<Meta<'_>> {
+    /// Lookup all meta matching the given item.
+    pub(crate) fn meta(&self, item: &Item) -> Vec<Meta<'_>> {
+        let mut out = Vec::new();
+
         for visitor in self.visitors {
             if let Some(data) = visitor.get(item) {
-                return Some(visitor_meta_to_meta(data));
+                out.push(visitor_meta_to_meta(data));
             }
         }
 
-        let meta = self.context.lookup_meta(item)?;
-        self.context_meta_to_meta(meta)
+        for meta in self.context.lookup_meta(item) {
+            out.extend(self.context_meta_to_meta(meta));
+        }
+
+        out
     }
 
     fn context_meta_to_meta(&self, meta: &'a PrivMeta) -> Option<Meta<'a>> {
@@ -246,17 +257,16 @@ impl<'a> Context<'a> {
                 })
             }
             meta::Kind::Const { const_value } => Kind::Const(const_value),
+            meta::Kind::Macro => Kind::Macro,
             _ => Kind::Unsupported,
         };
 
-        let m = Meta {
+        Some(Meta {
             item: &meta.item,
             hash: meta.hash,
             docs: meta.docs.lines(),
             kind,
-        };
-
-        Some(m)
+        })
     }
 
     /// Iterate over known modules.

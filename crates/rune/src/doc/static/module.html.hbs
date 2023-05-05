@@ -45,6 +45,16 @@
 {{/each}}
 {{/if}}
 
+{{#if macros}}
+<h4 class="section-title">Macros</h4>
+
+{{#each macros}}
+    <div id="macro.{{this.name}}" class="item-entry">
+    <a class="macro" href="{{this.path}}">{{this.name}}</a>{{#if this.doc}}<span class="inline-sep">&dash;</span><span class="inline-docs">{{literal this.doc}}</span>{{/if}}
+    </div>
+{{/each}}
+{{/if}}
+
 {{#if modules}}
 <h4 class="section-title">Modules</h4>
 

@@ -3,7 +3,7 @@ use core::fmt;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::collections::{hash_map, HashMap, HashSet};
+use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::module::{
     AssociatedFunction, Function, InternalEnum, Macro, Module, ModuleFunction, Type,
@@ -102,7 +102,7 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
-    meta: HashMap<Hash, PrivMeta>,
+    meta: HashMap<Hash, Vec<PrivMeta>>,
     /// Store item to hash mapping.
     item_to_hash: HashMap<ItemBuf, Hash>,
     /// Information on functions.
@@ -298,15 +298,22 @@ impl Context {
     }
 
     /// Access the context meta for the given item.
-    pub(crate) fn lookup_meta(&self, item: &Item) -> Option<&PrivMeta> {
-        let hash = self.item_to_hash.get(item)?;
-        self.meta.get(hash)
+    pub(crate) fn lookup_meta(&self, item: &Item) -> &[PrivMeta] {
+        let Some(hash) = self.item_to_hash.get(item) else {
+            return &[];
+        };
+
+        let Some(meta) = self.meta.get(hash) else {
+            return &[];
+        };
+
+        meta
     }
 
     /// Lookup meta by its hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> Option<&PrivMeta> {
-        self.meta.get(&hash)
+    pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> &[PrivMeta] {
+        self.meta.get(&hash).map(Vec::as_slice).unwrap_or_default()
     }
 
     /// Look up signature of function.
@@ -318,7 +325,7 @@ impl Context {
     /// Iterate over all metadata in the context.
     #[cfg(feature = "cli")]
     pub(crate) fn iter_meta(&self) -> impl Iterator<Item = &PrivMeta> + '_ {
-        self.meta.values()
+        self.meta.values().flatten()
     }
 
     /// Check if unit contains the given name by prefix.
@@ -366,19 +373,17 @@ impl Context {
 
     /// Install the given meta.
     fn install_meta(&mut self, meta: PrivMeta) -> Result<(), ContextError> {
-        match self.meta.entry(meta.hash) {
-            hash_map::Entry::Occupied(e) => {
-                return Err(ContextError::ConflictingMeta {
-                    existing: Box::new(e.get().info()),
-                    current: Box::new(meta.info()),
+        if let Some(existing) = self.item_to_hash.insert(meta.item.clone(), meta.hash) {
+            if meta.hash != existing {
+                return Err(ContextError::ConflictingMetaHash {
+                    item: meta.item.clone(),
+                    hash: meta.hash,
+                    existing,
                 });
-            }
-            hash_map::Entry::Vacant(e) => {
-                self.item_to_hash.insert(meta.item.clone(), meta.hash);
-                e.insert(meta);
             }
         }
 
+        self.meta.entry(meta.hash).or_default().push(meta);
         Ok(())
     }
 
@@ -582,12 +587,21 @@ impl Context {
         m: &Macro,
     ) -> Result<(), ContextError> {
         let item = module.item.join(item);
+        let hash = Hash::type_hash(&item);
 
         self.names.insert(&item);
 
-        let hash = Hash::type_hash(&item);
-
         self.macros.insert(hash, m.handler.clone());
+
+        self.install_meta(PrivMeta::new(
+            module,
+            hash,
+            None,
+            item,
+            meta::Kind::Macro,
+            Docs::default(),
+        ))?;
+
         Ok(())
     }
 
@@ -867,7 +881,7 @@ impl Context {
 
         let tuple = meta::Tuple { args, hash };
 
-        let meta = match enum_item {
+        let priv_meta = match enum_item {
             Some((enum_hash, index)) => PrivMeta::new(
                 module,
                 type_hash,
@@ -892,7 +906,7 @@ impl Context {
             ),
         };
 
-        self.install_meta(meta)?;
+        self.install_meta(priv_meta)?;
 
         let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));

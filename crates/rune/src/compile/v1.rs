@@ -1,11 +1,12 @@
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
+use crate::compile::context::PrivMeta;
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
     self, Assembly, CompileErrorKind, IrBudget, IrCompiler, IrInterpreter, ItemId, ItemMeta,
-    Location, Options, WithSpan,
+    Location, Options, QueryErrorKind, WithSpan,
 };
 use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
@@ -58,6 +59,23 @@ pub(crate) struct Assembler<'a> {
 }
 
 impl<'a> Assembler<'a> {
+    // Pick private metadata to compile for the item.
+    fn select_priv_meta<'m>(
+        &self,
+        item: ItemId,
+        meta: &'m [PrivMeta],
+    ) -> Result<Option<&'m PrivMeta>, Box<QueryErrorKind>> {
+        match meta {
+            [m, o] | [o, m] if matches!(m.kind, meta::Kind::Macro) => Ok(Some(o)),
+            [item] => Ok(Some(item)),
+            items if !items.is_empty() => Err(Box::new(QueryErrorKind::AmbiguousContextItem {
+                item: self.q.pool.item(item).to_owned(),
+                infos: items.iter().map(|i| i.info()).collect(),
+            })),
+            _ => Ok(None),
+        }
+    }
+
     /// Access the meta for the given language item.
     pub fn try_lookup_meta(
         &mut self,
@@ -75,17 +93,21 @@ impl<'a> Assembler<'a> {
             return Ok(Some(meta));
         }
 
-        if let Some(meta) = self.context.lookup_meta(self.q.pool.item(item)) {
-            let meta = self.q.insert_context_meta(span, meta)?;
-            tracing::trace!("found in context: {:?}", meta);
-            self.q.visitor.visit_meta(
-                Location::new(self.source_id, span),
-                meta.as_meta_ref(self.q.pool),
-            );
-            return Ok(Some(meta));
-        }
+        let meta = self.context.lookup_meta(self.q.pool.item(item));
 
-        Ok(None)
+        let Some(meta) = self.select_priv_meta(item, meta).with_span(span)? else {
+            return Ok(None);
+        };
+
+        let meta = self.q.insert_context_meta(span, meta)?;
+
+        tracing::trace!("found in context: {:?}", meta);
+        self.q.visitor.visit_meta(
+            Location::new(self.source_id, span),
+            meta.as_meta_ref(self.q.pool),
+        );
+
+        Ok(Some(meta))
     }
 
     /// Access the meta for the given language item.

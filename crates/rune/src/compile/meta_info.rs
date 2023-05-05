@@ -40,6 +40,9 @@ impl fmt::Display for MetaInfo {
             MetaInfoKind::Enum => {
                 write!(fmt, "enum {}", self.item)?;
             }
+            MetaInfoKind::Macro => {
+                write!(fmt, "macro {}", self.item)?;
+            }
             MetaInfoKind::Function => {
                 write!(fmt, "fn {}", self.item)?;
             }
@@ -73,6 +76,7 @@ pub(crate) enum MetaInfoKind {
     Struct,
     Variant,
     Enum,
+    Macro,
     Function,
     Closure,
     AsyncBlock,
@@ -89,6 +93,7 @@ impl MetaInfoKind {
             meta::Kind::Struct { .. } => MetaInfoKind::Struct,
             meta::Kind::Variant { .. } => MetaInfoKind::Variant,
             meta::Kind::Enum { .. } => MetaInfoKind::Enum,
+            meta::Kind::Macro { .. } => MetaInfoKind::Macro,
             meta::Kind::Function { .. } => MetaInfoKind::Function,
             meta::Kind::Closure { .. } => MetaInfoKind::Closure,
             meta::Kind::AsyncBlock { .. } => MetaInfoKind::AsyncBlock,

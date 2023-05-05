@@ -468,14 +468,14 @@ where
     fn format_compile_error(
         this: &FatalDiagnostic,
         sources: &Sources,
-        error_span: Span,
+        span: Span,
         kind: &CompileErrorKind,
         labels: &mut Vec<d::Label<SourceId>>,
         notes: &mut Vec<String>,
     ) -> fmt::Result {
         match kind {
             CompileErrorKind::QueryError(kind) => {
-                format_query_error(kind, labels)?;
+                format_query_error(this, span, kind, labels)?;
             }
             CompileErrorKind::DuplicateObjectKey { existing, object } => {
                 labels.push(
@@ -502,7 +502,7 @@ where
                         .with_message("Because this immediately follows"),
                 );
 
-                let binding = sources.source(this.source_id(), error_span);
+                let binding = sources.source(this.source_id(), span);
 
                 if let Some(binding) = binding {
                     let mut note = String::new();
@@ -538,7 +538,7 @@ where
                 let fields = fields.join(", ");
 
                 labels.push(
-                    d::Label::secondary(this.source_id(), error_span.range())
+                    d::Label::secondary(this.source_id(), span.range())
                         .with_message(format!("Missing {}: {}", pl, fields)),
                 );
 
@@ -551,6 +551,8 @@ where
     }
 
     fn format_query_error(
+        this: &FatalDiagnostic,
+        span: Span,
         kind: &QueryErrorKind,
         labels: &mut Vec<d::Label<SourceId>>,
     ) -> fmt::Result {
@@ -562,14 +564,14 @@ where
                 for (step, entry) in (1..).zip(it) {
                     labels.push(
                         d::Label::secondary(entry.location.source_id, entry.location.span.range())
-                            .with_message(format!("step #{} for `{}`", step, entry.item)),
+                            .with_message(format!("Step #{} for `{}`", step, entry.item)),
                     );
                 }
 
                 if let Some(entry) = last {
                     labels.push(
                         d::Label::secondary(entry.location.source_id, entry.location.span.range())
-                            .with_message(format!("final step cycling back to `{}`", entry.item)),
+                            .with_message(format!("Final step cycling back to `{}`", entry.item)),
                     );
                 }
             }
@@ -581,7 +583,7 @@ where
                 for Location { source_id, span } in chain {
                     labels.push(
                         d::Label::secondary(*source_id, span.range())
-                            .with_message("re-exported here"),
+                            .with_message("Re-exported here"),
                     );
                 }
 
@@ -597,20 +599,28 @@ where
                 for Location { source_id, span } in chain {
                     labels.push(
                         d::Label::secondary(*source_id, span.range())
-                            .with_message("re-exported here"),
+                            .with_message("Re-exported here"),
                     );
                 }
 
                 labels.push(
                     d::Label::secondary(*source_id, span.range())
-                        .with_message("module defined here"),
+                        .with_message("Module defined here"),
                 );
             }
             QueryErrorKind::AmbiguousItem { locations, .. } => {
                 for (Location { source_id, span }, item) in locations {
                     labels.push(
                         d::Label::secondary(*source_id, span.range())
-                            .with_message(format!("here as `{}`", item)),
+                            .with_message(format!("Here as `{item}`")),
+                    );
+                }
+            }
+            QueryErrorKind::AmbiguousContextItem { infos, .. } => {
+                for info in infos.as_ref() {
+                    labels.push(
+                        d::Label::secondary(this.source_id, span.range())
+                            .with_message(format!("Could be `{info}`")),
                     );
                 }
             }

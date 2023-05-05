@@ -50,6 +50,7 @@ enum ItemPath {
     Struct,
     Enum,
     Module,
+    Macro,
     Function,
 }
 
@@ -64,6 +65,7 @@ struct Ctxt<'a> {
     index_template: templating::Template,
     module_template: templating::Template,
     type_template: templating::Template,
+    macro_template: templating::Template,
     function_template: templating::Template,
     enum_template: templating::Template,
     syntax_set: SyntaxSet,
@@ -297,7 +299,7 @@ impl Ctxt<'_> {
 
     /// Convert a hash into a link.
     fn link(&self, hash: Hash, text: Option<&str>) -> Result<String> {
-        let link = if let Some(meta) = self.context.meta_by_hash(hash) {
+        let link = if let [meta] = self.context.meta_by_hash(hash).as_slice() {
             let name = match text {
                 Some(text) => text,
                 None => meta
@@ -428,6 +430,7 @@ enum Build<'a> {
     Type(ItemBuf, Hash),
     Struct(ItemBuf, Hash),
     Enum(ItemBuf, Hash),
+    Macro(ItemBuf),
     Function(ItemBuf),
     Module(&'a Item),
 }
@@ -509,6 +512,7 @@ pub fn write_html(
         index_template: compile(&templating, "index.html.hbs")?,
         module_template: compile(&templating, "module.html.hbs")?,
         type_template: compile(&templating, "type.html.hbs")?,
+        macro_template: compile(&templating, "macro.html.hbs")?,
         function_template: compile(&templating, "function.html.hbs")?,
         enum_template: compile(&templating, "enum.html.hbs")?,
         syntax_set,
@@ -532,9 +536,13 @@ pub fn write_html(
                 cx.set_path(item, ItemPath::Enum);
                 self::enum_::build(&cx, hash)?;
             }
+            Build::Macro(item) => {
+                cx.set_path(item, ItemPath::Macro);
+                build_macro(&cx)?;
+            }
             Build::Function(item) => {
                 cx.set_path(item, ItemPath::Function);
-                function(&cx)?;
+                build_function(&cx)?;
             }
             Build::Module(item) => {
                 cx.set_path(item.to_owned(), ItemPath::Module);
@@ -610,6 +618,7 @@ fn module(
         types: Vec<Type<'a>>,
         structs: Vec<Struct<'a>>,
         enums: Vec<Enum<'a>>,
+        macros: Vec<Macro<'a>>,
         functions: Vec<Function<'a>>,
         modules: Vec<Module<'a>>,
     }
@@ -645,6 +654,16 @@ fn module(
     }
 
     #[derive(Serialize)]
+    struct Macro<'a> {
+        path: RelativePathBuf,
+        #[serde(serialize_with = "serialize_item")]
+        item: ItemBuf,
+        #[serde(serialize_with = "serialize_component_ref")]
+        name: ComponentRef<'a>,
+        doc: Option<String>,
+    }
+
+    #[derive(Serialize)]
     struct Function<'a> {
         is_async: bool,
         path: RelativePathBuf,
@@ -669,64 +688,74 @@ fn module(
     let mut types = Vec::new();
     let mut structs = Vec::new();
     let mut enums = Vec::new();
+    let mut macros = Vec::new();
     let mut functions = Vec::new();
     let mut modules = Vec::new();
 
     for name in cx.context.iter_components(&cx.item) {
         let item = cx.item.join([name]);
 
-        let meta = match cx.context.meta(&item) {
-            Some(meta) => meta,
-            _ => continue,
-        };
+        for meta in cx.context.meta(&item) {
+            match meta.kind {
+                Kind::Unknown { .. } => {
+                    queue.push_front(Build::Type(item.clone(), meta.hash));
+                    let path = cx.item_path(&item, ItemPath::Type);
+                    types.push(Type {
+                        item: item.clone(),
+                        path,
+                        name,
+                        first: meta.docs.first(),
+                    });
+                }
+                Kind::Struct { .. } => {
+                    queue.push_front(Build::Struct(item.clone(), meta.hash));
+                    let path = cx.item_path(&item, ItemPath::Struct);
+                    structs.push(Struct {
+                        item: item.clone(),
+                        path,
+                        name,
+                        first: meta.docs.first(),
+                    });
+                }
+                Kind::Enum { .. } => {
+                    queue.push_front(Build::Enum(item.clone(), meta.hash));
+                    let path = cx.item_path(&item, ItemPath::Enum);
+                    enums.push(Enum {
+                        item: item.clone(),
+                        path,
+                        name,
+                        first: meta.docs.first(),
+                    });
+                }
+                Kind::Macro => {
+                    queue.push_front(Build::Macro(item.clone()));
 
-        match meta.kind {
-            Kind::Unknown { .. } => {
-                queue.push_front(Build::Type(item.clone(), meta.hash));
-                let path = cx.item_path(&item, ItemPath::Type);
-                types.push(Type {
-                    item,
-                    path,
-                    name,
-                    first: meta.docs.first(),
-                });
-            }
-            Kind::Struct { .. } => {
-                queue.push_front(Build::Struct(item.clone(), meta.hash));
-                let path = cx.item_path(&item, ItemPath::Struct);
-                structs.push(Struct {
-                    item,
-                    path,
-                    name,
-                    first: meta.docs.first(),
-                });
-            }
-            Kind::Enum { .. } => {
-                queue.push_front(Build::Enum(item.clone(), meta.hash));
-                let path = cx.item_path(&item, ItemPath::Enum);
-                enums.push(Enum {
-                    item,
-                    path,
-                    name,
-                    first: meta.docs.first(),
-                });
-            }
-            Kind::Function(f) => {
-                if !matches!(f.signature, Signature::Instance { .. }) {
+                    macros.push(Macro {
+                        path: cx.item_path(&item, ItemPath::Macro),
+                        item: item.clone(),
+                        name,
+                        doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
+                    });
+                }
+                Kind::Function(f) => {
+                    if matches!(f.signature, Signature::Instance { .. }) {
+                        continue;
+                    }
+
                     queue.push_front(Build::Function(item.clone()));
 
                     functions.push(Function {
                         is_async: f.is_async,
                         path: cx.item_path(&item, ItemPath::Function),
-                        item,
+                        item: item.clone(),
                         name,
                         args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
                         doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
                     });
                 }
-            }
-            _ => {
-                continue;
+                _ => {
+                    continue;
+                }
             }
         }
     }
@@ -746,15 +775,52 @@ fn module(
             types,
             structs,
             enums,
+            macros,
             functions,
             modules,
         })
     })
 }
 
+/// Build a macro.
+#[tracing::instrument(skip_all)]
+fn build_macro(cx: &Ctxt<'_>) -> Result<()> {
+    #[derive(Serialize)]
+    struct Params<'a> {
+        #[serde(flatten)]
+        shared: Shared,
+        module: String,
+        #[serde(serialize_with = "serialize_item")]
+        item: &'a Item,
+        #[serde(serialize_with = "serialize_component_ref")]
+        name: ComponentRef<'a>,
+        doc: Option<String>,
+    }
+
+    let meta = cx.context.meta(&cx.item);
+
+    let meta = meta
+        .iter()
+        .find(|m| matches!(m.kind, Kind::Macro))
+        .context("Expected a macro")?;
+
+    let name = cx.item.last().context("Missing macro name")?;
+    let doc = cx.render_docs(meta.docs)?;
+
+    cx.write_file(|cx| {
+        cx.macro_template.render(&Params {
+            shared: cx.shared(),
+            module: cx.module_path_html(false),
+            item: &cx.item,
+            name,
+            doc,
+        })
+    })
+}
+
 /// Build a function.
 #[tracing::instrument(skip_all)]
-fn function(cx: &Ctxt<'_>) -> Result<()> {
+fn build_function(cx: &Ctxt<'_>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -769,7 +835,12 @@ fn function(cx: &Ctxt<'_>) -> Result<()> {
         return_type: Option<String>,
     }
 
-    let meta = cx.context.meta(&cx.item).context("missing function")?;
+    let meta = cx.context.meta(&cx.item);
+
+    let meta = meta
+        .iter()
+        .find(|m| matches!(m.kind, Kind::Function(..)))
+        .context("Expected a function")?;
 
     let (args, signature, return_type, argument_types) = match meta.kind {
         Kind::Function(Function {
@@ -782,7 +853,7 @@ fn function(cx: &Ctxt<'_>) -> Result<()> {
         _ => bail!("found meta, but not a function"),
     };
 
-    let name = cx.item.last().context("missing function name")?;
+    let name = cx.item.last().context("Missing function name")?;
     let doc = cx.render_docs(meta.docs)?;
 
     let return_type = match return_type {
@@ -859,6 +930,7 @@ fn build_item_path(name: &str, item: &Item, kind: ItemPath, path: &mut RelativeP
         ItemPath::Struct => "struct.html",
         ItemPath::Enum => "enum.html",
         ItemPath::Module => "module.html",
+        ItemPath::Macro => "macro.html",
         ItemPath::Function => "fn.html",
     });
 }

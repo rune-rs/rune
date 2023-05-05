@@ -105,10 +105,22 @@ impl From<MissingLocal<'_>> for CompileErrorKind {
 }
 
 impl From<&'static str> for CompileErrorKind {
+    #[inline]
     fn from(value: &'static str) -> Self {
         CompileErrorKind::Custom {
             message: Box::from(value),
         }
+    }
+}
+
+// NB: Sometimes errors are boxed because they're so big.
+impl<T> From<Box<T>> for CompileErrorKind
+where
+    CompileErrorKind: From<T>,
+{
+    #[inline]
+    fn from(kind: Box<T>) -> Self {
+        CompileErrorKind::from(*kind)
     }
 }
 
@@ -389,6 +401,11 @@ pub(crate) enum QueryErrorKind {
     AmbiguousItem {
         item: ItemBuf,
         locations: Vec<(Location, ItemBuf)>,
+    },
+    #[error("Item `{item}` can refer to multiple things from the context")]
+    AmbiguousContextItem {
+        item: ItemBuf,
+        infos: Box<[MetaInfo]>,
     },
     #[error(
         "Item `{item}` with visibility `{visibility}`, is not accessible from module `{from}`"
