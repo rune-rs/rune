@@ -26,6 +26,7 @@ pub(crate) struct Function<'a> {
     pub(crate) args: Option<&'a [String]>,
     pub(crate) signature: Signature,
     pub(crate) return_type: Option<Hash>,
+    pub(crate) argument_types: &'a [Option<Hash>],
 }
 
 /// The kind of an associated function.
@@ -44,6 +45,7 @@ pub(crate) enum AssocFnKind<'a> {
 pub(crate) struct AssocFn<'a> {
     pub(crate) is_async: bool,
     pub(crate) return_type: Option<Hash>,
+    pub(crate) argument_types: Box<[Option<Hash>]>,
     pub(crate) docs: &'a [String],
     /// Literal argument replacements.
     /// TODO: replace this with structured information that includes type hash so it can be linked if it's available.
@@ -124,6 +126,7 @@ impl<'a> Context<'a> {
                 Some(Assoc::Fn(AssocFn {
                     is_async,
                     return_type: None,
+                    argument_types: Box::from([]),
                     docs: &data.docs,
                     docs_args: None,
                     kind,
@@ -148,6 +151,11 @@ impl<'a> Context<'a> {
             Assoc::Fn(AssocFn {
                 is_async: associated.is_async,
                 return_type: associated.return_type.as_ref().map(|f| f.hash),
+                argument_types: associated
+                    .argument_types
+                    .iter()
+                    .map(|f| f.as_ref().map(|f| f.hash))
+                    .collect(),
                 docs: associated.docs.lines(),
                 docs_args: associated.docs.args(),
                 kind,
@@ -234,6 +242,7 @@ impl<'a> Context<'a> {
                     signature,
                     args: meta.docs.args(),
                     return_type: f.return_type,
+                    argument_types: &f.argument_types,
                 })
             }
             meta::Kind::Const { const_value } => Kind::Const(const_value),
@@ -270,6 +279,7 @@ fn visitor_meta_to_meta(data: &VisitorData) -> Meta<'_> {
             args: None,
             signature: Signature::Function { args: *args },
             return_type: None,
+            argument_types: &[],
         }),
         _ => Kind::Unsupported,
     };

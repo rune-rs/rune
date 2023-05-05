@@ -56,8 +56,8 @@ pub(super) fn build_assoc_fns<'a>(
 
                 let mut list = Vec::new();
 
-                for hash in assoc.parameter_types {
-                    list.push(cx.hash_to_link(*hash)?);
+                for &hash in assoc.parameter_types {
+                    list.push(cx.link(hash, None)?);
                 }
 
                 let parameters = (!list.is_empty()).then(|| list.join(", "));
@@ -65,13 +65,14 @@ pub(super) fn build_assoc_fns<'a>(
                 methods.push(Method {
                     is_async: assoc.is_async,
                     name,
-                    args: super::args_to_string(
+                    args: cx.args_to_string(
                         assoc.docs_args,
                         Signature::Instance { args: assoc.args },
+                        &assoc.argument_types,
                     )?,
                     parameters,
                     return_type: match assoc.return_type {
-                        Some(hash) => Some(cx.hash_to_link(hash)?),
+                        Some(hash) => Some(cx.link(hash, None)?),
                         None => None,
                     },
                     doc,
@@ -95,7 +96,7 @@ pub(super) fn build_assoc_fns<'a>(
             name: protocol.name,
             repr,
             return_type: match assoc.return_type {
-                Some(hash) => Some(cx.hash_to_link(hash)?),
+                Some(hash) => Some(cx.link(hash, None)?),
                 None => None,
             },
             doc,

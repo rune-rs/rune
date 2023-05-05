@@ -2,6 +2,7 @@
 
 use crate::no_std::prelude::*;
 
+use crate as rune;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
@@ -20,19 +21,27 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<i64>()?;
     module.ty::<Tuple>()?;
 
-    module.function(["panic"], panic_impl)?;
-    module.function(["is_readable"], is_readable)?;
-    module.function(["is_writable"], is_writable)?;
+    module.function_meta(panic)?;
+    module.function_meta(is_readable)?;
+    module.function_meta(is_writable)?;
 
     module.macro_(["stringify"], stringify_macro)?;
     module.macro_(["panic"], panic_macro)?;
     Ok(module)
 }
 
-fn panic_impl(m: &str) -> VmResult<()> {
-    VmResult::err(Panic::custom(m.to_owned()))
+/// Cause a vm panic with the given `message`.
+///
+/// A panic in Rune causes the current execution to unwind and terminate. The
+/// panic will not be propagated into Rust, but will instead be signatted
+/// through a `VmError`.
+#[rune::function]
+fn panic(message: &str) -> VmResult<()> {
+    VmResult::err(Panic::custom(message.to_owned()))
 }
 
+/// Test if the given `value` is readable.
+#[rune::function]
 fn is_readable(value: Value) -> bool {
     match value {
         Value::Any(any) => any.is_readable(),
@@ -49,6 +58,8 @@ fn is_readable(value: Value) -> bool {
     }
 }
 
+/// Test if the given `value` is writable.
+#[rune::function]
 fn is_writable(value: Value) -> bool {
     match value {
         Value::Any(any) => any.is_writable(),
@@ -70,8 +81,6 @@ pub(crate) fn stringify_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    use crate as rune;
-
     let lit = ctx.stringify(stream).to_string();
     let lit = ctx.lit(lit);
     Ok(quote!(#lit).into_token_stream(ctx))
@@ -81,8 +90,6 @@ pub(crate) fn panic_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    use crate as rune;
-
     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(ctx)?;

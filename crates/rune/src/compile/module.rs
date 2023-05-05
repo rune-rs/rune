@@ -12,8 +12,8 @@ use crate::no_std::sync::Arc;
 use crate::collections::{HashMap, HashSet};
 use crate::compile::{
     self, AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, ContextError,
-    Docs, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent, ItemBuf, Named,
-    ToFieldFunction, ToInstance,
+    Docs, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent, ItemBuf, IterFunctionArgs,
+    Named, ToFieldFunction, ToInstance,
 };
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
@@ -217,6 +217,8 @@ pub struct AssociatedFunction {
     pub(crate) name: AssociatedFunctionName,
     /// The return type of an associated function.
     pub(crate) return_type: Option<FullTypeOf>,
+    /// Argument types passed in.
+    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
     /// The documentation of the associated function.
     pub(crate) docs: Docs,
 }
@@ -240,6 +242,8 @@ pub(crate) struct ModuleFunction {
     pub(crate) instance_function: bool,
     /// The return type of a module function.
     pub(crate) return_type: Option<FullTypeOf>,
+    /// The arguments types of a module function.
+    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
     /// Documentation of the module function.
     pub(crate) docs: Docs,
 }
@@ -828,6 +832,7 @@ impl Module {
         Func::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
+        Args: IterFunctionArgs,
     {
         self.function_inner(FunctionData::new(name, f), Docs::default())
     }
@@ -869,6 +874,7 @@ impl Module {
         Func::Output: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
+        Args: IterFunctionArgs,
     {
         self.function_inner(FunctionData::new_async(name, f), Docs::default())
     }
@@ -915,6 +921,7 @@ impl Module {
         N: ToInstance,
         Func: InstFn<Args>,
         Func::Return: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_instance(), f),
@@ -956,6 +963,7 @@ impl Module {
         N: ToInstance,
         Func: AsyncInstFn<Args>,
         Func::Output: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new_async(name.to_instance(), f),
@@ -974,6 +982,7 @@ impl Module {
         N: ToFieldFunction,
         Func: InstFn<Args>,
         Func::Return: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_field_function(protocol), f),
@@ -994,6 +1003,7 @@ impl Module {
     where
         Func: InstFn<Args>,
         Func::Return: MaybeTypeOf,
+        Args: IterFunctionArgs,
     {
         let name = AssociatedFunctionName::index(protocol, index);
         self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::default())
@@ -1021,6 +1031,7 @@ impl Module {
                 args: None,
                 instance_function: false,
                 return_type: None,
+                argument_types: Box::from([]),
                 docs: Docs::default(),
             },
         );
@@ -1041,6 +1052,7 @@ impl Module {
                 args: data.args,
                 instance_function: false,
                 return_type: data.return_type,
+                argument_types: data.argument_types,
                 docs,
             },
         );
@@ -1090,6 +1102,7 @@ impl Module {
             args: data.args,
             name: data.name,
             return_type: data.return_type,
+            argument_types: data.argument_types,
             docs,
         };
 
@@ -1108,78 +1121,91 @@ impl AsRef<Module> for Module {
 /// Trait used to provide the [function][Module::function] function.
 pub trait Function<Args>: 'static + Send + Sync {
     /// The return type of the function.
+    #[doc(hidden)]
     type Return;
 
     /// Get the number of arguments.
+    #[doc(hidden)]
     fn args() -> usize;
 
     /// Perform the vm call.
+    #[doc(hidden)]
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
 /// Trait used to provide the [async_function][Module::async_function] function.
 pub trait AsyncFunction<Args>: 'static + Send + Sync {
     /// The return type of the function.
+    #[doc(hidden)]
     type Return: future::Future<Output = Self::Output>;
+
     /// The output produces by the future.
+    #[doc(hidden)]
     type Output;
 
     /// Get the number of arguments.
+    #[doc(hidden)]
     fn args() -> usize;
 
     /// Perform the vm call.
+    #[doc(hidden)]
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
 /// Trait used to provide the [inst_fn][Module::inst_fn] function.
 pub trait InstFn<Args>: 'static + Send + Sync {
     /// The type of the instance.
+    #[doc(hidden)]
     type Instance;
+
     /// The return type of the function.
+    #[doc(hidden)]
     type Return;
 
     /// Get the number of arguments.
+    #[doc(hidden)]
     fn args() -> usize;
 
     /// Access static information on the instance type with the associated
     /// function.
+    #[doc(hidden)]
     fn ty() -> AssocType;
 
     /// Perform the vm call.
+    #[doc(hidden)]
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
 /// Trait used to provide the [async_inst_fn][Module::async_inst_fn] function.
 pub trait AsyncInstFn<Args>: 'static + Send + Sync {
     /// The type of the instance.
+    #[doc(hidden)]
     type Instance;
+
     /// The return type of the function.
+    #[doc(hidden)]
     type Return: future::Future<Output = Self::Output>;
+
     /// The output value of the async function.
+    #[doc(hidden)]
     type Output;
 
     /// Get the number of arguments.
+    #[doc(hidden)]
     fn args() -> usize;
 
     /// Access static information on the instance type with the associated
     /// function.
+    #[doc(hidden)]
     fn ty() -> AssocType;
 
     /// Perform the vm call.
+    #[doc(hidden)]
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
 macro_rules! impl_register {
-    () => {
-        impl_register!(@impl 0,);
-    };
-
-    ({$ty:ident, $var:ident, $num:expr}, $({$l_ty:ident, $l_var:ident, $l_num:expr},)*) => {
-        impl_register!(@impl $num, {$ty, $var, $num}, $({$l_ty, $l_var, $l_num},)*);
-        impl_register!($({$l_ty, $l_var, $l_num},)*);
-    };
-
-    (@impl $count:expr, $({$ty:ident, $var:ident, $num:expr},)*) => {
+    ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
         impl<Func, Return, $($ty,)*> Function<($($ty,)*)> for Func
         where
             Func: 'static + Send + Sync + Fn($($ty,)*) -> Return,

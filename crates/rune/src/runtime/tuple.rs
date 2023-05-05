@@ -182,14 +182,10 @@ impl FromValue for Tuple {
 }
 
 macro_rules! impl_tuple {
-    () => ();
+    // Skip conflicting implementation with `()`.
+    (0) => {};
 
-    ({$ty:ident, $var:ident, $count:expr}, $({$l_ty:ident, $l_var:ident, $l_count:expr},)*) => {
-        impl_tuple!{@impl $count, {$ty, $var, $count}, $({$l_ty, $l_var, $l_count},)*}
-        impl_tuple!{$({$l_ty, $l_var, $l_count},)*}
-    };
-
-    (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
+    ($count:expr $(, $ty:ident $var:ident $ignore_count:expr)*) => {
         impl_static_type!(impl <$($ty),*> ($($ty,)*) => TUPLE_TYPE);
 
         impl <$($ty,)*> FromValue for ($($ty,)*)

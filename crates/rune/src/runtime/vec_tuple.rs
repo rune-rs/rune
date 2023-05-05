@@ -20,15 +20,7 @@ where
 }
 
 macro_rules! impl_from_value_tuple_vec {
-    () => {
-    };
-
-    ({$ty:ident, $value:ident, $count:expr}, $({$rest_ty:ident, $rest_value:ident, $rest_count:expr},)*) => {
-        impl_from_value_tuple_vec!{@impl $count, {$ty, $value, $count}, $({$rest_ty, $rest_value, $rest_count},)*}
-        impl_from_value_tuple_vec!{$({$rest_ty, $rest_value, $rest_count},)*}
-    };
-
-    (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
+    ($count:expr $(, $ty:ident $value:ident $_:expr)*) => {
         impl<$($ty,)*> FromValue for VecTuple<($($ty,)*)>
         where
             $($ty: FromValue,)*

@@ -60,7 +60,7 @@ pub(crate) use self::meta::{Doc, ItemMeta};
 pub use self::meta::{MetaRef, SourceMeta};
 
 mod function_meta;
-pub(crate) use self::function_meta::{AssociatedFunctionData, FunctionData};
+pub(crate) use self::function_meta::{AssociatedFunctionData, FunctionData, IterFunctionArgs};
 pub use self::function_meta::{
     AssociatedFunctionKind, AssociatedFunctionName, FunctionMeta, FunctionMetaData,
     FunctionMetaKind, ToFieldFunction, ToInstance,

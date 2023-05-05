@@ -321,37 +321,136 @@ impl Ctxt<'_> {
     }
 
     /// Convert a hash into a link.
-    fn hash_to_link(&self, hash: Hash) -> Result<String> {
+    fn link(&self, hash: Hash, text: Option<&str>) -> Result<String> {
         let link = if let Some(meta) = self.context.meta_by_hash(hash) {
+            let name = match text {
+                Some(text) => text,
+                None => meta
+                    .item
+                    .last()
+                    .and_then(|c| c.as_str())
+                    .context("missing name")?,
+            };
+
             match &meta.kind {
                 Kind::Unknown => {
                     let path = self
                         .dir()
                         .relative(self.item_path(meta.item, ItemPath::Type));
-                    let name = meta.item.last().context("missing name")?;
                     format!("<a class=\"type\" href=\"{path}\">{name}</a>")
                 }
                 Kind::Struct => {
                     let path = self
                         .dir()
                         .relative(self.item_path(meta.item, ItemPath::Struct));
-                    let name = meta.item.last().context("missing name")?;
                     format!("<a class=\"struct\" href=\"{path}\">{name}</a>")
                 }
                 Kind::Enum => {
                     let path = self
                         .dir()
                         .relative(self.item_path(meta.item, ItemPath::Enum));
-                    let name = meta.item.last().context("missing name")?;
                     format!("<a class=\"enum\" href=\"{path}\">{name}</a>")
                 }
                 kind => format!("{kind:?}"),
             }
         } else {
-            String::from("?")
+            String::from("<b>n/a</b>")
         };
 
         Ok(link)
+    }
+
+    /// Coerce args into string.
+    fn args_to_string(
+        &self,
+        args: Option<&[String]>,
+        sig: Signature,
+        argument_types: &[Option<Hash>],
+    ) -> Result<String> {
+        use std::borrow::Cow;
+        use std::fmt::Write;
+
+        let mut string = String::new();
+        let mut types = argument_types.iter();
+
+        let mut args_iter;
+        let mut function_iter;
+        let mut instance_iter;
+
+        let it: &mut dyn Iterator<Item = Cow<'_, str>> = if let Some(args) = args {
+            args_iter = args.iter().map(|s| Cow::Borrowed(s.as_str()));
+            &mut args_iter
+        } else {
+            match sig {
+                Signature::Function { args, .. } => {
+                    let mut string = String::new();
+
+                    let Some(count) = args else {
+                        write!(string, "..")?;
+                        return Ok(string);
+                    };
+
+                    function_iter = (0..count).map(|n| {
+                        if n == 0 {
+                            Cow::Borrowed("value")
+                        } else {
+                            Cow::Owned(format!("value{}", n))
+                        }
+                    });
+
+                    &mut function_iter
+                }
+                Signature::Instance { args, .. } => {
+                    let s = [Cow::Borrowed("self")];
+
+                    let (n, f): (usize, fn(usize) -> Cow<'static, str>) = match args {
+                        Some(n) => {
+                            let f = move |n| {
+                                if n != 1 {
+                                    Cow::Owned(format!("value{n}"))
+                                } else {
+                                    Cow::Borrowed("value")
+                                }
+                            };
+
+                            (n, f)
+                        }
+                        None => {
+                            let f = move |_| Cow::Borrowed("..");
+                            (2, f)
+                        }
+                    };
+
+                    instance_iter = s.into_iter().chain((1..n).map(f));
+                    &mut instance_iter
+                }
+            }
+        };
+
+        let mut it = it.peekable();
+
+        while let Some(arg) = it.next() {
+            if arg == "self" {
+                if let Some(Some(hash)) = types.next() {
+                    string.push_str(&self.link(*hash, Some("self"))?);
+                } else {
+                    string.push_str("self");
+                }
+            } else {
+                string.push_str(arg.as_ref());
+
+                if let Some(Some(hash)) = types.next() {
+                    string.push_str(": ");
+                    string.push_str(&self.link(*hash, None)?);
+                }
+            }
+
+            if it.peek().is_some() {
+                write!(string, ", ")?;
+            }
+        }
+
+        Ok(string)
     }
 }
 
@@ -652,8 +751,8 @@ fn module(
                         path: cx.dir().relative(cx.item_path(&item, ItemPath::Function)),
                         item,
                         name,
-                        args: args_to_string(f.args, f.signature)?,
-                        doc: cx.render_docs(meta.docs)?,
+                        args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
+                        doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
                     });
                 }
             }
@@ -703,13 +802,14 @@ fn function(cx: &Ctxt<'_>) -> Result<()> {
 
     let meta = cx.context.meta(&cx.item).context("missing function")?;
 
-    let (args, signature, return_type) = match meta.kind {
+    let (args, signature, return_type, argument_types) = match meta.kind {
         Kind::Function(Function {
             args,
             signature: signature @ Signature::Function { .. },
             return_type,
+            argument_types,
             ..
-        }) => (args, signature, return_type),
+        }) => (args, signature, return_type, argument_types),
         _ => bail!("found meta, but not a function"),
     };
 
@@ -717,7 +817,7 @@ fn function(cx: &Ctxt<'_>) -> Result<()> {
     let doc = cx.render_docs(meta.docs)?;
 
     let return_type = match return_type {
-        Some(hash) => Some(cx.hash_to_link(hash)?),
+        Some(hash) => Some(cx.link(hash, None)?),
         None => None,
     };
 
@@ -727,7 +827,7 @@ fn function(cx: &Ctxt<'_>) -> Result<()> {
             module: cx.module_path_html(false),
             item: &cx.item,
             name,
-            args: args_to_string(args, signature)?,
+            args: cx.args_to_string(args, signature, argument_types)?,
             doc,
             return_type,
         })
@@ -767,61 +867,4 @@ fn ensure_parent_dir(path: &Path) -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Coerce args into string.
-fn args_to_string(args: Option<&[String]>, sig: Signature) -> Result<String> {
-    use std::fmt::Write;
-
-    if let Some(args) = args {
-        return Ok(args.join(", "));
-    }
-
-    let mut string = String::new();
-
-    match sig {
-        Signature::Function { args, .. } => {
-            let mut string = String::new();
-
-            if let Some(count) = args {
-                let mut it = (0..count).map(|n| {
-                    if n != 0 {
-                        format!("{}", n)
-                    } else {
-                        String::new()
-                    }
-                });
-
-                let last = it.next_back();
-
-                for n in it {
-                    write!(string, "value{n}, ")?;
-                }
-
-                if let Some(n) = last {
-                    write!(string, "value{n}")?;
-                }
-            } else {
-                write!(string, "..")?;
-            }
-
-            Ok(string)
-        }
-        Signature::Instance { args, .. } => {
-            write!(string, "self")?;
-
-            match args {
-                Some(n) => {
-                    for n in 1..n {
-                        write!(string, ", arg{n}")?;
-                    }
-                }
-                None => {
-                    write!(string, ", ..")?;
-                }
-            }
-
-            Ok(string)
-        }
-    }
 }

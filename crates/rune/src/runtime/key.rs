@@ -9,8 +9,8 @@ use crate::no_std::vec;
 use serde::{de, ser};
 
 use crate::runtime::{
-    Bytes, FromValue, Object, Shared, StaticString, ToValue, Tuple, TypeInfo, Value, Variant,
-    VariantData, VariantRtti, Vec, VmErrorKind, VmResult,
+    Bytes, FromValue, FullTypeOf, MaybeTypeOf, Object, Shared, StaticString, ToValue, Tuple,
+    TypeInfo, Value, Variant, VariantData, VariantRtti, Vec, VmErrorKind, VmResult,
 };
 
 /// A key that can be used as an anonymous object key.
@@ -242,6 +242,13 @@ impl ToValue for Key {
     #[inline]
     fn to_value(self) -> VmResult<Value> {
         VmResult::Ok(Key::into_value(self))
+    }
+}
+
+impl MaybeTypeOf for Key {
+    #[inline]
+    fn maybe_type_of() -> Option<FullTypeOf> {
+        None
     }
 }
 
