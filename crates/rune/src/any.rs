@@ -3,6 +3,33 @@ use core::any;
 use crate::compile::Named;
 use crate::hash::Hash;
 
+/// Macro to mark a value as external, which will implement all the appropriate
+/// traits.
+///
+/// This is required to support the external type as a type argument in a
+/// registered function.
+///
+/// ## `#[rune(name = "..")]` attribute
+///
+/// The name of a type defaults to its identifiers, so `struct Foo {}` would be
+/// given the name `"Foo"`.
+///
+/// This can be overrided with the `#[rune(name = "...")]` attribute:
+///
+/// ```
+/// use rune::Any;
+///
+/// #[derive(Any)]
+/// #[rune(name = "Bar")]
+/// struct Foo {
+/// }
+///
+/// fn install() -> Result<rune::Module, rune::ContextError> {
+///     let mut module = rune::Module::new();
+///     module.ty::<Foo>()?;
+///     Ok(module)
+/// }
+/// ```
 pub use rune_macros::Any;
 
 /// A trait which can be stored inside of an [AnyObj](crate::runtime::AnyObj).

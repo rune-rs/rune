@@ -1,7 +1,8 @@
+use crate::compile::Named;
+use crate::module::InstallWith;
 use crate::runtime::{
     FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value, VmResult,
 };
-use crate::{compile::Named, InstallWith};
 
 /// The state of a generator.
 ///

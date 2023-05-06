@@ -1,3 +1,4 @@
+use core::array;
 use core::fmt;
 use core::iter;
 use core::mem;
@@ -190,6 +191,15 @@ impl Stack {
             Some(start) if start >= self.stack_bottom => Ok(self.stack.drain(start..)),
             _ => Err(StackError),
         }
+    }
+
+    /// Drain the top of the stack into a vector.
+    pub(crate) fn drain_vec<const N: usize>(
+        &mut self,
+        count: usize,
+    ) -> Result<[Value; N], StackError> {
+        let mut it = self.drain(count)?;
+        Ok(array::from_fn(move |_| it.next().unwrap()))
     }
 
     /// Extend the current stack with an iterator.

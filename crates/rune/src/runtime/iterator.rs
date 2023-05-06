@@ -7,11 +7,11 @@ use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
 use crate::compile::Named;
+use crate::module::InstallWith;
 use crate::runtime::{
     FromValue, Function, Mut, Panic, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value,
     VmErrorKind, VmResult,
 };
-use crate::InstallWith;
 
 // Note: A fair amount of code in this module is duplicated from the Rust
 // project under the MIT license.

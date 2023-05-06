@@ -88,5 +88,30 @@ pub use self::quote_fn::{quote_fn, Quote};
 pub(crate) use self::storage::Storage;
 pub use self::storage::{SyntheticId, SyntheticKind};
 pub use self::token_stream::{ToTokens, TokenStream, TokenStreamIter};
+
+/// Macro helper function for quoting the token stream as macro output.
+///
+/// Is capable of quoting everything in Rune, except for the following:
+/// * Labels, which must be created using `Label::new`.
+/// * Dynamic quoted strings and other literals, which must be created using
+///   `Lit::new`.
+///
+/// ```
+/// use rune::macros::quote;
+///
+/// quote!(hello self);
+/// ```
+///
+/// # Interpolating values
+///
+/// Values are interpolated with `#value`, or `#(value + 1)` for expressions.
+///
+/// # Iterators
+///
+/// Anything that can be used as an iterator can be iterated over with
+/// `#(iter)*`. A token can also be used to join inbetween each iteration, like
+/// `#(iter),*`.
 pub use rune_macros::quote;
+
+/// Helper derive to implement [`ToTokens`].
 pub use rune_macros::ToTokens;

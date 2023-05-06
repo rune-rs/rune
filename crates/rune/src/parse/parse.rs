@@ -2,6 +2,8 @@ use crate::no_std::prelude::*;
 
 use crate::compile;
 use crate::parse::{Parser, Peek};
+
+/// Helper derive to implement [`Parse`].
 pub use rune_macros::Parse;
 
 /// The parse trait, implemented by items that can be parsed.
@@ -18,6 +20,7 @@ where
     A: Parse + Peek,
     B: Parse,
 {
+    #[inline]
     fn parse(parser: &mut Parser) -> compile::Result<Self> {
         Ok((parser.parse()?, parser.parse()?))
     }
@@ -28,6 +31,7 @@ impl<T> Parse for Option<T>
 where
     T: Parse + Peek,
 {
+    #[inline]
     fn parse(parser: &mut Parser) -> compile::Result<Self> {
         Ok(if parser.peek::<T>()? {
             Some(parser.parse()?)
@@ -53,6 +57,7 @@ impl<T> Parse for Vec<T>
 where
     T: Parse + Peek,
 {
+    #[inline]
     fn parse(parser: &mut Parser) -> compile::Result<Self> {
         let mut output = Vec::new();
 

@@ -2,11 +2,11 @@ use core::fmt;
 use core::iter;
 
 use crate::compile::Named;
+use crate::module::InstallWith;
 use crate::runtime::{
     FromValue, GeneratorState, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue,
     Value, Vm, VmErrorKind, VmExecution, VmResult,
 };
-use crate::InstallWith;
 
 /// A generator with a stored virtual machine.
 pub struct Generator<T>

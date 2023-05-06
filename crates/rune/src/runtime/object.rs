@@ -8,11 +8,11 @@ use crate::no_std::prelude::*;
 
 use crate::collections::{btree_map, BTreeMap};
 use crate::compile::{ItemBuf, Named};
+use crate::module::InstallWith;
 use crate::runtime::{
     FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value, Vm,
     VmResult,
 };
-use crate::InstallWith;
 
 /// An owning iterator over the entries of a `Object`.
 ///

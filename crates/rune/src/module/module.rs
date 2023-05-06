@@ -1,4 +1,4 @@
-use crate::no_std::collections::{hash_map, HashMap, HashSet};
+use crate::no_std::collections::{hash_map, HashMap};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
@@ -6,8 +6,8 @@ use crate::compile::{self, ContextError, Docs, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::function_meta::{
     AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, FunctionData,
-    FunctionMeta, FunctionMetaData, FunctionMetaKind, IterFunctionArgs, MacroMeta, MacroMetaData,
-    MacroMetaKind, ToFieldFunction, ToInstance,
+    FunctionMeta, FunctionMetaKind, IterFunctionArgs, MacroMeta, MacroMetaKind, ToFieldFunction,
+    ToInstance,
 };
 use crate::module::{
     AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Enum, Function, InstFn, InstallWith,
@@ -15,9 +15,8 @@ use crate::module::{
     UnitType, Variant,
 };
 use crate::runtime::{
-    ConstValue, FromValue, FullTypeOf, FunctionHandler, Future, GeneratorState, MacroHandler,
-    MaybeTypeOf, Protocol, Stack, StaticType, ToValue, TypeCheck, TypeInfo, TypeOf,
-    UnsafeFromValue, Value, VmErrorKind, VmResult,
+    ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf, Protocol, Stack, ToValue,
+    TypeCheck, TypeOf, Value, VmResult,
 };
 use crate::Hash;
 
@@ -911,16 +910,17 @@ impl Module {
     ///
     /// ```
     /// use rune::runtime::{Stack, VmResult};
+    /// use rune::vm_try;
     ///
     /// fn sum(stack: &mut Stack, args: usize) -> VmResult<()> {
     ///     let mut number = 0;
     ///
     ///     for _ in 0..args {
-    ///         number += stack.pop()?.into_u64()?;
+    ///         number += vm_try!(vm_try!(stack.pop()).into_integer());
     ///     }
     ///
     ///     stack.push(number);
-    ///     Ok(())
+    ///     VmResult::Ok(())
     /// }
     ///
     /// let mut module = rune::Module::default();
@@ -929,6 +929,7 @@ impl Module {
     /// sum.docs([
     ///     "Sum all numbers provided to the function."
     /// ]);
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<&mut ModuleFunction, ContextError>
     where

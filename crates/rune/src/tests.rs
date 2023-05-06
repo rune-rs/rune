@@ -12,6 +12,7 @@ pub(crate) mod prelude {
     };
     pub(crate) use crate::diagnostics;
     pub(crate) use crate::macros;
+    pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
         self, AnyObj, AnyTypeInfo, Bytes, FullTypeOf, Function, MaybeTypeOf, Object, Protocol,
@@ -21,7 +22,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::tests::run;
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, InstallWith, Module, Result, Source, Sources, ToValue, Value, Vm,
+        FromValue, Hash, Module, Result, Source, Sources, ToValue, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 }

@@ -40,22 +40,22 @@ macro_rules! impl_static_type {
 macro_rules! repeat_macro {
     ($macro:ident) => {
         $macro!(0);
-        $macro!(1, A a 1);
-        $macro!(2, A a 1, B b 2);
-        $macro!(3, A a 1, B b 2, C c 3);
-        $macro!(4, A a 1, B b 2, C c 3, D d 4);
-        $macro!(5, A a 1, B b 2, C c 3, D d 4, E e 5);
-        $macro!(6, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6);
-        $macro!(7, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7);
-        $macro!(8, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8);
-        $macro!(9, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8, I i 9);
-        $macro!(10, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8, I i 9, J j 10);
-        $macro!(11, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8, I i 9, J j 10, K k 11);
-        $macro!(12, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8, I i 9, J j 10, K k 11, L l 12);
-        $macro!(13, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8, I i 9, J j 10, K k 11, L l 12, M m 13);
-        $macro!(14, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8, I i 9, J j 10, K k 11, L l 12, M m 13, N n 14);
-        $macro!(15, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8, I i 9, J j 10, K k 11, L l 12, M m 13, N n 14, O o 15);
-        $macro!(16, A a 1, B b 2, C c 3, D d 4, E e 5, F f 6, G g 7, H h 8, I i 9, J j 10, K k 11, L l 12, M m 13, N n 14, O o 15, P p 16);
+        $macro!(1, A a 0);
+        $macro!(2, A a 0, B b 1);
+        $macro!(3, A a 0, B b 1, C c 2);
+        $macro!(4, A a 0, B b 1, C c 2, D d 3);
+        $macro!(5, A a 0, B b 1, C c 2, D d 3, E e 4);
+        $macro!(6, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5);
+        $macro!(7, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6);
+        $macro!(8, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7);
+        $macro!(9, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8);
+        $macro!(10, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8, J j 9);
+        $macro!(11, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8, J j 9, K k 10);
+        $macro!(12, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8, J j 9, K k 10, L l 11);
+        $macro!(13, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8, J j 9, K k 10, L l 11, M m 12);
+        $macro!(14, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8, J j 9, K k 10, L l 11, M m 12, N n 13);
+        $macro!(15, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8, J j 9, K k 10, L l 11, M m 12, N n 13, O o 14);
+        $macro!(16, A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7, I i 8, J j 9, K k 10, L l 11, M m 12, N n 13, O o 14, P p 15);
     };
 }
 
@@ -74,6 +74,26 @@ macro_rules! cfg_workspace {
         $(
             #[cfg(feature = "workspace")]
             #[cfg_attr(docsrs, doc(cfg(feature = "workspace")))]
+            $item
+        )*
+    }
+}
+
+macro_rules! cfg_cli {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "cli")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "cli")))]
+            $item
+        )*
+    }
+}
+
+macro_rules! cfg_doc {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "doc")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "doc")))]
             $item
         )*
     }
