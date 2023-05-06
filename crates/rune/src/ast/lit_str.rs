@@ -2,7 +2,18 @@ use crate::no_std::borrow::Cow;
 
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::LitStr>("\"hello world\"");
+    rt::<ast::LitStr>("\"hello\\nworld\"");
+}
+
 /// A string literal.
+///
+/// * `"Hello World"`.
+/// * `"Hello\nWorld"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitStr {
@@ -103,16 +114,6 @@ impl LitStr {
     }
 }
 
-/// Parse a string literal.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::LitStr>("\"hello world\"");
-/// testing::roundtrip::<ast::LitStr>("\"hello\\nworld\"");
-/// ```
 impl Parse for LitStr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;

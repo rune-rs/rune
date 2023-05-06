@@ -1,18 +1,19 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprTuple>("()");
+    rt::<ast::ExprTuple>("(1,)");
+    rt::<ast::ExprTuple>("(1, \"two\")");
+    rt::<ast::ExprTuple>("(1, 2,)");
+    rt::<ast::ExprTuple>("(1, 2, foo())");
+}
+
 /// An expression to construct a literal tuple.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprTuple>("()");
-/// testing::roundtrip::<ast::ExprTuple>("(1,)");
-/// testing::roundtrip::<ast::ExprTuple>("(1, \"two\")");
-/// testing::roundtrip::<ast::ExprTuple>("(1, 2,)");
-/// testing::roundtrip::<ast::ExprTuple>("(1, 2, foo())");
-/// ```
+/// * `(<expr>,*)`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprTuple {

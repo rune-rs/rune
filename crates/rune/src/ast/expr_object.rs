@@ -2,17 +2,26 @@ use crate::no_std::borrow::Cow;
 
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprObject>("Foo {\"foo\": 42}");
+    rt::<ast::ExprObject>("#{\"foo\": 42}");
+    rt::<ast::ExprObject>("#{\"foo\": 42,}");
+
+    rt::<ast::FieldAssign>("\"foo\": 42");
+    rt::<ast::FieldAssign>("\"foo\": 42");
+    rt::<ast::FieldAssign>("\"foo\": 42");
+
+    rt::<ast::ObjectKey>("foo");
+    rt::<ast::ObjectKey>("\"foo \\n bar\"");
+}
+
 /// An object expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprObject>("Foo {\"foo\": 42}");
-/// testing::roundtrip::<ast::ExprObject>("#{\"foo\": 42}");
-/// testing::roundtrip::<ast::ExprObject>("#{\"foo\": 42,}");
-/// ```
+/// * `#{ [field]* }`.
+/// * `Object { [field]* }`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprObject {
@@ -56,16 +65,6 @@ impl Parse for ObjectIdent {
 }
 
 /// A single field assignment in an object expression.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
-/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
-/// testing::roundtrip::<ast::FieldAssign>("\"foo\": 42");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct FieldAssign {
@@ -102,16 +101,6 @@ pub enum ObjectKey {
     Path(ast::Path),
 }
 
-/// Parse an object literal.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ObjectKey>("foo");
-/// testing::roundtrip::<ast::ObjectKey>("\"foo \\n bar\"");
-/// ```
 impl Parse for ObjectKey {
     fn parse(p: &mut Parser) -> Result<Self> {
         Ok(match p.nth(0)? {

@@ -1,14 +1,17 @@
 use crate::ast::prelude::*;
 
-/// A return expression `return [expr]`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprReturn>("return");
+    rt::<ast::ExprReturn>("return 42");
+    rt::<ast::ExprReturn>("#[attr] return 42");
+}
+
+/// A return expression.
 ///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprReturn>("return");
-/// testing::roundtrip::<ast::ExprReturn>("return 42");
-/// testing::roundtrip::<ast::ExprReturn>("#[attr] return 42");
-/// ```
+/// * `return [expr]`.
 #[derive(Debug, Clone, Parse, PartialEq, Eq, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

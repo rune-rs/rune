@@ -1,16 +1,19 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprMatch>("match 0 { _ => 1, }");
+    let expr = rt::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }");
+    assert_eq!(expr.attributes.len(), 1);
+
+    rt::<ast::ExprMatchBranch>("1 => { foo }");
+}
+
 /// A match expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprMatch>("match 0 { _ => 1, }");
-/// let expr = testing::roundtrip::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }");
-/// assert_eq!(expr.attributes.len(), 1);
-/// ```
+/// * `match <expr> { [arm]* }`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprMatch {
@@ -69,14 +72,6 @@ impl ExprMatch {
 expr_parse!(Match, ExprMatch, "match expression");
 
 /// A match branch.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprMatchBranch>("1 => { foo }");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct ExprMatchBranch {

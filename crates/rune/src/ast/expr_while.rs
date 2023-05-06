@@ -1,16 +1,17 @@
 use crate::ast::prelude::*;
 
-/// A `while` loop: `while [expr] { ... }`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprWhile>("while x {}");
+    rt::<ast::ExprWhile>("'label: while x {}");
+    rt::<ast::ExprWhile>("#[attr] 'label: while x {}");
+}
+
+/// A `while` loop.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprWhile>("while x {}");
-/// testing::roundtrip::<ast::ExprWhile>("'label: while x {}");
-/// testing::roundtrip::<ast::ExprWhile>("#[attr] 'label: while x {}");
-/// ```
+/// * `while [expr] { ... }`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

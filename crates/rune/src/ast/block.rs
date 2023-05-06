@@ -1,36 +1,41 @@
 use crate::ast::prelude::*;
 
-/// A block of expressions.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    let expr = rt::<ast::ExprBlock>("{}");
+    assert_eq!(expr.block.statements.len(), 0);
+
+    let expr = rt::<ast::ExprBlock>("{ 42 }");
+    assert_eq!(expr.block.statements.len(), 1);
+
+    let block = rt::<ast::Block>("{ foo }");
+    assert_eq!(block.statements.len(), 1);
+
+    let block = rt::<ast::Block>("{ foo; }");
+    assert_eq!(block.statements.len(), 1);
+
+    let expr = rt::<ast::ExprBlock>("#[retry] { 42 }");
+    assert_eq!(expr.block.statements.len(), 1);
+    assert_eq!(expr.attributes.len(), 1);
+
+    let block = rt::<ast::Block>(
+        r#"
+        {
+            let foo = 42;
+            let bar = "string";
+            baz
+        }
+    "#,
+    );
+
+    assert_eq!(block.statements.len(), 3);
+}
+
+/// A block of statements.
 ///
-/// ```
-/// use rune::{ast, testing};
-///
-/// let expr = testing::roundtrip::<ast::ExprBlock>("{}");
-/// assert_eq!(expr.block.statements.len(), 0);
-///
-/// let expr = testing::roundtrip::<ast::ExprBlock>("{ 42 }");
-/// assert_eq!(expr.block.statements.len(), 1);
-///
-/// let block = testing::roundtrip::<ast::Block>("{ foo }");
-/// assert_eq!(block.statements.len(), 1);
-///
-/// let block = testing::roundtrip::<ast::Block>("{ foo; }");
-/// assert_eq!(block.statements.len(), 1);
-///
-/// let expr = testing::roundtrip::<ast::ExprBlock>("#[retry] { 42 }");
-/// assert_eq!(expr.block.statements.len(), 1);
-/// assert_eq!(expr.attributes.len(), 1);
-///
-/// let block = testing::roundtrip::<ast::Block>(r#"
-///     {
-///         let foo = 42;
-///         let bar = "string";
-///         baz
-///     }
-/// "#);
-///
-/// assert_eq!(block.statements.len(), 3);
-/// ```
+/// * `{ (<stmt>)* }`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct Block {

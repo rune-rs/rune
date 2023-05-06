@@ -1,13 +1,17 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Label>("'foo");
+    rt::<ast::Label>("'barify42");
+}
+
 /// A label, like `'foo`.
 ///
 /// Custom labels are constructed in macros using
 /// [MacroContext::label][crate::macros::MacroContext::label].
-///
-/// # Examples
-///
-/// Constructing a label:
 ///
 /// ```
 /// use rune::ast;
@@ -17,15 +21,6 @@ use crate::ast::prelude::*;
 ///     let lit = ctx.label("foo");
 ///     assert!(matches!(lit, ast::Label { .. }))
 /// });
-/// ```
-///
-/// Example labels:
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Label>("'foo");
-/// testing::roundtrip::<ast::Label>("'barify42");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]

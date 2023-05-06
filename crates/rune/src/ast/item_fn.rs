@@ -1,44 +1,44 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+    use crate::SourceId;
+    use crate::{ast, parse};
+
+    rt::<ast::ItemFn>("async fn hello() {}");
+    assert!(
+        parse::parse_all::<ast::ItemFn>("fn async hello() {}", SourceId::EMPTY, false).is_err()
+    );
+
+    let item = rt::<ast::ItemFn>("fn hello() {}");
+    assert_eq!(item.args.len(), 0);
+
+    let item = rt::<ast::ItemFn>("fn hello(foo, bar) {}");
+    assert_eq!(item.args.len(), 2);
+
+    rt::<ast::ItemFn>("pub fn hello(foo, bar) {}");
+    rt::<ast::ItemFn>("pub async fn hello(foo, bar) {}");
+    rt::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}");
+
+    let item = rt::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}");
+    assert!(matches!(item.visibility, ast::Visibility::Public(..)));
+
+    assert_eq!(item.args.len(), 2);
+    assert_eq!(item.attributes.len(), 1);
+    assert!(item.async_token.is_some());
+    assert!(item.const_token.is_none());
+
+    let item = rt::<ast::ItemFn>("#[inline] pub const fn hello(foo, bar) {}");
+    assert!(matches!(item.visibility, ast::Visibility::Public(..)));
+
+    assert_eq!(item.args.len(), 2);
+    assert_eq!(item.attributes.len(), 1);
+    assert!(item.async_token.is_none());
+    assert!(item.const_token.is_some());
+}
+
 /// A function item.
-///
-/// # Examples
-///
-/// ```
-/// use rune::ast;
-/// use rune::parse::parse_all;
-/// use rune::SourceId;
-/// use rune::testing;
-///
-/// testing::roundtrip::<ast::ItemFn>("async fn hello() {}");
-/// assert!(parse_all::<ast::ItemFn>("fn async hello() {}", SourceId::EMPTY, false).is_err());
-///
-/// let item = testing::roundtrip::<ast::ItemFn>("fn hello() {}");
-/// assert_eq!(item.args.len(), 0);
-///
-/// let item = testing::roundtrip::<ast::ItemFn>("fn hello(foo, bar) {}");
-/// assert_eq!(item.args.len(), 2);
-///
-/// testing::roundtrip::<ast::ItemFn>("pub fn hello(foo, bar) {}");
-/// testing::roundtrip::<ast::ItemFn>("pub async fn hello(foo, bar) {}");
-/// testing::roundtrip::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}");
-///
-/// let item = testing::roundtrip::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}");
-/// assert!(matches!(item.visibility, ast::Visibility::Public(..)));
-///
-/// assert_eq!(item.args.len(), 2);
-/// assert_eq!(item.attributes.len(), 1);
-/// assert!(item.async_token.is_some());
-/// assert!(item.const_token.is_none());
-///
-/// let item = testing::roundtrip::<ast::ItemFn>("#[inline] pub const fn hello(foo, bar) {}");
-/// assert!(matches!(item.visibility, ast::Visibility::Public(..)));
-///
-/// assert_eq!(item.args.len(), 2);
-/// assert_eq!(item.attributes.len(), 1);
-/// assert!(item.async_token.is_none());
-/// assert!(item.const_token.is_some());
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

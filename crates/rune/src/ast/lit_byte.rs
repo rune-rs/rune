@@ -1,5 +1,16 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::LitByte>("b'a'");
+    rt::<ast::LitByte>("b'\\0'");
+    rt::<ast::LitByte>("b'\\n'");
+    rt::<ast::LitByte>("b'\\r'");
+    rt::<ast::LitByte>("b'\\\\''");
+}
+
 /// A byte literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
@@ -11,19 +22,6 @@ pub struct LitByte {
     pub source: ast::CopySource<u8>,
 }
 
-/// Parse a byte literal.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::LitByte>("b'a'");
-/// testing::roundtrip::<ast::LitByte>("b'\\0'");
-/// testing::roundtrip::<ast::LitByte>("b'\\n'");
-/// testing::roundtrip::<ast::LitByte>("b'\\r'");
-/// testing::roundtrip::<ast::LitByte>("b'\\\\''");
-/// ```
 impl Parse for LitByte {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;

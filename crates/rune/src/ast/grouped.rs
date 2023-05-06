@@ -4,6 +4,28 @@ use crate::no_std::vec;
 
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Parenthesized<ast::Expr, T![,]>>("(1, \"two\")");
+    rt::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2,)");
+    rt::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2, foo())");
+
+    rt::<ast::Bracketed<ast::Expr, T![,]>>("[1, \"two\"]");
+    rt::<ast::Bracketed<ast::Expr, T![,]>>("[1, 2,]");
+    rt::<ast::Bracketed<ast::Expr, T![,]>>("[1, 2, foo()]");
+
+    rt::<ast::Braced<ast::Expr, T![,]>>("{1, \"two\"}");
+    rt::<ast::Braced<ast::Expr, T![,]>>("{1, 2,}");
+    rt::<ast::Braced<ast::Expr, T![,]>>("{1, 2, foo()}");
+
+    rt::<ast::AngleBracketed<ast::Path, T![,]>>("<Foo, Bar>");
+    rt::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, \"two\">");
+    rt::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, 2,>");
+    rt::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, 2, foo()>");
+}
+
 macro_rules! grouped {
     ($(#[$meta:meta])* $name:ident { $field:ident, $open:ty, $close:ty }) => {
         $(#[$meta])*
@@ -163,61 +185,20 @@ macro_rules! grouped {
 
 grouped! {
     /// Parse something parenthesis, that is separated by `((T, S?)*)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{T, testing, ast};
-    ///
-    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, T![,]>>("(1, \"two\")");
-    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2,)");
-    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2, foo())");
-    /// ```
     Parenthesized { parenthesized, ast::OpenParen, ast::CloseParen }
 }
 
 grouped! {
     /// Parse something bracketed, that is separated by `[(T, S?)*]`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{T, testing, ast};
-    ///
-    /// testing::roundtrip::<ast::Bracketed<ast::Expr, T![,]>>("[1, \"two\"]");
-    /// testing::roundtrip::<ast::Bracketed<ast::Expr, T![,]>>("[1, 2,]");
-    /// testing::roundtrip::<ast::Bracketed<ast::Expr, T![,]>>("[1, 2, foo()]");
-    /// ```
     Bracketed { bracketed, ast::OpenBracket, ast::CloseBracket }
 }
 
 grouped! {
     /// Parse something braced, that is separated by `{(T, S?)*}`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{T, testing, ast};
-    ///
-    /// testing::roundtrip::<ast::Braced<ast::Expr, T![,]>>("{1, \"two\"}");
-    /// testing::roundtrip::<ast::Braced<ast::Expr, T![,]>>("{1, 2,}");
-    /// testing::roundtrip::<ast::Braced<ast::Expr, T![,]>>("{1, 2, foo()}");
-    /// ```
     Braced { braced, ast::OpenBrace, ast::CloseBrace }
 }
 
 grouped! {
     /// Parse something bracketed, that is separated by `<(T, S?)*>`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rune::{T, testing, ast};
-    ///
-    /// testing::roundtrip::<ast::AngleBracketed<ast::Path, T![,]>>("<Foo, Bar>");
-    /// testing::roundtrip::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, \"two\">");
-    /// testing::roundtrip::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, 2,>");
-    /// testing::roundtrip::<ast::AngleBracketed<ast::PathSegmentExpr, T![,]>>("<1, 2, foo()>");
-    /// ```
     AngleBracketed { angle_bracketed, ast::generated::Lt, ast::generated::Gt }
 }

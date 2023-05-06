@@ -1,76 +1,58 @@
 use crate::ast::prelude::*;
 
-/// A parsed file.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::File>(r#"
-/// use foo;
-///
-/// fn foo() {
-///     42
-/// }
-///
-/// use bar;
-///
-/// fn bar(a, b) {
-///     a
-/// }
-/// "#);
-/// ```
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::File>(r#"
-/// use http;
-///
-/// fn main() {
-///     let client = http::client();
-///     let response = client.get("https://google.com");
-///     let text = response.text();
-/// }
-/// "#);
-///```
-///
-/// Parsing with file attributes:
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::File>(r#"
-/// // NB: Attributes are currently rejected by the compiler
-/// #![feature(attributes)]
-///
-/// fn main() {
-///     for x in [1, 2, 3, 4, 5, 6] {
-///         println!("{}", x)
-///     }
-/// }
-/// "#);
-/// ```
-///
-/// Parsing a shebang:
-///
-/// ```
-/// use rune::SourceId;
-/// use rune::{ast, parse};
-///
-/// let file = parse::parse_all::<ast::File>(r#"#!rune run
-///
-/// fn main() {
-///     for x in [1, 2, 3, 4, 5, 6] {
-///         println!("{}", x)
-///     }
-/// }
-/// "#, SourceId::EMPTY, true)?;
-///
-/// assert!(file.shebang.is_some());
-/// # Ok::<_, rune::Error>(())
-/// ```
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::File>(
+        r#"
+        use foo;
+        ///
+        fn foo() {
+            42
+        }
+        ///
+        use bar;
+        ///
+        fn bar(a, b) {
+            a
+        }
+        "#,
+    );
+
+    rt::<ast::File>(
+        r#"
+        use http;
+
+        fn main() {
+            let client = http::client();
+            let response = client.get("https://google.com");
+            let text = response.text();
+        }
+        "#,
+    );
+
+    rt::<ast::File>(
+        r#"
+        // NB: Attributes are currently rejected by the compiler
+        #![feature(attributes)]
+
+        fn main() {}
+        "#,
+    );
+
+    let file = crate::testing::rt_with::<ast::File>(
+        r#"#!rune run
+
+        fn main() {}
+        "#,
+        true,
+    );
+
+    assert!(file.shebang.is_some());
+}
+
+/// A rune file.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 #[non_exhaustive]
 pub struct File {

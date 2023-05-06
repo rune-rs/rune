@@ -1,17 +1,23 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), Empty() }");
+    rt::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }");
+    rt::<ast::ItemEnum>(
+        "#[repr(Rune)] enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }",
+    );
+    rt::<ast::ItemEnum>("pub enum Color { Blue, Red, Green }");
+
+    rt::<ast::ItemVariantBody>("( a, b, c )");
+    rt::<ast::ItemVariantBody>("{ a, b, c }");
+    rt::<ast::ItemVariantBody>("( #[serde(default)] a, b, c )");
+    rt::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }");
+}
+
 /// An enum item.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), Empty() }");
-/// testing::roundtrip::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }");
-/// testing::roundtrip::<ast::ItemEnum>("#[repr(Rune)] enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }");
-/// testing::roundtrip::<ast::ItemEnum>("pub enum Color { Blue, Red, Green }");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
@@ -72,18 +78,6 @@ impl ItemVariantBody {
     }
 }
 
-/// Parse implementation for a struct body.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ItemVariantBody>("( a, b, c )");
-/// testing::roundtrip::<ast::ItemVariantBody>("{ a, b, c }");
-/// testing::roundtrip::<ast::ItemVariantBody>("( #[serde(default)] a, b, c )");
-/// testing::roundtrip::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }");
-/// ```
 impl Parse for ItemVariantBody {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {

@@ -1,18 +1,48 @@
 use crate::ast::prelude::*;
 
-/// Attribute like `#[derive(Debug)]`
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Attribute>("#[foo = \"foo\"]");
+    rt::<ast::Attribute>("#[foo()]");
+    rt::<ast::Attribute>("#![foo]");
+    rt::<ast::Attribute>("#![cfg(all(feature = \"potato\"))]");
+    rt::<ast::Attribute>("#[x+1]");
+
+    const TEST_STRINGS: &[&str] = &[
+        "#[foo]",
+        "#[a::b::c]",
+        "#[foo = \"hello world\"]",
+        "#[foo = 1]",
+        "#[foo = 1.3]",
+        "#[foo = true]",
+        "#[foo = b\"bytes\"]",
+        "#[foo = (1, 2, \"string\")]",
+        "#[foo = #{\"a\": 1} ]",
+        r#"#[foo = Fred {"a": 1} ]"#,
+        r#"#[foo = a::Fred {"a": #{ "b": 2 } } ]"#,
+        "#[bar()]",
+        "#[bar(baz)]",
+        "#[derive(Debug, PartialEq, PartialOrd)]",
+        "#[tracing::instrument(skip(non_debug))]",
+        "#[zanzibar(a = \"z\", both = false, sasquatch::herring)]",
+        r#"#[doc = "multiline \
+                docs are neat"
+        ]"#,
+    ];
+
+    for s in TEST_STRINGS.iter() {
+        rt::<ast::Attribute>(s);
+        let withbang = s.replacen("#[", "#![", 1);
+        rt::<ast::Attribute>(&withbang);
+    }
+}
+
+/// Attributes like:
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Attribute>("#[foo = \"foo\"]");
-/// testing::roundtrip::<ast::Attribute>("#[foo()]");
-/// testing::roundtrip::<ast::Attribute>("#![foo]");
-/// testing::roundtrip::<ast::Attribute>("#![cfg(all(feature = \"potato\"))]");
-/// testing::roundtrip::<ast::Attribute>("#[x+1]");
-/// ```
+/// * `#[derive(Debug)]`.
+/// * `#![doc = "test"]`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct Attribute {
@@ -139,44 +169,6 @@ impl Peek for OuterAttribute {
         match (p.nth(0), p.nth(1)) {
             (K![#], K![!]) => true,
             _ => false,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::ast;
-    use crate::parse::parse_all;
-    use crate::SourceId;
-
-    #[test]
-    fn test_parse_attribute() {
-        const TEST_STRINGS: &[&str] = &[
-            "#[foo]",
-            "#[a::b::c]",
-            "#[foo = \"hello world\"]",
-            "#[foo = 1]",
-            "#[foo = 1.3]",
-            "#[foo = true]",
-            "#[foo = b\"bytes\"]",
-            "#[foo = (1, 2, \"string\")]",
-            "#[foo = #{\"a\": 1} ]",
-            r#"#[foo = Fred {"a": 1} ]"#,
-            r#"#[foo = a::Fred {"a": #{ "b": 2 } } ]"#,
-            "#[bar()]",
-            "#[bar(baz)]",
-            "#[derive(Debug, PartialEq, PartialOrd)]",
-            "#[tracing::instrument(skip(non_debug))]",
-            "#[zanzibar(a = \"z\", both = false, sasquatch::herring)]",
-            r#"#[doc = "multiline \
-                    docs are neat"
-            ]"#,
-        ];
-
-        for s in TEST_STRINGS.iter() {
-            parse_all::<ast::Attribute>(s, SourceId::empty(), false).expect(s);
-            let withbang = s.replacen("#[", "#![", 1);
-            parse_all::<ast::Attribute>(&withbang, SourceId::empty(), false).expect(&withbang);
         }
     }
 }

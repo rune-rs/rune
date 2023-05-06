@@ -1,18 +1,32 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ItemStruct>("struct Foo");
+    rt::<ast::ItemStruct>("struct Foo ( a, b, c )");
+    rt::<ast::ItemStruct>("struct Foo { a, b, c }");
+    rt::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }");
+    rt::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c )");
+
+    rt::<ast::ItemStructBody>("");
+
+    rt::<ast::ItemStructBody>("{ a, b, c }");
+    rt::<ast::ItemStructBody>("{ #[x] a, #[y] b, #[z] #[w] #[f32] c }");
+    rt::<ast::ItemStructBody>("{ a, #[attribute] b, c }");
+
+    rt::<ast::ItemStructBody>("( a, b, c )");
+    rt::<ast::ItemStructBody>("( #[x] a, b, c )");
+    rt::<ast::ItemStructBody>("( #[x] pub a, b, c )");
+    rt::<ast::ItemStructBody>("( a, b, c )");
+    rt::<ast::ItemStructBody>("()");
+
+    rt::<ast::Field>("a");
+    rt::<ast::Field>("#[x] a");
+}
+
 /// A struct item.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo");
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo ( a, b, c )");
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo { a, b, c }");
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }");
-/// testing::roundtrip::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c )");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
@@ -72,25 +86,6 @@ impl ItemStructBody {
     }
 }
 
-/// Parse implementation for a struct body.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ItemStructBody>("");
-///
-/// testing::roundtrip::<ast::ItemStructBody>("{ a, b, c }");
-/// testing::roundtrip::<ast::ItemStructBody>("{ #[x] a, #[y] b, #[z] #[w] #[f32] c }");
-/// testing::roundtrip::<ast::ItemStructBody>("{ a, #[attribute] b, c }");
-///
-/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c )");
-/// testing::roundtrip::<ast::ItemStructBody>("( #[x] a, b, c )");
-/// testing::roundtrip::<ast::ItemStructBody>("( #[x] pub a, b, c )");
-/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c )");
-/// testing::roundtrip::<ast::ItemStructBody>("()");
-/// ```
 impl Parse for ItemStructBody {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Ok(match p.nth(0)? {
@@ -102,15 +97,6 @@ impl Parse for ItemStructBody {
 }
 
 /// A field as part of a struct or a tuple body.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Field>("a");
-/// testing::roundtrip::<ast::Field>("#[x] a");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct Field {

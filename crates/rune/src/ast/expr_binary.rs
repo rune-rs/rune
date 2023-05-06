@@ -2,16 +2,17 @@ use core::fmt;
 
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprBinary>("42 + b");
+    rt::<ast::ExprBinary>("b << 10");
+}
+
 /// A binary expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprBinary>("42 + b");
-/// testing::roundtrip::<ast::ExprBinary>("b << 10");
-/// ```
+/// * `<expr> <op> <expr>`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprBinary {

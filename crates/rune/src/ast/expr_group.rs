@@ -1,15 +1,16 @@
 use crate::ast::prelude::*;
 
-/// A prioritized expression group `(<expr>)`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprGroup>("(for i in x {})");
+    rt::<ast::ExprGroup>("(1 + 2)");
+}
+
+/// A prioritized expression group.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprGroup>("(for i in x {})");
-/// testing::roundtrip::<ast::ExprGroup>("(1 + 2)");
-/// ```
+/// * `(<expr>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprGroup {

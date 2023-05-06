@@ -2,14 +2,15 @@ use core::mem::take;
 
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Stmt>("let x = 1;");
+    rt::<ast::Stmt>("#[attr] let a = f();");
+}
+
 /// A statement within a block.
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Stmt>("let x = 1;");
-/// testing::roundtrip::<ast::Stmt>("#[attr] let a = f();");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
@@ -212,16 +213,16 @@ impl StmtSemi {
 #[cfg(test)]
 mod tests {
     use crate::ast;
-    use crate::testing::roundtrip;
+    use crate::testing::rt;
 
     #[test]
     fn test_stmt_local() {
-        roundtrip::<ast::Stmt>("let x = 1;");
-        roundtrip::<ast::Stmt>("#[attr] let a = f();");
+        rt::<ast::Stmt>("let x = 1;");
+        rt::<ast::Stmt>("#[attr] let a = f();");
     }
 
     #[test]
     fn test_macro_call_chain() {
-        roundtrip::<ast::Stmt>("line!().bar()");
+        rt::<ast::Stmt>("line!().bar()");
     }
 }

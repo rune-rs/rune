@@ -1,14 +1,17 @@
 use crate::ast::prelude::*;
 
-/// A `break` statement: `break [expr]`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprBreak>("break");
+    rt::<ast::ExprBreak>("break 42");
+    rt::<ast::ExprBreak>("#[attr] break 42");
+}
+
+/// A break expression.
 ///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprBreak>("break");
-/// testing::roundtrip::<ast::ExprBreak>("break 42");
-/// testing::roundtrip::<ast::ExprBreak>("#[attr] break 42");
-/// ```
+/// * `break [expr]`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

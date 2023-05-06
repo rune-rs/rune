@@ -1,6 +1,16 @@
 use crate::ast::prelude::*;
 
-/// An index get operation `<target>[<index>]`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprIndex>("value[42]");
+    rt::<ast::ExprIndex>("value[value2[v + 2]]");
+}
+
+/// An index get operation.
+///
+/// * `<target>[<index>]`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprIndex {

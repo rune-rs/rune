@@ -1,18 +1,25 @@
 use crate::ast::prelude::*;
 
-/// A use item.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ItemUse>("use foo");
+    rt::<ast::ItemUse>("use foo::bar");
+    rt::<ast::ItemUse>("use foo::bar::baz");
+    rt::<ast::ItemUse>("#[macro_use] use foo::bar::baz");
+    rt::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz");
+
+    rt::<ast::ItemUsePath>("crate::foo");
+    rt::<ast::ItemUsePath>("foo::bar");
+    rt::<ast::ItemUsePath>("foo::bar::{baz::*, biz}");
+    rt::<ast::ItemUsePath>("{*, bar::*}");
+    rt::<ast::ItemUsePath>("::{*, bar::*}");
+}
+
+/// A `use` item.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ItemUse>("use foo");
-/// testing::roundtrip::<ast::ItemUse>("use foo::bar");
-/// testing::roundtrip::<ast::ItemUse>("use foo::bar::baz");
-/// testing::roundtrip::<ast::ItemUse>("#[macro_use] use foo::bar::baz");
-/// testing::roundtrip::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz");
-/// ```
+/// * `use <path>`
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
@@ -31,19 +38,9 @@ pub struct ItemUse {
 
 item_parse!(Use, ItemUse, "use item");
 
-/// A single use declaration path, like `foo::bar::{baz::*, biz}`.
+/// A single use declaration path.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ItemUsePath>("crate::foo");
-/// testing::roundtrip::<ast::ItemUsePath>("foo::bar");
-/// testing::roundtrip::<ast::ItemUsePath>("foo::bar::{baz::*, biz}");
-/// testing::roundtrip::<ast::ItemUsePath>("{*, bar::*}");
-/// testing::roundtrip::<ast::ItemUsePath>("::{*, bar::*}");
-/// ```
+/// * `foo::bar::{baz::*, biz}`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ItemUsePath {

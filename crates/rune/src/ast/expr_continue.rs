@@ -1,13 +1,16 @@
 use crate::ast::prelude::*;
 
-/// A `continue` statement: `continue [label]`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprContinue>("continue");
+    rt::<ast::ExprContinue>("continue 'foo");
+}
+
+/// A `continue` statement.
 ///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprContinue>("continue");
-/// testing::roundtrip::<ast::ExprContinue>("continue 'foo");
-/// ```
+/// * `continue [label]`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

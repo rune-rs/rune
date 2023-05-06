@@ -1,16 +1,17 @@
 use crate::ast::prelude::*;
 
-/// A local variable declaration `let <pattern> = <expr>;`
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Local>("let x = 1;");
+    rt::<ast::Local>("#[attr] let a = f();");
+    rt::<ast::Local>("let a = b{}().foo[0].await;");
+}
+
+/// A local variable declaration.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Local>("let x = 1;");
-/// testing::roundtrip::<ast::Local>("#[attr] let a = f();");
-/// testing::roundtrip::<ast::Local>("let a = b{}().foo[0].await;");
-/// ```
+/// * `let <pattern> = <expr>;`
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 #[non_exhaustive]
 pub struct Local {

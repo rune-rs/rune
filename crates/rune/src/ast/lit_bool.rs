@@ -1,6 +1,17 @@
 use crate::ast::prelude::*;
 
-/// The unit literal `()`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::LitBool>("true");
+    rt::<ast::LitBool>("false");
+}
+
+/// The boolean literal.
+///
+/// * `true`.
+/// * `false`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitBool {
@@ -11,16 +22,6 @@ pub struct LitBool {
     pub value: bool,
 }
 
-/// Parsing a unit literal
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::LitBool>("true");
-/// testing::roundtrip::<ast::LitBool>("false");
-/// ```
 impl Parse for LitBool {
     fn parse(p: &mut Parser) -> Result<Self> {
         let t = p.next()?;

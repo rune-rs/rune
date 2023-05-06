@@ -1,15 +1,17 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Condition>("true");
+    rt::<ast::Condition>("let [a, ..] = v");
+}
+
 /// The condition in an if statement.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Condition>("true");
-/// testing::roundtrip::<ast::Condition>("let [a, ..] = v");
-/// ```
+/// * `true`.
+/// * `let Some(<pat>) = <expr>`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Condition {

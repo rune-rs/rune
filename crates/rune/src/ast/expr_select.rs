@@ -1,26 +1,38 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    let select = rt::<ast::ExprSelect>(
+        r#"
+    select {
+        _ = a => 0,
+        _ = b => {},
+        _ = c => {}
+        default => ()
+    }
+    "#,
+    );
+
+    assert_eq!(4, select.branches.len());
+    assert!(matches!(
+        select.branches.get(1),
+        Some(&(ast::ExprSelectBranch::Pat(..), Some(..)))
+    ));
+    assert!(matches!(
+        select.branches.get(2),
+        Some(&(ast::ExprSelectBranch::Pat(..), None))
+    ));
+    assert!(matches!(
+        select.branches.get(3),
+        Some(&(ast::ExprSelectBranch::Default(..), None))
+    ));
+}
+
 /// A `select` expression that selects over a collection of futures.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// let select = testing::roundtrip::<ast::ExprSelect>(r#"
-/// select {
-///     _ = a => 0,
-///     _ = b => {},
-///     _ = c => {}
-///     default => ()
-/// }
-/// "#);
-///
-/// assert_eq!(4, select.branches.len());
-/// assert!(matches!(select.branches.get(1), Some(&(ast::ExprSelectBranch::Pat(..), Some(..)))));
-/// assert!(matches!(select.branches.get(2), Some(&(ast::ExprSelectBranch::Pat(..), None))));
-/// assert!(matches!(select.branches.get(3), Some(&(ast::ExprSelectBranch::Default(..), None))));
-/// ```
+/// * `select { [arm]* }`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprSelect {

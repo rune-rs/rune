@@ -1,21 +1,20 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ItemMod>("mod ruins {}");
+
+    let item = rt::<ast::ItemMod>("#[cfg(test)] mod tests {}");
+    assert_eq!(item.attributes.len(), 1);
+
+    let item = rt::<ast::ItemMod>("mod whiskey_bravo { #![allow(dead_code)] fn x() {} }");
+    assert_eq!(item.attributes.len(), 0);
+    assert!(matches!(item.body, ast::ItemModBody::InlineBody(..)));
+}
+
 /// A module item.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ItemMod>("mod ruins {}");
-///
-/// let item = testing::roundtrip::<ast::ItemMod>("#[cfg(test)] mod tests {}");
-/// assert_eq!(item.attributes.len(), 1);
-///
-/// let item = testing::roundtrip::<ast::ItemMod>("mod whiskey_bravo { #![allow(dead_code)] fn x() {} }");
-/// assert_eq!(item.attributes.len(), 0);
-/// assert!(matches!(item.body, ast::ItemModBody::InlineBody(..)));
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

@@ -2,21 +2,20 @@ use core::iter;
 
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Path>("foo::bar");
+    rt::<ast::Path>("Self::bar");
+    rt::<ast::Path>("self::bar");
+    rt::<ast::Path>("crate::bar");
+    rt::<ast::Path>("super::bar");
+    rt::<ast::Path>("HashMap::<Foo, Bar>");
+    rt::<ast::Path>("super::HashMap::<Foo, Bar>");
+}
+
 /// A path, where each element is separated by a `::`.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Path>("foo::bar");
-/// testing::roundtrip::<ast::Path>("Self::bar");
-/// testing::roundtrip::<ast::Path>("self::bar");
-/// testing::roundtrip::<ast::Path>("crate::bar");
-/// testing::roundtrip::<ast::Path>("super::bar");
-/// testing::roundtrip::<ast::Path>("HashMap::<Foo, Bar>");
-/// testing::roundtrip::<ast::Path>("super::HashMap::<Foo, Bar>");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct Path {
