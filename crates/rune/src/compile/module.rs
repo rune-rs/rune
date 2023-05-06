@@ -6,10 +6,10 @@
 use core::fmt;
 use core::future;
 
+use crate::no_std::collections::{hash_map, HashMap, HashSet};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::collections::{HashMap, HashSet};
 use crate::compile::{
     self, AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, ContextError,
     Docs, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent, ItemBuf, IterFunctionArgs,
@@ -22,236 +22,6 @@ use crate::runtime::{
     UnsafeFromValue, Value, VmErrorKind, VmResult,
 };
 use crate::Hash;
-
-/// Trait to handle the installation of auxilliary functions for a type
-/// installed into a module.
-pub trait InstallWith {
-    /// Hook to install more things into the module.
-    fn install_with(_: &mut Module) -> Result<(), ContextError> {
-        Ok(())
-    }
-}
-
-/// The static hash and diagnostical information about a type.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct AssocType {
-    /// Hash of the type.
-    pub hash: Hash,
-    /// Type information of the instance function.
-    pub type_info: TypeInfo,
-}
-
-/// Specialized information on `Option` types.
-pub(crate) struct UnitType {
-    /// Item of the unit type.
-    pub(crate) name: Box<str>,
-}
-
-/// Specialized information on `GeneratorState` types.
-pub(crate) struct InternalEnum {
-    /// The name of the internal enum.
-    pub(crate) name: &'static str,
-    /// The result type.
-    pub(crate) base_type: ItemBuf,
-    /// The static type of the enum.
-    pub(crate) static_type: &'static StaticType,
-    /// Internal variants.
-    pub(crate) variants: Vec<InternalVariant>,
-}
-
-impl InternalEnum {
-    /// Construct a new handler for an internal enum.
-    fn new<N>(name: &'static str, base_type: N, static_type: &'static StaticType) -> Self
-    where
-        N: IntoIterator,
-        N::Item: IntoComponent,
-    {
-        InternalEnum {
-            name,
-            base_type: ItemBuf::with_item(base_type),
-            static_type,
-            variants: Vec::new(),
-        }
-    }
-
-    /// Register a new variant.
-    fn variant<C, Args>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
-    where
-        C: Function<Args>,
-    {
-        let constructor: Arc<FunctionHandler> =
-            Arc::new(move |stack, args| constructor.fn_call(stack, args));
-
-        self.variants.push(InternalVariant {
-            name,
-            type_check,
-            args: C::args(),
-            constructor,
-        });
-    }
-}
-
-/// Internal variant.
-pub(crate) struct InternalVariant {
-    /// The name of the variant.
-    pub(crate) name: &'static str,
-    /// Type check for the variant.
-    pub(crate) type_check: TypeCheck,
-    /// Arguments for the variant.
-    pub(crate) args: usize,
-    /// The constructor of the variant.
-    pub(crate) constructor: Arc<FunctionHandler>,
-}
-
-/// Data for an opaque type. If `spec` is set, indicates things which are known
-/// about that type.
-pub(crate) struct Type {
-    /// The name of the installed type which will be the final component in the
-    /// item it will constitute.
-    pub(crate) name: Box<str>,
-    /// Type information for the installed type.
-    pub(crate) type_info: TypeInfo,
-    /// The specification for the type.
-    pub(crate) spec: Option<TypeSpecification>,
-}
-
-/// Metadata about a variant.
-pub struct Variant {
-    /// Variant metadata.
-    pub(crate) kind: VariantKind,
-    /// Handler to use if this variant can be constructed through a regular function call.
-    pub(crate) constructor: Option<Arc<FunctionHandler>>,
-}
-
-impl fmt::Debug for Variant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Variant")
-            .field("kind", &self.kind)
-            .field("constructor", &self.constructor.is_some())
-            .finish()
-    }
-}
-
-/// The kind of the variant.
-#[derive(Debug)]
-pub(crate) enum VariantKind {
-    /// Variant is a Tuple variant.
-    Tuple(Tuple),
-    /// Variant is a Struct variant.
-    Struct(Struct),
-    /// Variant is a Unit variant.
-    Unit,
-}
-
-impl Variant {
-    /// Construct metadata for a tuple variant.
-    #[inline]
-    pub fn tuple(args: usize) -> Self {
-        Self {
-            kind: VariantKind::Tuple(Tuple { args }),
-            constructor: None,
-        }
-    }
-
-    /// Construct metadata for a tuple variant.
-    #[inline]
-    pub fn st<const N: usize>(fields: [&'static str; N]) -> Self {
-        Self {
-            kind: VariantKind::Struct(Struct {
-                fields: fields.into_iter().map(Box::<str>::from).collect(),
-            }),
-            constructor: None,
-        }
-    }
-
-    /// Construct metadata for a unit variant.
-    #[inline]
-    pub fn unit() -> Self {
-        Self {
-            kind: VariantKind::Unit,
-            constructor: None,
-        }
-    }
-}
-
-/// Metadata about a tuple or tuple variant.
-#[derive(Debug)]
-pub struct Tuple {
-    /// The number of fields.
-    pub(crate) args: usize,
-}
-
-/// The type specification for a native struct.
-#[derive(Debug)]
-pub(crate) struct Struct {
-    /// The names of the struct fields known at compile time.
-    pub(crate) fields: HashSet<Box<str>>,
-}
-
-/// The type specification for a native enum.
-pub(crate) struct Enum {
-    /// The variants.
-    pub(crate) variants: Vec<(Box<str>, Variant)>,
-}
-
-/// A type specification.
-pub(crate) enum TypeSpecification {
-    Struct(Struct),
-    Enum(Enum),
-}
-
-/// The data of an associated function.
-#[derive(Clone)]
-#[non_exhaustive]
-pub struct AssociatedFunction {
-    /// Handle of the associated function.
-    pub(crate) handler: Arc<FunctionHandler>,
-    /// Type information of the associated function.
-    pub(crate) type_info: TypeInfo,
-    /// If the function is asynchronous.
-    pub(crate) is_async: bool,
-    /// Arguments the function receives.
-    pub(crate) args: Option<usize>,
-    /// The full name of the associated function.
-    pub(crate) name: AssociatedFunctionName,
-    /// The return type of an associated function.
-    pub(crate) return_type: Option<FullTypeOf>,
-    /// Argument types passed in.
-    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
-    /// The documentation of the associated function.
-    pub(crate) docs: Docs,
-}
-
-/// A key that identifies an associated function.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub struct AssociatedFunctionKey {
-    /// The type the associated function belongs to.
-    pub type_hash: Hash,
-    /// The kind of the associated function.
-    pub kind: AssociatedFunctionKind,
-    /// The type parameters of the associated function.
-    pub parameters: Hash,
-}
-
-pub(crate) struct ModuleFunction {
-    pub(crate) handler: Arc<FunctionHandler>,
-    pub(crate) is_async: bool,
-    pub(crate) args: Option<usize>,
-    pub(crate) instance_function: bool,
-    /// The return type of a module function.
-    pub(crate) return_type: Option<FullTypeOf>,
-    /// The arguments types of a module function.
-    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
-    /// Documentation of the module function.
-    pub(crate) docs: Docs,
-}
-
-pub(crate) struct Macro {
-    pub(crate) handler: Arc<MacroHandler>,
-    pub(crate) docs: Docs,
-}
 
 /// A [Module] that is a collection of native functions and types.
 ///
@@ -266,11 +36,11 @@ pub struct Module {
     /// Functions.
     pub(crate) functions: HashMap<ItemBuf, ModuleFunction>,
     /// MacroHandler handlers.
-    pub(crate) macros: HashMap<ItemBuf, Macro>,
+    pub(crate) macros: HashMap<ItemBuf, ModuleMacro>,
     /// Constant values.
     pub(crate) constants: HashMap<ItemBuf, ConstValue>,
     /// Associated functions.
-    pub(crate) associated_functions: HashMap<AssociatedFunctionKey, AssociatedFunction>,
+    pub(crate) associated_functions: HashMap<AssociatedFunctionKey, ModuleFunction>,
     /// Registered types.
     pub(crate) types: HashMap<Hash, Type>,
     /// Registered unit type.
@@ -697,7 +467,6 @@ impl Module {
         };
 
         self.constants.insert(name, constant_value);
-
         Ok(())
     }
 
@@ -740,29 +509,25 @@ impl Module {
     /// Ok::<_, rune::Error>(())
     /// ```
     #[inline]
-    pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<(), ContextError> {
+    pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<&mut ModuleMacro, ContextError> {
         let meta = meta();
 
         match meta.kind {
-            MacroMetaKind::Function(data) => {
-                if self.macros.contains_key(&data.name) {
-                    return Err(ContextError::ConflictingFunctionName { name: data.name });
+            MacroMetaKind::Function(data) => match self.macros.entry(data.name.clone()) {
+                hash_map::Entry::Occupied(..) => {
+                    Err(ContextError::ConflictingMacroName { name: data.name })
                 }
+                hash_map::Entry::Vacant(e) => {
+                    let mut docs = Docs::default();
+                    docs.set_docs(meta.docs);
 
-                let mut docs = Docs::default();
-                docs.set_docs(meta.docs);
-
-                self.macros.insert(
-                    data.name.clone(),
-                    Macro {
+                    Ok(e.insert(ModuleMacro {
                         handler: data.handler,
                         docs,
-                    },
-                );
-            }
+                    }))
+                }
+            },
         }
-
-        Ok(())
     }
 
     /// Register a native macro handler.
@@ -791,7 +556,7 @@ impl Module {
     /// m.macro_(["ident_to_string"], ident_to_string)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<(), ContextError>
+    pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<&mut ModuleMacro, ContextError>
     where
         M: 'static
             + Send
@@ -802,19 +567,17 @@ impl Module {
     {
         let name = ItemBuf::with_item(name);
 
-        if self.macros.contains_key(&name) {
-            return Err(ContextError::ConflictingFunctionName { name });
-        }
+        match self.macros.entry(name.clone()) {
+            hash_map::Entry::Occupied(..) => Err(ContextError::ConflictingMacroName { name }),
+            hash_map::Entry::Vacant(e) => {
+                let handler: Arc<MacroHandler> = Arc::new(f);
 
-        let handler: Arc<MacroHandler> = Arc::new(f);
-        self.macros.insert(
-            name,
-            Macro {
-                handler,
-                docs: Docs::default(),
-            },
-        );
-        Ok(())
+                Ok(e.insert(ModuleMacro {
+                    handler,
+                    docs: Docs::default(),
+                }))
+            }
+        }
     }
 
     /// Register a function handler through its meta.
@@ -887,7 +650,10 @@ impl Module {
     /// # Ok::<_, rune::Error>(())
     /// ```
     #[inline]
-    pub fn function_meta(&mut self, meta: FunctionMeta) -> Result<(), ContextError> {
+    pub fn function_meta(
+        &mut self,
+        meta: FunctionMeta,
+    ) -> Result<&mut ModuleFunction, ContextError> {
         let meta = meta();
 
         match meta.kind {
@@ -926,7 +692,11 @@ impl Module {
     /// module.function(["optional"], |a: Option<String>| Ok::<_, rune::Error>(()))?;
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    pub fn function<Func, Args, N>(
+        &mut self,
+        name: N,
+        f: Func,
+    ) -> Result<&mut ModuleFunction, ContextError>
     where
         Func: Function<Args>,
         Func::Return: MaybeTypeOf,
@@ -939,8 +709,11 @@ impl Module {
 
     /// Register an asynchronous function.
     ///
-    /// If possible, [`Module::function_meta`] should be used since it includes more
-    /// useful information about the function.
+    /// If possible, [`Module::function_meta`] should be used since it includes
+    /// more useful information about the function.
+    ///
+    /// This returns a mutable [`ModuleFunction`], which can be used to
+    /// associate more metadata with the inserted item.
     ///
     /// # Examples
     ///
@@ -968,7 +741,11 @@ impl Module {
     /// module.async_function(["optional"], optional)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn async_function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    pub fn async_function<Func, Args, N>(
+        &mut self,
+        name: N,
+        f: Func,
+    ) -> Result<&mut ModuleFunction, ContextError>
     where
         Func: AsyncFunction<Args>,
         Func::Output: MaybeTypeOf,
@@ -981,8 +758,11 @@ impl Module {
 
     /// Register an instance function.
     ///
-    /// If possible, [`Module::function_meta`] should be used since it includes more
-    /// useful information about the function.
+    /// If possible, [`Module::function_meta`] should be used since it includes
+    /// more useful information about the function.
+    ///
+    /// This returns a mutable [`ModuleFunction`], which can be used to
+    /// associate more metadata with the inserted item.
     ///
     /// # Examples
     ///
@@ -1016,7 +796,11 @@ impl Module {
     /// context.install(module)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    pub fn inst_fn<N, Func, Args>(
+        &mut self,
+        name: N,
+        f: Func,
+    ) -> Result<&mut ModuleFunction, ContextError>
     where
         N: ToInstance,
         Func: InstFn<Args>,
@@ -1031,8 +815,11 @@ impl Module {
 
     /// Register an asynchronous instance function.
     ///
-    /// If possible, [`Module::function_meta`] should be used since it includes more
-    /// useful information about the function.
+    /// If possible, [`Module::function_meta`] should be used since it includes
+    /// more useful information about the function.
+    ///
+    /// This returns a mutable [`ModuleFunction`], which can be used to
+    /// associate more metadata with the inserted item.
     ///
     /// # Examples
     ///
@@ -1058,7 +845,11 @@ impl Module {
     /// module.async_inst_fn("test", MyType::test)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    pub fn async_inst_fn<N, Func, Args>(
+        &mut self,
+        name: N,
+        f: Func,
+    ) -> Result<&mut ModuleFunction, ContextError>
     where
         N: ToInstance,
         Func: AsyncInstFn<Args>,
@@ -1072,12 +863,15 @@ impl Module {
     }
 
     /// Install a protocol function that interacts with the given field.
+    ///
+    /// This returns a mutable [`ModuleFunction`], which can be used to
+    /// associate more metadata with the inserted item.
     pub fn field_fn<N, Func, Args>(
         &mut self,
         protocol: Protocol,
         name: N,
         f: Func,
-    ) -> Result<(), ContextError>
+    ) -> Result<&mut ModuleFunction, ContextError>
     where
         N: ToFieldFunction,
         Func: InstFn<Args>,
@@ -1099,7 +893,7 @@ impl Module {
         protocol: Protocol,
         index: usize,
         f: Func,
-    ) -> Result<(), ContextError>
+    ) -> Result<&mut ModuleFunction, ContextError>
     where
         Func: InstFn<Args>,
         Func::Return: MaybeTypeOf,
@@ -1111,7 +905,34 @@ impl Module {
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
+    ///
+    /// This returns a mutable [`ModuleFunction`], which can be used to
+    /// associate more metadata with the inserted item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Stack, VmResult};
+    ///
+    /// fn sum(stack: &mut Stack, args: usize) -> VmResult<()> {
+    ///     let mut number = 0;
+    ///
+    ///     for _ in 0..args {
+    ///         number += stack.pop()?.into_u64()?;
+    ///     }
+    ///
+    ///     stack.push(number);
+    ///     Ok(())
+    /// }
+    ///
+    /// let mut module = rune::Module::default();
+    ///
+    /// let sum = module.raw_fn(["sum"], sum)?;
+    /// sum.docs([
+    ///     "Sum all numbers provided to the function."
+    /// ]);
+    /// ```
+    pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<&mut ModuleFunction, ContextError>
     where
         F: 'static + Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync,
         N: IntoIterator,
@@ -1119,53 +940,55 @@ impl Module {
     {
         let name = ItemBuf::with_item(name);
 
-        if self.functions.contains_key(&name) {
-            return Err(ContextError::ConflictingFunctionName { name });
-        }
+        if self.functions.contains_key(&name) {}
 
-        self.functions.insert(
-            name,
-            ModuleFunction {
+        match self.functions.entry(name) {
+            hash_map::Entry::Occupied(e) => Err(ContextError::ConflictingFunctionName {
+                name: e.key().clone(),
+            }),
+            hash_map::Entry::Vacant(e) => Ok(e.insert(ModuleFunction {
                 handler: Arc::new(move |stack, args| f(stack, args)),
                 is_async: false,
                 args: None,
-                instance_function: false,
                 return_type: None,
                 argument_types: Box::from([]),
                 docs: Docs::default(),
-            },
-        );
-
-        Ok(())
+                kind: ModuleFunctionKind::Function,
+            })),
+        }
     }
 
-    fn function_inner(&mut self, data: FunctionData, docs: Docs) -> Result<(), ContextError> {
-        if self.functions.contains_key(&data.name) {
-            return Err(ContextError::ConflictingFunctionName { name: data.name });
-        }
-
-        self.functions.insert(
-            data.name,
-            ModuleFunction {
+    fn function_inner(
+        &mut self,
+        data: FunctionData,
+        docs: Docs,
+    ) -> Result<&mut ModuleFunction, ContextError> {
+        match self.functions.entry(data.name.clone()) {
+            hash_map::Entry::Occupied(e) => Err(ContextError::ConflictingFunctionName {
+                name: e.key().clone(),
+            }),
+            hash_map::Entry::Vacant(e) => Ok(e.insert(ModuleFunction {
                 handler: data.handler,
                 is_async: data.is_async,
                 args: data.args,
-                instance_function: false,
                 return_type: data.return_type,
                 argument_types: data.argument_types,
                 docs,
-            },
-        );
-
-        Ok(())
+                kind: ModuleFunctionKind::Function,
+            })),
+        }
     }
 
     /// Install an associated function.
-    fn assoc_fn(&mut self, data: AssociatedFunctionData, docs: Docs) -> Result<(), ContextError> {
+    fn assoc_fn(
+        &mut self,
+        data: AssociatedFunctionData,
+        docs: Docs,
+    ) -> Result<&mut ModuleFunction, ContextError> {
         let key = data.assoc_key();
 
-        if self.associated_functions.contains_key(&key) {
-            return Err(match data.name.kind {
+        match self.associated_functions.entry(key) {
+            hash_map::Entry::Occupied(..) => Err(match data.name.kind {
                 AssociatedFunctionKind::Protocol(protocol) => {
                     ContextError::ConflictingProtocolFunction {
                         type_info: data.ty.type_info,
@@ -1192,28 +1015,288 @@ impl Module {
                         name,
                     }
                 }
-            });
+            }),
+            hash_map::Entry::Vacant(e) => Ok(e.insert(ModuleFunction {
+                handler: data.handler,
+                is_async: data.is_async,
+                args: data.args,
+                return_type: data.return_type,
+                argument_types: data.argument_types,
+                docs,
+                kind: ModuleFunctionKind::Assoc {
+                    type_info: data.ty.type_info,
+                    name: data.name,
+                },
+            })),
         }
-
-        let assoc_fn = AssociatedFunction {
-            handler: data.handler,
-            type_info: data.ty.type_info,
-            is_async: data.is_async,
-            args: data.args,
-            name: data.name,
-            return_type: data.return_type,
-            argument_types: data.argument_types,
-            docs,
-        };
-
-        self.associated_functions.insert(key, assoc_fn);
-        Ok(())
     }
 }
 
 impl AsRef<Module> for Module {
     #[inline]
     fn as_ref(&self) -> &Module {
+        self
+    }
+}
+
+/// Trait to handle the installation of auxilliary functions for a type
+/// installed into a module.
+pub trait InstallWith {
+    /// Hook to install more things into the module.
+    fn install_with(_: &mut Module) -> Result<(), ContextError> {
+        Ok(())
+    }
+}
+
+/// The static hash and diagnostical information about a type.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct AssocType {
+    /// Hash of the type.
+    pub hash: Hash,
+    /// Type information of the instance function.
+    pub type_info: TypeInfo,
+}
+
+/// Specialized information on `Option` types.
+pub(crate) struct UnitType {
+    /// Item of the unit type.
+    pub(crate) name: Box<str>,
+}
+
+/// Specialized information on `GeneratorState` types.
+pub(crate) struct InternalEnum {
+    /// The name of the internal enum.
+    pub(crate) name: &'static str,
+    /// The result type.
+    pub(crate) base_type: ItemBuf,
+    /// The static type of the enum.
+    pub(crate) static_type: &'static StaticType,
+    /// Internal variants.
+    pub(crate) variants: Vec<InternalVariant>,
+}
+
+impl InternalEnum {
+    /// Construct a new handler for an internal enum.
+    fn new<N>(name: &'static str, base_type: N, static_type: &'static StaticType) -> Self
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        InternalEnum {
+            name,
+            base_type: ItemBuf::with_item(base_type),
+            static_type,
+            variants: Vec::new(),
+        }
+    }
+
+    /// Register a new variant.
+    fn variant<C, Args>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
+    where
+        C: Function<Args>,
+    {
+        let constructor: Arc<FunctionHandler> =
+            Arc::new(move |stack, args| constructor.fn_call(stack, args));
+
+        self.variants.push(InternalVariant {
+            name,
+            type_check,
+            args: C::args(),
+            constructor,
+        });
+    }
+}
+
+/// Internal variant.
+pub(crate) struct InternalVariant {
+    /// The name of the variant.
+    pub(crate) name: &'static str,
+    /// Type check for the variant.
+    pub(crate) type_check: TypeCheck,
+    /// Arguments for the variant.
+    pub(crate) args: usize,
+    /// The constructor of the variant.
+    pub(crate) constructor: Arc<FunctionHandler>,
+}
+
+/// Data for an opaque type. If `spec` is set, indicates things which are known
+/// about that type.
+pub(crate) struct Type {
+    /// The name of the installed type which will be the final component in the
+    /// item it will constitute.
+    pub(crate) name: Box<str>,
+    /// Type information for the installed type.
+    pub(crate) type_info: TypeInfo,
+    /// The specification for the type.
+    pub(crate) spec: Option<TypeSpecification>,
+}
+
+/// Metadata about a variant.
+pub struct Variant {
+    /// Variant metadata.
+    pub(crate) kind: VariantKind,
+    /// Handler to use if this variant can be constructed through a regular function call.
+    pub(crate) constructor: Option<Arc<FunctionHandler>>,
+}
+
+impl fmt::Debug for Variant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Variant")
+            .field("kind", &self.kind)
+            .field("constructor", &self.constructor.is_some())
+            .finish()
+    }
+}
+
+/// The kind of the variant.
+#[derive(Debug)]
+pub(crate) enum VariantKind {
+    /// Variant is a Tuple variant.
+    Tuple(Tuple),
+    /// Variant is a Struct variant.
+    Struct(Struct),
+    /// Variant is a Unit variant.
+    Unit,
+}
+
+impl Variant {
+    /// Construct metadata for a tuple variant.
+    #[inline]
+    pub fn tuple(args: usize) -> Self {
+        Self {
+            kind: VariantKind::Tuple(Tuple { args }),
+            constructor: None,
+        }
+    }
+
+    /// Construct metadata for a tuple variant.
+    #[inline]
+    pub fn st<const N: usize>(fields: [&'static str; N]) -> Self {
+        Self {
+            kind: VariantKind::Struct(Struct {
+                fields: fields.into_iter().map(Box::<str>::from).collect(),
+            }),
+            constructor: None,
+        }
+    }
+
+    /// Construct metadata for a unit variant.
+    #[inline]
+    pub fn unit() -> Self {
+        Self {
+            kind: VariantKind::Unit,
+            constructor: None,
+        }
+    }
+}
+
+/// Metadata about a tuple or tuple variant.
+#[derive(Debug)]
+pub struct Tuple {
+    /// The number of fields.
+    pub(crate) args: usize,
+}
+
+/// The type specification for a native struct.
+#[derive(Debug)]
+pub(crate) struct Struct {
+    /// The names of the struct fields known at compile time.
+    pub(crate) fields: HashSet<Box<str>>,
+}
+
+/// The type specification for a native enum.
+pub(crate) struct Enum {
+    /// The variants.
+    pub(crate) variants: Vec<(Box<str>, Variant)>,
+}
+
+/// A type specification.
+pub(crate) enum TypeSpecification {
+    Struct(Struct),
+    Enum(Enum),
+}
+
+/// A key that identifies an associated function.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct AssociatedFunctionKey {
+    /// The type the associated function belongs to.
+    pub type_hash: Hash,
+    /// The kind of the associated function.
+    pub kind: AssociatedFunctionKind,
+    /// The type parameters of the associated function.
+    pub parameters: Hash,
+}
+
+/// The kind of a module function.
+#[derive(Clone)]
+pub(crate) enum ModuleFunctionKind {
+    Function,
+    Assoc {
+        /// Type information of the associated function.
+        type_info: TypeInfo,
+        /// The full name of the associated function.
+        name: AssociatedFunctionName,
+    },
+}
+
+/// Handle to a function inserted into a module.
+///
+/// This is returned by methods which insert any kind of function, such as:
+/// * [`Module::function_meta`].
+/// * [`Module::raw_fn`].
+/// * [`Module::function`].
+/// * [`Module::inst_fn`].
+pub struct ModuleFunction {
+    pub(crate) handler: Arc<FunctionHandler>,
+    pub(crate) is_async: bool,
+    pub(crate) args: Option<usize>,
+    pub(crate) return_type: Option<FullTypeOf>,
+    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
+    pub(crate) docs: Docs,
+    pub(crate) kind: ModuleFunctionKind,
+}
+
+impl ModuleFunction {
+    // Private clone implementation.
+    pub(crate) fn clone_it(&self) -> Self {
+        Self {
+            handler: self.handler.clone(),
+            is_async: self.is_async.clone(),
+            args: self.args.clone(),
+            return_type: self.return_type.clone(),
+            argument_types: self.argument_types.clone(),
+            docs: self.docs.clone(),
+            kind: self.kind.clone(),
+        }
+    }
+
+    /// Set documentation for an inserted function.
+    pub fn docs<I>(&mut self, docs: I) -> &mut Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        self.docs.set_docs(docs);
+        self
+    }
+}
+
+/// Handle to a macro inserted into a module.
+pub struct ModuleMacro {
+    pub(crate) handler: Arc<MacroHandler>,
+    pub(crate) docs: Docs,
+}
+
+impl ModuleMacro {
+    /// Set documentation for an inserted macro.
+    pub fn docs<I>(&mut self, docs: I) -> &mut Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        self.docs.set_docs(docs);
         self
     }
 }

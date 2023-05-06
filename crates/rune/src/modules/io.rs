@@ -22,7 +22,26 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
     if stdio {
         module.function_meta(print_impl)?;
         module.function_meta(println_impl)?;
-        module.raw_fn(["dbg"], dbg_impl)?;
+
+        module.raw_fn(["dbg"], dbg_impl)?.docs([
+            "Debug to output.",
+            "",
+            "This is the actual output hook, and if you install rune modules without",
+            "`I/O` enabled this will not be defined. It is then up to someone else to",
+            "provide an implementation.",
+            "",
+            "# Examples",
+            "",
+            "```rune",
+            "let number = 10;",
+            "let number = number * 4;",
+            "",
+            "let who = \"World\";",
+            "let string = format!(\"Hello {}\", who);",
+            "",
+            "dbg(number, string);",
+            "```",
+        ]);
     }
 
     // These are unconditionally included, but using them might cause a

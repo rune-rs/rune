@@ -23,9 +23,11 @@ pub enum ContextError {
         signature: Box<meta::Signature>,
         hash: Hash,
     },
-    #[error("Function with name `{name}` already exists")]
+    #[error("Function `{name}` already exists")]
     ConflictingFunctionName { name: ItemBuf },
-    #[error("Constant with name `{name}` already exists")]
+    #[error("Macro `{name}` already exists")]
+    ConflictingMacroName { name: ItemBuf },
+    #[error("Constant `{name}` already exists")]
     ConflictingConstantName { name: ItemBuf },
     #[error("Instance function `{name}` for type `{type_info}` already exists")]
     ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
@@ -49,10 +51,6 @@ pub enum ContextError {
     ConflictingType { item: ItemBuf, type_info: TypeInfo },
     #[error("Type `{item}` at `{type_info}` already has a specification")]
     ConflictingTypeMeta { item: ItemBuf, type_info: TypeInfo },
-    #[error("Type `{item}` with info `{type_info}` isn't registered")]
-    MissingType { item: ItemBuf, type_info: TypeInfo },
-    #[error("Type `{item}` with info `{type_info}` is registered but is not an enum")]
-    MissingEnum { item: ItemBuf, type_info: TypeInfo },
     #[error("Conflicting meta hash `{hash}` for `{existing}` when inserting item `{item}`")]
     ConflictingMetaHash {
         item: ItemBuf,
@@ -63,12 +61,18 @@ pub enum ContextError {
     ConflictingTypeHash { hash: Hash, existing: Hash },
     #[error("Variant with `{item}` already exists")]
     ConflictingVariant { item: ItemBuf },
-    #[error("Instance `{instance_type}` does not exist in module")]
-    MissingInstance { instance_type: TypeInfo },
     #[error("Error when converting to constant value: {error}")]
     ValueError { error: VmError },
-    #[error("Missing variant {index} for `{type_info}`")]
-    MissingVariant { type_info: TypeInfo, index: usize },
     #[error("Constructor for variant {index} in `{type_info}` has already been registered")]
     VariantConstructorConflict { type_info: TypeInfo, index: usize },
+    #[error("Type `{item}` with info `{type_info}` isn't registered")]
+    MissingType { item: ItemBuf, type_info: TypeInfo },
+    #[error("Type `{item}` with info `{type_info}` is registered but is not an enum")]
+    MissingEnum { item: ItemBuf, type_info: TypeInfo },
+    #[error("Instance `{instance_type}` does not exist in module")]
+    MissingInstance { instance_type: TypeInfo },
+    #[error("Missing variant {index} for `{type_info}`")]
+    MissingVariant { type_info: TypeInfo, index: usize },
+    #[error("Expected associated function")]
+    ExpectedAssociated,
 }

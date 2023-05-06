@@ -668,6 +668,15 @@ impl Value {
 
     /// Try to coerce value into a boolean.
     #[inline]
+    pub fn as_bool(&self) -> VmResult<bool> {
+        match self {
+            Self::Bool(b) => VmResult::Ok(*b),
+            actual => err(VmErrorKind::expected::<bool>(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce value into a boolean.
+    #[inline]
     pub fn into_bool(self) -> VmResult<bool> {
         match self {
             Self::Bool(b) => VmResult::Ok(b),
@@ -675,12 +684,12 @@ impl Value {
         }
     }
 
-    /// Try to coerce value into a boolean.
+    /// Try to coerce value into a byte.
     #[inline]
-    pub fn as_bool(&self) -> VmResult<bool> {
+    pub fn as_byte(&self) -> VmResult<u8> {
         match self {
-            Self::Bool(b) => VmResult::Ok(*b),
-            actual => err(VmErrorKind::expected::<bool>(vm_try!(actual.type_info()))),
+            Self::Byte(b) => VmResult::Ok(*b),
+            actual => err(VmErrorKind::expected::<u8>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -695,10 +704,28 @@ impl Value {
 
     /// Try to coerce value into a character.
     #[inline]
+    pub fn as_char(&self) -> VmResult<char> {
+        match self {
+            Self::Char(c) => VmResult::Ok(*c),
+            actual => err(VmErrorKind::expected::<char>(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce value into a character.
+    #[inline]
     pub fn into_char(self) -> VmResult<char> {
         match self {
             Self::Char(c) => VmResult::Ok(c),
             actual => err(VmErrorKind::expected::<char>(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce value into an integer.
+    #[inline]
+    pub fn as_integer(&self) -> VmResult<i64> {
+        match self {
+            Self::Integer(integer) => VmResult::Ok(*integer),
+            actual => err(VmErrorKind::expected::<i64>(vm_try!(actual.type_info()))),
         }
     }
 

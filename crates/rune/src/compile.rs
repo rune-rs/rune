@@ -68,10 +68,10 @@ pub use self::function_meta::{
 #[doc(hidden)]
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
 
-mod module;
+pub(crate) mod module;
 pub use self::module::{
-    AssocType, AssociatedFunction, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function,
-    InstFn, InstallWith, Module, Variant,
+    AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn, InstallWith,
+    Module, ModuleFunction, Variant,
 };
 
 mod pool;

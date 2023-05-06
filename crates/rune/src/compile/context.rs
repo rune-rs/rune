@@ -6,7 +6,7 @@ use crate::no_std::sync::Arc;
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::module::{
-    AssociatedFunction, Function, InternalEnum, Macro, Module, ModuleFunction, Type,
+    Function, InternalEnum, Module, ModuleFunction, ModuleFunctionKind, ModuleMacro, Type,
     TypeSpecification, UnitType, VariantKind,
 };
 use crate::compile::{
@@ -111,7 +111,7 @@ pub struct Context {
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
-    associated: HashMap<Hash, Vec<AssociatedFunction>>,
+    associated: HashMap<Hash, Vec<ModuleFunction>>,
     /// Registered native macro handlers.
     macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
@@ -340,7 +340,7 @@ impl Context {
 
     /// Get all associated types for the given hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &AssociatedFunction> + '_ {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &ModuleFunction> + '_ {
         self.associated
             .get(&hash)
             .into_iter()
@@ -571,7 +571,7 @@ impl Context {
                 args: f.args,
                 is_test: false,
                 is_bench: false,
-                instance_function: f.instance_function,
+                instance_function: false,
             },
             f.docs.clone(),
         ))?;
@@ -584,7 +584,7 @@ impl Context {
         &mut self,
         module: &Module,
         item: &Item,
-        m: &Macro,
+        m: &ModuleMacro,
     ) -> Result<(), ContextError> {
         let item = module.item.join(item);
         let hash = Hash::type_hash(&item);
@@ -638,8 +638,15 @@ impl Context {
         &mut self,
         module: &Module,
         key: &AssociatedFunctionKey,
-        assoc: &AssociatedFunction,
+        assoc: &ModuleFunction,
     ) -> Result<(), ContextError> {
+        let (assoc_type_info, assoc_name) = match &assoc.kind {
+            ModuleFunctionKind::Function => {
+                return Err(ContextError::ExpectedAssociated);
+            }
+            ModuleFunctionKind::Assoc { type_info, name } => (type_info, name),
+        };
+
         let info = match self
             .types_rev
             .get(&key.type_hash)
@@ -648,13 +655,12 @@ impl Context {
             Some(info) => info,
             None => {
                 return Err(ContextError::MissingInstance {
-                    instance_type: assoc.type_info.clone(),
+                    instance_type: assoc_type_info.clone(),
                 });
             }
         };
 
-        let hash = assoc
-            .name
+        let hash = assoc_name
             .kind
             .hash(key.type_hash)
             .with_parameters(key.parameters);
@@ -670,7 +676,7 @@ impl Context {
                 .map(|f| f.as_ref().map(|f| f.hash))
                 .collect(),
             kind: meta::SignatureKind::Instance {
-                name: assoc.name.kind.clone(),
+                name: assoc_name.kind.clone(),
                 self_type_info: info.type_info.clone(),
             },
         };
@@ -688,7 +694,7 @@ impl Context {
         self.associated
             .entry(key.type_hash)
             .or_default()
-            .push(assoc.clone());
+            .push(assoc.clone_it());
 
         // If the associated function is a named instance function - register it
         // under the name of the item it corresponds to unless it's a field
@@ -696,7 +702,7 @@ impl Context {
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        if let AssociatedFunctionKind::Instance(name) = &assoc.name.kind {
+        if let AssociatedFunctionKind::Instance(name) = &assoc_name.kind {
             let item = info.item.extended(name);
             self.names.insert(&item);
 
