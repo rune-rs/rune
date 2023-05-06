@@ -4,7 +4,6 @@ title = "The Rune Programming Language"
 description="Party dynamically like it's 1995"
 default_language = "en"
 
-highlight_theme = "nord"
 generate_feed = true
 feed_filename = "rss.xml"
 rss_limit = 20
@@ -19,6 +18,7 @@ taxonomies = [
 ]
 
 [markdown]
+highlight_theme = "kronuz"
 highlight_code = true
 
 [extra]
