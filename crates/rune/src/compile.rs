@@ -62,9 +62,11 @@ pub use self::meta::{MetaRef, SourceMeta};
 mod function_meta;
 pub(crate) use self::function_meta::{AssociatedFunctionData, FunctionData, IterFunctionArgs};
 pub use self::function_meta::{
-    AssociatedFunctionKind, AssociatedFunctionName, FunctionMeta, FunctionMetaData,
-    FunctionMetaKind, ToFieldFunction, ToInstance,
+    AssociatedFunctionKind, AssociatedFunctionName, FunctionMeta, MacroMeta, ToFieldFunction,
+    ToInstance,
 };
+#[doc(hidden)]
+pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
 
 mod module;
 pub use self::module::{

@@ -599,7 +599,7 @@ impl Context {
             None,
             item,
             meta::Kind::Macro,
-            Docs::default(),
+            m.docs.clone(),
         ))?;
 
         Ok(())

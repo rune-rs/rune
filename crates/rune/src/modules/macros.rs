@@ -2,6 +2,7 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
+use crate as rune;
 use crate::compile;
 use crate::macros::{quote, MacroContext, TokenStream};
 use crate::parse::Parser;
@@ -11,13 +12,20 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut builtins =
         Module::with_crate_item("std", ["macros", "builtin"]).with_unique("std::macros::builtin");
-    builtins.macro_(["file"], emit_file)?;
-    builtins.macro_(["line"], emit_line)?;
+    builtins.macro_meta(file)?;
+    builtins.macro_meta(line)?;
     Ok(builtins)
 }
 
-/// Implementation for the `line!()` macro
-pub(crate) fn emit_line(
+/// Return the line in the current file.
+///
+/// # Examples
+///
+/// ```rune
+/// println!("{}:{}: Something happened", file!(), line!());
+/// ```
+#[rune::macro_]
+pub(crate) fn line(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
@@ -33,8 +41,15 @@ pub(crate) fn emit_line(
     .into_token_stream(ctx))
 }
 
-/// Implementation for the `file!()` macro
-pub(crate) fn emit_file(
+/// Return the name of the current file.
+///
+/// # Examples
+///
+/// ```rune
+/// println!("{}:{}: Something happened", file!(), line!());
+/// ```
+#[rune::macro_]
+pub(crate) fn file(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {

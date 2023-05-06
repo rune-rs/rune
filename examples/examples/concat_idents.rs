@@ -6,6 +6,7 @@ use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Context, Diagnostics, Module, Vm, T};
 use std::sync::Arc;
 
+#[rune::macro_]
 fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     let mut output = String::new();
 
@@ -31,7 +32,7 @@ fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::R
 
 fn main() -> rune::Result<()> {
     let mut m = Module::new();
-    m.macro_(["concat_idents"], concat_idents)?;
+    m.macro_meta(concat_idents)?;
 
     let mut context = Context::new();
     context.install(m)?;

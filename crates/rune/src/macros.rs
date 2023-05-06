@@ -15,6 +15,7 @@
 //! use rune::parse::Parser;
 //! use std::sync::Arc;
 //!
+//! #[rune::macro_]
 //! fn concat_idents(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut output = String::new();
 //!
@@ -39,7 +40,7 @@
 //! }
 //!
 //! let mut m = Module::new();
-//! m.macro_(["concat_idents"], concat_idents)?;
+//! m.macro_meta(concat_idents)?;
 //!
 //! let mut context = Context::new();
 //! context.install(m)?;

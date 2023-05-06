@@ -14,6 +14,7 @@
 //! use rune::parse::Parser;
 //! use std::sync::Arc;
 //!
+//! #[rune::macro_]
 //! fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
 //!     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
 //!     let ident = p.parse_all::<ast::Ident>()?;
@@ -23,7 +24,7 @@
 //! }
 //!
 //! let mut m = Module::new();
-//! m.macro_(["ident_to_string"], ident_to_string)?;
+//! m.macro_meta(ident_to_string)?;
 //!
 //! let mut context = Context::new();
 //! context.install(m)?;

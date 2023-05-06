@@ -30,21 +30,20 @@ mod stringy_math_macro;
 /// Construct the `std::experiments` module, which contains experiments.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["experiments"]);
-    module.macro_(["passthrough"], passthrough_impl)?;
-    module.macro_(["stringy_math"], stringy_math_macro::stringy_math)?;
-    module.macro_(["make_function"], make_function)?;
+    module.macro_meta(passthrough)?;
+    module.macro_meta(stringy_math_macro::stringy_math)?;
+    module.macro_meta(make_function)?;
     Ok(module)
 }
 
 /// Implementation for the `passthrough!` macro.
-fn passthrough_impl(
-    _: &mut MacroContext<'_>,
-    stream: &TokenStream,
-) -> compile::Result<TokenStream> {
+#[rune::macro_]
+fn passthrough(_: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     Ok(stream.clone())
 }
 
 /// Implementation for the `make_function!` macro.
+#[rune::macro_]
 fn make_function(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream, ctx.stream_span());
 

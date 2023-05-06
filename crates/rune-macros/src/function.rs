@@ -298,9 +298,9 @@ impl Function {
         stream.extend(quote! {
             /// Get function metadata.
             #[automatically_derived]
-            #meta_vis fn #meta_fn() -> rune::compile::FunctionMetaData {
-                rune::compile::FunctionMetaData {
-                    kind: rune::compile::FunctionMetaKind::#meta_kind(#meta_name, #real_fn_path),
+            #meta_vis fn #meta_fn() -> rune::__private::FunctionMetaData {
+                rune::__private::FunctionMetaData {
+                    kind: rune::__private::FunctionMetaKind::#meta_kind(#meta_name, #real_fn_path),
                     name: #name_string,
                     docs: &#docs[..],
                     arguments: &#arguments[..],
