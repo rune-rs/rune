@@ -70,9 +70,9 @@ impl InternalEnum {
     }
 
     /// Register a new variant.
-    fn variant<C, Args>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
+    fn variant<C, A>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
     where
-        C: Function<Args>,
+        C: Function<A>,
     {
         let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));

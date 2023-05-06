@@ -862,7 +862,7 @@ impl Context {
     }
 
     /// Add a piece of internal tuple meta.
-    fn add_internal_tuple<C, Args>(
+    fn add_internal_tuple<C, A>(
         &mut self,
         module: &Module,
         enum_item: Option<(Hash, usize)>,
@@ -872,7 +872,7 @@ impl Context {
         docs: Docs,
     ) -> Result<(), ContextError>
     where
-        C: Function<Args>,
+        C: Function<A>,
         C::Return: TypeOf,
     {
         let type_hash = <C::Return as TypeOf>::type_hash();
