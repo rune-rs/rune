@@ -50,14 +50,18 @@ impl FunctionAttrs {
 
                 out.path = Path::Path(span, self_type, parse_path(input, head)?);
             } else {
-                return Err(syn::Error::new_spanned(ident, "unsupported option"));
+                return Err(syn::Error::new_spanned(ident, "Unsupported option"));
             }
 
-            if !input.peek(syn::Token![,]) {
+            if input.parse::<Option<syn::Token![,]>>().is_none() {
                 break;
             }
+        }
 
-            input.parse::<syn::Token![,]>()?;
+        let stream = input.parse::<TokenStream>()?;
+
+        if !stream.is_empty() {
+            return Err(syn::Error::new_spanned(stream, "Unexpected input"));
         }
 
         Ok(out)
