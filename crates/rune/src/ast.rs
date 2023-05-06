@@ -23,6 +23,7 @@
 //!     Ok(quote!(#string).into_token_stream(ctx))
 //! }
 //!
+//! # fn main() -> rune::Result<()> {
 //! let mut m = Module::new();
 //! m.macro_meta(ident_to_string)?;
 //!
@@ -50,7 +51,8 @@
 //! let value: String = rune::from_value(value)?;
 //!
 //! assert_eq!(value, "hello");
-//! # Ok::<_, rune::Error>(())
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::macros::{MacroContext, ToTokens, TokenStream};
