@@ -1,13 +1,19 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Ident>("foo");
+    rt::<ast::Ident>("a42");
+}
+
 /// An identifier, like `foo` or `Hello`.
 ///
-/// Custom identifiers are constructed in macros using
+/// # Constructing identifiers
+///
+/// Inside of a macro context, identifiers have to be constructed through
 /// [MacroContext::ident][crate::macros::MacroContext::ident].
-///
-/// # Examples
-///
-/// Constructing an identifier:
 ///
 /// ```
 /// use rune::ast;
@@ -17,15 +23,6 @@ use crate::ast::prelude::*;
 ///     let lit = ctx.ident("foo");
 ///     assert!(matches!(lit, ast::Ident { .. }))
 /// });
-/// ```
-///
-/// Example identifiers:
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Ident>("foo");
-/// testing::roundtrip::<ast::Ident>("a42");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]

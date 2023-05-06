@@ -188,6 +188,10 @@ pub type Result<T, E = crate::no_std::Error> = ::core::result::Result<T, E>;
 /// Boxed error type, which is an alias of [anyhow::Error].
 pub type Error = crate::no_std::Error;
 
+#[macro_use]
+#[cfg(test)]
+pub(crate) mod testing;
+
 /// Helper prelude for #[no_std] support.
 pub mod no_std;
 
@@ -256,9 +260,6 @@ mod worker;
 cfg_workspace! {
     pub mod workspace;
 }
-
-#[doc(hidden)]
-pub mod testing;
 
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;

@@ -1,6 +1,46 @@
 use crate::ast::prelude::*;
 
-/// Visibility level restricted to some path: pub(self) or pub(super) or pub(crate) or pub(in some::module).
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    assert!(matches! {
+        rt::<ast::Visibility>("pub"),
+        ast::Visibility::Public(_)
+    });
+
+    assert!(matches! {
+        rt::<ast::Visibility>("pub (in a::b::c)"),
+        ast::Visibility::In(_)
+    });
+
+    assert!(matches! {
+        rt::<ast::Visibility>("pub(in crate::x::y::z)"),
+        ast::Visibility::In(_)
+    });
+
+    assert!(matches! {
+        rt::<ast::Visibility>("pub(super)"),
+        ast::Visibility::Super(_)
+    });
+
+    assert!(matches! {
+        rt::<ast::Visibility>("pub(crate)"),
+        ast::Visibility::Crate(_)
+    });
+
+    assert!(matches! {
+        rt::<ast::Visibility>("pub(self)"),
+        ast::Visibility::SelfValue(_)
+    });
+}
+
+/// Visibility level restricted to some path.
+///
+/// * `pub(self)`.
+/// * `pub(super)`.
+/// * `pub(crate)`.
+/// * `pub(in some::module)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
 #[non_exhaustive]
 pub enum Visibility {
@@ -36,43 +76,6 @@ impl Default for Visibility {
     }
 }
 
-/// Parsing Visibility specifiers
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// assert!(matches!{
-///     testing::roundtrip::<ast::Visibility>("pub"),
-///     ast::Visibility::Public(_)
-/// });
-///
-/// assert!(matches!{
-///     testing::roundtrip::<ast::Visibility>("pub (in a::b::c)"),
-///     ast::Visibility::In(_)
-/// });
-///
-/// assert!(matches!{
-///     testing::roundtrip::<ast::Visibility>("pub(in crate::x::y::z)"),
-///     ast::Visibility::In(_)
-/// });
-///
-/// assert!(matches!{
-///     testing::roundtrip::<ast::Visibility>("pub(super)"),
-///     ast::Visibility::Super(_)
-/// });
-///
-/// assert!(matches!{
-///     testing::roundtrip::<ast::Visibility>("pub(crate)"),
-///     ast::Visibility::Crate(_)
-/// });
-///
-/// assert!(matches!{
-///     testing::roundtrip::<ast::Visibility>("pub(self)"),
-///     ast::Visibility::SelfValue(_)
-/// });
-/// ```
 impl Parse for Visibility {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let pub_token = match parser.parse::<Option<T![pub]>>()? {

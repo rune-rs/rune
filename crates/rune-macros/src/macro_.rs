@@ -33,7 +33,7 @@ impl Config {
                 return Err(syn::Error::new_spanned(ident, "Unsupported option"));
             }
 
-            if input.parse::<Option<syn::Token![,]>>().is_none() {
+            if input.parse::<Option<syn::Token![,]>>()?.is_none() {
                 break;
             }
         }

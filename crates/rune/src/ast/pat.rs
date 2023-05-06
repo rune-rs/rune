@@ -1,5 +1,23 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Pat>("()");
+    rt::<ast::Pat>("42");
+    rt::<ast::Pat>("-42");
+    rt::<ast::Pat>("3.1415");
+    rt::<ast::Pat>("-3.1415");
+    rt::<ast::Pat>("b'a'");
+    rt::<ast::Pat>("'a'");
+    rt::<ast::Pat>("b\"hello world\"");
+    rt::<ast::Pat>("\"hello world\"");
+    rt::<ast::Pat>("var");
+    rt::<ast::Pat>("_");
+    rt::<ast::Pat>("Foo(n)");
+}
+
 /// A pattern match.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
@@ -22,26 +40,6 @@ pub enum Pat {
     PatRest(PatRest),
 }
 
-/// Parsing a block expression.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Pat>("()");
-/// testing::roundtrip::<ast::Pat>("42");
-/// testing::roundtrip::<ast::Pat>("-42");
-/// testing::roundtrip::<ast::Pat>("3.1415");
-/// testing::roundtrip::<ast::Pat>("-3.1415");
-/// testing::roundtrip::<ast::Pat>("b'a'");
-/// testing::roundtrip::<ast::Pat>("'a'");
-/// testing::roundtrip::<ast::Pat>("b\"hello world\"");
-/// testing::roundtrip::<ast::Pat>("\"hello world\"");
-/// testing::roundtrip::<ast::Pat>("var");
-/// testing::roundtrip::<ast::Pat>("_");
-/// testing::roundtrip::<ast::Pat>("Foo(n)");
-/// ```
 impl Parse for Pat {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let attributes = p.parse::<Vec<ast::Attribute>>()?;

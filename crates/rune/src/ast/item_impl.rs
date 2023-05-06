@@ -1,17 +1,18 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ItemImpl>("impl Foo {}");
+    rt::<ast::ItemImpl>("impl Foo { fn test(self) { } }");
+    rt::<ast::ItemImpl>(
+        "#[variant(enum_= \"SuperHero\", x = \"1\")] impl Foo { fn test(self) { } }",
+    );
+    rt::<ast::ItemImpl>("#[xyz] impl Foo { #[jit] fn test(self) { } }");
+}
+
 /// An impl item.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ItemImpl>("impl Foo {}");
-/// testing::roundtrip::<ast::ItemImpl>("impl Foo { fn test(self) { } }");
-/// testing::roundtrip::<ast::ItemImpl>("#[variant(enum_= \"SuperHero\", x = \"1\")] impl Foo { fn test(self) { } }");
-/// testing::roundtrip::<ast::ItemImpl>("#[xyz] impl Foo { #[jit] fn test(self) { } }");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ItemImpl {

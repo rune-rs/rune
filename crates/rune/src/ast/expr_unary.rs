@@ -2,20 +2,26 @@ use core::fmt;
 
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprUnary>("!0");
+    rt::<ast::ExprUnary>("*foo");
+    rt::<ast::ExprUnary>("&foo");
+    rt::<ast::ExprUnary>(
+        "&Foo {
+        a: 42,
+    }",
+    );
+
+    rt::<ast::UnOp>("!");
+    rt::<ast::UnOp>("-");
+    rt::<ast::UnOp>("&");
+    rt::<ast::UnOp>("*");
+}
+
 /// A unary expression.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprUnary>("!0");
-/// testing::roundtrip::<ast::ExprUnary>("*foo");
-/// testing::roundtrip::<ast::ExprUnary>("&foo");
-/// testing::roundtrip::<ast::ExprUnary>("&Foo {
-///     a: 42,
-/// }");
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprUnary {
@@ -63,18 +69,6 @@ pub enum UnOp {
     Deref(ast::Star),
 }
 
-/// A unary operator.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::UnOp>("!");
-/// testing::roundtrip::<ast::UnOp>("-");
-/// testing::roundtrip::<ast::UnOp>("&");
-/// testing::roundtrip::<ast::UnOp>("*");
-/// ```
 impl Parse for UnOp {
     fn parse(p: &mut Parser) -> Result<Self> {
         let token = p.next()?;

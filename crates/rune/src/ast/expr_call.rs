@@ -1,15 +1,16 @@
 use crate::ast::prelude::*;
 
-/// A function call `<expr>(<args>)`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprCall>("test()");
+    rt::<ast::ExprCall>("(foo::bar)()");
+}
+
+/// A call expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprCall>("test()");
-/// testing::roundtrip::<ast::ExprCall>("(foo::bar)()");
-/// ```
+/// * `<expr>(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct ExprCall {

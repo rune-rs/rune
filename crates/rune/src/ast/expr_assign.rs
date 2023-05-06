@@ -1,6 +1,16 @@
 use crate::ast::prelude::*;
 
-/// An assign expression `a = b`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprAssign>("a = 2");
+    rt::<ast::ExprAssign>("a = b = 3");
+}
+
+/// An assign expression.
+///
+/// * `a = b`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprAssign {

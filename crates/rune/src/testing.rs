@@ -10,22 +10,41 @@ use crate::SourceId;
 /// type, tokenize it using [ToTokens], and parse the token stream.
 ///
 /// The results should be identical.
-pub fn roundtrip<T>(source: &str) -> T
+pub(crate) fn rt<T>(source: &str) -> T
 where
     T: Parse + ToTokens + PartialEq + Eq + fmt::Debug,
 {
+    rt_with(source, false)
+}
+
+pub(crate) fn rt_with<T>(source: &str, shebang: bool) -> T
+where
+    T: Parse + ToTokens + PartialEq + Eq + fmt::Debug,
+{
+    macro_rules! expect {
+        ($expr:expr, $what:expr) => {
+            match $expr {
+                Ok(ast) => ast,
+                Err(error) => {
+                    panic!("{}: {error}:\n{source}", $what);
+                }
+            }
+        };
+    }
+
     let source_id = SourceId::empty();
 
-    let mut parser = Parser::new(source, source_id, false);
-    let ast = parser.parse::<T>().expect("first parse");
-    parser.eof().expect("first parse eof");
+    let mut parser = Parser::new(source, source_id, shebang);
+
+    let ast = expect!(parser.parse::<T>(), "first parse");
+    expect!(parser.eof(), "First parse EOF");
 
     let ast2 = MacroContext::test(|ctx| {
         let mut stream = TokenStream::new();
         ast.to_tokens(ctx, &mut stream);
         let mut parser = Parser::from_token_stream(&stream, ctx.stream_span());
-        let ast2 = parser.parse::<T>().expect("second parse");
-        parser.eof().expect("second parse eof");
+        let ast2 = expect!(parser.parse::<T>(), "Second parse");
+        expect!(parser.eof(), "Second parse EOF");
         ast2
     });
 

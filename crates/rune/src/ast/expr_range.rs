@@ -1,14 +1,17 @@
 use crate::ast::prelude::*;
 
-/// A range expression `a .. b` or `a ..= b`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprRange>("0..42");
+    rt::<ast::ExprRange>("0..=42");
+    rt::<ast::ExprRange>("0..=a + 2");
+}
+
+/// A range expression.
 ///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprRange>("0..42");
-/// testing::roundtrip::<ast::ExprRange>("0..=42");
-/// testing::roundtrip::<ast::ExprRange>("0..=a + 2");
-/// ```
+/// * `a .. b` or `a ..= b`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprRange {

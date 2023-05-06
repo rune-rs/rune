@@ -3,6 +3,50 @@ use core::ops;
 
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Expr>("()");
+    rt::<ast::Expr>("foo[\"foo\"]");
+    rt::<ast::Expr>("foo.bar()");
+    rt::<ast::Expr>("var()");
+    rt::<ast::Expr>("var");
+    rt::<ast::Expr>("42");
+    rt::<ast::Expr>("1 + 2 / 3 - 4 * 1");
+    rt::<ast::Expr>("foo[\"bar\"]");
+    rt::<ast::Expr>("let var = 42");
+    rt::<ast::Expr>("let var = \"foo bar\"");
+    rt::<ast::Expr>("var[\"foo\"] = \"bar\"");
+    rt::<ast::Expr>("let var = objects[\"foo\"] + 1");
+    rt::<ast::Expr>("var = 42");
+
+    let expr = rt::<ast::Expr>(
+        r#"
+        if 1 { } else { if 2 { } else { } }
+    "#,
+    );
+    assert!(matches!(expr, ast::Expr::If(..)));
+
+    // Chained function calls.
+    rt::<ast::Expr>("foo.bar.baz()");
+    rt::<ast::Expr>("foo[0][1][2]");
+    rt::<ast::Expr>("foo.bar()[0].baz()[1]");
+
+    rt::<ast::Expr>("42 is int::int");
+    rt::<ast::Expr>("{ let x = 1; x }");
+
+    let expr = rt::<ast::Expr>("#[cfg(debug_assertions)] { assert_eq(x, 32); }");
+    assert!(
+        matches!(expr, ast::Expr::Block(b) if b.attributes.len() == 1 && b.block.statements.len() == 1)
+    );
+
+    rt::<ast::Expr>("#{\"foo\": b\"bar\"}");
+    rt::<ast::Expr>("Disco {\"never_died\": true }");
+    rt::<ast::Expr>("(false, 1, 'n')");
+    rt::<ast::Expr>("[false, 1, 'b']");
+}
+
 /// Indicator that an expression should be parsed with an eager brace.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct EagerBrace(bool);
@@ -347,48 +391,6 @@ impl Expr {
     }
 }
 
-/// Parsing a block expression.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Expr>("()");
-/// testing::roundtrip::<ast::Expr>("foo[\"foo\"]");
-/// testing::roundtrip::<ast::Expr>("foo.bar()");
-/// testing::roundtrip::<ast::Expr>("var()");
-/// testing::roundtrip::<ast::Expr>("var");
-/// testing::roundtrip::<ast::Expr>("42");
-/// testing::roundtrip::<ast::Expr>("1 + 2 / 3 - 4 * 1");
-/// testing::roundtrip::<ast::Expr>("foo[\"bar\"]");
-/// testing::roundtrip::<ast::Expr>("let var = 42");
-/// testing::roundtrip::<ast::Expr>("let var = \"foo bar\"");
-/// testing::roundtrip::<ast::Expr>("var[\"foo\"] = \"bar\"");
-/// testing::roundtrip::<ast::Expr>("let var = objects[\"foo\"] + 1");
-/// testing::roundtrip::<ast::Expr>("var = 42");
-///
-/// let expr = testing::roundtrip::<ast::Expr>(r#"
-///     if 1 { } else { if 2 { } else { } }
-/// "#);
-/// assert!(matches!(expr, ast::Expr::If(..)));
-///
-/// // Chained function calls.
-/// testing::roundtrip::<ast::Expr>("foo.bar.baz()");
-/// testing::roundtrip::<ast::Expr>("foo[0][1][2]");
-/// testing::roundtrip::<ast::Expr>("foo.bar()[0].baz()[1]");
-///
-/// testing::roundtrip::<ast::Expr>("42 is int::int");
-/// testing::roundtrip::<ast::Expr>("{ let x = 1; x }");
-///
-/// let expr = testing::roundtrip::<ast::Expr>("#[cfg(debug_assertions)] { assert_eq(x, 32); }");
-/// assert!(matches!(expr, ast::Expr::Block(b) if b.attributes.len() == 1 && b.block.statements.len() == 1));
-///
-/// testing::roundtrip::<ast::Expr>("#{\"foo\": b\"bar\"}");
-/// testing::roundtrip::<ast::Expr>("Disco {\"never_died\": true }");
-/// testing::roundtrip::<ast::Expr>("(false, 1, 'n')");
-/// testing::roundtrip::<ast::Expr>("[false, 1, 'b']");
-/// ```
 impl Parse for Expr {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         Self::parse_with(p, EAGER_BRACE, EAGER_BINARY, CALLABLE)
@@ -793,47 +795,47 @@ fn paren_group(p: &mut Parser<'_>, attributes: Vec<ast::Attribute>) -> Result<Ex
 #[cfg(test)]
 mod tests {
     use crate::ast;
-    use crate::testing::roundtrip;
+    use crate::testing::rt;
 
     #[test]
     fn test_expr_if() {
-        let expr = roundtrip::<ast::Expr>(r#"if true {} else {}"#);
+        let expr = rt::<ast::Expr>(r#"if true {} else {}"#);
         assert!(matches!(expr, ast::Expr::If(..)));
 
-        let expr = roundtrip::<ast::Expr>("if 1 { } else { if 2 { } else { } }");
+        let expr = rt::<ast::Expr>("if 1 { } else { if 2 { } else { } }");
         assert!(matches!(expr, ast::Expr::If(..)));
     }
 
     #[test]
     fn test_expr_while() {
-        let expr = roundtrip::<ast::Expr>(r#"while true {}"#);
+        let expr = rt::<ast::Expr>(r#"while true {}"#);
         assert!(matches!(expr, ast::Expr::While(..)));
     }
 
     #[test]
     fn test_expr() {
-        roundtrip::<ast::Expr>("foo[\"foo\"]");
-        roundtrip::<ast::Expr>("foo.bar()");
-        roundtrip::<ast::Expr>("var()");
-        roundtrip::<ast::Expr>("var");
-        roundtrip::<ast::Expr>("42");
-        roundtrip::<ast::Expr>("1 + 2 / 3 - 4 * 1");
-        roundtrip::<ast::Expr>("foo[\"bar\"]");
-        roundtrip::<ast::Expr>("let var = 42");
-        roundtrip::<ast::Expr>("let var = \"foo bar\"");
-        roundtrip::<ast::Expr>("var[\"foo\"] = \"bar\"");
-        roundtrip::<ast::Expr>("let var = objects[\"foo\"] + 1");
-        roundtrip::<ast::Expr>("var = 42");
+        rt::<ast::Expr>("foo[\"foo\"]");
+        rt::<ast::Expr>("foo.bar()");
+        rt::<ast::Expr>("var()");
+        rt::<ast::Expr>("var");
+        rt::<ast::Expr>("42");
+        rt::<ast::Expr>("1 + 2 / 3 - 4 * 1");
+        rt::<ast::Expr>("foo[\"bar\"]");
+        rt::<ast::Expr>("let var = 42");
+        rt::<ast::Expr>("let var = \"foo bar\"");
+        rt::<ast::Expr>("var[\"foo\"] = \"bar\"");
+        rt::<ast::Expr>("let var = objects[\"foo\"] + 1");
+        rt::<ast::Expr>("var = 42");
 
         // Chained function calls.
-        roundtrip::<ast::Expr>("foo.bar.baz()");
-        roundtrip::<ast::Expr>("foo[0][1][2]");
-        roundtrip::<ast::Expr>("foo.bar()[0].baz()[1]");
-        roundtrip::<ast::Expr>("42 is int::int");
+        rt::<ast::Expr>("foo.bar.baz()");
+        rt::<ast::Expr>("foo[0][1][2]");
+        rt::<ast::Expr>("foo.bar()[0].baz()[1]");
+        rt::<ast::Expr>("42 is int::int");
     }
 
     #[test]
     fn test_macro_call_chain() {
-        roundtrip::<ast::Expr>("format!(\"{}\", a).bar()");
+        rt::<ast::Expr>("format!(\"{}\", a).bar()");
     }
 }

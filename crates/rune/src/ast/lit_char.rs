@@ -1,5 +1,16 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::LitChar>("'a'");
+    rt::<ast::LitChar>("'\\0'");
+    rt::<ast::LitChar>("'\\n'");
+    rt::<ast::LitChar>("'\\r'");
+    rt::<ast::LitChar>("'\\''");
+}
+
 /// A character literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
@@ -11,19 +22,6 @@ pub struct LitChar {
     pub source: ast::CopySource<char>,
 }
 
-/// Parse a character literal.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::LitChar>("'a'");
-/// testing::roundtrip::<ast::LitChar>("'\\0'");
-/// testing::roundtrip::<ast::LitChar>("'\\n'");
-/// testing::roundtrip::<ast::LitChar>("'\\r'");
-/// testing::roundtrip::<ast::LitChar>("'\\''");
-/// ```
 impl Parse for LitChar {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;

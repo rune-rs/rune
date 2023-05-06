@@ -2,7 +2,20 @@ use crate::ast::prelude::*;
 
 use num::Num;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::LitNumber>("42");
+    rt::<ast::LitNumber>("42.42");
+    rt::<ast::LitNumber>("0.42");
+    rt::<ast::LitNumber>("0.42e10");
+}
+
 /// A number literal.
+///
+/// * `42`.
+/// * `4.2e10`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Spanned)]
 #[non_exhaustive]
 pub struct LitNumber {
@@ -13,18 +26,6 @@ pub struct LitNumber {
     pub source: ast::NumberSource,
 }
 
-/// Parse a number literal.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::LitNumber>("42");
-/// testing::roundtrip::<ast::LitNumber>("42.42");
-/// testing::roundtrip::<ast::LitNumber>("0.42");
-/// testing::roundtrip::<ast::LitNumber>("0.42e10");
-/// ```
 impl Parse for LitNumber {
     fn parse(parser: &mut Parser<'_>) -> Result<Self> {
         let t = parser.next()?;

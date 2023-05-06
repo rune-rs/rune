@@ -1,18 +1,19 @@
 use crate::ast::prelude::*;
 
-/// An if statement: `if cond { true } else { false }`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprIf>("if 0 {  }");
+    rt::<ast::ExprIf>("if 0 {  } else {  }");
+    rt::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }");
+    rt::<ast::ExprIf>("if let v = v {  }");
+    rt::<ast::ExprIf>("#[attr] if 1 {} else {}");
+}
+
+/// A conditional `if` expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprIf>("if 0 {  }");
-/// testing::roundtrip::<ast::ExprIf>("if 0 {  } else {  }");
-/// testing::roundtrip::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }");
-/// testing::roundtrip::<ast::ExprIf>("if let v = v {  }");
-/// testing::roundtrip::<ast::ExprIf>("#[attr] if 1 {} else {}");
-/// ```
+/// * `if cond { true } else { false }`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

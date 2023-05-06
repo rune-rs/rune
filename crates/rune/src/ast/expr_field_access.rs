@@ -1,16 +1,19 @@
 use crate::ast::prelude::*;
 
-/// A field access `<expr>.<field>`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprFieldAccess>("foo.bar");
+    rt::<ast::ExprFieldAccess>("foo.bar::<A, B>");
+    rt::<ast::ExprFieldAccess>("foo.0.bar");
+    // Note: tuple accesses must be disambiguated.
+    rt::<ast::ExprFieldAccess>("(foo.0).1");
+}
+
+/// A field access.
 ///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprFieldAccess>("foo.bar");
-/// testing::roundtrip::<ast::ExprFieldAccess>("foo.bar::<A, B>");
-/// testing::roundtrip::<ast::ExprFieldAccess>("foo.0.bar");
-/// // Note: tuple accesses must be disambiguated.
-/// testing::roundtrip::<ast::ExprFieldAccess>("(foo.0).1");
-/// ```
+/// * `<expr>.<field>`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprFieldAccess {

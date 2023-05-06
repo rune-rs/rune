@@ -1,24 +1,26 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprClosure>("async || 42");
+    rt::<ast::ExprClosure>("|| 42");
+    rt::<ast::ExprClosure>("|| { 42 }");
+    rt::<ast::ExprClosure>("move || { 42 }");
+    rt::<ast::ExprClosure>("async move || { 42 }");
+
+    let expr = rt::<ast::ExprClosure>("#[retry(n=3)]  || 43");
+    assert_eq!(expr.attributes.len(), 1);
+
+    let expr = rt::<ast::ExprClosure>("#[retry(n=3)] async || 43");
+    assert_eq!(expr.attributes.len(), 1);
+}
+
 /// A closure expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprClosure>("async || 42");
-/// testing::roundtrip::<ast::ExprClosure>("|| 42");
-/// testing::roundtrip::<ast::ExprClosure>("|| { 42 }");
-/// testing::roundtrip::<ast::ExprClosure>("move || { 42 }");
-/// testing::roundtrip::<ast::ExprClosure>("async move || { 42 }");
-///
-/// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)]  || 43");
-/// assert_eq!(expr.attributes.len(), 1);
-///
-/// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)] async || 43");
-/// assert_eq!(expr.attributes.len(), 1);
-/// ```
+/// * `|| <expr>`.
+/// * `async || <expr>`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned, Opaque)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

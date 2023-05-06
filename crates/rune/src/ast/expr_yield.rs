@@ -1,16 +1,17 @@
 use crate::ast::prelude::*;
 
-/// A `yield [expr]` expression to return a value from a generator.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprYield>("yield");
+    rt::<ast::ExprYield>("yield 42");
+    rt::<ast::ExprYield>("#[attr] yield 42");
+}
+
+/// A `yield` expression to return a value from a generator.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprYield>("yield");
-/// testing::roundtrip::<ast::ExprYield>("yield 42");
-/// testing::roundtrip::<ast::ExprYield>("#[attr] yield 42");
-/// ```
+/// * `yield [expr]`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

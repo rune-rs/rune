@@ -1,22 +1,31 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    let expr = rt::<ast::ExprBlock>("async {}");
+    assert_eq!(expr.block.statements.len(), 0);
+
+    let expr = rt::<ast::ExprBlock>("async move {}");
+    assert_eq!(expr.block.statements.len(), 0);
+
+    let expr = rt::<ast::ExprBlock>("const {}");
+    assert_eq!(expr.block.statements.len(), 0);
+
+    let expr = rt::<ast::ExprBlock>("async { 42 }");
+    assert_eq!(expr.block.statements.len(), 1);
+
+    let expr = rt::<ast::ExprBlock>("#[retry] async { 42 }");
+    assert_eq!(expr.block.statements.len(), 1);
+    assert_eq!(expr.attributes.len(), 1);
+}
+
 /// A block expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// let expr = testing::roundtrip::<ast::ExprBlock>("async {}");
-/// assert_eq!(expr.block.statements.len(), 0);
-///
-/// let expr = testing::roundtrip::<ast::ExprBlock>("async { 42 }");
-/// assert_eq!(expr.block.statements.len(), 1);
-///
-/// let expr = testing::roundtrip::<ast::ExprBlock>("#[retry] async { 42 }");
-/// assert_eq!(expr.block.statements.len(), 1);
-/// assert_eq!(expr.attributes.len(), 1);
-/// ```
+/// * `<block>`.
+/// * `async <block>`.
+/// * `const <block>`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

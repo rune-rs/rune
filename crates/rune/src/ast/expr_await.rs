@@ -1,16 +1,17 @@
 use crate::ast::prelude::*;
 
-/// A return statement `<expr>.await`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Expr>("(42).await");
+    rt::<ast::Expr>("self.await");
+    rt::<ast::Expr>("test.await");
+}
+
+/// An await expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Expr>("(42).await");
-/// testing::roundtrip::<ast::Expr>("self.await");
-/// testing::roundtrip::<ast::Expr>("test.await");
-/// ```
+/// * `<expr>.await`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprAwait {

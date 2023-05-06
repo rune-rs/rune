@@ -1,17 +1,18 @@
 use crate::ast::prelude::*;
 
-/// A `loop` expression: `loop { ... }`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprLoop>("loop {}");
+    rt::<ast::ExprLoop>("loop { 1; }");
+    rt::<ast::ExprLoop>("'label: loop {1;}");
+    rt::<ast::ExprLoop>("#[attr] 'label: loop {x();}");
+}
+
+/// A `loop` expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprLoop>("loop {}");
-/// testing::roundtrip::<ast::ExprLoop>("loop { 1; }");
-/// testing::roundtrip::<ast::ExprLoop>("'label: loop {1;}");
-/// testing::roundtrip::<ast::ExprLoop>("#[attr] 'label: loop {x();}");
-/// ```
+/// * `loop { ... }`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]

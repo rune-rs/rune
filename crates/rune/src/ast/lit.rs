@@ -1,5 +1,19 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::Lit>("true");
+    rt::<ast::Lit>("false");
+    rt::<ast::Lit>("'🔥'");
+    rt::<ast::Lit>("b'4'");
+    rt::<ast::Lit>("b\"bytes\"");
+    rt::<ast::Lit>("1.2");
+    rt::<ast::Lit>("42");
+    rt::<ast::Lit>("\"mary had a little lamb\"");
+}
+
 /// A literal value,
 ///
 /// These are made available by parsing Rune. Custom literals for macros can be
@@ -57,22 +71,6 @@ impl Lit {
     }
 }
 
-/// Parsing a Lit
-///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::Lit>("true");
-/// testing::roundtrip::<ast::Lit>("false");
-/// testing::roundtrip::<ast::Lit>("'🔥'");
-/// testing::roundtrip::<ast::Lit>("b'4'");
-/// testing::roundtrip::<ast::Lit>("b\"bytes\"");
-/// testing::roundtrip::<ast::Lit>("1.2");
-/// testing::roundtrip::<ast::Lit>("42");
-/// testing::roundtrip::<ast::Lit>("\"mary had a little lamb\"");
-/// ```
 impl Parse for Lit {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         match p.nth(0)? {

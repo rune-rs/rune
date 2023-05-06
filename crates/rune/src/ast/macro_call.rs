@@ -1,15 +1,16 @@
 use crate::ast::prelude::*;
 
-/// A function call `<expr>!(<args>)`.
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::MacroCall>("foo!()");
+    rt::<ast::MacroCall>("::bar::foo!(question to life)");
+}
+
+/// A macro call.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::MacroCall>("foo!()");
-/// testing::roundtrip::<ast::MacroCall>("::bar::foo!(question to life)");
-/// ```
+/// * `<expr>!(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Opaque)]
 #[non_exhaustive]
 pub struct MacroCall {

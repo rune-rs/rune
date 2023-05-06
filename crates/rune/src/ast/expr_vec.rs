@@ -1,16 +1,17 @@
 use crate::ast::prelude::*;
 
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprVec>("[1, \"two\"]");
+    rt::<ast::ExprVec>("[1, 2,]");
+    rt::<ast::ExprVec>("[1, 2, foo()]");
+}
+
 /// A literal vector.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprVec>("[1, \"two\"]");
-/// testing::roundtrip::<ast::ExprVec>("[1, 2,]");
-/// testing::roundtrip::<ast::ExprVec>("[1, 2, foo()]");
-/// ```
+/// * `[<expr>,*]`
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprVec {

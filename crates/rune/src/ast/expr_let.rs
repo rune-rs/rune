@@ -1,15 +1,16 @@
 use crate::ast::prelude::*;
 
-/// A let expression `let <name> = <expr>`
+#[test]
+fn ast_parse() {
+    use crate::testing::rt;
+
+    rt::<ast::ExprLet>("let x = 1");
+    rt::<ast::ExprLet>("#[attr] let a = f()");
+}
+
+/// A let expression.
 ///
-/// # Examples
-///
-/// ```
-/// use rune::{ast, testing};
-///
-/// testing::roundtrip::<ast::ExprLet>("let x = 1");
-/// testing::roundtrip::<ast::ExprLet>("#[attr] let a = f()");
-/// ```
+/// * `let <name> = <expr>`
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub struct ExprLet {
