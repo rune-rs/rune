@@ -4,12 +4,12 @@ use core::future::Future;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::compile::module::{
-    AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn,
-};
 use crate::compile::{self, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
+use crate::module::{
+    AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn,
+};
 use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol};
 
 mod sealed {
@@ -27,8 +27,8 @@ mod sealed {
 /// `#[rune::function]` macro.
 ///
 /// This is the argument type for
-/// [`Module::function_meta`][crate::compile::Module::function_meta], and is from a
-/// public API perspective completely opaque and might change for any release.
+/// [`Module::function_meta`][crate::module::Module::function_meta], and is from
+/// a public API perspective completely opaque and might change for any release.
 ///
 /// Calling and making use of `FunctionMeta` manually despite this warning might
 /// lead to future breakage.
@@ -38,7 +38,7 @@ pub type FunctionMeta = fn() -> FunctionMetaData;
 /// `#[rune::macro_]` macro.
 ///
 /// This is the argument type for
-/// [`Module::macro_meta`][crate::compile::Module::macro_meta], and is from a
+/// [`Module::macro_meta`][crate::module::Module::macro_meta], and is from a
 /// public API perspective completely opaque and might change for any release.
 ///
 /// Calling and making use of `MacroMeta` manually despite this warning might

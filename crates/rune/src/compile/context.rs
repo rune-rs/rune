@@ -5,13 +5,12 @@ use crate::no_std::sync::Arc;
 
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
-use crate::compile::module::{
-    Function, InternalEnum, Module, ModuleFunction, ModuleFunctionKind, ModuleMacro, Type,
-    TypeSpecification, UnitType, VariantKind,
-};
 use crate::compile::{
-    AssociatedFunctionKey, AssociatedFunctionKind, ComponentRef, ContextError, Docs, IntoComponent,
-    Item, ItemBuf, MetaInfo, Names,
+    ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
+};
+use crate::module::{
+    AssociatedFunctionKey, AssociatedFunctionKind, Function, InternalEnum, Module, ModuleFunction,
+    ModuleFunctionKind, ModuleMacro, Type, TypeSpecification, UnitType, VariantKind,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,

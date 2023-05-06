@@ -1,6 +1,7 @@
 use core::fmt;
 
-use crate::compile::{InstallWith, Named};
+use crate::compile::Named;
+use crate::module::InstallWith;
 use crate::runtime::{
     FromValue, GeneratorState, Mut, RawMut, RawRef, RawStr, Ref, Shared, UnsafeFromValue, Value,
     Vm, VmErrorKind, VmExecution, VmResult,

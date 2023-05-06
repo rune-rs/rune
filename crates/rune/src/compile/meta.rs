@@ -9,11 +9,9 @@ use crate::no_std::sync::Arc;
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
-use crate::compile::{
-    self, AssociatedFunctionKind, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool,
-    Visibility,
-};
+use crate::compile::{self, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
+use crate::module::AssociatedFunctionKind;
 use crate::parse::{Id, ResolveContext};
 use crate::runtime::{ConstValue, TypeInfo};
 

@@ -273,8 +273,7 @@ where
     /// If the function being executed is a generator or stream this will resume
     /// it while returning a unit from the current `yield`.
     ///
-    /// If any async instructions are encountered, this will error with
-    /// [VmErrorKind::Halted].
+    /// If any async instructions are encountered, this will error.
     pub fn resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
             vm_mut!(self).stack_mut().push(Value::Unit);

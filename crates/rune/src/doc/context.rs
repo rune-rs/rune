@@ -1,11 +1,9 @@
 use crate::no_std::prelude::*;
 
 use crate::compile::context::PrivMeta;
-use crate::compile::module::ModuleFunctionKind;
-use crate::compile::{
-    meta, AssociatedFunctionKind, ComponentRef, IntoComponent, Item, ModuleFunction,
-};
+use crate::compile::{meta, ComponentRef, IntoComponent, Item};
 use crate::doc::{Visitor, VisitorData};
+use crate::module::{AssociatedFunctionKind, ModuleFunction, ModuleFunctionKind};
 use crate::runtime::ConstValue;
 use crate::runtime::Protocol;
 use crate::Hash;

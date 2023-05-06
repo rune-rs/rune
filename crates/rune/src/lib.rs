@@ -219,7 +219,11 @@ pub use self::build::{prepare, Build, BuildError};
 
 pub mod compile;
 #[doc(inline)]
-pub use self::compile::{Context, ContextError, InstallWith, Module, Options};
+pub use self::compile::{Context, ContextError, Options};
+
+pub mod module;
+#[doc(inline)]
+pub use self::module::{InstallWith, Module};
 
 pub mod diagnostics;
 #[doc(inline)]
@@ -288,8 +292,8 @@ mod collections {
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __private {
-    pub use crate::compile::{FunctionMetaData, FunctionMetaKind};
-    pub use crate::compile::{MacroMetaData, MacroMetaKind};
+    pub use crate::module::{FunctionMetaData, FunctionMetaKind};
+    pub use crate::module::{MacroMetaData, MacroMetaKind};
 }
 
 #[cfg(test)]

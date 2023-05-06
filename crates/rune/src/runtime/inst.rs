@@ -7,8 +7,10 @@ use crate::Hash;
 
 /// Pre-canned panic reasons.
 ///
-/// To formulate a custom reason, use [crate::runtime::Panic::custom].
+/// To formulate a custom reason, use
+/// [`VmError::panic`][crate::runtime::VmError::panic].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum PanicReason {
     /// Not implemented.
     NotImplemented,

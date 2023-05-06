@@ -1,7 +1,9 @@
-//! Crate used for definint native *modules*.
+//! Types used for defining native modules.
 //!
 //! A native module is one that provides rune with functions and types through
-//! native code.
+//! native Rust-based code.
+
+mod function_meta;
 
 use core::fmt;
 use core::future;
@@ -10,11 +12,7 @@ use crate::no_std::collections::{hash_map, HashMap, HashSet};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::compile::{
-    self, AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, ContextError,
-    Docs, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent, ItemBuf, IterFunctionArgs,
-    MacroMeta, MacroMetaKind, Named, ToFieldFunction, ToInstance,
-};
+use crate::compile::{self, ContextError, Docs, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
     ConstValue, FromValue, FullTypeOf, FunctionHandler, Future, GeneratorState, MacroHandler,
@@ -22,6 +20,14 @@ use crate::runtime::{
     UnsafeFromValue, Value, VmErrorKind, VmResult,
 };
 use crate::Hash;
+
+pub(crate) use self::function_meta::{
+    AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, FunctionData,
+    IterFunctionArgs, ToFieldFunction, ToInstance,
+};
+use self::function_meta::{FunctionMeta, MacroMeta};
+#[doc(hidden)]
+pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
 
 /// A [Module] that is a collection of native functions and types.
 ///
@@ -1051,6 +1057,7 @@ pub trait InstallWith {
 /// The static hash and diagnostical information about a type.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
+#[doc(hidden)]
 pub struct AssocType {
     /// Hash of the type.
     pub hash: Hash,
@@ -1220,13 +1227,13 @@ pub(crate) enum TypeSpecification {
 /// A key that identifies an associated function.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub struct AssociatedFunctionKey {
+pub(crate) struct AssociatedFunctionKey {
     /// The type the associated function belongs to.
-    pub type_hash: Hash,
+    pub(crate) type_hash: Hash,
     /// The kind of the associated function.
-    pub kind: AssociatedFunctionKind,
+    pub(crate) kind: AssociatedFunctionKind,
     /// The type parameters of the associated function.
-    pub parameters: Hash,
+    pub(crate) parameters: Hash,
 }
 
 /// The kind of a module function.

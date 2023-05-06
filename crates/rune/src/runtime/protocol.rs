@@ -3,8 +3,9 @@ use core::fmt;
 use core::hash::{self, Hash as _};
 use core::ops;
 
-use crate::compile::{AssociatedFunctionKind, AssociatedFunctionName, ItemBuf, ToInstance};
+use crate::compile::ItemBuf;
 use crate::hash::IntoHash;
+use crate::module::{AssociatedFunctionKind, AssociatedFunctionName, ToInstance};
 use crate::{Hash, ToTypeHash};
 
 /// A built in instance function.

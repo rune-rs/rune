@@ -10,7 +10,7 @@ use lsp::MarkupKind;
 use lsp::TextEdit;
 
 use crate::compile::meta::SignatureKind;
-use crate::compile::AssociatedFunctionKind;
+use crate::module::AssociatedFunctionKind;
 use crate::runtime::debug::DebugArgs;
 use crate::Context;
 use crate::Unit;
