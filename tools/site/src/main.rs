@@ -1,4 +1,4 @@
-//! A small utility to build the guts of https://rune-rs.github.io
+//! A small utility to build the guts of <https://rune-rs.github.io>.
 
 use anyhow::{bail, Result};
 use flate2::read::GzDecoder;

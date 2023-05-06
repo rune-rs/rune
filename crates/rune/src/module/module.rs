@@ -5,13 +5,12 @@ use crate::no_std::sync::Arc;
 use crate::compile::{self, ContextError, Docs, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::function_meta::{
-    AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, FunctionData,
-    FunctionMeta, FunctionMetaKind, IterFunctionArgs, MacroMeta, MacroMetaKind, ToFieldFunction,
-    ToInstance,
+    AssociatedFunctionData, AssociatedFunctionName, AssociatedKind, FunctionData, FunctionMeta,
+    FunctionMetaKind, IterFunctionArgs, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
 };
 use crate::module::{
-    AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Enum, Function, InstFn, InstallWith,
-    InternalEnum, ModuleFunction, ModuleFunctionKind, ModuleMacro, Struct, Type, TypeSpecification,
+    AssociatedKey, AsyncFunction, AsyncInstFn, Enum, Function, InstFn, InstallWith, InternalEnum,
+    ItemMut, ModuleAssociated, ModuleFunction, ModuleMacro, Struct, Type, TypeSpecification,
     UnitType, Variant,
 };
 use crate::runtime::{
@@ -36,8 +35,8 @@ pub struct Module {
     pub(crate) macros: HashMap<ItemBuf, ModuleMacro>,
     /// Constant values.
     pub(crate) constants: HashMap<ItemBuf, ConstValue>,
-    /// Associated functions.
-    pub(crate) associated_functions: HashMap<AssociatedFunctionKey, ModuleFunction>,
+    /// Associated items.
+    pub(crate) associated: HashMap<AssociatedKey, ModuleAssociated>,
     /// Registered types.
     pub(crate) types: HashMap<Hash, Type>,
     /// Registered unit type.
@@ -90,7 +89,7 @@ impl Module {
             item,
             functions: HashMap::default(),
             macros: HashMap::default(),
-            associated_functions: HashMap::default(),
+            associated: HashMap::default(),
             types: HashMap::default(),
             unit_type: None,
             internal_enums: Vec::new(),
@@ -107,7 +106,7 @@ impl Module {
     /// # Examples
     ///
     /// ```
-    /// use rune::Any;
+    /// use rune::{Any, Context, Module};
     ///
     /// #[derive(Any)]
     /// struct MyBytes {
@@ -121,7 +120,7 @@ impl Module {
     /// }
     ///
     /// // Register `len` without registering a type.
-    /// let mut module = rune::Module::default();
+    /// let mut module = Module::default();
     /// // Note: cannot do this until we have registered a type.
     /// module.inst_fn("len", MyBytes::len)?;
     ///
@@ -129,12 +128,12 @@ impl Module {
     /// assert!(context.install(module).is_err());
     ///
     /// // Register `len` properly.
-    /// let mut module = rune::Module::default();
+    /// let mut module = Module::default();
     ///
     /// module.ty::<MyBytes>()?;
     /// module.inst_fn("len", MyBytes::len)?;
     ///
-    /// let mut context = rune::Context::new();
+    /// let mut context = Context::new();
     /// assert!(context.install(module).is_ok());
     /// # Ok::<_, rune::Error>(())
     /// ```
@@ -433,12 +432,12 @@ impl Module {
     /// # Examples
     ///
     /// ```
+    /// use rune::Module;
     ///
-    /// let mut module = rune::Module::default();
+    /// let mut module = Module::default();
     ///
     /// module.constant(["TEN"], 10)?; // a global TEN value
     /// module.constant(["MyType", "TEN"], 10)?; // looks like an associated value
-    ///
     /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn constant<N, V>(&mut self, name: N, value: V) -> Result<(), ContextError>
@@ -506,7 +505,7 @@ impl Module {
     /// Ok::<_, rune::Error>(())
     /// ```
     #[inline]
-    pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<&mut ModuleMacro, ContextError> {
+    pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<ItemMut<'_>, ContextError> {
         let meta = meta();
 
         match meta.kind {
@@ -518,10 +517,12 @@ impl Module {
                     let mut docs = Docs::default();
                     docs.set_docs(meta.docs);
 
-                    Ok(e.insert(ModuleMacro {
+                    let e = e.insert(ModuleMacro {
                         handler: data.handler,
                         docs,
-                    }))
+                    });
+
+                    Ok(ItemMut { docs: &mut e.docs })
                 }
             },
         }
@@ -553,7 +554,7 @@ impl Module {
     /// m.macro_(["ident_to_string"], ident_to_string)?;
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<&mut ModuleMacro, ContextError>
+    pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<ItemMut<'_>, ContextError>
     where
         M: 'static
             + Send
@@ -569,10 +570,12 @@ impl Module {
             hash_map::Entry::Vacant(e) => {
                 let handler: Arc<MacroHandler> = Arc::new(f);
 
-                Ok(e.insert(ModuleMacro {
+                let e = e.insert(ModuleMacro {
                     handler,
                     docs: Docs::default(),
-                }))
+                });
+
+                Ok(ItemMut { docs: &mut e.docs })
             }
         }
     }
@@ -614,7 +617,7 @@ impl Module {
     /// Registering instance functions:
     ///
     /// ```
-    /// use rune::Any;
+    /// use rune::{Any, Module};
     ///
     /// #[derive(Any)]
     /// struct MyBytes {
@@ -639,7 +642,7 @@ impl Module {
     ///     }
     /// }
     ///
-    /// let mut module = rune::Module::default();
+    /// let mut module = Module::default();
     ///
     /// module.ty::<MyBytes>()?;
     /// module.function_meta(MyBytes::len)?;
@@ -647,10 +650,7 @@ impl Module {
     /// # Ok::<_, rune::Error>(())
     /// ```
     #[inline]
-    pub fn function_meta(
-        &mut self,
-        meta: FunctionMeta,
-    ) -> Result<&mut ModuleFunction, ContextError> {
+    pub fn function_meta(&mut self, meta: FunctionMeta) -> Result<ItemMut<'_>, ContextError> {
         let meta = meta();
 
         match meta.kind {
@@ -677,23 +677,18 @@ impl Module {
     /// # Examples
     ///
     /// ```
+    /// use rune::Module;
+    ///
     /// fn add_ten(value: i64) -> i64 {
     ///     value + 10
     /// }
     ///
-    /// let mut module = rune::Module::default();
+    /// let mut module = Module::default();
     ///
-    /// module.function(["add_ten"], add_ten)?;
-    /// module.function(["empty"], || Ok::<_, rune::Error>(()))?;
-    /// module.function(["string"], |a: String| Ok::<_, rune::Error>(()))?;
-    /// module.function(["optional"], |a: Option<String>| Ok::<_, rune::Error>(()))?;
+    /// module.function(["add_ten"], add_ten)?.docs(["Adds 10 to any integer passed in."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<Func, Args, N>(
-        &mut self,
-        name: N,
-        f: Func,
-    ) -> Result<&mut ModuleFunction, ContextError>
+    pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<ItemMut<'_>, ContextError>
     where
         Func: Function<Args>,
         Func::Return: MaybeTypeOf,
@@ -709,40 +704,35 @@ impl Module {
     /// If possible, [`Module::function_meta`] should be used since it includes
     /// more useful information about the function.
     ///
-    /// This returns a mutable [`ModuleFunction`], which can be used to
-    /// associate more metadata with the inserted item.
+    /// This returns a [`ItemMut`], which is a handle that can be used to associate more metadata
+    /// with the inserted item.
     ///
     /// # Examples
     ///
     /// ```
-    /// let mut module = rune::Module::default();
+    /// use rune::{Any, Module};
+    /// # async fn download(url: &str) -> Result<String, DownloadError> { Ok(String::new()) }
     ///
-    /// async fn empty() {
+    /// #[derive(Any)]
+    /// struct DownloadError {
+    ///     /* .. */
     /// }
     ///
-    /// async fn empty_fallible() -> rune::Result<()> {
-    ///     Ok(())
+    /// async fn download_quote() -> Result<String, DownloadError> {
+    ///     download("https://api.quotable.io/random").await
     /// }
     ///
-    /// async fn string(a: String) -> rune::Result<()> {
-    ///     Ok(())
-    /// }
+    /// let mut module = Module::default();
     ///
-    /// async fn optional(a: Option<String>) -> rune::Result<()> {
-    ///     Ok(())
-    /// }
-    ///
-    /// module.async_function(["empty"], empty)?;
-    /// module.async_function(["empty_fallible"], empty_fallible)?;
-    /// module.async_function(["string"], string)?;
-    /// module.async_function(["optional"], optional)?;
+    /// module.async_function(["download_quote"], download_quote)?
+    ///     .docs(["Download a random quote from the internet."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn async_function<Func, Args, N>(
         &mut self,
         name: N,
         f: Func,
-    ) -> Result<&mut ModuleFunction, ContextError>
+    ) -> Result<ItemMut<'_>, ContextError>
     where
         Func: AsyncFunction<Args>,
         Func::Output: MaybeTypeOf,
@@ -758,13 +748,13 @@ impl Module {
     /// If possible, [`Module::function_meta`] should be used since it includes
     /// more useful information about the function.
     ///
-    /// This returns a mutable [`ModuleFunction`], which can be used to
-    /// associate more metadata with the inserted item.
+    /// This returns a [`ItemMut`], which is a handle that can be used to associate more metadata
+    /// with the inserted item.
     ///
     /// # Examples
     ///
     /// ```
-    /// use rune::Any;
+    /// use rune::{Any, Module};
     ///
     /// #[derive(Any)]
     /// struct MyBytes {
@@ -783,21 +773,18 @@ impl Module {
     ///     }
     /// }
     ///
-    /// let mut module = rune::Module::default();
+    /// let mut module = Module::default();
     ///
     /// module.ty::<MyBytes>()?;
-    /// module.function(["MyBytes", "new"], MyBytes::new)?;
-    /// module.inst_fn("len", MyBytes::len)?;
     ///
-    /// let mut context = rune::Context::new();
-    /// context.install(module)?;
+    /// module.function(["MyBytes", "new"], MyBytes::new)?
+    ///     .docs(["Construct a new empty bytes container."]);
+    ///
+    /// module.inst_fn("len", MyBytes::len)?
+    ///     .docs(["Get the number of bytes."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn inst_fn<N, Func, Args>(
-        &mut self,
-        name: N,
-        f: Func,
-    ) -> Result<&mut ModuleFunction, ContextError>
+    pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
         Func: InstFn<Args>,
@@ -815,38 +802,46 @@ impl Module {
     /// If possible, [`Module::function_meta`] should be used since it includes
     /// more useful information about the function.
     ///
-    /// This returns a mutable [`ModuleFunction`], which can be used to
-    /// associate more metadata with the inserted item.
+    /// This returns a [`ItemMut`], which is a handle that can be used to associate more metadata
+    /// with the inserted item.
     ///
     /// # Examples
     ///
     /// ```
     /// use std::sync::atomic::AtomicU32;
     /// use std::sync::Arc;
-    /// use rune::Any;
+    ///
+    /// use rune::{Any, Module};
     ///
     /// #[derive(Clone, Debug, Any)]
-    /// struct MyType {
+    /// struct Client {
     ///     value: Arc<AtomicU32>,
     /// }
     ///
-    /// impl MyType {
-    ///     async fn test(&self) -> rune::Result<()> {
-    ///         Ok(())
+    /// #[derive(Any)]
+    /// struct DownloadError {
+    ///     /* .. */
+    /// }
+    ///
+    /// impl Client {
+    ///     async fn download(&self) -> Result<(), DownloadError> {
+    ///         /* .. */
+    ///         # Ok(())
     ///     }
     /// }
     ///
-    /// let mut module = rune::Module::default();
+    /// let mut module = Module::default();
     ///
-    /// module.ty::<MyType>()?;
-    /// module.async_inst_fn("test", MyType::test)?;
+    /// module.ty::<Client>()?;
+    /// module.async_inst_fn("download", Client::download)?
+    ///     .docs(["Download a thing."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn async_inst_fn<N, Func, Args>(
         &mut self,
         name: N,
         f: Func,
-    ) -> Result<&mut ModuleFunction, ContextError>
+    ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
         Func: AsyncInstFn<Args>,
@@ -861,14 +856,14 @@ impl Module {
 
     /// Install a protocol function that interacts with the given field.
     ///
-    /// This returns a mutable [`ModuleFunction`], which can be used to
+    /// This returns a [`ItemMut`], which is a handle that can be used to
     /// associate more metadata with the inserted item.
     pub fn field_fn<N, Func, Args>(
         &mut self,
         protocol: Protocol,
         name: N,
         f: Func,
-    ) -> Result<&mut ModuleFunction, ContextError>
+    ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToFieldFunction,
         Func: InstFn<Args>,
@@ -890,7 +885,7 @@ impl Module {
         protocol: Protocol,
         index: usize,
         f: Func,
-    ) -> Result<&mut ModuleFunction, ContextError>
+    ) -> Result<ItemMut<'_>, ContextError>
     where
         Func: InstFn<Args>,
         Func::Return: MaybeTypeOf,
@@ -903,12 +898,13 @@ impl Module {
     /// Register a raw function which interacts directly with the virtual
     /// machine.
     ///
-    /// This returns a mutable [`ModuleFunction`], which can be used to
+    /// This returns a [`ItemMut`], which is a handle that can be used to
     /// associate more metadata with the inserted item.
     ///
     /// # Examples
     ///
     /// ```
+    /// use rune::Module;
     /// use rune::runtime::{Stack, VmResult};
     /// use rune::vm_try;
     ///
@@ -923,7 +919,7 @@ impl Module {
     ///     VmResult::Ok(())
     /// }
     ///
-    /// let mut module = rune::Module::default();
+    /// let mut module = Module::default();
     ///
     /// let sum = module.raw_fn(["sum"], sum)?;
     /// sum.docs([
@@ -931,7 +927,7 @@ impl Module {
     /// ]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<&mut ModuleFunction, ContextError>
+    pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         F: 'static + Fn(&mut Stack, usize) -> VmResult<()> + Send + Sync,
         N: IntoIterator,
@@ -945,15 +941,18 @@ impl Module {
             hash_map::Entry::Occupied(e) => Err(ContextError::ConflictingFunctionName {
                 name: e.key().clone(),
             }),
-            hash_map::Entry::Vacant(e) => Ok(e.insert(ModuleFunction {
-                handler: Arc::new(move |stack, args| f(stack, args)),
-                is_async: false,
-                args: None,
-                return_type: None,
-                argument_types: Box::from([]),
-                docs: Docs::default(),
-                kind: ModuleFunctionKind::Function,
-            })),
+            hash_map::Entry::Vacant(e) => {
+                let e = e.insert(ModuleFunction {
+                    handler: Arc::new(move |stack, args| f(stack, args)),
+                    is_async: false,
+                    args: None,
+                    return_type: None,
+                    argument_types: Box::from([]),
+                    docs: Docs::default(),
+                });
+
+                Ok(ItemMut { docs: &mut e.docs })
+            }
         }
     }
 
@@ -961,20 +960,23 @@ impl Module {
         &mut self,
         data: FunctionData,
         docs: Docs,
-    ) -> Result<&mut ModuleFunction, ContextError> {
+    ) -> Result<ItemMut<'_>, ContextError> {
         match self.functions.entry(data.name.clone()) {
             hash_map::Entry::Occupied(e) => Err(ContextError::ConflictingFunctionName {
                 name: e.key().clone(),
             }),
-            hash_map::Entry::Vacant(e) => Ok(e.insert(ModuleFunction {
-                handler: data.handler,
-                is_async: data.is_async,
-                args: data.args,
-                return_type: data.return_type,
-                argument_types: data.argument_types,
-                docs,
-                kind: ModuleFunctionKind::Function,
-            })),
+            hash_map::Entry::Vacant(e) => {
+                let e = e.insert(ModuleFunction {
+                    handler: data.handler,
+                    is_async: data.is_async,
+                    args: data.args,
+                    return_type: data.return_type,
+                    argument_types: data.argument_types,
+                    docs,
+                });
+
+                Ok(ItemMut { docs: &mut e.docs })
+            }
         }
     }
 
@@ -983,50 +985,48 @@ impl Module {
         &mut self,
         data: AssociatedFunctionData,
         docs: Docs,
-    ) -> Result<&mut ModuleFunction, ContextError> {
+    ) -> Result<ItemMut<'_>, ContextError> {
         let key = data.assoc_key();
 
-        match self.associated_functions.entry(key) {
+        match self.associated.entry(key) {
             hash_map::Entry::Occupied(..) => Err(match data.name.kind {
-                AssociatedFunctionKind::Protocol(protocol) => {
-                    ContextError::ConflictingProtocolFunction {
-                        type_info: data.ty.type_info,
-                        name: protocol.name.into(),
-                    }
-                }
-                AssociatedFunctionKind::FieldFn(protocol, field) => {
+                AssociatedKind::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
+                    type_info: data.ty.type_info,
+                    name: protocol.name.into(),
+                },
+                AssociatedKind::FieldFn(protocol, field) => {
                     ContextError::ConflictingFieldFunction {
                         type_info: data.ty.type_info,
                         name: protocol.name.into(),
                         field,
                     }
                 }
-                AssociatedFunctionKind::IndexFn(protocol, index) => {
+                AssociatedKind::IndexFn(protocol, index) => {
                     ContextError::ConflictingIndexFunction {
                         type_info: data.ty.type_info,
                         name: protocol.name.into(),
                         index,
                     }
                 }
-                AssociatedFunctionKind::Instance(name) => {
-                    ContextError::ConflictingInstanceFunction {
-                        type_info: data.ty.type_info,
-                        name,
-                    }
-                }
-            }),
-            hash_map::Entry::Vacant(e) => Ok(e.insert(ModuleFunction {
-                handler: data.handler,
-                is_async: data.is_async,
-                args: data.args,
-                return_type: data.return_type,
-                argument_types: data.argument_types,
-                docs,
-                kind: ModuleFunctionKind::Assoc {
+                AssociatedKind::Instance(name) => ContextError::ConflictingInstanceFunction {
                     type_info: data.ty.type_info,
-                    name: data.name,
+                    name,
                 },
-            })),
+            }),
+            hash_map::Entry::Vacant(e) => {
+                let e = e.insert(ModuleAssociated {
+                    name: data.name,
+                    handler: data.handler,
+                    is_async: data.is_async,
+                    args: data.args,
+                    return_type: data.return_type,
+                    argument_types: data.argument_types,
+                    docs,
+                    type_info: data.ty.type_info,
+                });
+
+                Ok(ItemMut { docs: &mut e.docs })
+            }
         }
     }
 }

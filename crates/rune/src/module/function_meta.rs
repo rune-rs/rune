@@ -7,9 +7,7 @@ use crate::no_std::sync::Arc;
 use crate::compile::{self, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::{
-    AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn,
-};
+use crate::module::{AssocType, AssociatedKey, AsyncFunction, AsyncInstFn, Function, InstFn};
 use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol};
 
 mod sealed {
@@ -130,7 +128,7 @@ impl FunctionMacroData {
 /// An instance function name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum AssociatedFunctionKind {
+pub enum AssociatedKind {
     /// A protocol function implemented on the type itself.
     Protocol(Protocol),
     /// A field function with the given protocol.
@@ -141,7 +139,7 @@ pub enum AssociatedFunctionKind {
     Instance(Box<str>),
 }
 
-impl AssociatedFunctionKind {
+impl AssociatedKind {
     /// Convert the kind into a hash function.
     pub(crate) fn hash(&self, instance_type: Hash) -> Hash {
         match self {
@@ -157,17 +155,17 @@ impl AssociatedFunctionKind {
     }
 }
 
-impl fmt::Display for AssociatedFunctionKind {
+impl fmt::Display for AssociatedKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AssociatedFunctionKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
-            AssociatedFunctionKind::FieldFn(protocol, field) => {
+            AssociatedKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
+            AssociatedKind::FieldFn(protocol, field) => {
                 write!(f, ".{field}<{}>", protocol.name)
             }
-            AssociatedFunctionKind::IndexFn(protocol, index) => {
+            AssociatedKind::IndexFn(protocol, index) => {
                 write!(f, ".{index}<{}>", protocol.name)
             }
-            AssociatedFunctionKind::Instance(name) => write!(f, "{}", name),
+            AssociatedKind::Instance(name) => write!(f, "{}", name),
         }
     }
 }
@@ -189,7 +187,7 @@ impl ToInstance for &str {
     #[inline]
     fn to_instance(self) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: AssociatedFunctionKind::Instance(self.into()),
+            kind: AssociatedKind::Instance(self.into()),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -201,7 +199,7 @@ impl ToFieldFunction for &str {
     #[inline]
     fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: AssociatedFunctionKind::FieldFn(protocol, self.into()),
+            kind: AssociatedKind::FieldFn(protocol, self.into()),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -215,7 +213,7 @@ impl ToFieldFunction for &str {
 #[doc(hidden)]
 pub struct AssociatedFunctionName {
     /// The name of the instance function.
-    pub kind: AssociatedFunctionKind,
+    pub kind: AssociatedKind,
     /// Parameters hash.
     pub parameters: Hash,
     #[cfg(feature = "doc")]
@@ -225,7 +223,7 @@ pub struct AssociatedFunctionName {
 impl AssociatedFunctionName {
     pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
         Self {
-            kind: AssociatedFunctionKind::IndexFn(protocol, index),
+            kind: AssociatedKind::IndexFn(protocol, index),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -289,8 +287,8 @@ impl AssociatedFunctionData {
     }
 
     /// Get associated key.
-    pub(crate) fn assoc_key(&self) -> AssociatedFunctionKey {
-        AssociatedFunctionKey {
+    pub(crate) fn assoc_key(&self) -> AssociatedKey {
+        AssociatedKey {
             type_hash: self.ty.hash,
             kind: self.name.kind.clone(),
             parameters: self.name.parameters,

@@ -18,7 +18,7 @@ use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, StaticType, Type
 use crate::Hash;
 
 pub(crate) use self::function_meta::{
-    AssociatedFunctionKind, AssociatedFunctionName, ToFieldFunction, ToInstance,
+    AssociatedFunctionName, AssociatedKind, ToFieldFunction, ToInstance,
 };
 
 #[doc(hidden)]
@@ -198,78 +198,67 @@ pub(crate) enum TypeSpecification {
 /// A key that identifies an associated function.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub(crate) struct AssociatedFunctionKey {
+pub(crate) struct AssociatedKey {
     /// The type the associated function belongs to.
     pub(crate) type_hash: Hash,
     /// The kind of the associated function.
-    pub(crate) kind: AssociatedFunctionKind,
+    pub(crate) kind: AssociatedKind,
     /// The type parameters of the associated function.
     pub(crate) parameters: Hash,
 }
 
-/// The kind of a module function.
 #[derive(Clone)]
-pub(crate) enum ModuleFunctionKind {
-    Function,
-    Assoc {
-        /// Type information of the associated function.
-        type_info: TypeInfo,
-        /// The full name of the associated function.
-        name: AssociatedFunctionName,
-    },
-}
-
-/// Handle to a function inserted into a module.
-///
-/// This is returned by methods which insert any kind of function, such as:
-/// * [`Module::function_meta`].
-/// * [`Module::raw_fn`].
-/// * [`Module::function`].
-/// * [`Module::inst_fn`].
-pub struct ModuleFunction {
+pub(crate) struct ModuleFunction {
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
     pub(crate) docs: Docs,
-    pub(crate) kind: ModuleFunctionKind,
 }
 
-impl ModuleFunction {
-    // Private clone implementation.
-    pub(crate) fn clone_it(&self) -> Self {
-        Self {
-            handler: self.handler.clone(),
-            is_async: self.is_async,
-            args: self.args,
-            return_type: self.return_type.clone(),
-            argument_types: self.argument_types.clone(),
-            docs: self.docs.clone(),
-            kind: self.kind.clone(),
-        }
-    }
-
-    /// Set documentation for an inserted function.
-    pub fn docs<I>(&mut self, docs: I) -> &mut Self
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
-        self.docs.set_docs(docs);
-        self
-    }
+#[derive(Clone)]
+pub(crate) struct ModuleAssociated {
+    pub(crate) name: AssociatedFunctionName,
+    pub(crate) type_info: TypeInfo,
+    pub(crate) handler: Arc<FunctionHandler>,
+    pub(crate) is_async: bool,
+    pub(crate) args: Option<usize>,
+    pub(crate) return_type: Option<FullTypeOf>,
+    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
+    pub(crate) docs: Docs,
 }
 
 /// Handle to a macro inserted into a module.
-pub struct ModuleMacro {
+pub(crate) struct ModuleMacro {
     pub(crate) handler: Arc<MacroHandler>,
     pub(crate) docs: Docs,
 }
 
-impl ModuleMacro {
-    /// Set documentation for an inserted macro.
-    pub fn docs<I>(&mut self, docs: I) -> &mut Self
+/// Handle to a an item inserted into a module which allows for mutation of item
+/// metadata.
+///
+/// This is returned by methods which insert meta items, such as:
+/// * [`Module::raw_fn`].
+/// * [`Module::function`].
+/// * [`Module::async_function`].
+/// * [`Module::inst_fn`].
+/// * [`Module::async_inst_fn`].
+///
+/// While this is also returned by `*_meta` inserting functions, it is instead
+/// recommended that you make use of the appropriate macro to capture doc
+/// comments instead:
+/// * [`Module::macro_meta`].
+/// * [`Module::function_meta`].
+pub struct ItemMut<'a> {
+    docs: &'a mut Docs,
+}
+
+impl ItemMut<'_> {
+    /// Set documentation for an inserted item.
+    ///
+    /// This completely replaces any existing documentation.
+    pub fn docs<I>(self, docs: I) -> Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,

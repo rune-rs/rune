@@ -9,8 +9,8 @@ use crate::compile::{
     ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
 };
 use crate::module::{
-    AssociatedFunctionKey, AssociatedFunctionKind, Function, InternalEnum, Module, ModuleFunction,
-    ModuleFunctionKind, ModuleMacro, Type, TypeSpecification, UnitType, VariantKind,
+    AssociatedKey, AssociatedKind, Function, InternalEnum, Module, ModuleAssociated,
+    ModuleFunction, ModuleMacro, Type, TypeSpecification, UnitType, VariantKind,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -110,7 +110,7 @@ pub struct Context {
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
-    associated: HashMap<Hash, Vec<ModuleFunction>>,
+    associated: HashMap<Hash, Vec<ModuleAssociated>>,
     /// Registered native macro handlers.
     macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
@@ -251,8 +251,8 @@ impl Context {
             self.install_internal_enum(module, internal_enum, Docs::default())?;
         }
 
-        for (key, inst) in &module.associated_functions {
-            self.install_associated_function(module, key, inst)?;
+        for (key, assoc) in &module.associated {
+            self.install_associated(module, key, assoc)?;
         }
 
         Ok(())
@@ -339,7 +339,7 @@ impl Context {
 
     /// Get all associated types for the given hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &ModuleFunction> + '_ {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &ModuleAssociated> + '_ {
         self.associated
             .get(&hash)
             .into_iter()
@@ -633,19 +633,12 @@ impl Context {
         Ok(())
     }
 
-    fn install_associated_function(
+    fn install_associated(
         &mut self,
         module: &Module,
-        key: &AssociatedFunctionKey,
-        assoc: &ModuleFunction,
+        key: &AssociatedKey,
+        assoc: &ModuleAssociated,
     ) -> Result<(), ContextError> {
-        let (assoc_type_info, assoc_name) = match &assoc.kind {
-            ModuleFunctionKind::Function => {
-                return Err(ContextError::ExpectedAssociated);
-            }
-            ModuleFunctionKind::Assoc { type_info, name } => (type_info, name),
-        };
-
         let info = match self
             .types_rev
             .get(&key.type_hash)
@@ -654,12 +647,13 @@ impl Context {
             Some(info) => info,
             None => {
                 return Err(ContextError::MissingInstance {
-                    instance_type: assoc_type_info.clone(),
+                    instance_type: assoc.type_info.clone(),
                 });
             }
         };
 
-        let hash = assoc_name
+        let hash = assoc
+            .name
             .kind
             .hash(key.type_hash)
             .with_parameters(key.parameters);
@@ -675,7 +669,7 @@ impl Context {
                 .map(|f| f.as_ref().map(|f| f.hash))
                 .collect(),
             kind: meta::SignatureKind::Instance {
-                name: assoc_name.kind.clone(),
+                name: assoc.name.kind.clone(),
                 self_type_info: info.type_info.clone(),
             },
         };
@@ -693,7 +687,7 @@ impl Context {
         self.associated
             .entry(key.type_hash)
             .or_default()
-            .push(assoc.clone_it());
+            .push(assoc.clone());
 
         // If the associated function is a named instance function - register it
         // under the name of the item it corresponds to unless it's a field
@@ -701,7 +695,7 @@ impl Context {
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        if let AssociatedFunctionKind::Instance(name) = &assoc_name.kind {
+        if let AssociatedKind::Instance(name) = &assoc.name.kind {
             let item = info.item.extended(name);
             self.names.insert(&item);
 

@@ -11,7 +11,7 @@ use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
 use crate::compile::{self, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
-use crate::module::AssociatedFunctionKind;
+use crate::module::AssociatedKind;
 use crate::parse::{Id, ResolveContext};
 use crate::runtime::{ConstValue, TypeInfo};
 
@@ -282,7 +282,7 @@ pub(crate) enum SignatureKind {
     /// An instance function or method
     Instance {
         /// Name of the instance function.
-        name: AssociatedFunctionKind,
+        name: AssociatedKind,
         /// Information on the self type.
         self_type_info: TypeInfo,
     },

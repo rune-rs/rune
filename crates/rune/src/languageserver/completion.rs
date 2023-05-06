@@ -10,7 +10,7 @@ use lsp::MarkupKind;
 use lsp::TextEdit;
 
 use crate::compile::meta::SignatureKind;
-use crate::module::AssociatedFunctionKind;
+use crate::module::AssociatedKind;
 use crate::runtime::debug::DebugArgs;
 use crate::Context;
 use crate::Unit;
@@ -94,10 +94,10 @@ pub(super) fn complete_native_instance_data(
         };
 
         let n = match function_kind {
-            AssociatedFunctionKind::Protocol(_) => continue,
-            AssociatedFunctionKind::FieldFn(_, _) => continue,
-            AssociatedFunctionKind::IndexFn(_, _) => continue,
-            AssociatedFunctionKind::Instance(n) => n,
+            AssociatedKind::Protocol(_) => continue,
+            AssociatedKind::FieldFn(_, _) => continue,
+            AssociatedKind::IndexFn(_, _) => continue,
+            AssociatedKind::Instance(n) => n,
         };
 
         if n.starts_with(symbol) {
