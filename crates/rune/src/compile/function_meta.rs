@@ -7,9 +7,10 @@ use crate::no_std::sync::Arc;
 use crate::compile::module::{
     AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn,
 };
-use crate::compile::{IntoComponent, ItemBuf, Named};
+use crate::compile::{self, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
-use crate::runtime::{FullTypeOf, FunctionHandler, MaybeTypeOf, Protocol};
+use crate::macros::{MacroContext, TokenStream};
+use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol};
 
 mod sealed {
     use crate::params::Params;
@@ -32,6 +33,17 @@ mod sealed {
 /// Calling and making use of `FunctionMeta` manually despite this warning might
 /// lead to future breakage.
 pub type FunctionMeta = fn() -> FunctionMetaData;
+
+/// Type used to collect and store function metadata through the
+/// `#[rune::macro_]` macro.
+///
+/// This is the argument type for
+/// [`Module::macro_meta`][crate::compile::Module::macro_meta], and is from a
+/// public API perspective completely opaque and might change for any release.
+///
+/// Calling and making use of `MacroMeta` manually despite this warning might
+/// lead to future breakage.
+pub type MacroMeta = fn() -> MacroMetaData;
 
 /// Runtime data for a function.
 #[derive(Clone)]
@@ -86,6 +98,31 @@ impl FunctionData {
             args: Some(Func::args()),
             return_type: Func::Output::maybe_type_of(),
             argument_types: argument_types.into(),
+        }
+    }
+}
+
+/// Runtime data for a macro.
+#[derive(Clone)]
+pub struct FunctionMacroData {
+    pub(crate) name: ItemBuf,
+    pub(crate) handler: Arc<MacroHandler>,
+}
+
+impl FunctionMacroData {
+    #[inline]
+    pub(crate) fn new<Func, N>(name: N, f: Func) -> Self
+    where
+        Func: 'static
+            + Send
+            + Sync
+            + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        Self {
+            name: ItemBuf::with_item(name),
+            handler: Arc::new(f),
         }
     }
 }
@@ -358,6 +395,48 @@ impl FunctionMetaKind {
     {
         Self::AssociatedFunction(AssociatedFunctionData::new_async(name.to_instance(), f))
     }
+}
+
+/// The kind of a [`FunctionMeta`].
+///
+/// Even though this is marked as `pub`, this is private API. If you use this it
+/// might cause breakage.
+#[derive(Clone)]
+#[doc(hidden)]
+pub enum MacroMetaKind {
+    #[doc(hidden)]
+    Function(FunctionMacroData),
+}
+
+impl MacroMetaKind {
+    #[doc(hidden)]
+    #[inline]
+    pub fn function<Func, N>(name: N, f: Func) -> Self
+    where
+        Func: 'static
+            + Send
+            + Sync
+            + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        Self::Function(FunctionMacroData::new(name, f))
+    }
+}
+
+/// The data of a [`MacroMeta`].
+///
+/// Even though this is marked as `pub`, this is private API. If you use this it
+/// might cause breakage.
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct MacroMetaData {
+    #[doc(hidden)]
+    pub kind: MacroMetaKind,
+    #[doc(hidden)]
+    pub name: &'static str,
+    #[doc(hidden)]
+    pub docs: &'static [&'static str],
 }
 
 /// The data of a [`FunctionMeta`].

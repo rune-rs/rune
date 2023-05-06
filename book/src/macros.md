@@ -39,7 +39,7 @@ A macro is added to a [`Module`] using the [`Module::macro_`] function.
 ```rust,noplaypen
 pub fn module() -> Result<rune::Module, rune::ContextError> {
     let mut module = rune::Module::new(["std", "experiments"]);
-    module.macro_(["stringy_math"], stringy_math_macro::stringy_math)?;
+    module.macro_meta(stringy_math_macro::stringy_math)?;
     Ok(module)
 }
 ```

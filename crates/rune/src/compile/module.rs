@@ -13,7 +13,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::compile::{
     self, AssociatedFunctionData, AssociatedFunctionKind, AssociatedFunctionName, ContextError,
     Docs, FunctionData, FunctionMeta, FunctionMetaKind, IntoComponent, ItemBuf, IterFunctionArgs,
-    Named, ToFieldFunction, ToInstance,
+    MacroMeta, MacroMetaKind, Named, ToFieldFunction, ToInstance,
 };
 use crate::macros::{MacroContext, TokenStream};
 use crate::runtime::{
@@ -250,6 +250,7 @@ pub(crate) struct ModuleFunction {
 
 pub(crate) struct Macro {
     pub(crate) handler: Arc<MacroHandler>,
+    pub(crate) docs: Docs,
 }
 
 /// A [Module] that is a collection of native functions and types.
@@ -700,7 +701,94 @@ impl Module {
         Ok(())
     }
 
+    /// Register a native macro handler through its meta.
+    ///
+    /// The metadata must be provided by annotating the function with
+    /// [`#[rune::macro_]`][crate::macro_].
+    ///
+    /// This has the benefit that it captures documentation comments which can
+    /// be used when generating documentation or referencing the function
+    /// through code sense systems.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Module;
+    /// use rune::ast;
+    /// use rune::compile;
+    /// use rune::macros::{quote, MacroContext, TokenStream};
+    /// use rune::parse::Parser;
+    ///
+    /// /// Takes an identifier and converts it into a string.
+    /// ///
+    /// /// # Examples
+    /// ///
+    /// /// ```rune
+    /// /// assert_eq!(ident_to_string!(Hello), "Hello");
+    /// /// ```
+    /// #[rune::macro_]
+    /// fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+    ///     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    ///     let ident = p.parse_all::<ast::Ident>()?;
+    ///     let ident = ctx.resolve(ident)?.to_owned();
+    ///     let string = ctx.lit(&ident);
+    ///     Ok(quote!(#string).into_token_stream(ctx))
+    /// }
+    ///
+    /// let mut m = Module::new();
+    /// m.macro_meta(ident_to_string)?;
+    /// ```
+    #[inline]
+    pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<(), ContextError> {
+        let meta = meta();
+
+        match meta.kind {
+            MacroMetaKind::Function(data) => {
+                if self.macros.contains_key(&data.name) {
+                    return Err(ContextError::ConflictingFunctionName { name: data.name });
+                }
+
+                let mut docs = Docs::default();
+                docs.set_docs(meta.docs);
+
+                self.macros.insert(
+                    data.name.clone(),
+                    Macro {
+                        handler: data.handler,
+                        docs,
+                    },
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     /// Register a native macro handler.
+    ///
+    /// If possible, [`Module::function_meta`] should be used since it includes more
+    /// useful information about the function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Module;
+    /// use rune::ast;
+    /// use rune::compile;
+    /// use rune::macros::{quote, MacroContext, TokenStream};
+    /// use rune::parse::Parser;
+    ///
+    /// fn ident_to_string(ctx: &mut MacroContext<'_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+    ///     let mut p = Parser::from_token_stream(stream, ctx.stream_span());
+    ///     let ident = p.parse_all::<ast::Ident>()?;
+    ///     let ident = ctx.resolve(ident)?.to_owned();
+    ///     let string = ctx.lit(&ident);
+    ///     Ok(quote!(#string).into_token_stream(ctx))
+    /// }
+    ///
+    /// let mut m = Module::new();
+    /// m.macro_(["ident_to_string"], ident_to_string)?;
+    /// ```
     pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<(), ContextError>
     where
         M: 'static
@@ -717,14 +805,24 @@ impl Module {
         }
 
         let handler: Arc<MacroHandler> = Arc::new(f);
-        self.macros.insert(name, Macro { handler });
+        self.macros.insert(
+            name,
+            Macro {
+                handler,
+                docs: Docs::default(),
+            },
+        );
         Ok(())
     }
 
-    /// Register a function from its meta information.
+    /// Register a function handler through its meta.
     ///
     /// The metadata must be provided by annotating the function with
     /// [`#[rune::function]`][crate::function].
+    ///
+    /// This has the benefit that it captures documentation comments which can
+    /// be used when generating documentation or referencing the function
+    /// through code sense systems.
     ///
     /// # Examples
     ///

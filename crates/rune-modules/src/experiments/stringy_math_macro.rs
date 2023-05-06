@@ -4,6 +4,7 @@ use rune::macros::{quote, MacroContext, TokenStream};
 use rune::parse::Parser;
 
 /// Implementation for the `stringy_math!` macro.
+#[rune::macro_]
 pub(crate) fn stringy_math(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,

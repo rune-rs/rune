@@ -30,6 +30,7 @@ mod from_value;
 mod function;
 mod instrument;
 mod internals;
+mod macro_;
 mod opaque;
 mod option_spanned;
 mod parse;
@@ -187,6 +188,22 @@ pub fn function(
     let function = syn::parse_macro_input!(item with crate::function::Function::parse);
 
     let output = match function.expand(attrs) {
+        Ok(output) => output,
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+    };
+
+    output.into()
+}
+
+#[proc_macro_attribute]
+pub fn macro_(
+    attrs: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let attrs = syn::parse_macro_input!(attrs with crate::macro_::Config::parse);
+    let macro_ = syn::parse_macro_input!(item with crate::macro_::Macro::parse);
+
+    let output = match macro_.expand(attrs) {
         Ok(output) => output,
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
     };

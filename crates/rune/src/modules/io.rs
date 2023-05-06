@@ -27,9 +27,9 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
 
     // These are unconditionally included, but using them might cause a
     // compilation error unless `::std::io::*` functions are provided somehow.
-    module.macro_(["dbg"], dbg_macro)?;
-    module.macro_(["print"], print_macro)?;
-    module.macro_(["println"], println_macro)?;
+    module.macro_meta(dbg_macro)?;
+    module.macro_meta(print_macro)?;
+    module.macro_meta(println_macro)?;
     Ok(module)
 }
 
@@ -49,7 +49,23 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
     VmResult::Ok(())
 }
 
-/// Implementation for the `dbg!` macro.
+/// Debug print the given argument.
+///
+/// Everything in rune can be "debug printed" in one way or another. This is
+/// provided as a cheap an dirty way to introspect values.
+///
+/// # Examples
+///
+/// ```rune
+/// let number = 10;
+/// let number = number * 4;
+///
+/// let who = "World";
+/// let string = format!("Hello {}", who);
+///
+/// dbg!(number, string);
+/// ```
+#[rune::macro_(path = dbg)]
 pub(crate) fn dbg_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
@@ -57,7 +73,18 @@ pub(crate) fn dbg_macro(
     Ok(quote!(::std::io::dbg(#stream)).into_token_stream(ctx))
 }
 
-/// Implementation for the `print!` macro.
+/// Prints to output.
+///
+/// Output printing is performed by calling the [`print`] function, this is just
+/// a convenience wrapper around it which allows for formatting.
+///
+/// # Examples
+///
+/// ```rune
+/// let who = "World";
+/// print!("Hello {}!", who);
+/// ```
+#[rune::macro_(path = print)]
 pub(crate) fn print_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
@@ -68,10 +95,11 @@ pub(crate) fn print_macro(
     Ok(quote!(::std::io::print(#expanded)).into_token_stream(ctx))
 }
 
-/// Print to stdout.
+/// Prints to output.
 ///
-/// This is provided on top of the [`print!`] macro so that it can be used as
-/// a function.
+/// This is the actual output hook, and if you install rune modules without
+/// `I/O` enabled this will not be defined. It is then up to someone else to
+/// provide an implementation.
 ///
 /// # Examples
 ///
@@ -90,7 +118,18 @@ fn print_impl(m: &str) -> VmResult<()> {
     VmResult::Ok(())
 }
 
-/// Implementation for the `println!` macro.
+/// Prints to output, with a newline.
+///
+/// Output printing is performed by calling the [`println`] function, this is
+/// just a convenience wrapper around it which allows for formatting.
+///
+/// # Examples
+///
+/// ```rune
+/// let who = "World";
+/// println!("Hello {}!", who);
+/// ```
+#[rune::macro_(path = println)]
 pub(crate) fn println_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
@@ -101,10 +140,11 @@ pub(crate) fn println_macro(
     Ok(quote!(::std::io::println(#expanded)).into_token_stream(ctx))
 }
 
-/// Print to stdout adding a newline to what is being printed.
+/// Prints to output, with a newline.
 ///
-/// This is provided on top of the [`println!`] macro so that it can be used as
-/// a function.
+/// This is the actual output hook, and if you install rune modules without
+/// `I/O` enabled this will not be defined. It is then up to someone else to
+/// provide an implementation.
 ///
 /// # Examples
 ///

@@ -25,8 +25,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(is_readable)?;
     module.function_meta(is_writable)?;
 
-    module.macro_(["stringify"], stringify_macro)?;
-    module.macro_(["panic"], panic_macro)?;
+    module.macro_meta(stringify_macro)?;
+    module.macro_meta(panic_macro)?;
     Ok(module)
 }
 
@@ -35,6 +35,8 @@ pub fn module() -> Result<Module, ContextError> {
 /// A panic in Rune causes the current execution to unwind and terminate. The
 /// panic will not be propagated into Rust, but will instead be signatted
 /// through a `VmError`.
+///
+/// If you want to format a message, consider using the [panic!] macro.
 #[rune::function]
 fn panic(message: &str) -> VmResult<()> {
     VmResult::err(Panic::custom(message.to_owned()))
@@ -76,7 +78,12 @@ fn is_writable(value: Value) -> bool {
     }
 }
 
-/// Implementation for the `stringify!` macro.
+/// Stringify the given argument, causing it to expand to its underlying token
+/// stream.
+///
+/// This can be used by macros to convert a stream of tokens into a readable
+/// string.
+#[rune::macro_(path = stringify)]
 pub(crate) fn stringify_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
@@ -86,6 +93,12 @@ pub(crate) fn stringify_macro(
     Ok(quote!(#lit).into_token_stream(ctx))
 }
 
+/// Cause a vm panic with a formatted message.
+///
+/// A panic in Rune causes the current execution to unwind and terminate. The
+/// panic will not be propagated into Rust, but will instead be signatted
+/// through a `VmError`.
+#[rune::macro_(path = panic)]
 pub(crate) fn panic_macro(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,

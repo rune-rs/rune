@@ -2,6 +2,7 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
+use crate as rune;
 use crate::ast;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
@@ -11,13 +12,27 @@ use crate::{ContextError, Module, T};
 /// Construct the `std::test` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["test"]).with_unique("std::test");
-    module.macro_(["assert"], assert_macro)?;
-    module.macro_(["assert_eq"], assert_eq_macro)?;
+    module.macro_meta(assert)?;
+    module.macro_meta(assert_eq)?;
     Ok(module)
 }
 
-/// Implementation for the `assert!` macro.
-pub(crate) fn assert_macro(
+/// Assert that the expression provided as an argument is true, or cause a vm
+/// panic.
+///
+/// The second argument can optionally be used to format a panic message.
+///
+/// This is useful when writing test cases.
+///
+/// # Examples
+///
+/// ```rune
+/// let value = 42;
+///
+/// assert!(value == 42, "Value was not what was expected, instead it was {}", value);
+/// ```
+#[rune::macro_]
+pub(crate) fn assert(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
@@ -50,8 +65,19 @@ pub(crate) fn assert_macro(
     Ok(output.into_token_stream(ctx))
 }
 
-/// Implementation for the `assert!` macro.
-pub(crate) fn assert_eq_macro(
+/// Assert that the two arguments provided are equal, or cause a vm panic.
+///
+/// The third argument can optionally be used to format a panic message.
+///
+/// # Examples
+///
+/// ```rune
+/// let value = 42;
+///
+/// assert_eq!(value, 42, "Value was not 42, instead it was {}", value);
+/// ```
+#[rune::macro_]
+pub(crate) fn assert_eq(
     ctx: &mut MacroContext<'_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {

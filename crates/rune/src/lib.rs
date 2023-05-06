@@ -262,7 +262,7 @@ pub mod testing;
 
 // Macros used internally and re-exported.
 pub(crate) use rune_macros::__internal_impl_any;
-pub use rune_macros::function;
+pub use rune_macros::{function, macro_};
 
 #[cfg(feature = "cli")]
 pub mod cli;
@@ -282,6 +282,13 @@ mod collections {
     pub(crate) use crate::no_std::collections::{hash_map, HashMap};
     pub(crate) use crate::no_std::collections::{hash_set, HashSet};
     pub(crate) use crate::no_std::collections::{vec_deque, VecDeque};
+}
+
+/// Privately exported details.
+#[doc(hidden)]
+pub mod __private {
+    pub use crate::compile::{FunctionMetaData, FunctionMetaKind};
+    pub use crate::compile::{MacroMetaData, MacroMetaKind};
 }
 
 #[cfg(test)]
