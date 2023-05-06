@@ -39,6 +39,7 @@
 //!     Ok(quote!(#output).into_token_stream(ctx))
 //! }
 //!
+//! # fn main() -> rune::Result<()> {
 //! let mut m = Module::new();
 //! m.macro_meta(concat_idents)?;
 //!
@@ -67,7 +68,8 @@
 //! let value: u32 = rune::from_value(value)?;
 //!
 //! assert_eq!(value, 42);
-//! # Ok::<_, rune::Error>(())
+//! # Ok(())
+//! # }
 //! ```
 
 mod format_args;

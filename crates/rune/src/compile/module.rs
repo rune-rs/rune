@@ -737,6 +737,7 @@ impl Module {
     ///
     /// let mut m = Module::new();
     /// m.macro_meta(ident_to_string)?;
+    /// Ok::<_, rune::Error>(())
     /// ```
     #[inline]
     pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<(), ContextError> {
@@ -788,6 +789,7 @@ impl Module {
     ///
     /// let mut m = Module::new();
     /// m.macro_(["ident_to_string"], ident_to_string)?;
+    /// # Ok::<_, rune::Error>(())
     /// ```
     pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<(), ContextError>
     where
