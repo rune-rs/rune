@@ -239,23 +239,23 @@ impl Module {
     }
 
     /// Register a variant constructor for type `T`.
-    pub fn variant_constructor<Func, Args, T>(
+    pub fn variant_constructor<F, A>(
         &mut self,
         index: usize,
-        constructor: Func,
+        constructor: F,
     ) -> Result<(), ContextError>
     where
-        T: Named + TypeOf,
-        Func: Function<Args, Return = T>,
+        F: Function<A>,
+        F::Return: Named + TypeOf,
     {
-        let type_hash = T::type_hash();
+        let type_hash = F::Return::type_hash();
 
         let ty = match self.types.get_mut(&type_hash) {
             Some(ty) => ty,
             None => {
                 return Err(ContextError::MissingType {
-                    item: ItemBuf::with_item(&[T::full_name()]),
-                    type_info: T::type_info(),
+                    item: ItemBuf::with_item(&[F::Return::full_name()]),
+                    type_info: F::Return::type_info(),
                 });
             }
         };
@@ -264,8 +264,8 @@ impl Module {
             Some(TypeSpecification::Enum(en)) => en,
             _ => {
                 return Err(ContextError::MissingEnum {
-                    item: ItemBuf::with_item(&[T::full_name()]),
-                    type_info: T::type_info(),
+                    item: ItemBuf::with_item(&[F::Return::full_name()]),
+                    type_info: F::Return::type_info(),
                 });
             }
         };
@@ -274,7 +274,7 @@ impl Module {
             Some((_, variant)) => variant,
             _ => {
                 return Err(ContextError::MissingVariant {
-                    type_info: T::type_info(),
+                    type_info: F::Return::type_info(),
                     index,
                 });
             }
@@ -282,7 +282,7 @@ impl Module {
 
         if variant.constructor.is_some() {
             return Err(ContextError::VariantConstructorConflict {
-                type_info: T::type_info(),
+                type_info: F::Return::type_info(),
                 index,
             });
         }
@@ -688,13 +688,13 @@ impl Module {
     /// module.function(["add_ten"], add_ten)?.docs(["Adds 10 to any integer passed in."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<ItemMut<'_>, ContextError>
+    pub fn function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
-        Func: Function<Args>,
-        Func::Return: MaybeTypeOf,
+        F: Function<A>,
+        F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        Args: IterFunctionArgs,
+        A: IterFunctionArgs,
     {
         self.function_inner(FunctionData::new(name, f), Docs::default())
     }
@@ -728,17 +728,13 @@ impl Module {
     ///     .docs(["Download a random quote from the internet."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn async_function<Func, Args, N>(
-        &mut self,
-        name: N,
-        f: Func,
-    ) -> Result<ItemMut<'_>, ContextError>
+    pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
-        Func: AsyncFunction<Args>,
-        Func::Output: MaybeTypeOf,
+        F: AsyncFunction<A>,
+        F::Output: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        Args: IterFunctionArgs,
+        A: IterFunctionArgs,
     {
         self.function_inner(FunctionData::new_async(name, f), Docs::default())
     }
@@ -784,12 +780,12 @@ impl Module {
     ///     .docs(["Get the number of bytes."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<ItemMut<'_>, ContextError>
+    pub fn inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
-        Func: InstFn<Args>,
-        Func::Return: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: InstFn<A>,
+        F::Return: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_instance(), f),
@@ -837,16 +833,12 @@ impl Module {
     ///     .docs(["Download a thing."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn async_inst_fn<N, Func, Args>(
-        &mut self,
-        name: N,
-        f: Func,
-    ) -> Result<ItemMut<'_>, ContextError>
+    pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
-        Func: AsyncInstFn<Args>,
-        Func::Output: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: AsyncInstFn<A>,
+        F::Output: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new_async(name.to_instance(), f),
@@ -858,17 +850,17 @@ impl Module {
     ///
     /// This returns a [`ItemMut`], which is a handle that can be used to
     /// associate more metadata with the inserted item.
-    pub fn field_fn<N, Func, Args>(
+    pub fn field_fn<N, F, A>(
         &mut self,
         protocol: Protocol,
         name: N,
-        f: Func,
+        f: F,
     ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToFieldFunction,
-        Func: InstFn<Args>,
-        Func::Return: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: InstFn<A>,
+        F::Return: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_field_function(protocol), f),
@@ -880,16 +872,16 @@ impl Module {
     ///
     /// An index can either be a field inside a tuple, or a variant inside of an
     /// enum as configured with [Module::enum_meta].
-    pub fn index_fn<Func, Args>(
+    pub fn index_fn<F, A>(
         &mut self,
         protocol: Protocol,
         index: usize,
-        f: Func,
+        f: F,
     ) -> Result<ItemMut<'_>, ContextError>
     where
-        Func: InstFn<Args>,
-        Func::Return: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: InstFn<A>,
+        F::Return: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         let name = AssociatedFunctionName::index(protocol, index);
         self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::default())
