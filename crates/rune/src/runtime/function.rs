@@ -4,6 +4,7 @@ use core::future::Future;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
+use crate::module;
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, RawRef, Ref, Rtti, RuntimeContext, Shared,
     Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt,
@@ -48,7 +49,7 @@ impl Function {
     /// ```
     pub fn function<Func, Args>(f: Func) -> Self
     where
-        Func: crate::compile::Function<Args>,
+        Func: module::Function<Args>,
     {
         Self(FunctionImpl {
             inner: Inner::FnHandler(FnHandler {
@@ -90,7 +91,7 @@ impl Function {
     /// ```
     pub fn async_function<Func, Args>(f: Func) -> Self
     where
-        Func: crate::compile::AsyncFunction<Args>,
+        Func: module::AsyncFunction<Args>,
     {
         Self(FunctionImpl {
             inner: Inner::FnHandler(FnHandler {

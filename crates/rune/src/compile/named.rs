@@ -1,6 +1,6 @@
 use crate::no_std::prelude::*;
 
-use crate::compile::InstallWith;
+use crate::module::InstallWith;
 use crate::runtime::{RawStr, Tuple};
 
 /// The trait used for something that can be statically named.

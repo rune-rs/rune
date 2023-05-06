@@ -8,7 +8,37 @@ use crate::runtime::{
 };
 use crate::Any;
 
-#[doc(inline)]
+/// Derive macro for the [`ToValue`] trait for converting types into the dynamic
+/// `Value` container.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ToValue, Vm};
+/// use std::sync::Arc;
+///
+/// #[derive(ToValue)]
+/// struct Foo {
+///     field: u64,
+/// }
+///
+/// let mut sources = rune::sources! {
+///     entry => {
+///         pub fn main(foo) {
+///             foo.field + 1
+///         }
+///     }
+/// };
+///
+/// let unit = rune::prepare(&mut sources).build()?;
+///
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
+/// let value = vm.call(["main"], (Foo { field: 42 },))?;
+/// let value: u64 = rune::from_value(value)?;
+///
+/// assert_eq!(value, 43);
+/// # Ok::<_, rune::Error>(())
+/// ```
 pub use rune_macros::ToValue;
 
 /// Convert something into the dynamic [`Value`].

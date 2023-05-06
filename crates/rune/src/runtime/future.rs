@@ -5,7 +5,8 @@ use core::task::{Context, Poll};
 
 use crate::no_std::prelude::*;
 
-use crate::compile::{InstallWith, Named};
+use crate::compile::Named;
+use crate::module::InstallWith;
 use crate::runtime::{
     FromValue, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
     VmErrorKind, VmResult,

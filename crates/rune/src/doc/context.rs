@@ -1,9 +1,9 @@
 use crate::no_std::prelude::*;
 
 use crate::compile::context::PrivMeta;
-use crate::compile::{meta, AssociatedFunctionKind};
-use crate::compile::{AssociatedFunction, ComponentRef, IntoComponent, Item};
+use crate::compile::{meta, ComponentRef, IntoComponent, Item};
 use crate::doc::{Visitor, VisitorData};
+use crate::module::{AssociatedKind, ModuleAssociated};
 use crate::runtime::ConstValue;
 use crate::runtime::Protocol;
 use crate::Hash;
@@ -137,31 +137,31 @@ impl<'a> Context<'a> {
             }))
         }
 
-        fn context_to_associated(associated: &AssociatedFunction) -> Assoc<'_> {
-            let kind = match associated.name.kind {
-                AssociatedFunctionKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
-                AssociatedFunctionKind::FieldFn(protocol, ref field) => {
+        fn context_to_associated(m: &ModuleAssociated) -> Assoc<'_> {
+            let kind = match m.name.kind {
+                AssociatedKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
+                AssociatedKind::FieldFn(protocol, ref field) => {
                     AssocFnKind::FieldFn(protocol, field)
                 }
-                AssociatedFunctionKind::IndexFn(protocol, index) => {
+                AssociatedKind::IndexFn(protocol, index) => {
                     AssocFnKind::IndexFn(protocol, index)
                 }
-                AssociatedFunctionKind::Instance(ref name) => AssocFnKind::Instance(name),
+                AssociatedKind::Instance(ref name) => AssocFnKind::Instance(name),
             };
 
             Assoc::Fn(AssocFn {
-                is_async: associated.is_async,
-                return_type: associated.return_type.as_ref().map(|f| f.hash),
-                argument_types: associated
+                is_async: m.is_async,
+                return_type: m.return_type.as_ref().map(|f| f.hash),
+                argument_types: m
                     .argument_types
                     .iter()
                     .map(|f| f.as_ref().map(|f| f.hash))
                     .collect(),
-                docs: associated.docs.lines(),
-                docs_args: associated.docs.args(),
+                docs: m.docs.lines(),
+                docs_args: m.docs.args(),
                 kind,
-                args: associated.args,
-                parameter_types: &associated.name.parameter_types,
+                args: m.args,
+                parameter_types: &m.name.parameter_types,
             })
         }
 
@@ -170,7 +170,10 @@ impl<'a> Context<'a> {
             .iter()
             .flat_map(move |v| visitor_to_associated(hash, v).into_iter().flatten());
 
-        let context = self.context.associated(hash).map(context_to_associated);
+        let context = self
+            .context
+            .associated(hash)
+            .map(context_to_associated);
         visitors.chain(context)
     }
 

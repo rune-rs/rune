@@ -3,8 +3,9 @@ use core::fmt;
 use core::hash::{self, Hash as _};
 use core::ops;
 
-use crate::compile::{AssociatedFunctionKind, AssociatedFunctionName, ItemBuf, ToInstance};
+use crate::compile::ItemBuf;
 use crate::hash::IntoHash;
+use crate::module::{AssociatedFunctionName, AssociatedKind, ToInstance};
 use crate::{Hash, ToTypeHash};
 
 /// A built in instance function.
@@ -37,7 +38,7 @@ impl ToInstance for Protocol {
     #[inline]
     fn to_instance(self) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: AssociatedFunctionKind::Protocol(self),
+            kind: AssociatedKind::Protocol(self),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],

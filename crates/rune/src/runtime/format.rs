@@ -12,8 +12,8 @@ use crate::no_std::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::compile::Named;
+use crate::module::InstallWith;
 use crate::runtime::{FromValue, ProtocolCaller, RawStr, Value, VmErrorKind, VmResult};
-use crate::InstallWith;
 
 /// Error raised when trying to parse a type string and it fails.
 #[derive(Debug, Clone, Copy)]

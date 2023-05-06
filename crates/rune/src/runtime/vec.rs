@@ -6,7 +6,8 @@ use core::slice;
 use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
-use crate::compile::{InstallWith, Named};
+use crate::compile::Named;
+use crate::module::InstallWith;
 use crate::runtime::{
     FromValue, Iterator, Mut, RawMut, RawRef, RawStr, Ref, Shared, ToValue, UnsafeFromValue, Value,
     Vm, VmErrorKind, VmResult,

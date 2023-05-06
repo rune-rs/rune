@@ -6,7 +6,11 @@ use crate::no_std::vec::Vec;
 use crate::ast::Span;
 use crate::parse::{Id, NonZeroId};
 
-pub use rune_macros::{OptionSpanned, Spanned};
+/// Helper derive to implement [`OptionSpanned`].
+pub use rune_macros::OptionSpanned;
+
+/// Helper derive to implement [`Spanned`].
+pub use rune_macros::Spanned;
 
 /// Types for which we can get a span.
 pub trait Spanned {

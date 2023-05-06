@@ -1,6 +1,6 @@
 //! Definition of a TOML spanned value
 //!
-//! Copied from https://github.com/est31/toml-spanned-value/tree/e925c52d22dc92c7147cf13ddbd43f78e02b8c32
+//! Copied from <https://github.com/est31/toml-spanned-value/tree/e925c52d22dc92c7147cf13ddbd43f78e02b8c32>.
 
 #![allow(unused)]
 

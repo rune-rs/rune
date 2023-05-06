@@ -5,13 +5,12 @@ use crate::no_std::sync::Arc;
 
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
-use crate::compile::module::{
-    AssociatedFunction, Function, InternalEnum, Macro, Module, ModuleFunction, Type,
-    TypeSpecification, UnitType, VariantKind,
-};
 use crate::compile::{
-    AssociatedFunctionKey, AssociatedFunctionKind, ComponentRef, ContextError, Docs, IntoComponent,
-    Item, ItemBuf, MetaInfo, Names,
+    ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
+};
+use crate::module::{
+    AssociatedKey, AssociatedKind, Function, InternalEnum, Module, ModuleAssociated,
+    ModuleFunction, ModuleMacro, Type, TypeSpecification, UnitType, VariantKind,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -111,7 +110,7 @@ pub struct Context {
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
-    associated: HashMap<Hash, Vec<AssociatedFunction>>,
+    associated: HashMap<Hash, Vec<ModuleAssociated>>,
     /// Registered native macro handlers.
     macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
@@ -252,8 +251,8 @@ impl Context {
             self.install_internal_enum(module, internal_enum, Docs::default())?;
         }
 
-        for (key, inst) in &module.associated_functions {
-            self.install_associated_function(module, key, inst)?;
+        for (key, assoc) in &module.associated {
+            self.install_associated(module, key, assoc)?;
         }
 
         Ok(())
@@ -340,7 +339,7 @@ impl Context {
 
     /// Get all associated types for the given hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &AssociatedFunction> + '_ {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &ModuleAssociated> + '_ {
         self.associated
             .get(&hash)
             .into_iter()
@@ -571,7 +570,7 @@ impl Context {
                 args: f.args,
                 is_test: false,
                 is_bench: false,
-                instance_function: f.instance_function,
+                instance_function: false,
             },
             f.docs.clone(),
         ))?;
@@ -584,7 +583,7 @@ impl Context {
         &mut self,
         module: &Module,
         item: &Item,
-        m: &Macro,
+        m: &ModuleMacro,
     ) -> Result<(), ContextError> {
         let item = module.item.join(item);
         let hash = Hash::type_hash(&item);
@@ -634,11 +633,11 @@ impl Context {
         Ok(())
     }
 
-    fn install_associated_function(
+    fn install_associated(
         &mut self,
         module: &Module,
-        key: &AssociatedFunctionKey,
-        assoc: &AssociatedFunction,
+        key: &AssociatedKey,
+        assoc: &ModuleAssociated,
     ) -> Result<(), ContextError> {
         let info = match self
             .types_rev
@@ -696,7 +695,7 @@ impl Context {
         //
         // The other alternatives are protocol functions (which are not free)
         // and plain hashes.
-        if let AssociatedFunctionKind::Instance(name) = &assoc.name.kind {
+        if let AssociatedKind::Instance(name) = &assoc.name.kind {
             let item = info.item.extended(name);
             self.names.insert(&item);
 
@@ -863,7 +862,7 @@ impl Context {
     }
 
     /// Add a piece of internal tuple meta.
-    fn add_internal_tuple<C, Args>(
+    fn add_internal_tuple<C, A>(
         &mut self,
         module: &Module,
         enum_item: Option<(Hash, usize)>,
@@ -873,7 +872,7 @@ impl Context {
         docs: Docs,
     ) -> Result<(), ContextError>
     where
-        C: Function<Args>,
+        C: Function<A>,
         C::Return: TypeOf,
     {
         let type_hash = <C::Return as TypeOf>::type_hash();

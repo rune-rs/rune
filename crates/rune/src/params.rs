@@ -1,5 +1,5 @@
-use crate::compile::{AssociatedFunctionName, ToFieldFunction, ToInstance};
 use crate::hash::{Hash, IntoHash};
+use crate::module::{AssociatedFunctionName, ToFieldFunction, ToInstance};
 use crate::runtime::{FullTypeOf, Protocol};
 
 /// Helper to register a parameterized function.

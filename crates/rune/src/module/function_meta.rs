@@ -4,12 +4,10 @@ use core::future::Future;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::compile::module::{
-    AssocType, AssociatedFunctionKey, AsyncFunction, AsyncInstFn, Function, InstFn,
-};
 use crate::compile::{self, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
+use crate::module::{AssocType, AssociatedKey, AsyncFunction, AsyncInstFn, Function, InstFn};
 use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol};
 
 mod sealed {
@@ -27,8 +25,8 @@ mod sealed {
 /// `#[rune::function]` macro.
 ///
 /// This is the argument type for
-/// [`Module::function_meta`][crate::compile::Module::function_meta], and is from a
-/// public API perspective completely opaque and might change for any release.
+/// [`Module::function_meta`][crate::module::Module::function_meta], and is from
+/// a public API perspective completely opaque and might change for any release.
 ///
 /// Calling and making use of `FunctionMeta` manually despite this warning might
 /// lead to future breakage.
@@ -38,7 +36,7 @@ pub type FunctionMeta = fn() -> FunctionMetaData;
 /// `#[rune::macro_]` macro.
 ///
 /// This is the argument type for
-/// [`Module::macro_meta`][crate::compile::Module::macro_meta], and is from a
+/// [`Module::macro_meta`][crate::module::Module::macro_meta], and is from a
 /// public API perspective completely opaque and might change for any release.
 ///
 /// Calling and making use of `MacroMeta` manually despite this warning might
@@ -58,45 +56,45 @@ pub struct FunctionData {
 
 impl FunctionData {
     #[inline]
-    pub(crate) fn new<Func, Args, N>(name: N, f: Func) -> Self
+    pub(crate) fn new<F, A, N>(name: N, f: F) -> Self
     where
-        Func: Function<Args>,
-        Func::Return: MaybeTypeOf,
+        F: Function<A>,
+        F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        Args: IterFunctionArgs,
+        A: IterFunctionArgs,
     {
-        let mut argument_types = Vec::with_capacity(Args::len());
-        Args::iter_args(|ty| argument_types.push(ty));
+        let mut argument_types = Vec::with_capacity(A::len());
+        A::iter_args(|ty| argument_types.push(ty));
 
         Self {
             is_async: false,
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            args: Some(Func::args()),
-            return_type: Func::Return::maybe_type_of(),
+            args: Some(F::args()),
+            return_type: F::Return::maybe_type_of(),
             argument_types: argument_types.into(),
         }
     }
 
     #[inline]
-    pub(crate) fn new_async<Func, Args, N>(name: N, f: Func) -> Self
+    pub(crate) fn new_async<F, A, N>(name: N, f: F) -> Self
     where
-        Func: AsyncFunction<Args>,
-        Func::Output: MaybeTypeOf,
+        F: AsyncFunction<A>,
+        F::Output: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        Args: IterFunctionArgs,
+        A: IterFunctionArgs,
     {
-        let mut argument_types = Vec::with_capacity(Args::len());
-        Args::iter_args(|ty| argument_types.push(ty));
+        let mut argument_types = Vec::with_capacity(A::len());
+        A::iter_args(|ty| argument_types.push(ty));
 
         Self {
             is_async: true,
             name: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            args: Some(Func::args()),
-            return_type: Func::Output::maybe_type_of(),
+            args: Some(F::args()),
+            return_type: F::Output::maybe_type_of(),
             argument_types: argument_types.into(),
         }
     }
@@ -111,9 +109,9 @@ pub struct FunctionMacroData {
 
 impl FunctionMacroData {
     #[inline]
-    pub(crate) fn new<Func, N>(name: N, f: Func) -> Self
+    pub(crate) fn new<F, N>(name: N, f: F) -> Self
     where
-        Func: 'static
+        F: 'static
             + Send
             + Sync
             + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,
@@ -130,7 +128,7 @@ impl FunctionMacroData {
 /// An instance function name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum AssociatedFunctionKind {
+pub enum AssociatedKind {
     /// A protocol function implemented on the type itself.
     Protocol(Protocol),
     /// A field function with the given protocol.
@@ -141,7 +139,7 @@ pub enum AssociatedFunctionKind {
     Instance(Box<str>),
 }
 
-impl AssociatedFunctionKind {
+impl AssociatedKind {
     /// Convert the kind into a hash function.
     pub(crate) fn hash(&self, instance_type: Hash) -> Hash {
         match self {
@@ -157,17 +155,17 @@ impl AssociatedFunctionKind {
     }
 }
 
-impl fmt::Display for AssociatedFunctionKind {
+impl fmt::Display for AssociatedKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AssociatedFunctionKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
-            AssociatedFunctionKind::FieldFn(protocol, field) => {
+            AssociatedKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
+            AssociatedKind::FieldFn(protocol, field) => {
                 write!(f, ".{field}<{}>", protocol.name)
             }
-            AssociatedFunctionKind::IndexFn(protocol, index) => {
+            AssociatedKind::IndexFn(protocol, index) => {
                 write!(f, ".{index}<{}>", protocol.name)
             }
-            AssociatedFunctionKind::Instance(name) => write!(f, "{}", name),
+            AssociatedKind::Instance(name) => write!(f, "{}", name),
         }
     }
 }
@@ -189,7 +187,7 @@ impl ToInstance for &str {
     #[inline]
     fn to_instance(self) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: AssociatedFunctionKind::Instance(self.into()),
+            kind: AssociatedKind::Instance(self.into()),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -201,7 +199,7 @@ impl ToFieldFunction for &str {
     #[inline]
     fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: AssociatedFunctionKind::FieldFn(protocol, self.into()),
+            kind: AssociatedKind::FieldFn(protocol, self.into()),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -215,7 +213,7 @@ impl ToFieldFunction for &str {
 #[doc(hidden)]
 pub struct AssociatedFunctionName {
     /// The name of the instance function.
-    pub kind: AssociatedFunctionKind,
+    pub kind: AssociatedKind,
     /// Parameters hash.
     pub parameters: Hash,
     #[cfg(feature = "doc")]
@@ -225,7 +223,7 @@ pub struct AssociatedFunctionName {
 impl AssociatedFunctionName {
     pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
         Self {
-            kind: AssociatedFunctionKind::IndexFn(protocol, index),
+            kind: AssociatedKind::IndexFn(protocol, index),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -247,50 +245,50 @@ pub struct AssociatedFunctionData {
 
 impl AssociatedFunctionData {
     #[inline]
-    pub(crate) fn new<Func, Args>(name: AssociatedFunctionName, f: Func) -> Self
+    pub(crate) fn new<F, A>(name: AssociatedFunctionName, f: F) -> Self
     where
-        Func: InstFn<Args>,
-        Func::Return: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: InstFn<A>,
+        F::Return: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
-        let mut argument_types = Vec::with_capacity(Args::len());
-        Args::iter_args(|ty| argument_types.push(ty));
+        let mut argument_types = Vec::with_capacity(A::len());
+        A::iter_args(|ty| argument_types.push(ty));
 
         Self {
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            ty: Func::ty(),
+            ty: F::ty(),
             is_async: false,
-            args: Some(Func::args()),
-            return_type: Func::Return::maybe_type_of(),
+            args: Some(F::args()),
+            return_type: F::Return::maybe_type_of(),
             argument_types: argument_types.into(),
         }
     }
 
     #[inline]
-    pub(crate) fn new_async<Func, Args>(name: AssociatedFunctionName, f: Func) -> Self
+    pub(crate) fn new_async<F, A>(name: AssociatedFunctionName, f: F) -> Self
     where
-        Func: AsyncInstFn<Args>,
-        Func::Output: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: AsyncInstFn<A>,
+        F::Output: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
-        let mut argument_types = Vec::with_capacity(Args::len());
-        Args::iter_args(|ty| argument_types.push(ty));
+        let mut argument_types = Vec::with_capacity(A::len());
+        A::iter_args(|ty| argument_types.push(ty));
 
         Self {
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            ty: Func::ty(),
+            ty: F::ty(),
             is_async: true,
-            args: Some(Func::args()),
-            return_type: <Func::Return as Future>::Output::maybe_type_of(),
+            args: Some(F::args()),
+            return_type: <F::Return as Future>::Output::maybe_type_of(),
             argument_types: argument_types.into(),
         }
     }
 
     /// Get associated key.
-    pub(crate) fn assoc_key(&self) -> AssociatedFunctionKey {
-        AssociatedFunctionKey {
+    pub(crate) fn assoc_key(&self) -> AssociatedKey {
+        AssociatedKey {
             type_hash: self.ty.hash,
             kind: self.name.kind.clone(),
             parameters: self.name.parameters,
@@ -314,27 +312,27 @@ pub enum FunctionMetaKind {
 impl FunctionMetaKind {
     #[doc(hidden)]
     #[inline]
-    pub fn function<N, Func, Args>(name: N, f: Func) -> Self
+    pub fn function<N, F, A>(name: N, f: F) -> Self
     where
         N: IntoIterator,
         N::Item: IntoComponent,
-        Func: Function<Args>,
-        Func::Return: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: Function<A>,
+        F::Return: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         Self::Function(FunctionData::new(name, f))
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn function_with<T, N, Func, Args>(name: N, f: Func) -> Self
+    pub fn function_with<T, N, F, A>(name: N, f: F) -> Self
     where
         T: Named,
         N: IntoIterator,
         N::Item: IntoComponent,
-        Func: Function<Args>,
-        Func::Return: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: Function<A>,
+        F::Return: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         let name = [IntoComponent::into_component(T::BASE_NAME)]
             .into_iter()
@@ -344,27 +342,27 @@ impl FunctionMetaKind {
 
     #[doc(hidden)]
     #[inline]
-    pub fn async_function<N, Func, Args>(name: N, f: Func) -> Self
+    pub fn async_function<N, F, A>(name: N, f: F) -> Self
     where
         N: IntoIterator,
         N::Item: IntoComponent,
-        Func: AsyncFunction<Args>,
-        Func::Output: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: AsyncFunction<A>,
+        F::Output: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         Self::Function(FunctionData::new_async(name, f))
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn async_function_with<T, N, Func, Args>(name: N, f: Func) -> Self
+    pub fn async_function_with<T, N, F, A>(name: N, f: F) -> Self
     where
         T: Named,
         N: IntoIterator,
         N::Item: IntoComponent,
-        Func: AsyncFunction<Args>,
-        Func::Output: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: AsyncFunction<A>,
+        F::Output: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         let name = [IntoComponent::into_component(T::BASE_NAME)]
             .into_iter()
@@ -374,24 +372,24 @@ impl FunctionMetaKind {
 
     #[doc(hidden)]
     #[inline]
-    pub fn instance<N, Func, Args>(name: N, f: Func) -> Self
+    pub fn instance<N, F, A>(name: N, f: F) -> Self
     where
         N: ToInstance,
-        Func: InstFn<Args>,
-        Func::Return: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: InstFn<A>,
+        F::Return: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new(name.to_instance(), f))
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn async_instance<N, Func, Args>(name: N, f: Func) -> Self
+    pub fn async_instance<N, F, A>(name: N, f: F) -> Self
     where
         N: ToInstance,
-        Func: AsyncInstFn<Args>,
-        Func::Output: MaybeTypeOf,
-        Args: IterFunctionArgs,
+        F: AsyncInstFn<A>,
+        F::Output: MaybeTypeOf,
+        A: IterFunctionArgs,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new_async(name.to_instance(), f))
     }
@@ -411,9 +409,9 @@ pub enum MacroMetaKind {
 impl MacroMetaKind {
     #[doc(hidden)]
     #[inline]
-    pub fn function<Func, N>(name: N, f: Func) -> Self
+    pub fn function<F, N>(name: N, f: F) -> Self
     where
-        Func: 'static
+        F: 'static
             + Send
             + Sync
             + Fn(&mut MacroContext<'_>, &TokenStream) -> compile::Result<TokenStream>,

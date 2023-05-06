@@ -13,6 +13,7 @@ impl<T> Peek for Box<T>
 where
     T: Peek,
 {
+    #[inline]
     fn peek(p: &mut Peeker<'_>) -> bool {
         T::peek(p)
     }
@@ -23,6 +24,7 @@ where
     A: Parse + Peek,
     B: Parse,
 {
+    #[inline]
     fn peek(p: &mut Peeker<'_>) -> bool {
         A::peek(p)
     }

@@ -208,7 +208,7 @@ fn expand_enum_install_with(
     generics: &syn::Generics,
 ) -> Option<()> {
     let Tokens {
-        compile_variant,
+        module_variant,
         protocol,
         to_value,
         type_of,
@@ -266,7 +266,7 @@ fn expand_enum_install_with(
                     }
                 }
 
-                variants.push(quote!((#variant_name, #compile_variant::st([#(#field_names),*]))));
+                variants.push(quote!((#variant_name, #module_variant::st([#(#field_names),*]))));
             }
             syn::Fields::Unnamed(fields) => {
                 let mut fields_len = 0usize;
@@ -290,7 +290,7 @@ fn expand_enum_install_with(
                     }
                 }
 
-                variants.push(quote!((#variant_name, #compile_variant::tuple(#fields_len))));
+                variants.push(quote!((#variant_name, #module_variant::tuple(#fields_len))));
 
                 if variant_attrs.constructor {
                     if fields_len != fields.unnamed.len() {
@@ -302,7 +302,7 @@ fn expand_enum_install_with(
                 }
             }
             syn::Fields::Unit => {
-                variants.push(quote!((#variant_name, #compile_variant::unit())));
+                variants.push(quote!((#variant_name, #module_variant::unit())));
 
                 if variant_attrs.constructor {
                     constructors
