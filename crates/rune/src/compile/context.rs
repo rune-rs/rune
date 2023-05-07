@@ -21,9 +21,6 @@ use crate::Hash;
 /// Context metadata.
 #[non_exhaustive]
 pub(crate) struct PrivMeta {
-    /// The module that the declared item belongs to.
-    #[cfg(feature = "doc")]
-    pub(crate) module: ItemBuf,
     /// Type hash for the given meta item.
     pub(crate) hash: Hash,
     /// The container this item belongs to.
@@ -39,7 +36,6 @@ pub(crate) struct PrivMeta {
 
 impl PrivMeta {
     pub(crate) fn new(
-        #[cfg_attr(not(feature = "doc"), allow(unused))] module: &Module,
         hash: Hash,
         associated_container: Option<Hash>,
         item: ItemBuf,
@@ -47,8 +43,6 @@ impl PrivMeta {
         docs: Docs,
     ) -> Self {
         Self {
-            #[cfg(feature = "doc")]
-            module: module.item.clone(),
             hash,
             associated_container,
             item,
@@ -227,6 +221,8 @@ impl Context {
             self.crates.insert(name.into());
         }
 
+        self.install_module(&module.item)?;
+
         for (type_hash, ty) in &module.types {
             self.install_type(module, *type_hash, ty, Docs::default())?;
         }
@@ -252,7 +248,7 @@ impl Context {
         }
 
         for (key, assoc) in &module.associated {
-            self.install_associated(module, key, assoc)?;
+            self.install_associated(key, assoc)?;
         }
 
         Ok(())
@@ -321,12 +317,6 @@ impl Context {
         self.functions_info.get(&hash)
     }
 
-    /// Iterate over all metadata in the context.
-    #[cfg(feature = "cli")]
-    pub(crate) fn iter_meta(&self) -> impl Iterator<Item = &PrivMeta> + '_ {
-        self.meta.values().flatten()
-    }
-
     /// Check if unit contains the given name by prefix.
     pub(crate) fn contains_prefix(&self, item: &Item) -> bool {
         self.names.contains_prefix(item)
@@ -357,6 +347,12 @@ impl Context {
         ty.type_check
     }
 
+    /// Iterate over available crates.
+    #[cfg(feature = "doc")]
+    pub(crate) fn iter_crates(&self) -> impl Iterator<Item = &str> {
+        self.crates.iter().map(|s| s.as_ref())
+    }
+
     /// Check if context contains the given crate.
     pub(crate) fn contains_crate(&self, name: &str) -> bool {
         self.crates.contains(name)
@@ -372,6 +368,8 @@ impl Context {
 
     /// Install the given meta.
     fn install_meta(&mut self, meta: PrivMeta) -> Result<(), ContextError> {
+        self.names.insert(&meta.item);
+
         if let Some(existing) = self.item_to_hash.insert(meta.item.clone(), meta.hash) {
             if meta.hash != existing {
                 return Err(ContextError::ConflictingMetaHash {
@@ -383,6 +381,32 @@ impl Context {
         }
 
         self.meta.entry(meta.hash).or_default().push(meta);
+        Ok(())
+    }
+
+    /// Install a module, ensuring that its meta is defined.
+    fn install_module(&mut self, item: &Item) -> Result<(), ContextError> {
+        self.names.insert(item);
+        let hash = Hash::type_hash(item);
+
+        if let Some(existing) = self.item_to_hash.insert(item.to_owned(), hash) {
+            if hash != existing {
+                return Err(ContextError::ConflictingMetaHash {
+                    item: item.to_owned(),
+                    hash,
+                    existing,
+                });
+            }
+        }
+
+        self.meta.entry(hash).or_default().push(PrivMeta {
+            hash,
+            associated_container: None,
+            item: item.to_owned(),
+            kind: meta::Kind::Module,
+            docs: Docs::default(),
+        });
+
         Ok(())
     }
 
@@ -478,7 +502,6 @@ impl Context {
                         };
 
                         self.install_meta(PrivMeta::new(
-                            module,
                             hash,
                             Some(enum_hash),
                             item,
@@ -494,13 +517,11 @@ impl Context {
             meta::Kind::Unknown
         };
 
-        self.install_meta(PrivMeta::new(module, type_hash, None, item, kind, docs))?;
+        self.install_meta(PrivMeta::new(type_hash, None, item, kind, docs))?;
         Ok(())
     }
 
     fn install_type_info(&mut self, hash: Hash, info: PrivTypeInfo) -> Result<(), ContextError> {
-        self.names.insert(&info.item);
-
         // reverse lookup for types.
         if let Some(existing) = self.types_rev.insert(info.type_hash, hash) {
             return Err(ContextError::ConflictingTypeHash { hash, existing });
@@ -561,7 +582,6 @@ impl Context {
         self.functions.insert(hash, f.handler.clone());
 
         self.install_meta(PrivMeta::new(
-            module,
             hash,
             None,
             item,
@@ -587,13 +607,9 @@ impl Context {
     ) -> Result<(), ContextError> {
         let item = module.item.join(item);
         let hash = Hash::type_hash(&item);
-
-        self.names.insert(&item);
-
         self.macros.insert(hash, m.handler.clone());
 
         self.install_meta(PrivMeta::new(
-            module,
             hash,
             None,
             item,
@@ -613,14 +629,10 @@ impl Context {
         docs: Docs,
     ) -> Result<(), ContextError> {
         let item = module.item.join(item);
-
-        self.names.insert(&item);
-
         let hash = Hash::type_hash(&item);
         self.constants.insert(hash, v.clone());
 
         self.install_meta(PrivMeta::new(
-            module,
             hash,
             None,
             item,
@@ -635,7 +647,6 @@ impl Context {
 
     fn install_associated(
         &mut self,
-        module: &Module,
         key: &AssociatedKey,
         assoc: &ModuleAssociated,
     ) -> Result<(), ContextError> {
@@ -697,8 +708,6 @@ impl Context {
         // and plain hashes.
         if let AssociatedKind::Instance(name) = &assoc.name.kind {
             let item = info.item.extended(name);
-            self.names.insert(&item);
-
             let type_hash = Hash::type_hash(&item);
             let hash = type_hash.with_parameters(key.parameters);
 
@@ -729,9 +738,9 @@ impl Context {
 
             self.functions.insert(hash, assoc.handler.clone());
 
+            // TODO: remove check since we now have multi meta?
             if !self.item_to_hash.contains_key(&item) {
                 self.install_meta(PrivMeta::new(
-                    module,
                     type_hash,
                     Some(key.type_hash),
                     item,
@@ -759,7 +768,7 @@ impl Context {
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*unit_type.name);
         let hash = Hash::type_hash(&item);
-        self.add_internal_tuple(module, None, item.clone(), 0, || (), docs)?;
+        self.add_internal_tuple(None, item.clone(), 0, || (), docs)?;
 
         self.install_type_info(
             hash,
@@ -791,7 +800,6 @@ impl Context {
         let enum_hash = Hash::type_hash(&enum_item);
 
         self.install_meta(PrivMeta::new(
-            module,
             internal_enum.static_type.hash,
             None,
             enum_item.clone(),
@@ -824,7 +832,6 @@ impl Context {
             )?;
 
             self.install_meta(PrivMeta::new(
-                module,
                 hash,
                 Some(internal_enum.static_type.hash),
                 item.clone(),
@@ -864,7 +871,6 @@ impl Context {
     /// Add a piece of internal tuple meta.
     fn add_internal_tuple<C, A>(
         &mut self,
-        module: &Module,
         enum_item: Option<(Hash, usize)>,
         item: ItemBuf,
         args: usize,
@@ -882,7 +888,6 @@ impl Context {
 
         let priv_meta = match enum_item {
             Some((enum_hash, index)) => PrivMeta::new(
-                module,
                 type_hash,
                 Some(enum_hash),
                 item.clone(),
@@ -894,7 +899,6 @@ impl Context {
                 docs,
             ),
             None => PrivMeta::new(
-                module,
                 type_hash,
                 None,
                 item.clone(),

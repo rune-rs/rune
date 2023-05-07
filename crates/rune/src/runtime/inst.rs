@@ -2,7 +2,7 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::runtime::{FormatSpec, Value};
+use crate::runtime::{FormatSpec, Type, Value};
 use crate::Hash;
 
 /// Pre-canned panic reasons.
@@ -1609,6 +1609,7 @@ impl fmt::Display for InstOp {
 
 /// A literal value that can be pushed.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum InstValue {
     /// A unit.
     Unit,
@@ -1623,7 +1624,7 @@ pub enum InstValue {
     /// A float.
     Float(f64),
     /// A type hash.
-    Type(Hash),
+    Type(Type),
 }
 
 impl InstValue {
@@ -1656,7 +1657,7 @@ impl fmt::Display for InstValue {
             Self::Char(v) => write!(f, "{:?}", v)?,
             Self::Integer(v) => write!(f, "{}", v)?,
             Self::Float(v) => write!(f, "{}", v)?,
-            Self::Type(v) => write!(f, "{}", v)?,
+            Self::Type(v) => write!(f, "{}", v.into_hash())?,
         }
 
         Ok(())

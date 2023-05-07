@@ -16,7 +16,8 @@ mod run;
 mod tests;
 mod visitor;
 
-use core::fmt;
+use std::mem;
+use std::fmt;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -26,11 +27,11 @@ use anyhow::{bail, Context as _, Error, Result};
 use clap::{Parser, Subcommand};
 use tracing_subscriber::filter::EnvFilter;
 
-use crate::compile::{ItemBuf, ParseOptionError};
+use crate::compile::{ItemBuf, ParseOptionError, ComponentRef};
 use crate::modules::capture_io::CaptureIo;
 use crate::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use crate::workspace::WorkspaceFilter;
-use crate::{Context, ContextError, Options};
+use crate::{Context, ContextError, Options, Hash};
 
 /// Default about splash.
 const DEFAULT_ABOUT: &str = "The Rune Language Interpreter";
@@ -200,7 +201,13 @@ where
     shared: SharedFlags,
 }
 
-#[derive(Subcommand, Debug, Clone)]
+#[derive(Parser, Debug)]
+struct HashFlags {
+    /// The item to generate a type hash from.
+    item: String,
+}
+
+#[derive(Subcommand, Debug)]
 enum Command {
     /// Run checks but do not execute
     Check(CommandShared<check::Flags>),
@@ -216,6 +223,8 @@ enum Command {
     Fmt(CommandShared<format::Flags>),
     /// Run a language server.
     LanguageServer(SharedFlags),
+    /// Helper command to generate type hashes.
+    Hash(CommandShared<HashFlags>),
 }
 
 impl Command {
@@ -251,8 +260,7 @@ impl Command {
             Command::Fmt(..) => "Formatting files",
             Command::Test(..) => "Testing",
             Command::Bench(..) => "Benchmarking",
-            Command::Run(..) => "Running",
-            Command::LanguageServer(..) => "Running",
+            _ => "Running",
         }
     }
 
@@ -265,6 +273,7 @@ impl Command {
             Command::Bench(args) => &args.shared,
             Command::Run(args) => &args.shared,
             Command::LanguageServer(shared) => shared,
+            Command::Hash(args) => &args.shared,
         }
     }
 
@@ -388,7 +397,7 @@ impl SharedFlags {
     }
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug)]
 #[command(name = "rune", about = None)]
 struct Args {
     /// Print the version of the command.
@@ -806,6 +815,28 @@ where
         Command::LanguageServer(shared) => {
             let context = shared.context(entry, c, None)?;
             languageserver::run(context).await?;
+        }
+        Command::Hash(args) => {
+            let mut item = ItemBuf::new();
+            let mut next_crate = false;
+
+            for c in args.command.item.split("::") {
+                if c.is_empty() {
+                    next_crate = true;
+                    continue;
+                }
+
+                if mem::take(&mut next_crate) {
+                    item.push(ComponentRef::Crate(c));
+                } else if let Some(num) = c.strip_prefix('$') {
+                    item.push(ComponentRef::Id(num.parse()?));
+                } else {
+                    item.push(ComponentRef::Str(c));
+                }
+            }
+
+            let hash = Hash::type_hash(&item);
+            writeln!(io.stdout, "{item} => {hash}")?;
         }
     }
 

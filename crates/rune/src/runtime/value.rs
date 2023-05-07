@@ -15,7 +15,7 @@ use crate::runtime::vm::CallResult;
 use crate::runtime::{
     AccessKind, AnyObj, Bytes, ConstValue, EnvProtocolCaller, Format, FromValue, FullTypeOf,
     Function, Future, Generator, GeneratorState, Iterator, MaybeTypeOf, Mut, Object, Protocol,
-    ProtocolCaller, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple,
+    ProtocolCaller, Range, RawMut, RawRef, Ref, Shared, StaticString, Stream, ToValue, Tuple, Type,
     TypeInfo, Variant, Vec, Vm, VmError, VmErrorKind, VmResult,
 };
 use crate::{Any, Hash};
@@ -250,7 +250,7 @@ pub enum Value {
     /// A float.
     Float(f64),
     /// A type hash. Describes a type in the virtual machine.
-    Type(Hash),
+    Type(Type),
     /// A static string.
     ///
     /// While `Rc<str>` would've been enough to store an unsized `str`, either
@@ -409,7 +409,7 @@ impl Value {
                 write!(s, "{:?}", value)
             }
             Value::Type(value) => {
-                write!(s, "Type({})", value)
+                write!(s, "{:?}", value)
             }
             Value::StaticString(value) => {
                 write!(s, "{:?}", value)
@@ -740,10 +740,37 @@ impl Value {
 
     /// Try to coerce value into a float.
     #[inline]
+    pub fn as_float(&self) -> VmResult<f64> {
+        match self {
+            Self::Float(float) => VmResult::Ok(*float),
+            actual => err(VmErrorKind::expected::<f64>(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce value into a float.
+    #[inline]
     pub fn into_float(self) -> VmResult<f64> {
         match self {
             Self::Float(float) => VmResult::Ok(float),
             actual => err(VmErrorKind::expected::<f64>(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce value into a type.
+    #[inline]
+    pub fn as_type(&self) -> VmResult<Type> {
+        match self {
+            Self::Type(ty) => VmResult::Ok(*ty),
+            actual => err(VmErrorKind::expected::<Type>(vm_try!(actual.type_info()))),
+        }
+    }
+
+    /// Try to coerce value into a type.
+    #[inline]
+    pub fn into_type(self) -> VmResult<Type> {
+        match self {
+            Self::Type(ty) => VmResult::Ok(ty),
+            actual => err(VmErrorKind::expected::<Type>(vm_try!(actual.type_info()))),
         }
     }
 
@@ -980,10 +1007,10 @@ impl Value {
             Self::GeneratorState(..) => crate::runtime::GENERATOR_STATE_TYPE.hash,
             Self::Result(..) => crate::runtime::RESULT_TYPE.hash,
             Self::Option(..) => crate::runtime::OPTION_TYPE.hash,
-            Self::Function(func) => func.borrow_ref()?.type_hash(),
+            Self::Function(..) => crate::runtime::FUNCTION_TYPE.hash,
             Self::Format(..) => crate::runtime::FORMAT_TYPE.hash,
             Self::Iterator(..) => crate::runtime::ITERATOR_TYPE.hash,
-            Self::Type(hash) => *hash,
+            Self::Type(..) => crate::runtime::TYPE.hash,
             Self::UnitStruct(empty) => empty.borrow_ref()?.rtti.hash,
             Self::TupleStruct(tuple) => tuple.borrow_ref()?.rtti.hash,
             Self::Struct(object) => object.borrow_ref()?.rtti.hash,
@@ -1157,7 +1184,7 @@ impl fmt::Debug for Value {
                 write!(f, "{:?}", value)?;
             }
             Value::Type(value) => {
-                write!(f, "Type({})", value)?;
+                write!(f, "{:?}", value)?;
             }
             Value::StaticString(value) => {
                 write!(f, "{:?}", value)?;
@@ -1316,6 +1343,7 @@ impl_from! {
     Char => char,
     Integer => i64,
     Float => f64,
+    Type => Type,
     Option => Shared<Option<Value>>,
     Result => Shared<Result<Value, Value>>,
 }

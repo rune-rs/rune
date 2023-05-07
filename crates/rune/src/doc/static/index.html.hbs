@@ -1,14 +1,11 @@
-<head></head>
-{{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
-{{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
-<body>
-<h3 class="title">Index</h3>
+{{#> layout}}
+    <h3 class="title">Index</h3>
 
-{{#if modules}}
-<h4 class="section-title">Modules</h4>
+    {{#if modules}}
+        <h4 class="section-title">Modules</h4>
 
-{{#each modules}}
-    <div class="item-entry"><a href="{{this.path}}">{{this.item}}</a></div>
-{{/each}}
-{{/if}}
-</body>
+        {{#each modules}}
+            <div class="item-entry"><a href="{{this.path}}">{{this.item}}</a></div>
+        {{/each}}
+    {{/if}}
+{{/layout}}

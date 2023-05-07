@@ -1,11 +1,15 @@
 mod enum_;
 mod type_;
+mod markdown;
 
+use std::fmt;
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::str;
 
 use crate::no_std::prelude::*;
+use crate::no_std::borrow::Cow;
 
 use anyhow::{anyhow, bail, Context as _, Error, Result};
 use relative_path::{RelativePath, RelativePathBuf};
@@ -16,15 +20,12 @@ use syntect::highlighting::ThemeSet;
 use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
-use crate::collections::{BTreeSet, HashMap, VecDeque};
+use crate::collections::{BTreeSet, VecDeque};
 use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Function, Kind, Signature};
 use crate::doc::templating;
 use crate::doc::{Context, Visitor};
 use crate::Hash;
-
-const RUST_TOKEN: &str = "rust";
-const RUNE_TOKEN: &str = "rune";
 
 // InspiredGitHub
 // Solarized (dark)
@@ -45,6 +46,7 @@ struct Shared {
     css: Vec<RelativePathBuf>,
 }
 
+#[derive(Debug, Clone, Copy)]
 enum ItemPath {
     Type,
     Struct,
@@ -54,7 +56,20 @@ enum ItemPath {
     Function,
 }
 
-struct Ctxt<'a> {
+impl fmt::Display for ItemPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ItemPath::Type => "type".fmt(f),
+            ItemPath::Struct => "struct".fmt(f),
+            ItemPath::Enum => "enum".fmt(f),
+            ItemPath::Module => "module".fmt(f),
+            ItemPath::Macro => "macro".fmt(f),
+            ItemPath::Function => "function".fmt(f),
+        }
+    }
+}
+
+pub(crate) struct Ctxt<'a> {
     root: &'a Path,
     item: ItemBuf,
     path: RelativePathBuf,
@@ -72,10 +87,10 @@ struct Ctxt<'a> {
 }
 
 impl Ctxt<'_> {
-    fn set_path(&mut self, item: ItemBuf, kind: ItemPath) {
+    fn set_path(&mut self, item: &Item, kind: ItemPath) {
         self.path = RelativePathBuf::new();
-        build_item_path(self.name, &item, kind, &mut self.path);
-        self.item = item;
+        build_item_path(self.name, item, kind, &mut self.path);
+        self.item = item.to_owned();
     }
 
     fn dir(&self) -> &RelativePath {
@@ -105,51 +120,20 @@ impl Ctxt<'_> {
     }
 
     /// Render rust code.
-    fn render_code<I>(&self, lines: I) -> String
+    fn render_code<I>(&self, lines: I) -> Result<String>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let syntax = match self.syntax_set.find_syntax_by_token(RUST_TOKEN) {
+        let syntax = match self.syntax_set.find_syntax_by_token(self::markdown::RUST_TOKEN) {
             Some(syntax) => syntax,
             None => self.syntax_set.find_syntax_plain_text(),
         };
 
-        format!(
+        Ok(format!(
             "<pre><code class=\"language-rune\">{}</code></pre>",
-            self.render_code_by_syntax(lines, syntax)
-        )
-    }
-
-    /// Render documentation.
-    fn render_code_by_syntax<I>(&self, lines: I, syntax: &SyntaxReference) -> String
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
-        let mut buf = String::new();
-
-        let mut gen = ClassedHTMLGenerator::new_with_class_style(
-            syntax,
-            &self.syntax_set,
-            ClassStyle::Spaced,
-        );
-
-        for line in lines {
-            let line = line.as_ref();
-            let line = line.strip_prefix(' ').unwrap_or(line);
-
-            if line.starts_with('#') {
-                continue;
-            }
-
-            buf.clear();
-            buf.push_str(line);
-            buf.push('\n');
-            let _ = gen.parse_html_for_line_which_includes_newline(&buf);
-        }
-
-        gen.finalize()
+            render_code_by_syntax(&self.syntax_set, lines, syntax)?
+        ))
     }
 
     /// Render documentation.
@@ -157,97 +141,13 @@ impl Ctxt<'_> {
     where
         S: AsRef<str>,
     {
-        use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
+        use pulldown_cmark::{Options, Parser, BrokenLink};
         use std::fmt::Write;
-
-        struct Filter<'a> {
-            cx: &'a Ctxt<'a>,
-            parser: Parser<'a, 'a>,
-            codeblock: Option<&'a SyntaxReference>,
-        }
-
-        impl<'a> Filter<'a> {
-            fn new(cx: &'a Ctxt<'a>, parser: Parser<'a, 'a>) -> Self {
-                Self {
-                    cx,
-                    parser,
-                    codeblock: None,
-                }
-            }
-        }
-
-        impl<'a> Iterator for Filter<'a> {
-            type Item = Event<'a>;
-
-            #[inline]
-            fn next(&mut self) -> Option<Self::Item> {
-                let e = self.parser.next()?;
-
-                match (e, self.codeblock) {
-                    (Event::Start(Tag::CodeBlock(kind)), _) => {
-                        self.codeblock = None;
-
-                        if let CodeBlockKind::Fenced(fences) = &kind {
-                            for token in fences.split(',') {
-                                let token = match token.trim() {
-                                    RUNE_TOKEN => RUST_TOKEN,
-                                    token => token,
-                                };
-
-                                if let Some(syntax) = self.cx.syntax_set.find_syntax_by_token(token)
-                                {
-                                    self.codeblock = Some(syntax);
-                                    return Some(Event::Start(Tag::CodeBlock(kind)));
-                                }
-                            }
-                        }
-
-                        if self.codeblock.is_none() {
-                            self.codeblock = self.cx.syntax_set.find_syntax_by_token(RUST_TOKEN);
-                        }
-
-                        if self.codeblock.is_none() {
-                            self.codeblock = Some(self.cx.syntax_set.find_syntax_plain_text());
-                        }
-
-                        Some(Event::Start(Tag::CodeBlock(kind)))
-                    }
-                    (Event::End(Tag::CodeBlock(kind)), Some(_)) => {
-                        self.codeblock = None;
-                        Some(Event::End(Tag::CodeBlock(kind)))
-                    }
-                    (Event::Text(text), syntax) => {
-                        if let Some(syntax) = syntax {
-                            let html = self.cx.render_code_by_syntax(text.lines(), syntax);
-                            Some(Event::Html(CowStr::Boxed(html.into())))
-                        } else {
-                            let mut buf = String::new();
-
-                            for line in text.lines() {
-                                let line = line.strip_prefix(' ').unwrap_or(line);
-
-                                if line.starts_with('#') {
-                                    continue;
-                                }
-
-                                buf.push_str(line);
-                                buf.push('\n');
-                            }
-
-                            Some(Event::Text(CowStr::Boxed(buf.into())))
-                        }
-                    }
-                    (event, _) => Some(event),
-                }
-            }
-        }
 
         if docs.is_empty() {
             return Ok(None);
         }
 
-        let mut o = String::new();
-        write!(o, "<div class=\"docs\">")?;
         let mut input = String::new();
 
         for line in docs {
@@ -257,12 +157,19 @@ impl Ctxt<'_> {
             input.push('\n');
         }
 
+        let mut o = String::new();
+        write!(o, "<div class=\"docs\">")?;
         let mut options = Options::empty();
         options.insert(Options::ENABLE_STRIKETHROUGH);
-        let parser = Filter::new(self, Parser::new_ext(&input, options));
-        let mut out = String::new();
-        pulldown_cmark::html::push_html(&mut out, parser);
-        write!(o, "{out}")?;
+
+        let mut callback = |link: BrokenLink<'_>| {
+            let (path, title) = self.link_callback(link.reference.as_ref())?;
+            Some((path.to_string().into(), title.into()))
+        };
+
+        let iter = Parser::new_with_broken_link_callback(&input, options, Some(&mut callback));
+
+        markdown::push_html(&self.syntax_set, &mut o, iter)?;
         write!(o, "</div>")?;
         Ok(Some(o))
     }
@@ -423,24 +330,109 @@ impl Ctxt<'_> {
 
         Ok(string)
     }
+
+    fn link_callback(&self, link: &str) -> Option<(RelativePathBuf, String)> {
+        enum Flavor {
+            Any,
+            Macro,
+            Function,
+        }
+
+        impl Flavor {
+            fn is_struct(&self) -> bool {
+                matches!(self, Flavor::Any)
+            }
+
+            fn is_enum(&self) -> bool {
+                matches!(self, Flavor::Any)
+            }
+
+            fn is_macro(&self) -> bool {
+                matches!(self, Flavor::Any | Flavor::Macro)
+            }
+
+            fn is_function(&self) -> bool {
+                matches!(self, Flavor::Any | Flavor::Function)
+            }
+        }
+
+        fn flavor(link: &str) -> (&str, Flavor) {
+            if let Some(link) = link.strip_suffix('!') {
+                return (link, Flavor::Macro);
+            }
+
+            if let Some(link) = link.strip_suffix("()") {
+                return (link, Flavor::Function);
+            }
+
+            (link, Flavor::Any)
+        }
+
+        let link = link.trim_matches(|c| matches!(c, '`'));
+        let (link, flavor) = flavor(link);
+
+        let item = self.item.parent()?.join([link]);
+
+        let item_path = 'out: {
+            let mut alts = Vec::new();
+
+            for meta in self.context.meta(&item) {
+                alts.push(match meta.kind {
+                    Kind::Struct if flavor.is_struct() => ItemPath::Struct,
+                    Kind::Enum if flavor.is_enum() => ItemPath::Enum,
+                    Kind::Macro if flavor.is_macro() => ItemPath::Macro,
+                    Kind::Function(_) if flavor.is_function() => ItemPath::Function,
+                    _ => {
+                        continue;
+                    },
+                });
+            }
+
+            match &alts[..] {
+                [] => {
+                    tracing::warn!(?link, "Bad link, no items found");
+                }
+                [out] => break 'out *out,
+                items => {
+                    tracing::warn!(?link, ?items, "Bad link, got multiple items");
+                }
+            }
+
+            return None;
+        };
+
+        let path = self.item_path(&item, item_path);
+        let title = format!("{item_path} {link}");
+        Some((path, title))
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Build<'a> {
-    Type(ItemBuf, Hash),
-    Struct(ItemBuf, Hash),
-    Enum(ItemBuf, Hash),
-    Macro(ItemBuf),
-    Function(ItemBuf),
-    Module(&'a Item),
+    Type(&'a Item, Hash),
+    Struct(&'a Item, Hash),
+    Enum(&'a Item, Hash),
+    Macro(&'a Item),
+    Function(&'a Item),
+    Module(Cow<'a, Item>),
+}
+
+/// Get an asset as a string.
+fn asset_str(path: &str) -> Result<Cow<'static, str>> {
+    let asset = Assets::get(path).with_context(|| anyhow!("{path}: missing asset"))?;
+
+    let data = match asset.data {
+        Cow::Borrowed(data) => Cow::Borrowed(str::from_utf8(data).with_context(|| anyhow!("{path}: not utf-8"))?),
+        Cow::Owned(data) => Cow::Owned(String::from_utf8(data).with_context(|| anyhow!("{path}: not utf-8"))?),
+    };
+
+    Ok(data)
 }
 
 /// Compile a template.
 fn compile(templating: &templating::Templating, path: &str) -> Result<templating::Template> {
-    let template = Assets::get(path).with_context(|| anyhow!("{path}: missing"))?;
-    let template = std::str::from_utf8(template.data.as_ref())
-        .with_context(|| anyhow!("{path}: not utf-8"))?;
-    templating.compile(template)
+    let template = asset_str(path)?;
+    templating.compile(template.as_ref())
 }
 
 /// Write html documentation to the given path.
@@ -452,7 +444,9 @@ pub fn write_html(
 ) -> Result<()> {
     let context = Context::new(context, visitors);
 
-    let templating = templating::Templating::new()?;
+    let templating = templating::Templating::new([
+        ("layout", asset_str("layout.html.hbs")?),
+    ])?;
 
     let syntax_set = SyntaxSet::load_defaults_newlines();
     let theme_set = ThemeSet::load_defaults();
@@ -488,17 +482,9 @@ pub fn write_html(
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
     let mut initial = BTreeSet::new();
-    let mut children = HashMap::<ItemBuf, BTreeSet<_>>::new();
 
     for module in context.iter_modules() {
-        initial.insert(Build::Module(module));
-
-        if let Some(parent) = module.parent() {
-            children
-                .entry(parent.to_owned())
-                .or_default()
-                .insert(module);
-        }
+        initial.insert(Build::Module(Cow::Owned(module)));
     }
 
     let mut cx = Ctxt {
@@ -545,8 +531,8 @@ pub fn write_html(
                 build_function(&cx)?;
             }
             Build::Module(item) => {
-                cx.set_path(item.to_owned(), ItemPath::Module);
-                module(&cx, &mut queue, &children)?;
+                cx.set_path(item.as_ref(), ItemPath::Module);
+                module(&cx, &mut queue)?;
                 modules.push((item, cx.path.clone()));
             }
         }
@@ -572,7 +558,7 @@ fn copy_file<'a>(
 }
 
 #[tracing::instrument(skip_all)]
-fn index(cx: &Ctxt<'_>, mods: &[(&Item, RelativePathBuf)]) -> Result<()> {
+fn index(cx: &Ctxt<'_>, mods: &[(Cow<'_, Item>, RelativePathBuf)]) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -590,6 +576,18 @@ fn index(cx: &Ctxt<'_>, mods: &[(&Item, RelativePathBuf)]) -> Result<()> {
     let mut modules = Vec::new();
 
     for (item, path) in mods {
+        let mut c = item.iter();
+
+        match c.next() {
+            None => {},
+            Some(ComponentRef::Crate(..)) => {}
+            _ => continue,
+        }
+
+        if c.next().is_some() {
+            continue;
+        }
+
         modules.push(Module { item, path });
     }
 
@@ -603,11 +601,7 @@ fn index(cx: &Ctxt<'_>, mods: &[(&Item, RelativePathBuf)]) -> Result<()> {
 
 /// Build a single module.
 #[tracing::instrument(skip_all)]
-fn module(
-    cx: &Ctxt<'_>,
-    queue: &mut VecDeque<Build>,
-    children: &HashMap<ItemBuf, BTreeSet<&Item>>,
-) -> Result<()> {
+fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -657,7 +651,7 @@ fn module(
     struct Macro<'a> {
         path: RelativePathBuf,
         #[serde(serialize_with = "serialize_item")]
-        item: ItemBuf,
+        item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
         name: ComponentRef<'a>,
         doc: Option<String>,
@@ -698,7 +692,7 @@ fn module(
         for meta in cx.context.meta(&item) {
             match meta.kind {
                 Kind::Unknown { .. } => {
-                    queue.push_front(Build::Type(item.clone(), meta.hash));
+                    queue.push_front(Build::Type(meta.item, meta.hash));
                     let path = cx.item_path(&item, ItemPath::Type);
                     types.push(Type {
                         item: item.clone(),
@@ -708,7 +702,7 @@ fn module(
                     });
                 }
                 Kind::Struct { .. } => {
-                    queue.push_front(Build::Struct(item.clone(), meta.hash));
+                    queue.push_front(Build::Struct(meta.item, meta.hash));
                     let path = cx.item_path(&item, ItemPath::Struct);
                     structs.push(Struct {
                         item: item.clone(),
@@ -718,7 +712,7 @@ fn module(
                     });
                 }
                 Kind::Enum { .. } => {
-                    queue.push_front(Build::Enum(item.clone(), meta.hash));
+                    queue.push_front(Build::Enum(meta.item, meta.hash));
                     let path = cx.item_path(&item, ItemPath::Enum);
                     enums.push(Enum {
                         item: item.clone(),
@@ -728,11 +722,11 @@ fn module(
                     });
                 }
                 Kind::Macro => {
-                    queue.push_front(Build::Macro(item.clone()));
+                    queue.push_front(Build::Macro(meta.item));
 
                     macros.push(Macro {
-                        path: cx.item_path(&item, ItemPath::Macro),
-                        item: item.clone(),
+                        path: cx.item_path(meta.item, ItemPath::Macro),
+                        item: meta.item,
                         name,
                         doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
                     });
@@ -742,7 +736,7 @@ fn module(
                         continue;
                     }
 
-                    queue.push_front(Build::Function(item.clone()));
+                    queue.push_front(Build::Function(meta.item));
 
                     functions.push(Function {
                         is_async: f.is_async,
@@ -753,18 +747,22 @@ fn module(
                         doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
                     });
                 }
+                Kind::Module => {
+                    // Skip over crate items, since they are added separately.
+                    if cx.item.is_empty() && meta.item.as_crate().is_some() {
+                        continue;
+                    }
+
+                    queue.push_front(Build::Module(Cow::Borrowed(meta.item)));
+                    let path = cx.item_path(meta.item, ItemPath::Module);
+                    let name = meta.item.last().context("missing name of module")?;
+                    modules.push(Module { item: meta.item, name, path })
+                }
                 _ => {
                     continue;
                 }
             }
         }
-    }
-
-    for item in children.get(&cx.item).into_iter().flatten() {
-        let path = cx.item_path(item, ItemPath::Module);
-        let name = item.last().context("missing name of module")?;
-
-        modules.push(Module { item, name, path })
     }
 
     cx.write_file(|cx| {
@@ -933,4 +931,35 @@ fn build_item_path(name: &str, item: &Item, kind: ItemPath, path: &mut RelativeP
         ItemPath::Macro => "macro.html",
         ItemPath::Function => "fn.html",
     });
+}
+
+/// Render documentation.
+fn render_code_by_syntax<I>(syntax_set: &SyntaxSet, lines: I, syntax: &SyntaxReference) -> Result<String>
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
+{
+    let mut buf = String::new();
+
+    let mut gen = ClassedHTMLGenerator::new_with_class_style(
+        syntax,
+        syntax_set,
+        ClassStyle::Spaced,
+    );
+
+    for line in lines {
+        let line = line.as_ref();
+        let line = line.strip_prefix(' ').unwrap_or(line);
+
+        if line.starts_with('#') {
+            continue;
+        }
+
+        buf.clear();
+        buf.push_str(line);
+        buf.push('\n');
+        gen.parse_html_for_line_which_includes_newline(&buf)?;
+    }
+
+    Ok(gen.finalize())
 }

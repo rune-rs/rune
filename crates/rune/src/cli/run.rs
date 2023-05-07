@@ -9,7 +9,7 @@ use crate::cli::{Config, ExitCode, Io};
 use crate::runtime::{VmError, VmExecution, VmResult};
 use crate::{Context, Sources, Unit, Value, Vm};
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug)]
 pub(super) struct Flags {
     /// Provide detailed tracing for each instruction executed.
     #[arg(short, long)]

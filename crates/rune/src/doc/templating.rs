@@ -1,5 +1,6 @@
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
+use crate::no_std::borrow::Cow;
 
 use handlebars::{
     Context, Handlebars, Helper, HelperResult, Output, RenderContext, Renderable, StringOutput,
@@ -36,9 +37,13 @@ pub(crate) struct Templating {
 
 impl Templating {
     /// Set up a new templating engine.
-    pub(crate) fn new() -> Result<Templating> {
+    pub(crate) fn new<'a, I>(partials: I) -> Result<Templating> where I: IntoIterator<Item = (&'a str, Cow<'a, str>)> {
         let mut handlebars = Handlebars::new();
         handlebars.register_helper("literal", Box::new(literal));
+
+        for (name, source) in partials {
+            handlebars.register_partial(name, source.as_ref())?;
+        }
 
         Ok(Templating {
             handlebars: Arc::new(handlebars),

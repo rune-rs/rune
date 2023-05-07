@@ -7,7 +7,7 @@ use crate::cli::{ExitCode, Io};
 use crate::termcolor::WriteColor;
 use crate::Source;
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug)]
 pub(super) struct Flags {
     /// Exit with a non-zero exit-code even for warnings
     #[arg(long)]

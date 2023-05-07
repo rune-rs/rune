@@ -1,0 +1,8 @@
+<head></head>
+{{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
+{{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
+<body>
+    <div id="container">
+        {{> @partial-block}}
+    </div>
+</body>
