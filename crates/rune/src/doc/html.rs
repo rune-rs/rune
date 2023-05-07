@@ -47,7 +47,7 @@ struct Shared {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ItemPath {
+enum ItemKind {
     Type,
     Struct,
     Enum,
@@ -56,15 +56,15 @@ enum ItemPath {
     Function,
 }
 
-impl fmt::Display for ItemPath {
+impl fmt::Display for ItemKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ItemPath::Type => "type".fmt(f),
-            ItemPath::Struct => "struct".fmt(f),
-            ItemPath::Enum => "enum".fmt(f),
-            ItemPath::Module => "module".fmt(f),
-            ItemPath::Macro => "macro".fmt(f),
-            ItemPath::Function => "function".fmt(f),
+            ItemKind::Type => "type".fmt(f),
+            ItemKind::Struct => "struct".fmt(f),
+            ItemKind::Enum => "enum".fmt(f),
+            ItemKind::Module => "module".fmt(f),
+            ItemKind::Macro => "macro".fmt(f),
+            ItemKind::Function => "function".fmt(f),
         }
     }
 }
@@ -72,6 +72,7 @@ impl fmt::Display for ItemPath {
 pub(crate) struct Ctxt<'a> {
     root: &'a Path,
     item: ItemBuf,
+    item_kind: ItemKind,
     path: RelativePathBuf,
     name: &'a str,
     context: &'a Context<'a>,
@@ -87,10 +88,11 @@ pub(crate) struct Ctxt<'a> {
 }
 
 impl Ctxt<'_> {
-    fn set_path(&mut self, item: &Item, kind: ItemPath) {
+    fn set_path(&mut self, item: &Item, kind: ItemKind) {
         self.path = RelativePathBuf::new();
         build_item_path(self.name, item, kind, &mut self.path);
         self.item = item.to_owned();
+        self.item_kind = kind;
     }
 
     fn dir(&self) -> &RelativePath {
@@ -175,7 +177,7 @@ impl Ctxt<'_> {
     }
 
     #[inline]
-    fn item_path(&self, item: &Item, kind: ItemPath) -> RelativePathBuf {
+    fn item_path(&self, item: &Item, kind: ItemKind) -> RelativePathBuf {
         let mut path = RelativePathBuf::new();
         build_item_path(self.name, item, kind, &mut path);
         self.dir().relative(path)
@@ -188,7 +190,7 @@ impl Ctxt<'_> {
 
         while iter.next_back().is_some() {
             if let Some(name) = iter.as_item().last() {
-                let url = self.item_path(iter.as_item(), ItemPath::Module);
+                let url = self.item_path(iter.as_item(), ItemKind::Module);
                 module.push(format!("<a class=\"module\" href=\"{url}\">{name}</a>"));
             }
         }
@@ -218,15 +220,15 @@ impl Ctxt<'_> {
 
             match &meta.kind {
                 Kind::Type => {
-                    let path = self.item_path(meta.item, ItemPath::Type);
+                    let path = self.item_path(meta.item, ItemKind::Type);
                     format!("<a class=\"type\" href=\"{path}\">{name}</a>")
                 }
                 Kind::Struct => {
-                    let path = self.item_path(meta.item, ItemPath::Struct);
+                    let path = self.item_path(meta.item, ItemKind::Struct);
                     format!("<a class=\"struct\" href=\"{path}\">{name}</a>")
                 }
                 Kind::Enum => {
-                    let path = self.item_path(meta.item, ItemPath::Enum);
+                    let path = self.item_path(meta.item, ItemKind::Enum);
                     format!("<a class=\"enum\" href=\"{path}\">{name}</a>")
                 }
                 kind => format!("{kind:?}"),
@@ -371,17 +373,21 @@ impl Ctxt<'_> {
         let link = link.trim_matches(|c| matches!(c, '`'));
         let (link, flavor) = flavor(link);
 
-        let item = self.item.parent()?.join([link]);
+        let item = if matches!(self.item_kind, ItemKind::Module) {
+            self.item.join([link])
+        } else {
+            self.item.parent()?.join([link])
+        };
 
         let item_path = 'out: {
             let mut alts = Vec::new();
 
             for meta in self.context.meta(&item) {
                 alts.push(match meta.kind {
-                    Kind::Struct if flavor.is_struct() => ItemPath::Struct,
-                    Kind::Enum if flavor.is_enum() => ItemPath::Enum,
-                    Kind::Macro if flavor.is_macro() => ItemPath::Macro,
-                    Kind::Function(_) if flavor.is_function() => ItemPath::Function,
+                    Kind::Struct if flavor.is_struct() => ItemKind::Struct,
+                    Kind::Enum if flavor.is_enum() => ItemKind::Enum,
+                    Kind::Macro if flavor.is_macro() => ItemKind::Macro,
+                    Kind::Function(_) if flavor.is_function() => ItemKind::Function,
                     _ => {
                         continue;
                     },
@@ -414,7 +420,7 @@ enum Build<'a> {
     Enum(&'a Item, Hash),
     Macro(&'a Item),
     Function(&'a Item),
-    Module(Cow<'a, Item>),
+    Module(Cow<'a, Item>, Hash),
 }
 
 /// Get an asset as a string.
@@ -484,12 +490,14 @@ pub fn write_html(
     let mut initial = BTreeSet::new();
 
     for module in context.iter_modules() {
-        initial.insert(Build::Module(Cow::Owned(module)));
+        let hash = Hash::type_hash(&module);
+        initial.insert(Build::Module(Cow::Owned(module), hash));
     }
 
     let mut cx = Ctxt {
         root,
         item: ItemBuf::new(),
+        item_kind: ItemKind::Module,
         path: RelativePathBuf::new(),
         name,
         context: &context,
@@ -511,28 +519,28 @@ pub fn write_html(
     while let Some(build) = queue.pop_front() {
         match build {
             Build::Type(item, hash) => {
-                cx.set_path(item, ItemPath::Type);
+                cx.set_path(item, ItemKind::Type);
                 self::type_::build(&cx, "Type", "type", hash)?;
             }
             Build::Struct(item, hash) => {
-                cx.set_path(item, ItemPath::Struct);
+                cx.set_path(item, ItemKind::Struct);
                 self::type_::build(&cx, "Struct", "struct", hash)?;
             }
             Build::Enum(item, hash) => {
-                cx.set_path(item, ItemPath::Enum);
+                cx.set_path(item, ItemKind::Enum);
                 self::enum_::build(&cx, hash)?;
             }
             Build::Macro(item) => {
-                cx.set_path(item, ItemPath::Macro);
+                cx.set_path(item, ItemKind::Macro);
                 build_macro(&cx)?;
             }
             Build::Function(item) => {
-                cx.set_path(item, ItemPath::Function);
+                cx.set_path(item, ItemKind::Function);
                 build_function(&cx)?;
             }
-            Build::Module(item) => {
-                cx.set_path(item.as_ref(), ItemPath::Module);
-                module(&cx, &mut queue)?;
+            Build::Module(item, hash) => {
+                cx.set_path(item.as_ref(), ItemKind::Module);
+                module(&cx, hash, &mut queue)?;
                 modules.push((item, cx.path.clone()));
             }
         }
@@ -601,7 +609,7 @@ fn index(cx: &Ctxt<'_>, mods: &[(Cow<'_, Item>, RelativePathBuf)]) -> Result<()>
 
 /// Build a single module.
 #[tracing::instrument(skip_all)]
-fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
+fn module<'a>(cx: &Ctxt<'a>, hash: Hash, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -609,6 +617,7 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
         #[serde(serialize_with = "serialize_item")]
         item: &'a Item,
         module: String,
+        doc: Option<String>,
         types: Vec<Type<'a>>,
         structs: Vec<Struct<'a>>,
         enums: Vec<Enum<'a>>,
@@ -678,7 +687,8 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
         path: RelativePathBuf,
     }
 
-    let module = cx.module_path_html(true);
+    let doc = cx.context.meta_by_hash(hash).into_iter().find(|m| matches!(m.kind, Kind::Module)).map(|m| m.docs).unwrap_or_default();
+
     let mut types = Vec::new();
     let mut structs = Vec::new();
     let mut enums = Vec::new();
@@ -693,7 +703,7 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
             match meta.kind {
                 Kind::Type { .. } => {
                     queue.push_front(Build::Type(meta.item, meta.hash));
-                    let path = cx.item_path(&item, ItemPath::Type);
+                    let path = cx.item_path(&item, ItemKind::Type);
                     types.push(Type {
                         item: item.clone(),
                         path,
@@ -703,7 +713,7 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
                 }
                 Kind::Struct { .. } => {
                     queue.push_front(Build::Struct(meta.item, meta.hash));
-                    let path = cx.item_path(&item, ItemPath::Struct);
+                    let path = cx.item_path(&item, ItemKind::Struct);
                     structs.push(Struct {
                         item: item.clone(),
                         path,
@@ -713,7 +723,7 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
                 }
                 Kind::Enum { .. } => {
                     queue.push_front(Build::Enum(meta.item, meta.hash));
-                    let path = cx.item_path(&item, ItemPath::Enum);
+                    let path = cx.item_path(&item, ItemKind::Enum);
                     enums.push(Enum {
                         item: item.clone(),
                         path,
@@ -725,7 +735,7 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
                     queue.push_front(Build::Macro(meta.item));
 
                     macros.push(Macro {
-                        path: cx.item_path(meta.item, ItemPath::Macro),
+                        path: cx.item_path(meta.item, ItemKind::Macro),
                         item: meta.item,
                         name,
                         doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
@@ -740,7 +750,7 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
 
                     functions.push(Function {
                         is_async: f.is_async,
-                        path: cx.item_path(&item, ItemPath::Function),
+                        path: cx.item_path(&item, ItemKind::Function),
                         item: item.clone(),
                         name,
                         args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
@@ -753,8 +763,8 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
                         continue;
                     }
 
-                    queue.push_front(Build::Module(Cow::Borrowed(meta.item)));
-                    let path = cx.item_path(meta.item, ItemPath::Module);
+                    queue.push_front(Build::Module(Cow::Borrowed(meta.item), meta.hash));
+                    let path = cx.item_path(meta.item, ItemKind::Module);
                     let name = meta.item.last().context("missing name of module")?;
                     modules.push(Module { item: meta.item, name, path })
                 }
@@ -769,7 +779,8 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
         cx.module_template.render(&Params {
             shared: cx.shared(),
             item: &cx.item,
-            module,
+            module: cx.module_path_html(true),
+            doc: cx.render_docs(doc)?,
             types,
             structs,
             enums,
@@ -908,7 +919,7 @@ fn ensure_parent_dir(path: &Path) -> Result<()> {
 }
 
 /// Helper for building an item path.
-fn build_item_path(name: &str, item: &Item, kind: ItemPath, path: &mut RelativePathBuf) {
+fn build_item_path(name: &str, item: &Item, kind: ItemKind, path: &mut RelativePathBuf) {
     if item.is_empty() {
         path.push(name);
     } else {
@@ -924,12 +935,12 @@ fn build_item_path(name: &str, item: &Item, kind: ItemPath, path: &mut RelativeP
     }
 
     path.set_extension(match kind {
-        ItemPath::Type => "type.html",
-        ItemPath::Struct => "struct.html",
-        ItemPath::Enum => "enum.html",
-        ItemPath::Module => "module.html",
-        ItemPath::Macro => "macro.html",
-        ItemPath::Function => "fn.html",
+        ItemKind::Type => "type.html",
+        ItemKind::Struct => "struct.html",
+        ItemKind::Enum => "enum.html",
+        ItemKind::Module => "module.html",
+        ItemKind::Macro => "macro.html",
+        ItemKind::Function => "fn.html",
     });
 }
 

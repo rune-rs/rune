@@ -16,6 +16,22 @@ use crate::{ContextError, Module};
 pub fn module(stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["io"]).with_unique("std::io");
 
+    module.item_mut().docs([
+        "The std::io module contains a number of common things",
+        "you’ll need when doing input and output.",
+        "The most core parts of this module are the [print()], [println()], ",
+        "and [dbg()] functions which are used to hook up printing for a Rune project.",
+        "",
+        "With complete names:",
+        "* `::std::io::print`",
+        "* `::std::io::println`",
+        "* `::std::io::dbg`",
+        "",
+        "Their definitions can be omitted from the built-in standard library, and",
+        "can then easily be defined by third party modules allowing for printing",
+        "to be hooked up to whatever system you want.",
+    ]);
+
     module.ty::<io::Error>()?;
     module.inst_fn(Protocol::STRING_DISPLAY, format_io_error)?;
 

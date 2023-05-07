@@ -43,6 +43,8 @@ pub struct Module {
     pub(crate) unit_type: Option<UnitType>,
     /// Registered generator state type.
     pub(crate) internal_enums: Vec<InternalEnum>,
+    /// Module level documentation.
+    pub(crate) docs: Docs,
 }
 
 impl Module {
@@ -94,6 +96,14 @@ impl Module {
             unit_type: None,
             internal_enums: Vec::new(),
             constants: HashMap::default(),
+            docs: Docs::default(),
+        }
+    }
+
+    /// Mutate item-level properties for this module.
+    pub fn item_mut(&mut self) -> ItemMut<'_> {
+        ItemMut {
+            docs: &mut self.docs,
         }
     }
 

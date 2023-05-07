@@ -221,7 +221,7 @@ impl Context {
             self.crates.insert(name.into());
         }
 
-        self.install_module(&module.item)?;
+        self.install_module(module)?;
 
         for (type_hash, ty) in &module.types {
             self.install_type(module, *type_hash, ty, Docs::default())?;
@@ -385,14 +385,14 @@ impl Context {
     }
 
     /// Install a module, ensuring that its meta is defined.
-    fn install_module(&mut self, item: &Item) -> Result<(), ContextError> {
-        self.names.insert(item);
-        let hash = Hash::type_hash(item);
+    fn install_module(&mut self, m: &Module) -> Result<(), ContextError> {
+        self.names.insert(&m.item);
+        let hash = Hash::type_hash(&m.item);
 
-        if let Some(existing) = self.item_to_hash.insert(item.to_owned(), hash) {
+        if let Some(existing) = self.item_to_hash.insert(m.item.to_owned(), hash) {
             if hash != existing {
                 return Err(ContextError::ConflictingMetaHash {
-                    item: item.to_owned(),
+                    item: m.item.to_owned(),
                     hash,
                     existing,
                 });
@@ -402,9 +402,9 @@ impl Context {
         self.meta.entry(hash).or_default().push(ContextMeta {
             hash,
             associated_container: None,
-            item: item.to_owned(),
+            item: m.item.to_owned(),
             kind: meta::Kind::Module,
-            docs: Docs::default(),
+            docs: m.docs.clone(),
         });
 
         Ok(())

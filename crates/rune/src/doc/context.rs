@@ -205,7 +205,7 @@ impl<'a> Context<'a> {
             .chain(tail)
     }
 
-    /// Get a meta item by its hash.
+    /// Get all matching meta items by hash.
     pub(crate) fn meta_by_hash(&self, hash: Hash) -> Vec<Meta<'_>> {
         let mut out = Vec::new();
 
