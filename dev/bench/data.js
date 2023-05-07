@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683335036123,
+  "lastUpdate": 1683422004444,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -19140,6 +19140,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 5068796,
             "range": "± 5694",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "2778a1e38ac8c4644e0707bd2834f40c2bd3e6d3",
+          "message": "Module rework (#501)\n\n* Add API to associate documentation with inserted items\r\n* Rework the module and function traits",
+          "timestamp": "2023-05-06T15:53:56Z",
+          "url": "https://github.com/rune-rs/rune/commit/2778a1e38ac8c4644e0707bd2834f40c2bd3e6d3"
+        },
+        "date": 1683422003061,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 346848,
+            "range": "± 107739",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1194725,
+            "range": "± 53536",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 492739626,
+            "range": "± 14832486",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 309240688,
+            "range": "± 12535694",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1432981,
+            "range": "± 97414",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 15494915,
+            "range": "± 736550",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 83082897,
+            "range": "± 3398246",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 13177832,
+            "range": "± 573062",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 530484,
+            "range": "± 67497",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5903880,
+            "range": "± 299233",
             "unit": "ns/iter"
           }
         ]
