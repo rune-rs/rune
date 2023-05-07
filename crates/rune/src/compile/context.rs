@@ -20,7 +20,7 @@ use crate::Hash;
 
 /// Context metadata.
 #[non_exhaustive]
-pub(crate) struct PrivMeta {
+pub(crate) struct ContextMeta {
     /// Type hash for the given meta item.
     pub(crate) hash: Hash,
     /// The container this item belongs to.
@@ -34,7 +34,7 @@ pub(crate) struct PrivMeta {
     pub(crate) docs: Docs,
 }
 
-impl PrivMeta {
+impl ContextMeta {
     pub(crate) fn new(
         hash: Hash,
         associated_container: Option<Hash>,
@@ -95,7 +95,7 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
     /// Item metadata in the context.
-    meta: HashMap<Hash, Vec<PrivMeta>>,
+    meta: HashMap<Hash, Vec<ContextMeta>>,
     /// Store item to hash mapping.
     item_to_hash: HashMap<ItemBuf, Hash>,
     /// Information on functions.
@@ -293,7 +293,7 @@ impl Context {
     }
 
     /// Access the context meta for the given item.
-    pub(crate) fn lookup_meta(&self, item: &Item) -> &[PrivMeta] {
+    pub(crate) fn lookup_meta(&self, item: &Item) -> &[ContextMeta] {
         let Some(hash) = self.item_to_hash.get(item) else {
             return &[];
         };
@@ -307,7 +307,7 @@ impl Context {
 
     /// Lookup meta by its hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> &[PrivMeta] {
+    pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> &[ContextMeta] {
         self.meta.get(&hash).map(Vec::as_slice).unwrap_or_default()
     }
 
@@ -367,7 +367,7 @@ impl Context {
     }
 
     /// Install the given meta.
-    fn install_meta(&mut self, meta: PrivMeta) -> Result<(), ContextError> {
+    fn install_meta(&mut self, meta: ContextMeta) -> Result<(), ContextError> {
         self.names.insert(&meta.item);
 
         if let Some(existing) = self.item_to_hash.insert(meta.item.clone(), meta.hash) {
@@ -399,7 +399,7 @@ impl Context {
             }
         }
 
-        self.meta.entry(hash).or_default().push(PrivMeta {
+        self.meta.entry(hash).or_default().push(ContextMeta {
             hash,
             associated_container: None,
             item: item.to_owned(),
@@ -501,7 +501,7 @@ impl Context {
                             fields,
                         };
 
-                        self.install_meta(PrivMeta::new(
+                        self.install_meta(ContextMeta::new(
                             hash,
                             Some(enum_hash),
                             item,
@@ -517,7 +517,7 @@ impl Context {
             meta::Kind::Type
         };
 
-        self.install_meta(PrivMeta::new(type_hash, None, item, kind, docs))?;
+        self.install_meta(ContextMeta::new(type_hash, None, item, kind, docs))?;
         Ok(())
     }
 
@@ -581,7 +581,7 @@ impl Context {
 
         self.functions.insert(hash, f.handler.clone());
 
-        self.install_meta(PrivMeta::new(
+        self.install_meta(ContextMeta::new(
             hash,
             None,
             item,
@@ -609,7 +609,7 @@ impl Context {
         let hash = Hash::type_hash(&item);
         self.macros.insert(hash, m.handler.clone());
 
-        self.install_meta(PrivMeta::new(
+        self.install_meta(ContextMeta::new(
             hash,
             None,
             item,
@@ -632,7 +632,7 @@ impl Context {
         let hash = Hash::type_hash(&item);
         self.constants.insert(hash, v.clone());
 
-        self.install_meta(PrivMeta::new(
+        self.install_meta(ContextMeta::new(
             hash,
             None,
             item,
@@ -740,7 +740,7 @@ impl Context {
 
             // TODO: remove check since we now have multi meta?
             if !self.item_to_hash.contains_key(&item) {
-                self.install_meta(PrivMeta::new(
+                self.install_meta(ContextMeta::new(
                     type_hash,
                     Some(key.type_hash),
                     item,
@@ -799,7 +799,7 @@ impl Context {
         let enum_item = module.item.join(&internal_enum.base_type);
         let enum_hash = Hash::type_hash(&enum_item);
 
-        self.install_meta(PrivMeta::new(
+        self.install_meta(ContextMeta::new(
             internal_enum.static_type.hash,
             None,
             enum_item.clone(),
@@ -831,7 +831,7 @@ impl Context {
                 },
             )?;
 
-            self.install_meta(PrivMeta::new(
+            self.install_meta(ContextMeta::new(
                 hash,
                 Some(internal_enum.static_type.hash),
                 item.clone(),
@@ -887,7 +887,7 @@ impl Context {
         let tuple = meta::Tuple { args, hash };
 
         let priv_meta = match enum_item {
-            Some((enum_hash, index)) => PrivMeta::new(
+            Some((enum_hash, index)) => ContextMeta::new(
                 type_hash,
                 Some(enum_hash),
                 item.clone(),
@@ -898,7 +898,7 @@ impl Context {
                 },
                 docs,
             ),
-            None => PrivMeta::new(
+            None => ContextMeta::new(
                 type_hash,
                 None,
                 item.clone(),

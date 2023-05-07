@@ -19,6 +19,8 @@ use crate::runtime::{ConstValue, TypeInfo};
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct MetaRef<'a> {
+    /// If the meta comes from the context or not.
+    pub context: bool,
     /// The hash of a meta item.
     pub hash: Hash,
     /// The container of this meta, if it is an associated item.
@@ -70,6 +72,8 @@ impl Doc {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub(crate) struct Meta {
+    /// If the meta comes from the context or not.
+    pub(crate) context: bool,
     /// Hash of the private metadata.
     pub(crate) hash: Hash,
     /// The container of this meta, if it is an associated item.
@@ -91,6 +95,7 @@ impl Meta {
     /// Get the [MetaRef] which describes this [meta::Meta] object.
     pub(crate) fn as_meta_ref<'a>(&'a self, pool: &'a Pool) -> MetaRef<'a> {
         MetaRef {
+            context: self.context,
             hash: self.hash,
             associated_container: self.associated_container,
             item: pool.item(self.item_meta.item),

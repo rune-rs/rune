@@ -622,9 +622,10 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_context_meta(
         &mut self,
         span: Span,
-        context_meta: &context::PrivMeta,
+        context_meta: &context::ContextMeta,
     ) -> compile::Result<meta::Meta> {
         let meta = meta::Meta {
+            context: true,
             hash: context_meta.hash,
             associated_container: context_meta.associated_container,
             item_meta: ItemMeta {
@@ -1003,6 +1004,7 @@ impl<'a> Query<'a> {
         };
 
         let meta = meta::Meta {
+            context: false,
             hash: self.pool.item_type_hash(entry.item_meta.item),
             associated_container: None,
             item_meta: entry.item_meta,
@@ -1200,6 +1202,7 @@ impl<'a> Query<'a> {
         };
 
         Ok(meta::Meta {
+            context: false,
             hash,
             associated_container: container,
             item_meta,
