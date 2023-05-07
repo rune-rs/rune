@@ -28,8 +28,8 @@ impl MetaInfo {
 impl fmt::Display for MetaInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
-            MetaInfoKind::Unknown => {
-                write!(fmt, "unknown {}", self.item)?;
+            MetaInfoKind::Type => {
+                write!(fmt, "type {}", self.item)?;
             }
             MetaInfoKind::Struct => {
                 write!(fmt, "struct {}", self.item)?;
@@ -72,7 +72,7 @@ impl fmt::Display for MetaInfo {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum MetaInfoKind {
-    Unknown,
+    Type,
     Struct,
     Variant,
     Enum,
@@ -89,7 +89,7 @@ pub(crate) enum MetaInfoKind {
 impl MetaInfoKind {
     fn from_kind(value: &meta::Kind) -> Self {
         match value {
-            meta::Kind::Unknown { .. } => MetaInfoKind::Unknown,
+            meta::Kind::Type { .. } => MetaInfoKind::Type,
             meta::Kind::Struct { .. } => MetaInfoKind::Struct,
             meta::Kind::Variant { .. } => MetaInfoKind::Variant,
             meta::Kind::Enum { .. } => MetaInfoKind::Enum,

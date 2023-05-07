@@ -46,7 +46,7 @@ fn test_fn() {
             (),
             String => pub fn main() { std::any::type_name_of_val(native_crate::native_fn) }
         },
-        "::native_crate::native_fn"
+        "::std::ops::Function"
     );
 }
 
@@ -61,7 +61,7 @@ fn test_inst_fn() {
                 std::any::type_name_of_val(native_crate::NativeStruct::instance_fn)
             }
         },
-        "::native_crate::NativeStruct::instance_fn"
+        "::std::ops::Function"
     );
 }
 

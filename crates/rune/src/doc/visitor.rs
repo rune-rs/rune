@@ -103,7 +103,7 @@ impl CompileVisitor for Visitor {
         let data = self
             .data
             .entry(hash)
-            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, meta::Kind::Unknown));
+            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, meta::Kind::Type));
 
         data.docs.push(string.trim_end_matches(newlines).to_owned());
     }
@@ -122,7 +122,7 @@ impl CompileVisitor for Visitor {
         let data = self
             .data
             .entry(hash)
-            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, meta::Kind::Unknown));
+            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, meta::Kind::Type));
         data.field_docs
             .entry(field.into())
             .or_default()

@@ -14,8 +14,7 @@ use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::compile::meta;
 use crate::compile::{
-    self, Assembly, AssemblyInst, CompileErrorKind, Item, ItemBuf, Location, Pool, QueryErrorKind,
-    WithSpan,
+    self, Assembly, AssemblyInst, CompileErrorKind, Item, Location, Pool, QueryErrorKind, WithSpan,
 };
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{
@@ -101,15 +100,14 @@ impl UnitBuilder {
 
             if let Some(value) = self.constants.get(&to) {
                 let const_value = value.clone();
+
                 if self.constants.insert(from, const_value).is_some() {
                     return Err(compile::Error::new(
                         span,
-                        CompileErrorKind::ConstantConflict {
-                            item: ItemBuf::with_item(["unknown"]),
-                            hash: from,
-                        },
+                        CompileErrorKind::ConstantConflict { hash: from },
                     ));
                 }
+
                 continue;
             }
 
@@ -284,7 +282,7 @@ impl UnitBuilder {
         pool: &mut Pool,
     ) -> compile::Result<()> {
         match meta.kind {
-            meta::Kind::Unknown { .. } => {
+            meta::Kind::Type { .. } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {

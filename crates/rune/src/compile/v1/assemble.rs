@@ -1701,7 +1701,7 @@ fn generics_parameters(
         let meta = c.lookup_meta(expr.span(), named.item)?;
 
         let hash = match meta.kind {
-            meta::Kind::Unknown { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. } => {
+            meta::Kind::Type { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. } => {
                 meta.hash
             }
             _ => {
