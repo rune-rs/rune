@@ -1,6 +1,6 @@
 //! The `std::ops` module.
 
-use crate::runtime::{Protocol, Range, Value};
+use crate::runtime::{Function, Protocol, Range, Value};
 use crate::{ContextError, Module};
 
 /// Construct the `std::ops` module.
@@ -18,6 +18,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("contains_int", Range::contains_int)?;
     module.inst_fn("iter", Range::into_iterator)?;
 
+    module.ty::<Function>()?;
     Ok(module)
 }
 

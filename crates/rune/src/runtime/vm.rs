@@ -14,8 +14,9 @@ use crate::runtime::{
     Args, Awaited, BorrowMut, Bytes, Call, Format, FormatSpec, FromValue, Function, Future,
     Generator, GuardedArgs, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget,
     InstValue, InstVariant, Object, Panic, Protocol, Range, RangeLimits, RuntimeContext, Select,
-    Shared, Stack, Stream, Struct, Tuple, TypeCheck, Unit, UnitStruct, Value, Variant, VariantData,
-    Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
+    Shared, Stack, Stream, Struct, Tuple, Type, TypeCheck, Unit, UnitStruct, Value, Variant,
+    VariantData, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
+    VmSendExecution,
 };
 
 /// Small helper function to build errors.
@@ -1046,8 +1047,8 @@ impl Vm {
         let b = vm_try!(self.stack.address(rhs));
         let a = vm_try!(self.stack.address(lhs));
 
-        let hash = match b {
-            Value::Type(hash) => hash,
+        let ty = match b {
+            Value::Type(ty) => ty,
             _ => {
                 return err(VmErrorKind::UnsupportedIs {
                     value: vm_try!(a.type_info()),
@@ -1056,7 +1057,7 @@ impl Vm {
             }
         };
 
-        VmResult::Ok(vm_try!(a.type_hash()) == hash)
+        VmResult::Ok(vm_try!(a.type_hash()) == ty.into_hash())
     }
 
     fn internal_boolean_op(
@@ -2025,7 +2026,7 @@ impl Vm {
         let instance = self.stack.pop()?;
         let ty = instance.type_hash()?;
         let hash = Hash::instance_function(ty, hash);
-        self.stack.push(Value::Type(hash));
+        self.stack.push(Value::Type(Type::new(hash)));
         Ok(())
     }
 
@@ -2786,8 +2787,8 @@ impl Vm {
     fn op_call_fn(&mut self, args: usize) -> VmResult<Option<VmHalt>> {
         let function = vm_try!(self.stack.pop());
 
-        let hash = match function {
-            Value::Type(hash) => hash,
+        let ty = match function {
+            Value::Type(ty) => ty,
             Value::Function(function) => {
                 let function = vm_try!(function.into_ref());
                 return function.call_with_vm(self, args);
@@ -2798,7 +2799,7 @@ impl Vm {
             }
         };
 
-        vm_try!(self.op_call(hash, args));
+        vm_try!(self.op_call(ty.into_hash(), args));
         VmResult::Ok(None)
     }
 

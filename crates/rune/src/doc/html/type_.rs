@@ -88,9 +88,11 @@ pub(super) fn build_assoc_fns<'a>(
             cx.render_docs(assoc.docs)?
         };
 
-        let repr = protocol
-            .repr
-            .map(|line| cx.render_code([line.replace("$value", value.as_ref())]));
+        let repr = if let Some(repr) = protocol.repr {
+            Some(cx.render_code([repr.replace("$value", value.as_ref())])?)
+        } else {
+            None
+        };
 
         protocols.push(Protocol {
             name: protocol.name,

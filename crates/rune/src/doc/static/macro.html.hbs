@@ -1,9 +1,4 @@
-<html>
-<head></head>
-{{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
-{{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
-<body>
+{{#> layout}}
 <h3 class="title">Macro {{literal module}}::<span class="macro">{{name}}!</span>(..)</h3>
 {{#if doc}}{{literal doc}}{{/if}}
-</body>
-</html>
+{{/layout}}

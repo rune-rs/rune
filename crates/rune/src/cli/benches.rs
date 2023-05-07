@@ -15,7 +15,7 @@ use crate::{Any, Context, ContextError, Hash, Module, Sources};
 
 use crate as rune;
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug)]
 pub(super) struct Flags {
     /// Rounds of warmup to perform
     #[arg(long, default_value = "100")]

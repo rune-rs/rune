@@ -1,8 +1,4 @@
-<html>
-<head></head>
-{{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
-{{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
-<body>
+{{#> layout}}
 <h3 class="title">Module {{literal module}}</h3>
 
 {{#if types}}
@@ -64,5 +60,4 @@
     </div>
 {{/each}}
 {{/if}}
-</body>
-</html>
+{{/layout}}

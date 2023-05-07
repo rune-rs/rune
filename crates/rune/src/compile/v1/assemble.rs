@@ -17,7 +17,7 @@ use crate::parse::{Id, Resolve};
 use crate::query::Named;
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
-    InstVariant, Label, PanicReason, Protocol, TypeCheck,
+    InstVariant, Label, PanicReason, Protocol, Type, TypeCheck,
 };
 use crate::Hash;
 
@@ -190,7 +190,7 @@ fn meta(
 
         c.asm.push(
             Inst::Push {
-                value: InstValue::Type(type_hash),
+                value: InstValue::Type(Type::new(type_hash)),
             },
             span,
         );

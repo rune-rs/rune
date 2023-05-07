@@ -4,11 +4,12 @@ use core::future::Future;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::module;
+use crate::compile::Named;
+use crate::module::{self, InstallWith};
 use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, RawRef, Ref, Rtti, RuntimeContext, Shared,
-    Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmErrorKind, VmHalt,
-    VmResult,
+    Args, Call, ConstValue, FromValue, FunctionHandler, RawRef, RawStr, Ref, Rtti, RuntimeContext,
+    Shared, Stack, Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmErrorKind,
+    VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Hash;
@@ -890,6 +891,12 @@ impl FromValue for SyncFunction {
         let function = vm_try!(function.take());
         function.into_sync()
     }
+}
+
+impl InstallWith for Function {}
+
+impl Named for Function {
+    const BASE_NAME: RawStr = RawStr::from_str("Function");
 }
 
 impl FromValue for Function {

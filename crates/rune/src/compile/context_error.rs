@@ -51,7 +51,9 @@ pub enum ContextError {
     ConflictingType { item: ItemBuf, type_info: TypeInfo },
     #[error("Type `{item}` at `{type_info}` already has a specification")]
     ConflictingTypeMeta { item: ItemBuf, type_info: TypeInfo },
-    #[error("Conflicting meta hash `{hash}` for `{existing}` when inserting item `{item}`")]
+    #[error(
+        "Conflicting meta hash `{hash}` for existing `{existing}` when inserting item `{item}`"
+    )]
     ConflictingMetaHash {
         item: ItemBuf,
         hash: Hash,

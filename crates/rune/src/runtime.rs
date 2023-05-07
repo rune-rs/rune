@@ -62,6 +62,9 @@ pub use self::inst::{
 mod iterator;
 pub use self::iterator::{Iterator, IteratorTrait};
 
+mod type_;
+pub use self::type_::Type;
+
 mod key;
 pub use self::key::Key;
 

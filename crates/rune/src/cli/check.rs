@@ -8,7 +8,7 @@ use crate::cli::{visitor, Config, Entry, ExitCode, Io, SharedFlags};
 use crate::compile::FileSourceLoader;
 use crate::{Diagnostics, Options, Source, Sources};
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug)]
 pub(super) struct Flags {
     /// Exit with a non-zero exit-code even for warnings
     #[arg(long)]

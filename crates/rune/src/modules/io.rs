@@ -73,6 +73,8 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> VmResult<()> {
 /// Everything in rune can be "debug printed" in one way or another. This is
 /// provided as a cheap an dirty way to introspect values.
 ///
+/// See also the [`dbg!`] macro.
+///
 /// # Examples
 ///
 /// ```rune
@@ -94,8 +96,8 @@ pub(crate) fn dbg_macro(
 
 /// Prints to output.
 ///
-/// Output printing is performed by calling the [`print`] function, this is just
-/// a convenience wrapper around it which allows for formatting.
+/// Output printing is performed by calling the [`print()`] function, this is
+/// just a convenience wrapper around it which allows for formatting.
 ///
 /// # Examples
 ///
@@ -120,6 +122,8 @@ pub(crate) fn print_macro(
 /// `I/O` enabled this will not be defined. It is then up to someone else to
 /// provide an implementation.
 ///
+/// See also the [`print!`] macro.
+///
 /// # Examples
 ///
 /// ```rune
@@ -139,7 +143,7 @@ fn print_impl(m: &str) -> VmResult<()> {
 
 /// Prints to output, with a newline.
 ///
-/// Output printing is performed by calling the [`println`] function, this is
+/// Output printing is performed by calling the [`println()`] function, this is
 /// just a convenience wrapper around it which allows for formatting.
 ///
 /// # Examples

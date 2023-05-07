@@ -1,9 +1,7 @@
-<html>
-<head></head>
+{{#> layout}}
 {{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
 {{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
 <body>
 <h3 class="title">Function {{literal module}}::<span class="fn">{{name}}</span>({{literal args}}){{#if this.return_type}} -&gt; {{literal this.return_type}}{{/if}}</h3>
 {{#if doc}}{{literal doc}}{{/if}}
-</body>
-</html>
+{{/layout}}

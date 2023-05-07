@@ -1,7 +1,7 @@
 use crate::no_std::prelude::*;
 
 use crate::compile::context::PrivMeta;
-use crate::compile::{meta, ComponentRef, IntoComponent, Item};
+use crate::compile::{meta, ComponentRef, IntoComponent, Item, ItemBuf};
 use crate::doc::{Visitor, VisitorData};
 use crate::module::{AssociatedKind, ModuleAssociated};
 use crate::runtime::ConstValue;
@@ -78,6 +78,7 @@ pub(crate) enum Kind<'a> {
     Macro,
     Function(Function<'a>),
     Const(&'a ConstValue),
+    Module,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -261,6 +262,7 @@ impl<'a> Context<'a> {
             }
             meta::Kind::Const { const_value } => Kind::Const(const_value),
             meta::Kind::Macro => Kind::Macro,
+            meta::Kind::Module { .. } => Kind::Module,
             _ => Kind::Unsupported,
         };
 
@@ -273,11 +275,11 @@ impl<'a> Context<'a> {
     }
 
     /// Iterate over known modules.
-    pub(crate) fn iter_modules(&self) -> impl IntoIterator<Item = &Item> {
+    pub(crate) fn iter_modules(&self) -> impl IntoIterator<Item = ItemBuf> + '_ {
         self.visitors
             .iter()
-            .map(|v| v.base.as_ref())
-            .chain(self.context.iter_meta().map(|m| m.module.as_ref()))
+            .map(|v| v.base.clone())
+            .chain(self.context.iter_crates().map(ItemBuf::with_crate))
     }
 }
 
@@ -294,6 +296,7 @@ fn visitor_meta_to_meta(data: &VisitorData) -> Meta<'_> {
             return_type: None,
             argument_types: &[],
         }),
+        meta::Kind::Module => Kind::Module,
         _ => Kind::Unsupported,
     };
 
