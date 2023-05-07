@@ -66,7 +66,9 @@ impl<'a> Assembler<'a> {
         meta: &'m [PrivMeta],
     ) -> Result<Option<&'m PrivMeta>, Box<QueryErrorKind>> {
         match meta {
-            [m, o] | [o, m] if matches!(m.kind, meta::Kind::Macro) => Ok(Some(o)),
+            [m, o] | [o, m] if matches!(m.kind, meta::Kind::Macro | meta::Kind::Module) => {
+                Ok(Some(o))
+            }
             [item] => Ok(Some(item)),
             items if !items.is_empty() => Err(Box::new(QueryErrorKind::AmbiguousContextItem {
                 item: self.q.pool.item(item).to_owned(),

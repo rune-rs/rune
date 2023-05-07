@@ -315,8 +315,8 @@ pub(crate) enum CompileErrorKind {
     FunctionConflict { existing: DebugSignature },
     #[error("Conflicting function hash already exists `{hash}`")]
     FunctionReExportConflict { hash: Hash },
-    #[error("Conflicting constant registered for `{item}` on hash `{hash}`")]
-    ConstantConflict { item: ItemBuf, hash: Hash },
+    #[error("Conflicting constant for hash `{hash}`")]
+    ConstantConflict { hash: Hash },
     #[error("Missing static string for hash `{hash}` and slot `{slot}`")]
     StaticStringMissing { hash: Hash, slot: usize },
     #[error("Missing static byte string for hash `{hash}` and slot `{slot}`")]

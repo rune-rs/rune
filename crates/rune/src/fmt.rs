@@ -1,5 +1,8 @@
 //! Helper to format Rune code.
 
+#[cfg(test)]
+mod tests;
+
 mod comments;
 mod error;
 mod indent_writer;

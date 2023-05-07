@@ -106,7 +106,7 @@ impl Meta {
     /// compare them against the enum type.
     pub(crate) fn type_hash_of(&self) -> Option<Hash> {
         match &self.kind {
-            Kind::Unknown { .. } => Some(self.hash),
+            Kind::Type { .. } => Some(self.hash),
             Kind::Struct { .. } => Some(self.hash),
             Kind::Enum { .. } => Some(self.hash),
             Kind::Function { .. } => Some(self.hash),
@@ -139,7 +139,7 @@ pub enum Variant {
 pub enum Kind {
     /// The type is completely opaque. We have no idea about what it is with the
     /// exception of it having a type hash.
-    Unknown,
+    Type,
     /// Metadata about a struct.
     Struct {
         /// Variant metadata.

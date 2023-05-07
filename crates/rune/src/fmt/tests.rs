@@ -1,4 +1,6 @@
-use rune::fmt::layout_string;
+use crate::no_std::prelude::*;
+
+use super::layout_string;
 
 #[test]
 fn test_layout_string() {

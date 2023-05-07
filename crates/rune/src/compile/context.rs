@@ -514,7 +514,7 @@ impl Context {
                 }
             }
         } else {
-            meta::Kind::Unknown
+            meta::Kind::Type
         };
 
         self.install_meta(PrivMeta::new(type_hash, None, item, kind, docs))?;

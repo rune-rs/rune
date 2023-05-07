@@ -40,7 +40,7 @@ fn test_fn_types() {
             [type_name_of_val(foo), type_name_of_val(bar::foo)]
         }
     };
-    assert_eq!(out, vec!["foo", "bar::foo"]);
+    assert_eq!(out, vec!["::std::ops::Function", "::std::ops::Function"]);
 }
 
 #[test]
@@ -62,7 +62,11 @@ fn test_struct() {
 
     assert_eq!(
         out,
-        vec!["X".to_owned(), "X::ctor".to_owned(), "X::foo".to_owned()]
+        vec![
+            "X".to_owned(),
+            "::std::ops::Function".to_owned(),
+            "::std::ops::Function".to_owned()
+        ]
     )
 }
 

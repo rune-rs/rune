@@ -230,7 +230,7 @@ impl<'a> Context<'a> {
 
     fn context_meta_to_meta(&self, meta: &'a PrivMeta) -> Option<Meta<'a>> {
         let kind = match &meta.kind {
-            meta::Kind::Unknown { .. } => Kind::Unknown,
+            meta::Kind::Type { .. } => Kind::Unknown,
             meta::Kind::Struct { .. } => Kind::Struct,
             meta::Kind::Variant { .. } => Kind::Variant,
             meta::Kind::Enum { .. } => Kind::Enum,
@@ -285,7 +285,7 @@ impl<'a> Context<'a> {
 
 fn visitor_meta_to_meta(data: &VisitorData) -> Meta<'_> {
     let kind = match &data.kind {
-        meta::Kind::Unknown { .. } => Kind::Unknown,
+        meta::Kind::Type { .. } => Kind::Unknown,
         meta::Kind::Struct { .. } => Kind::Struct,
         meta::Kind::Variant { .. } => Kind::Variant,
         meta::Kind::Enum => Kind::Enum,
