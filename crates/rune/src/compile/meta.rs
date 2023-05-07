@@ -124,7 +124,7 @@ impl Meta {
 
 /// The kind of a variant.
 #[derive(Debug, Clone)]
-pub enum Variant {
+pub enum Fields {
     /// A tuple variant.
     Tuple(Tuple),
     /// A struct variant.
@@ -142,8 +142,8 @@ pub enum Kind {
     Type,
     /// Metadata about a struct.
     Struct {
-        /// Variant metadata.
-        variant: Variant,
+        /// Fields information.
+        fields: Fields,
     },
     /// Metadata about an empty variant.
     Variant {
@@ -151,8 +151,8 @@ pub enum Kind {
         enum_hash: Hash,
         /// The index of the variant.
         index: usize,
-        /// Variant metadata.
-        variant: Variant,
+        /// Fields information.
+        fields: Fields,
     },
     /// An enum item.
     Enum,

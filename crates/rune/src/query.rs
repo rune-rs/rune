@@ -1693,10 +1693,10 @@ fn unit_body_meta(item: &Item, enum_item: Option<(Hash, usize)>) -> (Hash, meta:
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: meta::Variant::Unit,
+            fields: meta::Fields::Unit,
         },
         None => meta::Kind::Struct {
-            variant: meta::Variant::Unit,
+            fields: meta::Fields::Unit,
         },
     };
 
@@ -1720,10 +1720,10 @@ fn tuple_body_meta(
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: meta::Variant::Tuple(tuple),
+            fields: meta::Fields::Tuple(tuple),
         },
         None => meta::Kind::Struct {
-            variant: meta::Variant::Tuple(tuple),
+            fields: meta::Fields::Tuple(tuple),
         },
     };
 
@@ -1752,10 +1752,10 @@ fn struct_body_meta(
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            variant: meta::Variant::Struct(st),
+            fields: meta::Fields::Struct(st),
         },
         None => meta::Kind::Struct {
-            variant: meta::Variant::Struct(st),
+            fields: meta::Fields::Struct(st),
         },
     };
 

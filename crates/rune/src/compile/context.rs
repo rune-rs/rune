@@ -434,7 +434,7 @@ impl Context {
         let kind = if let Some(spec) = &ty.spec {
             match spec {
                 TypeSpecification::Struct(st) => meta::Kind::Struct {
-                    variant: meta::Variant::Struct(meta::Struct {
+                    fields: meta::Fields::Struct(meta::Struct {
                         fields: st.fields.clone(),
                     }),
                 },
@@ -447,18 +447,18 @@ impl Context {
                         let hash = Hash::type_hash(&item);
                         let constructor = variant.constructor.as_ref();
 
-                        let (variant, args) = match &variant.kind {
+                        let (fields, args) = match &variant.kind {
                             VariantKind::Tuple(t) => (
-                                meta::Variant::Tuple(meta::Tuple { args: t.args, hash }),
+                                meta::Fields::Tuple(meta::Tuple { args: t.args, hash }),
                                 Some(t.args),
                             ),
                             VariantKind::Struct(st) => (
-                                meta::Variant::Struct(meta::Struct {
+                                meta::Fields::Struct(meta::Struct {
                                     fields: st.fields.clone(),
                                 }),
                                 None,
                             ),
-                            VariantKind::Unit => (meta::Variant::Unit, Some(0)),
+                            VariantKind::Unit => (meta::Fields::Unit, Some(0)),
                         };
 
                         self.install_type_info(
@@ -498,7 +498,7 @@ impl Context {
                         let kind = meta::Kind::Variant {
                             enum_hash,
                             index,
-                            variant,
+                            fields,
                         };
 
                         self.install_meta(PrivMeta::new(
@@ -838,7 +838,7 @@ impl Context {
                 meta::Kind::Variant {
                     enum_hash,
                     index,
-                    variant: meta::Variant::Tuple(meta::Tuple {
+                    fields: meta::Fields::Tuple(meta::Tuple {
                         args: variant.args,
                         hash,
                     }),
@@ -894,7 +894,7 @@ impl Context {
                 meta::Kind::Variant {
                     enum_hash,
                     index,
-                    variant: meta::Variant::Tuple(tuple),
+                    fields: meta::Fields::Tuple(tuple),
                 },
                 docs,
             ),
@@ -903,7 +903,7 @@ impl Context {
                 None,
                 item.clone(),
                 meta::Kind::Struct {
-                    variant: meta::Variant::Tuple(tuple),
+                    fields: meta::Fields::Tuple(tuple),
                 },
                 docs,
             ),

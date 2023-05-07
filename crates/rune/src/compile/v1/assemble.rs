@@ -98,11 +98,11 @@ fn meta(
     if let Needs::Value = needs {
         match &meta.kind {
             meta::Kind::Struct {
-                variant: meta::Variant::Unit,
+                fields: meta::Fields::Unit,
                 ..
             }
             | meta::Kind::Variant {
-                variant: meta::Variant::Unit,
+                fields: meta::Fields::Unit,
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -116,11 +116,11 @@ fn meta(
                 );
             }
             meta::Kind::Variant {
-                variant: meta::Variant::Tuple(tuple),
+                fields: meta::Fields::Tuple(tuple),
                 ..
             }
             | meta::Kind::Struct {
-                variant: meta::Variant::Tuple(tuple),
+                fields: meta::Fields::Tuple(tuple),
                 ..
             } if tuple.args == 0 => {
                 named.assert_not_generic()?;
@@ -134,7 +134,7 @@ fn meta(
                 );
             }
             meta::Kind::Struct {
-                variant: meta::Variant::Tuple(tuple),
+                fields: meta::Fields::Tuple(tuple),
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -145,7 +145,7 @@ fn meta(
                 );
             }
             meta::Kind::Variant {
-                variant: meta::Variant::Tuple(tuple),
+                fields: meta::Fields::Tuple(tuple),
                 ..
             } => {
                 named.assert_not_generic()?;
@@ -510,13 +510,13 @@ fn struct_match_for<'a>(
 ) -> Option<(&'a meta::Struct, Inst)> {
     Some(match &meta.kind {
         meta::Kind::Struct {
-            variant: meta::Variant::Struct(st),
+            fields: meta::Fields::Struct(st),
             ..
         } => (st, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Variant {
             enum_hash,
             index,
-            variant: meta::Variant::Struct(st),
+            fields: meta::Fields::Struct(st),
             ..
         } => {
             let inst = if let Some(type_check) = c.context.type_check_for(meta.hash) {
@@ -542,22 +542,22 @@ fn struct_match_for<'a>(
 fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &meta::Meta) -> Option<(usize, Inst)> {
     Some(match &meta.kind {
         meta::Kind::Struct {
-            variant: meta::Variant::Unit,
+            fields: meta::Fields::Unit,
             ..
         } => (0, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Struct {
-            variant: meta::Variant::Tuple(tuple),
+            fields: meta::Fields::Tuple(tuple),
             ..
         } => (tuple.args, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Variant {
             enum_hash,
             index,
-            variant,
+            fields,
             ..
         } => {
-            let args = match variant {
-                meta::Variant::Tuple(tuple) => tuple.args,
-                meta::Variant::Unit => 0,
+            let args = match fields {
+                meta::Fields::Tuple(tuple) => tuple.args,
+                meta::Fields::Unit => 0,
                 _ => return None,
             };
 
@@ -1775,11 +1775,11 @@ fn convert_expr_call(
 
             match &meta.kind {
                 meta::Kind::Struct {
-                    variant: meta::Variant::Unit,
+                    fields: meta::Fields::Unit,
                     ..
                 }
                 | meta::Kind::Variant {
-                    variant: meta::Variant::Unit,
+                    fields: meta::Fields::Unit,
                     ..
                 } => {
                     named.assert_not_generic()?;
@@ -1796,11 +1796,11 @@ fn convert_expr_call(
                     }
                 }
                 meta::Kind::Struct {
-                    variant: meta::Variant::Tuple(tuple),
+                    fields: meta::Fields::Tuple(tuple),
                     ..
                 }
                 | meta::Kind::Variant {
-                    variant: meta::Variant::Tuple(tuple),
+                    fields: meta::Fields::Tuple(tuple),
                     ..
                 } => {
                     named.assert_not_generic()?;
@@ -2660,7 +2660,7 @@ fn expr_object(
 
             match &meta.kind {
                 meta::Kind::Struct {
-                    variant: meta::Variant::Unit,
+                    fields: meta::Fields::Unit,
                     ..
                 } => {
                     check_object_fields(&HashSet::new(), check_keys, span, item)?;
@@ -2669,7 +2669,7 @@ fn expr_object(
                     c.asm.push(Inst::UnitStruct { hash }, span);
                 }
                 meta::Kind::Struct {
-                    variant: meta::Variant::Struct(st),
+                    fields: meta::Fields::Struct(st),
                     ..
                 } => {
                     check_object_fields(&st.fields, check_keys, span, item)?;
@@ -2678,7 +2678,7 @@ fn expr_object(
                     c.asm.push(Inst::Struct { hash, slot }, span);
                 }
                 meta::Kind::Variant {
-                    variant: meta::Variant::Struct(st),
+                    fields: meta::Fields::Struct(st),
                     ..
                 } => {
                     check_object_fields(&st.fields, check_keys, span, item)?;
