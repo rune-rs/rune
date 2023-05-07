@@ -2,4 +2,4 @@ pub async fn main() {
     println!("Waiting for ctrl-c");
     signal::ctrl_c().await?;
     println!("Received ctrl-c event");
- }
+}

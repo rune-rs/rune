@@ -1,6 +1,6 @@
 use crate::no_std::prelude::*;
 
-use crate::compile::context::PrivMeta;
+use crate::compile::context::ContextMeta;
 use crate::compile::{meta, ComponentRef, IntoComponent, Item, ItemBuf};
 use crate::doc::{Visitor, VisitorData};
 use crate::module::{AssociatedKind, ModuleAssociated};
@@ -239,7 +239,7 @@ impl<'a> Context<'a> {
         out
     }
 
-    fn context_meta_to_meta(&self, meta: &'a PrivMeta) -> Option<Meta<'a>> {
+    fn context_meta_to_meta(&self, meta: &'a ContextMeta) -> Option<Meta<'a>> {
         let kind = match &meta.kind {
             meta::Kind::Type { .. } => Kind::Type,
             meta::Kind::Struct { .. } => Kind::Struct,

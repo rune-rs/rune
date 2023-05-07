@@ -66,8 +66,8 @@ impl Visitor {
 
 impl CompileVisitor for Visitor {
     fn register_meta(&mut self, meta: MetaRef<'_>) {
-        // Skip over items which are part of some other crate.
-        if meta.item.as_crate().is_some() {
+        // Skip over context meta, since we pick that up separately.
+        if meta.context {
             return;
         }
 

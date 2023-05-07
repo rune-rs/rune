@@ -1,7 +1,7 @@
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
-use crate::compile::context::PrivMeta;
+use crate::compile::context::ContextMeta;
 use crate::compile::ir;
 use crate::compile::meta;
 use crate::compile::{
@@ -63,8 +63,8 @@ impl<'a> Assembler<'a> {
     fn select_priv_meta<'m>(
         &self,
         item: ItemId,
-        meta: &'m [PrivMeta],
-    ) -> Result<Option<&'m PrivMeta>, Box<QueryErrorKind>> {
+        meta: &'m [ContextMeta],
+    ) -> Result<Option<&'m ContextMeta>, Box<QueryErrorKind>> {
         match meta {
             [m, o] | [o, m] if matches!(m.kind, meta::Kind::Macro | meta::Kind::Module) => {
                 Ok(Some(o))
