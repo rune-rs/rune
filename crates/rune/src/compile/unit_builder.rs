@@ -303,7 +303,7 @@ impl UnitBuilder {
                 }
             }
             meta::Kind::Struct {
-                variant: meta::Variant::Unit,
+                fields: meta::Fields::Unit,
                 ..
             } => {
                 let info = UnitFn::UnitStruct { hash: meta.hash };
@@ -342,7 +342,7 @@ impl UnitBuilder {
                 self.debug_info_mut().functions.insert(meta.hash, signature);
             }
             meta::Kind::Struct {
-                variant: meta::Variant::Tuple(ref tuple),
+                fields: meta::Fields::Tuple(ref tuple),
                 ..
             } => {
                 let info = UnitFn::TupleStruct {
@@ -407,7 +407,7 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                variant: meta::Variant::Unit,
+                fields: meta::Fields::Unit,
                 ..
             } => {
                 let rtti = Arc::new(VariantRtti {
@@ -443,7 +443,7 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                variant: meta::Variant::Tuple(ref tuple),
+                fields: meta::Fields::Tuple(ref tuple),
                 ..
             } => {
                 let rtti = Arc::new(VariantRtti {
@@ -484,7 +484,7 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                variant: meta::Variant::Struct(..),
+                fields: meta::Fields::Struct(..),
                 ..
             } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);

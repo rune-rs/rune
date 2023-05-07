@@ -9,7 +9,18 @@ use crate::runtime::Protocol;
 use crate::Hash;
 
 #[derive(Debug, Clone, Copy)]
+pub(crate) enum MetaSource<'a> {
+    /// Meta came from context.
+    Context,
+    /// Meta came from source.
+    Source(&'a Item),
+}
+
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Meta<'a> {
+    /// The meta source.
+    #[allow(unused)]
+    pub(crate) source: MetaSource<'a>,
     /// Item of the meta.
     pub(crate) item: &'a Item,
     /// Type hash for the meta item.
@@ -71,7 +82,7 @@ pub(crate) enum Assoc<'a> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Kind<'a> {
     Unsupported,
-    Unknown,
+    Type,
     Struct,
     Variant,
     Enum,
@@ -182,15 +193,15 @@ impl<'a> Context<'a> {
     pub(crate) fn iter_components<'iter, I: 'iter>(
         &'iter self,
         iter: I,
-    ) -> impl Iterator<Item = ComponentRef<'iter>> + 'iter
+    ) -> impl Iterator<Item = (MetaSource<'iter>, ComponentRef<'iter>)> + 'iter
     where
         I: Clone + IntoIterator,
         I::Item: IntoComponent,
     {
-        let tail = self.context.iter_components(iter.clone());
+        let tail = self.context.iter_components(iter.clone()).map(|n| (MetaSource::Context, n));
         self.visitors
             .iter()
-            .flat_map(move |v| v.names.iter_components(iter.clone()))
+            .flat_map(move |v| v.names.iter_components(iter.clone()).map(|n| (MetaSource::Source(&v.base), n)))
             .chain(tail)
     }
 
@@ -200,7 +211,7 @@ impl<'a> Context<'a> {
 
         for visitor in self.visitors {
             if let Some(data) = visitor.get_by_hash(hash) {
-                out.push(visitor_meta_to_meta(data));
+                out.push(visitor_meta_to_meta(&visitor.base, data));
             }
         }
 
@@ -217,7 +228,7 @@ impl<'a> Context<'a> {
 
         for visitor in self.visitors {
             if let Some(data) = visitor.get(item) {
-                out.push(visitor_meta_to_meta(data));
+                out.push(visitor_meta_to_meta(&visitor.base, data));
             }
         }
 
@@ -230,7 +241,7 @@ impl<'a> Context<'a> {
 
     fn context_meta_to_meta(&self, meta: &'a PrivMeta) -> Option<Meta<'a>> {
         let kind = match &meta.kind {
-            meta::Kind::Type { .. } => Kind::Unknown,
+            meta::Kind::Type { .. } => Kind::Type,
             meta::Kind::Struct { .. } => Kind::Struct,
             meta::Kind::Variant { .. } => Kind::Variant,
             meta::Kind::Enum { .. } => Kind::Enum,
@@ -267,6 +278,7 @@ impl<'a> Context<'a> {
         };
 
         Some(Meta {
+            source: MetaSource::Context,
             item: &meta.item,
             hash: meta.hash,
             docs: meta.docs.lines(),
@@ -283,9 +295,9 @@ impl<'a> Context<'a> {
     }
 }
 
-fn visitor_meta_to_meta(data: &VisitorData) -> Meta<'_> {
+fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
     let kind = match &data.kind {
-        meta::Kind::Type { .. } => Kind::Unknown,
+        meta::Kind::Type { .. } => Kind::Type,
         meta::Kind::Struct { .. } => Kind::Struct,
         meta::Kind::Variant { .. } => Kind::Variant,
         meta::Kind::Enum => Kind::Enum,
@@ -301,6 +313,7 @@ fn visitor_meta_to_meta(data: &VisitorData) -> Meta<'_> {
     };
 
     Meta {
+        source: MetaSource::Source(base),
         item: &data.item,
         hash: data.hash,
         docs: data.docs.as_slice(),

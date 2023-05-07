@@ -217,7 +217,7 @@ impl Ctxt<'_> {
             };
 
             match &meta.kind {
-                Kind::Unknown => {
+                Kind::Type => {
                     let path = self.item_path(meta.item, ItemPath::Type);
                     format!("<a class=\"type\" href=\"{path}\">{name}</a>")
                 }
@@ -686,12 +686,12 @@ fn module<'a>(cx: &Ctxt<'a>, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
     let mut functions = Vec::new();
     let mut modules = Vec::new();
 
-    for name in cx.context.iter_components(&cx.item) {
+    for (_, name) in cx.context.iter_components(&cx.item) {
         let item = cx.item.join([name]);
 
         for meta in cx.context.meta(&item) {
             match meta.kind {
-                Kind::Unknown { .. } => {
+                Kind::Type { .. } => {
                     queue.push_front(Build::Type(meta.item, meta.hash));
                     let path = cx.item_path(&item, ItemPath::Type);
                     types.push(Type {

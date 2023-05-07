@@ -66,8 +66,13 @@ impl Visitor {
 
 impl CompileVisitor for Visitor {
     fn register_meta(&mut self, meta: MetaRef<'_>) {
+        // Skip over items which are part of some other crate.
+        if meta.item.as_crate().is_some() {
+            return;
+        }
+
         let item = self.base.join(meta.item);
-        tracing::trace!(?item, "registering meta");
+        tracing::trace!(base = ?self.base, meta = ?meta.item, ?item, "register meta");
 
         self.names.insert(&item);
         self.item_to_hash.insert(item.to_owned(), meta.hash);
