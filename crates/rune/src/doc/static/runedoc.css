@@ -15,14 +15,92 @@
     --search-color: #111;
     --search-input-focused-border-color: #008dfd;
     --search-result-link-focus-background-color: #616161;
+    --keyword-async-color: rgb(70, 43, 241);
+    --code-background-color: rgb(42, 42, 42);
+    --code-block-background-color: #2a2a2a;
+}
+
+@font-face {
+    font-family: 'Fira Sans';
+    font-style: normal;
+    font-weight: 400;
+    src: local('Fira Sans'),url("fonts/FiraSans-Regular-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Fira Sans';
+    font-style: normal;
+    font-weight: 500;
+    src: local('Fira Sans Medium'),url("fonts/FiraSans-Medium-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Source Serif 4';
+    font-style: normal;
+    font-weight: 400;
+    src: local('Source Serif 4'),url("fonts/SourceSerif4-Regular-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Source Serif 4';
+    font-style: italic;
+    font-weight: 400;
+    src: local('Source Serif 4 Italic'),url("fonts/SourceSerif4-It-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Source Serif 4';
+    font-style: normal;
+    font-weight: 700;
+    src: local('Source Serif 4 Bold'),url("fonts/SourceSerif4-Bold-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Source Code Pro';
+    font-style: normal;
+    font-weight: 400;
+    src: url("fonts/SourceCodePro-Regular-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Source Code Pro';
+    font-style: italic;
+    font-weight: 400;
+    src: url("fonts/SourceCodePro-It-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Source Code Pro';
+    font-style: normal;
+    font-weight: 600;
+    src: url("fonts/SourceCodePro-Semibold-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'NanumBarunGothic';
+    src: url("fonts/NanumBarunGothic-Regular-e0c06487a4dc798692ee46dfd5277dd8.woff2") format("woff2");
+    font-display: swap;
+    unicode-range: U+AC00-D7AF,U+1100-11FF,U+3130-318F,U+A960-A97F,U+D7B0-D7FF;
 }
 
 * {
     box-sizing: border-box;
 }
 
-#search-input, .search-result, h1, h2, h3, h4, h5, h6 {
+#search-input, .search-result, h1, h2, h3, h4, h5, h6, .signature, .item-title {
     font-family: "Fira Sans",Arial,NanumBarunGothic,sans-serif;
+}
+
+pre, code, .signature {
+    font-family: "Source Code Pro",monospace;
 }
 
 #container {
@@ -79,7 +157,9 @@
 body {
     color: var(--text-color);
     background-color: var(--background-color);
-    font: 1rem/1.5 "Source Serif 4",NanumBarunGothic,serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    font-family: "Source Serif 4", NanumBarunGothic, serif;
     margin: 20px;
 }
 
@@ -87,16 +167,17 @@ a {
     color: var(--link-color);
 }
 
-pre {
+pre, .signature {
     line-height: 1.5;
     font-size: 1em;
-    font-family: "Source Code Pro",monospace;
-    background-color: rgb(42, 42, 42);
+    background-color: var(--code-background-color);
     padding: 14px;
 }
 
-code {
-    font-family: "Source Code Pro",monospace;
+p > code {
+    background-color: var(--code-block-background-color);
+    border-radius: 3px;
+    padding: 0 0.125em;
 }
 
 .title {

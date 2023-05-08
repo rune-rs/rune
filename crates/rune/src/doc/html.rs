@@ -64,20 +64,20 @@ pub fn write_html(
     for file in Assets::iter() {
         let path = RelativePath::new(file.as_ref());
 
-        match (path.file_name(), path.extension()) {
-            (Some(name), Some("woff2")) => {
+        match path.extension() {
+            Some("woff2") => {
                 let file = Assets::get(file.as_ref()).context("missing asset")?;
-                let path = copy_file(name, root, file)?;
+                copy_file(path, root, file)?;
                 fonts.push(path.to_owned());
             }
-            (Some(name), Some("css")) => {
+            Some("css") => {
                 let file = Assets::get(file.as_ref()).context("missing asset")?;
-                let path = copy_file(name, root, file)?;
+                copy_file(path, root, file)?;
                 css.push(path.to_owned());
             }
-            (Some(name), Some("js")) => {
+            Some("js") => {
                 let file = Assets::get(file.as_ref()).context("missing asset")?;
-                let path = copy_file(name, root, file)?;
+                copy_file(path, root, file)?;
                 js.push(path.to_owned());
             }
             _ => {}
@@ -646,16 +646,15 @@ fn compile(templating: &templating::Templating, path: &str) -> Result<templating
 
 /// Copy an embedded file.
 fn copy_file<'a>(
-    name: &'a str,
+    path: &'a RelativePath,
     root: &Path,
     file: EmbeddedFile,
-) -> Result<&'a RelativePath, Error> {
-    let path = RelativePath::new(name);
+) -> Result<()> {
     let file_path = path.to_path(root);
     tracing::info!("writing: {}", file_path.display());
     ensure_parent_dir(&file_path)?;
     fs::write(&file_path, file.data.as_ref()).with_context(|| file_path.display().to_string())?;
-    Ok(path)
+    Ok(())
 }
 
 #[tracing::instrument(skip_all)]
@@ -936,22 +935,18 @@ fn build_function(cx: &Ctxt<'_, '_>, meta: Meta<'_>) -> Result<()> {
         return_type: Option<String>,
     }
 
-    let (is_async, args, signature, return_type, argument_types) = match meta.kind {
-        Kind::Function(Function {
-            is_async,
-            args,
-            signature: signature @ Signature::Function { .. },
-            return_type,
-            argument_types,
+    let f = match meta.kind {
+        Kind::Function(f @ Function {
+            signature: Signature::Function { .. },
             ..
-        }) => (is_async, args, signature, return_type, argument_types),
+        }) => f,
         _ => bail!("found meta, but not a function"),
     };
 
     let name = cx.item.last().context("Missing function name")?;
     let doc = cx.render_docs(meta.docs)?;
 
-    let return_type = match return_type {
+    let return_type = match f.return_type {
         Some(hash) => Some(cx.link(hash, None)?),
         None => None,
     };
@@ -960,10 +955,10 @@ fn build_function(cx: &Ctxt<'_, '_>, meta: Meta<'_>) -> Result<()> {
         cx.function_template.render(&Params {
             shared: cx.shared(),
             module: cx.module_path_html(false)?,
-            is_async,
+            is_async: f.is_async,
             item: &cx.item,
             name,
-            args: cx.args_to_string(args, signature, argument_types)?,
+            args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
             doc,
             return_type,
         })
