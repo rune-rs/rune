@@ -510,6 +510,10 @@ struct SharedFlags {
     #[arg(long)]
     warnings: bool,
 
+    /// Display verbose output.
+    #[arg(long)]
+    verbose: bool,
+
     /// Set the given compiler option (see `--help` for available options).
     ///
     /// memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
@@ -726,8 +730,8 @@ where
             }
         }
         Command::Doc(f) => return doc::run(io, entry, c, &f.command, &f.shared, options, entrys),
-        Command::Fmt(flags) => {
-            return format::run(io, entrys, &flags.command);
+        Command::Fmt(f) => {
+            return format::run(io, entry, c, entrys, &f.command, &f.shared, options);
         }
         Command::Test(f) => {
             for e in entrys {
