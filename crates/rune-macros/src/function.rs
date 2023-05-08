@@ -18,8 +18,7 @@ pub(crate) struct FunctionAttrs {
     /// Keep the existing function in place, and generate a separate hidden meta function.
     keep: bool,
     path: Path,
-    /// Indicates that the item is associated with the first element in the
-    /// path. This is implies if the first item is `Self`.
+    /// Looks like an associated type.
     assoc: bool,
 }
 
@@ -35,8 +34,6 @@ impl FunctionAttrs {
                 out.instance = true;
             } else if ident == "keep" {
                 out.keep = true;
-            } else if ident == "assoc" {
-                out.assoc = true;
             } else if ident == "path" {
                 input.parse::<Token![=]>()?;
 
@@ -142,8 +139,6 @@ impl Function {
 
     /// Expand the function declaration.
     pub(crate) fn expand(mut self, attrs: FunctionAttrs) -> Result<TokenStream, Error> {
-        let self_ident = syn::Ident::new("Self", self.sig.span());
-
         let (meta_fn, real_fn, sig, real_fn_mangled) = if attrs.keep {
             let meta_fn = syn::Ident::new(
                 &format!("__{}__meta", self.sig.ident),
@@ -162,11 +157,10 @@ impl Function {
             (meta_fn, real_fn, sig, true)
         };
 
-        let self_type = if attrs.assoc {
-            let self_type = match &attrs.path {
-                Path::None => &self_ident,
-                Path::Path(path) => match path.segments.first() {
-                    Some(segment) => &segment.ident,
+        let self_type = if !attrs.instance {
+            match &attrs.path {
+                Path::Path(path) if path.segments.len() == 2 => match path.segments.first() {
+                    Some(segment) => Some(&segment.ident),
                     None => {
                         return Err(syn::Error::new_spanned(
                             path,
@@ -174,59 +168,43 @@ impl Function {
                         ))
                     }
                 },
-            };
-
-            Some(self_type)
+                _ => None,
+            }
         } else {
             None
         };
 
-        let real_fn_path = if attrs.assoc || self.takes_self {
-            let mut segments = Punctuated::default();
-
-            segments.push(syn::PathSegment {
-                ident: self_type.unwrap_or(&self_ident).clone(),
-                arguments: syn::PathArguments::None,
-            });
-
-            let mut path = syn::TypePath {
-                qself: None,
-                path: syn::Path {
-                    leading_colon: None,
-                    segments,
-                },
+        let real_fn_path = if self.takes_self || attrs.assoc {
+            let mut path = syn::Path {
+                leading_colon: None,
+                segments: Punctuated::default(),
             };
 
-            path.path.segments.push(syn::PathSegment {
-                ident: real_fn,
-                arguments: syn::PathArguments::None,
-            });
+            path.segments.push(syn::PathSegment::from(syn::Ident::new(
+                "Self",
+                self.sig.span(),
+            )));
+            path.segments.push(syn::PathSegment::from(real_fn));
 
-            path
+            syn::TypePath { qself: None, path }
         } else {
-            let mut segments = Punctuated::default();
+            let mut path = syn::Path {
+                leading_colon: None,
+                segments: Punctuated::default(),
+            };
 
-            segments.push(syn::PathSegment {
-                ident: real_fn,
-                arguments: syn::PathArguments::None,
-            });
+            path.segments.push(syn::PathSegment::from(real_fn));
 
-            syn::TypePath {
-                qself: None,
-                path: syn::Path {
-                    leading_colon: None,
-                    segments,
-                },
-            }
+            syn::TypePath { qself: None, path }
         };
 
         let (instance, meta_name) = if attrs.instance || self.takes_self {
             (true, self.name_string.to_token_stream())
         } else {
-            match &attrs.path {
+            let stream = match &attrs.path {
                 Path::None => {
-                    let name_string = self.name_string.clone();
-                    (false, quote!([#name_string]))
+                    let name_string = &self.name_string;
+                    quote!([#name_string])
                 }
                 Path::Path(path) => {
                     let mut out = syn::ExprArray {
@@ -235,7 +213,7 @@ impl Function {
                         elems: Punctuated::default(),
                     };
 
-                    let skip = if attrs.assoc { 1 } else { 0 };
+                    let skip = if path.segments.len() <= 1 { 0 } else { 1 };
 
                     for segment in path.segments.iter().skip(skip) {
                         let ident =
@@ -247,9 +225,11 @@ impl Function {
                         }));
                     }
 
-                    (false, out.into_token_stream())
+                    out.into_token_stream()
                 }
-            }
+            };
+
+            (false, stream)
         };
 
         let function = match (instance, self_type.is_some(), self.sig.asyncness.is_some()) {
