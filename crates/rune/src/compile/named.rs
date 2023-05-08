@@ -1,7 +1,7 @@
 use crate::no_std::prelude::*;
 
 use crate::module::InstallWith;
-use crate::runtime::{RawStr, Tuple};
+use crate::runtime::RawStr;
 
 /// The trait used for something that can be statically named.
 pub trait Named {
@@ -53,9 +53,3 @@ impl Named for bool {
 }
 
 impl InstallWith for bool {}
-
-impl Named for Tuple {
-    const BASE_NAME: RawStr = RawStr::from_str("Tuple");
-}
-
-impl InstallWith for Tuple {}

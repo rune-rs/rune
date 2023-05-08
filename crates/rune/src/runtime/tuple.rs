@@ -4,8 +4,10 @@ use core::slice;
 
 use crate::no_std::prelude::*;
 
+use crate::compile::Named;
+use crate::module::InstallWith;
 use crate::runtime::{
-    ConstValue, FromValue, Mut, Ref, ToValue, Value, Vm, VmErrorKind, VmResult, TUPLE_TYPE,
+    ConstValue, FromValue, Mut, RawStr, Ref, ToValue, Value, Vm, VmErrorKind, VmResult, TUPLE_TYPE,
 };
 
 /// Struct representing a dynamic anonymous object.
@@ -180,6 +182,12 @@ impl FromValue for Tuple {
         }
     }
 }
+
+impl Named for Tuple {
+    const BASE_NAME: RawStr = RawStr::from_str("Tuple");
+}
+
+impl InstallWith for Tuple {}
 
 macro_rules! impl_tuple {
     // Skip conflicting implementation with `()`.

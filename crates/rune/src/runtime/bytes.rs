@@ -10,6 +10,7 @@ use crate::no_std::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
+use crate as rune;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
@@ -26,23 +27,42 @@ pub struct Bytes {
 
 impl Bytes {
     /// Construct a new bytes container.
+    #[rune::function(keep, path = Self::new)]
+    #[inline]
     pub const fn new() -> Self {
         Bytes { bytes: Vec::new() }
     }
 
     /// Construct a new bytes container with the specified capacity.
+    #[inline]
     pub fn with_capacity(cap: usize) -> Self {
         Bytes {
             bytes: Vec::with_capacity(cap),
         }
     }
 
-    /// Convert into vector.
+    /// Convert the bytes container into a vector of bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let bytes = b"abcd";
+    /// assert_eq!(bytes.into_vec(), [b'a', b'b', b'c', b'd']);
+    /// ```
+    #[rune::function(keep)]
     pub fn into_vec(self) -> Vec<u8> {
         self.bytes
     }
 
-    /// Construct from a byte vector.
+    /// Convert a byte array into bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let bytes = Bytes::from_vec([b'a', b'b', b'c', b'd']);
+    /// assert_eq!(bytes, b"abcd");
+    /// ```
+    #[rune::function(keep, path = Self::from_vec)]
     pub fn from_vec(bytes: Vec<u8>) -> Self {
         Self { bytes }
     }

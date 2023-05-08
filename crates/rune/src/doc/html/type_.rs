@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 
 use crate::compile::{ComponentRef, Item};
-use crate::doc::context::{Assoc, AssocFnKind, Signature, Meta};
+use crate::doc::context::{Assoc, AssocFnKind, Meta};
 use crate::doc::html::{Ctxt, IndexEntry, IndexKind, Builder};
 
 #[derive(Serialize)]
@@ -51,14 +51,18 @@ pub(super) fn build_assoc_fns<'m>(
                 value = format!("value.{index}");
                 (protocol, value.as_str())
             }
-            AssocFnKind::Instance(name) => {
+            AssocFnKind::Method(name, args, sig) => {
                 let line_doc = cx.render_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
                 let doc = cx.render_docs(meta, assoc.docs)?;
 
                 let mut list = Vec::new();
 
                 for &hash in assoc.parameter_types {
-                    list.push(cx.link(hash, None)?);
+                    if let Some(link) = cx.link(hash, None)? {
+                        list.push(link);
+                    } else {
+                        list.push(hash.to_string());
+                    }
                 }
 
                 let parameters = (!list.is_empty()).then(|| list.join(", "));
@@ -67,13 +71,14 @@ pub(super) fn build_assoc_fns<'m>(
                     is_async: assoc.is_async,
                     name,
                     args: cx.args_to_string(
-                        assoc.docs_args,
-                        Signature::Instance { args: assoc.args },
+                        assoc.arg_names,
+                        args,
+                        sig,
                         &assoc.argument_types,
                     )?,
                     parameters,
                     return_type: match assoc.return_type {
-                        Some(hash) => Some(cx.link(hash, None)?),
+                        Some(hash) => cx.link(hash, None)?,
                         None => None,
                     },
                     line_doc,
@@ -100,7 +105,7 @@ pub(super) fn build_assoc_fns<'m>(
             name: protocol.name,
             repr,
             return_type: match assoc.return_type {
-                Some(hash) => Some(cx.link(hash, None)?),
+                Some(hash) => cx.link(hash, None)?,
                 None => None,
             },
             doc,

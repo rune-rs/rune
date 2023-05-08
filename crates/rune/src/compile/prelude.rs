@@ -15,6 +15,7 @@ impl Prelude {
     pub(crate) fn with_default_prelude() -> Self {
         let mut this = Self::default();
 
+        this.add_prelude("any", ["Type"]);
         this.add_prelude("assert_eq", ["test", "assert_eq"]);
         this.add_prelude("assert", ["test", "assert"]);
         this.add_prelude("bool", ["bool"]);

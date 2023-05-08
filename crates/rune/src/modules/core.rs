@@ -6,7 +6,7 @@ use crate as rune;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{Panic, Tuple, Type, Value, VmResult};
+use crate::runtime::{Panic, Tuple, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Construct the `std` module.
@@ -20,7 +20,6 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<f64>()?;
     module.ty::<i64>()?;
     module.ty::<Tuple>()?;
-    module.ty::<Type>()?;
 
     module.function_meta(panic)?;
     module.function_meta(is_readable)?;

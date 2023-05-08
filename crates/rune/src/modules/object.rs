@@ -11,7 +11,10 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty::<Object>()?;
 
-    module.inst_fn("len", Object::len)?;
+    module.function_meta(Object::__new__meta)?;
+    module.function_meta(Object::__with_capacity__meta)?;
+    module.function_meta(Object::__len__meta)?;
+    module.function_meta(Object::__is_empty__meta)?;
     module.inst_fn("insert", Object::insert)?;
     module.inst_fn("remove", remove)?;
     module.inst_fn("clear", Object::clear)?;

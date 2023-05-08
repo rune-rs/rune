@@ -34,8 +34,9 @@ use rune::{Any, ContextError, Module};
 /// Construct the `time` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("time");
-    module.function(["Duration", "from_secs"], Duration::from_secs)?;
-    module.async_function(["sleep"], sleep)?;
+    module.ty::<Duration>()?;
+    module.function_meta(Duration::__from_secs__meta)?;
+    module.function_meta(sleep)?;
     Ok(module)
 }
 
@@ -45,7 +46,16 @@ struct Duration {
 }
 
 impl Duration {
-    /// Construct a duration from seconds.
+    /// Construct a duration from the given number of seconds.
+    /// 
+    /// # Examples
+    /// 
+    /// ```rune
+    /// use time::Duration;
+    ///
+    /// let d = Duration::from_secs(10);
+    /// ```
+    #[rune::function(keep, path = Self::from_secs)]
     fn from_secs(secs: u64) -> Self {
         Self {
             inner: tokio::time::Duration::from_secs(secs),
@@ -53,7 +63,18 @@ impl Duration {
     }
 }
 
-/// Convert any value to a json string.
-async fn sleep(duration: &Duration) {
+/// Sleep for the given [`Duration`].
+/// 
+/// # Examples
+/// 
+/// ```rune
+/// use time::Duration;
+///
+/// let d = Duration::from_secs(10);
+/// time::sleep(d).await;
+/// println!("Suprise!");
+/// ```
+#[rune::function]
+async fn sleep(duration: Duration) {
     tokio::time::sleep(duration.inner).await;
 }

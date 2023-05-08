@@ -480,43 +480,47 @@ impl<'m> Ctxt<'_, 'm> {
     }
 
     /// Convert a hash into a link.
-    fn link(&self, hash: Hash, text: Option<&str>) -> Result<String> {
-        let link = if let [meta] = self.context.meta_by_hash(hash).as_slice() {
-            let name = match text {
-                Some(text) => text,
-                None => meta
-                    .item
-                    .last()
-                    .and_then(|c| c.as_str())
-                    .context("missing name")?,
-            };
-
+    fn link(&self, hash: Hash, text: Option<&str>) -> Result<Option<String>> {
+        fn into_item_kind(meta: Meta<'_>) -> Option<ItemKind> {
             match &meta.kind {
-                Kind::Type => {
-                    let path = self.item_path(meta.item, ItemKind::Type)?;
-                    format!("<a class=\"type\" href=\"{path}\">{name}</a>")
-                }
-                Kind::Struct => {
-                    let path = self.item_path(meta.item, ItemKind::Struct)?;
-                    format!("<a class=\"struct\" href=\"{path}\">{name}</a>")
-                }
-                Kind::Enum => {
-                    let path = self.item_path(meta.item, ItemKind::Enum)?;
-                    format!("<a class=\"enum\" href=\"{path}\">{name}</a>")
-                }
-                kind => format!("{kind:?}"),
+                Kind::Type => Some(ItemKind::Type),
+                Kind::Struct => Some(ItemKind::Struct),
+                Kind::Enum => Some(ItemKind::Enum),
+                Kind::Function { .. } => Some(ItemKind::Function),
+                _ => None,
             }
-        } else {
-            String::from("<b>n/a</b>")
+        }
+
+        let mut it = self.context.meta_by_hash(hash).into_iter().flat_map(|m| Some((m, into_item_kind(m)?)));
+
+        let Some((meta, kind)) = it.next() else {
+            tracing::warn!(?hash, "No link for hash");
+
+            for meta in self.context.meta_by_hash(hash) {
+                tracing::warn!("Candidate: {:?}", meta.kind);
+            }
+
+            return Ok(Some(format!("{hash}")))
         };
 
-        Ok(link)
+        let name = match text {
+            Some(text) => text,
+            None => meta
+                .item
+                .last()
+                .and_then(|c| c.as_str())
+                .context("missing name")?,
+        };
+
+        let path = self.item_path(meta.item, kind)?;
+        Ok(Some(format!("<a class=\"{kind}\" href=\"{path}\">{name}</a>")))
     }
 
     /// Coerce args into string.
     fn args_to_string(
         &self,
-        args: Option<&[String]>,
+        arg_names: Option<&[String]>,
+        args: Option<usize>,
         sig: Signature,
         argument_types: &[Option<Hash>],
     ) -> Result<String> {
@@ -530,12 +534,12 @@ impl<'m> Ctxt<'_, 'm> {
         let mut function_iter;
         let mut instance_iter;
 
-        let it: &mut dyn Iterator<Item = Cow<'_, str>> = if let Some(args) = args {
-            args_iter = args.iter().map(|s| Cow::Borrowed(s.as_str()));
+        let it: &mut dyn Iterator<Item = Cow<'_, str>> = if let Some(arg_names) = arg_names {
+            args_iter = arg_names.iter().map(|s| Cow::Borrowed(s.as_str()));
             &mut args_iter
         } else {
             match sig {
-                Signature::Function { args, .. } => {
+                Signature::Function => {
                     let mut string = String::new();
 
                     let Some(count) = args else {
@@ -553,7 +557,7 @@ impl<'m> Ctxt<'_, 'm> {
 
                     &mut function_iter
                 }
-                Signature::Instance { args, .. } => {
+                Signature::Instance => {
                     let s = [Cow::Borrowed("self")];
 
                     let (n, f): (usize, fn(usize) -> Cow<'static, str>) = match args {
@@ -585,7 +589,11 @@ impl<'m> Ctxt<'_, 'm> {
         while let Some(arg) = it.next() {
             if arg == "self" {
                 if let Some(Some(hash)) = types.next() {
-                    string.push_str(&self.link(*hash, Some("self"))?);
+                    if let Some(link) = self.link(*hash, Some("self"))? {
+                        string.push_str(&link);
+                    } else {
+                        string.push_str("self");
+                    }
                 } else {
                     string.push_str("self");
                 }
@@ -593,8 +601,10 @@ impl<'m> Ctxt<'_, 'm> {
                 string.push_str(arg.as_ref());
 
                 if let Some(Some(hash)) = types.next() {
-                    string.push_str(": ");
-                    string.push_str(&self.link(*hash, None)?);
+                    if let Some(link) = self.link(*hash, None)? {
+                        string.push_str(": ");
+                        string.push_str(&link);
+                    }
                 }
             }
 
@@ -899,7 +909,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                         path: cx.item_path(&item, ItemKind::Function)?,
                         item: item.clone(),
                         name,
-                        args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
+                        args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,
                         doc: cx.render_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
@@ -995,7 +1005,7 @@ fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> 
     let doc = cx.render_docs(meta, meta.docs)?;
 
     let return_type = match f.return_type {
-        Some(hash) => Some(cx.link(hash, None)?),
+        Some(hash) => cx.link(hash, None)?,
         None => None,
     };
 
@@ -1008,7 +1018,7 @@ fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> 
             is_async: f.is_async,
             item: meta.item,
             name,
-            args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
+            args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,
             doc,
             return_type,
         })
