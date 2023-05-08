@@ -63,7 +63,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-    - run: shopt -s globstar ; cargo run --bin rune -- fmt --check **/*.rn
+    - run: cargo run --bin rune -- fmt --experimental --recursive --verbose tools scripts
+    - run: cargo run --bin rune -- fmt --verbose
 
   clippy:
     runs-on: ubuntu-latest
