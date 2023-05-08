@@ -190,10 +190,10 @@ impl<'a> Context<'a> {
     }
 
     /// Iterate over known child components of the given name.
-    pub(crate) fn iter_components<'iter, I: 'iter>(
-        &'iter self,
+    pub(crate) fn iter_components<I: 'static>(
+        &self,
         iter: I,
-    ) -> impl Iterator<Item = (MetaSource<'iter>, ComponentRef<'iter>)> + 'iter
+    ) -> impl Iterator<Item = (MetaSource<'a>, ComponentRef<'a>)> + '_
     where
         I: Clone + IntoIterator,
         I::Item: IntoComponent,

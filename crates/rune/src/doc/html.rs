@@ -38,6 +38,22 @@ use crate::Hash;
 const THEME: &str = "base16-eighties.dark";
 const RUNEDOC_CSS: &str = "runedoc.css";
 
+pub(crate) struct Builder<'m> {
+    path: RelativePathBuf,
+    item: ItemBuf,
+    builder: Box<dyn FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm>,
+}
+
+impl<'m> Builder<'m> {
+    fn new<B>(cx: &Ctxt<'_, '_>, builder: B) -> Self where B: FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm {
+        Self {
+            path: cx.path.clone(),
+            item: cx.item.clone(),
+            builder: Box::new(builder),
+        }
+    }
+}
+
 #[derive(RustEmbed)]
 #[folder = "src/doc/static"]
 struct Assets;
@@ -128,22 +144,26 @@ pub fn write_html(
     let mut queue = initial.into_iter().collect::<VecDeque<_>>();
 
     let mut modules = Vec::new();
+    let mut builders = Vec::new();
 
     while let Some(build) = queue.pop_front() {
         match build {
             Build::Type(meta) => {
                 cx.set_path(meta)?;
-                let items = self::type_::build(&cx, "Type", "type", meta)?;
+                let (builder, items) = self::type_::build(&cx, "Type", "type", meta)?;
+                builders.push(builder);
                 cx.index.extend(items);
             }
             Build::Struct(meta) => {
                 cx.set_path(meta)?;
-                let index = self::type_::build(&cx, "Struct", "struct", meta)?;
+                let (builder, index) = self::type_::build(&cx, "Struct", "struct", meta)?;
+                builders.push(builder);
                 cx.index.extend(index);
             }
             Build::Enum(meta) => {
                 cx.set_path(meta)?;
-                let index = self::enum_::build(&cx, meta)?;
+                let (builder, index) = self::enum_::build(&cx, meta)?;
+                builders.push(builder);
                 cx.index.extend(index);
             }
             Build::Macro(meta) => {
@@ -152,46 +172,54 @@ pub fn write_html(
             }
             Build::Function(meta) => {
                 cx.set_path(meta)?;
-                build_function(&cx, meta)?;
+                builders.push(build_function(&cx, meta)?);
             }
             Build::Module(meta) => {
                 cx.set_path(meta)?;
-                module(&cx, meta, &mut queue)?;
+                builders.push(module(&cx, meta, &mut queue)?);
                 modules.push((meta.item, cx.path.clone()));
             }
         }
     }
 
+    let index_content = build_search_index(&cx)?;
+    let search_index = copy_file_bytes(root, "index.js", index_content.as_bytes())?;
+
+    cx.search_index = Some(&search_index);
+
+    for builder in builders {
+        cx.path = builder.path;
+        cx.item = builder.item;
+        cx.write_file(|cx| (builder.builder)(cx))?;
+    }
+
     cx.path = RelativePath::new("index.html").to_owned();
     index(&cx, &modules)?;
+    Ok(())
+}
 
-    cx.path = search_index.to_owned();
-    cx.write_file(|cx| {
-        let mut s = String::new();
-        write!(s, "window.INDEX = [")?;
+fn build_search_index(cx: &Ctxt) -> Result<String> {
+    let mut s = String::new();
+    write!(s, "window.INDEX = [")?;
+    let mut it = cx.index.iter();
 
-        let mut it = cx.index.iter();
+    while let Some(IndexEntry { path, item, kind, doc }) = it.next() {
+        write!(s, "[\"{path}\",\"{item}\",\"{kind}\",\"")?;
 
-        while let Some(IndexEntry { path, item, kind, doc }) = it.next() {
-            write!(s, "[\"{path}\",\"{item}\",\"{kind}\",\"")?;
-
-            if let Some(doc) = doc {
-                js::encode_quoted(&mut s, doc);
-            }
-
-            write!(s, "\"]")?;
-
-            if it.clone().next().is_some() {
-                write!(s, ",")?;
-            }
+        if let Some(doc) = doc {
+            js::encode_quoted(&mut s, doc);
         }
 
-        write!(s, "];")?;
-        writeln!(s)?;
-        Ok(s)
-    })?;
+        write!(s, "\"]")?;
 
-    Ok(())
+        if it.clone().next().is_some() {
+            write!(s, ",")?;
+        }
+    }
+
+    write!(s, "];")?;
+    writeln!(s)?;
+    Ok(s)
 }
 
 #[derive(Serialize)]
@@ -315,14 +343,14 @@ impl Ctxt<'_, '_> {
     }
 
     /// Write the current file.
-    fn write_file<C>(&self, contents: C) -> Result<()>
+    fn write_file<C>(&self, builder: C) -> Result<()>
     where
         C: FnOnce(&Self) -> Result<String>,
     {
         let p = self.path.to_path(self.root);
         tracing::info!("writing: {}", p.display());
         ensure_parent_dir(&p)?;
-        let data = contents(self)?;
+        let data = builder(self)?;
         fs::write(&p, data).with_context(|| p.display().to_string())?;
         Ok(())
     }
@@ -725,7 +753,7 @@ fn index(cx: &Ctxt<'_, '_>, mods: &[(&Item, RelativePathBuf)]) -> Result<()> {
 
 /// Build a single module.
 #[tracing::instrument(skip_all)]
-fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'_>, queue: &mut VecDeque<Build<'m>>) -> Result<()> {
+fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -810,7 +838,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'_>, queue: &mut VecDeque<Build<'m>>
     let mut functions = Vec::new();
     let mut modules = Vec::new();
 
-    for (_, name) in cx.context.iter_components(&cx.item) {
+    for (_, name) in cx.context.iter_components(cx.item.clone()) {
         let item = cx.item.join([name]);
 
         for meta in cx.context.meta(&item) {
@@ -889,7 +917,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'_>, queue: &mut VecDeque<Build<'m>>
         }
     }
 
-    cx.write_file(|cx| {
+    Ok(Builder::new(cx, move |cx| {
         cx.module_template.render(&Params {
             shared: cx.shared(),
             item: &cx.item,
@@ -902,7 +930,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'_>, queue: &mut VecDeque<Build<'m>>
             functions,
             modules,
         })
-    })
+    }))
 }
 
 /// Build a macro.
@@ -943,7 +971,7 @@ fn build_macro(cx: &Ctxt<'_, '_>) -> Result<()> {
 
 /// Build a function.
 #[tracing::instrument(skip_all)]
-fn build_function(cx: &Ctxt<'_, '_>, meta: Meta<'_>) -> Result<()> {
+fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -967,7 +995,6 @@ fn build_function(cx: &Ctxt<'_, '_>, meta: Meta<'_>) -> Result<()> {
         _ => bail!("found meta, but not a function"),
     };
 
-    let name = cx.item.last().context("Missing function name")?;
     let doc = cx.render_docs(meta.docs)?;
 
     let return_type = match f.return_type {
@@ -975,7 +1002,9 @@ fn build_function(cx: &Ctxt<'_, '_>, meta: Meta<'_>) -> Result<()> {
         None => None,
     };
 
-    cx.write_file(|cx| {
+    Ok(Builder::new(cx, move |cx| {
+        let name = cx.item.last().context("Missing function name")?;
+
         cx.function_template.render(&Params {
             shared: cx.shared(),
             module: cx.module_path_html(false)?,
@@ -986,7 +1015,7 @@ fn build_function(cx: &Ctxt<'_, '_>, meta: Meta<'_>) -> Result<()> {
             doc,
             return_type,
         })
-    })
+    }))
 }
 
 /// Helper to serialize an item.

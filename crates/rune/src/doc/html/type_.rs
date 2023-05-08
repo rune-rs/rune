@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::compile::{ComponentRef, Item};
 use crate::doc::context::{Assoc, AssocFnKind, Signature, Meta};
-use crate::doc::html::{Ctxt, IndexEntry, IndexKind};
+use crate::doc::html::{Ctxt, IndexEntry, IndexKind, Builder};
 
 #[derive(Serialize)]
 pub(super) struct Protocol<'a> {
@@ -141,13 +141,14 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &str, what_class: &str, meta: Meta<'m>) -> Result<Vec<IndexEntry>> {
+pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry>)> {
     let module = cx.module_path_html(false)?;
-    let name = cx.item.last().context("missing module name")?;
 
     let (protocols, methods, index) = build_assoc_fns(cx, meta)?;
 
-    cx.write_file(|cx| {
+    let builder = Builder::new(cx, move |cx| {
+        let name = cx.item.last().context("missing module name")?;
+
         cx.type_template.render(&Params {
             shared: cx.shared(),
             what,
@@ -158,7 +159,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &str, what_class: &str, meta: M
             methods,
             protocols,
         })
-    })?;
+    });
 
-    Ok(index)
+    Ok((builder, index))
 }

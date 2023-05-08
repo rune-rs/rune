@@ -104,7 +104,7 @@
         return null;
     }
 
-    let makeResult = (child, path, item, kind) => {
+    let makeResult = (child, [path, item, kind, doc]) => {
         let linkNode = null;
 
         if (child.firstChild) {
@@ -134,6 +134,15 @@
             let span = $doc.createElement("span");
             span.className = kindToClass(kind);
             span.appendChild($doc.createTextNode(last));
+            linkNode.appendChild(span);
+        }
+
+        if (!!doc) {
+            linkNode.appendChild($doc.createTextNode(" - "));
+
+            let span = $doc.createElement("span");
+            span.className = "inline-docs";
+            span.innerHTML = doc;
             linkNode.appendChild(span);
         }
 
@@ -206,11 +215,10 @@
             let results = [];
 
             for (let row of w.INDEX) {
-                let [path, item, kind] = row;
-                let s = score(q, item);
+                let s = score(q, row[1]);
 
                 if (s !== null) {
-                    results.push([s, path, item, kind]);
+                    results.push([s, row]);
                 }
             }
 
@@ -225,16 +233,16 @@
                     break;
                 }
 
-                let [_, path, item, kind] = results[i];
-                makeResult(child, path, item, kind);
+                let [_, row] = results[i];
+                makeResult(child, row);
                 i += 1;
             }
 
             while (i < results.length) {
                 const child = $doc.createElement("div");
                 child.className = "search-result";
-                let [_, path, item, kind] = results[i];
-                makeResult(child, path, item, kind);
+                let [_, row] = results[i];
+                makeResult(child, row);
                 searchResults.appendChild(child);
                 i += 1;
             }
