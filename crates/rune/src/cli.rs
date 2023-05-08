@@ -391,7 +391,10 @@ impl Config {
 
         if !self.found_paths.is_empty() {
             build_paths.extend(self.found_paths.iter().map(|p| BuildPath::Path(p)));
-            return Ok(build_paths);
+
+            if !cmd.shared().workspace {
+                return Ok(build_paths);
+            }
         }
 
         if let Some(bin) = cmd.find_bins() {
@@ -510,6 +513,17 @@ struct SharedFlags {
     #[arg(long)]
     warnings: bool,
 
+    /// Display verbose output.
+    #[arg(long)]
+    verbose: bool,
+
+    /// Collect sources to operate over from the workspace.
+    ///
+    /// This is what happens by default, but is disabled in case any `<paths>`
+    /// are specified.
+    #[arg(long)]
+    workspace: bool,
+
     /// Set the given compiler option (see `--help` for available options).
     ///
     /// memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
@@ -546,6 +560,7 @@ struct SharedFlags {
 
     /// All paths to include in the command. By default, the tool searches the
     /// current directory and some known files for candidates.
+    #[arg(name = "paths")]
     paths: Vec<PathBuf>,
 }
 
@@ -610,7 +625,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: &Command) -> Result<()>
             .map(|p| p.as_path().into()),
     );
 
-    if !c.found_paths.is_empty() {
+    if !c.found_paths.is_empty() && !cmd.shared().workspace {
         return Ok(());
     }
 
@@ -726,8 +741,8 @@ where
             }
         }
         Command::Doc(f) => return doc::run(io, entry, c, &f.command, &f.shared, options, entrys),
-        Command::Fmt(flags) => {
-            return format::run(io, entrys, &flags.command);
+        Command::Fmt(f) => {
+            return format::run(io, entry, c, entrys, &f.command, &f.shared, options);
         }
         Command::Test(f) => {
             for e in entrys {

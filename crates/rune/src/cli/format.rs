@@ -1,11 +1,51 @@
-use std::io::Write;
+use core::fmt;
+
+use crate::no_std::io::Write;
+use crate::no_std::collections::BTreeSet;
+use crate::no_std::prelude::*;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use similar::{ChangeTag, TextDiff};
 
-use crate::cli::{ExitCode, Io, EntryPoint};
-use crate::termcolor::WriteColor;
-use crate::{Source};
+use crate::cli::{Entry, ExitCode, Io, EntryPoint, SharedFlags, Config};
+use crate::termcolor::{WriteColor, ColorSpec, Color};
+use crate::{Source, Sources, Options, Diagnostics};
+
+struct Line(Option<usize>);
+
+impl fmt::Display for Line {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            None => write!(f, "    "),
+            Some(idx) => write!(f, "{:<4}", idx + 1),
+        }
+    }
+}
+
+struct Colors {
+    red: ColorSpec,
+    green: ColorSpec,
+    yellow: ColorSpec,
+    dim: ColorSpec,
+}
+
+impl Colors {
+    fn new() -> Self {
+        let mut this = Self {
+            red: ColorSpec::new(),
+            green: ColorSpec::new(),
+            yellow: ColorSpec::new(),
+            dim: ColorSpec::new(),
+        };
+
+        this.red.set_fg(Some(Color::Red));
+        this.green.set_fg(Some(Color::Green));
+        this.yellow.set_fg(Some(Color::Yellow));
+
+        this
+    }
+}
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -18,82 +58,174 @@ pub(super) struct Flags {
     check: bool,
 }
 
-pub(super) fn run<'m, I>(io: &mut Io<'_>, entrys: I, flags: &Flags) -> Result<ExitCode> where I: IntoIterator<Item = EntryPoint<'m>> {
-    let mut red = crate::termcolor::ColorSpec::new();
-    red.set_fg(Some(crate::termcolor::Color::Red));
+pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, entrys: I, flags: &Flags, shared: &SharedFlags, options: &Options) -> Result<ExitCode> where I: IntoIterator<Item = EntryPoint<'m>> {
+    let col = Colors::new();
 
-    let mut green = crate::termcolor::ColorSpec::new();
-    green.set_fg(Some(crate::termcolor::Color::Green));
-
-    let mut yellow = crate::termcolor::ColorSpec::new();
-    yellow.set_fg(Some(crate::termcolor::Color::Yellow));
-
-    let mut succeeded = 0;
+    let mut changed = 0;
     let mut failed = 0;
     let mut unchanged = 0;
+    let mut failed_builds = 0;
+
+    let context = shared.context(entry, c, None)?;
+
+    let mut paths = BTreeSet::new();
 
     for e in entrys {
-        let source =
-            Source::from_path(e.path()).with_context(|| format!("reading file: {}", e.path().display()))?;
+        let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
+            Diagnostics::new()
+        } else {
+            Diagnostics::without_warnings()
+        };
 
-        match crate::fmt::layout_source(&source) {
-            Ok(val) => {
-                if val == source.as_str() {
-                    if !flags.check {
-                        io.stdout.set_color(&yellow)?;
-                        write!(io.stdout, "== ")?;
-                        io.stdout.reset()?;
-                        writeln!(io.stdout, "{}", e.path().display())?;
-                    }
+        let mut sources = Sources::new();
+        sources.insert(Source::from_path(e.path()).with_context(|| e.path().display().to_string())?);
 
-                    unchanged += 1;
-                } else {
-                    succeeded += 1;
-                    io.stdout.set_color(&green)?;
-                    write!(io.stdout, "++ ")?;
-                    io.stdout.reset()?;
-                    writeln!(io.stdout, "{}", e.path().display())?;
-                    if !flags.check {
-                        std::fs::write(e.path(), &val)?;
-                    }
-                }
-            }
-            Err(err) => {
-                failed += 1;
-                io.stdout.set_color(&red)?;
-                write!(io.stdout, "!! ")?;
-                io.stdout.reset()?;
-                writeln!(io.stdout, "{}: {}", e.path().display(), err)?;
+        let _ = crate::prepare(&mut sources)
+            .with_context(&context)
+            .with_diagnostics(&mut diagnostics)
+            .with_options(options)
+            .build();
+
+        diagnostics.emit(&mut io.stdout.lock(), &sources)?;
+
+        if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
+            failed_builds += 1;
+        }
+
+        for source in sources.iter() {
+            if let Some(path) = source.path() {
+                paths.insert(path.to_owned());
             }
         }
     }
 
-    io.stdout.set_color(&yellow)?;
-    write!(io.stdout, "{}", unchanged)?;
-    io.stdout.reset()?;
-    writeln!(io.stdout, " unchanged")?;
-    io.stdout.set_color(&green)?;
-    write!(io.stdout, "{}", succeeded)?;
-    io.stdout.reset()?;
-    writeln!(io.stdout, " succeeded")?;
-    io.stdout.set_color(&red)?;
-    write!(io.stdout, "{}", failed)?;
-    io.stdout.reset()?;
-    writeln!(io.stdout, " failed")?;
+    for path in paths {
+        let source = Source::from_path(&path).with_context(|| path.display().to_string())?;
 
-    if flags.check && succeeded > 0 {
-        io.stdout.set_color(&red)?;
-        write!(
+        let val = match crate::fmt::layout_source(&source) {
+            Ok(val) => val,
+            Err(err) => {
+                failed += 1;
+
+                if shared.verbose {
+                    io.stdout.set_color(&col.red)?;
+                    write!(io.stdout, "!! ")?;
+                    io.stdout.reset()?;
+                    writeln!(io.stdout, "{}: {}", path.display(), err)?;
+                }
+
+                continue;
+            }
+        };
+
+        let same = source.as_str() == val.as_str();
+
+        if same {
+            unchanged += 1;
+
+            if shared.verbose {
+                io.stdout.set_color(&col.green)?;
+                write!(io.stdout, "== ")?;
+                io.stdout.reset()?;
+                writeln!(io.stdout, "{}", path.display())?;
+            }
+
+            continue;
+        }
+
+        changed += 1;
+
+        if shared.verbose || flags.check {
+            io.stdout.set_color(&col.yellow)?;
+            write!(io.stdout, "++ ")?;
+            io.stdout.reset()?;
+            writeln!(io.stdout, "{}", path.display())?;
+            diff(io, &source, &val, &col)?;
+        }
+
+        if !flags.check {
+            std::fs::write(path, &val)?;
+        }
+    }
+
+    if shared.verbose && unchanged > 0 {
+        io.stdout.set_color(&col.green)?;
+        write!(io.stdout, "{}", unchanged)?;
+        io.stdout.reset()?;
+        writeln!(io.stdout, " unchanged")?;
+    }
+
+    if shared.verbose && changed > 0 {
+        io.stdout.set_color(&col.yellow)?;
+        write!(io.stdout, "{}", changed)?;
+        io.stdout.reset()?;
+        writeln!(io.stdout, " changed")?;
+    }
+
+    if shared.verbose && failed > 0 {
+        io.stdout.set_color(&col.red)?;
+        write!(io.stdout, "{}", failed)?;
+        io.stdout.reset()?;
+        writeln!(io.stdout, " failed")?;
+    }
+
+    if shared.verbose && failed_builds > 0 {
+        io.stdout.set_color(&col.red)?;
+        write!(io.stdout, "{}", failed_builds)?;
+        io.stdout.reset()?;
+        writeln!(io.stdout, " failed builds")?;
+    }
+
+    if flags.check && changed > 0 {
+        io.stdout.set_color(&col.red)?;
+        writeln!(
             io.stdout,
-            "Exiting with failure due to `--check` flag and unformatted files."
+            "Failure due to `--check` flag and unformatted files."
         )?;
         io.stdout.reset()?;
         return Ok(ExitCode::Failure);
     }
 
-    if failed > 0 {
+    if failed > 0 || failed_builds > 0 {
         return Ok(ExitCode::Failure);
     }
 
     Ok(ExitCode::Success)
+}
+
+fn diff(io: &mut Io, source: &Source, val: &str, col: &Colors) -> Result<(), anyhow::Error> {
+    let diff = TextDiff::from_lines(source.as_str(), val);
+
+    for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
+        if idx > 0 {
+            println!("{:-^1$}", "-", 80);
+        }
+
+        for op in group {
+            for change in diff.iter_inline_changes(op) {
+                let (sign, color) = match change.tag() {
+                    ChangeTag::Delete => ("-", &col.red),
+                    ChangeTag::Insert => ("+", &col.green),
+                    ChangeTag::Equal => (" ", &col.dim),
+                };
+    
+                io.stdout.set_color(color)?;
+    
+                write!(io.stdout,"{}", Line(change.old_index()))?;
+                write!(io.stdout,"{sign}")?;
+    
+                for (_, value) in change.iter_strings_lossy() {
+                    write!(io.stdout, "{value}")?;
+                }
+    
+                io.stdout.reset()?;
+    
+                if change.missing_newline() {
+                    writeln!(io.stdout)?;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }

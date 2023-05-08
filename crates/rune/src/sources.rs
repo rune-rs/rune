@@ -106,6 +106,12 @@ impl Sources {
     pub(crate) fn source_ids(&self) -> impl Iterator<Item = SourceId> {
         (0..self.sources.len()).map(|index| SourceId::new(index as u32))
     }
+
+    /// Iterate over all registered sources.
+    #[cfg(feature = "cli")]
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Source> {
+        self.sources.iter()
+    }
 }
 
 #[cfg(feature = "codespan-reporting")]
