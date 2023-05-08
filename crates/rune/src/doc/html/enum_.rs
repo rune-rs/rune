@@ -10,7 +10,7 @@ use super::Ctxt;
 
 /// Build an enumeration.
 #[tracing::instrument(skip_all)]
-pub(super) fn build(cx: &Ctxt<'_>, hash: Hash) -> Result<()> {
+pub(super) fn build(cx: &Ctxt<'_, '_>, hash: Hash) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]

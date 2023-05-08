@@ -1,6 +1,7 @@
 mod enum_;
 mod type_;
 mod markdown;
+mod js;
 
 use std::fmt::{self, Write};
 use std::fs;
@@ -106,7 +107,7 @@ pub fn write_html(
         path: RelativePathBuf::new(),
         item: ItemBuf::new(),
         item_kind: ItemKind::Module,
-        items: Vec::new(),
+        index: Vec::new(),
         name,
         context: &context,
         search_index: Some(search_index),
@@ -129,29 +130,29 @@ pub fn write_html(
     while let Some(build) = queue.pop_front() {
         match build {
             Build::Type(item, hash) => {
-                cx.set_path(item, ItemKind::Type)?;
+                cx.set_path(item, hash, ItemKind::Type)?;
                 let items = self::type_::build(&cx, "Type", "type", hash)?;
-                cx.items.extend(items);
+                cx.index.extend(items);
             }
             Build::Struct(item, hash) => {
-                cx.set_path(item, ItemKind::Struct)?;
+                cx.set_path(item, hash, ItemKind::Struct)?;
                 let items = self::type_::build(&cx, "Struct", "struct", hash)?;
-                cx.items.extend(items);
+                cx.index.extend(items);
             }
             Build::Enum(item, hash) => {
-                cx.set_path(item, ItemKind::Enum)?;
+                cx.set_path(item, hash, ItemKind::Enum)?;
                 self::enum_::build(&cx, hash)?;
             }
-            Build::Macro(item) => {
-                cx.set_path(item, ItemKind::Macro)?;
+            Build::Macro(item, hash) => {
+                cx.set_path(item, hash, ItemKind::Macro)?;
                 build_macro(&cx)?;
             }
-            Build::Function(item) => {
-                cx.set_path(item, ItemKind::Function)?;
+            Build::Function(item, hash) => {
+                cx.set_path(item, hash, ItemKind::Function)?;
                 build_function(&cx)?;
             }
             Build::Module(item, hash) => {
-                cx.set_path(item.as_ref(), ItemKind::Module)?;
+                cx.set_path(item.as_ref(), hash, ItemKind::Module)?;
                 module(&cx, hash, &mut queue)?;
                 modules.push((item, cx.path.clone()));
             }
@@ -166,10 +167,16 @@ pub fn write_html(
         let mut s = String::new();
         write!(s, "window.INDEX = [")?;
 
-        let mut it = cx.items.iter();
+        let mut it = cx.index.iter();
 
-        while let Some((path, item, kind)) = it.next() {
-            write!(s, "[\"{path}\", \"{item}\", \"{kind}\"]")?;
+        while let Some(IndexEntry { path, item, kind, doc }) = it.next() {
+            write!(s, "[\"{path}\",\"{item}\",\"{kind}\",\"")?;
+
+            if let Some(doc) = doc {
+                js::encode_quoted(&mut s, doc);
+            }
+
+            write!(s, "\"]")?;
 
             if it.clone().next().is_some() {
                 write!(s, ",")?;
@@ -194,14 +201,27 @@ struct Shared<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ItemKind {
+pub(crate) enum ItemKind {
     Type,
     Struct,
     Enum,
     Module,
     Macro,
     Function,
-    Method,
+}
+
+impl ItemKind {
+    fn matches_kind(&self, kind: &Kind<'_>) -> bool {
+        match (self, kind) {
+            (ItemKind::Type, Kind::Type) => true,
+            (ItemKind::Struct, Kind::Struct) => true,
+            (ItemKind::Enum, Kind::Enum) => true,
+            (ItemKind::Module, Kind::Module) => true,
+            (ItemKind::Macro, Kind::Macro) => true,
+            (ItemKind::Function, Kind::Function(..)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for ItemKind {
@@ -213,20 +233,40 @@ impl fmt::Display for ItemKind {
             ItemKind::Module => "module".fmt(f),
             ItemKind::Macro => "macro".fmt(f),
             ItemKind::Function => "function".fmt(f),
-            ItemKind::Method => "method".fmt(f),
         }
     }
 }
 
-pub(crate) struct Ctxt<'a> {
+pub(crate) enum IndexKind {
+    Item(ItemKind),
+    Method,
+}
+
+impl fmt::Display for IndexKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IndexKind::Item(item) => item.fmt(f),
+            IndexKind::Method => "method".fmt(f),
+        }
+    }
+}
+
+pub(crate) struct IndexEntry {
+    pub(crate) path: RelativePathBuf,
+    pub(crate) item: ItemBuf,
+    pub(crate) kind: IndexKind,
+    pub(crate) doc: Option<String>,
+}
+
+pub(crate) struct Ctxt<'a, 'm> {
     root: &'a Path,
     path: RelativePathBuf,
     item: ItemBuf,
     item_kind: ItemKind,
     /// A collection of all items visited.
-    items: Vec<(RelativePathBuf, ItemBuf, ItemKind)>,
+    index: Vec<IndexEntry>,
     name: &'a str,
-    context: &'a Context<'a>,
+    context: &'a Context<'m>,
     search_index: Option<&'a RelativePath>,
     fonts: &'a [RelativePathBuf],
     css: &'a [RelativePathBuf],
@@ -240,13 +280,25 @@ pub(crate) struct Ctxt<'a> {
     syntax_set: SyntaxSet,
 }
 
-impl Ctxt<'_> {
-    fn set_path(&mut self, item: &Item, kind: ItemKind) -> Result<()> {
+impl Ctxt<'_, '_> {
+    fn set_path(&mut self, item: &Item, hash: Hash, kind: ItemKind) -> Result<()> {
         self.path = RelativePathBuf::new();
         build_item_path(self.name, item, kind, &mut self.path)?;
         self.item = item.to_owned();
         self.item_kind = kind;
-        self.items.push((self.path.clone(), self.item.clone(), self.item_kind));
+
+        let doc = match self.context.meta_by_hash(hash).into_iter().find(|m| kind.matches_kind(&m.kind)) {
+            Some(m) => self.render_docs(m.docs.get(..1).unwrap_or_default())?,
+            None => None,
+        };
+
+        self.index.push(IndexEntry {
+            path: self.path.clone(),
+            item: self.item.clone(),
+            kind: IndexKind::Item(self.item_kind),
+            doc,
+        });
+
         Ok(())
     }
 
@@ -576,8 +628,8 @@ enum Build<'a> {
     Type(&'a Item, Hash),
     Struct(&'a Item, Hash),
     Enum(&'a Item, Hash),
-    Macro(&'a Item),
-    Function(&'a Item),
+    Macro(&'a Item, Hash),
+    Function(&'a Item, Hash),
     Module(Cow<'a, Item>, Hash),
 }
 
@@ -614,7 +666,7 @@ fn copy_file<'a>(
 }
 
 #[tracing::instrument(skip_all)]
-fn index(cx: &Ctxt<'_>, mods: &[(Cow<'_, Item>, RelativePathBuf)]) -> Result<()> {
+fn index(cx: &Ctxt<'_, '_>, mods: &[(Cow<'_, Item>, RelativePathBuf)]) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -657,7 +709,7 @@ fn index(cx: &Ctxt<'_>, mods: &[(Cow<'_, Item>, RelativePathBuf)]) -> Result<()>
 
 /// Build a single module.
 #[tracing::instrument(skip_all)]
-fn module<'a>(cx: &Ctxt<'a>, hash: Hash, queue: &mut VecDeque<Build<'a>>) -> Result<()> {
+fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -780,7 +832,7 @@ fn module<'a>(cx: &Ctxt<'a>, hash: Hash, queue: &mut VecDeque<Build<'a>>) -> Res
                     });
                 }
                 Kind::Macro => {
-                    queue.push_front(Build::Macro(meta.item));
+                    queue.push_front(Build::Macro(meta.item, meta.hash));
 
                     macros.push(Macro {
                         path: cx.item_path(meta.item, ItemKind::Macro)?,
@@ -794,7 +846,7 @@ fn module<'a>(cx: &Ctxt<'a>, hash: Hash, queue: &mut VecDeque<Build<'a>>) -> Res
                         continue;
                     }
 
-                    queue.push_front(Build::Function(meta.item));
+                    queue.push_front(Build::Function(meta.item, meta.hash));
 
                     functions.push(Function {
                         is_async: f.is_async,
@@ -841,7 +893,7 @@ fn module<'a>(cx: &Ctxt<'a>, hash: Hash, queue: &mut VecDeque<Build<'a>>) -> Res
 
 /// Build a macro.
 #[tracing::instrument(skip_all)]
-fn build_macro(cx: &Ctxt<'_>) -> Result<()> {
+fn build_macro(cx: &Ctxt<'_, '_>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -877,7 +929,7 @@ fn build_macro(cx: &Ctxt<'_>) -> Result<()> {
 
 /// Build a function.
 #[tracing::instrument(skip_all)]
-fn build_function(cx: &Ctxt<'_>) -> Result<()> {
+fn build_function(cx: &Ctxt<'_, '_>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -989,7 +1041,6 @@ fn build_item_path(name: &str, item: &Item, kind: ItemKind, path: &mut RelativeP
         ItemKind::Module => "module.html",
         ItemKind::Macro => "macro.html",
         ItemKind::Function => "fn.html",
-        ItemKind::Method => bail!("Can't build toplevel path out of methods"),
     });
 
     Ok(())
