@@ -1,13 +1,13 @@
 use crate::no_std::prelude::*;
 
 use anyhow::{Context, Result};
+use relative_path::RelativePathBuf;
 use serde::Serialize;
 
-use crate::compile::{ComponentRef, Item};
+use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::doc::context::{Assoc, AssocFnKind, Signature};
 use crate::hash::Hash;
-
-use super::Ctxt;
+use crate::doc::html::{Ctxt, ItemKind};
 
 #[derive(Serialize)]
 pub(super) struct Protocol<'a> {
@@ -111,7 +111,7 @@ pub(super) fn build_assoc_fns<'a>(
 #[derive(Serialize)]
 struct Params<'a> {
     #[serde(flatten)]
-    shared: super::Shared,
+    shared: super::Shared<'a>,
     what: &'a str,
     what_class: &'a str,
     module: String,
@@ -125,11 +125,26 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(super) fn build(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<()> {
-    let module = cx.module_path_html(false);
+pub(super) fn build(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<Vec<(RelativePathBuf, ItemBuf, ItemKind)>> {
+    let module = cx.module_path_html(false)?;
     let name = cx.item.last().context("missing module name")?;
 
     let (protocols, methods) = build_assoc_fns(cx, hash)?;
+
+    let mut items = Vec::new();
+
+    for m in &methods {
+        let mut path = cx.path.clone();
+        let mut item = cx.item.clone();
+
+        let Some(name) = path.file_name() else {
+            continue;
+        };
+
+        item.push(m.name);
+        path.set_file_name(format!("{name}#method.{}", m.name));
+        items.push((path, item, ItemKind::Method));
+    }
 
     cx.write_file(|cx| {
         cx.type_template.render(&Params {
@@ -142,5 +157,7 @@ pub(super) fn build(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> 
             methods,
             protocols,
         })
-    })
+    })?;
+
+    Ok(items)
 }

@@ -1,8 +1,23 @@
-<head></head>
+<head>
 {{#each fonts}}<link rel="preload" as="font" type="font/woff2" crossorigin="" href="{{this}}">{{/each}}
 {{#each css}}<link rel="stylesheet" type="text/css" href="{{this}}">{{/each}}
-<body>
+{{#each js}}<script lang="text/javascript" src="{{this}}"></script>{{/each}}
+{{#if search_index}}<script lang="text/javascript" src="{{search_index}}"></script>{{/if}}
+</head>
+<body{{#if path}} data-path="{{path}}"{{/if}}>
     <div id="container">
-        {{> @partial-block}}
+        <div id="search">
+            <div id="search-form">
+                <input id="search-input" placeholder="Click to search..." type="text" />
+            </div>
+
+            <h3 id="search-title" class="hidden title">Results</h3>
+
+            <div id="search-results" class="hidden"></div>
+        </div>
+
+        <div id="content">
+            {{> @partial-block}}
+        </div>
     </div>
 </body>
