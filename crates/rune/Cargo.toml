@@ -18,7 +18,7 @@ default = ["emit", "std"]
 emit = ["codespan-reporting"]
 bench = []
 workspace = ["toml", "semver", "relative-path", "serde-hashkey", "linked-hash-map"]
-doc = ["rust-embed", "handlebars", "pulldown-cmark", "syntect"]
+doc = ["rust-embed", "handlebars", "pulldown-cmark", "syntect", "sha2"]
 cli = ["doc", "bincode", "atty", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt", "similar"]
 languageserver = ["lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "tokio/macros", "tokio/io-std", "workspace", "doc"]
 capture-io = ["parking_lot"]
@@ -70,6 +70,7 @@ url = { version = "2.3.1", optional = true }
 serde_json = { version = "1.0.96", optional = true }
 linked-hash-map = { version = "0.5.6", optional = true }
 similar = { version = "2.2.1", optional = true, features = ["inline"] }
+sha2 = { version = "0.10.6", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.28.0", features = ["full"] }
