@@ -147,28 +147,40 @@ impl Module {
     /// assert!(context.install(module).is_ok());
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn ty<T>(&mut self) -> Result<(), ContextError>
+    pub fn ty<T>(&mut self) -> Result<ItemMut<'_>, ContextError>
     where
         T: Named + TypeOf + InstallWith,
     {
         let type_hash = T::type_hash();
         let type_info = T::type_info();
 
-        let ty = Type {
-            name: T::full_name(),
-            type_info,
-            spec: None,
-        };
-
-        if let Some(old) = self.types.insert(type_hash, ty) {
-            return Err(ContextError::ConflictingType {
-                item: ItemBuf::with_item(&[T::full_name()]),
-                type_info: old.type_info,
-            });
+        match self.types.entry(type_hash) {
+            hash_map::Entry::Occupied(e) => {
+                return Err(ContextError::ConflictingType {
+                    item: ItemBuf::with_item(&[T::full_name()]),
+                    type_info: e.get().type_info.clone(),
+                })
+            }
+            hash_map::Entry::Vacant(e) => {
+                e.insert(Type {
+                    name: T::full_name(),
+                    type_info,
+                    spec: None,
+                    docs: Docs::default(),
+                });
+            }
         }
 
         T::install_with(self)?;
-        Ok(())
+
+        if let Some(ty) = self.types.get_mut(&type_hash) {
+            Ok(ItemMut { docs: &mut ty.docs })
+        } else {
+            Err(ContextError::MissingType {
+                item: ItemBuf::with_item(&[T::full_name()]),
+                type_info: T::type_info(),
+            })
+        }
     }
 
     /// Register that the given type is a struct, and that it has the given

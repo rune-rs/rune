@@ -21,6 +21,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m
         item: &'a Item,
         methods: Vec<super::type_::Method<'a>>,
         protocols: Vec<super::type_::Protocol<'a>>,
+        doc: Option<String>,
     }
 
     let module = cx.module_path_html(meta, false)?;
@@ -36,6 +37,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m
             item: meta.item,
             methods,
             protocols,
+            doc: cx.render_docs(meta, meta.docs)?,
         })
     });
 

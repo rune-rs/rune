@@ -3,13 +3,14 @@ use core::fmt::{self, Write};
 use crate::no_std::collections;
 use crate::no_std::prelude::*;
 
+use crate as rune;
 use crate::runtime::{Iterator, Key, Protocol, Value, VmErrorKind, VmResult};
 use crate::{Any, ContextError, Module};
 
 pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.ty::<HashMap>()?;
-    module.function(["HashMap", "new"], HashMap::new)?;
-    module.function(["HashMap", "from"], hashmap_from)?;
+    module.function_meta(HashMap::__new__meta)?;
+    module.function_meta(hashmap_from)?;
     module.inst_fn("clear", HashMap::clear)?;
     module.inst_fn("clone", HashMap::clone)?;
     module.inst_fn("contains_key", HashMap::contains_key)?;
@@ -36,6 +37,8 @@ struct HashMap {
 }
 
 impl HashMap {
+    /// Construct a new map.
+    #[rune::function(keep, path = Self::new)]
     fn new() -> Self {
         Self {
             map: collections::HashMap::new(),
@@ -135,6 +138,11 @@ impl HashMap {
     }
 }
 
+/// Convert a hashmap from a `value`.
+///
+/// The hashmap can be converted from anything that implements the `into_iter`
+/// protocol, and each item produces should be a tuple pair.
+#[rune::function(path = HashMap::from)]
 fn hashmap_from(value: Value) -> VmResult<HashMap> {
     use crate::runtime::FromValue;
 

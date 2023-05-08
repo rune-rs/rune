@@ -143,6 +143,7 @@ struct Params<'a> {
     item: &'a Item,
     methods: Vec<Method<'a>>,
     protocols: Vec<Protocol<'a>>,
+    doc: Option<String>,
 }
 
 /// Build an unknown type.
@@ -163,6 +164,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'sta
             item: meta.item,
             methods,
             protocols,
+            doc: cx.render_docs(meta, meta.docs)?,
         })
     });
 

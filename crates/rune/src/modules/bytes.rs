@@ -13,10 +13,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(Bytes::__from_vec__meta)?;
 
     module.function_meta(Bytes::__into_vec__meta)?;
-    module.inst_fn("extend", Bytes::extend)?;
-    module.inst_fn("extend_str", Bytes::extend_str)?;
-    module.inst_fn("pop", Bytes::pop)?;
-    module.inst_fn("last", Bytes::last)?;
+    module.function_meta(Bytes::__extend__meta)?;
+    module.function_meta(Bytes::__extend_str__meta)?;
+    module.function_meta(Bytes::__pop__meta)?;
+    module.function_meta(Bytes::__last__meta)?;
 
     module.inst_fn("len", Bytes::len)?;
     module.inst_fn("capacity", Bytes::capacity)?;

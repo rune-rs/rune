@@ -67,12 +67,30 @@ impl Bytes {
         Self { bytes }
     }
 
-    /// Do something with the bytes.
+    /// Extend these bytes with another collection of bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let bytes = b"abcd";
+    /// bytes.extend(b"efgh");
+    /// assert_eq!(bytes, b"abcdefgh");
+    /// ```
+    #[rune::function(keep)]
     pub fn extend(&mut self, other: &Self) {
         self.bytes.extend(other.bytes.iter().copied());
     }
 
-    /// Do something with the bytes.
+    /// Extend this bytes collection with a string.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let bytes = b"abcd";
+    /// bytes.extend_str("efgh");
+    /// assert_eq!(bytes, b"abcdefgh");
+    /// ```
+    #[rune::function(keep)]
     pub fn extend_str(&mut self, s: &str) {
         self.bytes.extend(s.as_bytes());
     }
@@ -115,12 +133,30 @@ impl Bytes {
     }
 
     /// Pop the last byte.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let bytes = b"abcd";
+    /// assert_eq!(bytes.pop(), Some(b'd'));
+    /// assert_eq!(bytes, b"abc");
+    /// ```
+    #[rune::function(keep)]
     pub fn pop(&mut self) -> Option<u8> {
         self.bytes.pop()
     }
 
-    /// Access the last byte.
-    pub fn last(&mut self) -> Option<u8> {
+    /// Get the last byte.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let bytes = b"abcd";
+    /// assert_eq!(bytes.last(), Some(b'd'));
+    /// assert_eq!(bytes, b"abcd");
+    /// ```
+    #[rune::function(keep)]
+    pub fn last(&self) -> Option<u8> {
         self.bytes.last().copied()
     }
 }

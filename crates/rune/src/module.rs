@@ -108,6 +108,8 @@ pub(crate) struct Type {
     pub(crate) type_info: TypeInfo,
     /// The specification for the type.
     pub(crate) spec: Option<TypeSpecification>,
+    /// Documentation for the type.
+    pub(crate) docs: Docs,
 }
 
 /// Metadata about a variant.
@@ -214,7 +216,7 @@ pub(crate) struct ModuleFunction {
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
-    #[cfg_attr(feature = "doc", allow(unused))]
+    #[cfg_attr(not(feature = "doc"), allow(unused))]
     pub(crate) associated_container: Option<Hash>,
     pub(crate) docs: Docs,
 }

@@ -11,7 +11,9 @@ use crate::{ContextError, Module};
 /// Construct the `std::any` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["any"]);
-    module.ty::<Type>()?;
+    module
+        .ty::<Type>()?
+        .docs(["Represents a type in the Rune type system."]);
     module.function_meta(type_of_val)?;
     module.function_meta(type_name_of_val)?;
     module.inst_fn(Protocol::STRING_DISPLAY, format_type)?;

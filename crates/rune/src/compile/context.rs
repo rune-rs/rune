@@ -59,7 +59,7 @@ impl ContextMeta {
 /// Information on a specific type.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(crate) struct PrivTypeInfo {
+pub(crate) struct ContextType {
     /// The type check used for the current type.
     type_check: Option<TypeCheck>,
     /// Complete detailed information on the hash.
@@ -70,7 +70,7 @@ pub(crate) struct PrivTypeInfo {
     type_hash: Hash,
 }
 
-impl fmt::Display for PrivTypeInfo {
+impl fmt::Display for ContextType {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{} => {}", self.item, self.type_info)?;
         Ok(())
@@ -116,7 +116,7 @@ pub struct Context {
     /// Registered native macro handlers.
     macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
-    types: HashMap<Hash, PrivTypeInfo>,
+    types: HashMap<Hash, ContextType>,
     /// Reverse lookup for types, which maps the item type hash to the internal
     /// type hash which is usually based on a type id.
     types_rev: HashMap<Hash, Hash>,
@@ -232,7 +232,7 @@ impl Context {
         self.install_module(module)?;
 
         for (type_hash, ty) in &module.types {
-            self.install_type(module, *type_hash, ty, Docs::default())?;
+            self.install_type(module, *type_hash, ty)?;
         }
 
         for (name, f) in &module.functions {
@@ -431,14 +431,13 @@ impl Context {
         module: &Module,
         type_hash: Hash,
         ty: &Type,
-        docs: Docs,
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*ty.name);
         let hash = Hash::type_hash(&item);
 
         self.install_type_info(
             hash,
-            PrivTypeInfo {
+            ContextType {
                 type_check: None,
                 item: item.clone(),
                 type_hash,
@@ -478,7 +477,7 @@ impl Context {
 
                         self.install_type_info(
                             hash,
-                            PrivTypeInfo {
+                            ContextType {
                                 type_check: None,
                                 item: item.clone(),
                                 type_hash: hash,
@@ -532,11 +531,18 @@ impl Context {
             meta::Kind::Type
         };
 
-        self.install_meta(ContextMeta::new(type_hash, None, item, kind, docs))?;
+        self.install_meta(ContextMeta::new(
+            type_hash,
+            None,
+            item,
+            kind,
+            ty.docs.clone(),
+        ))?;
+
         Ok(())
     }
 
-    fn install_type_info(&mut self, hash: Hash, info: PrivTypeInfo) -> Result<(), ContextError> {
+    fn install_type_info(&mut self, hash: Hash, info: ContextType) -> Result<(), ContextError> {
         // reverse lookup for types.
         if let Some(existing) = self.types_rev.insert(info.type_hash, hash) {
             return Err(ContextError::ConflictingTypeHash { hash, existing });
@@ -795,7 +801,7 @@ impl Context {
 
         self.install_type_info(
             hash,
-            PrivTypeInfo {
+            ContextType {
                 type_check: Some(TypeCheck::Unit),
                 item,
                 type_hash: crate::runtime::UNIT_TYPE.hash,
@@ -832,7 +838,7 @@ impl Context {
 
         self.install_type_info(
             enum_hash,
-            PrivTypeInfo {
+            ContextType {
                 type_check: None,
                 item: enum_item.clone(),
                 type_hash: internal_enum.static_type.hash,
@@ -846,7 +852,7 @@ impl Context {
 
             self.install_type_info(
                 hash,
-                PrivTypeInfo {
+                ContextType {
                     type_check: Some(variant.type_check),
                     item: item.clone(),
                     type_hash: hash,
