@@ -1,13 +1,12 @@
 use crate::no_std::prelude::*;
 
 use anyhow::{Context, Result};
-use relative_path::RelativePathBuf;
 use serde::Serialize;
 
-use crate::compile::{ComponentRef, Item, ItemBuf};
+use crate::compile::{ComponentRef, Item};
 use crate::doc::context::{Assoc, AssocFnKind, Signature};
 use crate::hash::Hash;
-use crate::doc::html::{Ctxt, ItemKind};
+use crate::doc::html::{Ctxt, IndexEntry, IndexKind};
 
 #[derive(Serialize)]
 pub(super) struct Protocol<'a> {
@@ -24,13 +23,14 @@ pub(super) struct Method<'a> {
     args: String,
     parameters: Option<String>,
     return_type: Option<String>,
+    line_doc: Option<String>,
     doc: Option<String>,
 }
 
-pub(super) fn build_assoc_fns<'a>(
-    cx: &'a Ctxt<'a>,
+pub(super) fn build_assoc_fns<'m>(
+    cx: &Ctxt<'_, 'm>,
     hash: Hash,
-) -> Result<(Vec<Protocol<'a>>, Vec<Method<'a>>)> {
+) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>)> {
     let mut protocols = Vec::new();
     let mut methods = Vec::new();
 
@@ -52,6 +52,7 @@ pub(super) fn build_assoc_fns<'a>(
                 (protocol, value.as_str())
             }
             AssocFnKind::Instance(name) => {
+                let line_doc = cx.render_docs(assoc.docs.get(..1).unwrap_or_default())?;
                 let doc = cx.render_docs(assoc.docs)?;
 
                 let mut list = Vec::new();
@@ -75,6 +76,7 @@ pub(super) fn build_assoc_fns<'a>(
                         Some(hash) => Some(cx.link(hash, None)?),
                         None => None,
                     },
+                    line_doc,
                     doc,
                 });
 
@@ -125,7 +127,7 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(super) fn build(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> Result<Vec<(RelativePathBuf, ItemBuf, ItemKind)>> {
+pub(super) fn build(cx: &Ctxt<'_, '_>, what: &str, what_class: &str, hash: Hash) -> Result<Vec<IndexEntry>> {
     let module = cx.module_path_html(false)?;
     let name = cx.item.last().context("missing module name")?;
 
@@ -133,17 +135,15 @@ pub(super) fn build(cx: &Ctxt<'_>, what: &str, what_class: &str, hash: Hash) -> 
 
     let mut items = Vec::new();
 
-    for m in &methods {
-        let mut path = cx.path.clone();
-        let mut item = cx.item.clone();
-
-        let Some(name) = path.file_name() else {
-            continue;
-        };
-
-        item.push(m.name);
-        path.set_file_name(format!("{name}#method.{}", m.name));
-        items.push((path, item, ItemKind::Method));
+    if let Some(name) = cx.path.file_name() {
+        for m in &methods {
+            items.push(IndexEntry {
+                path: cx.path.with_file_name(format!("{name}#method.{}", m.name)),
+                item: cx.item.join([m.name]),
+                kind: IndexKind::Method,
+                doc: m.line_doc.clone(),
+            });
+        }
     }
 
     cx.write_file(|cx| {

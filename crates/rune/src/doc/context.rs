@@ -112,7 +112,7 @@ impl<'a> Context<'a> {
     }
 
     /// Iterate over all types associated with the given hash.
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Assoc<'_>> {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Assoc<'a>> {
         fn visitor_to_associated(
             hash: Hash,
             visitor: &Visitor,
@@ -223,7 +223,7 @@ impl<'a> Context<'a> {
     }
 
     /// Lookup all meta matching the given item.
-    pub(crate) fn meta(&self, item: &Item) -> Vec<Meta<'_>> {
+    pub(crate) fn meta(&self, item: &Item) -> Vec<Meta<'a>> {
         let mut out = Vec::new();
 
         for visitor in self.visitors {
