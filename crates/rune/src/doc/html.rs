@@ -14,9 +14,9 @@ use crate::no_std::borrow::Cow;
 
 use anyhow::{anyhow, bail, Context as _, Error, Result};
 use relative_path::{RelativePath, RelativePathBuf};
-use rust_embed::EmbeddedFile;
 use rust_embed::RustEmbed;
 use serde::{Serialize, Serializer};
+use sha2::{Sha256, Digest};
 use syntect::highlighting::ThemeSet;
 use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
@@ -36,6 +36,7 @@ use crate::Hash;
 // base16-ocean.dark
 // base16-ocean.light
 const THEME: &str = "base16-eighties.dark";
+const RUNEDOC_CSS: &str = "runedoc.css";
 
 #[derive(RustEmbed)]
 #[folder = "src/doc/static"]
@@ -50,9 +51,13 @@ pub fn write_html(
 ) -> Result<()> {
     let context = Context::new(context, visitors);
 
-    let templating = templating::Templating::new([
+    let paths = templating::Paths::default();
+
+    let partials = [
         ("layout", asset_str("layout.html.hbs")?),
-    ])?;
+    ];
+
+    let templating = templating::Templating::new(partials, paths.clone())?;
 
     let syntax_set = SyntaxSet::load_defaults_newlines();
     let theme_set = ThemeSet::load_defaults();
@@ -64,33 +69,28 @@ pub fn write_html(
     for file in Assets::iter() {
         let path = RelativePath::new(file.as_ref());
 
-        match path.extension() {
-            Some("woff2") => {
-                let file = Assets::get(file.as_ref()).context("missing asset")?;
-                copy_file(path, root, file)?;
-                fonts.push(path.to_owned());
-            }
-            Some("css") => {
-                let file = Assets::get(file.as_ref()).context("missing asset")?;
-                copy_file(path, root, file)?;
-                css.push(path.to_owned());
-            }
-            Some("js") => {
-                let file = Assets::get(file.as_ref()).context("missing asset")?;
-                copy_file(path, root, file)?;
-                js.push(path.to_owned());
-            }
-            _ => {}
-        }
+        let out = match path.extension() {
+            Some("woff2") => &mut fonts,
+            Some("css") => &mut css,
+            Some("js") => &mut js,
+            _ => continue,
+        };
+
+        let file = Assets::get(file.as_ref()).context("missing asset")?;
+        let to_path = copy_file_bytes(root, path, file.data.as_ref())?;
+        paths.insert(path.as_str(), to_path.as_str());
+        out.push(to_path.to_owned());
     }
 
-    let syntax_css = RelativePath::new("syntax.css");
+    let runedoc = compile(&templating, "runedoc.css.hbs")?;
+    let runedoc_string = runedoc.render(&())?;
+    let runedoc_css = copy_file_bytes(root, RUNEDOC_CSS, runedoc_string.as_bytes())?;
+    css.push(runedoc_css);
+
     let theme = theme_set.themes.get(THEME).context("missing theme")?;
     let syntax_css_content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
-    tracing::info!("writing: {}", syntax_css);
-    fs::write(syntax_css.to_path(root), syntax_css_content)
-        .with_context(|| syntax_css.to_owned())?;
-    css.push(syntax_css.to_owned());
+    let syntax_css = copy_file_bytes(root, "syntax.css", syntax_css_content.as_bytes())?;
+    css.push(syntax_css);
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
     let mut initial = VecDeque::new();
@@ -644,17 +644,39 @@ fn compile(templating: &templating::Templating, path: &str) -> Result<templating
     templating.compile(template.as_ref())
 }
 
+struct Hex<'a>(&'a [u8]);
+
+impl fmt::Display for Hex<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for b in self.0 {
+            write!(f, "{:x}", b)?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Copy an embedded file.
-fn copy_file<'a>(
-    path: &'a RelativePath,
+fn copy_file_bytes<P>(
     root: &Path,
-    file: EmbeddedFile,
-) -> Result<()> {
-    let file_path = path.to_path(root);
-    tracing::info!("writing: {}", file_path.display());
-    ensure_parent_dir(&file_path)?;
-    fs::write(&file_path, file.data.as_ref()).with_context(|| file_path.display().to_string())?;
-    Ok(())
+    path: &P,
+    content: &[u8],
+) -> Result<RelativePathBuf> where P: ?Sized + AsRef<RelativePath> {
+    let mut hasher = Sha256::new();
+    hasher.update(content);
+    let result = hasher.finalize();
+    let hash = Hex(&result[..]);
+
+    let path = path.as_ref();
+    let stem = path.file_stem().context("Missing file stem")?;
+    let ext = path.extension().context("Missing file extension")?;
+    let path = path.with_file_name(format!("{stem}-{hash}.{ext}"));
+
+    let out_path = path.to_path(root);
+    tracing::info!("Writing: {}", out_path.display());
+    ensure_parent_dir(&out_path)?;
+    fs::write(&out_path, content).with_context(|| out_path.display().to_string())?;
+    Ok(path)
 }
 
 #[tracing::instrument(skip_all)]
