@@ -480,7 +480,7 @@ impl<'m> Ctxt<'_, 'm> {
     }
 
     /// Convert a hash into a link.
-    fn link(&self, hash: Hash, text: Option<&str>) -> Result<String> {
+    fn link(&self, hash: Hash, text: Option<&str>) -> Result<Option<String>> {
         fn into_item_kind(meta: Meta<'_>) -> Option<ItemKind> {
             match &meta.kind {
                 Kind::Type => Some(ItemKind::Type),
@@ -493,23 +493,27 @@ impl<'m> Ctxt<'_, 'm> {
 
         let mut it = self.context.meta_by_hash(hash).into_iter().flat_map(|m| Some((m, into_item_kind(m)?)));
 
-        let link = if let Some((meta, kind)) = it.next() {
-            let name = match text {
-                Some(text) => text,
-                None => meta
-                    .item
-                    .last()
-                    .and_then(|c| c.as_str())
-                    .context("missing name")?,
-            };
+        let Some((meta, kind)) = it.next() else {
+            tracing::warn!(?hash, "No link for hash");
 
-            let path = self.item_path(meta.item, kind)?;
-            format!("<a class=\"{kind}\" href=\"{path}\">{name}</a>")
-        } else {
-            String::from("<b>n/a</b>")
+            for meta in self.context.meta_by_hash(hash) {
+                tracing::warn!("Candidate: {:?}", meta.kind);
+            }
+
+            return Ok(Some(format!("{hash}")))
         };
 
-        Ok(link)
+        let name = match text {
+            Some(text) => text,
+            None => meta
+                .item
+                .last()
+                .and_then(|c| c.as_str())
+                .context("missing name")?,
+        };
+
+        let path = self.item_path(meta.item, kind)?;
+        Ok(Some(format!("<a class=\"{kind}\" href=\"{path}\">{name}</a>")))
     }
 
     /// Coerce args into string.
@@ -585,7 +589,11 @@ impl<'m> Ctxt<'_, 'm> {
         while let Some(arg) = it.next() {
             if arg == "self" {
                 if let Some(Some(hash)) = types.next() {
-                    string.push_str(&self.link(*hash, Some("self"))?);
+                    if let Some(link) = self.link(*hash, Some("self"))? {
+                        string.push_str(&link);
+                    } else {
+                        string.push_str("self");
+                    }
                 } else {
                     string.push_str("self");
                 }
@@ -593,8 +601,10 @@ impl<'m> Ctxt<'_, 'm> {
                 string.push_str(arg.as_ref());
 
                 if let Some(Some(hash)) = types.next() {
-                    string.push_str(": ");
-                    string.push_str(&self.link(*hash, None)?);
+                    if let Some(link) = self.link(*hash, None)? {
+                        string.push_str(": ");
+                        string.push_str(&link);
+                    }
                 }
             }
 
@@ -995,7 +1005,7 @@ fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> 
     let doc = cx.render_docs(meta, meta.docs)?;
 
     let return_type = match f.return_type {
-        Some(hash) => Some(cx.link(hash, None)?),
+        Some(hash) => cx.link(hash, None)?,
         None => None,
     };
 

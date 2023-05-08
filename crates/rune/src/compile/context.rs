@@ -77,6 +77,7 @@ impl fmt::Display for PrivTypeInfo {
     }
 }
 
+#[cfg(feature = "doc")]
 pub(crate) enum ContextAssociated {
     /// Associated self-receiver.
     Associated(ModuleAssociated),

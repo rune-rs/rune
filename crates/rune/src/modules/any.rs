@@ -13,6 +13,7 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["any"]);
     module.ty::<Type>()?;
     module.function_meta(type_of_val)?;
+    module.function_meta(type_name_of_val)?;
     module.inst_fn(Protocol::STRING_DISPLAY, format_type)?;
     Ok(module)
 }
