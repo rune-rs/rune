@@ -150,7 +150,7 @@ pub fn write_html(
             }
             Build::Function(meta) => {
                 cx.set_path(meta)?;
-                build_function(&cx)?;
+                build_function(&cx, meta)?;
             }
             Build::Module(meta) => {
                 cx.set_path(meta)?;
@@ -920,12 +920,13 @@ fn build_macro(cx: &Ctxt<'_, '_>) -> Result<()> {
 
 /// Build a function.
 #[tracing::instrument(skip_all)]
-fn build_function(cx: &Ctxt<'_, '_>) -> Result<()> {
+fn build_function(cx: &Ctxt<'_, '_>, meta: Meta<'_>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
         shared: Shared<'a>,
         module: String,
+        is_async: bool,
         #[serde(serialize_with = "serialize_item")]
         item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
@@ -935,21 +936,15 @@ fn build_function(cx: &Ctxt<'_, '_>) -> Result<()> {
         return_type: Option<String>,
     }
 
-    let meta = cx.context.meta(&cx.item);
-
-    let meta = meta
-        .iter()
-        .find(|m| matches!(m.kind, Kind::Function(..)))
-        .context("Expected a function")?;
-
-    let (args, signature, return_type, argument_types) = match meta.kind {
+    let (is_async, args, signature, return_type, argument_types) = match meta.kind {
         Kind::Function(Function {
+            is_async,
             args,
             signature: signature @ Signature::Function { .. },
             return_type,
             argument_types,
             ..
-        }) => (args, signature, return_type, argument_types),
+        }) => (is_async, args, signature, return_type, argument_types),
         _ => bail!("found meta, but not a function"),
     };
 
@@ -965,6 +960,7 @@ fn build_function(cx: &Ctxt<'_, '_>) -> Result<()> {
         cx.function_template.render(&Params {
             shared: cx.shared(),
             module: cx.module_path_html(false)?,
+            is_async,
             item: &cx.item,
             name,
             args: cx.args_to_string(args, signature, argument_types)?,

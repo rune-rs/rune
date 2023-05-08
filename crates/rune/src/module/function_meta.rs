@@ -234,10 +234,10 @@ impl AssociatedFunctionName {
 /// Runtime data for an associated function.
 #[derive(Clone)]
 pub struct AssociatedFunctionData {
+    pub(crate) is_async: bool,
     pub(crate) name: AssociatedFunctionName,
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) ty: AssocType,
-    pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
@@ -255,10 +255,10 @@ impl AssociatedFunctionData {
         A::iter_args(|ty| argument_types.push(ty));
 
         Self {
+            is_async: false,
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             ty: F::ty(),
-            is_async: false,
             args: Some(F::args()),
             return_type: F::Return::maybe_type_of(),
             argument_types: argument_types.into(),
@@ -276,10 +276,10 @@ impl AssociatedFunctionData {
         A::iter_args(|ty| argument_types.push(ty));
 
         Self {
+            is_async: true,
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             ty: F::ty(),
-            is_async: true,
             args: Some(F::args()),
             return_type: <F::Return as Future>::Output::maybe_type_of(),
             argument_types: argument_types.into(),
