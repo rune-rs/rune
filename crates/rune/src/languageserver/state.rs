@@ -261,7 +261,7 @@ impl<'a> State<'a> {
         let mut reporter = Reporter::default();
 
         if let Some((workspace_url, workspace_path)) = &self.workspace.manifest_path {
-            let mut diagnostics = crate::workspace::Diagnostics::default();
+            let mut diagnostics = workspace::Diagnostics::default();
             let mut build = Build::default();
 
             let result = self.load_workspace(
@@ -374,7 +374,7 @@ impl<'a> State<'a> {
         url: &Url,
         path: &Path,
         manifest_build: &mut Build,
-        diagnostics: &mut crate::workspace::Diagnostics,
+        diagnostics: &mut workspace::Diagnostics,
         workspace: &Workspace,
     ) -> Result<Vec<Build>, anyhow::Error> {
         tracing::info!(url = ?url.to_string(), "building workspace");
@@ -390,15 +390,15 @@ impl<'a> State<'a> {
 
         let mut source_loader = WorkspaceSourceLoader::new(&self.workspace.sources);
 
-        let manifest = crate::workspace::prepare(&mut manifest_build.sources)
+        let manifest = workspace::prepare(&mut manifest_build.sources)
             .with_diagnostics(diagnostics)
             .with_source_loader(&mut source_loader)
             .build()?;
 
         let mut script_builds = Vec::new();
 
-        for found in manifest.find_all(crate::workspace::WorkspaceFilter::All)? {
-            let Ok(url) = crate::languageserver::url::from_file_path(&found.path) else {
+        for p in manifest.find_all(workspace::WorkspaceFilter::All)? {
+            let Ok(url) = crate::languageserver::url::from_file_path(&p.found.path) else {
                 continue;
             };
 
@@ -406,14 +406,14 @@ impl<'a> State<'a> {
 
             let source = match workspace.sources.get(&url) {
                 Some(source) => source.chunks().collect::<String>(),
-                None => std::fs::read_to_string(&found.path)
-                    .with_context(|| found.path.display().to_string())?,
+                None => std::fs::read_to_string(&p.found.path)
+                    .with_context(|| p.found.path.display().to_string())?,
             };
 
             let mut build = Build::default();
             build
                 .sources
-                .insert(crate::Source::with_path(&url, source, found.path));
+                .insert(crate::Source::with_path(&url, source, p.found.path));
 
             script_builds.push(build);
         }
@@ -456,11 +456,7 @@ impl<'a> State<'a> {
 }
 
 /// Emit diagnostics workspace.
-fn emit_workspace(
-    diagnostics: crate::workspace::Diagnostics,
-    build: &Build,
-    reporter: &mut Reporter,
-) {
+fn emit_workspace(diagnostics: workspace::Diagnostics, build: &Build, reporter: &mut Reporter) {
     if tracing::enabled!(tracing::Level::TRACE) {
         let id_to_url = build
             .id_to_url
@@ -473,7 +469,7 @@ fn emit_workspace(
     for diagnostic in diagnostics.diagnostics() {
         tracing::trace!(?diagnostic, "workspace diagnostic");
 
-        let crate::workspace::Diagnostic::Fatal(f) = diagnostic;
+        let workspace::Diagnostic::Fatal(f) = diagnostic;
         report(build, reporter, f.source_id(), f.error(), to_error);
     }
 }
@@ -1024,7 +1020,7 @@ impl<'a> WorkspaceSourceLoader<'a> {
     }
 }
 
-impl<'a> crate::workspace::SourceLoader for WorkspaceSourceLoader<'a> {
+impl<'a> workspace::SourceLoader for WorkspaceSourceLoader<'a> {
     fn load(&mut self, span: Span, path: &Path) -> Result<crate::Source, WorkspaceError> {
         if let Ok(url) = crate::languageserver::url::from_file_path(path) {
             if let Some(s) = self.sources.get(&url) {

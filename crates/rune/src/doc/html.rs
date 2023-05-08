@@ -21,9 +21,9 @@ use syntect::highlighting::ThemeSet;
 use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
-use crate::collections::{BTreeSet, VecDeque};
+use crate::collections::VecDeque;
 use crate::compile::{ComponentRef, Item, ItemBuf};
-use crate::doc::context::{Function, Kind, Signature};
+use crate::doc::context::{Function, Kind, Signature, Meta};
 use crate::doc::templating;
 use crate::doc::{Context, Visitor};
 use crate::Hash;
@@ -93,11 +93,11 @@ pub fn write_html(
     css.push(syntax_css.to_owned());
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
-    let mut initial = BTreeSet::new();
+    let mut initial = VecDeque::new();
 
-    for module in context.iter_modules() {
-        let hash = Hash::type_hash(&module);
-        initial.insert(Build::Module(Cow::Owned(module), hash));
+    for item in context.iter_modules() {
+        let meta = context.meta(&item).into_iter().find(|m| matches!(&m.kind, Kind::Module)).with_context(|| anyhow!("Missing meta for {item}"))?;
+        initial.push_back(Build::Module(meta));
     }
 
     let search_index = RelativePath::new("index.js");
@@ -129,32 +129,33 @@ pub fn write_html(
 
     while let Some(build) = queue.pop_front() {
         match build {
-            Build::Type(item, hash) => {
-                cx.set_path(item, hash, ItemKind::Type)?;
-                let items = self::type_::build(&cx, "Type", "type", hash)?;
+            Build::Type(meta) => {
+                cx.set_path(meta)?;
+                let items = self::type_::build(&cx, "Type", "type", meta)?;
                 cx.index.extend(items);
             }
-            Build::Struct(item, hash) => {
-                cx.set_path(item, hash, ItemKind::Struct)?;
-                let items = self::type_::build(&cx, "Struct", "struct", hash)?;
-                cx.index.extend(items);
+            Build::Struct(meta) => {
+                cx.set_path(meta)?;
+                let index = self::type_::build(&cx, "Struct", "struct", meta)?;
+                cx.index.extend(index);
             }
-            Build::Enum(item, hash) => {
-                cx.set_path(item, hash, ItemKind::Enum)?;
-                self::enum_::build(&cx, hash)?;
+            Build::Enum(meta) => {
+                cx.set_path(meta)?;
+                let index = self::enum_::build(&cx, meta)?;
+                cx.index.extend(index);
             }
-            Build::Macro(item, hash) => {
-                cx.set_path(item, hash, ItemKind::Macro)?;
+            Build::Macro(meta) => {
+                cx.set_path(meta)?;
                 build_macro(&cx)?;
             }
-            Build::Function(item, hash) => {
-                cx.set_path(item, hash, ItemKind::Function)?;
+            Build::Function(meta) => {
+                cx.set_path(meta)?;
                 build_function(&cx)?;
             }
-            Build::Module(item, hash) => {
-                cx.set_path(item.as_ref(), hash, ItemKind::Module)?;
-                module(&cx, hash, &mut queue)?;
-                modules.push((item, cx.path.clone()));
+            Build::Module(meta) => {
+                cx.set_path(meta)?;
+                module(&cx, meta, &mut queue)?;
+                modules.push((meta.item, cx.path.clone()));
             }
         }
     }
@@ -208,20 +209,6 @@ pub(crate) enum ItemKind {
     Module,
     Macro,
     Function,
-}
-
-impl ItemKind {
-    fn matches_kind(&self, kind: &Kind<'_>) -> bool {
-        match (self, kind) {
-            (ItemKind::Type, Kind::Type) => true,
-            (ItemKind::Struct, Kind::Struct) => true,
-            (ItemKind::Enum, Kind::Enum) => true,
-            (ItemKind::Module, Kind::Module) => true,
-            (ItemKind::Macro, Kind::Macro) => true,
-            (ItemKind::Function, Kind::Function(..)) => true,
-            _ => false,
-        }
-    }
 }
 
 impl fmt::Display for ItemKind {
@@ -281,16 +268,23 @@ pub(crate) struct Ctxt<'a, 'm> {
 }
 
 impl Ctxt<'_, '_> {
-    fn set_path(&mut self, item: &Item, hash: Hash, kind: ItemKind) -> Result<()> {
-        self.path = RelativePathBuf::new();
-        build_item_path(self.name, item, kind, &mut self.path)?;
-        self.item = item.to_owned();
-        self.item_kind = kind;
-
-        let doc = match self.context.meta_by_hash(hash).into_iter().find(|m| kind.matches_kind(&m.kind)) {
-            Some(m) => self.render_docs(m.docs.get(..1).unwrap_or_default())?,
-            None => None,
+    fn set_path(&mut self, meta: Meta<'_>) -> Result<()> {
+        let item_kind = match &meta.kind {
+            Kind::Type => ItemKind::Type,
+            Kind::Struct => ItemKind::Struct,
+            Kind::Enum => ItemKind::Enum,
+            Kind::Macro => ItemKind::Macro,
+            Kind::Function(..) => ItemKind::Function,
+            Kind::Module => ItemKind::Module,
+            kind => bail!("Cannot set path for {kind:?}"),
         };
+
+        self.path = RelativePathBuf::new();
+        build_item_path(self.name, meta.item, item_kind, &mut self.path)?;
+        self.item = meta.item.to_owned();
+        self.item_kind = item_kind;
+
+        let doc = self.render_docs(meta.docs.get(..1).unwrap_or_default())?;
 
         self.index.push(IndexEntry {
             path: self.path.clone(),
@@ -623,14 +617,13 @@ impl Ctxt<'_, '_> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Build<'a> {
-    Type(&'a Item, Hash),
-    Struct(&'a Item, Hash),
-    Enum(&'a Item, Hash),
-    Macro(&'a Item, Hash),
-    Function(&'a Item, Hash),
-    Module(Cow<'a, Item>, Hash),
+    Type(Meta<'a>),
+    Struct(Meta<'a>),
+    Enum(Meta<'a>),
+    Macro(Meta<'a>),
+    Function(Meta<'a>),
+    Module(Meta<'a>),
 }
 
 /// Get an asset as a string.
@@ -666,7 +659,7 @@ fn copy_file<'a>(
 }
 
 #[tracing::instrument(skip_all)]
-fn index(cx: &Ctxt<'_, '_>, mods: &[(Cow<'_, Item>, RelativePathBuf)]) -> Result<()> {
+fn index(cx: &Ctxt<'_, '_>, mods: &[(&Item, RelativePathBuf)]) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -709,7 +702,7 @@ fn index(cx: &Ctxt<'_, '_>, mods: &[(Cow<'_, Item>, RelativePathBuf)]) -> Result
 
 /// Build a single module.
 #[tracing::instrument(skip_all)]
-fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) -> Result<()> {
+fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'_>, queue: &mut VecDeque<Build<'m>>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -787,8 +780,6 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) ->
         path: RelativePathBuf,
     }
 
-    let doc = cx.context.meta_by_hash(hash).into_iter().find(|m| matches!(m.kind, Kind::Module)).map(|m| m.docs).unwrap_or_default();
-
     let mut types = Vec::new();
     let mut structs = Vec::new();
     let mut enums = Vec::new();
@@ -802,7 +793,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) ->
         for meta in cx.context.meta(&item) {
             match meta.kind {
                 Kind::Type { .. } => {
-                    queue.push_front(Build::Type(meta.item, meta.hash));
+                    queue.push_front(Build::Type(meta));
                     let path = cx.item_path(&item, ItemKind::Type)?;
                     types.push(Type {
                         item: item.clone(),
@@ -812,7 +803,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) ->
                     });
                 }
                 Kind::Struct { .. } => {
-                    queue.push_front(Build::Struct(meta.item, meta.hash));
+                    queue.push_front(Build::Struct(meta));
                     let path = cx.item_path(&item, ItemKind::Struct)?;
                     structs.push(Struct {
                         item: item.clone(),
@@ -822,7 +813,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) ->
                     });
                 }
                 Kind::Enum { .. } => {
-                    queue.push_front(Build::Enum(meta.item, meta.hash));
+                    queue.push_front(Build::Enum(meta));
                     let path = cx.item_path(&item, ItemKind::Enum)?;
                     enums.push(Enum {
                         item: item.clone(),
@@ -832,7 +823,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) ->
                     });
                 }
                 Kind::Macro => {
-                    queue.push_front(Build::Macro(meta.item, meta.hash));
+                    queue.push_front(Build::Macro(meta));
 
                     macros.push(Macro {
                         path: cx.item_path(meta.item, ItemKind::Macro)?,
@@ -846,7 +837,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) ->
                         continue;
                     }
 
-                    queue.push_front(Build::Function(meta.item, meta.hash));
+                    queue.push_front(Build::Function(meta));
 
                     functions.push(Function {
                         is_async: f.is_async,
@@ -863,7 +854,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) ->
                         continue;
                     }
 
-                    queue.push_front(Build::Module(Cow::Borrowed(meta.item), meta.hash));
+                    queue.push_front(Build::Module(meta));
                     let path = cx.item_path(meta.item, ItemKind::Module)?;
                     let name = meta.item.last().context("missing name of module")?;
                     modules.push(Module { item: meta.item, name, path })
@@ -880,7 +871,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, hash: Hash, queue: &mut VecDeque<Build<'m>>) ->
             shared: cx.shared(),
             item: &cx.item,
             module: cx.module_path_html(true)?,
-            doc: cx.render_docs(doc)?,
+            doc: cx.render_docs(meta.docs)?,
             types,
             structs,
             enums,

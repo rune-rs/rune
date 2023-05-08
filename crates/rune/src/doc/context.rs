@@ -18,11 +18,11 @@ pub(crate) enum MetaSource<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Meta<'a> {
+    /// Item of the meta.
+    pub(crate) item: &'a Item,
     /// The meta source.
     #[allow(unused)]
     pub(crate) source: MetaSource<'a>,
-    /// Item of the meta.
-    pub(crate) item: &'a Item,
     /// Type hash for the meta item.
     pub(crate) hash: Hash,
     /// Kind of the meta item.

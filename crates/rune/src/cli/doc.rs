@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::ffi::OsStr;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -7,8 +9,8 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use crate::cli::{Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
-use crate::compile::FileSourceLoader;
-use crate::{Diagnostics, Options, Source, Sources};
+use crate::compile::{FileSourceLoader, ItemBuf};
+use crate::{Diagnostics, Options, Source, Sources, workspace};
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -23,7 +25,7 @@ pub(super) struct Flags {
     open: bool,
 }
 
-pub(super) fn run<I>(
+pub(super) fn run<'p, I>(
     io: &mut Io<'_>,
     entry: &mut Entry<'_>,
     c: &Config,
@@ -33,7 +35,7 @@ pub(super) fn run<I>(
     entrys: I,
 ) -> Result<ExitCode>
 where
-    I: IntoIterator<Item = EntryPoint>,
+    I: IntoIterator<Item = EntryPoint<'p>>,
 {
     let root = match &flags.output {
         Some(root) => root.to_owned(),
@@ -61,15 +63,44 @@ where
 
     let mut visitors = Vec::new();
 
-    for e in entrys {
-        let mut visitor = crate::doc::Visitor::new(e.item);
-        let mut sources = Sources::new();
+    let mut names = HashSet::new();
 
-        for path in &e.paths {
-            let source = Source::from_path(path)
-                .with_context(|| format!("reading file: {}", path.display()))?;
-            sources.insert(source);
-        }
+    for (index, e) in entrys.into_iter().enumerate() {
+        let name = match &e {
+            EntryPoint::Path(path) => {
+                match path.file_stem().and_then(OsStr::to_str) {
+                    Some(name) => String::from(name),
+                    None => String::from("entry"),
+                }
+            }
+            EntryPoint::Package(p) => {
+                let name = p.found.name.as_str();
+
+                let ext = match &p.found.kind {
+                    workspace::FoundKind::Binary => "bin",
+                    workspace::FoundKind::Test => "test",
+                    workspace::FoundKind::Example => "example",
+                    workspace::FoundKind::Bench => "bench",
+                };
+
+                format!("{}-{name}-{ext}", p.package.name)
+            },
+        };
+
+        // TODO: make it so that we can communicate different entrypoints in the
+        // visitors context instead of this hackery.
+        let name = if !names.insert(name.clone()) {
+            format!("{name}{index}")
+        } else {
+            name
+        };
+
+        let item = ItemBuf::with_crate(&name);
+        let mut visitor = crate::doc::Visitor::new(item);
+        let mut sources = Sources::new();
+        let source = Source::from_path(e.path())
+            .with_context(|| e.path().display().to_string())?;
+        sources.insert(source);
 
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
             Diagnostics::new()
