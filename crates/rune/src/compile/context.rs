@@ -77,6 +77,13 @@ impl fmt::Display for PrivTypeInfo {
     }
 }
 
+pub(crate) enum ContextAssociated {
+    /// Associated self-receiver.
+    Associated(ModuleAssociated),
+    /// A simple module function.
+    Function(Hash),
+}
+
 /// [Context] used for the Rune language.
 ///
 /// See [Build::with_context][crate::Build::with_context].
@@ -104,7 +111,7 @@ pub struct Context {
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
-    associated: HashMap<Hash, Vec<ModuleAssociated>>,
+    associated: HashMap<Hash, Vec<ContextAssociated>>,
     /// Registered native macro handlers.
     macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
@@ -329,7 +336,7 @@ impl Context {
 
     /// Get all associated types for the given hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &ModuleAssociated> + '_ {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &ContextAssociated> + '_ {
         self.associated
             .get(&hash)
             .into_iter()
@@ -602,6 +609,14 @@ impl Context {
             f.docs.clone(),
         ))?;
 
+        #[cfg(feature = "doc")]
+        if let Some(container_hash) = f.associated_container {
+            self.associated
+                .entry(container_hash)
+                .or_default()
+                .push(ContextAssociated::Function(hash));
+        }
+
         Ok(())
     }
 
@@ -705,7 +720,7 @@ impl Context {
         self.associated
             .entry(key.type_hash)
             .or_default()
-            .push(assoc.clone());
+            .push(ContextAssociated::Associated(assoc.clone()));
 
         // If the associated function is a named instance function - register it
         // under the name of the item it corresponds to unless it's a field

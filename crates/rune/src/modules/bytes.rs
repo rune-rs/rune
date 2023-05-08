@@ -8,11 +8,11 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["bytes"]);
 
     module.ty::<Bytes>()?;
-    module.function(["Bytes", "new"], Bytes::new)?;
+    module.function_meta(Bytes::__new__meta)?;
     module.function(["Bytes", "with_capacity"], Bytes::with_capacity)?;
-    module.function(["Bytes", "from_vec"], Bytes::from_vec)?;
+    module.function_meta(Bytes::__from_vec__meta)?;
 
-    module.inst_fn("into_vec", Bytes::into_vec)?;
+    module.function_meta(Bytes::__into_vec__meta)?;
     module.inst_fn("extend", Bytes::extend)?;
     module.inst_fn("extend_str", Bytes::extend_str)?;
     module.inst_fn("pop", Bytes::pop)?;

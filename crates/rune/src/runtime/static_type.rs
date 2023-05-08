@@ -78,6 +78,7 @@ pub static INTEGER_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(i8 => INTEGER_TYPE);
+// NB: u8 is its own BYTE_TYPE
 impl_static_type!(u16 => INTEGER_TYPE);
 impl_static_type!(i16 => INTEGER_TYPE);
 impl_static_type!(u32 => INTEGER_TYPE);
@@ -247,3 +248,5 @@ pub static TYPE: &StaticType = &StaticType {
     // hash for ::std::Type
     hash: Hash::new(0xe14fc50ece26203),
 };
+
+impl_static_type!(rt::Type => TYPE);

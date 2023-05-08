@@ -214,6 +214,7 @@ pub(crate) struct ModuleFunction {
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
+    pub(crate) associated_container: Option<Hash>,
     pub(crate) docs: Docs,
 }
 

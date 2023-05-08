@@ -1,9 +1,9 @@
 use crate::no_std::prelude::*;
 
-use crate::compile::context::ContextMeta;
+use crate::compile::context::{ContextMeta, ContextAssociated};
 use crate::compile::{meta, ComponentRef, IntoComponent, Item, ItemBuf};
 use crate::doc::{Visitor, VisitorData};
-use crate::module::{AssociatedKind, ModuleAssociated};
+use crate::module::AssociatedKind;
 use crate::runtime::ConstValue;
 use crate::runtime::Protocol;
 use crate::Hash;
@@ -34,7 +34,8 @@ pub(crate) struct Meta<'a> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Function<'a> {
     pub(crate) is_async: bool,
-    pub(crate) args: Option<&'a [String]>,
+    pub(crate) arg_names: Option<&'a [String]>,
+    pub(crate) args: Option<usize>,
     pub(crate) signature: Signature,
     pub(crate) return_type: Option<Hash>,
     pub(crate) argument_types: &'a [Option<Hash>],
@@ -49,7 +50,7 @@ pub(crate) enum AssocFnKind<'a> {
     /// An index function with the given protocol.
     IndexFn(Protocol, usize),
     /// The instance function refers to the given named instance fn.
-    Instance(&'a str),
+    Method(&'a str, Option<usize>, Signature),
 }
 
 /// Information on an associated function.
@@ -60,9 +61,8 @@ pub(crate) struct AssocFn<'a> {
     pub(crate) docs: &'a [String],
     /// Literal argument replacements.
     /// TODO: replace this with structured information that includes type hash so it can be linked if it's available.
-    pub(crate) docs_args: Option<&'a [String]>,
+    pub(crate) arg_names: Option<&'a [String]>,
     pub(crate) kind: AssocFnKind<'a>,
-    pub(crate) args: Option<usize>,
     /// Generic instance parameters for function.
     pub(crate) parameter_types: &'a [Hash],
 }
@@ -94,8 +94,8 @@ pub(crate) enum Kind<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Signature {
-    Function { args: Option<usize> },
-    Instance { args: Option<usize> },
+    Function,
+    Instance,
 }
 
 /// Build context for documentation.
@@ -122,16 +122,15 @@ impl<'a> Context<'a> {
             Some(associated.iter().flat_map(move |hash| {
                 let data = visitor.data.get(hash)?;
 
-                let (is_async, kind, args) = match data.kind {
+                let (is_async, kind) = match data.kind {
                     meta::Kind::Function {
                         is_async,
                         instance_function,
                         args,
                         ..
-                    } if instance_function => (
+                    } => (
                         is_async,
-                        AssocFnKind::Instance(data.item.last()?.as_str()?),
-                        args,
+                        AssocFnKind::Method(data.item.last()?.as_str()?, args, if instance_function { Signature::Instance } else { Signature::Function }),
                     ),
                     _ => return None,
                 };
@@ -141,40 +140,58 @@ impl<'a> Context<'a> {
                     return_type: None,
                     argument_types: Box::from([]),
                     docs: &data.docs,
-                    docs_args: None,
+                    arg_names: None,
                     kind,
-                    args,
                     parameter_types: &[],
                 }))
             }))
         }
 
-        fn context_to_associated(m: &ModuleAssociated) -> Assoc<'_> {
-            let kind = match m.name.kind {
-                AssociatedKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
-                AssociatedKind::FieldFn(protocol, ref field) => {
-                    AssocFnKind::FieldFn(protocol, field)
-                }
-                AssociatedKind::IndexFn(protocol, index) => {
-                    AssocFnKind::IndexFn(protocol, index)
-                }
-                AssociatedKind::Instance(ref name) => AssocFnKind::Instance(name),
-            };
+        fn context_to_associated<'m>(context: &'m crate::Context, assoc: &'m ContextAssociated) -> Option<Assoc<'m>> {
+            match assoc {
+                ContextAssociated::Associated(m) => {
+                    let kind = match m.name.kind {
+                        AssociatedKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
+                        AssociatedKind::FieldFn(protocol, ref field) => {
+                            AssocFnKind::FieldFn(protocol, field)
+                        }
+                        AssociatedKind::IndexFn(protocol, index) => {
+                            AssocFnKind::IndexFn(protocol, index)
+                        }
+                        AssociatedKind::Instance(ref name) => AssocFnKind::Method(name, m.args, Signature::Instance),
+                    };
 
-            Assoc::Fn(AssocFn {
-                is_async: m.is_async,
-                return_type: m.return_type.as_ref().map(|f| f.hash),
-                argument_types: m
-                    .argument_types
-                    .iter()
-                    .map(|f| f.as_ref().map(|f| f.hash))
-                    .collect(),
-                docs: m.docs.lines(),
-                docs_args: m.docs.args(),
-                kind,
-                args: m.args,
-                parameter_types: &m.name.parameter_types,
-            })
+                    Some(Assoc::Fn(AssocFn {
+                        is_async: m.is_async,
+                        return_type: m.return_type.as_ref().map(|f| f.hash),
+                        argument_types: m
+                            .argument_types
+                            .iter()
+                            .map(|f| f.as_ref().map(|f| f.hash))
+                            .collect(),
+                        docs: m.docs.lines(),
+                        arg_names: m.docs.args(),
+                        kind,
+                        parameter_types: &m.name.parameter_types,
+                    }))
+                },
+                ContextAssociated::Function(hash) => {
+                    let meta = context.lookup_meta_by_hash(*hash).iter().next()?;
+                    let sig = context.lookup_signature(*hash)?;
+                    let name = meta.item.last()?.as_str()?;
+
+                    Some(Assoc::Fn(AssocFn {
+                        is_async: sig.is_async,
+                        return_type: sig.return_type,
+                        argument_types: sig
+                            .argument_types.clone(),
+                        docs: meta.docs.lines(),
+                        arg_names: meta.docs.args(),
+                        kind: AssocFnKind::Method(name, sig.args, Signature::Function),
+                        parameter_types: &[],
+                    }))
+                },
+            }
         }
 
         let visitors = self
@@ -185,7 +202,7 @@ impl<'a> Context<'a> {
         let context = self
             .context
             .associated(hash)
-            .map(context_to_associated);
+            .flat_map(|a| context_to_associated(self.context, a));
         visitors.chain(context)
     }
 
@@ -258,15 +275,16 @@ impl<'a> Context<'a> {
                 };
 
                 let signature = if instance_function {
-                    Signature::Instance { args: *args }
+                    Signature::Instance
                 } else {
-                    Signature::Function { args: *args }
+                    Signature::Function
                 };
 
                 Kind::Function(Function {
                     is_async: f.is_async,
                     signature,
-                    args: meta.docs.args(),
+                    arg_names: meta.docs.args(),
+                    args: *args,
                     return_type: f.return_type,
                     argument_types: &f.argument_types,
                 })
@@ -303,8 +321,9 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
         meta::Kind::Enum => Kind::Enum,
         meta::Kind::Function { is_async, args, .. } => Kind::Function(Function {
             is_async: *is_async,
-            args: None,
-            signature: Signature::Function { args: *args },
+            arg_names: None,
+            args: *args,
+            signature: Signature::Function,
             return_type: None,
             argument_types: &[],
         }),

@@ -8,7 +8,7 @@ use crate::compile::{self, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::{AssocType, AssociatedKey, AsyncFunction, AsyncInstFn, Function, InstFn};
-use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol};
+use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeOf};
 
 mod sealed {
     use crate::params::Params;
@@ -52,11 +52,12 @@ pub struct FunctionData {
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
+    pub(crate) associated_container: Option<Hash>,
 }
 
 impl FunctionData {
     #[inline]
-    pub(crate) fn new<F, A, N>(name: N, f: F) -> Self
+    pub(crate) fn new<F, A, N>(name: N, f: F, associated_container: Option<Hash>) -> Self
     where
         F: Function<A>,
         F::Return: MaybeTypeOf,
@@ -74,11 +75,12 @@ impl FunctionData {
             args: Some(F::args()),
             return_type: F::Return::maybe_type_of(),
             argument_types: argument_types.into(),
+            associated_container,
         }
     }
 
     #[inline]
-    pub(crate) fn new_async<F, A, N>(name: N, f: F) -> Self
+    pub(crate) fn new_async<F, A, N>(name: N, f: F, associated_container: Option<Hash>) -> Self
     where
         F: AsyncFunction<A>,
         F::Output: MaybeTypeOf,
@@ -96,6 +98,7 @@ impl FunctionData {
             args: Some(F::args()),
             return_type: F::Output::maybe_type_of(),
             argument_types: argument_types.into(),
+            associated_container,
         }
     }
 }
@@ -320,14 +323,14 @@ impl FunctionMetaKind {
         F::Return: MaybeTypeOf,
         A: IterFunctionArgs,
     {
-        Self::Function(FunctionData::new(name, f))
+        Self::Function(FunctionData::new(name, f, None))
     }
 
     #[doc(hidden)]
     #[inline]
     pub fn function_with<T, N, F, A>(name: N, f: F) -> Self
     where
-        T: Named,
+        T: TypeOf + Named,
         N: IntoIterator,
         N::Item: IntoComponent,
         F: Function<A>,
@@ -337,7 +340,7 @@ impl FunctionMetaKind {
         let name = [IntoComponent::into_component(T::BASE_NAME)]
             .into_iter()
             .chain(name.into_iter().map(IntoComponent::into_component));
-        Self::Function(FunctionData::new(name, f))
+        Self::Function(FunctionData::new(name, f, Some(T::type_hash())))
     }
 
     #[doc(hidden)]
@@ -350,14 +353,14 @@ impl FunctionMetaKind {
         F::Output: MaybeTypeOf,
         A: IterFunctionArgs,
     {
-        Self::Function(FunctionData::new_async(name, f))
+        Self::Function(FunctionData::new_async(name, f, None))
     }
 
     #[doc(hidden)]
     #[inline]
     pub fn async_function_with<T, N, F, A>(name: N, f: F) -> Self
     where
-        T: Named,
+        T: TypeOf + Named,
         N: IntoIterator,
         N::Item: IntoComponent,
         F: AsyncFunction<A>,
@@ -367,7 +370,7 @@ impl FunctionMetaKind {
         let name = [IntoComponent::into_component(T::BASE_NAME)]
             .into_iter()
             .chain(name.into_iter().map(IntoComponent::into_component));
-        Self::Function(FunctionData::new_async(name, f))
+        Self::Function(FunctionData::new_async(name, f, Some(T::type_hash())))
     }
 
     #[doc(hidden)]

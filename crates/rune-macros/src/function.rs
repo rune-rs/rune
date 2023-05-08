@@ -24,6 +24,8 @@ impl Path {
 #[derive(Default)]
 pub(crate) struct FunctionAttrs {
     instance: bool,
+    /// Keep the existing function in place, and generate a separate hidden meta function.
+    keep: bool,
     path: Path,
 }
 
@@ -38,6 +40,8 @@ impl FunctionAttrs {
 
             if ident == "instance" {
                 out.instance = true;
+            } else if ident == "keep" {
+                out.keep = true;
             } else if ident == "path" {
                 input.parse::<syn::Token![=]>()?;
 
@@ -94,9 +98,6 @@ pub(crate) struct Function {
     docs: syn::ExprArray,
     arguments: syn::ExprArray,
     takes_self: bool,
-    meta_vis: syn::Visibility,
-    real_fn: syn::Ident,
-    meta_fn: syn::Ident,
 }
 
 impl Function {
@@ -104,7 +105,7 @@ impl Function {
     pub(crate) fn parse(input: ParseStream) -> Result<Self, Error> {
         let parsed_attributes = input.call(syn::Attribute::parse_outer)?;
         let vis = input.parse::<syn::Visibility>()?;
-        let mut sig = input.parse::<syn::Signature>()?;
+        let sig = input.parse::<syn::Signature>()?;
         let ident = sig.ident.clone();
 
         let mut attributes = Vec::new();
@@ -150,11 +151,6 @@ impl Function {
             }));
         }
 
-        let meta_vis = vis.clone();
-        let meta_fn = sig.ident.clone();
-        let real_fn = syn::Ident::new(&format!("__rune_fn__{}", sig.ident), sig.ident.span());
-        sig.ident = real_fn.clone();
-
         let remainder = input.parse::<TokenStream>()?;
 
         Ok(Self {
@@ -166,14 +162,29 @@ impl Function {
             docs,
             arguments,
             takes_self,
-            meta_vis,
-            real_fn,
-            meta_fn,
         })
     }
 
     /// Expand the function declaration.
     pub(crate) fn expand(mut self, attrs: FunctionAttrs) -> Result<TokenStream, Error> {
+        let (meta_fn, real_fn, sig, real_fn_mangled) = if attrs.keep {
+            let meta_fn = syn::Ident::new(
+                &format!("__{}__meta", self.sig.ident),
+                self.sig.ident.span(),
+            );
+            let real_fn = self.sig.ident.clone();
+            (meta_fn, real_fn, self.sig.clone(), false)
+        } else {
+            let meta_fn = self.sig.ident.clone();
+            let real_fn = syn::Ident::new(
+                &format!("__rune_fn__{}", self.sig.ident),
+                self.sig.ident.span(),
+            );
+            let mut sig = self.sig.clone();
+            sig.ident = real_fn.clone();
+            (meta_fn, real_fn, sig, true)
+        };
+
         let real_fn_path = if attrs.path.is_self() || self.takes_self {
             let mut segments = Punctuated::default();
 
@@ -191,7 +202,7 @@ impl Function {
             };
 
             path.path.segments.push(syn::PathSegment {
-                ident: self.real_fn,
+                ident: real_fn,
                 arguments: syn::PathArguments::None,
             });
 
@@ -200,7 +211,7 @@ impl Function {
             let mut segments = Punctuated::default();
 
             segments.push(syn::PathSegment {
-                ident: self.real_fn,
+                ident: real_fn,
                 arguments: syn::PathArguments::None,
             });
 
@@ -282,13 +293,14 @@ impl Function {
             stream.extend(attr.into_token_stream());
         }
 
-        stream.extend(quote!(#[allow(non_snake_case)]));
-        stream.extend(self.vis.into_token_stream());
-        stream.extend(self.sig.into_token_stream());
+        if real_fn_mangled {
+            stream.extend(quote!(#[allow(non_snake_case)]));
+        }
+
+        stream.extend(self.vis.to_token_stream());
+        stream.extend(sig.into_token_stream());
         stream.extend(self.remainder);
 
-        let meta_vis = &self.meta_vis;
-        let meta_fn = &self.meta_fn;
         let arguments = &self.arguments;
         let docs = &self.docs;
         let name_string = self.name_string;
@@ -299,9 +311,14 @@ impl Function {
             meta_kind.into_token_stream()
         };
 
+        let meta_vis = &self.vis;
+
+        let attr = (!real_fn_mangled).then(|| quote!(#[allow(non_snake_case)] #[doc(hidden)]));
+
         stream.extend(quote! {
             /// Get function metadata.
             #[automatically_derived]
+            #attr
             #meta_vis fn #meta_fn() -> rune::__private::FunctionMetaData {
                 rune::__private::FunctionMetaData {
                     kind: rune::__private::FunctionMetaKind::#meta_kind(#meta_name, #real_fn_path),

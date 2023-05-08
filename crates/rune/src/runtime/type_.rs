@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{RawStr, TypeInfo, TypeOf, VmResult};
+use crate::runtime::{RawStr, VmResult};
 use crate::{FromValue, Hash, Value};
 
 /// A value representing a type in the virtual machine.
@@ -26,10 +26,6 @@ impl Type {
 
 impl InstallWith for Type {}
 
-impl Named for Type {
-    const BASE_NAME: RawStr = RawStr::from_str("Type");
-}
-
 impl FromValue for Type {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
@@ -37,14 +33,6 @@ impl FromValue for Type {
     }
 }
 
-impl TypeOf for Type {
-    #[inline]
-    fn type_hash() -> Hash {
-        crate::runtime::TYPE.hash
-    }
-
-    #[inline]
-    fn type_info() -> TypeInfo {
-        TypeInfo::StaticType(crate::runtime::TYPE)
-    }
+impl Named for Type {
+    const BASE_NAME: RawStr = RawStr::from_str("Type");
 }

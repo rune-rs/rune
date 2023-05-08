@@ -6,6 +6,7 @@ use core::iter;
 
 use crate::no_std::prelude::*;
 
+use crate as rune;
 use crate::collections::{btree_map, BTreeMap};
 use crate::compile::{ItemBuf, Named};
 use crate::module::InstallWith;
@@ -84,7 +85,15 @@ pub struct Object {
 
 impl Object {
     /// Construct a new object.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let object = Object::new();
+    /// object.insert("Hello", "World");
+    /// ```
     #[inline]
+    #[rune::function(keep, path = Self::new)]
     pub fn new() -> Self {
         Self {
             inner: BTreeMap::new(),
@@ -92,22 +101,50 @@ impl Object {
     }
 
     /// Construct a new object with the given capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let object = Object::with_capacity(16);
+    /// object.insert("Hello", "World");
+    /// ```
     #[inline]
-    pub fn with_capacity(_cap: usize) -> Self {
-        /* BTreeMap doesn't support setting capacity on creation but we keep this here in case we want to switch store later */
+    #[rune::function(keep, path = Self::with_capacity)]
+    pub fn with_capacity(#[allow(unused)] capacity: usize) -> Self {
+        // BTreeMap doesn't support setting capacity on creation but we keep
+        // this here in case we want to switch store later.
         Self {
             inner: BTreeMap::new(),
         }
     }
 
     /// Returns the number of elements in the object.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let object = Object::with_capacity(16);
+    /// object.insert("Hello", "World");
+    /// assert_eq!(object.len(), 1);
+    /// ```
     #[inline]
+    #[rune::function(keep)]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
-    /// Returns `true` if the Object contains no elements.
+    /// Returns `true` if the object is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let object = Object::with_capacity(16);
+    /// assert!(object.is_empty());
+    /// object.insert("Hello", "World");
+    /// assert!(!object.is_empty());
+    /// ```
     #[inline]
+    #[rune::function(keep)]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }

@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 
 use crate::compile::{ComponentRef, Item};
-use crate::doc::context::{Assoc, AssocFnKind, Signature, Meta};
+use crate::doc::context::{Assoc, AssocFnKind, Meta};
 use crate::doc::html::{Ctxt, IndexEntry, IndexKind, Builder};
 
 #[derive(Serialize)]
@@ -51,7 +51,7 @@ pub(super) fn build_assoc_fns<'m>(
                 value = format!("value.{index}");
                 (protocol, value.as_str())
             }
-            AssocFnKind::Instance(name) => {
+            AssocFnKind::Method(name, args, sig) => {
                 let line_doc = cx.render_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
                 let doc = cx.render_docs(meta, assoc.docs)?;
 
@@ -67,8 +67,9 @@ pub(super) fn build_assoc_fns<'m>(
                     is_async: assoc.is_async,
                     name,
                     args: cx.args_to_string(
-                        assoc.docs_args,
-                        Signature::Instance { args: assoc.args },
+                        assoc.arg_names,
+                        args,
+                        sig,
                         &assoc.argument_types,
                     )?,
                     parameters,
