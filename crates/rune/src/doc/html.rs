@@ -14,9 +14,9 @@ use crate::no_std::borrow::Cow;
 
 use anyhow::{anyhow, bail, Context as _, Error, Result};
 use relative_path::{RelativePath, RelativePathBuf};
-use rust_embed::EmbeddedFile;
 use rust_embed::RustEmbed;
 use serde::{Serialize, Serializer};
+use sha2::{Sha256, Digest};
 use syntect::highlighting::ThemeSet;
 use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
@@ -36,6 +36,7 @@ use crate::Hash;
 // base16-ocean.dark
 // base16-ocean.light
 const THEME: &str = "base16-eighties.dark";
+const RUNEDOC_CSS: &str = "runedoc.css";
 
 #[derive(RustEmbed)]
 #[folder = "src/doc/static"]
@@ -50,9 +51,13 @@ pub fn write_html(
 ) -> Result<()> {
     let context = Context::new(context, visitors);
 
-    let templating = templating::Templating::new([
+    let paths = templating::Paths::default();
+
+    let partials = [
         ("layout", asset_str("layout.html.hbs")?),
-    ])?;
+    ];
+
+    let templating = templating::Templating::new(partials, paths.clone())?;
 
     let syntax_set = SyntaxSet::load_defaults_newlines();
     let theme_set = ThemeSet::load_defaults();
@@ -64,33 +69,30 @@ pub fn write_html(
     for file in Assets::iter() {
         let path = RelativePath::new(file.as_ref());
 
-        match (path.file_name(), path.extension()) {
-            (Some(name), Some("woff2")) => {
-                let file = Assets::get(file.as_ref()).context("missing asset")?;
-                let path = copy_file(name, root, file)?;
-                fonts.push(path.to_owned());
-            }
-            (Some(name), Some("css")) => {
-                let file = Assets::get(file.as_ref()).context("missing asset")?;
-                let path = copy_file(name, root, file)?;
-                css.push(path.to_owned());
-            }
-            (Some(name), Some("js")) => {
-                let file = Assets::get(file.as_ref()).context("missing asset")?;
-                let path = copy_file(name, root, file)?;
-                js.push(path.to_owned());
-            }
-            _ => {}
-        }
+        let out = match path.extension() {
+            Some("woff2") => &mut fonts,
+            Some("css") => &mut css,
+            Some("js") => &mut js,
+            _ => continue,
+        };
+
+        let file = Assets::get(file.as_ref()).context("missing asset")?;
+        let to_path = copy_file_bytes(root, path, file.data.as_ref())?;
+        paths.insert(path.as_str(), to_path.as_str());
+        out.push(to_path.to_owned());
     }
 
-    let syntax_css = RelativePath::new("syntax.css");
     let theme = theme_set.themes.get(THEME).context("missing theme")?;
     let syntax_css_content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
-    tracing::info!("writing: {}", syntax_css);
-    fs::write(syntax_css.to_path(root), syntax_css_content)
-        .with_context(|| syntax_css.to_owned())?;
-    css.push(syntax_css.to_owned());
+    let syntax_css = copy_file_bytes(root, "syntax.css", syntax_css_content.as_bytes())?;
+    paths.insert("syntax.css", syntax_css.as_str());
+    css.push(syntax_css);
+
+    let runedoc = compile(&templating, "runedoc.css.hbs")?;
+    let runedoc_string = runedoc.render(&())?;
+    let runedoc_css = copy_file_bytes(root, RUNEDOC_CSS, runedoc_string.as_bytes())?;
+    paths.insert(RUNEDOC_CSS, runedoc_css.as_str());
+    css.push(runedoc_css);
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
     let mut initial = VecDeque::new();
@@ -150,7 +152,7 @@ pub fn write_html(
             }
             Build::Function(meta) => {
                 cx.set_path(meta)?;
-                build_function(&cx)?;
+                build_function(&cx, meta)?;
             }
             Build::Module(meta) => {
                 cx.set_path(meta)?;
@@ -644,17 +646,38 @@ fn compile(templating: &templating::Templating, path: &str) -> Result<templating
     templating.compile(template.as_ref())
 }
 
-/// Copy an embedded file.
-fn copy_file<'a>(
-    name: &'a str,
+struct Hex<'a>(&'a [u8]);
+
+impl fmt::Display for Hex<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for b in self.0 {
+            write!(f, "{:x}", b)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Copy a file with a hashed extension, and return the copied path.
+fn copy_file_bytes<P>(
     root: &Path,
-    file: EmbeddedFile,
-) -> Result<&'a RelativePath, Error> {
-    let path = RelativePath::new(name);
-    let file_path = path.to_path(root);
-    tracing::info!("writing: {}", file_path.display());
-    ensure_parent_dir(&file_path)?;
-    fs::write(&file_path, file.data.as_ref()).with_context(|| file_path.display().to_string())?;
+    path: &P,
+    content: &[u8],
+) -> Result<RelativePathBuf> where P: ?Sized + AsRef<RelativePath> {
+    let mut hasher = Sha256::new();
+    hasher.update(content);
+    let result = hasher.finalize();
+    let hash = Hex(&result[..]);
+
+    let path = path.as_ref();
+    let stem = path.file_stem().context("Missing file stem")?;
+    let ext = path.extension().context("Missing file extension")?;
+    let path = path.with_file_name(format!("{stem}-{hash}.{ext}"));
+
+    let out_path = path.to_path(root);
+    tracing::info!("Writing: {}", out_path.display());
+    ensure_parent_dir(&out_path)?;
+    fs::write(&out_path, content).with_context(|| out_path.display().to_string())?;
     Ok(path)
 }
 
@@ -920,12 +943,13 @@ fn build_macro(cx: &Ctxt<'_, '_>) -> Result<()> {
 
 /// Build a function.
 #[tracing::instrument(skip_all)]
-fn build_function(cx: &Ctxt<'_, '_>) -> Result<()> {
+fn build_function(cx: &Ctxt<'_, '_>, meta: Meta<'_>) -> Result<()> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
         shared: Shared<'a>,
         module: String,
+        is_async: bool,
         #[serde(serialize_with = "serialize_item")]
         item: &'a Item,
         #[serde(serialize_with = "serialize_component_ref")]
@@ -935,28 +959,18 @@ fn build_function(cx: &Ctxt<'_, '_>) -> Result<()> {
         return_type: Option<String>,
     }
 
-    let meta = cx.context.meta(&cx.item);
-
-    let meta = meta
-        .iter()
-        .find(|m| matches!(m.kind, Kind::Function(..)))
-        .context("Expected a function")?;
-
-    let (args, signature, return_type, argument_types) = match meta.kind {
-        Kind::Function(Function {
-            args,
-            signature: signature @ Signature::Function { .. },
-            return_type,
-            argument_types,
+    let f = match meta.kind {
+        Kind::Function(f @ Function {
+            signature: Signature::Function { .. },
             ..
-        }) => (args, signature, return_type, argument_types),
+        }) => f,
         _ => bail!("found meta, but not a function"),
     };
 
     let name = cx.item.last().context("Missing function name")?;
     let doc = cx.render_docs(meta.docs)?;
 
-    let return_type = match return_type {
+    let return_type = match f.return_type {
         Some(hash) => Some(cx.link(hash, None)?),
         None => None,
     };
@@ -965,9 +979,10 @@ fn build_function(cx: &Ctxt<'_, '_>) -> Result<()> {
         cx.function_template.render(&Params {
             shared: cx.shared(),
             module: cx.module_path_html(false)?,
+            is_async: f.is_async,
             item: &cx.item,
             name,
-            args: cx.args_to_string(args, signature, argument_types)?,
+            args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
             doc,
             return_type,
         })

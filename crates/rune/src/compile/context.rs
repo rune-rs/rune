@@ -568,7 +568,7 @@ impl Context {
 
         let signature = meta::Signature {
             item: item.clone(),
-            is_async: false,
+            is_async: f.is_async,
             args: f.args,
             return_type: f.return_type.as_ref().map(|f| f.hash),
             argument_types: f
