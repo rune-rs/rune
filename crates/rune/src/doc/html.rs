@@ -69,27 +69,23 @@ impl AssetWriter {
     }
 
     fn build(self, cx: &Ctxt<'_, '_>) -> Result<()> {
-        let out_path = self.path.to_path(cx.root);
-        tracing::info!("Writing: {}", out_path.display());
-        ensure_parent_dir(&out_path)?;
-        fs::write(&out_path, self.content).with_context(|| out_path.display().to_string())?;
+        let p = self.path.to_path(cx.root);
+        tracing::info!("Writing: {}", p.display());
+        ensure_parent_dir(&p)?;
+        fs::write(&p, self.content).with_context(|| p.display().to_string())?;
         Ok(())
     }
 }
 
 pub(crate) struct Builder<'m> {
-    path: RelativePathBuf,
-    item: ItemBuf,
-    item_kind: ItemKind,
+    state: State,
     builder: Box<dyn FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm>,
 }
 
 impl<'m> Builder<'m> {
     fn new<B>(cx: &Ctxt<'_, '_>, builder: B) -> Self where B: FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm {
         Self {
-            path: cx.path.clone(),
-            item: cx.item.clone(),
-            item_kind: cx.item_kind,
+            state: cx.state.clone(),
             builder: Box::new(builder),
         }
     }
@@ -168,9 +164,7 @@ pub fn write_html(
 
     let mut cx = Ctxt {
         root,
-        path: RelativePathBuf::new(),
-        item: ItemBuf::new(),
-        item_kind: ItemKind::Module,
+        state: State::default(),
         index: Vec::new(),
         name,
         context: &context,
@@ -214,7 +208,7 @@ pub fn write_html(
             }
             Build::Macro(meta) => {
                 cx.set_path(meta)?;
-                builders.push(build_macro(&cx)?);
+                builders.push(build_macro(&cx, meta)?);
             }
             Build::Function(meta) => {
                 cx.set_path(meta)?;
@@ -223,7 +217,7 @@ pub fn write_html(
             Build::Module(meta) => {
                 cx.set_path(meta)?;
                 builders.push(module(&cx, meta, &mut queue)?);
-                modules.push((meta.item, cx.path.clone()));
+                modules.push((meta.item, cx.state.path.clone()));
             }
         }
     }
@@ -235,15 +229,16 @@ pub fn write_html(
 
     cx.search_index = Some(&search_index_path);
 
-    cx.path = RelativePath::new("index.html").to_owned();
-    cx.item = ItemBuf::new();
+    cx.state.path = RelativePath::new("index.html").to_owned();
     builders.push(build_index(&cx, modules)?);
 
     for builder in builders {
-        cx.path = builder.path;
-        cx.item = builder.item;
-        cx.item_kind = builder.item_kind;
-        cx.write_file(|cx| (builder.builder)(cx))?;
+        cx.state = builder.state;
+
+        assets.push(AssetWriter {
+            path: cx.state.path.clone(),
+            content: (builder.builder)(&cx)?.into_bytes().into(),
+        });
     }
 
     for asset in assets {
@@ -286,11 +281,12 @@ struct Shared<'a> {
     js: Vec<RelativePathBuf>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub(crate) enum ItemKind {
     Type,
     Struct,
     Enum,
+    #[default]
     Module,
     Macro,
     Function,
@@ -323,20 +319,23 @@ impl fmt::Display for IndexKind {
     }
 }
 
-pub(crate) struct IndexEntry {
+pub(crate) struct IndexEntry<'m> {
     pub(crate) path: RelativePathBuf,
-    pub(crate) item: ItemBuf,
+    pub(crate) item: Cow<'m, Item>,
     pub(crate) kind: IndexKind,
     pub(crate) doc: Option<String>,
 }
 
+#[derive(Default, Clone)]
+pub(crate) struct State {
+    path: RelativePathBuf,
+}
+
 pub(crate) struct Ctxt<'a, 'm> {
     root: &'a Path,
-    path: RelativePathBuf,
-    item: ItemBuf,
-    item_kind: ItemKind,
+    state: State,
     /// A collection of all items visited.
-    index: Vec<IndexEntry>,
+    index: Vec<IndexEntry<'m>>,
     name: &'a str,
     context: &'a Context<'m>,
     search_index: Option<&'a RelativePath>,
@@ -352,8 +351,8 @@ pub(crate) struct Ctxt<'a, 'm> {
     syntax_set: SyntaxSet,
 }
 
-impl Ctxt<'_, '_> {
-    fn set_path(&mut self, meta: Meta<'_>) -> Result<()> {
+impl<'m> Ctxt<'_, 'm> {
+    fn set_path(&mut self, meta: Meta<'m>) -> Result<()> {
         let item_kind = match &meta.kind {
             Kind::Type => ItemKind::Type,
             Kind::Struct => ItemKind::Struct,
@@ -364,17 +363,15 @@ impl Ctxt<'_, '_> {
             kind => bail!("Cannot set path for {kind:?}"),
         };
 
-        self.path = RelativePathBuf::new();
-        build_item_path(self.name, meta.item, item_kind, &mut self.path)?;
-        self.item = meta.item.to_owned();
-        self.item_kind = item_kind;
+        self.state.path = RelativePathBuf::new();
+        build_item_path(self.name, meta.item, item_kind, &mut self.state.path)?;
 
-        let doc = self.render_docs(meta.docs.get(..1).unwrap_or_default())?;
+        let doc = self.render_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
 
         self.index.push(IndexEntry {
-            path: self.path.clone(),
-            item: self.item.clone(),
-            kind: IndexKind::Item(self.item_kind),
+            path: self.state.path.clone(),
+            item: Cow::Borrowed(meta.item),
+            kind: IndexKind::Item(item_kind),
             doc,
         });
 
@@ -382,32 +379,19 @@ impl Ctxt<'_, '_> {
     }
 
     fn dir(&self) -> &RelativePath {
-        self.path.parent().unwrap_or(RelativePath::new(""))
+        self.state.path.parent().unwrap_or(RelativePath::new(""))
     }
 
     fn shared(&self) -> Shared<'_> {
         let dir = self.dir();
 
         Shared {
-            data_path: self.path.parent(),
+            data_path: self.state.path.parent(),
             search_index: self.search_index.map(|p| dir.relative(p)),
             fonts: self.fonts.iter().map(|f| dir.relative(f)).collect(),
             css: self.css.iter().map(|f| dir.relative(f)).collect(),
             js: self.js.iter().map(|f| dir.relative(f)).collect(),
         }
-    }
-
-    /// Write the current file.
-    fn write_file<C>(&self, builder: C) -> Result<()>
-    where
-        C: FnOnce(&Self) -> Result<String>,
-    {
-        let p = self.path.to_path(self.root);
-        tracing::info!("writing: {}", p.display());
-        ensure_parent_dir(&p)?;
-        let data = builder(self)?;
-        fs::write(&p, data).with_context(|| p.display().to_string())?;
-        Ok(())
     }
 
     /// Render rust code.
@@ -428,7 +412,7 @@ impl Ctxt<'_, '_> {
     }
 
     /// Render documentation.
-    fn render_docs<S>(&self, docs: &[S]) -> Result<Option<String>>
+    fn render_docs<S>(&self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
     where
         S: AsRef<str>,
     {
@@ -454,7 +438,7 @@ impl Ctxt<'_, '_> {
         options.insert(Options::ENABLE_STRIKETHROUGH);
 
         let mut callback = |link: BrokenLink<'_>| {
-            let (path, title) = self.link_callback(link.reference.as_ref())?;
+            let (path, title) = self.link_callback(meta, link.reference.as_ref())?;
             Some((path.to_string().into(), title.into()))
         };
 
@@ -473,9 +457,9 @@ impl Ctxt<'_, '_> {
     }
 
     /// Build banklinks for the current item.
-    fn module_path_html(&self, is_module: bool) -> Result<String> {
+    fn module_path_html(&self, meta: Meta<'_>, is_module: bool) -> Result<String> {
         let mut module = Vec::new();
-        let mut iter = self.item.iter();
+        let mut iter = meta.item.iter();
 
         while iter.next_back().is_some() {
             if let Some(name) = iter.as_item().last() {
@@ -487,7 +471,7 @@ impl Ctxt<'_, '_> {
         module.reverse();
 
         if is_module {
-            if let Some(name) = self.item.last() {
+            if let Some(name) = meta.item.last() {
                 module.push(format!("<span class=\"module\">{name}</span>"));
             }
         }
@@ -622,7 +606,7 @@ impl Ctxt<'_, '_> {
         Ok(string)
     }
 
-    fn link_callback(&self, link: &str) -> Option<(RelativePathBuf, String)> {
+    fn link_callback(&self, meta: Meta<'_>, link: &str) -> Option<(RelativePathBuf, String)> {
         enum Flavor {
             Any,
             Macro,
@@ -662,10 +646,10 @@ impl Ctxt<'_, '_> {
         let link = link.trim_matches(|c| matches!(c, '`'));
         let (link, flavor) = flavor(link);
 
-        let item = if matches!(self.item_kind, ItemKind::Module) {
-            self.item.join([link])
+        let item = if matches!(meta.kind, Kind::Module) {
+            meta.item.join([link])
         } else {
-            self.item.parent()?.join([link])
+            meta.item.parent()?.join([link])
         };
 
         let item_path = 'out: {
@@ -858,49 +842,49 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
     let mut functions = Vec::new();
     let mut modules = Vec::new();
 
-    for (_, name) in cx.context.iter_components(cx.item.clone()) {
-        let item = cx.item.join([name]);
+    for (_, name) in cx.context.iter_components(meta.item) {
+        let item = meta.item.join([name]);
 
-        for meta in cx.context.meta(&item) {
-            match meta.kind {
+        for m in cx.context.meta(&item) {
+            match m.kind {
                 Kind::Type { .. } => {
-                    queue.push_front(Build::Type(meta));
+                    queue.push_front(Build::Type(m));
                     let path = cx.item_path(&item, ItemKind::Type)?;
                     types.push(Type {
                         item: item.clone(),
                         path,
                         name,
-                        first: meta.docs.first(),
+                        first: m.docs.first(),
                     });
                 }
                 Kind::Struct { .. } => {
-                    queue.push_front(Build::Struct(meta));
+                    queue.push_front(Build::Struct(m));
                     let path = cx.item_path(&item, ItemKind::Struct)?;
                     structs.push(Struct {
                         item: item.clone(),
                         path,
                         name,
-                        first: meta.docs.first(),
+                        first: m.docs.first(),
                     });
                 }
                 Kind::Enum { .. } => {
-                    queue.push_front(Build::Enum(meta));
+                    queue.push_front(Build::Enum(m));
                     let path = cx.item_path(&item, ItemKind::Enum)?;
                     enums.push(Enum {
                         item: item.clone(),
                         path,
                         name,
-                        first: meta.docs.first(),
+                        first: m.docs.first(),
                     });
                 }
                 Kind::Macro => {
-                    queue.push_front(Build::Macro(meta));
+                    queue.push_front(Build::Macro(m));
 
                     macros.push(Macro {
-                        path: cx.item_path(meta.item, ItemKind::Macro)?,
-                        item: meta.item,
+                        path: cx.item_path(m.item, ItemKind::Macro)?,
+                        item: m.item,
                         name,
-                        doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Function(f) => {
@@ -908,7 +892,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                         continue;
                     }
 
-                    queue.push_front(Build::Function(meta));
+                    queue.push_front(Build::Function(m));
 
                     functions.push(Function {
                         is_async: f.is_async,
@@ -916,19 +900,19 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                         item: item.clone(),
                         name,
                         args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
-                        doc: cx.render_docs(meta.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
                 }
                 Kind::Module => {
                     // Skip over crate items, since they are added separately.
-                    if cx.item.is_empty() && meta.item.as_crate().is_some() {
+                    if meta.item.is_empty() && m.item.as_crate().is_some() {
                         continue;
                     }
 
-                    queue.push_front(Build::Module(meta));
-                    let path = cx.item_path(meta.item, ItemKind::Module)?;
-                    let name = meta.item.last().context("missing name of module")?;
-                    modules.push(Module { item: meta.item, name, path })
+                    queue.push_front(Build::Module(m));
+                    let path = cx.item_path(m.item, ItemKind::Module)?;
+                    let name = m.item.last().context("missing name of module")?;
+                    modules.push(Module { item: m.item, name, path })
                 }
                 _ => {
                     continue;
@@ -940,9 +924,9 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
     Ok(Builder::new(cx, move |cx| {
         cx.module_template.render(&Params {
             shared: cx.shared(),
-            item: &cx.item,
-            module: cx.module_path_html(true)?,
-            doc: cx.render_docs(meta.docs)?,
+            item: meta.item,
+            module: cx.module_path_html(meta, true)?,
+            doc: cx.render_docs(meta, meta.docs)?,
             types,
             structs,
             enums,
@@ -955,7 +939,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
 
 /// Build a macro.
 #[tracing::instrument(skip_all)]
-fn build_macro<'m>(cx: &Ctxt<'_, 'm>) -> Result<Builder<'m>> {
+fn build_macro<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -968,22 +952,14 @@ fn build_macro<'m>(cx: &Ctxt<'_, 'm>) -> Result<Builder<'m>> {
         doc: Option<String>,
     }
 
-    let meta = cx.context.meta(&cx.item);
-
-    let meta = meta
-        .iter()
-        .find(|m| matches!(m.kind, Kind::Macro))
-        .context("Expected a macro")?;
-
-    let doc = cx.render_docs(meta.docs)?;
+    let doc = cx.render_docs(meta, meta.docs)?;
+    let name = meta.item.last().context("Missing macro name")?;
 
     Ok(Builder::new(cx, move |cx| {
-        let name = cx.item.last().context("Missing macro name")?;
-
         cx.macro_template.render(&Params {
             shared: cx.shared(),
-            module: cx.module_path_html(false)?,
-            item: &cx.item,
+            module: cx.module_path_html(meta, false)?,
+            item: meta.item,
             name,
             doc,
         })
@@ -1016,7 +992,7 @@ fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> 
         _ => bail!("found meta, but not a function"),
     };
 
-    let doc = cx.render_docs(meta.docs)?;
+    let doc = cx.render_docs(meta, meta.docs)?;
 
     let return_type = match f.return_type {
         Some(hash) => Some(cx.link(hash, None)?),
@@ -1024,13 +1000,13 @@ fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> 
     };
 
     Ok(Builder::new(cx, move |cx| {
-        let name = cx.item.last().context("Missing function name")?;
+        let name = meta.item.last().context("Missing function name")?;
 
         cx.function_template.render(&Params {
             shared: cx.shared(),
-            module: cx.module_path_html(false)?,
+            module: cx.module_path_html(meta, false)?,
             is_async: f.is_async,
-            item: &cx.item,
+            item: meta.item,
             name,
             args: cx.args_to_string(f.args, f.signature, f.argument_types)?,
             doc,

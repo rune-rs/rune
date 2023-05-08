@@ -1,4 +1,5 @@
 use crate::no_std::prelude::*;
+use crate::no_std::borrow::Cow;
 
 use anyhow::{Context, Result};
 use serde::Serialize;
@@ -29,7 +30,7 @@ pub(super) struct Method<'a> {
 pub(super) fn build_assoc_fns<'m>(
     cx: &Ctxt<'_, 'm>,
     meta: Meta<'m>,
-) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>, Vec<IndexEntry>)> {
+) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>, Vec<IndexEntry<'m>>)> {
     let mut protocols = Vec::new();
     let mut methods = Vec::new();
 
@@ -51,8 +52,8 @@ pub(super) fn build_assoc_fns<'m>(
                 (protocol, value.as_str())
             }
             AssocFnKind::Instance(name) => {
-                let line_doc = cx.render_docs(assoc.docs.get(..1).unwrap_or_default())?;
-                let doc = cx.render_docs(assoc.docs)?;
+                let line_doc = cx.render_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
+                let doc = cx.render_docs(meta, assoc.docs)?;
 
                 let mut list = Vec::new();
 
@@ -84,9 +85,9 @@ pub(super) fn build_assoc_fns<'m>(
         };
 
         let doc = if assoc.docs.is_empty() {
-            cx.render_docs(protocol.doc)?
+            cx.render_docs(meta, protocol.doc)?
         } else {
-            cx.render_docs(assoc.docs)?
+            cx.render_docs(meta, assoc.docs)?
         };
 
         let repr = if let Some(repr) = protocol.repr {
@@ -108,13 +109,13 @@ pub(super) fn build_assoc_fns<'m>(
 
     let mut index = Vec::new();
 
-    if let Some(name) = cx.path.file_name() {
+    if let Some(name) = cx.state.path.file_name() {
         index.reserve(methods.len());
 
         for m in &methods {
             index.push(IndexEntry {
-                path: cx.path.with_file_name(format!("{name}#method.{}", m.name)),
-                item: cx.item.join([m.name]),
+                path: cx.state.path.with_file_name(format!("{name}#method.{}", m.name)),
+                item: Cow::Owned(meta.item.join([m.name])),
                 kind: IndexKind::Method,
                 doc: m.line_doc.clone(),
             });
@@ -141,21 +142,20 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry>)> {
-    let module = cx.module_path_html(false)?;
+pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
+    let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, index) = build_assoc_fns(cx, meta)?;
+    let name = meta.item.last().context("Missing module name")?;
 
     let builder = Builder::new(cx, move |cx| {
-        let name = cx.item.last().context("missing module name")?;
-
         cx.type_template.render(&Params {
             shared: cx.shared(),
             what,
             what_class,
             module,
             name,
-            item: &cx.item,
+            item: meta.item,
             methods,
             protocols,
         })
