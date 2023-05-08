@@ -1,11 +1,11 @@
+use std::io::Write;
+
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::io::Write;
-use std::path::PathBuf;
 
-use crate::cli::{ExitCode, Io};
+use crate::cli::{ExitCode, Io, EntryPoint};
 use crate::termcolor::WriteColor;
-use crate::Source;
+use crate::{Source};
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -18,7 +18,7 @@ pub(super) struct Flags {
     check: bool,
 }
 
-pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf], flags: &Flags) -> Result<ExitCode> {
+pub(super) fn run<'m, I>(io: &mut Io<'_>, entrys: I, flags: &Flags) -> Result<ExitCode> where I: IntoIterator<Item = EntryPoint<'m>> {
     let mut red = crate::termcolor::ColorSpec::new();
     red.set_fg(Some(crate::termcolor::Color::Red));
 
@@ -32,9 +32,9 @@ pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf], flags: &Flags) -> Result<E
     let mut failed = 0;
     let mut unchanged = 0;
 
-    for path in paths {
+    for e in entrys {
         let source =
-            Source::from_path(path).with_context(|| format!("reading file: {}", path.display()))?;
+            Source::from_path(e.path()).with_context(|| format!("reading file: {}", e.path().display()))?;
 
         match crate::fmt::layout_source(&source) {
             Ok(val) => {
@@ -43,7 +43,7 @@ pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf], flags: &Flags) -> Result<E
                         io.stdout.set_color(&yellow)?;
                         write!(io.stdout, "== ")?;
                         io.stdout.reset()?;
-                        writeln!(io.stdout, "{}", path.display())?;
+                        writeln!(io.stdout, "{}", e.path().display())?;
                     }
 
                     unchanged += 1;
@@ -52,9 +52,9 @@ pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf], flags: &Flags) -> Result<E
                     io.stdout.set_color(&green)?;
                     write!(io.stdout, "++ ")?;
                     io.stdout.reset()?;
-                    writeln!(io.stdout, "{}", path.display())?;
+                    writeln!(io.stdout, "{}", e.path().display())?;
                     if !flags.check {
-                        std::fs::write(path, &val)?;
+                        std::fs::write(e.path(), &val)?;
                     }
                 }
             }
@@ -63,7 +63,7 @@ pub(super) fn run(io: &mut Io<'_>, paths: &[PathBuf], flags: &Flags) -> Result<E
                 io.stdout.set_color(&red)?;
                 write!(io.stdout, "!! ")?;
                 io.stdout.reset()?;
-                writeln!(io.stdout, "{}: {}", path.display(), err)?;
+                writeln!(io.stdout, "{}: {}", e.path().display(), err)?;
             }
         }
     }

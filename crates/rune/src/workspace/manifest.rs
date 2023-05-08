@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::{PathBuf, Path};
 use std::{iter};
 use std::io;
@@ -17,6 +18,11 @@ use crate::ast::{Span, Spanned};
 use crate::workspace::{MANIFEST_FILE, WorkspaceErrorKind, Diagnostics, WorkspaceError, SourceLoader};
 use crate::workspace::spanned_value::{Array, SpannedValue, Value, Table};
 
+const BIN: &str = "bin";
+const TESTS: &str = "tests";
+const EXAMPLES: &str = "examples";
+const BENCHES: &str = "benches";
+
 /// A workspace filter which in combination with functions such as
 /// [Manifest::find_bins] can be used to selectively find things in the
 /// workspace.
@@ -29,13 +35,51 @@ pub enum WorkspaceFilter<'a> {
     All,
 }
 
+/// The kind of a found entry.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub enum FoundKind {
+    /// The found entry is a binary.
+    Binary,
+    /// The found entry is a test.
+    Test,
+    /// The found entry is an example.
+    Example,
+    /// The found entry is a benchmark.
+    Bench,
+}
+
+impl fmt::Display for FoundKind {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FoundKind::Binary => "bin".fmt(f),
+            FoundKind::Test => "test".fmt(f),
+            FoundKind::Example => "example".fmt(f),
+            FoundKind::Bench => "bench".fmt(f),
+        }
+    }
+}
+
 /// A found item in the workspace.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct Found<'a> {
+pub struct Found {
+    /// The kind found.
+    pub kind: FoundKind,
     /// A found path that can be built.
     pub path: PathBuf,
-    /// The package the found path belongs to.
+    /// Name of the found thing.
+    pub name: String,
+}
+
+/// A found item in the workspace associated with a package.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct FoundPackage<'a> {
+    /// A found path that can be built.
+    pub found: Found,
+    /// Index of the package build belongs to.
     pub package: &'a Package,
 }
 
@@ -65,21 +109,12 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    fn find_paths(&self, m: WorkspaceFilter<'_>, auto_path: &Path, auto_find: impl Fn(&Package) -> bool) -> io::Result<Vec<Found<'_>>> {
+    fn find_paths<'m>(&'m self, m: WorkspaceFilter<'_>, kind: FoundKind, auto_path: &Path, auto_find: fn(&Package) -> bool) -> io::Result<Vec<FoundPackage<'m>>> {
         let mut output = Vec::new();
 
-        for package in &self.packages {
-            if let (Some(path), true) = (&package.root, auto_find(package)) {
-                let path = path.join(auto_path);
-                let results = find_rune_files(&path)?;
-
-                for result in results {
-                    let (base, path) = result?;
-
-                    if m.matches(&base) {
-                        output.push(Found { path, package });
-                    }
-                }
+        for package in self.packages.iter() {
+            for found in package.find_paths(m, kind, auto_path, auto_find)? {
+                output.push(FoundPackage { found, package });
             }
         }
 
@@ -87,7 +122,7 @@ impl Manifest {
     }
 
     /// Find every single entrypoint available.
-    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found<'_>>> {
+    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
         let mut output = Vec::new();
         output.extend(self.find_bins(m)?);
         output.extend(self.find_tests(m)?);
@@ -97,23 +132,23 @@ impl Manifest {
     }
 
     /// Find all binaries matching the given name in the workspace.
-    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found<'_>>> {
-        self.find_paths(m, Path::new("bin"), |p| p.auto_bins)
+    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+        self.find_paths(m, FoundKind::Binary, Path::new(BIN), |p| p.auto_bins)
     }
 
     /// Find all tests associated with the given base name.
-    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found<'_>>> {
-        self.find_paths(m, Path::new("tests"), |p| p.auto_tests)
+    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+        self.find_paths(m, FoundKind::Test, Path::new(TESTS), |p| p.auto_tests)
     }
 
     /// Find all examples matching the given name in the workspace.
-    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found<'_>>> {
-        self.find_paths(m, Path::new("examples"), |p| p.auto_examples)
+    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+        self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| p.auto_examples)
     }
 
     /// Find all benches matching the given name in the workspace.
-    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found<'_>>> {
-        self.find_paths(m, Path::new("benches"), |p| p.auto_benches)
+    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<FoundPackage<'_>>> {
+        self.find_paths(m, FoundKind::Bench, Path::new(BENCHES), |p| p.auto_benches)
     }
 }
 
@@ -135,6 +170,57 @@ pub struct Package {
     pub auto_examples: bool,
     /// Automatically detect benches.
     pub auto_benches: bool,
+}
+
+impl Package {
+    fn find_paths(&self, m: WorkspaceFilter<'_>, kind: FoundKind, auto_path: &Path, auto_find: fn(&Package) -> bool) -> io::Result<Vec<Found>> {
+        let mut output = Vec::new();
+
+        if let (Some(path), true) = (&self.root, auto_find(self)) {
+            let path = path.join(auto_path);
+            let results = find_rune_files(&path)?;
+
+            for result in results {
+                let (path, name) = result?;
+
+                if m.matches(&name) {
+                    output.push(Found { kind, path, name });
+                }
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Find every single entrypoint available.
+    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+        let mut output = Vec::new();
+        output.extend(self.find_bins(m)?);
+        output.extend(self.find_tests(m)?);
+        output.extend(self.find_examples(m)?);
+        output.extend(self.find_benches(m)?);
+        Ok(output)
+    }
+
+    /// Find all binaries matching the given name in the workspace.
+    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+        self.find_paths(m, FoundKind::Binary, Path::new(BIN), |p| p.auto_bins)
+    }
+
+    /// Find all tests associated with the given base name.
+    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+        self.find_paths(m, FoundKind::Test, Path::new(TESTS), |p| p.auto_tests)
+    }
+
+    /// Find all examples matching the given name in the workspace.
+    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+        self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| p.auto_examples)
+    }
+
+    /// Find all benches matching the given name in the workspace.
+    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> io::Result<Vec<Found>> {
+        self.find_paths(m, FoundKind::Bench, Path::new(BENCHES), |p| p.auto_benches)
+    }
 }
 
 pub(crate) struct Loader<'a> {
@@ -380,7 +466,7 @@ fn deserialize<T>(value: SpannedValue) -> Result<T, WorkspaceError> where T: for
 }
 
 /// Find all rune files in the given path.
-fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(String, PathBuf)>>> {
+fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(PathBuf, String)>>> {
     let mut dir = match fs::read_dir(path) {
         Ok(dir) => Some(dir),
         Err(e) if e.kind() == io::ErrorKind::NotFound => None,
@@ -407,13 +493,16 @@ fn find_rune_files(path: &Path) -> io::Result<impl Iterator<Item = io::Result<(S
 
             let path = e.path();
 
-            if let (Some(base), Some(ext)) = (path.file_stem(), path.extension()) {
-                if ext == OsStr::new("rn") {
-                    if let Some(base) = base.to_str() {
-                        return Some(Ok((base.into(), path)));
-                    }
-                }
+            let (Some(name), Some(ext)) = (path.file_stem().and_then(OsStr::to_str), path.extension()) else {
+                continue;
+            };
+
+            if ext != OsStr::new("rn") {
+                continue;
             }
+
+            let name = name.into();
+            return Some(Ok((path, name)));
         }
     }))
 }

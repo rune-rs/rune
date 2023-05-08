@@ -21,7 +21,7 @@ pub use self::error::{WorkspaceError};
 pub(crate) use self::error::WorkspaceErrorKind;
 
 mod manifest;
-pub use self::manifest::{Manifest, WorkspaceFilter};
+pub use self::manifest::{Manifest, WorkspaceFilter, Package, FoundKind, Found, FoundPackage};
 
 mod diagnostics;
 pub use self::diagnostics::{Diagnostics, Diagnostic, FatalDiagnostic};

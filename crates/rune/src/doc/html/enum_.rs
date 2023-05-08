@@ -4,13 +4,12 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 
 use crate::compile::{ComponentRef, Item};
-use crate::hash::Hash;
-
-use super::Ctxt;
+use crate::doc::context::Meta;
+use crate::doc::html::{Ctxt, IndexEntry};
 
 /// Build an enumeration.
 #[tracing::instrument(skip_all)]
-pub(super) fn build(cx: &Ctxt<'_, '_>, hash: Hash) -> Result<()> {
+pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Vec<IndexEntry>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -27,7 +26,7 @@ pub(super) fn build(cx: &Ctxt<'_, '_>, hash: Hash) -> Result<()> {
     let module = cx.module_path_html(false)?;
     let name = cx.item.last().context("missing module name")?;
 
-    let (protocols, methods) = super::type_::build_assoc_fns(cx, hash)?;
+    let (protocols, methods, index) = super::type_::build_assoc_fns(cx, meta)?;
 
     cx.write_file(|cx| {
         cx.enum_template.render(&Params {
@@ -38,5 +37,7 @@ pub(super) fn build(cx: &Ctxt<'_, '_>, hash: Hash) -> Result<()> {
             methods,
             protocols,
         })
-    })
+    })?;
+
+    Ok(index)
 }

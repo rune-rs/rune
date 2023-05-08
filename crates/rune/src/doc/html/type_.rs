@@ -4,8 +4,7 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 
 use crate::compile::{ComponentRef, Item};
-use crate::doc::context::{Assoc, AssocFnKind, Signature};
-use crate::hash::Hash;
+use crate::doc::context::{Assoc, AssocFnKind, Signature, Meta};
 use crate::doc::html::{Ctxt, IndexEntry, IndexKind};
 
 #[derive(Serialize)]
@@ -29,12 +28,12 @@ pub(super) struct Method<'a> {
 
 pub(super) fn build_assoc_fns<'m>(
     cx: &Ctxt<'_, 'm>,
-    hash: Hash,
-) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>)> {
+    meta: Meta<'m>,
+) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>, Vec<IndexEntry>)> {
     let mut protocols = Vec::new();
     let mut methods = Vec::new();
 
-    for assoc in cx.context.associated(hash) {
+    for assoc in cx.context.associated(meta.hash) {
         let Assoc::Fn(assoc) = assoc else {
             continue;
         };
@@ -107,7 +106,22 @@ pub(super) fn build_assoc_fns<'m>(
         });
     }
 
-    Ok((protocols, methods))
+    let mut index = Vec::new();
+
+    if let Some(name) = cx.path.file_name() {
+        index.reserve(methods.len());
+
+        for m in &methods {
+            index.push(IndexEntry {
+                path: cx.path.with_file_name(format!("{name}#method.{}", m.name)),
+                item: cx.item.join([m.name]),
+                kind: IndexKind::Method,
+                doc: m.line_doc.clone(),
+            });
+        }
+    }
+
+    Ok((protocols, methods, index))
 }
 
 #[derive(Serialize)]
@@ -127,24 +141,11 @@ struct Params<'a> {
 
 /// Build an unknown type.
 #[tracing::instrument(skip_all)]
-pub(super) fn build(cx: &Ctxt<'_, '_>, what: &str, what_class: &str, hash: Hash) -> Result<Vec<IndexEntry>> {
+pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &str, what_class: &str, meta: Meta<'m>) -> Result<Vec<IndexEntry>> {
     let module = cx.module_path_html(false)?;
     let name = cx.item.last().context("missing module name")?;
 
-    let (protocols, methods) = build_assoc_fns(cx, hash)?;
-
-    let mut items = Vec::new();
-
-    if let Some(name) = cx.path.file_name() {
-        for m in &methods {
-            items.push(IndexEntry {
-                path: cx.path.with_file_name(format!("{name}#method.{}", m.name)),
-                item: cx.item.join([m.name]),
-                kind: IndexKind::Method,
-                doc: m.line_doc.clone(),
-            });
-        }
-    }
+    let (protocols, methods, index) = build_assoc_fns(cx, meta)?;
 
     cx.write_file(|cx| {
         cx.type_template.render(&Params {
@@ -159,5 +160,5 @@ pub(super) fn build(cx: &Ctxt<'_, '_>, what: &str, what_class: &str, hash: Hash)
         })
     })?;
 
-    Ok(items)
+    Ok(index)
 }

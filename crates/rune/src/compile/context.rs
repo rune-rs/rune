@@ -387,25 +387,32 @@ impl Context {
     /// Install a module, ensuring that its meta is defined.
     fn install_module(&mut self, m: &Module) -> Result<(), ContextError> {
         self.names.insert(&m.item);
-        let hash = Hash::type_hash(&m.item);
 
-        if let Some(existing) = self.item_to_hash.insert(m.item.to_owned(), hash) {
-            if hash != existing {
-                return Err(ContextError::ConflictingMetaHash {
-                    item: m.item.to_owned(),
-                    hash,
-                    existing,
-                });
+        let mut current = Some((m.item.as_ref(), Some(&m.docs)));
+
+        while let Some((item, docs)) = current.take() {
+            let hash = Hash::type_hash(item);
+
+            if let Some(existing) = self.item_to_hash.insert(item.to_owned(), hash) {
+                if hash != existing {
+                    return Err(ContextError::ConflictingMetaHash {
+                        item: item.to_owned(),
+                        hash,
+                        existing,
+                    });
+                }
             }
-        }
 
-        self.meta.entry(hash).or_default().push(ContextMeta {
-            hash,
-            associated_container: None,
-            item: m.item.to_owned(),
-            kind: meta::Kind::Module,
-            docs: m.docs.clone(),
-        });
+            self.meta.entry(hash).or_default().push(ContextMeta {
+                hash,
+                associated_container: None,
+                item: item.to_owned(),
+                kind: meta::Kind::Module,
+                docs: docs.cloned().unwrap_or_default(),
+            });
+
+            current = item.parent().map(|item| (item, None));
+        }
 
         Ok(())
     }

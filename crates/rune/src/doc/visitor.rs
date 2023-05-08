@@ -43,13 +43,19 @@ impl Visitor {
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        Self {
-            base: base.into_iter().collect(),
+        let mut this = Self {
+            base: base.into_iter().collect::<ItemBuf>(),
             names: Names::default(),
             data: HashMap::default(),
             item_to_hash: HashMap::new(),
             associated: HashMap::new(),
-        }
+        };
+
+        let hash = Hash::type_hash(&this.base);
+        this.names.insert(&this.base);
+        this.data.insert(hash, VisitorData::new(this.base.clone(), hash, meta::Kind::Module));
+        this.item_to_hash.insert(this.base.clone(), hash);
+        this
     }
 
     /// Get meta by item.

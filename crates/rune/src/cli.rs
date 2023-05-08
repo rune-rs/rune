@@ -22,6 +22,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use crate::no_std::prelude::*;
+use crate::workspace::{self, WorkspaceFilter};
 
 use anyhow::{bail, Context as _, Error, Result};
 use clap::{Parser, Subcommand};
@@ -30,7 +31,6 @@ use tracing_subscriber::filter::EnvFilter;
 use crate::compile::{ItemBuf, ParseOptionError, ComponentRef};
 use crate::modules::capture_io::CaptureIo;
 use crate::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use crate::workspace::WorkspaceFilter;
 use crate::{Context, ContextError, Options, Hash};
 
 /// Default about splash.
@@ -180,9 +180,19 @@ impl<'a> Entry<'a> {
     }
 }
 
-struct EntryPoint {
-    item: ItemBuf,
-    paths: Vec<PathBuf>,
+enum EntryPoint<'a> {
+    Path(PathBuf),
+    Package(workspace::FoundPackage<'a>),
+}
+
+impl EntryPoint<'_> {
+    /// Path to entrypoint.
+    pub(crate) fn path(&self) -> &Path {
+        match self {
+            EntryPoint::Path(path) => path,
+            EntryPoint::Package(p) => &p.found.path,
+        }
+    }
 }
 
 struct Io<'a> {
@@ -277,7 +287,7 @@ impl Command {
         }
     }
 
-    fn bins_test(&self) -> Option<WorkspaceFilter<'_>> {
+    fn find_bins(&self) -> Option<WorkspaceFilter<'_>> {
         if !matches!(
             self,
             Command::Run(..) | Command::Check(..) | Command::Doc(..)
@@ -294,7 +304,7 @@ impl Command {
         })
     }
 
-    fn tests_test(&self) -> Option<WorkspaceFilter<'_>> {
+    fn find_tests(&self) -> Option<WorkspaceFilter<'_>> {
         if !matches!(
             self,
             Command::Test(..) | Command::Check(..) | Command::Doc(..)
@@ -311,7 +321,7 @@ impl Command {
         })
     }
 
-    fn examples_test(&self) -> Option<WorkspaceFilter<'_>> {
+    fn find_examples(&self) -> Option<WorkspaceFilter<'_>> {
         if !matches!(
             self,
             Command::Run(..) | Command::Check(..) | Command::Doc(..)
@@ -328,7 +338,7 @@ impl Command {
         })
     }
 
-    fn benches_test(&self) -> Option<WorkspaceFilter<'_>> {
+    fn find_benches(&self) -> Option<WorkspaceFilter<'_>> {
         if !matches!(
             self,
             Command::Bench(..) | Command::Check(..) | Command::Doc(..)
@@ -346,28 +356,63 @@ impl Command {
     }
 }
 
-struct Package {
-    /// The name of the package the path belongs to.
-    name: String,
-}
-
-enum BuildPath {
+enum BuildPath<'a> {
     /// A plain path entry.
-    Path(PathBuf),
-    /// A path from a specific package.
-    Package(Package, PathBuf),
+    Path(&'a Path),
+    /// An entry from the specified package.
+    Package(workspace::FoundPackage<'a>),
 }
 
 #[derive(Default)]
 struct Config {
+    /// Loaded build manifest.
+    manifest: workspace::Manifest,
     /// Whether or not the test module should be included.
     test: bool,
     /// Whether or not to use verbose output.
     verbose: bool,
     /// Manifest root directory.
     manifest_root: Option<PathBuf>,
-    /// The explicit paths to load.
-    build_paths: Vec<BuildPath>,
+    /// Immediate found paths.
+    found_paths: Vec<PathBuf>,
+}
+
+impl Config {
+    /// Construct build paths from configuration.
+    fn build_paths<'m>(&'m self, cmd: &Command) -> Result<Vec<BuildPath<'m>>> {
+        let mut build_paths = Vec::new();
+
+        if !self.found_paths.is_empty() {
+            build_paths.extend(self.found_paths.iter().map(|p| BuildPath::Path(p)));
+            return Ok(build_paths);
+        }
+
+        if let Some(bin) = cmd.find_bins() {
+            for p in self.manifest.find_bins(bin)? {
+                build_paths.push(BuildPath::Package(p));
+            }
+        }
+    
+        if let Some(test) = cmd.find_tests() {
+            for p in self.manifest.find_tests(test)? {
+                build_paths.push(BuildPath::Package(p));
+            }
+        }
+    
+        if let Some(example) = cmd.find_examples() {
+            for p in self.manifest.find_examples(example)? {
+                build_paths.push(BuildPath::Package(p));
+            }
+        }
+    
+        if let Some(bench) = cmd.find_benches() {
+            for p in self.manifest.find_benches(bench)? {
+                build_paths.push(BuildPath::Package(p));
+            }
+        }
+    
+        Ok(build_paths)
+    }
 }
 
 impl SharedFlags {
@@ -533,7 +578,7 @@ fn find_manifest() -> Result<(PathBuf, PathBuf)> {
     let mut path = PathBuf::new();
 
     loop {
-        let manifest_path = path.join(crate::workspace::MANIFEST_FILE);
+        let manifest_path = path.join(workspace::MANIFEST_FILE);
 
         if manifest_path.is_file() {
             return Ok((path, manifest_path));
@@ -544,21 +589,21 @@ fn find_manifest() -> Result<(PathBuf, PathBuf)> {
         if !path.is_dir() {
             bail!(
                 "coult not find {} in this or parent directories",
-                crate::workspace::MANIFEST_FILE
+                workspace::MANIFEST_FILE
             )
         }
     }
 }
 
 fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: &Command) -> Result<()> {
-    c.build_paths.extend(
+    c.found_paths.extend(
         cmd.shared()
             .paths
             .iter()
-            .map(|p| BuildPath::Path(p.as_path().into())),
+            .map(|p| p.as_path().into()),
     );
 
-    if !c.build_paths.is_empty() {
+    if !c.found_paths.is_empty() {
         return Ok(());
     }
 
@@ -566,7 +611,7 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: &Command) -> Result<()>
         let path = Path::new(file);
 
         if path.is_file() {
-            c.build_paths.push(BuildPath::Path(path.into()));
+            c.found_paths.push(path.into());
             return Ok(());
         }
     }
@@ -579,54 +624,16 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: &Command) -> Result<()>
     c.manifest_root = Some(manifest_root);
 
     let mut sources = crate::Sources::new();
-    sources.insert(crate::Source::from_path(&manifest_path)?);
+    sources.insert(crate::Source::from_path(manifest_path)?);
 
-    let mut diagnostics = crate::workspace::Diagnostics::new();
+    let mut diagnostics = workspace::Diagnostics::new();
 
-    let result = crate::workspace::prepare(&mut sources)
+    let result = workspace::prepare(&mut sources)
         .with_diagnostics(&mut diagnostics)
         .build();
 
     diagnostics.emit(io.stdout, &sources)?;
-
-    let manifest = result?;
-
-    if let Some(bin) = cmd.bins_test() {
-        for found in manifest.find_bins(bin)? {
-            let package = Package {
-                name: found.package.name.clone(),
-            };
-            c.build_paths.push(BuildPath::Package(package, found.path));
-        }
-    }
-
-    if let Some(test) = cmd.tests_test() {
-        for found in manifest.find_tests(test)? {
-            let package = Package {
-                name: found.package.name.clone(),
-            };
-            c.build_paths.push(BuildPath::Package(package, found.path));
-        }
-    }
-
-    if let Some(example) = cmd.examples_test() {
-        for found in manifest.find_examples(example)? {
-            let package = Package {
-                name: found.package.name.clone(),
-            };
-            c.build_paths.push(BuildPath::Package(package, found.path));
-        }
-    }
-
-    if let Some(bench) = cmd.benches_test() {
-        for found in manifest.find_benches(bench)? {
-            let package = Package {
-                name: found.package.name.clone(),
-            };
-            c.build_paths.push(BuildPath::Package(package, found.path));
-        }
-    }
-
+    c.manifest = result?;
     Ok(())
 }
 
@@ -648,7 +655,7 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
 
     populate_config(io, &mut c, cmd)?;
 
-    let entries = std::mem::take(&mut c.build_paths);
+    let build_paths = c.build_paths(cmd)?;
     let options = args.options()?;
 
     let what = cmd.describe();
@@ -657,30 +664,27 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
 
     let mut entrys = Vec::new();
 
-    for entry in &entries {
-        let (item, path) = match entry {
-            BuildPath::Path(path) => (ItemBuf::new(), path),
-            BuildPath::Package(p, path) => {
+    for build_path in build_paths {
+        match build_path {
+            BuildPath::Path(path) => {
+                for path in loader::recurse_paths(recursive, path.to_owned()) {
+                    entrys.push(EntryPoint::Path(path?));
+                }
+            }
+            BuildPath::Package(p) => {
                 if verbose {
                     let mut o = io.stderr.lock();
                     o.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
                     let result = write!(o, "{:>12}", what);
                     o.set_color(&ColorSpec::new())?;
+                    o.flush()?;
                     result?;
-                    writeln!(o, " `{}` (from {})", path.display(), p.name)?;
+                    writeln!(o, " {} `{}` (from {})", p.found.kind, p.found.path.display(), p.package.name)?;
                 }
 
-                (ItemBuf::with_crate(&p.name), path)
+                entrys.push(EntryPoint::Package(p));
             }
-        };
-
-        let mut paths = Vec::new();
-
-        for path in loader::recurse_paths(recursive, path.clone()) {
-            paths.push(path?);
         }
-
-        entrys.push(EntryPoint { item, paths });
     }
 
     match run_path(io, &c, cmd, entry, &options, entrys).await? {
@@ -694,7 +698,7 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
 }
 
 /// Run a single path.
-async fn run_path<I>(
+async fn run_path<'p, I>(
     io: &mut Io<'_>,
     c: &Config,
     cmd: &Command,
@@ -703,91 +707,78 @@ async fn run_path<I>(
     entrys: I,
 ) -> Result<ExitCode>
 where
-    I: IntoIterator<Item = EntryPoint>,
+    I: IntoIterator<Item = EntryPoint<'p>>,
 {
     match cmd {
         Command::Check(f) => {
             for e in entrys {
-                for path in &e.paths {
-                    match check::run(io, entry, c, &f.command, &f.shared, options, path)? {
-                        ExitCode::Success => (),
-                        other => return Ok(other),
-                    }
+                match check::run(io, entry, c, &f.command, &f.shared, options, e.path())? {
+                    ExitCode::Success => (),
+                    other => return Ok(other),
                 }
             }
         }
         Command::Doc(f) => return doc::run(io, entry, c, &f.command, &f.shared, options, entrys),
         Command::Fmt(flags) => {
-            let mut paths = vec![];
-            for e in entrys {
-                for path in e.paths {
-                    paths.push(path);
-                }
-            }
-
-            return format::run(io, &paths, &flags.command);
+            return format::run(io, entrys, &flags.command);
         }
         Command::Test(f) => {
             for e in entrys {
-                for path in &e.paths {
-                    let capture = crate::modules::capture_io::CaptureIo::new();
-                    let context = f.shared.context(entry, c, Some(&capture))?;
+                let capture = crate::modules::capture_io::CaptureIo::new();
+                let context = f.shared.context(entry, c, Some(&capture))?;
 
-                    let load = loader::load(
-                        io,
-                        &context,
-                        &f.shared,
-                        options,
-                        path,
-                        visitor::Attribute::Test,
-                    )?;
+                let load = loader::load(
+                    io,
+                    &context,
+                    &f.shared,
+                    options,
+                    e.path(),
+                    visitor::Attribute::Test,
+                )?;
 
-                    match tests::run(
-                        io,
-                        &f.command,
-                        &context,
-                        Some(&capture),
-                        load.unit,
-                        &load.sources,
-                        &load.functions,
-                    )
-                    .await?
-                    {
-                        ExitCode::Success => (),
-                        other => return Ok(other),
-                    }
+                match tests::run(
+                    io,
+                    &f.command,
+                    &context,
+                    Some(&capture),
+                    load.unit,
+                    &load.sources,
+                    &load.functions,
+                )
+                .await?
+                {
+                    ExitCode::Success => (),
+                    other => return Ok(other),
                 }
             }
         }
         Command::Bench(f) => {
             for e in entrys {
-                for path in &e.paths {
-                    let capture_io = crate::modules::capture_io::CaptureIo::new();
-                    let context = f.shared.context(entry, c, Some(&capture_io))?;
+                let capture_io = crate::modules::capture_io::CaptureIo::new();
+                let context = f.shared.context(entry, c, Some(&capture_io))?;
 
-                    let load = loader::load(
-                        io,
-                        &context,
-                        &f.shared,
-                        options,
-                        path,
-                        visitor::Attribute::Bench,
-                    )?;
+                let load = loader::load(
+                    io,
+                    &context,
+                    &f.shared,
+                    options,
+                    e.path(),
+                    visitor::Attribute::Bench,
+                )?;
 
-                    match benches::run(
-                        io,
-                        &f.command,
-                        &context,
-                        Some(&capture_io),
-                        load.unit,
-                        &load.sources,
-                        &load.functions,
-                    )
-                    .await?
-                    {
-                        ExitCode::Success => (),
-                        other => return Ok(other),
-                    }
+                match benches::run(
+                    io,
+                    &f.command,
+                    &context,
+                    Some(&capture_io),
+                    load.unit,
+                    &load.sources,
+                    &load.functions,
+                )
+                .await?
+                {
+                    ExitCode::Success => (),
+                    other => return Ok(other),
                 }
             }
         }
@@ -795,20 +786,18 @@ where
             let context = f.shared.context(entry, c, None)?;
 
             for e in entrys {
-                for path in &e.paths {
-                    let load = loader::load(
-                        io,
-                        &context,
-                        &f.shared,
-                        options,
-                        path,
-                        visitor::Attribute::None,
-                    )?;
+                let load = loader::load(
+                    io,
+                    &context,
+                    &f.shared,
+                    options,
+                    e.path(),
+                    visitor::Attribute::None,
+                )?;
 
-                    match run::run(io, c, &f.command, &context, load.unit, &load.sources).await? {
-                        ExitCode::Success => (),
-                        other => return Ok(other),
-                    }
+                match run::run(io, c, &f.command, &context, load.unit, &load.sources).await? {
+                    ExitCode::Success => (),
+                    other => return Ok(other),
                 }
             }
         }
