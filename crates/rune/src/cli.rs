@@ -33,6 +33,13 @@ use crate::modules::capture_io::CaptureIo;
 use crate::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use crate::{Context, ContextError, Options, Hash};
 
+/// Commands which by default should look in the workspace for entrypoints.
+macro_rules! workspace_command {
+    () => {
+        Command::Check(..) | Command::Doc(..) | Command::Fmt(..)
+    }
+}
+
 /// Default about splash.
 const DEFAULT_ABOUT: &str = "The Rune Language Interpreter";
 
@@ -290,7 +297,7 @@ impl Command {
     fn find_bins(&self) -> Option<WorkspaceFilter<'_>> {
         if !matches!(
             self,
-            Command::Run(..) | Command::Check(..) | Command::Doc(..)
+            Command::Run(..) | workspace_command!()
         ) {
             return None;
         }
@@ -307,7 +314,7 @@ impl Command {
     fn find_tests(&self) -> Option<WorkspaceFilter<'_>> {
         if !matches!(
             self,
-            Command::Test(..) | Command::Check(..) | Command::Doc(..)
+            Command::Test(..) | workspace_command!()
         ) {
             return None;
         }
@@ -324,7 +331,7 @@ impl Command {
     fn find_examples(&self) -> Option<WorkspaceFilter<'_>> {
         if !matches!(
             self,
-            Command::Run(..) | Command::Check(..) | Command::Doc(..)
+            Command::Run(..) | workspace_command!()
         ) {
             return None;
         }
@@ -341,7 +348,7 @@ impl Command {
     fn find_benches(&self) -> Option<WorkspaceFilter<'_>> {
         if !matches!(
             self,
-            Command::Bench(..) | Command::Check(..) | Command::Doc(..)
+            Command::Bench(..) | workspace_command!()
         ) {
             return None;
         }
