@@ -20,6 +20,8 @@ use sha2::{Sha256, Digest};
 use syntect::highlighting::ThemeSet;
 use syntect::html::{self, ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
+use base64::{display::Base64Display};
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 use crate::collections::VecDeque;
 use crate::compile::{ComponentRef, Item, ItemBuf};
@@ -38,9 +40,47 @@ use crate::Hash;
 const THEME: &str = "base16-eighties.dark";
 const RUNEDOC_CSS: &str = "runedoc.css";
 
+/// Asset builder.
+pub(crate) struct AssetWriter {
+    path: RelativePathBuf,
+    content: Cow<'static, [u8]>,
+}
+
+impl AssetWriter {
+    /// Copy a file with a hashed extension, and return the copied path.
+    fn new<P>(
+        path: &P,
+        content: Cow<'static, [u8]>,
+    ) -> Result<AssetWriter> where P: ?Sized + AsRef<RelativePath> {
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_ref());
+        let result = hasher.finalize();
+        let hash = Base64Display::new(&result[..], &URL_SAFE_NO_PAD);
+
+        let path = path.as_ref();
+        let stem = path.file_stem().context("Missing file stem")?;
+        let ext = path.extension().context("Missing file extension")?;
+        let path = path.with_file_name(format!("{stem}-{hash}.{ext}"));
+
+        Ok(AssetWriter {
+            path,
+            content,
+        })
+    }
+
+    fn build(self, cx: &Ctxt<'_, '_>) -> Result<()> {
+        let out_path = self.path.to_path(cx.root);
+        tracing::info!("Writing: {}", out_path.display());
+        ensure_parent_dir(&out_path)?;
+        fs::write(&out_path, self.content).with_context(|| out_path.display().to_string())?;
+        Ok(())
+    }
+}
+
 pub(crate) struct Builder<'m> {
     path: RelativePathBuf,
     item: ItemBuf,
+    item_kind: ItemKind,
     builder: Box<dyn FnOnce(&Ctxt<'_, '_>) -> Result<String> + 'm>,
 }
 
@@ -49,6 +89,7 @@ impl<'m> Builder<'m> {
         Self {
             path: cx.path.clone(),
             item: cx.item.clone(),
+            item_kind: cx.item_kind,
             builder: Box::new(builder),
         }
     }
@@ -82,6 +123,8 @@ pub fn write_html(
     let mut css = Vec::new();
     let mut js = Vec::new();
 
+    let mut assets = Vec::new();
+
     for file in Assets::iter() {
         let path = RelativePath::new(file.as_ref());
 
@@ -93,22 +136,25 @@ pub fn write_html(
         };
 
         let file = Assets::get(file.as_ref()).context("missing asset")?;
-        let to_path = copy_file_bytes(root, path, file.data.as_ref())?;
-        paths.insert(path.as_str(), to_path.as_str());
-        out.push(to_path.to_owned());
+        let builder = AssetWriter::new(path, file.data)?;
+        paths.insert(path.as_str(), builder.path.as_str());
+        out.push(builder.path.clone());
+        assets.push(builder);
     }
 
     let theme = theme_set.themes.get(THEME).context("missing theme")?;
     let syntax_css_content = html::css_for_theme_with_class_style(theme, html::ClassStyle::Spaced)?;
-    let syntax_css = copy_file_bytes(root, "syntax.css", syntax_css_content.as_bytes())?;
-    paths.insert("syntax.css", syntax_css.as_str());
-    css.push(syntax_css);
+    let syntax_css = AssetWriter::new("syntax.css", syntax_css_content.into_bytes().into())?;
+    paths.insert("syntax.css", syntax_css.path.as_str());
+    css.push(syntax_css.path.clone());
+    assets.push(syntax_css);
 
     let runedoc = compile(&templating, "runedoc.css.hbs")?;
     let runedoc_string = runedoc.render(&())?;
-    let runedoc_css = copy_file_bytes(root, RUNEDOC_CSS, runedoc_string.as_bytes())?;
-    paths.insert(RUNEDOC_CSS, runedoc_css.as_str());
-    css.push(runedoc_css);
+    let runedoc_css = AssetWriter::new(RUNEDOC_CSS, runedoc_string.into_bytes().into())?;
+    paths.insert(RUNEDOC_CSS, runedoc_css.path.as_str());
+    css.push(runedoc_css.path.clone());
+    assets.push(runedoc_css);
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
     let mut initial = VecDeque::new();
@@ -168,7 +214,7 @@ pub fn write_html(
             }
             Build::Macro(meta) => {
                 cx.set_path(meta)?;
-                build_macro(&cx)?;
+                builders.push(build_macro(&cx)?);
             }
             Build::Function(meta) => {
                 cx.set_path(meta)?;
@@ -183,18 +229,27 @@ pub fn write_html(
     }
 
     let index_content = build_search_index(&cx)?;
-    let search_index = copy_file_bytes(root, "index.js", index_content.as_bytes())?;
+    let search_index = AssetWriter::new("index.js", index_content.into_bytes().into())?;
+    let search_index_path = search_index.path.clone();
+    assets.push(search_index);
 
-    cx.search_index = Some(&search_index);
+    cx.search_index = Some(&search_index_path);
+
+    cx.path = RelativePath::new("index.html").to_owned();
+    cx.item = ItemBuf::new();
+    builders.push(build_index(&cx, modules)?);
 
     for builder in builders {
         cx.path = builder.path;
         cx.item = builder.item;
+        cx.item_kind = builder.item_kind;
         cx.write_file(|cx| (builder.builder)(cx))?;
     }
 
-    cx.path = RelativePath::new("index.html").to_owned();
-    index(&cx, &modules)?;
+    for asset in assets {
+        asset.build(&cx)?;
+    }
+
     Ok(())
 }
 
@@ -224,7 +279,7 @@ fn build_search_index(cx: &Ctxt) -> Result<String> {
 
 #[derive(Serialize)]
 struct Shared<'a> {
-    path: Option<&'a RelativePath>,
+    data_path: Option<&'a RelativePath>,
     search_index: Option<RelativePathBuf>,
     fonts: Vec<RelativePathBuf>,
     css: Vec<RelativePathBuf>,
@@ -334,7 +389,7 @@ impl Ctxt<'_, '_> {
         let dir = self.dir();
 
         Shared {
-            path: self.path.parent(),
+            data_path: self.path.parent(),
             search_index: self.search_index.map(|p| dir.relative(p)),
             fonts: self.fonts.iter().map(|f| dir.relative(f)).collect(),
             css: self.css.iter().map(|f| dir.relative(f)).collect(),
@@ -674,55 +729,20 @@ fn compile(templating: &templating::Templating, path: &str) -> Result<templating
     templating.compile(template.as_ref())
 }
 
-struct Hex<'a>(&'a [u8]);
-
-impl fmt::Display for Hex<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for b in self.0 {
-            write!(f, "{:x}", b)?;
-        }
-
-        Ok(())
-    }
-}
-
-/// Copy a file with a hashed extension, and return the copied path.
-fn copy_file_bytes<P>(
-    root: &Path,
-    path: &P,
-    content: &[u8],
-) -> Result<RelativePathBuf> where P: ?Sized + AsRef<RelativePath> {
-    let mut hasher = Sha256::new();
-    hasher.update(content);
-    let result = hasher.finalize();
-    let hash = Hex(&result[..]);
-
-    let path = path.as_ref();
-    let stem = path.file_stem().context("Missing file stem")?;
-    let ext = path.extension().context("Missing file extension")?;
-    let path = path.with_file_name(format!("{stem}-{hash}.{ext}"));
-
-    let out_path = path.to_path(root);
-    tracing::info!("Writing: {}", out_path.display());
-    ensure_parent_dir(&out_path)?;
-    fs::write(&out_path, content).with_context(|| out_path.display().to_string())?;
-    Ok(path)
-}
-
 #[tracing::instrument(skip_all)]
-fn index(cx: &Ctxt<'_, '_>, mods: &[(&Item, RelativePathBuf)]) -> Result<()> {
+fn build_index<'m>(cx: &Ctxt<'_, 'm>, mods: Vec<(&'m Item, RelativePathBuf)>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
         shared: Shared<'a>,
-        modules: &'a [Module<'a>],
+        modules: Vec<Module<'a>>,
     }
 
     #[derive(Serialize)]
     struct Module<'a> {
         #[serde(serialize_with = "serialize_item")]
         item: &'a Item,
-        path: &'a RelativePath,
+        path: RelativePathBuf,
     }
 
     let mut modules = Vec::new();
@@ -743,12 +763,12 @@ fn index(cx: &Ctxt<'_, '_>, mods: &[(&Item, RelativePathBuf)]) -> Result<()> {
         modules.push(Module { item, path });
     }
 
-    cx.write_file(|cx| {
+    Ok(Builder::new(cx, move |cx| {
         cx.index_template.render(&Params {
             shared: cx.shared(),
-            modules: &modules,
+            modules,
         })
-    })
+    }))
 }
 
 /// Build a single module.
@@ -935,7 +955,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
 
 /// Build a macro.
 #[tracing::instrument(skip_all)]
-fn build_macro(cx: &Ctxt<'_, '_>) -> Result<()> {
+fn build_macro<'m>(cx: &Ctxt<'_, 'm>) -> Result<Builder<'m>> {
     #[derive(Serialize)]
     struct Params<'a> {
         #[serde(flatten)]
@@ -955,10 +975,11 @@ fn build_macro(cx: &Ctxt<'_, '_>) -> Result<()> {
         .find(|m| matches!(m.kind, Kind::Macro))
         .context("Expected a macro")?;
 
-    let name = cx.item.last().context("Missing macro name")?;
     let doc = cx.render_docs(meta.docs)?;
 
-    cx.write_file(|cx| {
+    Ok(Builder::new(cx, move |cx| {
+        let name = cx.item.last().context("Missing macro name")?;
+
         cx.macro_template.render(&Params {
             shared: cx.shared(),
             module: cx.module_path_html(false)?,
@@ -966,7 +987,7 @@ fn build_macro(cx: &Ctxt<'_, '_>) -> Result<()> {
             name,
             doc,
         })
-    })
+    }))
 }
 
 /// Build a function.

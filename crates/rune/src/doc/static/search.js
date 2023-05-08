@@ -202,7 +202,7 @@
 
         let processQuery = (q) => {
             w.history.replaceState('', '', makeUrl(q));
-    
+
             if (q === '') {
                 removeClass([content], "hidden");
                 addClass([searchResults, searchTitle], "hidden");
