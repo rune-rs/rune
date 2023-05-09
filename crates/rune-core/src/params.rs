@@ -8,7 +8,9 @@ use crate::type_of::FullTypeOf;
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct Params<T, const N: usize> {
+    #[doc(hidden)]
     pub name: T,
+    #[doc(hidden)]
     pub parameters: [FullTypeOf; N],
 }
 

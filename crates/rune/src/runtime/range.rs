@@ -53,7 +53,7 @@ impl Range {
             _ => (),
         }
 
-        VmResult::err(Panic::custom("not an iterator"))
+        VmResult::err(Panic::custom("Not an iterator"))
     }
 
     /// Value pointer equals implementation for a range.
