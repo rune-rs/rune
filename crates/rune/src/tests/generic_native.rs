@@ -5,7 +5,7 @@ prelude!();
 #[derive(Any)]
 struct Generic<T>
 where
-    T: 'static + Clone + Named + UnsafeFromValue + ToValue + MaybeTypeOf,
+    T: 'static + Clone + Named + UnsafeFromValue + ToValue + MaybeTypeOf + TypeOf,
 {
     #[rune(get, set)]
     data: T,
@@ -13,7 +13,7 @@ where
 
 impl<T> Generic<T>
 where
-    T: 'static + Clone + Copy + Named + UnsafeFromValue + ToValue + MaybeTypeOf,
+    T: 'static + Clone + Copy + Named + UnsafeFromValue + ToValue + MaybeTypeOf + TypeOf,
 {
     fn get_value(&self) -> T {
         self.data

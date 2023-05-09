@@ -39,6 +39,12 @@ impl Hash {
         Self(hash)
     }
 
+    /// Construct a new raw hash with the given parameters.
+    #[doc(hidden)]
+    pub const fn new_with_parameters(hash: u64, parameters: Hash) -> Self {
+        Self(hash).with_parameters(parameters)
+    }
+
     /// Coerce a hash into its inner numerical value.
     #[doc(hidden)]
     pub const fn into_inner(self) -> u64 {
@@ -138,7 +144,7 @@ impl Hash {
     }
 
     /// Mix the current hash in the correct manner with another parameters hash.
-    pub fn with_parameters(self, parameters: Self) -> Self {
+    pub const fn with_parameters(self, parameters: Self) -> Self {
         Self(self.0 ^ parameters.0)
     }
 

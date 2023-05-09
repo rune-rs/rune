@@ -459,11 +459,17 @@ where
 
     let type_hash = type_hash.into_inner();
 
+    let make_hash = if !generic_names.is_empty() {
+        quote!(#hash::new_with_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_of>::type_hash()),*])))
+    } else {
+        quote!(#hash::new(#type_hash))
+    };
+
     Ok(quote! {
         #[automatically_derived]
         impl #impl_generics #any for #ident #ty_generics #where_clause {
             fn type_hash() -> #hash {
-                #hash::new(#type_hash)
+                #make_hash
             }
         }
 
