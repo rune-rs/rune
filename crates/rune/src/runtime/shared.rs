@@ -1,4 +1,4 @@
-use core::any;
+use core::any::{self, TypeId};
 use core::cell::{Cell, UnsafeCell};
 use core::fmt;
 use core::future::Future;
@@ -13,7 +13,7 @@ use crate::no_std::prelude::*;
 use crate::runtime::{
     Access, AccessError, AccessKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, RawAccessGuard,
 };
-use crate::{Any, Hash};
+use crate::Any;
 
 /// A shared value.
 pub struct Shared<T: ?Sized> {
@@ -479,7 +479,7 @@ impl Shared<AnyObj> {
             // exclusive access (see above).
             let any = ptr::read(inner.data.get());
 
-            let expected = Hash::from_type_id(any::TypeId::of::<T>());
+            let expected = TypeId::of::<T>();
 
             let (e, any) = match any.raw_take(expected) {
                 Ok(value) => return Ok(*Box::from_raw(value as *mut T)),
@@ -520,7 +520,7 @@ impl Shared<AnyObj> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.shared(AccessKind::Any)?;
-            let expected = Hash::from_type_id(any::TypeId::of::<T>());
+            let expected = TypeId::of::<T>();
 
             let data = match (*inner.data.get()).raw_as_ptr(expected) {
                 Ok(data) => data,
@@ -548,7 +548,7 @@ impl Shared<AnyObj> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.exclusive(AccessKind::Any)?;
-            let expected = Hash::from_type_id(any::TypeId::of::<T>());
+            let expected = TypeId::of::<T>();
 
             let data = match (*inner.data.get()).raw_as_mut(expected) {
                 Ok(data) => data,
@@ -591,7 +591,7 @@ impl Shared<AnyObj> {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
                 let guard = inner.access.shared(kind)?;
-                let expected = Hash::from_type_id(any::TypeId::of::<T>());
+                let expected = TypeId::of::<T>();
 
                 match (*inner.data.get()).raw_as_ptr(expected) {
                     Ok(data) => (data, guard),
@@ -643,7 +643,7 @@ impl Shared<AnyObj> {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
                 let guard = inner.access.exclusive(kind)?;
-                let expected = T::type_hash();
+                let expected = TypeId::of::<T>();
 
                 match (*inner.data.get()).raw_as_mut(expected) {
                     Ok(data) => (data, guard),

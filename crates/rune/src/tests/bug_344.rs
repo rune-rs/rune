@@ -172,7 +172,7 @@ impl GuardCheck {
 
 impl Any for GuardCheck {
     fn type_hash() -> Hash {
-        Hash::from_type_id(any::TypeId::of::<Self>())
+        Hash::new(0x10)
     }
 }
 
