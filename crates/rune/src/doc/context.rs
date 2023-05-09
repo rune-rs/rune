@@ -19,7 +19,7 @@ pub(crate) enum MetaSource<'a> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Meta<'a> {
     /// Item of the meta.
-    pub(crate) item: &'a Item,
+    pub(crate) item: Option<&'a Item>,
     /// The meta source.
     #[allow(unused)]
     pub(crate) source: MetaSource<'a>,
@@ -177,8 +177,8 @@ impl<'a> Context<'a> {
                 },
                 ContextAssociated::Function(hash) => {
                     let meta = context.lookup_meta_by_hash(*hash).iter().next()?;
-                    let sig = context.lookup_signature(*hash)?;
-                    let name = meta.item.last()?.as_str()?;
+                    let sig = meta.kind.as_signature()?;
+                    let name = meta.item.as_deref()?.last()?.as_str()?;
 
                     Some(Assoc::Fn(AssocFn {
                         is_async: sig.is_async,
@@ -267,7 +267,7 @@ impl<'a> Context<'a> {
                 instance_function,
                 ..
             } => {
-                let f = self.context.lookup_signature(meta.hash)?;
+                let f = meta.kind.as_signature()?;
 
                 let instance_function = match f.kind {
                     meta::SignatureKind::Function => *instance_function,
@@ -297,7 +297,7 @@ impl<'a> Context<'a> {
 
         Some(Meta {
             source: MetaSource::Context,
-            item: &meta.item,
+            item: meta.item.as_deref(),
             hash: meta.hash,
             docs: meta.docs.lines(),
             kind,
@@ -333,7 +333,7 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
 
     Meta {
         source: MetaSource::Source(base),
-        item: &data.item,
+        item: Some(&data.item),
         hash: data.hash,
         docs: data.docs.as_slice(),
         kind,

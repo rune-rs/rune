@@ -1,10 +1,12 @@
 use core::fmt::{self, Write};
 
-use crate::no_std::prelude::*;
+use alloc::borrow::ToOwned;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 use smallvec::ToSmallVec;
 
-use crate::compile::item::{Component, ComponentRef, IntoComponent, ItemBuf, Iter};
+use crate::item::{Component, ComponentRef, IntoComponent, ItemBuf, Iter};
 
 /// The reference to an [ItemBuf].
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]

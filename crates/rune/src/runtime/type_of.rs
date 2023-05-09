@@ -1,11 +1,8 @@
 use crate::runtime::{Mut, Ref, Shared, TypeInfo};
 use crate::Hash;
 
-/// Full type information.
-#[derive(Debug, Clone)]
-pub struct FullTypeOf {
-    pub(crate) hash: Hash,
-}
+#[doc(inline)]
+pub use rune_core::FullTypeOf;
 
 /// Trait used for Rust types for which we can determine the runtime type of.
 pub trait TypeOf {

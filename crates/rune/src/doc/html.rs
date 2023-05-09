@@ -217,7 +217,8 @@ pub fn write_html(
             Build::Module(meta) => {
                 cx.set_path(meta)?;
                 builders.push(module(&cx, meta, &mut queue)?);
-                modules.push((meta.item, cx.state.path.clone()));
+                let item = meta.item.context("Missing item")?;
+                modules.push((item, cx.state.path.clone()));
             }
         }
     }
@@ -363,14 +364,16 @@ impl<'m> Ctxt<'_, 'm> {
             kind => bail!("Cannot set path for {kind:?}"),
         };
 
+        let item = meta.item.context("Missing meta item")?;
+
         self.state.path = RelativePathBuf::new();
-        build_item_path(self.name, meta.item, item_kind, &mut self.state.path)?;
+        build_item_path(self.name, item, item_kind, &mut self.state.path)?;
 
         let doc = self.render_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
 
         self.index.push(IndexEntry {
             path: self.state.path.clone(),
-            item: Cow::Borrowed(meta.item),
+            item: Cow::Borrowed(item),
             kind: IndexKind::Item(item_kind),
             doc,
         });
@@ -459,7 +462,9 @@ impl<'m> Ctxt<'_, 'm> {
     /// Build banklinks for the current item.
     fn module_path_html(&self, meta: Meta<'_>, is_module: bool) -> Result<String> {
         let mut module = Vec::new();
-        let mut iter = meta.item.iter();
+        let item = meta.item.context("Missing module item")?;
+
+        let mut iter = item.iter();
 
         while iter.next_back().is_some() {
             if let Some(name) = iter.as_item().last() {
@@ -471,7 +476,7 @@ impl<'m> Ctxt<'_, 'm> {
         module.reverse();
 
         if is_module {
-            if let Some(name) = meta.item.last() {
+            if let Some(name) = item.last() {
                 module.push(format!("<span class=\"module\">{name}</span>"));
             }
         }
@@ -503,16 +508,17 @@ impl<'m> Ctxt<'_, 'm> {
             return Ok(Some(format!("{hash}")))
         };
 
+        let item = meta.item.context("Missing item link meta")?;
+
         let name = match text {
             Some(text) => text,
-            None => meta
-                .item
+            None => item
                 .last()
                 .and_then(|c| c.as_str())
                 .context("missing name")?,
         };
 
-        let path = self.item_path(meta.item, kind)?;
+        let path = self.item_path(item, kind)?;
         Ok(Some(format!("<a class=\"{kind}\" href=\"{path}\">{name}</a>")))
     }
 
@@ -657,9 +663,9 @@ impl<'m> Ctxt<'_, 'm> {
         let (link, flavor) = flavor(link);
 
         let item = if matches!(meta.kind, Kind::Module) {
-            meta.item.join([link])
+            meta.item?.join([link])
         } else {
-            meta.item.parent()?.join([link])
+            meta.item?.parent()?.join([link])
         };
 
         let item_path = 'out: {
@@ -845,6 +851,8 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
         path: RelativePathBuf,
     }
 
+    let meta_item = meta.item.context("Missing item")?;
+
     let mut types = Vec::new();
     let mut structs = Vec::new();
     let mut enums = Vec::new();
@@ -852,8 +860,8 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
     let mut functions = Vec::new();
     let mut modules = Vec::new();
 
-    for (_, name) in cx.context.iter_components(meta.item) {
-        let item = meta.item.join([name]);
+    for (_, name) in cx.context.iter_components(meta_item) {
+        let item = meta_item.join([name]);
 
         for m in cx.context.meta(&item) {
             match m.kind {
@@ -888,11 +896,13 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                     });
                 }
                 Kind::Macro => {
+                    let item = m.item.context("Missing macro item")?;
+
                     queue.push_front(Build::Macro(m));
 
                     macros.push(Macro {
-                        path: cx.item_path(m.item, ItemKind::Macro)?,
-                        item: m.item,
+                        path: cx.item_path(item, ItemKind::Macro)?,
+                        item,
                         name,
                         doc: cx.render_docs(m, m.docs.get(..1).unwrap_or_default())?,
                     });
@@ -914,15 +924,17 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
                     });
                 }
                 Kind::Module => {
+                    let item = m.item.context("Missing module item")?;
+
                     // Skip over crate items, since they are added separately.
-                    if meta.item.is_empty() && m.item.as_crate().is_some() {
+                    if meta_item.is_empty() && item.as_crate().is_some() {
                         continue;
                     }
 
                     queue.push_front(Build::Module(m));
-                    let path = cx.item_path(m.item, ItemKind::Module)?;
-                    let name = m.item.last().context("missing name of module")?;
-                    modules.push(Module { item: m.item, name, path })
+                    let path = cx.item_path(item, ItemKind::Module)?;
+                    let name = item.last().context("missing name of module")?;
+                    modules.push(Module { item, name, path })
                 }
                 _ => {
                     continue;
@@ -934,7 +946,7 @@ fn module<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>, queue: &mut VecDeque<Build<'m>>
     Ok(Builder::new(cx, move |cx| {
         cx.module_template.render(&Params {
             shared: cx.shared(),
-            item: meta.item,
+            item: meta_item,
             module: cx.module_path_html(meta, true)?,
             doc: cx.render_docs(meta, meta.docs)?,
             types,
@@ -963,13 +975,14 @@ fn build_macro<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> {
     }
 
     let doc = cx.render_docs(meta, meta.docs)?;
-    let name = meta.item.last().context("Missing macro name")?;
+    let item = meta.item.context("Missing item")?;
+    let name = item.last().context("Missing macro name")?;
 
     Ok(Builder::new(cx, move |cx| {
         cx.macro_template.render(&Params {
             shared: cx.shared(),
             module: cx.module_path_html(meta, false)?,
-            item: meta.item,
+            item,
             name,
             doc,
         })
@@ -1009,14 +1022,15 @@ fn build_function<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'m>> 
         None => None,
     };
 
-    Ok(Builder::new(cx, move |cx| {
-        let name = meta.item.last().context("Missing function name")?;
+    let item = meta.item.context("Missing item")?;
+    let name = item.last().context("Missing item name")?;
 
+    Ok(Builder::new(cx, move |cx| {
         cx.function_template.render(&Params {
             shared: cx.shared(),
             module: cx.module_path_html(meta, false)?,
             is_async: f.is_async,
-            item: meta.item,
+            item,
             name,
             args: cx.args_to_string(f.arg_names, f.args, f.signature, f.argument_types)?,
             doc,

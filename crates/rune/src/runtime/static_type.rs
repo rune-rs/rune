@@ -245,8 +245,8 @@ impl_static_type!(rt::Iterator => ITERATOR_TYPE);
 /// The specialized type information for type objects.
 pub static TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Type"),
-    // hash for ::std::Type
-    hash: Hash::new(0xe14fc50ece26203),
+    // hash for ::std::any::Type
+    hash: Hash::new(0xbd7ccf79d00ee140),
 };
 
 impl_static_type!(rt::Type => TYPE);

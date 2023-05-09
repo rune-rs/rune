@@ -1,7 +1,7 @@
 use crate::no_std::prelude::*;
 
 /// The documentation for a function.
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Docs {
     /// Lines of documentation.
     docs: Box<[String]>,

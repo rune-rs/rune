@@ -34,6 +34,8 @@ pub(super) fn build_assoc_fns<'m>(
     let mut protocols = Vec::new();
     let mut methods = Vec::new();
 
+    let meta_item = meta.item.context("Missing meta item")?;
+
     for assoc in cx.context.associated(meta.hash) {
         let Assoc::Fn(assoc) = assoc else {
             continue;
@@ -120,7 +122,7 @@ pub(super) fn build_assoc_fns<'m>(
         for m in &methods {
             index.push(IndexEntry {
                 path: cx.state.path.with_file_name(format!("{name}#method.{}", m.name)),
-                item: Cow::Owned(meta.item.join([m.name])),
+                item: Cow::Owned(meta_item.join([m.name])),
                 kind: IndexKind::Method,
                 doc: m.line_doc.clone(),
             });
@@ -152,7 +154,8 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'sta
     let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, index) = build_assoc_fns(cx, meta)?;
-    let name = meta.item.last().context("Missing module name")?;
+    let item = meta.item.context("Missing type item")?;
+    let name = item.last().context("Missing module name")?;
 
     let builder = Builder::new(cx, move |cx| {
         cx.type_template.render(&Params {
@@ -161,7 +164,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'sta
             what_class,
             module,
             name,
-            item: meta.item,
+            item,
             methods,
             protocols,
             doc: cx.render_docs(meta, meta.docs)?,

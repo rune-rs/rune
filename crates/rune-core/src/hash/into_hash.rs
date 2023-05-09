@@ -3,7 +3,7 @@ use crate::hash::Hash;
 mod sealed {
     use crate::hash::Hash;
     use crate::params::Params;
-    use crate::runtime::Protocol;
+    use crate::protocol::Protocol;
 
     pub trait Sealed {}
 

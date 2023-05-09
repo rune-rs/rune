@@ -1,17 +1,10 @@
 [workspace]
 members = [
-    "crates/rune",
-    "crates/rune-cli",
-    "crates/rune-languageserver",
-    "crates/rune-macros",
-    "crates/rune-modules",
-    "crates/rune-wasm",
+    "crates/*",
     "examples",
     "no-std-examples",
     "benches",
-    "tools/builder",
-    "tools/site",
-    "tools/generate",
+    "tools/*",
 ]
 
 [profile.bench]

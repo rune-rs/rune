@@ -1,13 +1,13 @@
 use core::hash::{self, Hash};
 
-use crate::no_std::borrow::Cow;
-use crate::no_std::prelude::*;
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use alloc::string::String;
 
 use smallvec::SmallVec;
 
-use crate::compile::item::internal;
-use crate::compile::{Component, ComponentRef};
-use crate::runtime::RawStr;
+use crate::item::{internal, Component, ComponentRef};
+use crate::raw_str::RawStr;
 
 /// Trait for encoding the current type into a [Component].
 pub trait IntoComponent: Sized {

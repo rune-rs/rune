@@ -1,10 +1,10 @@
 use core::fmt;
 
-use crate::no_std::prelude::*;
+use alloc::boxed::Box;
 
 use serde::{Deserialize, Serialize};
 
-use crate::compile::ComponentRef;
+use crate::item::ComponentRef;
 
 /// The component of an item.
 ///

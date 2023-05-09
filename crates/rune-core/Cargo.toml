@@ -1,0 +1,23 @@
+[package]
+name = "rune-core"
+version = "0.12.3"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2021"
+rust-version = "1.65"
+description = "Core components for the Rune Language, an embeddable dynamic programming language for Rust."
+documentation = "https://docs.rs/rune"
+readme = "README.md"
+homepage = "https://github.com/rune-rs/rune"
+repository = "https://github.com/rune-rs/rune"
+license = "MIT/Apache-2.0"
+keywords = ["language", "scripting", "scripting-language"]
+categories = ["parser-implementations"]
+
+[features]
+doc = []
+
+[dependencies]
+twox-hash = { version = "1.6.3", default-features = false }
+serde = { version = "1.0.162", default-features = false, features = ["derive", "alloc"] }
+smallvec = { version = "1.10.0", default-features = false, features = ["const_new", "serde"] }
+byteorder = { version = "1.4.3", default-features = false }

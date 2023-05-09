@@ -19,6 +19,7 @@ use crate::runtime::{
 use crate::Hash;
 
 /// Context metadata.
+#[derive(Debug)]
 #[non_exhaustive]
 pub(crate) struct ContextMeta {
     /// Type hash for the given meta item.
@@ -26,7 +27,7 @@ pub(crate) struct ContextMeta {
     /// The container this item belongs to.
     pub(crate) associated_container: Option<Hash>,
     /// The item of the returned compile meta.
-    pub(crate) item: ItemBuf,
+    pub(crate) item: Option<ItemBuf>,
     /// The kind of the compile meta.
     pub(crate) kind: meta::Kind,
     /// Documentation associated with a context meta.
@@ -38,7 +39,7 @@ impl ContextMeta {
     pub(crate) fn new(
         hash: Hash,
         associated_container: Option<Hash>,
-        item: ItemBuf,
+        item: Option<ItemBuf>,
         kind: meta::Kind,
         docs: Docs,
     ) -> Self {
@@ -52,7 +53,7 @@ impl ContextMeta {
     }
 
     pub(crate) fn info(&self) -> MetaInfo {
-        MetaInfo::new(&self.kind, &self.item)
+        MetaInfo::new(&self.kind, self.hash, self.item.as_deref())
     }
 }
 
@@ -106,8 +107,6 @@ pub struct Context {
     meta: HashMap<Hash, Vec<ContextMeta>>,
     /// Store item to hash mapping.
     item_to_hash: HashMap<ItemBuf, Hash>,
-    /// Information on functions.
-    functions_info: HashMap<Hash, meta::Signature>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
@@ -265,13 +264,11 @@ impl Context {
     /// Iterate over all available functions in the [Context].
     #[cfg(feature = "cli")]
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &meta::Signature)> {
-        use core::iter;
-
-        let mut it = self.functions_info.iter();
-
-        iter::from_fn(move || {
-            let (hash, signature) = it.next()?;
-            Some((*hash, signature))
+        self.meta.iter().flat_map(|(hash, metas)| {
+            metas.iter().flat_map(|m| {
+                let signature = m.kind.as_signature()?;
+                Some((*hash, signature))
+            })
         })
     }
 
@@ -317,12 +314,6 @@ impl Context {
     #[cfg(feature = "doc")]
     pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> &[ContextMeta] {
         self.meta.get(&hash).map(Vec::as_slice).unwrap_or_default()
-    }
-
-    /// Look up signature of function.
-    #[cfg(feature = "doc")]
-    pub(crate) fn lookup_signature(&self, hash: Hash) -> Option<&meta::Signature> {
-        self.functions_info.get(&hash)
     }
 
     /// Check if unit contains the given name by prefix.
@@ -376,15 +367,17 @@ impl Context {
 
     /// Install the given meta.
     fn install_meta(&mut self, meta: ContextMeta) -> Result<(), ContextError> {
-        self.names.insert(&meta.item);
+        if let Some(item) = &meta.item {
+            self.names.insert(item);
 
-        if let Some(existing) = self.item_to_hash.insert(meta.item.clone(), meta.hash) {
-            if meta.hash != existing {
-                return Err(ContextError::ConflictingMetaHash {
-                    item: meta.item.clone(),
-                    hash: meta.hash,
-                    existing,
-                });
+            if let Some(existing) = self.item_to_hash.insert(item.clone(), meta.hash) {
+                if meta.hash != existing {
+                    return Err(ContextError::ConflictingMetaHash {
+                        item: item.clone(),
+                        hash: meta.hash,
+                        existing,
+                    });
+                }
             }
         }
 
@@ -414,7 +407,7 @@ impl Context {
             self.meta.entry(hash).or_default().push(ContextMeta {
                 hash,
                 associated_container: None,
-                item: item.to_owned(),
+                item: Some(item.to_owned()),
                 kind: meta::Kind::Module,
                 docs: docs.cloned().unwrap_or_default(),
             });
@@ -451,6 +444,7 @@ impl Context {
                     fields: meta::Fields::Struct(meta::Struct {
                         fields: st.fields.clone(),
                     }),
+                    constructor: None,
                 },
                 TypeSpecification::Enum(en) => {
                     let enum_item = &item;
@@ -489,7 +483,7 @@ impl Context {
                             },
                         )?;
 
-                        if let (Some(c), Some(args)) = (constructor, args) {
+                        let constructor = if let (Some(c), Some(args)) = (constructor, args) {
                             let signature = meta::Signature {
                                 item: item.clone(),
                                 is_async: false,
@@ -499,26 +493,23 @@ impl Context {
                                 kind: meta::SignatureKind::Function,
                             };
 
-                            if let Some(old) = self.functions_info.insert(hash, signature) {
-                                return Err(ContextError::ConflictingFunction {
-                                    signature: Box::new(old),
-                                    hash,
-                                });
-                            }
-
-                            self.functions.insert(hash, c.clone());
-                        }
+                            self.insert_native_fn(hash, &signature, c)?;
+                            Some(signature)
+                        } else {
+                            None
+                        };
 
                         let kind = meta::Kind::Variant {
                             enum_hash,
                             index,
                             fields,
+                            constructor,
                         };
 
                         self.install_meta(ContextMeta::new(
                             hash,
                             Some(enum_hash),
-                            item,
+                            Some(item),
                             kind,
                             Docs::default(),
                         ))?;
@@ -534,7 +525,7 @@ impl Context {
         self.install_meta(ContextMeta::new(
             type_hash,
             None,
-            item,
+            Some(item),
             kind,
             ty.docs.clone(),
         ))?;
@@ -593,25 +584,20 @@ impl Context {
             kind: meta::SignatureKind::Function,
         };
 
-        if let Some(old) = self.functions_info.insert(hash, signature) {
-            return Err(ContextError::ConflictingFunction {
-                signature: Box::new(old),
-                hash,
-            });
-        }
-
-        self.functions.insert(hash, f.handler.clone());
+        self.insert_native_fn(hash, &signature, &f.handler)?;
 
         self.install_meta(ContextMeta::new(
             hash,
             None,
-            item,
+            Some(item),
             meta::Kind::Function {
                 is_async: f.is_async,
                 args: f.args,
                 is_test: false,
                 is_bench: false,
                 instance_function: false,
+                signature: Some(signature),
+                parameters: Hash::EMPTY,
             },
             f.docs.clone(),
         ))?;
@@ -641,7 +627,7 @@ impl Context {
         self.install_meta(ContextMeta::new(
             hash,
             None,
-            item,
+            Some(item),
             meta::Kind::Macro,
             m.docs.clone(),
         ))?;
@@ -664,7 +650,7 @@ impl Context {
         self.install_meta(ContextMeta::new(
             hash,
             None,
-            item,
+            Some(item),
             meta::Kind::Const {
                 const_value: v.clone(),
             },
@@ -684,7 +670,7 @@ impl Context {
             .get(&key.type_hash)
             .and_then(|hash| self.types.get(hash))
         {
-            Some(info) => info,
+            Some(info) => info.clone(),
             None => {
                 return Err(ContextError::MissingInstance {
                     instance_type: assoc.type_info.clone(),
@@ -714,14 +700,23 @@ impl Context {
             },
         };
 
-        if let Some(old) = self.functions_info.insert(hash, signature) {
-            return Err(ContextError::ConflictingFunction {
-                signature: Box::new(old),
-                hash,
-            });
-        }
+        self.insert_native_fn(hash, &signature, &assoc.handler)?;
 
-        self.functions.insert(hash, assoc.handler.clone());
+        self.install_meta(ContextMeta::new(
+            hash,
+            Some(key.type_hash),
+            None,
+            meta::Kind::Function {
+                is_async: assoc.is_async,
+                args: assoc.args,
+                is_test: false,
+                is_bench: false,
+                instance_function: true,
+                signature: Some(signature),
+                parameters: key.parameters,
+            },
+            assoc.docs.clone(),
+        ))?;
 
         #[cfg(feature = "doc")]
         self.associated
@@ -758,31 +753,23 @@ impl Context {
                 kind: meta::SignatureKind::Function,
             };
 
-            if let Some(old) = self.functions_info.insert(hash, signature) {
-                return Err(ContextError::ConflictingFunction {
-                    signature: Box::new(old),
-                    hash,
-                });
-            }
+            self.insert_native_fn(hash, &signature, &assoc.handler)?;
 
-            self.functions.insert(hash, assoc.handler.clone());
-
-            // TODO: remove check since we now have multi meta?
-            if !self.item_to_hash.contains_key(&item) {
-                self.install_meta(ContextMeta::new(
-                    type_hash,
-                    Some(key.type_hash),
-                    item,
-                    meta::Kind::Function {
-                        is_async: assoc.is_async,
-                        args: assoc.args,
-                        is_test: false,
-                        is_bench: false,
-                        instance_function: true,
-                    },
-                    assoc.docs.clone(),
-                ))?;
-            }
+            self.install_meta(ContextMeta::new(
+                type_hash,
+                Some(key.type_hash),
+                Some(item),
+                meta::Kind::Function {
+                    is_async: assoc.is_async,
+                    args: assoc.args,
+                    is_test: false,
+                    is_bench: false,
+                    instance_function: true,
+                    signature: Some(signature),
+                    parameters: key.parameters,
+                },
+                assoc.docs.clone(),
+            ))?;
         }
 
         Ok(())
@@ -831,7 +818,7 @@ impl Context {
         self.install_meta(ContextMeta::new(
             internal_enum.static_type.hash,
             None,
-            enum_item.clone(),
+            Some(enum_item.clone()),
             meta::Kind::Enum,
             docs,
         ))?;
@@ -860,23 +847,8 @@ impl Context {
                 },
             )?;
 
-            self.install_meta(ContextMeta::new(
-                hash,
-                Some(internal_enum.static_type.hash),
-                item.clone(),
-                meta::Kind::Variant {
-                    enum_hash,
-                    index,
-                    fields: meta::Fields::Tuple(meta::Tuple {
-                        args: variant.args,
-                        hash,
-                    }),
-                },
-                Docs::default(),
-            ))?;
-
             let signature = meta::Signature {
-                item,
+                item: item.clone(),
                 is_async: false,
                 args: Some(variant.args),
                 return_type: Some(enum_hash),
@@ -884,16 +856,42 @@ impl Context {
                 kind: meta::SignatureKind::Function,
             };
 
-            if let Some(old) = self.functions_info.insert(hash, signature) {
-                return Err(ContextError::ConflictingFunction {
-                    signature: Box::new(old),
-                    hash,
-                });
-            }
+            self.insert_native_fn(hash, &signature, &variant.constructor)?;
 
-            self.functions.insert(hash, variant.constructor.clone());
+            self.install_meta(ContextMeta::new(
+                hash,
+                Some(internal_enum.static_type.hash),
+                Some(item.clone()),
+                meta::Kind::Variant {
+                    enum_hash,
+                    index,
+                    fields: meta::Fields::Tuple(meta::Tuple {
+                        args: variant.args,
+                        hash,
+                    }),
+                    constructor: Some(signature),
+                },
+                Docs::default(),
+            ))?;
         }
 
+        Ok(())
+    }
+
+    fn insert_native_fn(
+        &mut self,
+        hash: Hash,
+        signature: &meta::Signature,
+        handler: &Arc<FunctionHandler>,
+    ) -> Result<(), ContextError> {
+        if self.functions.contains_key(&hash) {
+            return Err(ContextError::ConflictingFunction {
+                signature: Box::new(signature.clone()),
+                hash,
+            });
+        }
+
+        self.functions.insert(hash, handler.clone());
         Ok(())
     }
 
@@ -915,41 +913,8 @@ impl Context {
 
         let tuple = meta::Tuple { args, hash };
 
-        let priv_meta = match enum_item {
-            Some((enum_hash, index)) => ContextMeta::new(
-                type_hash,
-                Some(enum_hash),
-                item.clone(),
-                meta::Kind::Variant {
-                    enum_hash,
-                    index,
-                    fields: meta::Fields::Tuple(tuple),
-                },
-                docs,
-            ),
-            None => ContextMeta::new(
-                type_hash,
-                None,
-                item.clone(),
-                meta::Kind::Struct {
-                    fields: meta::Fields::Tuple(tuple),
-                },
-                docs,
-            ),
-        };
-
-        self.install_meta(priv_meta)?;
-
-        let constructor: Arc<FunctionHandler> =
-            Arc::new(move |stack, args| constructor.fn_call(stack, args));
-
-        self.constants.insert(
-            Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(item.to_string()),
-        );
-
         let signature = meta::Signature {
-            item,
+            item: item.clone(),
             is_async: false,
             args: Some(args),
             return_type: Some(type_hash),
@@ -957,13 +922,43 @@ impl Context {
             kind: meta::SignatureKind::Function,
         };
 
-        if let Some(old) = self.functions_info.insert(hash, signature) {
-            return Err(ContextError::ConflictingFunction {
-                signature: Box::new(old),
-                hash,
-            });
-        }
-        self.functions.insert(hash, constructor);
+        let handler: Arc<FunctionHandler> =
+            Arc::new(move |stack, args| constructor.fn_call(stack, args));
+
+        self.insert_native_fn(hash, &signature, &handler)?;
+
+        let (associated_container, kind) = match enum_item {
+            Some((enum_hash, index)) => (
+                Some(enum_hash),
+                meta::Kind::Variant {
+                    enum_hash,
+                    index,
+                    fields: meta::Fields::Tuple(tuple),
+                    constructor: Some(signature),
+                },
+            ),
+            None => (
+                None,
+                meta::Kind::Struct {
+                    fields: meta::Fields::Tuple(tuple),
+                    constructor: Some(signature),
+                },
+            ),
+        };
+
+        self.install_meta(ContextMeta::new(
+            type_hash,
+            associated_container,
+            Some(item.clone()),
+            kind,
+            docs,
+        ))?;
+
+        self.constants.insert(
+            Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(item.to_string()),
+        );
+
         Ok(())
     }
 }

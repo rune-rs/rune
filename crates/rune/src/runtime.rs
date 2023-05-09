@@ -86,8 +86,8 @@ pub(crate) use self::protocol_caller::{EnvProtocolCaller, ProtocolCaller};
 mod range;
 pub use self::range::{Range, RangeLimits};
 
-mod raw_str;
-pub use self::raw_str::RawStr;
+#[doc(inline)]
+pub use rune_core::RawStr;
 
 mod runtime_context;
 pub use self::runtime_context::RuntimeContext;

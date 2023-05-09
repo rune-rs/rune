@@ -1,7 +1,7 @@
 use core::hash::{self, Hash as _, Hasher as _};
 
-use crate::compile::{IntoComponent, ItemBuf};
 use crate::hash::{Hash, TYPE};
+use crate::item::{IntoComponent, ItemBuf};
 
 /// Helper trait used to convert a type into a type hash.
 ///

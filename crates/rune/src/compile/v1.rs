@@ -11,7 +11,7 @@ use crate::compile::{
 use crate::hir;
 use crate::query::{Named, Query, QueryConstFn, Used};
 use crate::runtime::{ConstValue, Inst};
-use crate::{Context, Diagnostics, SourceId};
+use crate::{Context, Diagnostics, Hash, SourceId};
 
 pub(crate) mod assemble;
 mod loops;
@@ -60,22 +60,33 @@ pub(crate) struct Assembler<'a> {
 
 impl<'a> Assembler<'a> {
     // Pick private metadata to compile for the item.
-    fn select_priv_meta<'m>(
+    fn select_context_meta<'m>(
         &self,
         item: ItemId,
-        meta: &'m [ContextMeta],
+        metas: &'m [ContextMeta],
+        parameters: Option<Hash>,
     ) -> Result<Option<&'m ContextMeta>, Box<QueryErrorKind>> {
-        match meta {
-            [m, o] | [o, m] if matches!(m.kind, meta::Kind::Macro | meta::Kind::Module) => {
-                Ok(Some(o))
+        let parameters = parameters.unwrap_or(Hash::EMPTY);
+
+        // If there is a single item matching the specified generic hash, pick
+        // it.
+        let mut it = metas
+            .iter()
+            .filter(|i| !matches!(i.kind, meta::Kind::Macro | meta::Kind::Module))
+            .filter(|i| i.kind.as_parameters() == parameters);
+
+        if let Some(meta) = it.next() {
+            if it.next().is_none() {
+                return Ok(Some(meta));
             }
-            [item] => Ok(Some(item)),
-            items if !items.is_empty() => Err(Box::new(QueryErrorKind::AmbiguousContextItem {
-                item: self.q.pool.item(item).to_owned(),
-                infos: items.iter().map(|i| i.info()).collect(),
-            })),
-            _ => Ok(None),
+        } else {
+            return Ok(None);
         }
+
+        Err(Box::new(QueryErrorKind::AmbiguousContextItem {
+            item: self.q.pool.item(item).to_owned(),
+            infos: metas.iter().map(|i| i.info()).collect(),
+        }))
     }
 
     /// Access the meta for the given language item.
@@ -83,27 +94,31 @@ impl<'a> Assembler<'a> {
         &mut self,
         span: Span,
         item: ItemId,
+        generics: Option<Hash>,
     ) -> compile::Result<Option<meta::Meta>> {
         tracing::trace!("lookup meta: {:?}", item);
 
-        if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
-            tracing::trace!("found in query: {:?}", meta);
-            self.q.visitor.visit_meta(
-                Location::new(self.source_id, span),
-                meta.as_meta_ref(self.q.pool),
-            );
-            return Ok(Some(meta));
+        if generics.is_none() {
+            if let Some(meta) = self.q.query_meta(span, item, Default::default())? {
+                tracing::trace!("found in query: {:?}", meta);
+                self.q.visitor.visit_meta(
+                    Location::new(self.source_id, span),
+                    meta.as_meta_ref(self.q.pool),
+                );
+                return Ok(Some(meta));
+            }
         }
 
         let meta = self.context.lookup_meta(self.q.pool.item(item));
 
-        let Some(meta) = self.select_priv_meta(item, meta).with_span(span)? else {
+        let Some(meta) = self.select_context_meta(item, meta, generics).with_span(span)? else {
             return Ok(None);
         };
 
         let meta = self.q.insert_context_meta(span, meta)?;
 
-        tracing::trace!("found in context: {:?}", meta);
+        tracing::trace!("Found in context: {:?}", meta);
+
         self.q.visitor.visit_meta(
             Location::new(self.source_id, span),
             meta.as_meta_ref(self.q.pool),
@@ -113,17 +128,28 @@ impl<'a> Assembler<'a> {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, spanned: Span, item: ItemId) -> compile::Result<meta::Meta> {
-        if let Some(meta) = self.try_lookup_meta(spanned, item)? {
+    pub fn lookup_meta(
+        &mut self,
+        span: Span,
+        item: ItemId,
+        parameters: Option<Hash>,
+    ) -> compile::Result<meta::Meta> {
+        if let Some(meta) = self.try_lookup_meta(span, item, parameters)? {
             return Ok(meta);
         }
 
-        Err(compile::Error::new(
-            spanned,
+        let kind = if let Some(parameters) = parameters {
+            CompileErrorKind::MissingItemParameters {
+                item: self.q.pool.item(item).to_owned(),
+                parameters,
+            }
+        } else {
             CompileErrorKind::MissingItem {
                 item: self.q.pool.item(item).to_owned(),
-            },
-        ))
+            }
+        };
+
+        Err(compile::Error::new(span, kind))
     }
 
     /// Pop locals by simply popping them.

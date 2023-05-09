@@ -89,7 +89,7 @@ pub(crate) struct Meta {
 impl Meta {
     /// Get the [Meta] which describes metadata.
     pub(crate) fn info(&self, pool: &Pool) -> MetaInfo {
-        MetaInfo::new(&self.kind, pool.item(self.item_meta.item))
+        MetaInfo::new(&self.kind, self.hash, Some(pool.item(self.item_meta.item)))
     }
 
     /// Get the [MetaRef] which describes this [meta::Meta] object.
@@ -149,6 +149,8 @@ pub enum Kind {
     Struct {
         /// Fields information.
         fields: Fields,
+        /// Native constructor for this struct.
+        constructor: Option<Signature>,
     },
     /// Metadata about an empty variant.
     Variant {
@@ -158,6 +160,8 @@ pub enum Kind {
         index: usize,
         /// Fields information.
         fields: Fields,
+        /// Native constructor for this variant.
+        constructor: Option<Signature>,
     },
     /// An enum item.
     Enum,
@@ -175,6 +179,10 @@ pub enum Kind {
         is_bench: bool,
         /// Indicates that the function is an instance function.
         instance_function: bool,
+        /// Native signature for this function.
+        signature: Option<Signature>,
+        /// Hash of generic parameters.
+        parameters: Hash,
     },
     /// A closure.
     Closure {
@@ -204,6 +212,27 @@ pub enum Kind {
     Import(Import),
     /// A module.
     Module,
+}
+
+impl Kind {
+    /// Access the underlying signature of the kind, if available.
+    #[cfg(feature = "doc")]
+    pub(crate) fn as_signature(&self) -> Option<&Signature> {
+        match self {
+            Kind::Struct { constructor, .. } => constructor.as_ref(),
+            Kind::Variant { constructor, .. } => constructor.as_ref(),
+            Kind::Function { signature, .. } => signature.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Access underlying generic parameters.
+    pub(crate) fn as_parameters(&self) -> Hash {
+        match self {
+            Kind::Function { parameters, .. } => *parameters,
+            _ => Hash::EMPTY,
+        }
+    }
 }
 
 /// An imported entry.
