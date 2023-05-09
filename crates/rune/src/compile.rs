@@ -37,8 +37,7 @@ pub(crate) mod ir;
 pub(crate) use self::ir::{IrBudget, IrCompiler, IrEvalContext, IrEvalOutcome, IrInterpreter};
 pub use self::ir::{IrEval, IrValue};
 
-pub(crate) mod item;
-pub use self::item::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
+pub use rune_core::{Component, ComponentRef, IntoComponent, Item, ItemBuf};
 
 mod source_loader;
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
@@ -281,7 +280,7 @@ impl CompileBuildEntry<'_> {
                 let count = f.function.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                let meta = c.lookup_meta(f.instance_span, f.impl_item)?;
+                let meta = c.lookup_meta(f.instance_span, f.impl_item, None)?;
 
                 let type_hash = meta.type_hash_of().ok_or_else(|| {
                     Error::expected_meta(span, meta.info(c.q.pool), "instance function")

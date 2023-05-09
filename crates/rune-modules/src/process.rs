@@ -54,6 +54,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 }
 
 #[derive(Any)]
+#[rune(item = ::process)]
 struct Command {
     inner: process::Command,
 }
@@ -99,6 +100,7 @@ impl Command {
 }
 
 #[derive(Any)]
+#[rune(item = ::process)]
 struct Child {
     // we use an option to avoid a panic if we try to complete the child process
     // multiple times.
@@ -132,6 +134,7 @@ impl Child {
 }
 
 #[derive(Any)]
+#[rune(item = ::process)]
 struct Output {
     #[rune(get)]
     status: ExitStatus,
@@ -142,6 +145,7 @@ struct Output {
 }
 
 #[derive(Clone, Copy, Any)]
+#[rune(item = ::process)]
 struct ExitStatus {
     status: std::process::ExitStatus,
 }

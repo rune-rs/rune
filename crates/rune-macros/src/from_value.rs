@@ -14,7 +14,7 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let ident = &input.ident;
 
         let Tokens {
@@ -78,7 +78,7 @@ impl Expander {
 
         let actual_type_info = self.tokens.vm_try(quote!(actual.type_info()));
 
-        Some(quote_spanned! { input.span() =>
+        Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #vm_result<Self> {
@@ -94,7 +94,11 @@ impl Expander {
     }
 
     /// Expand on a struct.
-    fn expand_enum(&mut self, input: &syn::DeriveInput, en: &syn::DataEnum) -> Option<TokenStream> {
+    fn expand_enum(
+        &mut self,
+        input: &syn::DeriveInput,
+        en: &syn::DataEnum,
+    ) -> Result<TokenStream, ()> {
         let mut unit_matches = Vec::new();
         let mut unnamed_matches = Vec::new();
         let mut named_matches = Vec::new();
@@ -168,7 +172,7 @@ impl Expander {
 
         let actual_type_info = self.tokens.vm_try(quote!(actual.type_info()));
 
-        Some(quote_spanned! { input.span() =>
+        Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #vm_result<Self> {
@@ -184,21 +188,21 @@ impl Expander {
     }
 
     /// Get a field identifier.
-    fn field_ident<'a>(&self, field: &'a syn::Field) -> Option<&'a syn::Ident> {
+    fn field_ident<'a>(&self, field: &'a syn::Field) -> Result<&'a syn::Ident, ()> {
         match &field.ident {
-            Some(ident) => Some(ident),
+            Some(ident) => Ok(ident),
             None => {
                 self.ctx.error(syn::Error::new_spanned(
                     field,
                     "unnamed fields are not supported",
                 ));
-                None
+                Err(())
             }
         }
     }
 
     /// Expand unnamed fields.
-    fn expand_unnamed(&self, unnamed: &syn::FieldsUnnamed) -> Option<TokenStream> {
+    fn expand_unnamed(&self, unnamed: &syn::FieldsUnnamed) -> Result<TokenStream, ()> {
         let mut from_values = Vec::new();
 
         let Tokens {
@@ -225,11 +229,11 @@ impl Expander {
             });
         }
 
-        Some(quote_spanned!(unnamed.span() => #(#from_values),*))
+        Ok(quote_spanned!(unnamed.span() => #(#from_values),*))
     }
 
     /// Expand named fields.
-    fn expand_named(&self, named: &syn::FieldsNamed) -> Option<TokenStream> {
+    fn expand_named(&self, named: &syn::FieldsNamed) -> Result<TokenStream, ()> {
         let mut from_values = Vec::new();
 
         for field in &named.named {
@@ -260,32 +264,29 @@ impl Expander {
             });
         }
 
-        Some(quote_spanned!(named.span() => #(#from_values),* ))
+        Ok(quote_spanned!(named.span() => #(#from_values),* ))
     }
 }
 
 pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let ctx = Context::new();
 
-    let attrs = match ctx.type_attrs(&input.attrs) {
-        Some(attrs) => attrs,
-        None => {
-            return Err(ctx.errors.into_inner());
-        }
+    let Ok(attr) = ctx.type_attrs(&input.attrs) else {
+        return Err(ctx.errors.into_inner());
     };
 
-    let tokens = ctx.tokens_with_module(attrs.module.as_ref());
+    let tokens = ctx.tokens_with_module(attr.module.as_ref());
 
     let mut expander = Expander { ctx, tokens };
 
     match &input.data {
         syn::Data::Struct(st) => {
-            if let Some(expanded) = expander.expand_struct(input, st) {
+            if let Ok(expanded) = expander.expand_struct(input, st) {
                 return Ok(expanded);
             }
         }
         syn::Data::Enum(en) => {
-            if let Some(expanded) = expander.expand_enum(input, en) {
+            if let Ok(expanded) = expander.expand_enum(input, en) {
                 return Ok(expanded);
             }
         }

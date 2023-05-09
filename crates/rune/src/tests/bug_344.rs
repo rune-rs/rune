@@ -9,7 +9,6 @@
 
 prelude!();
 
-use std::any;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -172,7 +171,7 @@ impl GuardCheck {
 
 impl Any for GuardCheck {
     fn type_hash() -> Hash {
-        Hash::from_type_id(any::TypeId::of::<Self>())
+        Hash::new(0x10)
     }
 }
 

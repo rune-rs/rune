@@ -9,18 +9,42 @@ use crate::hash::Hash;
 /// This is required to support the external type as a type argument in a
 /// registered function.
 ///
-/// ## `#[rune(name = "..")]` attribute
+/// ## `#[rune(item = <path>)]`
 ///
-/// The name of a type defaults to its identifiers, so `struct Foo {}` would be
-/// given the name `"Foo"`.
+/// Specify the item prefix which contains this time.
 ///
-/// This can be overrided with the `#[rune(name = "...")]` attribute:
+/// This is required in order to calculate the correct type hash, if this is
+/// omitted and the item is defined in a nested module the type hash won't match
+/// the expected path hash.
 ///
 /// ```
 /// use rune::Any;
 ///
 /// #[derive(Any)]
-/// #[rune(name = "Bar")]
+/// #[rune(item = ::process)]
+/// struct Process {
+///     /* .. */
+/// }
+///
+/// fn install() -> Result<rune::Module, rune::ContextError> {
+///     let mut module = rune::Module::with_crate("process");
+///     module.ty::<Process>()?;
+///     Ok(module)
+/// }
+/// ```
+///
+/// ## `#[rune(name = <ident>)]` attribute
+///
+/// The name of a type defaults to its identifiers, so `struct Foo {}` would be
+/// given the name `Foo`.
+///
+/// This can be overrided with the `#[rune(name = <ident>)]` attribute:
+///
+/// ```
+/// use rune::Any;
+///
+/// #[derive(Any)]
+/// #[rune(name = Bar)]
 /// struct Foo {
 /// }
 ///
@@ -57,7 +81,7 @@ pub trait Any: Named + any::Any {
 
 // Internal any impls for useful types in the std library.
 
-crate::__internal_impl_any!(crate::no_std::fmt::Error);
-crate::__internal_impl_any!(crate::no_std::io::Error);
-crate::__internal_impl_any!(crate::no_std::Error);
-crate::__internal_impl_any!(core::cmp::Ordering);
+crate::__internal_impl_any!(::std::fmt, crate::no_std::fmt::Error);
+crate::__internal_impl_any!(::std::io, crate::no_std::io::Error);
+crate::__internal_impl_any!(::std::error, crate::no_std::Error);
+crate::__internal_impl_any!(::std::cmp, core::cmp::Ordering);

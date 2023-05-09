@@ -55,7 +55,7 @@ pub fn module() -> Result<Module, ContextError> {
 }
 
 #[derive(Any, Debug, Clone, Copy)]
-#[rune(module = "crate", install_with = "NotCharBoundary::install")]
+#[rune(module = crate, item = ::std::string, install_with = NotCharBoundary::install)]
 struct NotCharBoundary(());
 
 impl NotCharBoundary {

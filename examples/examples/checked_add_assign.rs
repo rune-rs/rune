@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 #[derive(Any)]
 struct External {
-    #[rune(add_assign = "External::value_add_assign")]
+    #[rune(add_assign = External::value_add_assign)]
     value: i64,
 }
 

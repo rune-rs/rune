@@ -233,6 +233,8 @@ pub(crate) enum CompileErrorKind {
     MissingLocal { name: String },
     #[error("Missing item `{item}`")]
     MissingItem { item: ItemBuf },
+    #[error("Missing item `{item}<{parameters}>`")]
+    MissingItemParameters { item: ItemBuf, parameters: Hash },
     #[error("Unsupported crate prefix `::`")]
     UnsupportedGlobal,
     #[error("Cannot load modules using a source without an associated URL")]
@@ -427,6 +429,8 @@ pub(crate) enum QueryErrorKind {
         item: ItemBuf,
         from: ItemBuf,
     },
+    #[error("Tried to insert meta with hash `{hash}` which does not have an item")]
+    MissingItem { hash: Hash },
     #[error("Missing query meta for module {item}")]
     MissingMod { item: ItemBuf },
     #[error("Cycle in import")]

@@ -16,6 +16,7 @@ pub const PARSE_WITH: Symbol = Symbol("parse_with");
 pub const PARSE: Symbol = Symbol("parse");
 
 pub const NAME: Symbol = Symbol("name");
+pub const ITEM: Symbol = Symbol("item");
 pub const MODULE: Symbol = Symbol("module");
 pub const INSTALL_WITH: Symbol = Symbol("install_with");
 
@@ -47,6 +48,14 @@ pub const PROTOCOL_BIT_XOR_ASSIGN: Symbol = Symbol("BIT_XOR_ASSIGN");
 pub const PROTOCOL_SHL_ASSIGN: Symbol = Symbol("SHL_ASSIGN");
 pub const PROTOCOL_SHR_ASSIGN: Symbol = Symbol("SHR_ASSIGN");
 pub const PROTOCOL_REM_ASSIGN: Symbol = Symbol("REM_ASSIGN");
+
+impl Symbol {
+    /// Construct identifier out of symbol.
+    #[inline]
+    pub(crate) fn to_ident(self, span: Span) -> syn::Ident {
+        syn::Ident::new(self.0, span)
+    }
+}
 
 impl PartialEq<Symbol> for syn::Ident {
     fn eq(&self, word: &Symbol) -> bool {

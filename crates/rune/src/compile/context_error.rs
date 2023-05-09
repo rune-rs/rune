@@ -23,12 +23,12 @@ pub enum ContextError {
         signature: Box<meta::Signature>,
         hash: Hash,
     },
-    #[error("Function `{name}` already exists")]
-    ConflictingFunctionName { name: ItemBuf },
-    #[error("Macro `{name}` already exists")]
-    ConflictingMacroName { name: ItemBuf },
-    #[error("Constant `{name}` already exists")]
-    ConflictingConstantName { name: ItemBuf },
+    #[error("Function `{item}` already exists")]
+    ConflictingFunctionName { item: ItemBuf },
+    #[error("Macro `{item}` already exists")]
+    ConflictingMacroName { item: ItemBuf },
+    #[error("Constant `{item}` already exists")]
+    ConflictingConstantName { item: ItemBuf },
     #[error("Instance function `{name}` for type `{type_info}` already exists")]
     ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
     #[error("Protocol function `{name}` for type `{type_info}` already exists")]

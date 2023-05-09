@@ -11,9 +11,7 @@ use crate::cli::{ExitCode, Io};
 use crate::compile::{Item, ItemBuf};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Function, Unit, Value};
-use crate::{Any, Context, ContextError, Hash, Module, Sources};
-
-use crate as rune;
+use crate::{Any, Context, ContextError, Hash, Module, Sources, Vm};
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -27,6 +25,7 @@ pub(super) struct Flags {
 }
 
 #[derive(Default, Any)]
+#[rune(module = crate, item = ::std::test)]
 pub(super) struct Bencher {
     fns: Vec<Function>,
 }
@@ -56,7 +55,7 @@ pub(super) async fn run(
     fns: &[(Hash, ItemBuf)],
 ) -> anyhow::Result<ExitCode> {
     let runtime = Arc::new(context.runtime());
-    let mut vm = rune::Vm::new(runtime, unit);
+    let mut vm = Vm::new(runtime, unit);
 
     if fns.is_empty() {
         return Ok(ExitCode::Success);

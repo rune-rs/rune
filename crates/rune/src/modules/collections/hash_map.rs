@@ -31,7 +31,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
 }
 
 #[derive(Any, Clone)]
-#[rune(module = "crate")]
+#[rune(module = crate, item = ::std::collections)]
 struct HashMap {
     map: collections::HashMap<Key, Value>,
 }

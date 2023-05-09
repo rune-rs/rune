@@ -58,6 +58,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 }
 
 #[derive(Any)]
+#[rune(item = ::rand)]
 struct WyRand {
     inner: nanorand::WyRand,
 }
@@ -89,6 +90,7 @@ impl WyRand {
 }
 
 #[derive(Any)]
+#[rune(item = ::rand)]
 struct Pcg64 {
     inner: nanorand::Pcg64,
 }

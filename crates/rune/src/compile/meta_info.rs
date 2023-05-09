@@ -2,8 +2,8 @@ use core::fmt;
 
 use crate::no_std::prelude::*;
 
-use crate::compile::meta;
-use crate::compile::{Item, ItemBuf};
+use crate::compile::{meta, Item, ItemBuf};
+use crate::Hash;
 
 /// Provides an owned human-readable description of a meta item.
 #[derive(Debug, Clone)]
@@ -11,58 +11,75 @@ use crate::compile::{Item, ItemBuf};
 pub struct MetaInfo {
     /// The kind of the item.
     kind: MetaInfoKind,
+    /// The hash of the meta item.
+    hash: Hash,
     /// The item being described.
-    item: ItemBuf,
+    item: Option<ItemBuf>,
 }
 
 impl MetaInfo {
     /// Construct a new meta info.
-    pub(crate) fn new(kind: &meta::Kind, item: &Item) -> Self {
+    pub(crate) fn new(kind: &meta::Kind, hash: Hash, item: Option<&Item>) -> Self {
         Self {
             kind: MetaInfoKind::from_kind(kind),
-            item: item.to_owned(),
+            hash,
+            item: item.map(|item| item.to_owned()),
         }
     }
 }
 
 impl fmt::Display for MetaInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        struct Name<'a>(Hash, Option<&'a Item>);
+
+        impl fmt::Display for Name<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                if let Some(item) = self.1 {
+                    item.fmt(f)
+                } else {
+                    self.0.fmt(f)
+                }
+            }
+        }
+
+        let name = Name(self.hash, self.item.as_deref());
+
         match self.kind {
             MetaInfoKind::Type => {
-                write!(fmt, "type {}", self.item)?;
+                write!(fmt, "type {name}")?;
             }
             MetaInfoKind::Struct => {
-                write!(fmt, "struct {}", self.item)?;
+                write!(fmt, "struct {name}")?;
             }
             MetaInfoKind::Variant => {
-                write!(fmt, "variant {}", self.item)?;
+                write!(fmt, "variant {name}")?;
             }
             MetaInfoKind::Enum => {
-                write!(fmt, "enum {}", self.item)?;
+                write!(fmt, "enum {name}")?;
             }
             MetaInfoKind::Macro => {
-                write!(fmt, "macro {}", self.item)?;
+                write!(fmt, "macro {name}")?;
             }
             MetaInfoKind::Function => {
-                write!(fmt, "fn {}", self.item)?;
+                write!(fmt, "fn {name}")?;
             }
             MetaInfoKind::Closure => {
-                write!(fmt, "closure {}", self.item)?;
+                write!(fmt, "closure {name}")?;
             }
             MetaInfoKind::AsyncBlock => {
-                write!(fmt, "async block {}", self.item)?;
+                write!(fmt, "async block {name}")?;
             }
             MetaInfoKind::Const => {
-                write!(fmt, "const {}", self.item)?;
+                write!(fmt, "const {name}")?;
             }
             MetaInfoKind::ConstFn => {
-                write!(fmt, "const fn {}", self.item)?;
+                write!(fmt, "const fn {name}")?;
             }
             MetaInfoKind::Import => {
-                write!(fmt, "import {}", self.item)?;
+                write!(fmt, "import {name}")?;
             }
             MetaInfoKind::Module => {
-                write!(fmt, "module {}", self.item)?;
+                write!(fmt, "module {name}")?;
             }
         }
 

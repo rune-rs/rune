@@ -1,6 +1,6 @@
 //! Helper types for a holder of data.
 
-use core::any;
+use core::any::TypeId;
 use core::fmt;
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
@@ -312,7 +312,7 @@ impl AnyObj {
     where
         T: Any,
     {
-        Hash::from_any::<T>() == self.type_hash()
+        self.raw_as_ptr(TypeId::of::<T>()).is_ok()
     }
 
     /// Returns some reference to the boxed value if it is of type `T`, or
@@ -339,7 +339,7 @@ impl AnyObj {
     where
         T: Any,
     {
-        unsafe { (self.vtable.as_ptr)(self.data, Hash::from_any::<T>()).map(|v| &*(v as *const _)) }
+        unsafe { (self.vtable.as_ptr)(self.data, TypeId::of::<T>()).map(|v| &*(v as *const _)) }
     }
 
     /// Returns some mutable reference to the boxed value if it is of type `T`, or
@@ -363,13 +363,11 @@ impl AnyObj {
     where
         T: Any,
     {
-        unsafe {
-            (self.vtable.as_ptr)(self.data, Hash::from_any::<T>()).map(|v| &mut *(v as *mut _))
-        }
+        unsafe { (self.vtable.as_ptr)(self.data, TypeId::of::<T>()).map(|v| &mut *(v as *mut _)) }
     }
 
     /// Attempt to perform a conversion to a raw pointer.
-    pub(crate) fn raw_as_ptr(&self, expected: Hash) -> Result<*const (), AnyObjError> {
+    pub(crate) fn raw_as_ptr(&self, expected: TypeId) -> Result<*const (), AnyObjError> {
         // Safety: invariants are checked at construction time.
         match unsafe { (self.vtable.as_ptr)(self.data, expected) } {
             Some(ptr) => Ok(ptr),
@@ -378,7 +376,7 @@ impl AnyObj {
     }
 
     /// Attempt to perform a conversion to a raw mutable pointer.
-    pub(crate) fn raw_as_mut(&mut self, expected: Hash) -> Result<*mut (), AnyObjError> {
+    pub(crate) fn raw_as_mut(&mut self, expected: TypeId) -> Result<*mut (), AnyObjError> {
         match self.vtable.kind {
             // Only owned and mutable pointers can be treated as mutable.
             AnyObjKind::Owned | AnyObjKind::MutPtr => (),
@@ -403,7 +401,7 @@ impl AnyObj {
     ///
     /// If the conversion is not possible, we return a reconstructed `Any` as
     /// the error variant.
-    pub(crate) fn raw_take(self, expected: Hash) -> Result<*mut (), (AnyObjError, Self)> {
+    pub(crate) fn raw_take(self, expected: TypeId) -> Result<*mut (), (AnyObjError, Self)> {
         match self.vtable.kind {
             // Only owned things can be taken.
             AnyObjKind::Owned => (),
@@ -482,7 +480,7 @@ impl Drop for AnyObj {
 pub type DropFn = unsafe fn(*const ());
 
 /// The signature of a pointer coercion function.
-pub type AsPtrFn = unsafe fn(this: *const (), expected: Hash) -> Option<*const ()>;
+pub type AsPtrFn = unsafe fn(this: *const (), expected: TypeId) -> Option<*const ()>;
 
 /// The signature of a descriptive type name function.
 pub type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
@@ -528,22 +526,22 @@ unsafe fn drop_impl<T>(this: *const ()) {
     drop(Box::from_raw(this as *mut () as *mut T));
 }
 
-fn as_ptr_impl<T>(this: *const (), expected: Hash) -> Option<*const ()>
+fn as_ptr_impl<T>(this: *const (), expected: TypeId) -> Option<*const ()>
 where
     T: Any,
 {
-    if expected == Hash::from_type_id(any::TypeId::of::<T>()) {
+    if expected == TypeId::of::<T>() {
         Some(this)
     } else {
         None
     }
 }
 
-fn as_ptr_deref_impl<T: Deref>(this: *const (), expected: Hash) -> Option<*const ()>
+fn as_ptr_deref_impl<T: Deref>(this: *const (), expected: TypeId) -> Option<*const ()>
 where
     T::Target: Any,
 {
-    if expected == Hash::from_type_id(any::TypeId::of::<T::Target>()) {
+    if expected == TypeId::of::<T::Target>() {
         let guard = this as *const T;
         unsafe { Some((*guard).deref() as *const _ as *const ()) }
     } else {
@@ -551,11 +549,11 @@ where
     }
 }
 
-fn as_ptr_deref_mut_impl<T: DerefMut>(this: *const (), expected: Hash) -> Option<*const ()>
+fn as_ptr_deref_mut_impl<T: DerefMut>(this: *const (), expected: TypeId) -> Option<*const ()>
 where
     T::Target: Any,
 {
-    if expected == Hash::from_type_id(any::TypeId::of::<T::Target>()) {
+    if expected == TypeId::of::<T::Target>() {
         let guard = this as *mut T;
         unsafe { Some((*guard).deref_mut() as *const _ as *const ()) }
     } else {

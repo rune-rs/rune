@@ -41,6 +41,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 }
 
 #[derive(Debug, Clone, Copy, Any)]
+#[rune(item = ::time)]
 struct Duration {
     inner: tokio::time::Duration,
 }

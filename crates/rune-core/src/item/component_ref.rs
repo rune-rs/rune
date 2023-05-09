@@ -2,7 +2,7 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::compile::Component;
+use crate::item::Component;
 
 /// A reference to a component of an item.
 ///
@@ -21,7 +21,8 @@ pub enum ComponentRef<'a> {
 impl<'a> ComponentRef<'a> {
     /// Get the component as a string.
     #[cfg(feature = "doc")]
-    pub(crate) fn as_str(&self) -> Option<&'a str> {
+    #[doc(hidden)]
+    pub fn as_str(&self) -> Option<&'a str> {
         match self {
             ComponentRef::Str(string) => Some(string),
             _ => None,

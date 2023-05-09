@@ -83,6 +83,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 }
 
 #[derive(Debug, Any)]
+#[rune(item = ::http)]
 pub struct Error {
     inner: reqwest::Error,
 }
@@ -100,16 +101,19 @@ impl Error {
 }
 
 #[derive(Debug, Any)]
+#[rune(item = ::http)]
 struct Client {
     client: reqwest::Client,
 }
 
 #[derive(Debug, Any)]
+#[rune(item = ::http)]
 pub struct Response {
     response: reqwest::Response,
 }
 
 #[derive(Debug, Any)]
+#[rune(item = ::http)]
 pub struct StatusCode {
     inner: reqwest::StatusCode,
 }
@@ -140,6 +144,7 @@ impl Response {
 }
 
 #[derive(Debug, Any)]
+#[rune(item = ::http)]
 pub struct RequestBuilder {
     request: reqwest::RequestBuilder,
 }

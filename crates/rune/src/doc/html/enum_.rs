@@ -27,14 +27,15 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m
     let module = cx.module_path_html(meta, false)?;
 
     let (protocols, methods, index) = super::type_::build_assoc_fns(cx, meta)?;
-    let name = meta.item.last().context("Missing enum name")?;
+    let item = meta.item.context("Missing enum item")?;
+    let name = item.last().context("Missing enum name")?;
 
     let builder = Builder::new(cx, move |cx| {
         cx.enum_template.render(&Params {
             shared: cx.shared(),
             module,
             name,
-            item: meta.item,
+            item,
             methods,
             protocols,
             doc: cx.render_docs(meta, meta.docs)?,

@@ -1,7 +1,7 @@
 use core::str;
 
-use crate::compile::item::internal;
-use crate::compile::item::{ComponentRef, Item, ItemBuf};
+use crate::item::internal;
+use crate::item::{ComponentRef, Item, ItemBuf};
 
 /// An item over the iterator.
 ///

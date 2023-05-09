@@ -1,47 +1,44 @@
 use std::collections::BTreeMap;
+use std::mem::take;
 
-use crate::context::{Context, Generate, GenerateTarget, Tokens, TypeAttrs};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::spanned::Spanned as _;
+use rune_core::{ComponentRef, Hash, ItemBuf};
+use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
+use syn::Token;
+
+use crate::context::{Context, Generate, GenerateTarget, Tokens, TypeAttrs};
 
 /// An internal call to the macro.
 pub struct InternalCall {
+    item: syn::Path,
     path: syn::Path,
-    name: Option<(syn::Token![,], syn::LitStr)>,
 }
 
 impl syn::parse::Parse for InternalCall {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let item = input.parse()?;
+        input.parse::<Token![,]>()?;
         let path = input.parse()?;
-
-        let name = if input.peek(syn::Token![,]) {
-            Some((input.parse()?, input.parse()?))
-        } else {
-            None
-        };
-
-        Ok(Self { path, name })
+        Ok(Self { item, path })
     }
 }
 
 impl InternalCall {
     pub fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let ctx = Context::with_module(&quote!(crate));
+        let ctx = Context::with_crate();
         let tokens = ctx.tokens_with_module(None);
 
-        let name = match self.name {
-            Some((_, name)) => quote!(#name),
-            None => match self.path.segments.last() {
-                Some(last) if last.arguments.is_empty() => quote!(stringify!(#last)),
-                _ => {
-                    return Err(vec![syn::Error::new(
-                        self.path.span(),
-                        "expected last component in path to be without parameters,
-                        give it an explicit name instead with `, \"Type\"`",
-                    )])
-                }
-            },
+        let name = match self.path.segments.last() {
+            Some(last) if last.arguments.is_empty() => last.ident.clone(),
+            _ => {
+                return Err(vec![syn::Error::new(
+                    self.path.span(),
+                    "expected last component in path to be without parameters,
+                    give it an explicit name instead with `, \"Type\"`",
+                )])
+            }
         };
 
         let expand_into = quote! {
@@ -49,7 +46,21 @@ impl InternalCall {
         };
 
         let generics = syn::Generics::default();
-        expand_any(&self.path, &name, &expand_into, &tokens, &generics)
+
+        let mut item = self.item.clone();
+        item.segments.push(syn::PathSegment::from(name.clone()));
+        let type_hash = build_type_hash(&item);
+
+        let name = syn::LitStr::new(&name.to_string(), name.span());
+
+        expand_any(
+            &self.path,
+            type_hash,
+            &name,
+            &expand_into,
+            &tokens,
+            &generics,
+        )
     }
 }
 
@@ -70,29 +81,58 @@ impl Derive {
     pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
         let ctx = Context::new();
 
-        let attrs = match ctx.type_attrs(&self.input.attrs) {
-            Some(attrs) => attrs,
-            None => return Err(ctx.errors.into_inner()),
+        let Ok(attr) = ctx.type_attrs(&self.input.attrs) else {
+            return Err(ctx.errors.into_inner());
         };
 
-        let tokens = ctx.tokens_with_module(attrs.module.as_ref());
+        let tokens = ctx.tokens_with_module(attr.module.as_ref());
 
         let generics = &self.input.generics;
-        let install_with = match expand_install_with(&ctx, &self.input, &tokens, &attrs, generics) {
-            Some(install_with) => install_with,
-            None => return Err(ctx.errors.into_inner()),
+
+        let Ok(install_with) = expand_install_with(&ctx, &self.input, &tokens, &attr, generics) else {
+            return Err(ctx.errors.into_inner());
         };
 
-        let name = match attrs.name {
+        let name = match &attr.name {
             Some(name) => name,
-            None => syn::LitStr::new(&self.input.ident.to_string(), self.input.ident.span()),
+            None => &self.input.ident,
         };
 
-        let name = &quote!(#name);
         let ident = &self.input.ident;
 
-        expand_any(ident, name, &install_with, &tokens, generics)
+        let mut item = match &attr.item {
+            Some(item) => item.clone(),
+            None => syn::Path {
+                leading_colon: None,
+                segments: Punctuated::default(),
+            },
+        };
+
+        item.segments.push(syn::PathSegment::from(name.clone()));
+        let type_hash = build_type_hash(&item);
+
+        let name = syn::LitStr::new(&name.to_string(), name.span());
+
+        expand_any(ident, type_hash, &name, &install_with, &tokens, generics)
     }
+}
+
+fn build_type_hash(item: &syn::Path) -> Hash {
+    // Construct type hash.
+    let mut buf = ItemBuf::new();
+    let mut first = item.leading_colon.is_some();
+
+    for s in &item.segments {
+        let ident = s.ident.to_string();
+
+        if take(&mut first) {
+            buf.push(ComponentRef::Crate(&ident));
+        } else {
+            buf.push(ComponentRef::Str(&ident));
+        }
+    }
+
+    Hash::type_hash(&buf)
 }
 
 /// Expannd the install into impl.
@@ -102,7 +142,7 @@ pub(crate) fn expand_install_with(
     tokens: &Tokens,
     attrs: &TypeAttrs,
     generics: &syn::Generics,
-) -> Option<TokenStream> {
+) -> Result<TokenStream, ()> {
     let mut installers = Vec::new();
 
     let ident = &input.ident;
@@ -117,9 +157,9 @@ pub(crate) fn expand_install_with(
         syn::Data::Union(..) => {
             ctx.error(syn::Error::new_spanned(
                 input,
-                "`Any` not supported on unions",
+                "#[derive(Any)]: Not supported on unions",
             ));
-            return None;
+            return Err(());
         }
     }
 
@@ -129,7 +169,7 @@ pub(crate) fn expand_install_with(
         });
     }
 
-    Some(quote! {
+    Ok(quote! {
         #(#installers)*
         Ok(())
     })
@@ -140,7 +180,7 @@ fn expand_struct_install_with(
     installers: &mut Vec<TokenStream>,
     st: &syn::DataStruct,
     tokens: &Tokens,
-) -> Option<()> {
+) -> Result<(), ()> {
     let mut fields = Vec::new();
 
     for (n, field) in st.fields.iter().enumerate() {
@@ -196,7 +236,7 @@ fn expand_struct_install_with(
         syn::Fields::Unit => {}
     }
 
-    Some(())
+    Ok(())
 }
 
 fn expand_enum_install_with(
@@ -206,7 +246,7 @@ fn expand_enum_install_with(
     en: &syn::DataEnum,
     tokens: &Tokens,
     generics: &syn::Generics,
-) -> Option<()> {
+) -> Result<(), ()> {
     let Tokens {
         module_variant,
         protocol,
@@ -241,12 +281,9 @@ fn expand_enum_install_with(
                 for f in &fields.named {
                     let attrs = ctx.field_attrs(&f.attrs)?;
 
-                    let f_ident = match &f.ident {
-                        Some(ident) => ident,
-                        None => {
-                            ctx.error(syn::Error::new_spanned(f, "missing field name"));
-                            return None;
-                        }
+                    let Some(f_ident) = &f.ident else {
+                        ctx.error(syn::Error::new_spanned(f, "Missing field name"));
+                        return Err(());
                     };
 
                     if attrs.field {
@@ -295,7 +332,7 @@ fn expand_enum_install_with(
                 if variant_attrs.constructor {
                     if fields_len != fields.unnamed.len() {
                         ctx.error(syn::Error::new_spanned(fields, "#[rune(constructor)] can only be used if all fields are marked with #[rune(get)"));
-                        return None;
+                        return Err(());
                     }
 
                     constructors.push(quote!(#variant_index, #ident #generics :: #variant_ident));
@@ -357,13 +394,14 @@ fn expand_enum_install_with(
         installers.push(quote!(module.variant_constructor(#constructor)?;))
     }
 
-    Some(())
+    Ok(())
 }
 
 /// Expand the necessary implementation details for `Any`.
 pub(super) fn expand_any<T>(
     ident: T,
-    name: &TokenStream,
+    type_hash: Hash,
+    name: &syn::LitStr,
     installers: &TokenStream,
     tokens: &Tokens,
     generics: &syn::Generics,
@@ -419,13 +457,19 @@ where
         }
     };
 
+    let type_hash = type_hash.into_inner();
+
+    let make_hash = if !generic_names.is_empty() {
+        quote!(#hash::new_with_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_of>::type_hash()),*])))
+    } else {
+        quote!(#hash::new(#type_hash))
+    };
+
     Ok(quote! {
         #[automatically_derived]
         impl #impl_generics #any for #ident #ty_generics #where_clause {
             fn type_hash() -> #hash {
-                // Safety: `Hash` asserts that it is layout compatible with `TypeId`.
-                // TODO: remove this once we can have transmute-like functionality in a const fn.
-                #hash::from_type_id(core::any::TypeId::of::<Self>())
+                #make_hash
             }
         }
 

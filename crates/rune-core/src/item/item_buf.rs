@@ -3,14 +3,13 @@ use core::fmt;
 use core::hash::Hash;
 use core::ops::Deref;
 
-use crate::no_std::prelude::*;
-use crate::no_std::vec;
+use alloc::vec::{self, Vec};
 
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::compile::item::internal::INLINE;
-use crate::compile::item::{Component, ComponentRef, IntoComponent, Item, Iter};
+use crate::item::internal::INLINE;
+use crate::item::{Component, ComponentRef, IntoComponent, Item, Iter};
 
 /// The name of an item in the Rune Language.
 ///

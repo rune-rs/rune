@@ -32,7 +32,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
 }
 
 #[derive(Any, Clone, Default)]
-#[rune(module = "crate")]
+#[rune(module = crate, item = ::std::collections::VecDeque)]
 struct VecDeque {
     inner: collections::VecDeque<Value>,
 }

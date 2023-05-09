@@ -622,20 +622,29 @@ impl<'a> Query<'a> {
     pub(crate) fn insert_context_meta(
         &mut self,
         span: Span,
-        context_meta: &context::ContextMeta,
+        meta: &context::ContextMeta,
     ) -> compile::Result<meta::Meta> {
+        let Some(item) = &meta.item else {
+            return Err(compile::Error::new(
+                span,
+                QueryErrorKind::MissingItem {
+                    hash: meta.hash,
+                },
+            ));
+        };
+
         let meta = meta::Meta {
             context: true,
-            hash: context_meta.hash,
-            associated_container: context_meta.associated_container,
+            hash: meta.hash,
+            associated_container: meta.associated_container,
             item_meta: ItemMeta {
                 id: Default::default(),
                 location: Default::default(),
-                item: self.pool.alloc_item(&context_meta.item),
+                item: self.pool.alloc_item(item),
                 visibility: Default::default(),
                 module: Default::default(),
             },
-            kind: context_meta.kind.clone(),
+            kind: meta.kind.clone(),
             source: None,
         };
 
@@ -1064,6 +1073,8 @@ impl<'a> Query<'a> {
                     is_test: f.is_test,
                     is_bench: f.is_bench,
                     instance_function: false,
+                    signature: None,
+                    parameters: Hash::EMPTY,
                 };
 
                 self.inner.queue.push_back(BuildEntry {
@@ -1084,6 +1095,8 @@ impl<'a> Query<'a> {
                     is_test: false,
                     is_bench: false,
                     instance_function: true,
+                    signature: None,
+                    parameters: Hash::EMPTY,
                 };
 
                 self.inner.queue.push_back(BuildEntry {
@@ -1697,9 +1710,11 @@ fn unit_body_meta(item: &Item, enum_item: Option<(Hash, usize)>) -> (Hash, meta:
             enum_hash,
             index,
             fields: meta::Fields::Unit,
+            constructor: None,
         },
         None => meta::Kind::Struct {
             fields: meta::Fields::Unit,
+            constructor: None,
         },
     };
 
@@ -1724,9 +1739,11 @@ fn tuple_body_meta(
             enum_hash,
             index,
             fields: meta::Fields::Tuple(tuple),
+            constructor: None,
         },
         None => meta::Kind::Struct {
             fields: meta::Fields::Tuple(tuple),
+            constructor: None,
         },
     };
 
@@ -1756,9 +1773,11 @@ fn struct_body_meta(
             enum_hash,
             index,
             fields: meta::Fields::Struct(st),
+            constructor: None,
         },
         None => meta::Kind::Struct {
             fields: meta::Fields::Struct(st),
+            constructor: None,
         },
     };
 

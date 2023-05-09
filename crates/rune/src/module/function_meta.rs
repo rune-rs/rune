@@ -47,7 +47,7 @@ pub type MacroMeta = fn() -> MacroMetaData;
 #[derive(Clone)]
 pub struct FunctionData {
     pub(crate) is_async: bool,
-    pub(crate) name: ItemBuf,
+    pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
@@ -70,7 +70,7 @@ impl FunctionData {
 
         Self {
             is_async: false,
-            name: ItemBuf::with_item(name),
+            item: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(F::args()),
             return_type: F::Return::maybe_type_of(),
@@ -93,7 +93,7 @@ impl FunctionData {
 
         Self {
             is_async: true,
-            name: ItemBuf::with_item(name),
+            item: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             args: Some(F::args()),
             return_type: F::Output::maybe_type_of(),
@@ -106,7 +106,7 @@ impl FunctionData {
 /// Runtime data for a macro.
 #[derive(Clone)]
 pub struct FunctionMacroData {
-    pub(crate) name: ItemBuf,
+    pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<MacroHandler>,
 }
 
@@ -122,7 +122,7 @@ impl FunctionMacroData {
         N::Item: IntoComponent,
     {
         Self {
-            name: ItemBuf::with_item(name),
+            item: ItemBuf::with_item(name),
             handler: Arc::new(f),
         }
     }
