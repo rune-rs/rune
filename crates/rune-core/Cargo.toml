@@ -21,3 +21,6 @@ twox-hash = { version = "1.6.3", default-features = false }
 serde = { version = "1.0.162", default-features = false, features = ["derive", "alloc"] }
 smallvec = { version = "1.10.0", default-features = false, features = ["const_new", "serde"] }
 byteorder = { version = "1.4.3", default-features = false }
+
+[dev-dependencies]
+rune = { path = "../rune" }
