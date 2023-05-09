@@ -25,12 +25,12 @@ impl Derive {
 
         match &self.input.data {
             syn::Data::Struct(st) => {
-                if let Some(stream) = expander.expand_struct(&self.input, st) {
+                if let Ok(stream) = expander.expand_struct(&self.input, st) {
                     return Ok(stream);
                 }
             }
             syn::Data::Enum(en) => {
-                if let Some(stream) = expander.expand_enum(&self.input, en) {
+                if let Ok(stream) = expander.expand_enum(&self.input, en) {
                     return Ok(stream);
                 }
             }
@@ -57,7 +57,7 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let inner = self.expand_struct_fields(&st.fields)?;
 
         let ident = &input.ident;
@@ -66,7 +66,7 @@ impl Expander {
 
         let (impl_gen, type_gen, where_gen) = input.generics.split_for_impl();
 
-        Some(quote! {
+        Ok(quote! {
             #[automatically_derived]
             impl #impl_gen #spanned for #ident #type_gen #where_gen {
                 fn span(&self) -> #span {
@@ -77,7 +77,11 @@ impl Expander {
     }
 
     /// Expand on a struct.
-    fn expand_enum(&mut self, input: &syn::DeriveInput, st: &syn::DataEnum) -> Option<TokenStream> {
+    fn expand_enum(
+        &mut self,
+        input: &syn::DeriveInput,
+        st: &syn::DataEnum,
+    ) -> Result<TokenStream, ()> {
         let _ = self.ctx.type_attrs(&input.attrs)?;
 
         let mut impl_spanned = Vec::new();
@@ -92,7 +96,7 @@ impl Expander {
 
         let (impl_gen, type_gen, where_gen) = input.generics.split_for_impl();
 
-        Some(quote_spanned! { input.span() =>
+        Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
             impl #impl_gen #spanned for #ident #type_gen #where_gen {
                 fn span(&self) -> #span {
@@ -105,30 +109,30 @@ impl Expander {
     }
 
     /// Expand field decoding.
-    fn expand_struct_fields(&mut self, fields: &syn::Fields) -> Option<TokenStream> {
+    fn expand_struct_fields(&mut self, fields: &syn::Fields) -> Result<TokenStream, ()> {
         match fields {
             syn::Fields::Named(named) => self.expand_struct_named(named),
             syn::Fields::Unnamed(..) => {
                 self.ctx.error(syn::Error::new_spanned(
                     fields,
-                    "tuple structs are not supported",
+                    "Tuple structs are not supported",
                 ));
-                None
+                Err(())
             }
             syn::Fields::Unit => {
                 self.ctx.error(syn::Error::new_spanned(
                     fields,
-                    "unit structs are not supported",
+                    "Unit structs are not supported",
                 ));
-                None
+                Err(())
             }
         }
     }
 
     /// Expand named fields.
-    fn expand_struct_named(&mut self, named: &syn::FieldsNamed) -> Option<TokenStream> {
+    fn expand_struct_named(&mut self, named: &syn::FieldsNamed) -> Result<TokenStream, ()> {
         if let Some(span_impl) = self.ctx.explicit_span(named)? {
-            return Some(span_impl);
+            return Ok(span_impl);
         }
 
         let values = named
@@ -146,8 +150,8 @@ impl Expander {
     fn build_spanned(
         &mut self,
         tokens: &(impl quote::ToTokens + syn::spanned::Spanned),
-        values: Vec<(Option<TokenStream>, &syn::Field)>,
-    ) -> Option<TokenStream> {
+        values: Vec<(Result<TokenStream, ()>, &syn::Field)>,
+    ) -> Result<TokenStream, ()> {
         let (optional, begin) =
             self.ctx
                 .build_spanned_iter(&self.tokens, false, values.clone().into_iter())?;
@@ -159,7 +163,7 @@ impl Expander {
                     tokens,
                     "ran out of fields to calculate exact span",
                 ));
-                return None;
+                return Err(());
             }
         };
 
@@ -167,13 +171,13 @@ impl Expander {
             self.ctx
                 .build_spanned_iter(&self.tokens, true, values.into_iter().rev())?;
 
-        Some(if end_optional {
+        Ok(if end_optional {
             if let Some(end) = end {
                 quote_spanned! { tokens.span() => {
                     let begin = #begin;
 
                     match #end {
-                        Some(end) => begin.join(end),
+                        Ok(end) => begin.join(end),
                         None => begin,
                     }
                 }}
@@ -190,22 +194,22 @@ impl Expander {
         &mut self,
         variant: &syn::Variant,
         fields: &syn::Fields,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         match fields {
             syn::Fields::Named(..) => {
                 self.ctx.error(syn::Error::new_spanned(
                     fields,
-                    "named enum variants are not supported",
+                    "Named enum variants are not supported",
                 ));
-                None
+                Err(())
             }
             syn::Fields::Unnamed(unnamed) => self.expand_variant_unnamed(variant, unnamed),
             syn::Fields::Unit => {
                 self.ctx.error(syn::Error::new_spanned(
                     fields,
-                    "unit variants are not supported",
+                    "Unit variants are not supported",
                 ));
-                None
+                Err(())
             }
         }
     }
@@ -215,23 +219,23 @@ impl Expander {
         &mut self,
         variant: &syn::Variant,
         unnamed: &syn::FieldsUnnamed,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let values = unnamed
             .unnamed
             .iter()
             .enumerate()
             .map(|(n, f)| {
                 let ident = syn::Ident::new(&format!("f{}", n), f.span());
-                (Some(quote!(#ident)), f)
+                (Ok(quote!(#ident)), f)
             })
             .collect::<Vec<_>>();
 
-        let body = self.build_spanned(unnamed, values);
+        let body = self.build_spanned(unnamed, values)?;
 
         let ident = &variant.ident;
         let vars =
             (0..unnamed.unnamed.len()).map(|n| syn::Ident::new(&format!("f{}", n), variant.span()));
 
-        Some(quote_spanned!(variant.span() => Self::#ident(#(#vars,)*) => #body))
+        Ok(quote_spanned!(variant.span() => Self::#ident(#(#vars,)*) => #body))
     }
 }

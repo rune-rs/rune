@@ -30,7 +30,7 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
 }
 
 #[derive(Any, Clone)]
-#[rune(module = "crate")]
+#[rune(module = crate, item = ::std::collections)]
 struct HashSet {
     set: collections::HashSet<Key>,
 }

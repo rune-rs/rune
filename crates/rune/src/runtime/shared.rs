@@ -643,7 +643,7 @@ impl Shared<AnyObj> {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
                 let guard = inner.access.exclusive(kind)?;
-                let expected = Hash::from_type_id(any::TypeId::of::<T>());
+                let expected = T::type_hash();
 
                 match (*inner.data.get()).raw_as_mut(expected) {
                     Ok(data) => (data, guard),

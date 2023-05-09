@@ -14,7 +14,7 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let inner = self.expand_fields(&st.fields)?;
 
         let ident = &input.ident;
@@ -26,7 +26,7 @@ impl Expander {
             ..
         } = &self.tokens;
 
-        Some(quote_spanned! { input.span() =>
+        Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
             impl #to_value for #ident {
                 fn to_value(self) -> #vm_result<#value> {
@@ -37,7 +37,7 @@ impl Expander {
     }
 
     /// Expand field decoding.
-    fn expand_fields(&mut self, fields: &syn::Fields) -> Option<TokenStream> {
+    fn expand_fields(&mut self, fields: &syn::Fields) -> Result<TokenStream, ()> {
         match fields {
             syn::Fields::Unnamed(named) => self.expand_unnamed(named),
             syn::Fields::Named(named) => self.expand_named(named),
@@ -46,13 +46,13 @@ impl Expander {
                     fields,
                     "unit structs are not supported",
                 ));
-                None
+                Err(())
             }
         }
     }
 
     /// Expand unnamed fields.
-    fn expand_unnamed(&mut self, unnamed: &syn::FieldsUnnamed) -> Option<TokenStream> {
+    fn expand_unnamed(&mut self, unnamed: &syn::FieldsUnnamed) -> Result<TokenStream, ()> {
         let mut to_values = Vec::new();
 
         let Tokens {
@@ -72,7 +72,7 @@ impl Expander {
 
         let cap = unnamed.unnamed.len();
 
-        Some(quote_spanned! {
+        Ok(quote_spanned! {
             unnamed.span() =>
             let mut tuple = Vec::with_capacity(#cap);
             #(#to_values;)*
@@ -81,7 +81,7 @@ impl Expander {
     }
 
     /// Expand named fields.
-    fn expand_named(&mut self, named: &syn::FieldsNamed) -> Option<TokenStream> {
+    fn expand_named(&mut self, named: &syn::FieldsNamed) -> Result<TokenStream, ()> {
         let Tokens {
             to_value,
             value,
@@ -102,7 +102,7 @@ impl Expander {
                 .push(quote_spanned!(f.span() => object.insert(String::from(#name), #to_value)));
         }
 
-        Some(quote_spanned! {
+        Ok(quote_spanned! {
             named.span() =>
             let mut object = <#object>::new();
             #(#to_values;)*
@@ -114,14 +114,11 @@ impl Expander {
 pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let ctx = Context::new();
 
-    let attrs = match ctx.type_attrs(&input.attrs) {
-        Some(attrs) => attrs,
-        None => {
-            return Err(ctx.errors.into_inner());
-        }
+    let Ok(attr) = ctx.type_attrs(&input.attrs) else {
+        return Err(ctx.errors.into_inner());
     };
 
-    let tokens = ctx.tokens_with_module(attrs.module.as_ref());
+    let tokens = ctx.tokens_with_module(attr.module.as_ref());
 
     let mut expander = Expander {
         ctx: Context::new(),
@@ -130,7 +127,7 @@ pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
 
     match &input.data {
         syn::Data::Struct(st) => {
-            if let Some(expanded) = expander.expand_struct(input, st) {
+            if let Ok(expanded) = expander.expand_struct(input, st) {
                 return Ok(expanded);
             }
         }

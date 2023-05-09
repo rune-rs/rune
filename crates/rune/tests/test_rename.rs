@@ -5,7 +5,7 @@ use rune::runtime::{Mut, Object, Ref, Shared, Tuple, Value};
 use rune::{Any, Context, ContextError, FromValue, Module, ToValue};
 
 #[derive(Any)]
-#[rune(name = "Bar")]
+#[rune(name = Bar)]
 struct Foo {}
 
 #[derive(Any)]

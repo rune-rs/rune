@@ -39,6 +39,12 @@ impl Hash {
         Self(hash)
     }
 
+    /// Coerce a hash into its inner numerical value.
+    #[doc(hidden)]
+    pub const fn into_inner(self) -> u64 {
+        self.0
+    }
+
     /// Construct a simple hash from something that is hashable.
     fn of<T: hash::Hash>(thing: T) -> Self {
         let mut hasher = Self::new_hasher();
@@ -61,6 +67,8 @@ impl Hash {
     }
 
     /// Construct a hash from the given type id.
+    #[deprecated = "Type hashes are now solely based on paths instead of TypeId"]
+    #[allow(deprecated)]
     pub fn from_any<T>() -> Self
     where
         T: any::Any,
@@ -69,6 +77,7 @@ impl Hash {
     }
 
     /// Construct a hash from a type id.
+    #[deprecated = "Type hashes are now solely based on paths instead of TypeId"]
     pub const fn from_type_id(type_id: any::TypeId) -> Self {
         // Safety: a type id is exactly a 64-bit unsigned integer.
         // And has an identical bit pattern to `Hash`.

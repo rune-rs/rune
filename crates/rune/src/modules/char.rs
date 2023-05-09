@@ -107,4 +107,4 @@ fn is_alphanumeric(c: char) -> bool {
     char::is_alphanumeric(c)
 }
 
-crate::__internal_impl_any!(ParseCharError);
+crate::__internal_impl_any!(::std::char, ParseCharError);

@@ -1,6 +1,6 @@
 use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned};
+use quote::quote_spanned;
 use syn::spanned::Spanned as _;
 
 /// Derive implementation of the AST macro.
@@ -25,12 +25,12 @@ impl Derive {
 
         match &self.input.data {
             syn::Data::Struct(st) => {
-                if let Some(stream) = expander.expand_struct(&self.input, st) {
+                if let Ok(stream) = expander.expand_struct(&self.input, st) {
                     return Ok(stream);
                 }
             }
             syn::Data::Enum(en) => {
-                if let Some(stream) = expander.expand_enum(&self.input, en) {
+                if let Ok(stream) = expander.expand_enum(&self.input, en) {
                     return Ok(stream);
                 }
             }
@@ -57,17 +57,17 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let _ = self.ctx.type_attrs(&input.attrs)?;
-        let inner = self.expand_struct_fields(input, &st.fields)?;
-
-        Some(quote! {
-            #inner
-        })
+        self.expand_struct_fields(input, &st.fields)
     }
 
     /// Expand on a struct.
-    fn expand_enum(&mut self, input: &syn::DeriveInput, st: &syn::DataEnum) -> Option<TokenStream> {
+    fn expand_enum(
+        &mut self,
+        input: &syn::DeriveInput,
+        st: &syn::DataEnum,
+    ) -> Result<TokenStream, ()> {
         let _ = self.ctx.type_attrs(&input.attrs)?;
 
         let mut impl_into_tokens = Vec::new();
@@ -82,7 +82,7 @@ impl Expander {
         let macro_context = &self.tokens.macro_context;
         let token_stream = &self.tokens.token_stream;
 
-        Some(quote_spanned! { input.span() =>
+        Ok(quote_spanned! { input.span() =>
             #[automatically_derived]
             impl #to_tokens for #ident {
                 fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
@@ -99,7 +99,7 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         fields: &syn::Fields,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         match fields {
             syn::Fields::Named(named) => self.expand_struct_named(input, named),
             syn::Fields::Unnamed(..) => {
@@ -107,14 +107,14 @@ impl Expander {
                     fields,
                     "tuple structs are not supported",
                 ));
-                None
+                Err(())
             }
             syn::Fields::Unit => {
                 self.ctx.error(syn::Error::new_spanned(
                     fields,
                     "unit structs are not supported",
                 ));
-                None
+                Err(())
             }
         }
     }
@@ -124,11 +124,11 @@ impl Expander {
         &mut self,
         variant: &syn::Variant,
         fields: &syn::Fields,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         match fields {
             syn::Fields::Named(named) => self.expand_variant_named(variant, named),
             syn::Fields::Unnamed(unnamed) => self.expand_variant_unnamed(variant, unnamed),
-            syn::Fields::Unit => Some(self.expand_variant_unit(variant)),
+            syn::Fields::Unit => Ok(self.expand_variant_unit(variant)),
         }
     }
 
@@ -137,7 +137,7 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         named: &syn::FieldsNamed,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let mut fields = Vec::new();
 
         for field in &named.named {
@@ -157,20 +157,34 @@ impl Expander {
         let macro_context = &self.tokens.macro_context;
         let token_stream = &self.tokens.token_stream;
 
-        let generics = &input.generics;
+        let mut generics = input.generics.clone();
 
-        let bounds = generic_bounds(generics, to_tokens);
+        for p in &mut generics.params {
+            match p {
+                syn::GenericParam::Type(ty) => {
+                    ty.bounds.push(syn::TypeParamBound::Trait(syn::TraitBound {
+                        paren_token: None,
+                        modifier: syn::TraitBoundModifier::None,
+                        lifetimes: None,
+                        path: to_tokens.clone(),
+                    }));
+                }
+                _ => continue,
+            }
+        }
+
+        let (impl_generics, type_generics, where_generics) = generics.split_for_impl();
 
         let into_tokens_impl = quote_spanned! { named.span() =>
             #[automatically_derived]
-            impl #generics #to_tokens for #ident #generics #bounds {
+            impl #impl_generics #to_tokens for #ident #type_generics #where_generics {
                 fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
                     #(#fields;)*
                 }
             }
         };
 
-        Some(quote_spanned! { named.span() =>
+        Ok(quote_spanned! { named.span() =>
             #into_tokens_impl
         })
     }
@@ -180,7 +194,7 @@ impl Expander {
         &mut self,
         variant: &syn::Variant,
         named: &syn::FieldsNamed,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let mut fields = Vec::new();
         let mut idents = Vec::new();
 
@@ -198,7 +212,7 @@ impl Expander {
 
         let ident = &variant.ident;
 
-        Some(quote_spanned! { named.span() =>
+        Ok(quote_spanned! { named.span() =>
             Self::#ident { #(#idents,)* } => { #(#fields;)* }
         })
     }
@@ -208,7 +222,7 @@ impl Expander {
         &mut self,
         variant: &syn::Variant,
         named: &syn::FieldsUnnamed,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let mut field_into_tokens = Vec::new();
         let mut idents = Vec::new();
 
@@ -228,7 +242,7 @@ impl Expander {
 
         let ident = &variant.ident;
 
-        Some(quote_spanned! { named.span() =>
+        Ok(quote_spanned! { named.span() =>
             Self::#ident(#(#idents,)*) => { #(#field_into_tokens;)* }
         })
     }
@@ -241,20 +255,4 @@ impl Expander {
             Self::#ident => ()
         }
     }
-}
-
-fn generic_bounds(generics: &syn::Generics, to_tokens: &TokenStream) -> Option<TokenStream> {
-    if generics.params.is_empty() {
-        return None;
-    }
-
-    let mut bound = Vec::new();
-
-    for param in &generics.params {
-        bound.push(quote_spanned!(param.span() => #param: #to_tokens));
-    }
-
-    Some(quote_spanned! { generics.span() => where
-        #(#bound,)*
-    })
 }

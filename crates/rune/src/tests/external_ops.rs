@@ -13,7 +13,7 @@ fn test_external_ops_struct() -> Result<()> {
                 field: i64,
                 #[rune($derived)]
                 derived: i64,
-                #[rune($derived = "External::custom")]
+                #[rune($derived = External::custom)]
                 custom: i64,
             }
 
@@ -99,7 +99,7 @@ fn test_external_ops_tuple() -> Result<()> {
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
             #[derive(Debug, Default, Any)]
-            struct External(i64, i64, #[rune($derived)] i64, #[rune($derived = "External::custom")] i64);
+            struct External(i64, i64, #[rune($derived)] i64, #[rune($derived = External::custom)] i64);
 
             impl External {
                 fn value(&mut self, value: i64) {

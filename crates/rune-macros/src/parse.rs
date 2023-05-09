@@ -25,7 +25,7 @@ impl Derive {
 
         match &self.input.data {
             syn::Data::Struct(st) => {
-                if let Some(stream) = expander.expand_struct(&self.input, st) {
+                if let Ok(stream) = expander.expand_struct(&self.input, st) {
                     return Ok(stream);
                 }
             }
@@ -58,12 +58,8 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
-    ) -> Option<TokenStream> {
-        let inner = self.expand_struct_fields(input, &st.fields)?;
-
-        Some(quote! {
-            #inner
-        })
+    ) -> Result<TokenStream, ()> {
+        self.expand_struct_fields(input, &st.fields)
     }
 
     /// Expand field decoding.
@@ -71,22 +67,22 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         fields: &syn::Fields,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         match fields {
             syn::Fields::Named(named) => self.expand_struct_named(input, named),
             syn::Fields::Unnamed(..) => {
                 self.ctx.error(syn::Error::new_spanned(
                     fields,
-                    "tuple structs are not supported",
+                    "Tuple structs are not supported",
                 ));
-                None
+                Err(())
             }
             syn::Fields::Unit => {
                 self.ctx.error(syn::Error::new_spanned(
                     fields,
-                    "unit structs are not supported",
+                    "Unit structs are not supported",
                 ));
-                None
+                Err(())
             }
         }
     }
@@ -96,7 +92,7 @@ impl Expander {
         &mut self,
         input: &syn::DeriveInput,
         named: &syn::FieldsNamed,
-    ) -> Option<TokenStream> {
+    ) -> Result<TokenStream, ()> {
         let ident = &input.ident;
         let mut fields = Vec::new();
 
@@ -137,7 +133,7 @@ impl Expander {
                         crate::internals::META,
                     ),
                 ));
-                return None;
+                return Err(());
             }
 
             let ident = self.ctx.field_ident(field)?;
@@ -203,6 +199,6 @@ impl Expander {
             }
         };
 
-        Some(output)
+        Ok(output)
     }
 }
