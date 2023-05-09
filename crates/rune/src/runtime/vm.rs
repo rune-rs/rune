@@ -2001,7 +2001,7 @@ impl Vm {
                 let handler = self
                     .context
                     .function(hash)
-                    .ok_or(VmErrorKind::MissingFunction { hash })?;
+                    .ok_or(VmErrorKind::MissingContextFunction { hash })?;
 
                 Function::from_handler(handler.clone(), hash)
             }

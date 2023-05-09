@@ -9,9 +9,13 @@ pub trait TypeOf {
     /// Type information for the given type.
     #[inline]
     fn type_of() -> FullTypeOf {
-        FullTypeOf {
-            hash: Self::type_hash(),
-        }
+        FullTypeOf::new(Self::type_hash())
+    }
+
+    /// Parameters hash.
+    #[inline]
+    fn parameters_hash() -> Hash {
+        Hash::EMPTY
     }
 
     /// Convert into a type hash.
@@ -83,6 +87,16 @@ where
     T: ?Sized + TypeOf,
 {
     #[inline]
+    fn type_of() -> FullTypeOf {
+        T::type_of()
+    }
+
+    #[inline]
+    fn parameters_hash() -> Hash {
+        T::parameters_hash()
+    }
+
+    #[inline]
     fn type_hash() -> Hash {
         T::type_hash()
     }
@@ -98,6 +112,16 @@ impl<T> TypeOf for &mut T
 where
     T: ?Sized + TypeOf,
 {
+    #[inline]
+    fn type_of() -> FullTypeOf {
+        T::type_of()
+    }
+
+    #[inline]
+    fn parameters_hash() -> Hash {
+        T::parameters_hash()
+    }
+
     #[inline]
     fn type_hash() -> Hash {
         T::type_hash()
@@ -115,6 +139,16 @@ where
     T: ?Sized + TypeOf,
 {
     #[inline]
+    fn type_of() -> FullTypeOf {
+        T::type_of()
+    }
+
+    #[inline]
+    fn parameters_hash() -> Hash {
+        T::parameters_hash()
+    }
+
+    #[inline]
     fn type_hash() -> Hash {
         T::type_hash()
     }
@@ -131,6 +165,16 @@ where
     T: ?Sized + TypeOf,
 {
     #[inline]
+    fn type_of() -> FullTypeOf {
+        T::type_of()
+    }
+
+    #[inline]
+    fn parameters_hash() -> Hash {
+        T::parameters_hash()
+    }
+
+    #[inline]
     fn type_hash() -> Hash {
         T::type_hash()
     }
@@ -146,6 +190,16 @@ impl<T> TypeOf for Shared<T>
 where
     T: ?Sized + TypeOf,
 {
+    #[inline]
+    fn type_of() -> FullTypeOf {
+        T::type_of()
+    }
+
+    #[inline]
+    fn parameters_hash() -> Hash {
+        T::parameters_hash()
+    }
+
     #[inline]
     fn type_hash() -> Hash {
         T::type_hash()

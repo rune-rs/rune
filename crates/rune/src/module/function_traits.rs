@@ -1,9 +1,6 @@
 use core::future::Future;
 
-use crate::runtime::{
-    self, Stack, ToValue, TypeInfo, TypeOf, UnsafeFromValue, VmErrorKind, VmResult,
-};
-use crate::Hash;
+use crate::runtime::{self, Stack, ToValue, TypeOf, UnsafeFromValue, VmErrorKind, VmResult};
 
 macro_rules! check_args {
     ($expected:expr, $actual:expr) => {
@@ -49,17 +46,6 @@ macro_rules! unsafe_inst_vars {
     };
 }
 
-/// The static hash and diagnostical information about a type.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-#[doc(hidden)]
-pub struct AssocType {
-    /// Hash of the type.
-    pub hash: Hash,
-    /// Type information of the instance function.
-    pub type_info: TypeInfo,
-}
-
 /// Trait used to provide the [function][crate::module::Module::function]
 /// function.
 pub trait Function<A>: 'static + Send + Sync {
@@ -101,7 +87,7 @@ pub trait AsyncFunction<A>: 'static + Send + Sync {
 pub trait InstFn<A>: 'static + Send + Sync {
     /// The type of the instance.
     #[doc(hidden)]
-    type Inst;
+    type Inst: TypeOf;
 
     /// The return type of the function.
     #[doc(hidden)]
@@ -110,11 +96,6 @@ pub trait InstFn<A>: 'static + Send + Sync {
     /// Get the number of arguments.
     #[doc(hidden)]
     fn args() -> usize;
-
-    /// Access static information on the instance type with the associated
-    /// function.
-    #[doc(hidden)]
-    fn ty() -> AssocType;
 
     /// Perform the vm call.
     #[doc(hidden)]
@@ -126,7 +107,7 @@ pub trait InstFn<A>: 'static + Send + Sync {
 pub trait AsyncInstFn<A>: 'static + Send + Sync {
     /// The type of the instance.
     #[doc(hidden)]
-    type Inst;
+    type Inst: TypeOf;
 
     /// The return type of the function.
     #[doc(hidden)]
@@ -139,11 +120,6 @@ pub trait AsyncInstFn<A>: 'static + Send + Sync {
     /// Get the number of arguments.
     #[doc(hidden)]
     fn args() -> usize;
-
-    /// Access static information on the instance type with the associated
-    /// function.
-    #[doc(hidden)]
-    fn ty() -> AssocType;
 
     /// Perform the vm call.
     #[doc(hidden)]
@@ -238,15 +214,9 @@ macro_rules! impl_register {
             type Inst = Inst;
             type Return = U;
 
+            #[inline]
             fn args() -> usize {
                 $count + 1
-            }
-
-            fn ty() -> AssocType {
-                AssocType {
-                    hash: Inst::type_hash(),
-                    type_info: Inst::type_info(),
-                }
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {
@@ -284,15 +254,9 @@ macro_rules! impl_register {
             type Return = U;
             type Output = U::Output;
 
+            #[inline]
             fn args() -> usize {
                 $count + 1
-            }
-
-            fn ty() -> AssocType {
-                AssocType {
-                    hash: Inst::type_hash(),
-                    type_info: Inst::type_info(),
-                }
             }
 
             fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()> {

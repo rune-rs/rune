@@ -465,6 +465,12 @@ where
         quote!(#hash::new(#type_hash))
     };
 
+    let parameters_hash = if !generic_names.is_empty() {
+        quote!(#hash::parameters([#(<#generic_names as #type_of>::type_hash()),*]))
+    } else {
+        quote!(#hash::EMPTY)
+    };
+
     Ok(quote! {
         #[automatically_derived]
         impl #impl_generics #any for #ident #ty_generics #where_clause {
@@ -487,6 +493,11 @@ where
             #[inline]
             fn type_hash() -> #hash {
                 <Self as #any>::type_hash()
+            }
+
+            #[inline]
+            fn parameters_hash() -> #hash {
+                #parameters_hash
             }
 
             #[inline]

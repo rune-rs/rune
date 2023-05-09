@@ -3,6 +3,7 @@
 prelude!();
 
 #[derive(Any)]
+#[rune(item = ::native_crate)]
 pub struct NativeStruct(pub u32);
 
 pub fn native_fn() {}

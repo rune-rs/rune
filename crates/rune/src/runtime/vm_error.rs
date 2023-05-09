@@ -420,6 +420,8 @@ pub(crate) enum VmErrorKind {
     MissingEntryHash { hash: Hash },
     #[error("Missing function with hash `{hash}`")]
     MissingFunction { hash: Hash },
+    #[error("Missing context function with hash `{hash}`")]
+    MissingContextFunction { hash: Hash },
     #[error("Missing instance function `{hash}` for `{instance}`")]
     MissingInstanceFunction { hash: Hash, instance: TypeInfo },
     #[error("Instruction pointer `{ip}` is out-of-bounds `0-{length}`")]

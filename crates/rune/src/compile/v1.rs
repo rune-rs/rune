@@ -63,7 +63,7 @@ impl<'a> Assembler<'a> {
     fn select_context_meta<'m>(
         &self,
         item: ItemId,
-        metas: impl ExactSizeIterator<Item = &'m ContextMeta> + Clone,
+        metas: impl Iterator<Item = &'m ContextMeta> + Clone,
         parameters: Option<Hash>,
     ) -> Result<Option<&'m ContextMeta>, Box<QueryErrorKind>> {
         let parameters = parameters.unwrap_or(Hash::EMPTY);
@@ -110,9 +110,9 @@ impl<'a> Assembler<'a> {
             }
         }
 
-        let meta = self.context.lookup_meta(self.q.pool.item(item));
+        let metas = self.context.lookup_meta(self.q.pool.item(item));
 
-        let Some(meta) = self.select_context_meta(item, meta, generics).with_span(span)? else {
+        let Some(meta) = self.select_context_meta(item, metas, generics).with_span(span)? else {
             return Ok(None);
         };
 
