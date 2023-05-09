@@ -176,7 +176,7 @@ impl<'a> Context<'a> {
                     }))
                 },
                 ContextAssociated::Function(hash) => {
-                    let meta = context.lookup_meta_by_hash(*hash).iter().next()?;
+                    let meta = context.lookup_meta_by_hash(*hash).next()?;
                     let sig = meta.kind.as_signature()?;
                     let name = meta.item.as_deref()?.last()?.as_str()?;
 
@@ -203,6 +203,7 @@ impl<'a> Context<'a> {
             .context
             .associated(hash)
             .flat_map(|a| context_to_associated(self.context, a));
+
         visitors.chain(context)
     }
 

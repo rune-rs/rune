@@ -14,7 +14,9 @@ use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
 use crate::compile::{ContextError, Docs, IntoComponent, ItemBuf};
-use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, StaticType, TypeCheck, TypeInfo};
+use crate::runtime::{
+    ConstValue, FullTypeOf, FunctionHandler, MacroHandler, StaticType, TypeCheck, TypeInfo,
+};
 use crate::Hash;
 
 pub(crate) use self::function_meta::{
@@ -100,10 +102,12 @@ pub(crate) struct InternalVariant {
 
 /// Data for an opaque type. If `spec` is set, indicates things which are known
 /// about that type.
-pub(crate) struct Type {
+pub(crate) struct ModuleType {
     /// The name of the installed type which will be the final component in the
     /// item it will constitute.
-    pub(crate) name: Box<str>,
+    pub(crate) item: ItemBuf,
+    /// Type hash.
+    pub(crate) hash: Hash,
     /// Type information for the installed type.
     pub(crate) type_info: TypeInfo,
     /// The specification for the type.
@@ -211,6 +215,7 @@ pub(crate) struct AssociatedKey {
 
 #[derive(Clone)]
 pub(crate) struct ModuleFunction {
+    pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,
@@ -223,6 +228,7 @@ pub(crate) struct ModuleFunction {
 
 #[derive(Clone)]
 pub(crate) struct ModuleAssociated {
+    pub(crate) key: AssociatedKey,
     pub(crate) name: AssociatedFunctionName,
     pub(crate) type_info: TypeInfo,
     pub(crate) handler: Arc<FunctionHandler>,
@@ -235,7 +241,15 @@ pub(crate) struct ModuleAssociated {
 
 /// Handle to a macro inserted into a module.
 pub(crate) struct ModuleMacro {
+    pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<MacroHandler>,
+    pub(crate) docs: Docs,
+}
+
+/// A constant registered in a module.
+pub(crate) struct ModuleConstant {
+    pub(crate) item: ItemBuf,
+    pub(crate) value: ConstValue,
     pub(crate) docs: Docs,
 }
 
@@ -269,5 +283,12 @@ impl ItemMut<'_> {
     {
         self.docs.set_docs(docs);
         self
+    }
+}
+
+impl fmt::Debug for ItemMut<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ItemMut").finish_non_exhaustive()
     }
 }

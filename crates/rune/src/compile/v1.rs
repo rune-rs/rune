@@ -63,15 +63,16 @@ impl<'a> Assembler<'a> {
     fn select_context_meta<'m>(
         &self,
         item: ItemId,
-        metas: &'m [ContextMeta],
+        metas: impl ExactSizeIterator<Item = &'m ContextMeta> + Clone,
         parameters: Option<Hash>,
     ) -> Result<Option<&'m ContextMeta>, Box<QueryErrorKind>> {
         let parameters = parameters.unwrap_or(Hash::EMPTY);
 
+        let metas2 = metas.clone();
+
         // If there is a single item matching the specified generic hash, pick
         // it.
-        let mut it = metas
-            .iter()
+        let mut it = metas2
             .filter(|i| !matches!(i.kind, meta::Kind::Macro | meta::Kind::Module))
             .filter(|i| i.kind.as_parameters() == parameters);
 
@@ -85,7 +86,7 @@ impl<'a> Assembler<'a> {
 
         Err(Box::new(QueryErrorKind::AmbiguousContextItem {
             item: self.q.pool.item(item).to_owned(),
-            infos: metas.iter().map(|i| i.info()).collect(),
+            infos: metas.map(|i| i.info()).collect(),
         }))
     }
 

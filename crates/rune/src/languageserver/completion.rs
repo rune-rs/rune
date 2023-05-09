@@ -101,12 +101,12 @@ pub(super) fn complete_native_instance_data(
         };
 
         if n.starts_with(symbol) {
-            let meta = context.lookup_meta_by_hash(info.0).first();
+            let meta = context.lookup_meta_by_hash(info.0).next();
 
             let return_type = info
                 .1
                 .return_type
-                .and_then(|hash| context.lookup_meta_by_hash(hash).first())
+                .and_then(|hash| context.lookup_meta_by_hash(hash).next())
                 .and_then(|r| r.item.as_deref());
 
             let docs = meta.map(|meta| meta.docs.lines().join("\n"));
@@ -163,12 +163,12 @@ pub(super) fn complete_native_loose_data(
 
         let func_name = item.to_string().trim_start_matches("::").to_owned();
         if func_name.starts_with(symbol) {
-            let meta = context.lookup_meta_by_hash(info.0).first();
+            let meta = context.lookup_meta_by_hash(info.0).next();
 
             let return_type = info
                 .1
                 .return_type
-                .and_then(|hash| context.lookup_meta_by_hash(hash).first())
+                .and_then(|hash| context.lookup_meta_by_hash(hash).next())
                 .and_then(|r| r.item.as_deref());
 
             let docs = meta.map(|meta| meta.docs.lines().join("\n"));

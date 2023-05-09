@@ -1,4 +1,4 @@
-use crate::no_std::collections::{hash_map, HashMap};
+use crate::no_std::collections::{HashMap, HashSet};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
@@ -10,8 +10,8 @@ use crate::module::function_meta::{
 };
 use crate::module::{
     AssociatedKey, AsyncFunction, AsyncInstFn, Enum, Function, InstFn, InstallWith, InternalEnum,
-    ItemMut, ModuleAssociated, ModuleFunction, ModuleMacro, Struct, Type, TypeSpecification,
-    UnitType, Variant,
+    ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction, ModuleMacro, ModuleType, Struct,
+    TypeSpecification, UnitType, Variant,
 };
 use crate::runtime::{
     ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf, Protocol, Stack, ToValue,
@@ -19,26 +19,40 @@ use crate::runtime::{
 };
 use crate::Hash;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Name {
+    /// An associated key.
+    Associated(AssociatedKey),
+    /// A regular item.
+    Item(ItemBuf),
+    /// A macro.
+    Macro(ItemBuf),
+}
+
 /// A [Module] that is a collection of native functions and types.
 ///
 /// Needs to be installed into a [Context][crate::compile::Context] using
 /// [Context::install][crate::compile::Context::install].
 #[derive(Default)]
 pub struct Module {
+    /// Uniqueness checks.
+    names: HashSet<Name>,
     /// A special identifier for this module, which will cause it to not conflict if installed multiple times.
     pub(crate) unique: Option<&'static str>,
     /// The name of the module.
     pub(crate) item: ItemBuf,
     /// Functions.
-    pub(crate) functions: HashMap<ItemBuf, ModuleFunction>,
+    pub(crate) functions: Vec<ModuleFunction>,
     /// MacroHandler handlers.
-    pub(crate) macros: HashMap<ItemBuf, ModuleMacro>,
+    pub(crate) macros: Vec<ModuleMacro>,
     /// Constant values.
-    pub(crate) constants: HashMap<ItemBuf, ConstValue>,
+    pub(crate) constants: Vec<ModuleConstant>,
     /// Associated items.
-    pub(crate) associated: HashMap<AssociatedKey, ModuleAssociated>,
+    pub(crate) associated: Vec<ModuleAssociated>,
     /// Registered types.
-    pub(crate) types: HashMap<Hash, Type>,
+    pub(crate) types: Vec<ModuleType>,
+    /// Type hash to types mapping.
+    pub(crate) types_hash: HashMap<Hash, usize>,
     /// Registered unit type.
     pub(crate) unit_type: Option<UnitType>,
     /// Registered generator state type.
@@ -87,15 +101,17 @@ impl Module {
 
     fn inner_new(item: ItemBuf) -> Self {
         Self {
+            names: HashSet::new(),
             unique: None,
             item,
-            functions: HashMap::default(),
-            macros: HashMap::default(),
-            associated: HashMap::default(),
-            types: HashMap::default(),
+            functions: Vec::new(),
+            macros: Vec::new(),
+            associated: Vec::new(),
+            types: Vec::new(),
+            types_hash: HashMap::new(),
             unit_type: None,
             internal_enums: Vec::new(),
-            constants: HashMap::default(),
+            constants: Vec::new(),
             docs: Docs::default(),
         }
     }
@@ -151,36 +167,29 @@ impl Module {
     where
         T: Named + TypeOf + InstallWith,
     {
-        let type_hash = T::type_hash();
+        let item = ItemBuf::with_item(&[T::full_name()]);
+        let hash = T::type_hash();
         let type_info = T::type_info();
 
-        match self.types.entry(type_hash) {
-            hash_map::Entry::Occupied(e) => {
-                return Err(ContextError::ConflictingType {
-                    item: ItemBuf::with_item(&[T::full_name()]),
-                    type_info: e.get().type_info.clone(),
-                })
-            }
-            hash_map::Entry::Vacant(e) => {
-                e.insert(Type {
-                    name: T::full_name(),
-                    type_info,
-                    spec: None,
-                    docs: Docs::default(),
-                });
-            }
+        if !self.names.insert(Name::Item(item.clone())) {
+            return Err(ContextError::ConflictingType { item, type_info });
         }
+
+        let index = self.types.len();
+        self.types_hash.insert(hash, index);
+
+        self.types.push(ModuleType {
+            item,
+            hash,
+            type_info,
+            spec: None,
+            docs: Docs::default(),
+        });
 
         T::install_with(self)?;
 
-        if let Some(ty) = self.types.get_mut(&type_hash) {
-            Ok(ItemMut { docs: &mut ty.docs })
-        } else {
-            Err(ContextError::MissingType {
-                item: ItemBuf::with_item(&[T::full_name()]),
-                type_info: T::type_info(),
-            })
-        }
+        let t = self.types.last_mut().unwrap();
+        Ok(ItemMut { docs: &mut t.docs })
     }
 
     /// Register that the given type is a struct, and that it has the given
@@ -198,14 +207,11 @@ impl Module {
     {
         let type_hash = T::type_hash();
 
-        let ty = match self.types.get_mut(&type_hash) {
-            Some(ty) => ty,
-            None => {
-                return Err(ContextError::MissingType {
-                    item: ItemBuf::with_item(&[T::full_name()]),
-                    type_info: T::type_info(),
-                });
-            }
+        let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
+            return Err(ContextError::MissingType {
+                item: ItemBuf::with_item(&[T::full_name()]),
+                type_info: T::type_info(),
+            });
         };
 
         let old = ty.spec.replace(TypeSpecification::Struct(Struct {
@@ -233,14 +239,11 @@ impl Module {
     {
         let type_hash = T::type_hash();
 
-        let ty = match self.types.get_mut(&type_hash) {
-            Some(ty) => ty,
-            None => {
-                return Err(ContextError::MissingType {
-                    item: ItemBuf::with_item(&[T::full_name()]),
-                    type_info: T::type_info(),
-                });
-            }
+        let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
+            return Err(ContextError::MissingType {
+                item: ItemBuf::with_item(&[T::full_name()]),
+                type_info: T::type_info(),
+            });
         };
 
         let old = ty.spec.replace(TypeSpecification::Enum(Enum {
@@ -272,14 +275,11 @@ impl Module {
     {
         let type_hash = F::Return::type_hash();
 
-        let ty = match self.types.get_mut(&type_hash) {
-            Some(ty) => ty,
-            None => {
-                return Err(ContextError::MissingType {
-                    item: ItemBuf::with_item(&[F::Return::full_name()]),
-                    type_info: F::Return::type_info(),
-                });
-            }
+        let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
+            return Err(ContextError::MissingType {
+                item: ItemBuf::with_item(&[F::Return::full_name()]),
+                type_info: F::Return::type_info(),
+            });
         };
 
         let en = match &mut ty.spec {
@@ -458,34 +458,40 @@ impl Module {
     ///
     /// let mut module = Module::default();
     ///
-    /// module.constant(["TEN"], 10)?; // a global TEN value
-    /// module.constant(["MyType", "TEN"], 10)?; // looks like an associated value
+    /// module.constant(["TEN"], 10)?.docs(["A global ten value."]);
+    /// module.constant(["MyType", "TEN"], 10)?.docs(["Ten which looks like an associated constant."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn constant<N, V>(&mut self, name: N, value: V) -> Result<(), ContextError>
+    pub fn constant<N, V>(&mut self, name: N, value: V) -> Result<ItemMut<'_>, ContextError>
     where
         N: IntoIterator,
         N::Item: IntoComponent,
         V: ToValue,
     {
-        let name = ItemBuf::with_item(name);
-
-        if self.constants.contains_key(&name) {
-            return Err(ContextError::ConflictingConstantName { name });
-        }
+        let item = ItemBuf::with_item(name);
 
         let value = match value.to_value() {
             VmResult::Ok(v) => v,
             VmResult::Err(error) => return Err(ContextError::ValueError { error }),
         };
 
-        let constant_value = match <ConstValue as FromValue>::from_value(value) {
+        let value = match <ConstValue as FromValue>::from_value(value) {
             VmResult::Ok(v) => v,
             VmResult::Err(error) => return Err(ContextError::ValueError { error }),
         };
 
-        self.constants.insert(name, constant_value);
-        Ok(())
+        if !self.names.insert(Name::Item(item.clone())) {
+            return Err(ContextError::ConflictingConstantName { item });
+        }
+
+        self.constants.push(ModuleConstant {
+            item,
+            value,
+            docs: Docs::default(),
+        });
+
+        let c = self.constants.last_mut().unwrap();
+        Ok(ItemMut { docs: &mut c.docs })
     }
 
     /// Register a native macro handler through its meta.
@@ -531,23 +537,24 @@ impl Module {
         let meta = meta();
 
         match meta.kind {
-            MacroMetaKind::Function(data) => match self.macros.entry(data.name.clone()) {
-                hash_map::Entry::Occupied(..) => {
-                    Err(ContextError::ConflictingMacroName { name: data.name })
+            MacroMetaKind::Function(data) => {
+                if !self.names.insert(Name::Macro(data.item.clone())) {
+                    return Err(ContextError::ConflictingMacroName { item: data.item });
                 }
-                hash_map::Entry::Vacant(e) => {
-                    let mut docs = Docs::default();
-                    docs.set_docs(meta.docs);
 
-                    let e = e.insert(ModuleMacro {
-                        handler: data.handler,
-                        docs,
-                    });
+                let mut docs = Docs::default();
+                docs.set_docs(meta.docs);
 
-                    Ok(ItemMut { docs: &mut e.docs })
-                }
-            },
+                self.macros.push(ModuleMacro {
+                    item: data.item,
+                    handler: data.handler,
+                    docs,
+                });
+            }
         }
+
+        let m = self.macros.last_mut().unwrap();
+        Ok(ItemMut { docs: &mut m.docs })
     }
 
     /// Register a native macro handler.
@@ -585,21 +592,22 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = ItemBuf::with_item(name);
+        let item = ItemBuf::with_item(name);
 
-        match self.macros.entry(name.clone()) {
-            hash_map::Entry::Occupied(..) => Err(ContextError::ConflictingMacroName { name }),
-            hash_map::Entry::Vacant(e) => {
-                let handler: Arc<MacroHandler> = Arc::new(f);
-
-                let e = e.insert(ModuleMacro {
-                    handler,
-                    docs: Docs::default(),
-                });
-
-                Ok(ItemMut { docs: &mut e.docs })
-            }
+        if !self.names.insert(Name::Macro(item.clone())) {
+            return Err(ContextError::ConflictingMacroName { item });
         }
+
+        let handler: Arc<MacroHandler> = Arc::new(f);
+
+        self.macros.push(ModuleMacro {
+            item,
+            handler,
+            docs: Docs::default(),
+        });
+
+        let m = self.macros.last_mut().unwrap();
+        Ok(ItemMut { docs: &mut m.docs })
     }
 
     /// Register a function handler through its meta.
@@ -947,28 +955,27 @@ impl Module {
         N: IntoIterator,
         N::Item: IntoComponent,
     {
-        let name = ItemBuf::with_item(name);
+        let item = ItemBuf::with_item(name);
 
-        if self.functions.contains_key(&name) {}
-
-        match self.functions.entry(name) {
-            hash_map::Entry::Occupied(e) => Err(ContextError::ConflictingFunctionName {
-                name: e.key().clone(),
-            }),
-            hash_map::Entry::Vacant(e) => {
-                let e = e.insert(ModuleFunction {
-                    handler: Arc::new(move |stack, args| f(stack, args)),
-                    is_async: false,
-                    args: None,
-                    return_type: None,
-                    argument_types: Box::from([]),
-                    associated_container: None,
-                    docs: Docs::default(),
-                });
-
-                Ok(ItemMut { docs: &mut e.docs })
-            }
+        if !self.names.insert(Name::Item(item.clone())) {
+            return Err(ContextError::ConflictingFunctionName { item });
         }
+
+        self.functions.push(ModuleFunction {
+            item,
+            handler: Arc::new(move |stack, args| f(stack, args)),
+            is_async: false,
+            args: None,
+            return_type: None,
+            argument_types: Box::from([]),
+            associated_container: None,
+            docs: Docs::default(),
+        });
+
+        let last = self.functions.last_mut().unwrap();
+        Ok(ItemMut {
+            docs: &mut last.docs,
+        })
     }
 
     fn function_inner(
@@ -976,24 +983,23 @@ impl Module {
         data: FunctionData,
         docs: Docs,
     ) -> Result<ItemMut<'_>, ContextError> {
-        match self.functions.entry(data.name.clone()) {
-            hash_map::Entry::Occupied(e) => Err(ContextError::ConflictingFunctionName {
-                name: e.key().clone(),
-            }),
-            hash_map::Entry::Vacant(e) => {
-                let e = e.insert(ModuleFunction {
-                    handler: data.handler,
-                    is_async: data.is_async,
-                    args: data.args,
-                    return_type: data.return_type,
-                    argument_types: data.argument_types,
-                    associated_container: data.associated_container,
-                    docs,
-                });
-
-                Ok(ItemMut { docs: &mut e.docs })
-            }
+        if !self.names.insert(Name::Item(data.item.clone())) {
+            return Err(ContextError::ConflictingFunctionName { item: data.item });
         }
+
+        self.functions.push(ModuleFunction {
+            item: data.item,
+            handler: data.handler,
+            is_async: data.is_async,
+            args: data.args,
+            return_type: data.return_type,
+            argument_types: data.argument_types,
+            associated_container: data.associated_container,
+            docs,
+        });
+
+        let m = self.functions.last_mut().unwrap();
+        Ok(ItemMut { docs: &mut m.docs })
     }
 
     /// Install an associated function.
@@ -1004,8 +1010,8 @@ impl Module {
     ) -> Result<ItemMut<'_>, ContextError> {
         let key = data.assoc_key();
 
-        match self.associated.entry(key) {
-            hash_map::Entry::Occupied(..) => Err(match data.name.kind {
+        if !self.names.insert(Name::Associated(key.clone())) {
+            return Err(match data.name.kind {
                 AssociatedKind::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
                     type_info: data.ty.type_info,
                     name: protocol.name.into(),
@@ -1028,22 +1034,23 @@ impl Module {
                     type_info: data.ty.type_info,
                     name,
                 },
-            }),
-            hash_map::Entry::Vacant(e) => {
-                let e = e.insert(ModuleAssociated {
-                    name: data.name,
-                    handler: data.handler,
-                    is_async: data.is_async,
-                    args: data.args,
-                    return_type: data.return_type,
-                    argument_types: data.argument_types,
-                    docs,
-                    type_info: data.ty.type_info,
-                });
-
-                Ok(ItemMut { docs: &mut e.docs })
-            }
+            });
         }
+
+        self.associated.push(ModuleAssociated {
+            key,
+            name: data.name,
+            handler: data.handler,
+            is_async: data.is_async,
+            args: data.args,
+            return_type: data.return_type,
+            argument_types: data.argument_types,
+            docs,
+            type_info: data.ty.type_info,
+        });
+
+        let m = self.associated.last_mut().unwrap();
+        Ok(ItemMut { docs: &mut m.docs })
     }
 }
 

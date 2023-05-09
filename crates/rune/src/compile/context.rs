@@ -9,8 +9,8 @@ use crate::compile::{
     ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
 };
 use crate::module::{
-    AssociatedKey, AssociatedKind, Function, InternalEnum, Module, ModuleAssociated,
-    ModuleFunction, ModuleMacro, Type, TypeSpecification, UnitType, VariantKind,
+    AssociatedKind, Function, InternalEnum, Module, ModuleAssociated, ModuleConstant,
+    ModuleFunction, ModuleMacro, ModuleType, TypeSpecification, UnitType, VariantKind,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -103,8 +103,10 @@ pub struct Context {
     unique: HashSet<&'static str>,
     /// Whether or not to include the prelude when constructing a new unit.
     has_default_modules: bool,
+    /// Registered metadata, in the order that it was registered.
+    meta: Vec<ContextMeta>,
     /// Item metadata in the context.
-    meta: HashMap<Hash, Vec<ContextMeta>>,
+    hash_to_meta: HashMap<Hash, Vec<usize>>,
     /// Store item to hash mapping.
     item_to_hash: HashMap<ItemBuf, Hash>,
     /// Registered native function handlers.
@@ -230,20 +232,20 @@ impl Context {
 
         self.install_module(module)?;
 
-        for (type_hash, ty) in &module.types {
-            self.install_type(module, *type_hash, ty)?;
+        for ty in &module.types {
+            self.install_type(module, ty)?;
         }
 
-        for (name, f) in &module.functions {
-            self.install_function(module, name, f)?;
+        for f in &module.functions {
+            self.install_function(module, f)?;
         }
 
-        for (name, m) in &module.macros {
-            self.install_macro(module, name, m)?;
+        for m in &module.macros {
+            self.install_macro(module, m)?;
         }
 
-        for (name, m) in &module.constants {
-            self.install_constant(module, name, m, Docs::default())?;
+        for m in &module.constants {
+            self.install_constant(module, m)?;
         }
 
         if let Some(unit_type) = &module.unit_type {
@@ -254,8 +256,8 @@ impl Context {
             self.install_internal_enum(module, internal_enum, Docs::default())?;
         }
 
-        for (key, assoc) in &module.associated {
-            self.install_associated(key, assoc)?;
+        for assoc in &module.associated {
+            self.install_associated(assoc)?;
         }
 
         Ok(())
@@ -264,11 +266,9 @@ impl Context {
     /// Iterate over all available functions in the [Context].
     #[cfg(feature = "cli")]
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &meta::Signature)> {
-        self.meta.iter().flat_map(|(hash, metas)| {
-            metas.iter().flat_map(|m| {
-                let signature = m.kind.as_signature()?;
-                Some((*hash, signature))
-            })
+        self.meta.iter().flat_map(|meta| {
+            let signature = meta.kind.as_signature()?;
+            Some((meta.hash, signature))
         })
     }
 
@@ -298,22 +298,35 @@ impl Context {
     }
 
     /// Access the context meta for the given item.
-    pub(crate) fn lookup_meta(&self, item: &Item) -> &[ContextMeta] {
-        let Some(hash) = self.item_to_hash.get(item) else {
-            return &[];
+    pub(crate) fn lookup_meta(
+        &self,
+        item: &Item,
+    ) -> impl ExactSizeIterator<Item = &ContextMeta> + Clone {
+        let indexes = match self.item_to_hash.get(item) {
+            Some(hash) => self
+                .hash_to_meta
+                .get(hash)
+                .map(Vec::as_slice)
+                .unwrap_or_default(),
+            None => &[][..],
         };
 
-        let Some(meta) = self.meta.get(hash) else {
-            return &[];
-        };
-
-        meta
+        indexes.iter().map(|&i| &self.meta[i])
     }
 
     /// Lookup meta by its hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn lookup_meta_by_hash(&self, hash: Hash) -> &[ContextMeta] {
-        self.meta.get(&hash).map(Vec::as_slice).unwrap_or_default()
+    pub(crate) fn lookup_meta_by_hash(
+        &self,
+        hash: Hash,
+    ) -> impl ExactSizeIterator<Item = &ContextMeta> + Clone {
+        let indexes = self
+            .hash_to_meta
+            .get(&hash)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+
+        indexes.iter().map(|&i| &self.meta[i])
     }
 
     /// Check if unit contains the given name by prefix.
@@ -331,8 +344,9 @@ impl Context {
     pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &ContextAssociated> + '_ {
         self.associated
             .get(&hash)
-            .into_iter()
-            .flat_map(|items| items.iter())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
     }
 
     /// Lookup the given macro handler.
@@ -381,7 +395,10 @@ impl Context {
             }
         }
 
-        self.meta.entry(meta.hash).or_default().push(meta);
+        let hash = meta.hash;
+        let index = self.meta.len();
+        self.meta.push(meta);
+        self.hash_to_meta.entry(hash).or_default().push(index);
         Ok(())
     }
 
@@ -392,25 +409,13 @@ impl Context {
         let mut current = Some((m.item.as_ref(), Some(&m.docs)));
 
         while let Some((item, docs)) = current.take() {
-            let hash = Hash::type_hash(item);
-
-            if let Some(existing) = self.item_to_hash.insert(item.to_owned(), hash) {
-                if hash != existing {
-                    return Err(ContextError::ConflictingMetaHash {
-                        item: item.to_owned(),
-                        hash,
-                        existing,
-                    });
-                }
-            }
-
-            self.meta.entry(hash).or_default().push(ContextMeta {
-                hash,
+            self.install_meta(ContextMeta {
+                hash: Hash::type_hash(item),
                 associated_container: None,
                 item: Some(item.to_owned()),
                 kind: meta::Kind::Module,
                 docs: docs.cloned().unwrap_or_default(),
-            });
+            })?;
 
             current = item.parent().map(|item| (item, None));
         }
@@ -419,14 +424,10 @@ impl Context {
     }
 
     /// Install a single type.
-    fn install_type(
-        &mut self,
-        module: &Module,
-        type_hash: Hash,
-        ty: &Type,
-    ) -> Result<(), ContextError> {
-        let item = module.item.extended(&*ty.name);
+    fn install_type(&mut self, module: &Module, ty: &ModuleType) -> Result<(), ContextError> {
+        let item = module.item.join(&ty.item);
         let hash = Hash::type_hash(&item);
+        let type_hash = ty.hash;
 
         self.install_type_info(
             hash,
@@ -558,10 +559,9 @@ impl Context {
     fn install_function(
         &mut self,
         module: &Module,
-        item: &Item,
         f: &ModuleFunction,
     ) -> Result<(), ContextError> {
-        let item = module.item.join(item);
+        let item = module.item.join(&f.item);
         self.names.insert(&item);
 
         let hash = Hash::type_hash(&item);
@@ -614,13 +614,8 @@ impl Context {
     }
 
     /// Install a function and check for duplicates.
-    fn install_macro(
-        &mut self,
-        module: &Module,
-        item: &Item,
-        m: &ModuleMacro,
-    ) -> Result<(), ContextError> {
-        let item = module.item.join(item);
+    fn install_macro(&mut self, module: &Module, m: &ModuleMacro) -> Result<(), ContextError> {
+        let item = module.item.join(&m.item);
         let hash = Hash::type_hash(&item);
         self.macros.insert(hash, m.handler.clone());
 
@@ -639,35 +634,29 @@ impl Context {
     fn install_constant(
         &mut self,
         module: &Module,
-        item: &Item,
-        v: &ConstValue,
-        docs: Docs,
+        m: &ModuleConstant,
     ) -> Result<(), ContextError> {
-        let item = module.item.join(item);
+        let item = module.item.join(&m.item);
         let hash = Hash::type_hash(&item);
-        self.constants.insert(hash, v.clone());
+        self.constants.insert(hash, m.value.clone());
 
         self.install_meta(ContextMeta::new(
             hash,
             None,
             Some(item),
             meta::Kind::Const {
-                const_value: v.clone(),
+                const_value: m.value.clone(),
             },
-            docs,
+            m.docs.clone(),
         ))?;
 
         Ok(())
     }
 
-    fn install_associated(
-        &mut self,
-        key: &AssociatedKey,
-        assoc: &ModuleAssociated,
-    ) -> Result<(), ContextError> {
+    fn install_associated(&mut self, assoc: &ModuleAssociated) -> Result<(), ContextError> {
         let info = match self
             .types_rev
-            .get(&key.type_hash)
+            .get(&assoc.key.type_hash)
             .and_then(|hash| self.types.get(hash))
         {
             Some(info) => info.clone(),
@@ -681,8 +670,8 @@ impl Context {
         let hash = assoc
             .name
             .kind
-            .hash(key.type_hash)
-            .with_parameters(key.parameters);
+            .hash(assoc.key.type_hash)
+            .with_parameters(assoc.key.parameters);
 
         let signature = meta::Signature {
             item: info.item.clone(),
@@ -704,7 +693,7 @@ impl Context {
 
         self.install_meta(ContextMeta::new(
             hash,
-            Some(key.type_hash),
+            Some(assoc.key.type_hash),
             None,
             meta::Kind::Function {
                 is_async: assoc.is_async,
@@ -713,14 +702,14 @@ impl Context {
                 is_bench: false,
                 instance_function: true,
                 signature: Some(signature),
-                parameters: key.parameters,
+                parameters: assoc.key.parameters,
             },
             assoc.docs.clone(),
         ))?;
 
         #[cfg(feature = "doc")]
         self.associated
-            .entry(key.type_hash)
+            .entry(assoc.key.type_hash)
             .or_default()
             .push(ContextAssociated::Associated(assoc.clone()));
 
@@ -733,7 +722,7 @@ impl Context {
         if let AssociatedKind::Instance(name) = &assoc.name.kind {
             let item = info.item.extended(name);
             let type_hash = Hash::type_hash(&item);
-            let hash = type_hash.with_parameters(key.parameters);
+            let hash = type_hash.with_parameters(assoc.key.parameters);
 
             self.constants.insert(
                 Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
@@ -757,7 +746,7 @@ impl Context {
 
             self.install_meta(ContextMeta::new(
                 type_hash,
-                Some(key.type_hash),
+                Some(assoc.key.type_hash),
                 Some(item),
                 meta::Kind::Function {
                     is_async: assoc.is_async,
@@ -766,7 +755,7 @@ impl Context {
                     is_bench: false,
                     instance_function: true,
                     signature: Some(signature),
-                    parameters: key.parameters,
+                    parameters: assoc.key.parameters,
                 },
                 assoc.docs.clone(),
             ))?;

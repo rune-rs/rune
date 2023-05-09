@@ -1,5 +1,5 @@
-use crate::compile::item::internal::MAX_DATA;
-use crate::compile::item::{Component, ComponentRef, IntoComponent, ItemBuf};
+use crate::item::internal::MAX_DATA;
+use crate::item::{Component, ComponentRef, IntoComponent, ItemBuf};
 
 #[test]
 fn test_pop() {

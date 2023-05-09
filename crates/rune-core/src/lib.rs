@@ -4,6 +4,7 @@
 //! **YOU ARE NOT** supposed to depend on this directly. Doing so might cause
 //! dependency errors since its API is not stable.
 
+#![allow(clippy::module_inception)]
 #![no_std]
 
 extern crate alloc;
