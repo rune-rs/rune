@@ -8,14 +8,14 @@ mod function_traits;
 pub(crate) mod module;
 
 use core::fmt;
+use core::marker::PhantomData;
 
-use crate::no_std::collections::HashSet;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::compile::{ContextError, Docs, IntoComponent, ItemBuf};
+use crate::compile::{ContextError, Docs, IntoComponent, Item, ItemBuf};
 use crate::runtime::{
-    ConstValue, FullTypeOf, FunctionHandler, MacroHandler, StaticType, TypeCheck, TypeInfo,
+    ConstValue, FullTypeOf, FunctionHandler, MacroHandler, StaticType, TypeCheck, TypeInfo, TypeOf,
 };
 use crate::Hash;
 
@@ -54,6 +54,8 @@ pub(crate) struct InternalEnum {
     pub(crate) static_type: &'static StaticType,
     /// Internal variants.
     pub(crate) variants: Vec<InternalVariant>,
+    /// Documentation for internal enum.
+    pub(crate) docs: Docs,
 }
 
 impl InternalEnum {
@@ -68,11 +70,17 @@ impl InternalEnum {
             base_type: ItemBuf::with_item(base_type),
             static_type,
             variants: Vec::new(),
+            docs: Docs::default(),
         }
     }
 
     /// Register a new variant.
-    fn variant<C, A>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
+    fn variant<C, A>(
+        &mut self,
+        name: &'static str,
+        type_check: TypeCheck,
+        constructor: C,
+    ) -> ItemMut<'_>
     where
         C: Function<A>,
     {
@@ -84,7 +92,11 @@ impl InternalEnum {
             type_check,
             args: C::args(),
             constructor,
+            docs: Docs::default(),
         });
+
+        let v = self.variants.last_mut().unwrap();
+        ItemMut { docs: &mut v.docs }
     }
 }
 
@@ -98,6 +110,8 @@ pub(crate) struct InternalVariant {
     pub(crate) args: usize,
     /// The constructor of the variant.
     pub(crate) constructor: Arc<FunctionHandler>,
+    /// Documentation for internal variant.
+    pub(crate) docs: Docs,
 }
 
 /// Data for an opaque type. If `spec` is set, indicates things which are known
@@ -118,88 +132,59 @@ pub(crate) struct ModuleType {
     pub(crate) docs: Docs,
 }
 
+/// The kind of the variant.
+#[derive(Debug)]
+pub(crate) enum Fields {
+    /// Variant is a Tuple variant.
+    Unnamed(usize),
+    /// Variant is a Struct variant.
+    Named(&'static [&'static str]),
+    /// Variant is a Unit variant.
+    Empty,
+}
+
 /// Metadata about a variant.
 pub struct Variant {
+    /// The name of the variant.
+    pub(crate) name: &'static str,
     /// Variant metadata.
-    pub(crate) kind: VariantKind,
+    pub(crate) fields: Option<Fields>,
     /// Handler to use if this variant can be constructed through a regular function call.
     pub(crate) constructor: Option<Arc<FunctionHandler>>,
+    /// Variant documentation.
+    pub(crate) docs: Docs,
+}
+
+impl Variant {
+    fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            fields: None,
+            constructor: None,
+            docs: Docs::default(),
+        }
+    }
 }
 
 impl fmt::Debug for Variant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Variant")
-            .field("kind", &self.kind)
+            .field("fields", &self.fields)
             .field("constructor", &self.constructor.is_some())
+            .field("docs", &self.docs)
             .finish()
     }
-}
-
-/// The kind of the variant.
-#[derive(Debug)]
-pub(crate) enum VariantKind {
-    /// Variant is a Tuple variant.
-    Tuple(Tuple),
-    /// Variant is a Struct variant.
-    Struct(Struct),
-    /// Variant is a Unit variant.
-    Unit,
-}
-
-impl Variant {
-    /// Construct metadata for a tuple variant.
-    #[inline]
-    pub fn tuple(args: usize) -> Self {
-        Self {
-            kind: VariantKind::Tuple(Tuple { args }),
-            constructor: None,
-        }
-    }
-
-    /// Construct metadata for a tuple variant.
-    #[inline]
-    pub fn st<const N: usize>(fields: [&'static str; N]) -> Self {
-        Self {
-            kind: VariantKind::Struct(Struct {
-                fields: fields.into_iter().map(Box::<str>::from).collect(),
-            }),
-            constructor: None,
-        }
-    }
-
-    /// Construct metadata for a unit variant.
-    #[inline]
-    pub fn unit() -> Self {
-        Self {
-            kind: VariantKind::Unit,
-            constructor: None,
-        }
-    }
-}
-
-/// Metadata about a tuple or tuple variant.
-#[derive(Debug)]
-pub struct Tuple {
-    /// The number of fields.
-    pub(crate) args: usize,
-}
-
-/// The type specification for a native struct.
-#[derive(Debug)]
-pub(crate) struct Struct {
-    /// The names of the struct fields known at compile time.
-    pub(crate) fields: HashSet<Box<str>>,
 }
 
 /// The type specification for a native enum.
 pub(crate) struct Enum {
     /// The variants.
-    pub(crate) variants: Vec<(Box<str>, Variant)>,
+    pub(crate) variants: Vec<Variant>,
 }
 
 /// A type specification.
 pub(crate) enum TypeSpecification {
-    Struct(Struct),
+    Struct(Fields),
     Enum(Enum),
 }
 
@@ -292,5 +277,244 @@ impl fmt::Debug for ItemMut<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ItemMut").finish_non_exhaustive()
+    }
+}
+
+/// Handle to a a variant inserted into a module which allows for mutation of
+/// its metadata.
+pub struct VariantMut<'a, T>
+where
+    T: TypeOf,
+{
+    pub(crate) index: usize,
+    pub(crate) docs: &'a mut Docs,
+    pub(crate) fields: &'a mut Option<Fields>,
+    pub(crate) constructor: &'a mut Option<Arc<FunctionHandler>>,
+    pub(crate) _marker: PhantomData<&'a mut T>,
+}
+
+impl<T> VariantMut<'_, T>
+where
+    T: TypeOf,
+{
+    /// Set documentation for an inserted type.
+    ///
+    /// This completely replaces any existing documentation.
+    pub fn docs<I>(self, docs: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        self.docs.set_docs(docs);
+        self
+    }
+
+    /// Set static documentation.
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
+        self.docs.set_docs(docs);
+        self
+    }
+
+    /// Mark the given variant with named fields.
+    pub fn make_named(self, fields: &'static [&'static str]) -> Result<Self, ContextError> {
+        self.make(Fields::Named(fields))
+    }
+
+    /// Mark the given variant with unnamed fields.
+    pub fn make_unnamed(self, fields: usize) -> Result<Self, ContextError> {
+        self.make(Fields::Unnamed(fields))
+    }
+
+    /// Mark the given variant as empty.
+    pub fn make_empty(self) -> Result<Self, ContextError> {
+        self.make(Fields::Empty)
+    }
+
+    /// Register a constructor method for the current variant.
+    pub fn constructor<F, A>(self, constructor: F) -> Result<Self, ContextError>
+    where
+        F: Function<A, Return = T>,
+    {
+        if self.constructor.is_some() {
+            return Err(ContextError::VariantConstructorConflict {
+                type_info: T::type_info(),
+                index: self.index,
+            });
+        }
+
+        *self.constructor = Some(Arc::new(move |stack, args| {
+            constructor.fn_call(stack, args)
+        }));
+
+        Ok(self)
+    }
+
+    fn make(self, fields: Fields) -> Result<Self, ContextError> {
+        let old = self.fields.replace(fields);
+
+        if old.is_some() {
+            return Err(ContextError::ConflictingVariantMeta {
+                index: self.index,
+                type_info: T::type_info(),
+            });
+        }
+
+        Ok(self)
+    }
+}
+
+/// Access enum metadata mutably.
+pub struct EnumMut<'a, T>
+where
+    T: TypeOf,
+{
+    docs: &'a mut Docs,
+    enum_: &'a mut Enum,
+    _marker: PhantomData<&'a mut T>,
+}
+
+impl<T> EnumMut<'_, T>
+where
+    T: TypeOf,
+{
+    /// Set documentation for an inserted type.
+    ///
+    /// This completely replaces any existing documentation.
+    pub fn docs<I>(self, docs: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        self.docs.set_docs(docs);
+        self
+    }
+
+    /// Set static documentation.
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
+        self.docs.set_docs(docs);
+        self
+    }
+
+    /// Get the given variant mutably.
+    pub fn variant_mut(&mut self, index: usize) -> Result<VariantMut<'_, T>, ContextError> {
+        let Some(variant) = self.enum_.variants.get_mut(index) else {
+            return Err(ContextError::MissingVariant {
+                index,
+                type_info: T::type_info(),
+            });
+        };
+
+        Ok(VariantMut {
+            index,
+            docs: &mut variant.docs,
+            fields: &mut variant.fields,
+            constructor: &mut variant.constructor,
+            _marker: PhantomData,
+        })
+    }
+}
+
+/// Handle to a a type inserted into a module which allows for mutation of its
+/// metadata.
+///
+/// This is returned by the following methods:
+/// * [`Module::ty`] - after a type has been inserted.
+/// * [`Module::type_meta`] - to modify type metadata for an already inserted
+///   type.
+pub struct TypeMut<'a, T>
+where
+    T: TypeOf,
+{
+    docs: &'a mut Docs,
+    spec: &'a mut Option<TypeSpecification>,
+    item: &'a Item,
+    _marker: PhantomData<&'a mut T>,
+}
+
+impl<'a, T> TypeMut<'a, T>
+where
+    T: TypeOf,
+{
+    /// Set documentation for an inserted type.
+    ///
+    /// This completely replaces any existing documentation.
+    pub fn docs<I>(self, docs: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        self.docs.set_docs(docs);
+        self
+    }
+
+    /// Set static documentation.
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
+        self.docs.set_docs(docs);
+        self
+    }
+
+    /// Mark the current type as a struct with named fields.
+    pub fn make_named_struct(self, fields: &'static [&'static str]) -> Result<Self, ContextError> {
+        self.make_struct(Fields::Named(fields))
+    }
+
+    /// Mark the current type as a struct with unnamed fields.
+    pub fn make_unnamed_struct(self, fields: usize) -> Result<Self, ContextError> {
+        self.make_struct(Fields::Unnamed(fields))
+    }
+
+    /// Mark the current type as an empty struct.
+    pub fn make_empty_struct(self) -> Result<Self, ContextError> {
+        self.make_struct(Fields::Empty)
+    }
+
+    /// Mark the current type as an enum.
+    pub fn make_enum(
+        self,
+        variants: &'static [&'static str],
+    ) -> Result<EnumMut<'a, T>, ContextError> {
+        let old = self.spec.replace(TypeSpecification::Enum(Enum {
+            variants: variants.iter().copied().map(Variant::new).collect(),
+        }));
+
+        if old.is_some() {
+            return Err(ContextError::ConflictingTypeMeta {
+                item: self.item.to_owned(),
+                type_info: T::type_info(),
+            });
+        }
+
+        let Some(TypeSpecification::Enum(enum_)) = self.spec.as_mut() else {
+            panic!("Not an enum");
+        };
+
+        Ok(EnumMut {
+            docs: self.docs,
+            enum_,
+            _marker: PhantomData,
+        })
+    }
+
+    fn make_struct(self, fields: Fields) -> Result<Self, ContextError> {
+        let old = self.spec.replace(TypeSpecification::Struct(fields));
+
+        if old.is_some() {
+            return Err(ContextError::ConflictingTypeMeta {
+                item: self.item.to_owned(),
+                type_info: T::type_info(),
+            });
+        }
+
+        Ok(self)
+    }
+}
+
+impl<T> fmt::Debug for TypeMut<'_, T>
+where
+    T: TypeOf,
+{
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TypeMut").finish_non_exhaustive()
     }
 }

@@ -11,7 +11,7 @@ pub async fn main() {
     let body = json::to_bytes(#{ "hello": "world" })?;
 
     let client = http::Client::new();
-    let response = client.post("https://postman-echo.com/post").await?.body_bytes(body).await?.send().await?;
+    let response = client.post("https://postman-echo.com/post").body_bytes(body).send().await?;
 
     let response = response.json().await?;
 

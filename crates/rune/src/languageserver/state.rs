@@ -868,27 +868,27 @@ impl CompileVisitor for Visitor {
 
         let kind = match &meta.kind {
             meta::Kind::Struct {
-                fields: meta::Fields::Unit,
+                fields: meta::Fields::Empty,
                 ..
             } => DefinitionKind::UnitStruct,
             meta::Kind::Struct {
-                fields: meta::Fields::Tuple(..),
+                fields: meta::Fields::Unnamed(..),
                 ..
             } => DefinitionKind::TupleStruct,
             meta::Kind::Struct {
-                fields: meta::Fields::Struct(..),
+                fields: meta::Fields::Named(..),
                 ..
             } => DefinitionKind::Struct,
             meta::Kind::Variant {
-                fields: meta::Fields::Unit,
+                fields: meta::Fields::Empty,
                 ..
             } => DefinitionKind::UnitVariant,
             meta::Kind::Variant {
-                fields: meta::Fields::Tuple(..),
+                fields: meta::Fields::Unnamed(..),
                 ..
             } => DefinitionKind::TupleVariant,
             meta::Kind::Variant {
-                fields: meta::Fields::Struct(..),
+                fields: meta::Fields::Named(..),
                 ..
             } => DefinitionKind::StructVariant,
             meta::Kind::Enum { .. } => DefinitionKind::Enum,

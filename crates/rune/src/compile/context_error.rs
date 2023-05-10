@@ -55,6 +55,8 @@ pub enum ContextError {
     },
     #[error("Type `{item}` at `{type_info}` already has a specification")]
     ConflictingTypeMeta { item: ItemBuf, type_info: TypeInfo },
+    #[error("Variant `{index}` for `{type_info}` already has a specification")]
+    ConflictingVariantMeta { index: usize, type_info: TypeInfo },
     #[error(
         "Conflicting meta hash `{hash}` for existing `{existing}` when inserting item `{item}`"
     )]
@@ -78,7 +80,7 @@ pub enum ContextError {
     #[error("Container `{container}` is not registered")]
     MissingContainer { container: TypeInfo },
     #[error("Missing variant {index} for `{type_info}`")]
-    MissingVariant { type_info: TypeInfo, index: usize },
+    MissingVariant { index: usize, type_info: TypeInfo },
     #[error("Expected associated function")]
     ExpectedAssociated,
     #[error("Type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`. A possibility is that it has the wrong #[rune(item = ..)] setting.")]

@@ -9,8 +9,8 @@ use crate::compile::{
     ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
 };
 use crate::module::{
-    AssociatedKind, Function, InternalEnum, Module, ModuleAssociated, ModuleConstant,
-    ModuleFunction, ModuleMacro, ModuleType, TypeSpecification, UnitType, VariantKind,
+    AssociatedKind, Fields, Function, InternalEnum, Module, ModuleAssociated, ModuleConstant,
+    ModuleFunction, ModuleMacro, ModuleType, TypeSpecification, UnitType,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -252,7 +252,7 @@ impl Context {
         }
 
         for internal_enum in &module.internal_enums {
-            self.install_internal_enum(module, internal_enum, Docs::default())?;
+            self.install_internal_enum(module, internal_enum)?;
         }
 
         for assoc in &module.associated {
@@ -427,30 +427,35 @@ impl Context {
 
         let kind = if let Some(spec) = &ty.spec {
             match spec {
-                TypeSpecification::Struct(st) => meta::Kind::Struct {
-                    fields: meta::Fields::Struct(meta::Struct {
-                        fields: st.fields.clone(),
-                    }),
+                TypeSpecification::Struct(fields) => meta::Kind::Struct {
+                    fields: match fields {
+                        Fields::Named(fields) => meta::Fields::Named(meta::FieldsNamed {
+                            fields: fields.iter().copied().map(Box::<str>::from).collect(),
+                        }),
+                        Fields::Unnamed(args) => meta::Fields::Unnamed(*args),
+                        Fields::Empty => meta::Fields::Empty,
+                    },
                     constructor: None,
                 },
                 TypeSpecification::Enum(en) => {
-                    for (index, (name, variant)) in en.variants.iter().enumerate() {
-                        let item = item.extended(name);
+                    for (index, variant) in en.variants.iter().enumerate() {
+                        let item = item.extended(variant.name);
                         let hash = Hash::type_hash(&item);
                         let constructor = variant.constructor.as_ref();
 
-                        let (fields, args) = match &variant.kind {
-                            VariantKind::Tuple(t) => (
-                                meta::Fields::Tuple(meta::Tuple { args: t.args, hash }),
-                                Some(t.args),
-                            ),
-                            VariantKind::Struct(st) => (
-                                meta::Fields::Struct(meta::Struct {
-                                    fields: st.fields.clone(),
+                        let Some(fields) = &variant.fields else {
+                            continue;
+                        };
+
+                        let (fields, args) = match fields {
+                            Fields::Named(names) => (
+                                meta::Fields::Named(meta::FieldsNamed {
+                                    fields: names.iter().copied().map(Box::<str>::from).collect(),
                                 }),
                                 None,
                             ),
-                            VariantKind::Unit => (meta::Fields::Unit, Some(0)),
+                            Fields::Unnamed(args) => (meta::Fields::Unnamed(*args), Some(*args)),
+                            Fields::Empty => (meta::Fields::Empty, Some(0)),
                         };
 
                         self.install_type_info(ContextType {
@@ -493,7 +498,7 @@ impl Context {
                             Some(ty.hash),
                             Some(item),
                             kind,
-                            Docs::default(),
+                            variant.docs.clone(),
                         ))?;
                     }
 
@@ -773,7 +778,6 @@ impl Context {
         &mut self,
         module: &Module,
         internal_enum: &InternalEnum,
-        docs: Docs,
     ) -> Result<(), ContextError> {
         if !self.internal_enums.insert(internal_enum.static_type) {
             return Err(ContextError::InternalAlreadyPresent {
@@ -790,7 +794,7 @@ impl Context {
             None,
             Some(item.clone()),
             meta::Kind::Enum,
-            docs,
+            internal_enum.docs.clone(),
         ))?;
 
         self.install_type_info(ContextType {
@@ -831,13 +835,10 @@ impl Context {
                 meta::Kind::Variant {
                     enum_hash,
                     index,
-                    fields: meta::Fields::Tuple(meta::Tuple {
-                        args: variant.args,
-                        hash,
-                    }),
+                    fields: meta::Fields::Unnamed(variant.args),
                     constructor: Some(signature),
                 },
-                Docs::default(),
+                variant.docs.clone(),
             ))?;
         }
 
@@ -877,8 +878,6 @@ impl Context {
         let type_hash = <C::Return as TypeOf>::type_hash();
         let hash = Hash::type_hash(&item);
 
-        let tuple = meta::Tuple { args, hash };
-
         let signature = meta::Signature {
             item: item.clone(),
             is_async: false,
@@ -899,14 +898,14 @@ impl Context {
                 meta::Kind::Variant {
                     enum_hash,
                     index,
-                    fields: meta::Fields::Tuple(tuple),
+                    fields: meta::Fields::Unnamed(args),
                     constructor: Some(signature),
                 },
             ),
             None => (
                 None,
                 meta::Kind::Struct {
-                    fields: meta::Fields::Tuple(tuple),
+                    fields: meta::Fields::Unnamed(args),
                     constructor: Some(signature),
                 },
             ),

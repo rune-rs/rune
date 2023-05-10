@@ -61,7 +61,7 @@ impl Default for ParseKind {
 
 /// Parsed field attributes.
 #[derive(Default)]
-pub(crate) struct TypeAttrs {
+pub(crate) struct TypeAttr {
     /// `#[rune(name = TypeName)]` to override the default type name.
     pub(crate) name: Option<syn::Ident>,
     /// `#[rune(module = <path>)]`.
@@ -72,6 +72,8 @@ pub(crate) struct TypeAttrs {
     pub(crate) parse: ParseKind,
     /// `#[rune(item = <path>)]`.
     pub(crate) item: Option<syn::Path>,
+    /// Parsed documentation.
+    pub(crate) docs: Vec<syn::Expr>,
 }
 
 /// Parsed variant attributes.
@@ -79,6 +81,8 @@ pub(crate) struct TypeAttrs {
 pub(crate) struct VariantAttrs {
     /// `#[rune(constructor)]`.
     pub(crate) constructor: bool,
+    /// Discovered documentation.
+    pub(crate) docs: Vec<syn::Expr>,
 }
 
 #[derive(Clone, Copy)]
@@ -387,62 +391,71 @@ impl Context {
     }
 
     /// Parse field attributes.
-    pub(crate) fn type_attrs(&self, input: &[syn::Attribute]) -> Result<TypeAttrs, ()> {
+    pub(crate) fn type_attrs(&self, input: &[syn::Attribute]) -> Result<TypeAttr, ()> {
         let mut error = false;
-        let mut attr = TypeAttrs::default();
+        let mut attr = TypeAttr::default();
 
         for a in input {
-            if a.path() != RUNE {
+            if a.path().is_ident("doc") {
+                if let syn::Meta::NameValue(meta) = &a.meta {
+                    attr.docs.push(meta.value.clone());
+                }
+
                 continue;
             }
 
-            let result = a.parse_nested_meta(|meta| {
-                if meta.path == PARSE {
-                    // Parse `#[rune(parse = "..")]`
-                    meta.input.parse::<Token![=]>()?;
-                    let s: syn::LitStr = meta.input.parse()?;
+            if a.path() == RUNE {
+                let result = a.parse_nested_meta(|meta| {
+                    if meta.path == PARSE {
+                        // Parse `#[rune(parse = "..")]`
+                        meta.input.parse::<Token![=]>()?;
+                        let s: syn::LitStr = meta.input.parse()?;
 
-                    match s.value().as_str() {
-                        "meta_only" => {
-                            attr.parse = ParseKind::MetaOnly;
-                        }
-                        other => {
-                            return Err(syn::Error::new(
-                                meta.input.span(),
-                                format!("Unsupported `#[rune(parse = ..)]` argument `{}`", other),
-                            ));
-                        }
-                    };
-                } else if meta.path == ITEM {
-                    // Parse `#[rune(item = "..")]`
-                    meta.input.parse::<Token![=]>()?;
-                    attr.item = Some(meta.input.parse()?);
-                } else if meta.path == NAME {
-                    // Parse `#[rune(name = "..")]`
-                    meta.input.parse::<Token![=]>()?;
-                    attr.name = Some(meta.input.parse()?);
-                } else if meta.path == MODULE {
-                    // Parse `#[rune(module = <path>)]`
-                    meta.input.parse::<Token![=]>()?;
-                    attr.module = Some(syn::Path::parse_mod_style(meta.input)?);
-                } else if meta.path == INSTALL_WITH {
-                    // Parse `#[rune(install_with = <path>)]`
-                    meta.input.parse::<Token![=]>()?;
-                    attr.install_with = Some(syn::Path::parse_mod_style(meta.input)?);
-                } else {
-                    return Err(syn::Error::new_spanned(
-                        &meta.path,
-                        "Unsupported type attribute",
-                    ));
-                }
+                        match s.value().as_str() {
+                            "meta_only" => {
+                                attr.parse = ParseKind::MetaOnly;
+                            }
+                            other => {
+                                return Err(syn::Error::new(
+                                    meta.input.span(),
+                                    format!(
+                                        "Unsupported `#[rune(parse = ..)]` argument `{}`",
+                                        other
+                                    ),
+                                ));
+                            }
+                        };
+                    } else if meta.path == ITEM {
+                        // Parse `#[rune(item = "..")]`
+                        meta.input.parse::<Token![=]>()?;
+                        attr.item = Some(meta.input.parse()?);
+                    } else if meta.path == NAME {
+                        // Parse `#[rune(name = "..")]`
+                        meta.input.parse::<Token![=]>()?;
+                        attr.name = Some(meta.input.parse()?);
+                    } else if meta.path == MODULE {
+                        // Parse `#[rune(module = <path>)]`
+                        meta.input.parse::<Token![=]>()?;
+                        attr.module = Some(syn::Path::parse_mod_style(meta.input)?);
+                    } else if meta.path == INSTALL_WITH {
+                        // Parse `#[rune(install_with = <path>)]`
+                        meta.input.parse::<Token![=]>()?;
+                        attr.install_with = Some(syn::Path::parse_mod_style(meta.input)?);
+                    } else {
+                        return Err(syn::Error::new_spanned(
+                            &meta.path,
+                            "Unsupported type attribute",
+                        ));
+                    }
 
-                Ok(())
-            });
+                    Ok(())
+                });
 
-            if let Err(e) = result {
-                error = true;
-                self.error(e);
-            };
+                if let Err(e) = result {
+                    error = true;
+                    self.error(e);
+                };
+            }
         }
 
         if error {
@@ -453,36 +466,42 @@ impl Context {
     }
 
     /// Parse and extract variant attributes.
-    pub(crate) fn variant_attrs(&self, input: &[syn::Attribute]) -> Result<VariantAttrs, ()> {
+    pub(crate) fn variant_attr(&self, input: &[syn::Attribute]) -> Result<VariantAttrs, ()> {
         let mut attr = VariantAttrs::default();
         let mut error = false;
 
         for a in input {
-            if a.path() != RUNE {
+            if a.path().is_ident("doc") {
+                if let syn::Meta::NameValue(meta) = &a.meta {
+                    attr.docs.push(meta.value.clone());
+                }
+
                 continue;
             }
 
-            let result = a.parse_nested_meta(|meta| {
-                if meta.path == CONSTRUCTOR {
-                    if attr.constructor {
-                        return Err(syn::Error::new_spanned(
-                            &meta.path,
-                            "#[rune(constructor)] must only be used once",
-                        ));
+            if a.path() == RUNE {
+                let result = a.parse_nested_meta(|meta| {
+                    if meta.path == CONSTRUCTOR {
+                        if attr.constructor {
+                            return Err(syn::Error::new_spanned(
+                                &meta.path,
+                                "#[rune(constructor)] must only be used once",
+                            ));
+                        }
+
+                        attr.constructor = true;
+                    } else {
+                        return Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"));
                     }
 
-                    attr.constructor = true;
-                } else {
-                    return Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"));
-                }
+                    Ok(())
+                });
 
-                Ok(())
-            });
-
-            if let Err(e) = result {
-                error = true;
-                self.error(e);
-            };
+                if let Err(e) = result {
+                    error = true;
+                    self.error(e);
+                };
+            }
         }
 
         if error {
@@ -652,7 +671,6 @@ impl Context {
             install_with: path(m, ["__private", "InstallWith"]),
             macro_context: path(m, ["macros", "MacroContext"]),
             maybe_type_of: path(m, ["runtime", "MaybeTypeOf"]),
-            module_variant: path(m, ["module", "Variant"]),
             module: path(m, ["__private", "Module"]),
             named: path(m, ["compile", "Named"]),
             object: path(m, ["runtime", "Object"]),
@@ -711,7 +729,6 @@ pub(crate) struct Tokens {
     pub(crate) install_with: syn::Path,
     pub(crate) macro_context: syn::Path,
     pub(crate) maybe_type_of: syn::Path,
-    pub(crate) module_variant: syn::Path,
     pub(crate) module: syn::Path,
     pub(crate) named: syn::Path,
     pub(crate) object: syn::Path,

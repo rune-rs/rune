@@ -353,7 +353,6 @@ mod compiler_warnings;
 mod core_macros;
 mod custom_macros;
 mod destructuring;
-mod external_enum;
 mod external_ops;
 mod for_loop;
 mod generic_native;

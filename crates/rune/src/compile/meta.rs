@@ -130,12 +130,12 @@ impl Meta {
 /// The kind of a variant.
 #[derive(Debug, Clone)]
 pub enum Fields {
-    /// A tuple variant.
-    Tuple(Tuple),
-    /// A struct variant.
-    Struct(Struct),
-    /// A unit variant.
-    Unit,
+    /// Named fields.
+    Named(FieldsNamed),
+    /// Unnamed fields.
+    Unnamed(usize),
+    /// Empty.
+    Empty,
 }
 
 /// Compile-time metadata kind about a unit.
@@ -247,22 +247,12 @@ pub struct Import {
     pub(crate) module: ModId,
 }
 
-/// The metadata about a struct.
+/// Metadata about named fields.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct Struct {
+pub struct FieldsNamed {
     /// Fields associated with the type.
     pub(crate) fields: HashSet<Box<str>>,
-}
-
-/// The metadata about a tuple.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct Tuple {
-    /// The number of arguments the variant takes.
-    pub(crate) args: usize,
-    /// Hash of the constructor function.
-    pub(crate) hash: Hash,
 }
 
 /// Item and the module that the item belongs to.

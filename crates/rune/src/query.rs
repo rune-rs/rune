@@ -1709,11 +1709,11 @@ fn unit_body_meta(item: &Item, enum_item: Option<(Hash, usize)>) -> (Hash, meta:
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            fields: meta::Fields::Unit,
+            fields: meta::Fields::Empty,
             constructor: None,
         },
         None => meta::Kind::Struct {
-            fields: meta::Fields::Unit,
+            fields: meta::Fields::Empty,
             constructor: None,
         },
     };
@@ -1729,20 +1729,15 @@ fn tuple_body_meta(
 ) -> (Hash, meta::Kind) {
     let type_hash = Hash::type_hash(item);
 
-    let tuple = meta::Tuple {
-        args: tuple.len(),
-        hash: Hash::type_hash(item),
-    };
-
     let kind = match enum_ {
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            fields: meta::Fields::Tuple(tuple),
+            fields: meta::Fields::Unnamed(tuple.len()),
             constructor: None,
         },
         None => meta::Kind::Struct {
-            fields: meta::Fields::Tuple(tuple),
+            fields: meta::Fields::Unnamed(tuple.len()),
             constructor: None,
         },
     };
@@ -1766,17 +1761,17 @@ fn struct_body_meta(
         fields.insert(name.into());
     }
 
-    let st = meta::Struct { fields };
+    let st = meta::FieldsNamed { fields };
 
     let kind = match enum_ {
         Some((enum_hash, index)) => meta::Kind::Variant {
             enum_hash,
             index,
-            fields: meta::Fields::Struct(st),
+            fields: meta::Fields::Named(st),
             constructor: None,
         },
         None => meta::Kind::Struct {
-            fields: meta::Fields::Struct(st),
+            fields: meta::Fields::Named(st),
             constructor: None,
         },
     };

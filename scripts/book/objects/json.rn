@@ -2,7 +2,7 @@ async fn get_commits(repo, limit) {
     let limit = limit.unwrap_or(10);
 
     let client = http::Client::new();
-    let request = client.get(`https://api.github.com/repos/${repo}/commits`).await?;
+    let request = client.get(`https://api.github.com/repos/${repo}/commits`);
     let response = request.header("User-Agent", "Rune").send().await?;
     let text = response.text().await?;
     let json = json::from_string(text)?;
