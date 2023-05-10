@@ -2,18 +2,43 @@
 //!
 //! [Rune Language]: https://rune-rs.github.io
 
+use crate::no_std::vec::Vec;
+
 use crate as rune;
 use crate::ast;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::{ContextError, Module, T};
+use crate::runtime::Function;
+use crate::{Any, ContextError, Module, T};
+
+/// A helper type to capture benchmarks.
+#[derive(Default, Any)]
+#[rune(module = crate, item = ::std::test)]
+pub struct Bencher {
+    fns: Vec<Function>,
+}
+
+impl Bencher {
+    /// Coerce bencher into its underlying functions.
+    pub fn into_functions(self) -> Vec<Function> {
+        self.fns
+    }
+
+    /// Run a benchmark using the given closure.
+    #[rune::function]
+    fn iter(&mut self, f: Function) {
+        self.fns.push(f);
+    }
+}
 
 /// Construct the `std::test` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["test"]).with_unique("std::test");
     module.macro_meta(assert)?;
     module.macro_meta(assert_eq)?;
+    module.ty::<Bencher>()?;
+    module.function_meta(Bencher::iter)?;
     Ok(module)
 }
 
