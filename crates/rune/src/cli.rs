@@ -534,8 +534,8 @@ struct SharedFlags {
     #[arg(long)]
     experimental: bool,
 
-    /// Recursively load all files in the given directory.
-    #[arg(long)]
+    /// Recursively load all files if a specified build `<path>` is a directory.
+    #[arg(long, short = 'R')]
     recursive: bool,
 
     /// Display warnings.
@@ -587,8 +587,13 @@ struct SharedFlags {
     #[arg(long = "bench")]
     bench: Option<String>,
 
-    /// All paths to include in the command. By default, the tool searches the
-    /// current directory and some known files for candidates.
+    /// Build paths to include in the command.
+    ///
+    /// By default, the tool searches for:
+    /// * A `Rune.toml` file in a parent directory, in which case this treated
+    ///   as a workspace.
+    /// * In order: `main.rn`, `lib.rn`, `src/main.rn`, `src/lib.rn`,
+    ///   `script/main.rn`, and `script/lib.rn`.
     #[arg(name = "paths")]
     paths: Vec<PathBuf>,
 }
@@ -625,23 +630,20 @@ where
     Ok(())
 }
 
-fn find_manifest() -> Result<(PathBuf, PathBuf)> {
+fn find_manifest() -> Option<(PathBuf, PathBuf)> {
     let mut path = PathBuf::new();
 
     loop {
         let manifest_path = path.join(workspace::MANIFEST_FILE);
 
         if manifest_path.is_file() {
-            return Ok((path, manifest_path));
+            return Some((path, manifest_path));
         }
 
         path.push("..");
 
         if !path.is_dir() {
-            bail!(
-                "coult not find {} in this or parent directories",
-                workspace::MANIFEST_FILE
-            )
+            return None;
         }
     }
 }
@@ -658,16 +660,23 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: &Command) -> Result<()>
         return Ok(());
     }
 
-    for file in SPECIAL_FILES {
-        let path = Path::new(file);
+    let Some((manifest_root, manifest_path)) = find_manifest() else {
+        for file in SPECIAL_FILES {
+            let path = Path::new(file);
 
-        if path.is_file() {
-            c.found_paths.push(path.into());
-            return Ok(());
+            if path.is_file() {
+                c.found_paths.push(path.into());
+                return Ok(());
+            }
         }
-    }
 
-    let (manifest_root, manifest_path) = find_manifest()?;
+        let special = SPECIAL_FILES.join(", ");
+
+        bail!(
+            "Could not find `{}` in this or parent directories nor any of the special files: {special}",
+            workspace::MANIFEST_FILE
+        )
+    };
 
     // When building or running a workspace we need to be more verbose so that
     // users understand what exactly happens.
