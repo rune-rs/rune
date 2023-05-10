@@ -1,57 +1,90 @@
+#[cfg(feature = "doc")]
 use crate::no_std::prelude::*;
 
 /// The documentation for a function.
-#[derive(Debug, Clone, Default)]
-pub struct Docs {
+///
+/// If the `doc` feature is disabled, this is a zero-sized type.
+#[derive(Debug, Clone)]
+pub(crate) struct Docs {
     /// Lines of documentation.
-    docs: Box<[String]>,
+    #[cfg(feature = "doc")]
+    docs: Vec<String>,
     /// Names of arguments.
-    arguments: Option<Box<[String]>>,
+    #[cfg(feature = "doc")]
+    arguments: Option<Vec<String>>,
 }
 
 impl Docs {
+    pub(crate) const EMPTY: Docs = Docs {
+        #[cfg(feature = "doc")]
+        docs: Vec::new(),
+        #[cfg(feature = "doc")]
+        arguments: None,
+    };
+
     /// Get arguments associated with documentation.
-    pub fn args(&self) -> Option<&[String]> {
-        self.arguments.as_ref().map(AsRef::as_ref)
+    #[cfg(feature = "doc")]
+    pub(crate) fn args(&self) -> Option<&[String]> {
+        self.arguments.as_deref()
     }
 
     /// Get lines of documentation.
-    pub fn lines(&self) -> &[String] {
+    #[cfg(feature = "doc")]
+    pub(crate) fn lines(&self) -> &[String] {
         &self.docs
     }
 
-    /// Test if documentation is empty.
-    pub fn is_empty(&self) -> bool {
-        self.docs.is_empty()
-    }
-
     /// Update documentation.
+    #[cfg(feature = "doc")]
     pub(crate) fn set_docs<S>(&mut self, docs: S)
     where
         S: IntoIterator,
         S::Item: AsRef<str>,
     {
-        let mut out = Vec::new();
+        self.docs.clear();
 
         for line in docs {
-            out.push(line.as_ref().to_owned());
+            self.docs.push(line.as_ref().to_owned());
         }
+    }
 
-        self.docs = out.into();
+    #[cfg(not(feature = "doc"))]
+    pub(crate) fn set_docs<S>(&mut self, _: S)
+    where
+        S: IntoIterator,
+        S::Item: AsRef<str>,
+    {
     }
 
     /// Update arguments.
+    #[cfg(feature = "doc")]
     pub(crate) fn set_arguments<S>(&mut self, arguments: S)
     where
         S: IntoIterator,
         S::Item: AsRef<str>,
     {
-        let mut out = Vec::new();
+        let mut out = self.arguments.take().unwrap_or_default();
+        out.clear();
 
         for argument in arguments {
             out.push(argument.as_ref().to_owned());
         }
 
-        self.arguments = Some(out.into());
+        self.arguments = Some(out);
+    }
+
+    #[cfg(not(feature = "doc"))]
+    pub(crate) fn set_arguments<S>(&mut self, _: S)
+    where
+        S: IntoIterator,
+        S::Item: AsRef<str>,
+    {
+    }
+}
+
+impl Default for Docs {
+    #[inline]
+    fn default() -> Self {
+        Self::EMPTY
     }
 }

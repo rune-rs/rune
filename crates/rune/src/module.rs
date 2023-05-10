@@ -40,6 +40,9 @@ pub trait InstallWith {
 pub(crate) struct UnitType {
     /// Item of the unit type.
     pub(crate) name: Box<str>,
+    /// Documentation on the unit type.
+    #[cfg(feature = "doc")]
+    pub(crate) docs: Docs,
 }
 
 /// Specialized information on `GeneratorState` types.
@@ -53,6 +56,7 @@ pub(crate) struct InternalEnum {
     /// Internal variants.
     pub(crate) variants: Vec<InternalVariant>,
     /// Documentation for internal enum.
+    #[cfg(feature = "doc")]
     pub(crate) docs: Docs,
 }
 
@@ -68,7 +72,8 @@ impl InternalEnum {
             base_type: ItemBuf::with_item(base_type),
             static_type,
             variants: Vec::new(),
-            docs: Docs::default(),
+            #[cfg(feature = "doc")]
+            docs: Docs::EMPTY,
         }
     }
 
@@ -90,7 +95,7 @@ impl InternalEnum {
             type_check,
             args: C::args(),
             constructor,
-            docs: Docs::default(),
+            docs: Docs::EMPTY,
         });
 
         let v = self.variants.last_mut().unwrap();
@@ -159,7 +164,7 @@ impl Variant {
             name,
             fields: None,
             constructor: None,
-            docs: Docs::default(),
+            docs: Docs::EMPTY,
         }
     }
 }
@@ -202,11 +207,14 @@ pub(crate) struct AssociatedKey {
 pub(crate) struct ModuleFunction {
     pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
+    #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
+    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
+    #[cfg(feature = "doc")]
     pub(crate) return_type: Option<FullTypeOf>,
+    #[cfg(feature = "doc")]
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
-    #[cfg_attr(not(feature = "doc"), allow(unused))]
     pub(crate) associated_container: Option<Hash>,
     pub(crate) docs: Docs,
 }
@@ -217,9 +225,13 @@ pub(crate) struct ModuleAssociated {
     pub(crate) container_type_info: TypeInfo,
     pub(crate) name: AssociatedFunctionName,
     pub(crate) handler: Arc<FunctionHandler>,
+    #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
+    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
+    #[cfg(feature = "doc")]
     pub(crate) return_type: Option<FullTypeOf>,
+    #[cfg(feature = "doc")]
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
     pub(crate) docs: Docs,
 }

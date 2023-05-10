@@ -291,14 +291,16 @@ impl ItemMeta {
 #[derive(Debug, Clone)]
 pub struct Signature {
     /// An asynchronous function.
+    #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     /// Arguments.
+    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     /// Return type of the function.
-    #[cfg_attr(not(feature = "doc"), allow(unused))]
+    #[cfg(feature = "doc")]
     pub(crate) return_type: Option<Hash>,
     /// Argument types to the function.
-    #[cfg_attr(not(feature = "doc"), allow(unused))]
+    #[cfg(feature = "doc")]
     pub(crate) argument_types: Box<[Option<Hash>]>,
 }
 

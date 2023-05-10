@@ -1072,7 +1072,9 @@ impl<'a> Query<'a> {
                     is_test: f.is_test,
                     is_bench: f.is_bench,
                     signature: meta::Signature {
+                        #[cfg(feature = "doc")]
                         is_async: f.function.ast.async_token.is_some(),
+                        #[cfg(feature = "doc")]
                         args: Some(f.function.ast.args.len()),
                         #[cfg(feature = "doc")]
                         return_type: None,
@@ -1098,7 +1100,9 @@ impl<'a> Query<'a> {
                 let kind = meta::Kind::AssociatedFunction {
                     kind: meta::AssociatedKind::Instance(name),
                     signature: meta::Signature {
+                        #[cfg(feature = "doc")]
                         is_async: f.function.ast.async_token.is_some(),
+                        #[cfg(feature = "doc")]
                         args: Some(f.function.ast.args.len()),
                         #[cfg(feature = "doc")]
                         return_type: None,

@@ -1,3 +1,4 @@
+#[cfg(feature = "doc")]
 use core::future::Future;
 
 use crate::no_std::borrow::Cow;
@@ -48,13 +49,17 @@ pub type MacroMeta = fn() -> MacroMetaData;
 /// Runtime data for a function.
 #[derive(Clone)]
 pub struct FunctionData {
+    #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
+    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
-    pub(crate) return_type: Option<FullTypeOf>,
-    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
     pub(crate) associated_container: Option<Hash>,
+    #[cfg(feature = "doc")]
+    pub(crate) return_type: Option<FullTypeOf>,
+    #[cfg(feature = "doc")]
+    pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
 }
 
 impl FunctionData {
@@ -71,13 +76,17 @@ impl FunctionData {
         A::iter_args(|ty| argument_types.push(ty));
 
         Self {
+            #[cfg(feature = "doc")]
             is_async: false,
             item: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            #[cfg(feature = "doc")]
             args: Some(F::args()),
-            return_type: F::Return::maybe_type_of(),
-            argument_types: argument_types.into(),
             associated_container,
+            #[cfg(feature = "doc")]
+            return_type: F::Return::maybe_type_of(),
+            #[cfg(feature = "doc")]
+            argument_types: argument_types.into(),
         }
     }
 
@@ -94,13 +103,17 @@ impl FunctionData {
         A::iter_args(|ty| argument_types.push(ty));
 
         Self {
+            #[cfg(feature = "doc")]
             is_async: true,
             item: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            #[cfg(feature = "doc")]
             args: Some(F::args()),
-            return_type: F::Output::maybe_type_of(),
-            argument_types: argument_types.into(),
             associated_container,
+            #[cfg(feature = "doc")]
+            return_type: F::Output::maybe_type_of(),
+            #[cfg(feature = "doc")]
+            argument_types: argument_types.into(),
         }
     }
 }
@@ -196,11 +209,15 @@ impl ToFieldFunction for &'static str {
 pub struct AssociatedFunctionData {
     pub(crate) container: FullTypeOf,
     pub(crate) container_type_info: TypeInfo,
+    #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     pub(crate) name: AssociatedFunctionName,
     pub(crate) handler: Arc<FunctionHandler>,
+    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
+    #[cfg(feature = "doc")]
     pub(crate) return_type: Option<FullTypeOf>,
+    #[cfg(feature = "doc")]
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
 }
 
@@ -218,11 +235,15 @@ impl AssociatedFunctionData {
         Self {
             container: F::Inst::type_of(),
             container_type_info: F::Inst::type_info(),
+            #[cfg(feature = "doc")]
             is_async: false,
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            #[cfg(feature = "doc")]
             args: Some(F::args()),
+            #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of(),
+            #[cfg(feature = "doc")]
             argument_types: argument_types.into(),
         }
     }
@@ -240,11 +261,15 @@ impl AssociatedFunctionData {
         Self {
             container: F::Inst::type_of(),
             container_type_info: F::Inst::type_info(),
+            #[cfg(feature = "doc")]
             is_async: true,
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            #[cfg(feature = "doc")]
             args: Some(F::args()),
+            #[cfg(feature = "doc")]
             return_type: <F::Return as Future>::Output::maybe_type_of(),
+            #[cfg(feature = "doc")]
             argument_types: argument_types.into(),
         }
     }

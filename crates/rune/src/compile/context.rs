@@ -5,9 +5,9 @@ use crate::no_std::sync::Arc;
 
 use crate::collections::{BTreeSet, HashMap, HashSet};
 use crate::compile::meta;
-use crate::compile::{
-    ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
-};
+#[cfg(feature = "doc")]
+use crate::compile::Docs;
+use crate::compile::{ComponentRef, ContextError, IntoComponent, Item, ItemBuf, MetaInfo, Names};
 use crate::module::{
     Fields, Function, InternalEnum, Module, ModuleAssociated, ModuleConstant, ModuleFunction,
     ModuleMacro, ModuleType, TypeSpecification, UnitType,
@@ -31,27 +31,11 @@ pub(crate) struct ContextMeta {
     /// The kind of the compile meta.
     pub(crate) kind: meta::Kind,
     /// Documentation associated with a context meta.
-    #[cfg_attr(not(feature = "doc"), allow(unused))]
+    #[cfg(feature = "doc")]
     pub(crate) docs: Docs,
 }
 
 impl ContextMeta {
-    pub(crate) fn new(
-        hash: Hash,
-        associated_container: Option<Hash>,
-        item: Option<ItemBuf>,
-        kind: meta::Kind,
-        docs: Docs,
-    ) -> Self {
-        Self {
-            hash,
-            associated_container,
-            item,
-            kind,
-            docs,
-        }
-    }
-
     pub(crate) fn info(&self) -> MetaInfo {
         MetaInfo::new(&self.kind, self.hash, self.item.as_deref())
     }
@@ -240,7 +224,7 @@ impl Context {
         }
 
         if let Some(unit_type) = &module.unit_type {
-            self.install_unit_type(module, unit_type, Docs::default())?;
+            self.install_unit_type(module, unit_type)?;
         }
 
         for internal_enum in &module.internal_enums {
@@ -406,14 +390,16 @@ impl Context {
 
         let mut current = Some((m.item.as_ref(), Some(&m.docs)));
 
+        #[allow(unused)]
         while let Some((item, docs)) = current.take() {
-            self.install_meta(ContextMeta::new(
-                Hash::type_hash(item),
-                None,
-                Some(item.to_owned()),
-                meta::Kind::Module,
-                docs.cloned().unwrap_or_default(),
-            ))?;
+            self.install_meta(ContextMeta {
+                hash: Hash::type_hash(item),
+                associated_container: None,
+                item: Some(item.to_owned()),
+                kind: meta::Kind::Module,
+                #[cfg(feature = "doc")]
+                docs: docs.cloned().unwrap_or_default(),
+            })?;
 
             current = item.parent().map(|item| (item, None));
         }
@@ -455,17 +441,6 @@ impl Context {
                             continue;
                         };
 
-                        let (fields, args) = match fields {
-                            Fields::Named(names) => (
-                                meta::Fields::Named(meta::FieldsNamed {
-                                    fields: names.iter().copied().map(Box::<str>::from).collect(),
-                                }),
-                                None,
-                            ),
-                            Fields::Unnamed(args) => (meta::Fields::Unnamed(*args), Some(*args)),
-                            Fields::Empty => (meta::Fields::Empty, Some(0)),
-                        };
-
                         self.install_type_info(ContextType {
                             item: item.clone(),
                             hash,
@@ -478,11 +453,19 @@ impl Context {
                             parameters_hash: Hash::EMPTY,
                         })?;
 
-                        let constructor = if let (Some(c), Some(args)) = (constructor, args) {
+                        let constructor = if let Some(c) = constructor {
                             let signature = meta::Signature {
+                                #[cfg(feature = "doc")]
                                 is_async: false,
-                                args: Some(args),
+                                #[cfg(feature = "doc")]
+                                args: Some(match fields {
+                                    Fields::Named(names) => names.len(),
+                                    Fields::Unnamed(args) => *args,
+                                    Fields::Empty => 0,
+                                }),
+                                #[cfg(feature = "doc")]
                                 return_type: Some(ty.hash),
+                                #[cfg(feature = "doc")]
                                 argument_types: Box::from([]),
                             };
 
@@ -492,18 +475,31 @@ impl Context {
                             None
                         };
 
-                        self.install_meta(ContextMeta::new(
+                        self.install_meta(ContextMeta {
                             hash,
-                            Some(ty.hash),
-                            Some(item),
-                            meta::Kind::Variant {
+                            associated_container: Some(ty.hash),
+                            item: Some(item),
+                            kind: meta::Kind::Variant {
                                 enum_hash: ty.hash,
                                 index,
-                                fields,
+                                fields: match fields {
+                                    Fields::Named(names) => {
+                                        meta::Fields::Named(meta::FieldsNamed {
+                                            fields: names
+                                                .iter()
+                                                .copied()
+                                                .map(Box::<str>::from)
+                                                .collect(),
+                                        })
+                                    }
+                                    Fields::Unnamed(args) => meta::Fields::Unnamed(*args),
+                                    Fields::Empty => meta::Fields::Empty,
+                                },
                                 constructor,
                             },
-                            variant.docs.clone(),
-                        ))?;
+                            #[cfg(feature = "doc")]
+                            docs: variant.docs.clone(),
+                        })?;
                     }
 
                     meta::Kind::Enum
@@ -513,13 +509,14 @@ impl Context {
             meta::Kind::Type
         };
 
-        self.install_meta(ContextMeta::new(
-            ty.hash,
-            None,
-            Some(item),
+        self.install_meta(ContextMeta {
+            hash: ty.hash,
+            associated_container: None,
+            item: Some(item),
             kind,
-            ty.docs.clone(),
-        ))?;
+            #[cfg(feature = "doc")]
+            docs: ty.docs.clone(),
+        })?;
 
         Ok(())
     }
@@ -569,9 +566,13 @@ impl Context {
         );
 
         let signature = meta::Signature {
+            #[cfg(feature = "doc")]
             is_async: f.is_async,
+            #[cfg(feature = "doc")]
             args: f.args,
+            #[cfg(feature = "doc")]
             return_type: f.return_type.as_ref().map(|f| f.hash),
+            #[cfg(feature = "doc")]
             argument_types: f
                 .argument_types
                 .iter()
@@ -581,18 +582,19 @@ impl Context {
 
         self.insert_native_fn(hash, &f.handler)?;
 
-        self.install_meta(ContextMeta::new(
+        self.install_meta(ContextMeta {
             hash,
-            f.associated_container,
-            Some(item),
-            meta::Kind::Function {
+            associated_container: f.associated_container,
+            item: Some(item),
+            kind: meta::Kind::Function {
                 is_test: false,
                 is_bench: false,
                 signature,
                 parameters: Hash::EMPTY,
             },
-            f.docs.clone(),
-        ))?;
+            #[cfg(feature = "doc")]
+            docs: f.docs.clone(),
+        })?;
 
         Ok(())
     }
@@ -603,13 +605,14 @@ impl Context {
         let hash = Hash::type_hash(&item);
         self.macros.insert(hash, m.handler.clone());
 
-        self.install_meta(ContextMeta::new(
+        self.install_meta(ContextMeta {
             hash,
-            None,
-            Some(item),
-            meta::Kind::Macro,
-            m.docs.clone(),
-        ))?;
+            associated_container: None,
+            item: Some(item),
+            kind: meta::Kind::Macro,
+            #[cfg(feature = "doc")]
+            docs: m.docs.clone(),
+        })?;
 
         Ok(())
     }
@@ -624,15 +627,16 @@ impl Context {
         let hash = Hash::type_hash(&item);
         self.constants.insert(hash, m.value.clone());
 
-        self.install_meta(ContextMeta::new(
+        self.install_meta(ContextMeta {
             hash,
-            None,
-            Some(item),
-            meta::Kind::Const {
+            associated_container: None,
+            item: Some(item),
+            kind: meta::Kind::Const {
                 const_value: m.value.clone(),
             },
-            m.docs.clone(),
-        ))?;
+            #[cfg(feature = "doc")]
+            docs: m.docs.clone(),
+        })?;
 
         Ok(())
     }
@@ -651,9 +655,13 @@ impl Context {
             .with_parameters(assoc.name.parameters);
 
         let signature = meta::Signature {
+            #[cfg(feature = "doc")]
             is_async: assoc.is_async,
+            #[cfg(feature = "doc")]
             args: assoc.args,
+            #[cfg(feature = "doc")]
             return_type: assoc.return_type.as_ref().map(|f| f.hash),
+            #[cfg(feature = "doc")]
             argument_types: assoc
                 .argument_types
                 .iter()
@@ -663,19 +671,20 @@ impl Context {
 
         self.insert_native_fn(hash, &assoc.handler)?;
 
-        self.install_meta(ContextMeta::new(
+        self.install_meta(ContextMeta {
             hash,
-            Some(assoc.container.hash),
-            None,
-            meta::Kind::AssociatedFunction {
+            associated_container: Some(assoc.container.hash),
+            item: None,
+            kind: meta::Kind::AssociatedFunction {
                 kind: assoc.name.kind.clone(),
                 signature,
                 parameters: assoc.name.parameters,
                 #[cfg(feature = "doc")]
                 parameter_types: assoc.name.parameter_types.clone(),
             },
-            assoc.docs.clone(),
-        ))?;
+            #[cfg(feature = "doc")]
+            docs: assoc.docs.clone(),
+        })?;
 
         // These are currently only usable if parameters hash is empty.
         if info.parameters_hash.is_empty() {
@@ -695,9 +704,13 @@ impl Context {
                 );
 
                 let signature = meta::Signature {
+                    #[cfg(feature = "doc")]
                     is_async: assoc.is_async,
+                    #[cfg(feature = "doc")]
                     args: assoc.args,
+                    #[cfg(feature = "doc")]
                     return_type: assoc.return_type.as_ref().map(|f| f.hash),
+                    #[cfg(feature = "doc")]
                     argument_types: assoc
                         .argument_types
                         .iter()
@@ -707,19 +720,20 @@ impl Context {
 
                 self.insert_native_fn(hash, &assoc.handler)?;
 
-                self.install_meta(ContextMeta::new(
+                self.install_meta(ContextMeta {
                     hash,
-                    Some(assoc.container.hash),
-                    Some(item),
-                    meta::Kind::AssociatedFunction {
+                    associated_container: Some(assoc.container.hash),
+                    item: Some(item),
+                    kind: meta::Kind::AssociatedFunction {
                         kind: assoc.name.kind.clone(),
                         signature,
                         parameters: assoc.name.parameters,
                         #[cfg(feature = "doc")]
                         parameter_types: assoc.name.parameter_types.clone(),
                     },
-                    assoc.docs.clone(),
-                ))?;
+                    #[cfg(feature = "doc")]
+                    docs: assoc.docs.clone(),
+                })?;
             }
         }
 
@@ -731,7 +745,6 @@ impl Context {
         &mut self,
         module: &Module,
         unit_type: &UnitType,
-        docs: Docs,
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*unit_type.name);
 
@@ -743,7 +756,42 @@ impl Context {
             parameters_hash: Hash::EMPTY,
         })?;
 
-        self.add_internal_tuple(None, item, 0, || (), docs)?;
+        let hash = <() as TypeOf>::type_hash();
+
+        let signature = meta::Signature {
+            #[cfg(feature = "doc")]
+            is_async: false,
+            #[cfg(feature = "doc")]
+            args: Some(0),
+            #[cfg(feature = "doc")]
+            return_type: Some(hash),
+            #[cfg(feature = "doc")]
+            argument_types: Box::from([]),
+        };
+
+        let constructor = || ();
+        let handler: Arc<FunctionHandler> =
+            Arc::new(move |stack, args| constructor.fn_call(stack, args));
+
+        self.insert_native_fn(hash, &handler)?;
+
+        self.install_meta(ContextMeta {
+            hash,
+            associated_container: None,
+            item: Some(item.clone()),
+            kind: meta::Kind::Struct {
+                fields: meta::Fields::Unnamed(0),
+                constructor: Some(signature),
+            },
+            #[cfg(feature = "doc")]
+            docs: unit_type.docs.clone(),
+        })?;
+
+        self.constants.insert(
+            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(item.to_string()),
+        );
+
         Ok(())
     }
 
@@ -763,13 +811,14 @@ impl Context {
 
         let enum_hash = internal_enum.static_type.hash;
 
-        self.install_meta(ContextMeta::new(
-            enum_hash,
-            None,
-            Some(item.clone()),
-            meta::Kind::Enum,
-            internal_enum.docs.clone(),
-        ))?;
+        self.install_meta(ContextMeta {
+            hash: enum_hash,
+            associated_container: None,
+            item: Some(item.clone()),
+            kind: meta::Kind::Enum,
+            #[cfg(feature = "doc")]
+            docs: internal_enum.docs.clone(),
+        })?;
 
         self.install_type_info(ContextType {
             item: item.clone(),
@@ -792,26 +841,31 @@ impl Context {
             })?;
 
             let signature = meta::Signature {
+                #[cfg(feature = "doc")]
                 is_async: false,
+                #[cfg(feature = "doc")]
                 args: Some(variant.args),
+                #[cfg(feature = "doc")]
                 return_type: Some(enum_hash),
+                #[cfg(feature = "doc")]
                 argument_types: Box::from([]),
             };
 
             self.insert_native_fn(hash, &variant.constructor)?;
 
-            self.install_meta(ContextMeta::new(
+            self.install_meta(ContextMeta {
                 hash,
-                Some(enum_hash),
-                Some(item.clone()),
-                meta::Kind::Variant {
+                associated_container: Some(enum_hash),
+                item: Some(item.clone()),
+                kind: meta::Kind::Variant {
                     enum_hash,
                     index,
                     fields: meta::Fields::Unnamed(variant.args),
                     constructor: Some(signature),
                 },
-                variant.docs.clone(),
-            ))?;
+                #[cfg(feature = "doc")]
+                docs: variant.docs.clone(),
+            })?;
         }
 
         Ok(())
@@ -827,69 +881,6 @@ impl Context {
         }
 
         self.functions.insert(hash, handler.clone());
-        Ok(())
-    }
-
-    /// Add a piece of internal tuple meta.
-    fn add_internal_tuple<C, A>(
-        &mut self,
-        enum_item: Option<(Hash, usize)>,
-        item: ItemBuf,
-        args: usize,
-        constructor: C,
-        docs: Docs,
-    ) -> Result<(), ContextError>
-    where
-        C: Function<A>,
-        C::Return: TypeOf,
-    {
-        let type_hash = <C::Return as TypeOf>::type_hash();
-        let hash = Hash::type_hash(&item);
-
-        let signature = meta::Signature {
-            is_async: false,
-            args: Some(args),
-            return_type: Some(type_hash),
-            argument_types: Box::from([]),
-        };
-
-        let handler: Arc<FunctionHandler> =
-            Arc::new(move |stack, args| constructor.fn_call(stack, args));
-
-        self.insert_native_fn(hash, &handler)?;
-
-        let (associated_container, kind) = match enum_item {
-            Some((enum_hash, index)) => (
-                Some(enum_hash),
-                meta::Kind::Variant {
-                    enum_hash,
-                    index,
-                    fields: meta::Fields::Unnamed(args),
-                    constructor: Some(signature),
-                },
-            ),
-            None => (
-                None,
-                meta::Kind::Struct {
-                    fields: meta::Fields::Unnamed(args),
-                    constructor: Some(signature),
-                },
-            ),
-        };
-
-        self.install_meta(ContextMeta::new(
-            type_hash,
-            associated_container,
-            Some(item.clone()),
-            kind,
-            docs,
-        ))?;
-
-        self.constants.insert(
-            Hash::instance_function(type_hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(item.to_string()),
-        );
-
         Ok(())
     }
 }

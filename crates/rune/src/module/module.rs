@@ -114,7 +114,7 @@ impl Module {
             unit_type: None,
             internal_enums: Vec::new(),
             constants: Vec::new(),
-            docs: Docs::default(),
+            docs: Docs::EMPTY,
         }
     }
 
@@ -191,7 +191,7 @@ impl Module {
             parameters_hash,
             type_info,
             spec: None,
-            docs: Docs::default(),
+            docs: Docs::EMPTY,
         });
 
         T::install_with(self)?;
@@ -335,6 +335,8 @@ impl Module {
 
         self.unit_type = Some(UnitType {
             name: <Box<str>>::from(name.as_ref()),
+            #[cfg(feature = "doc")]
+            docs: Docs::EMPTY,
         });
 
         Ok(())
@@ -482,7 +484,7 @@ impl Module {
         self.constants.push(ModuleConstant {
             item,
             value,
-            docs: Docs::default(),
+            docs: Docs::EMPTY,
         });
 
         let c = self.constants.last_mut().unwrap();
@@ -542,7 +544,7 @@ impl Module {
                     });
                 }
 
-                let mut docs = Docs::default();
+                let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs);
 
                 self.macros.push(ModuleMacro {
@@ -604,7 +606,7 @@ impl Module {
         self.macros.push(ModuleMacro {
             item,
             handler,
-            docs: Docs::default(),
+            docs: Docs::EMPTY,
         });
 
         let m = self.macros.last_mut().unwrap();
@@ -686,13 +688,13 @@ impl Module {
 
         match meta.kind {
             FunctionMetaKind::Function(data) => {
-                let mut docs = Docs::default();
+                let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs);
                 docs.set_arguments(meta.arguments);
                 self.function_inner(data, docs)
             }
             FunctionMetaKind::AssociatedFunction(data) => {
-                let mut docs = Docs::default();
+                let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs);
                 docs.set_arguments(meta.arguments);
                 self.assoc_fn(data, docs)
@@ -727,7 +729,7 @@ impl Module {
         N::Item: IntoComponent,
         A: IterFunctionArgs,
     {
-        self.function_inner(FunctionData::new(name, f, None), Docs::default())
+        self.function_inner(FunctionData::new(name, f, None), Docs::EMPTY)
     }
 
     /// Register an asynchronous function.
@@ -767,7 +769,7 @@ impl Module {
         N::Item: IntoComponent,
         A: IterFunctionArgs,
     {
-        self.function_inner(FunctionData::new_async(name, f, None), Docs::default())
+        self.function_inner(FunctionData::new_async(name, f, None), Docs::EMPTY)
     }
 
     /// Register an instance function.
@@ -820,7 +822,7 @@ impl Module {
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_instance(), f),
-            Docs::default(),
+            Docs::EMPTY,
         )
     }
 
@@ -873,7 +875,7 @@ impl Module {
     {
         self.assoc_fn(
             AssociatedFunctionData::new_async(name.to_instance(), f),
-            Docs::default(),
+            Docs::EMPTY,
         )
     }
 
@@ -895,7 +897,7 @@ impl Module {
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_field_function(protocol), f),
-            Docs::default(),
+            Docs::EMPTY,
         )
     }
 
@@ -915,7 +917,7 @@ impl Module {
         A: IterFunctionArgs,
     {
         let name = AssociatedFunctionName::index(protocol, index);
-        self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::default())
+        self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::EMPTY)
     }
 
     /// Register a raw function which interacts directly with the virtual
@@ -966,12 +968,16 @@ impl Module {
         self.functions.push(ModuleFunction {
             item,
             handler: Arc::new(move |stack, args| f(stack, args)),
+            #[cfg(feature = "doc")]
             is_async: false,
+            #[cfg(feature = "doc")]
             args: None,
+            #[cfg(feature = "doc")]
             return_type: None,
+            #[cfg(feature = "doc")]
             argument_types: Box::from([]),
             associated_container: None,
-            docs: Docs::default(),
+            docs: Docs::EMPTY,
         });
 
         let last = self.functions.last_mut().unwrap();
@@ -997,9 +1003,13 @@ impl Module {
         self.functions.push(ModuleFunction {
             item: data.item,
             handler: data.handler,
+            #[cfg(feature = "doc")]
             is_async: data.is_async,
+            #[cfg(feature = "doc")]
             args: data.args,
+            #[cfg(feature = "doc")]
             return_type: data.return_type,
+            #[cfg(feature = "doc")]
             argument_types: data.argument_types,
             associated_container: data.associated_container,
             docs,
@@ -1049,9 +1059,13 @@ impl Module {
             container_type_info: data.container_type_info,
             name: data.name,
             handler: data.handler,
+            #[cfg(feature = "doc")]
             is_async: data.is_async,
+            #[cfg(feature = "doc")]
             args: data.args,
+            #[cfg(feature = "doc")]
             return_type: data.return_type,
+            #[cfg(feature = "doc")]
             argument_types: data.argument_types,
             docs,
         });
