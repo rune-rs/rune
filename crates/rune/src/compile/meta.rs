@@ -2,6 +2,7 @@
 
 use core::fmt;
 
+use crate::no_std::borrow::Cow;
 use crate::no_std::path::Path;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
@@ -9,11 +10,10 @@ use crate::no_std::sync::Arc;
 use crate::ast::{LitStr, Span};
 use crate::collections::HashSet;
 use crate::compile::attrs::Attributes;
-use crate::compile::{self, Item, ItemBuf, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
+use crate::compile::{self, Item, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::hash::Hash;
-use crate::module::AssociatedKind;
 use crate::parse::{Id, ResolveContext};
-use crate::runtime::{ConstValue, TypeInfo};
+use crate::runtime::{ConstValue, Protocol};
 
 /// A meta reference to an item being compiled.
 #[derive(Debug, Clone)]
@@ -115,6 +115,7 @@ impl Meta {
             Kind::Struct { .. } => Some(self.hash),
             Kind::Enum { .. } => Some(self.hash),
             Kind::Function { .. } => Some(self.hash),
+            Kind::AssociatedFunction { .. } => Some(self.hash),
             Kind::Closure { .. } => Some(self.hash),
             Kind::AsyncBlock { .. } => Some(self.hash),
             Kind::Variant { .. } => None,
@@ -169,20 +170,26 @@ pub enum Kind {
     Macro,
     /// A function declaration.
     Function {
-        /// If the function is asynchronous.
-        is_async: bool,
-        /// The number of arguments the function takes.
-        args: Option<usize>,
+        /// Native signature for this function.
+        signature: Signature,
         /// Whether this function has a `#[test]` annotation
         is_test: bool,
         /// Whether this function has a `#[bench]` annotation.
         is_bench: bool,
-        /// Indicates that the function is an instance function.
-        instance_function: bool,
-        /// Native signature for this function.
-        signature: Option<Signature>,
         /// Hash of generic parameters.
         parameters: Hash,
+    },
+    /// An associated function.
+    AssociatedFunction {
+        /// The name of the instance function.
+        kind: AssociatedKind,
+        /// Native signature for this function.
+        signature: Signature,
+        /// Parameters hash.
+        parameters: Hash,
+        /// Parameter types.
+        #[cfg(feature = "doc")]
+        parameter_types: Vec<Hash>,
     },
     /// A closure.
     Closure {
@@ -221,7 +228,8 @@ impl Kind {
         match self {
             Kind::Struct { constructor, .. } => constructor.as_ref(),
             Kind::Variant { constructor, .. } => constructor.as_ref(),
-            Kind::Function { signature, .. } => signature.as_ref(),
+            Kind::Function { signature, .. } => Some(signature),
+            Kind::AssociatedFunction { signature, .. } => Some(signature),
             _ => None,
         }
     }
@@ -230,6 +238,7 @@ impl Kind {
     pub(crate) fn as_parameters(&self) -> Hash {
         match self {
             Kind::Function { parameters, .. } => *parameters,
+            Kind::AssociatedFunction { parameters, .. } => *parameters,
             _ => Hash::EMPTY,
         }
     }
@@ -281,8 +290,6 @@ impl ItemMeta {
 /// A description of a function signature.
 #[derive(Debug, Clone)]
 pub struct Signature {
-    /// Path to the function.
-    pub(crate) item: ItemBuf,
     /// An asynchronous function.
     pub(crate) is_async: bool,
     /// Arguments.
@@ -293,73 +300,49 @@ pub struct Signature {
     /// Argument types to the function.
     #[cfg_attr(not(feature = "doc"), allow(unused))]
     pub(crate) argument_types: Box<[Option<Hash>]>,
-    /// The kind of a signature.
-    pub(crate) kind: SignatureKind,
 }
 
-/// A description of a function signature.
-#[derive(Debug, Clone)]
+/// The kind of an associated function.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub(crate) enum SignatureKind {
-    /// An unbound or static function
-    Function,
-    /// An instance function or method
-    Instance {
-        /// Name of the instance function.
-        name: AssociatedKind,
-        /// Information on the self type.
-        self_type_info: TypeInfo,
-    },
+pub enum AssociatedKind {
+    /// A protocol function implemented on the type itself.
+    Protocol(Protocol),
+    /// A field function with the given protocol.
+    FieldFn(Protocol, Cow<'static, str>),
+    /// An index function with the given protocol.
+    IndexFn(Protocol, usize),
+    /// The instance function refers to the given named instance fn.
+    Instance(Cow<'static, str>),
 }
 
-impl fmt::Display for Signature {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_async {
-            write!(fmt, "async fn ")?;
-        } else {
-            write!(fmt, "fn ")?;
-        }
-
-        match &self.kind {
-            SignatureKind::Function => {
-                write!(fmt, "{}(", self.item)?;
-
-                if let Some(args) = self.args {
-                    let mut it = 0..args;
-                    let last = it.next_back();
-
-                    for n in it {
-                        write!(fmt, "#{}, ", n)?;
-                    }
-
-                    if let Some(n) = last {
-                        write!(fmt, "#{}", n)?;
-                    }
-                } else {
-                    write!(fmt, "...")?;
-                }
-
-                write!(fmt, ")")?;
+impl AssociatedKind {
+    /// Convert the kind into a hash function.
+    pub(crate) fn hash(&self, instance_type: Hash) -> Hash {
+        match self {
+            Self::Protocol(protocol) => Hash::instance_function(instance_type, protocol.hash),
+            Self::IndexFn(protocol, index) => {
+                Hash::index_fn(*protocol, instance_type, Hash::index(*index))
             }
-            SignatureKind::Instance {
-                name,
-                self_type_info,
-                ..
-            } => {
-                write!(fmt, "{}::{}(self: {}", self.item, name, self_type_info)?;
-
-                if let Some(args) = self.args {
-                    for n in 0..args {
-                        write!(fmt, ", #{}", n)?;
-                    }
-                } else {
-                    write!(fmt, ", ...")?;
-                }
-
-                write!(fmt, ")")?;
+            Self::FieldFn(protocol, field) => {
+                Hash::field_fn(*protocol, instance_type, field.as_ref())
             }
+            Self::Instance(name) => Hash::instance_function(instance_type, name.as_ref()),
         }
+    }
+}
 
-        Ok(())
+impl fmt::Display for AssociatedKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AssociatedKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
+            AssociatedKind::FieldFn(protocol, field) => {
+                write!(f, ".{field}<{}>", protocol.name)
+            }
+            AssociatedKind::IndexFn(protocol, index) => {
+                write!(f, ".{index}<{}>", protocol.name)
+            }
+            AssociatedKind::Instance(name) => write!(f, "{}", name),
+        }
     }
 }

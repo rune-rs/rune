@@ -4,11 +4,11 @@ use crate::no_std::collections::{HashMap, HashSet};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::compile::{self, ContextError, Docs, IntoComponent, ItemBuf, Named};
+use crate::compile::{self, meta, ContextError, Docs, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::function_meta::{
-    AssociatedFunctionData, AssociatedFunctionName, AssociatedKind, FunctionData, FunctionMeta,
-    FunctionMetaKind, IterFunctionArgs, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
+    AssociatedFunctionData, AssociatedFunctionName, FunctionData, FunctionMeta, FunctionMetaKind,
+    IterFunctionArgs, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
 };
 use crate::module::{
     AssociatedKey, AsyncFunction, AsyncInstFn, EnumMut, Function, InstFn, InstallWith,
@@ -1017,27 +1017,29 @@ impl Module {
     ) -> Result<ItemMut<'_>, ContextError> {
         if !self.names.insert(Name::Associated(data.assoc_key())) {
             return Err(match data.name.kind {
-                AssociatedKind::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
-                    type_info: data.container_type_info,
-                    name: protocol.name.into(),
-                },
-                AssociatedKind::FieldFn(protocol, field) => {
+                meta::AssociatedKind::Protocol(protocol) => {
+                    ContextError::ConflictingProtocolFunction {
+                        type_info: data.container_type_info,
+                        name: protocol.name.into(),
+                    }
+                }
+                meta::AssociatedKind::FieldFn(protocol, field) => {
                     ContextError::ConflictingFieldFunction {
                         type_info: data.container_type_info,
                         name: protocol.name.into(),
-                        field,
+                        field: field.into(),
                     }
                 }
-                AssociatedKind::IndexFn(protocol, index) => {
+                meta::AssociatedKind::IndexFn(protocol, index) => {
                     ContextError::ConflictingIndexFunction {
                         type_info: data.container_type_info,
                         name: protocol.name.into(),
                         index,
                     }
                 }
-                AssociatedKind::Instance(name) => ContextError::ConflictingInstanceFunction {
+                meta::AssociatedKind::Instance(name) => ContextError::ConflictingInstanceFunction {
                     type_info: data.container_type_info,
-                    name,
+                    name: name.into(),
                 },
             });
         }

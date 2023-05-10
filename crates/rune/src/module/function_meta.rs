@@ -1,10 +1,10 @@
-use core::fmt;
 use core::future::Future;
 
+use crate::no_std::borrow::Cow;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::compile::{self, IntoComponent, ItemBuf, Named};
+use crate::compile::{self, meta, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::{AssociatedKey, AsyncFunction, AsyncInstFn, Function, InstFn};
@@ -130,47 +130,26 @@ impl FunctionMacroData {
     }
 }
 
-/// An instance function name.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// A descriptor for an instance function.
+#[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum AssociatedKind {
-    /// A protocol function implemented on the type itself.
-    Protocol(Protocol),
-    /// A field function with the given protocol.
-    FieldFn(Protocol, Box<str>),
-    /// An index function with the given protocol.
-    IndexFn(Protocol, usize),
-    /// The instance function refers to the given named instance fn.
-    Instance(Box<str>),
+#[doc(hidden)]
+pub struct AssociatedFunctionName {
+    /// The name of the instance function.
+    pub kind: meta::AssociatedKind,
+    /// Parameters hash.
+    pub parameters: Hash,
+    #[cfg(feature = "doc")]
+    pub parameter_types: Vec<Hash>,
 }
 
-impl AssociatedKind {
-    /// Convert the kind into a hash function.
-    pub(crate) fn hash(&self, instance_type: Hash) -> Hash {
-        match self {
-            Self::Protocol(protocol) => Hash::instance_function(instance_type, protocol.hash),
-            Self::IndexFn(protocol, index) => {
-                Hash::index_fn(*protocol, instance_type, Hash::index(*index))
-            }
-            Self::FieldFn(protocol, field) => {
-                Hash::field_fn(*protocol, instance_type, field.as_ref())
-            }
-            Self::Instance(name) => Hash::instance_function(instance_type, name.as_ref()),
-        }
-    }
-}
-
-impl fmt::Display for AssociatedKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AssociatedKind::Protocol(protocol) => write!(f, "<{}>", protocol.name),
-            AssociatedKind::FieldFn(protocol, field) => {
-                write!(f, ".{field}<{}>", protocol.name)
-            }
-            AssociatedKind::IndexFn(protocol, index) => {
-                write!(f, ".{index}<{}>", protocol.name)
-            }
-            AssociatedKind::Instance(name) => write!(f, "{}", name),
+impl AssociatedFunctionName {
+    pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
+        Self {
+            kind: meta::AssociatedKind::IndexFn(protocol, index),
+            parameters: Hash::EMPTY,
+            #[cfg(feature = "doc")]
+            parameter_types: vec![],
         }
     }
 }
@@ -188,11 +167,11 @@ pub trait ToFieldFunction: self::sealed::Sealed {
     fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName;
 }
 
-impl ToInstance for &str {
+impl ToInstance for &'static str {
     #[inline]
     fn to_instance(self) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: AssociatedKind::Instance(self.into()),
+            kind: meta::AssociatedKind::Instance(Cow::Borrowed(self)),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
@@ -200,35 +179,11 @@ impl ToInstance for &str {
     }
 }
 
-impl ToFieldFunction for &str {
+impl ToFieldFunction for &'static str {
     #[inline]
     fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
         AssociatedFunctionName {
-            kind: AssociatedKind::FieldFn(protocol, self.into()),
-            parameters: Hash::EMPTY,
-            #[cfg(feature = "doc")]
-            parameter_types: vec![],
-        }
-    }
-}
-
-/// A descriptor for an instance function.
-#[derive(Clone)]
-#[non_exhaustive]
-#[doc(hidden)]
-pub struct AssociatedFunctionName {
-    /// The name of the instance function.
-    pub kind: AssociatedKind,
-    /// Parameters hash.
-    pub parameters: Hash,
-    #[cfg(feature = "doc")]
-    pub parameter_types: Vec<Hash>,
-}
-
-impl AssociatedFunctionName {
-    pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
-        Self {
-            kind: AssociatedKind::IndexFn(protocol, index),
+            kind: meta::AssociatedKind::FieldFn(protocol, Cow::Borrowed(self)),
             parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],

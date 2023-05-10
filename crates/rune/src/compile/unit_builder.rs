@@ -506,6 +506,7 @@ impl UnitBuilder {
             }
             meta::Kind::Macro { .. } => (),
             meta::Kind::Function { .. } => (),
+            meta::Kind::AssociatedFunction { .. } => (),
             meta::Kind::Closure { .. } => (),
             meta::Kind::AsyncBlock { .. } => (),
             meta::Kind::Const { ref const_value } => {

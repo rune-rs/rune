@@ -13,15 +13,13 @@ use core::marker::PhantomData;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::compile::{ContextError, Docs, IntoComponent, Item, ItemBuf};
+use crate::compile::{meta, ContextError, Docs, IntoComponent, Item, ItemBuf};
 use crate::runtime::{
     ConstValue, FullTypeOf, FunctionHandler, MacroHandler, StaticType, TypeCheck, TypeInfo, TypeOf,
 };
 use crate::Hash;
 
-pub(crate) use self::function_meta::{
-    AssociatedFunctionName, AssociatedKind, ToFieldFunction, ToInstance,
-};
+pub(crate) use self::function_meta::{AssociatedFunctionName, ToFieldFunction, ToInstance};
 
 #[doc(hidden)]
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
@@ -195,7 +193,7 @@ pub(crate) struct AssociatedKey {
     /// The type the associated function belongs to.
     pub(crate) type_hash: Hash,
     /// The kind of the associated function.
-    pub(crate) kind: AssociatedKind,
+    pub(crate) kind: meta::AssociatedKind,
     /// The type parameters of the associated function.
     pub(crate) parameters: Hash,
 }

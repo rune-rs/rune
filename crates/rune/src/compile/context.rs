@@ -9,8 +9,8 @@ use crate::compile::{
     ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
 };
 use crate::module::{
-    AssociatedKind, Fields, Function, InternalEnum, Module, ModuleAssociated, ModuleConstant,
-    ModuleFunction, ModuleMacro, ModuleType, TypeSpecification, UnitType,
+    Fields, Function, InternalEnum, Module, ModuleAssociated, ModuleConstant, ModuleFunction,
+    ModuleMacro, ModuleType, TypeSpecification, UnitType,
 };
 use crate::runtime::{
     ConstValue, FunctionHandler, MacroHandler, Protocol, RuntimeContext, StaticType, TypeCheck,
@@ -80,14 +80,6 @@ impl fmt::Display for ContextType {
     }
 }
 
-#[cfg(feature = "doc")]
-pub(crate) enum ContextAssociated {
-    /// Associated self-receiver.
-    Associated(ModuleAssociated),
-    /// A simple module function.
-    Function(Hash),
-}
-
 /// [Context] used for the Rune language.
 ///
 /// See [Build::with_context][crate::Build::with_context].
@@ -115,7 +107,7 @@ pub struct Context {
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
     #[cfg(feature = "doc")]
-    associated: HashMap<Hash, Vec<ContextAssociated>>,
+    associated: HashMap<Hash, Vec<Hash>>,
     /// Registered native macro handlers.
     macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
@@ -264,10 +256,10 @@ impl Context {
 
     /// Iterate over all available functions in the [Context].
     #[cfg(feature = "cli")]
-    pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &meta::Signature)> {
+    pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (&ContextMeta, &meta::Signature)> {
         self.meta.iter().flat_map(|meta| {
             let signature = meta.kind.as_signature()?;
-            Some((meta.hash, signature))
+            Some((meta, signature))
         })
     }
 
@@ -337,12 +329,13 @@ impl Context {
 
     /// Get all associated types for the given hash.
     #[cfg(feature = "doc")]
-    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = &ContextAssociated> + '_ {
+    pub(crate) fn associated(&self, hash: Hash) -> impl Iterator<Item = Hash> + '_ {
         self.associated
             .get(&hash)
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
+            .copied()
     }
 
     /// Lookup the given macro handler.
@@ -383,6 +376,21 @@ impl Context {
                 .entry(item.clone())
                 .or_default()
                 .insert(meta.hash);
+        }
+
+        #[cfg(feature = "doc")]
+        if let Some(h) = meta.associated_container {
+            let assoc = self.associated.entry(h).or_default();
+
+            match &meta.kind {
+                meta::Kind::Variant { .. } => {
+                    assoc.push(meta.hash);
+                }
+                meta::Kind::Function { .. } => {
+                    assoc.push(meta.hash);
+                }
+                _ => {}
+            }
         }
 
         let hash = meta.hash;
@@ -472,32 +480,28 @@ impl Context {
 
                         let constructor = if let (Some(c), Some(args)) = (constructor, args) {
                             let signature = meta::Signature {
-                                item: item.clone(),
                                 is_async: false,
                                 args: Some(args),
                                 return_type: Some(ty.hash),
                                 argument_types: Box::from([]),
-                                kind: meta::SignatureKind::Function,
                             };
 
-                            self.insert_native_fn(hash, &signature, c)?;
+                            self.insert_native_fn(hash, c)?;
                             Some(signature)
                         } else {
                             None
-                        };
-
-                        let kind = meta::Kind::Variant {
-                            enum_hash: ty.hash,
-                            index,
-                            fields,
-                            constructor,
                         };
 
                         self.install_meta(ContextMeta::new(
                             hash,
                             Some(ty.hash),
                             Some(item),
-                            kind,
+                            meta::Kind::Variant {
+                                enum_hash: ty.hash,
+                                index,
+                                fields,
+                                constructor,
+                            },
                             variant.docs.clone(),
                         ))?;
                     }
@@ -565,7 +569,6 @@ impl Context {
         );
 
         let signature = meta::Signature {
-            item: item.clone(),
             is_async: f.is_async,
             args: f.args,
             return_type: f.return_type.as_ref().map(|f| f.hash),
@@ -574,34 +577,22 @@ impl Context {
                 .iter()
                 .map(|f| f.as_ref().map(|f| f.hash))
                 .collect(),
-            kind: meta::SignatureKind::Function,
         };
 
-        self.insert_native_fn(hash, &signature, &f.handler)?;
+        self.insert_native_fn(hash, &f.handler)?;
 
         self.install_meta(ContextMeta::new(
             hash,
-            None,
+            f.associated_container,
             Some(item),
             meta::Kind::Function {
-                is_async: f.is_async,
-                args: f.args,
                 is_test: false,
                 is_bench: false,
-                instance_function: false,
-                signature: Some(signature),
+                signature,
                 parameters: Hash::EMPTY,
             },
             f.docs.clone(),
         ))?;
-
-        #[cfg(feature = "doc")]
-        if let Some(container_hash) = f.associated_container {
-            self.associated
-                .entry(container_hash)
-                .or_default()
-                .push(ContextAssociated::Function(hash));
-        }
 
         Ok(())
     }
@@ -660,7 +651,6 @@ impl Context {
             .with_parameters(assoc.name.parameters);
 
         let signature = meta::Signature {
-            item: info.item.clone(),
             is_async: assoc.is_async,
             args: assoc.args,
             return_type: assoc.return_type.as_ref().map(|f| f.hash),
@@ -669,35 +659,23 @@ impl Context {
                 .iter()
                 .map(|f| f.as_ref().map(|f| f.hash))
                 .collect(),
-            kind: meta::SignatureKind::Instance {
-                name: assoc.name.kind.clone(),
-                self_type_info: info.type_info.clone(),
-            },
         };
 
-        self.insert_native_fn(hash, &signature, &assoc.handler)?;
+        self.insert_native_fn(hash, &assoc.handler)?;
 
         self.install_meta(ContextMeta::new(
             hash,
             Some(assoc.container.hash),
             None,
-            meta::Kind::Function {
-                is_async: assoc.is_async,
-                args: assoc.args,
-                is_test: false,
-                is_bench: false,
-                instance_function: true,
-                signature: Some(signature),
+            meta::Kind::AssociatedFunction {
+                kind: assoc.name.kind.clone(),
+                signature,
                 parameters: assoc.name.parameters,
+                #[cfg(feature = "doc")]
+                parameter_types: assoc.name.parameter_types.clone(),
             },
             assoc.docs.clone(),
         ))?;
-
-        #[cfg(feature = "doc")]
-        self.associated
-            .entry(assoc.container.hash)
-            .or_default()
-            .push(ContextAssociated::Associated(assoc.clone()));
 
         // These are currently only usable if parameters hash is empty.
         if info.parameters_hash.is_empty() {
@@ -707,8 +685,8 @@ impl Context {
             //
             // The other alternatives are protocol functions (which are not free)
             // and plain hashes.
-            if let AssociatedKind::Instance(name) = &assoc.name.kind {
-                let item = info.item.extended(name);
+            if let meta::AssociatedKind::Instance(name) = &assoc.name.kind {
+                let item = info.item.extended(name.as_ref());
                 let hash = Hash::type_hash(&item).with_parameters(assoc.name.parameters);
 
                 self.constants.insert(
@@ -717,7 +695,6 @@ impl Context {
                 );
 
                 let signature = meta::Signature {
-                    item: item.clone(),
                     is_async: assoc.is_async,
                     args: assoc.args,
                     return_type: assoc.return_type.as_ref().map(|f| f.hash),
@@ -726,23 +703,20 @@ impl Context {
                         .iter()
                         .map(|f| f.as_ref().map(|f| f.hash))
                         .collect(),
-                    kind: meta::SignatureKind::Function,
                 };
 
-                self.insert_native_fn(hash, &signature, &assoc.handler)?;
+                self.insert_native_fn(hash, &assoc.handler)?;
 
                 self.install_meta(ContextMeta::new(
                     hash,
                     Some(assoc.container.hash),
                     Some(item),
-                    meta::Kind::Function {
-                        is_async: assoc.is_async,
-                        args: assoc.args,
-                        is_test: false,
-                        is_bench: false,
-                        instance_function: true,
-                        signature: Some(signature),
+                    meta::Kind::AssociatedFunction {
+                        kind: assoc.name.kind.clone(),
+                        signature,
                         parameters: assoc.name.parameters,
+                        #[cfg(feature = "doc")]
+                        parameter_types: assoc.name.parameter_types.clone(),
                     },
                     assoc.docs.clone(),
                 ))?;
@@ -818,15 +792,13 @@ impl Context {
             })?;
 
             let signature = meta::Signature {
-                item: item.clone(),
                 is_async: false,
                 args: Some(variant.args),
                 return_type: Some(enum_hash),
                 argument_types: Box::from([]),
-                kind: meta::SignatureKind::Function,
             };
 
-            self.insert_native_fn(hash, &signature, &variant.constructor)?;
+            self.insert_native_fn(hash, &variant.constructor)?;
 
             self.install_meta(ContextMeta::new(
                 hash,
@@ -848,14 +820,10 @@ impl Context {
     fn insert_native_fn(
         &mut self,
         hash: Hash,
-        signature: &meta::Signature,
         handler: &Arc<FunctionHandler>,
     ) -> Result<(), ContextError> {
         if self.functions.contains_key(&hash) {
-            return Err(ContextError::ConflictingFunction {
-                signature: Box::new(signature.clone()),
-                hash,
-            });
+            return Err(ContextError::ConflictingFunction { hash });
         }
 
         self.functions.insert(hash, handler.clone());
@@ -879,18 +847,16 @@ impl Context {
         let hash = Hash::type_hash(&item);
 
         let signature = meta::Signature {
-            item: item.clone(),
             is_async: false,
             args: Some(args),
             return_type: Some(type_hash),
             argument_types: Box::from([]),
-            kind: meta::SignatureKind::Function,
         };
 
         let handler: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
 
-        self.insert_native_fn(hash, &signature, &handler)?;
+        self.insert_native_fn(hash, &handler)?;
 
         let (associated_container, kind) = match enum_item {
             Some((enum_hash, index)) => (
