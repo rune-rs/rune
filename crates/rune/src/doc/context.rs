@@ -151,7 +151,7 @@ impl<'a> Context<'a> {
             }))
         }
 
-        fn context_to_associated<'m>(context: &'m crate::Context, hash: Hash) -> Option<Assoc<'m>> {
+        fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'_>> {
             let meta = context.lookup_meta_by_hash(hash).next()?;
             let sig = meta.kind.as_signature()?;
             let name = meta.item.as_deref()?.last()?.as_str()?;

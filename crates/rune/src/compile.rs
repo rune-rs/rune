@@ -28,7 +28,7 @@ pub(crate) mod meta_info;
 pub use meta_info::MetaInfo;
 
 mod docs;
-pub use self::docs::Docs;
+pub(crate) use self::docs::Docs;
 
 mod prelude;
 pub(crate) use self::prelude::Prelude;
