@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use crate::no_std::collections::{HashMap, HashSet};
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
@@ -9,9 +11,9 @@ use crate::module::function_meta::{
     FunctionMetaKind, IterFunctionArgs, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
 };
 use crate::module::{
-    AssociatedKey, AsyncFunction, AsyncInstFn, Enum, Function, InstFn, InstallWith, InternalEnum,
-    ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction, ModuleMacro, ModuleType, Struct,
-    TypeSpecification, UnitType, Variant,
+    AssociatedKey, AsyncFunction, AsyncInstFn, EnumMut, Function, InstFn, InstallWith,
+    InternalEnum, ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction, ModuleMacro,
+    ModuleType, TypeMut, TypeSpecification, UnitType, VariantMut,
 };
 use crate::runtime::{
     ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf, Protocol, Stack, ToValue,
@@ -163,7 +165,7 @@ impl Module {
     /// assert!(context.install(module).is_ok());
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn ty<T>(&mut self) -> Result<ItemMut<'_>, ContextError>
+    pub fn ty<T>(&mut self) -> Result<TypeMut<'_, T>, ContextError>
     where
         T: Named + TypeOf + InstallWith,
     {
@@ -194,8 +196,36 @@ impl Module {
 
         T::install_with(self)?;
 
-        let t = self.types.last_mut().unwrap();
-        Ok(ItemMut { docs: &mut t.docs })
+        let ty = self.types.last_mut().unwrap();
+
+        Ok(TypeMut {
+            docs: &mut ty.docs,
+            spec: &mut ty.spec,
+            item: &ty.item,
+            _marker: PhantomData,
+        })
+    }
+
+    /// Accessor to modify type metadata such as documentaiton, fields, variants.
+    pub fn type_meta<T>(&mut self) -> Result<TypeMut<'_, T>, ContextError>
+    where
+        T: Named + TypeOf,
+    {
+        let type_hash = T::type_hash();
+
+        let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
+            return Err(ContextError::MissingType {
+                item: ItemBuf::with_item(&[T::full_name()]),
+                type_info: T::type_info(),
+            });
+        };
+
+        Ok(TypeMut {
+            docs: &mut ty.docs,
+            spec: &mut ty.spec,
+            item: &ty.item,
+            _marker: PhantomData,
+        })
     }
 
     /// Register that the given type is a struct, and that it has the given
@@ -204,42 +234,31 @@ impl Module {
     ///
     /// This is typically not used directly, but is used automatically with the
     /// [Any][crate::Any] derive.
-    pub fn struct_meta<T, const N: usize>(
-        &mut self,
-        fields: [&'static str; N],
-    ) -> Result<(), ContextError>
+    #[deprecated = "Use type_meta() instead"]
+    pub fn struct_meta<T>(&mut self, fields: &'static [&'static str]) -> Result<(), ContextError>
     where
         T: Named + TypeOf,
     {
-        let type_hash = T::type_hash();
-
-        let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
-            return Err(ContextError::MissingType {
-                item: ItemBuf::with_item(&[T::full_name()]),
-                type_info: T::type_info(),
-            });
-        };
-
-        let old = ty.spec.replace(TypeSpecification::Struct(Struct {
-            fields: fields.into_iter().map(Box::<str>::from).collect(),
-        }));
-
-        if old.is_some() {
-            return Err(ContextError::ConflictingTypeMeta {
-                item: ItemBuf::with_item(&[T::full_name()]),
-                type_info: ty.type_info.clone(),
-            });
-        }
-
+        self.type_meta::<T>()?.make_named_struct(fields)?;
         Ok(())
     }
 
     /// Register enum metadata for the given type `T`. This allows an enum to be
     /// used in limited ways in Rune.
-    pub fn enum_meta<T, const N: usize>(
+    #[deprecated = "Use type_meta().make_enum() instead"]
+    #[doc(hidden)]
+    pub fn enum_meta<T>(
         &mut self,
-        variants: [(&'static str, Variant); N],
-    ) -> Result<(), ContextError>
+        variants: &'static [&'static str],
+    ) -> Result<EnumMut<'_, T>, ContextError>
+    where
+        T: Named + TypeOf,
+    {
+        self.type_meta::<T>()?.make_enum(variants)
+    }
+
+    /// Access variant metadata for the given type and the index of its variant.
+    pub fn variant_meta<T>(&mut self, index: usize) -> Result<VariantMut<'_, T>, ContextError>
     where
         T: Named + TypeOf,
     {
@@ -252,24 +271,31 @@ impl Module {
             });
         };
 
-        let old = ty.spec.replace(TypeSpecification::Enum(Enum {
-            variants: variants
-                .into_iter()
-                .map(|(name, variant)| (Box::from(name), variant))
-                .collect(),
-        }));
-
-        if old.is_some() {
-            return Err(ContextError::ConflictingTypeMeta {
+        let Some(TypeSpecification::Enum(en)) = &mut ty.spec else {
+            return Err(ContextError::MissingEnum {
                 item: ItemBuf::with_item(&[T::full_name()]),
-                type_info: ty.type_info.clone(),
+                type_info: T::type_info(),
             });
-        }
+        };
 
-        Ok(())
+        let Some(variant) = en.variants.get_mut(index) else {
+            return Err(ContextError::MissingVariant {
+                type_info: T::type_info(),
+                index,
+            });
+        };
+
+        Ok(VariantMut {
+            index,
+            docs: &mut variant.docs,
+            fields: &mut variant.fields,
+            constructor: &mut variant.constructor,
+            _marker: PhantomData,
+        })
     }
 
     /// Register a variant constructor for type `T`.
+    #[deprecated = "Use variant_meta() instead"]
     pub fn variant_constructor<F, A>(
         &mut self,
         index: usize,
@@ -279,46 +305,8 @@ impl Module {
         F: Function<A>,
         F::Return: Named + TypeOf,
     {
-        let type_hash = F::Return::type_hash();
-
-        let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
-            return Err(ContextError::MissingType {
-                item: ItemBuf::with_item(&[F::Return::full_name()]),
-                type_info: F::Return::type_info(),
-            });
-        };
-
-        let en = match &mut ty.spec {
-            Some(TypeSpecification::Enum(en)) => en,
-            _ => {
-                return Err(ContextError::MissingEnum {
-                    item: ItemBuf::with_item(&[F::Return::full_name()]),
-                    type_info: F::Return::type_info(),
-                });
-            }
-        };
-
-        let variant = match en.variants.get_mut(index) {
-            Some((_, variant)) => variant,
-            _ => {
-                return Err(ContextError::MissingVariant {
-                    type_info: F::Return::type_info(),
-                    index,
-                });
-            }
-        };
-
-        if variant.constructor.is_some() {
-            return Err(ContextError::VariantConstructorConflict {
-                type_info: F::Return::type_info(),
-                index,
-            });
-        }
-
-        variant.constructor = Some(Arc::new(move |stack, args| {
-            constructor.fn_call(stack, args)
-        }));
-
+        self.variant_meta::<F::Return>(index)?
+            .constructor(constructor)?;
         Ok(())
     }
 

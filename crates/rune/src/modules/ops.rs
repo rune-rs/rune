@@ -7,18 +7,22 @@ use crate::{ContextError, Module, Params};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["ops"]);
 
-    module.ty::<Range>()?.docs([
-        "Type for a range expression.",
-        "",
-        "A range expression is one of:",
-        "* `..<value>`",
-        "* `<value>..<value>`",
-        "* `<value>..`",
-        "* `..=<value>`",
-        "* `<value>..=<value>`",
-    ]);
+    module.ty::<Range>()?;
 
-    module.struct_meta::<Range, 2>(["start", "end"])?;
+    module
+        .type_meta::<Range>()?
+        .make_named_struct(&["start", "end"])?
+        .docs([
+            "Type for a range expression.",
+            "",
+            "A range expression is one of:",
+            "* `..<value>`",
+            "* `<value>..<value>`",
+            "* `<value>..`",
+            "* `..=<value>`",
+            "* `<value>..=<value>`",
+        ]);
+
     module.field_fn(Protocol::GET, "start", |r: &Range| r.start.clone())?;
     module.field_fn(Protocol::SET, "start", range_set_start)?;
 

@@ -2,8 +2,7 @@ async fn send_requests(list) {
     let client = http::Client::new();
 
     let do_request = async |url| {
-        let response = client.get(url).await?;
-        Ok(response.send().await?.status())
+        Ok(client.get(url).send().await?.status())
     };
 
     for url in list {

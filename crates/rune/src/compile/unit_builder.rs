@@ -303,7 +303,7 @@ impl UnitBuilder {
                 }
             }
             meta::Kind::Struct {
-                fields: meta::Fields::Unit,
+                fields: meta::Fields::Empty,
                 ..
             } => {
                 let info = UnitFn::UnitStruct { hash: meta.hash };
@@ -342,32 +342,32 @@ impl UnitBuilder {
                 self.debug_info_mut().functions.insert(meta.hash, signature);
             }
             meta::Kind::Struct {
-                fields: meta::Fields::Tuple(ref tuple),
+                fields: meta::Fields::Unnamed(args),
                 ..
             } => {
                 let info = UnitFn::TupleStruct {
-                    hash: tuple.hash,
-                    args: tuple.args,
+                    hash: meta.hash,
+                    args,
                 };
 
                 let signature = DebugSignature::new(
                     pool.item(meta.item_meta.item).to_owned(),
-                    DebugArgs::TupleArgs(tuple.args),
+                    DebugArgs::TupleArgs(args),
                 );
 
                 let rtti = Arc::new(Rtti {
-                    hash: tuple.hash,
+                    hash: meta.hash,
                     item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
-                if self.rtti.insert(tuple.hash, rtti).is_some() {
+                if self.rtti.insert(meta.hash, rtti).is_some() {
                     return Err(compile::Error::new(
                         span,
-                        QueryErrorKind::TypeRttiConflict { hash: tuple.hash },
+                        QueryErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
 
-                if self.functions.insert(tuple.hash, info).is_some() {
+                if self.functions.insert(meta.hash, info).is_some() {
                     return Err(compile::Error::new(
                         span,
                         QueryErrorKind::FunctionConflict {
@@ -377,13 +377,11 @@ impl UnitBuilder {
                 }
 
                 self.constants.insert(
-                    Hash::instance_function(tuple.hash, Protocol::INTO_TYPE_NAME),
+                    Hash::instance_function(meta.hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(signature.path.to_string()),
                 );
 
-                self.debug_info_mut()
-                    .functions
-                    .insert(tuple.hash, signature);
+                self.debug_info_mut().functions.insert(meta.hash, signature);
             }
             meta::Kind::Struct { .. } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
@@ -407,7 +405,7 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                fields: meta::Fields::Unit,
+                fields: meta::Fields::Empty,
                 ..
             } => {
                 let rtti = Arc::new(VariantRtti {
@@ -443,33 +441,33 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                fields: meta::Fields::Tuple(ref tuple),
+                fields: meta::Fields::Unnamed(args),
                 ..
             } => {
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
-                    hash: tuple.hash,
+                    hash: meta.hash,
                     item: pool.item(meta.item_meta.item).to_owned(),
                 });
 
-                if self.variant_rtti.insert(tuple.hash, rtti).is_some() {
+                if self.variant_rtti.insert(meta.hash, rtti).is_some() {
                     return Err(compile::Error::new(
                         span,
-                        QueryErrorKind::VariantRttiConflict { hash: tuple.hash },
+                        QueryErrorKind::VariantRttiConflict { hash: meta.hash },
                     ));
                 }
 
                 let info = UnitFn::TupleVariant {
-                    hash: tuple.hash,
-                    args: tuple.args,
+                    hash: meta.hash,
+                    args,
                 };
 
                 let signature = DebugSignature::new(
                     pool.item(meta.item_meta.item).to_owned(),
-                    DebugArgs::TupleArgs(tuple.args),
+                    DebugArgs::TupleArgs(args),
                 );
 
-                if self.functions.insert(tuple.hash, info).is_some() {
+                if self.functions.insert(meta.hash, info).is_some() {
                     return Err(compile::Error::new(
                         span,
                         QueryErrorKind::FunctionConflict {
@@ -478,13 +476,11 @@ impl UnitBuilder {
                     ));
                 }
 
-                self.debug_info_mut()
-                    .functions
-                    .insert(tuple.hash, signature);
+                self.debug_info_mut().functions.insert(meta.hash, signature);
             }
             meta::Kind::Variant {
                 enum_hash,
-                fields: meta::Fields::Struct(..),
+                fields: meta::Fields::Named(..),
                 ..
             } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);

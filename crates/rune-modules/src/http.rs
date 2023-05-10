@@ -69,13 +69,13 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Client::get)?;
     module.function_meta(Client::post)?;
 
-    module.async_inst_fn("text", Response::text)?;
-    module.async_inst_fn("json", Response::json)?;
-    module.inst_fn("status", Response::status)?;
+    module.function_meta(Response::text)?;
+    module.function_meta(Response::json)?;
+    module.function_meta(Response::status)?;
 
-    module.async_inst_fn("send", RequestBuilder::send)?;
+    module.function_meta(RequestBuilder::send)?;
     module.function_meta(RequestBuilder::header)?;
-    module.async_inst_fn("body_bytes", RequestBuilder::body_bytes)?;
+    module.function_meta(RequestBuilder::body_bytes)?;
 
     module.inst_fn(Protocol::STRING_DISPLAY, Error::display)?;
     module.inst_fn(Protocol::STRING_DISPLAY, StatusCode::display)?;
@@ -100,16 +100,41 @@ impl Error {
     }
 }
 
+/// An asynchronous Client to make Requests with.
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
 struct Client {
     client: reqwest::Client,
 }
 
+/// A Response to a submitted [`Request`].
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
 pub struct Response {
     response: reqwest::Response,
+}
+
+impl Response {
+    /// Get the response as text.
+    #[rune::function]
+    async fn text(self) -> Result<String, Error> {
+        let text = self.response.text().await?;
+        Ok(text)
+    }
+
+    /// Get the response as a Rune value decoded from JSON.
+    #[rune::function]
+    async fn json(self) -> Result<Value, Error> {
+        let text = self.response.json().await?;
+        Ok(text)
+    }
+
+    /// Get the status code of the response.
+    #[rune::function]
+    fn status(&self) -> StatusCode {
+        let inner = self.response.status();
+        StatusCode { inner }
+    }
 }
 
 #[derive(Debug, Any)]
@@ -124,25 +149,9 @@ impl StatusCode {
     }
 }
 
-impl Response {
-    async fn text(self) -> Result<String, Error> {
-        let text = self.response.text().await?;
-        Ok(text)
-    }
-
-    async fn json(self) -> Result<Value, Error> {
-        let text = self.response.json().await?;
-        Ok(text)
-    }
-
-    /// Get the status code of the response.
-    fn status(&self) -> StatusCode {
-        let inner = self.response.status();
-
-        StatusCode { inner }
-    }
-}
-
+/// A builder to construct the properties of a Request.
+///
+/// To construct a RequestBuilder, refer to the [`Client`] documentation.
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
 pub struct RequestBuilder {
@@ -151,6 +160,7 @@ pub struct RequestBuilder {
 
 impl RequestBuilder {
     /// Send the request being built.
+    #[rune::function]
     async fn send(self) -> Result<Response, Error> {
         let response = self.request.send().await?;
         Ok(Response { response })
@@ -165,12 +175,24 @@ impl RequestBuilder {
     }
 
     /// Set the request body from bytes.
-    async fn body_bytes(self, bytes: Bytes) -> Result<Self, Error> {
+    ///
+    /// ```rune
+    /// let client = http::Client::new();
+    ///
+    /// let response = client.get("http://example.com")
+    ///     .body_bytes(body)
+    ///     .send()
+    ///     .await?;
+    ///
+    /// let response = response.text().await?;
+    /// ```
+    #[rune::function]
+    fn body_bytes(self, bytes: Bytes) -> Self {
         let bytes = bytes.into_vec();
 
-        Ok(Self {
+        Self {
             request: self.request.body(bytes),
-        })
+        }
     }
 }
 
@@ -197,18 +219,14 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.get("http://example.com")
-    ///     .await?
-    ///     .body_bytes(body)
-    ///     .await?
     ///     .send()
     ///     .await?;
     ///
     /// let response = response.text().await?;
     /// ```
     #[rune::function]
-    async fn get(&self, url: &str) -> Result<RequestBuilder, Error> {
-        let request = self.client.get(url);
-        Ok(RequestBuilder { request })
+    fn get(&self, url: &str) -> RequestBuilder {
+        RequestBuilder { request: self.client.get(url) }
     }
 
     /// Construct a builder to POST to the given `url`.
@@ -219,18 +237,16 @@ impl Client {
     /// let client = http::Client::new();
     ///
     /// let response = client.post("https://postman-echo.com/post")
-    ///     .await?
-    ///     .body_bytes(body)
-    ///     .await?
+    ///     .body_bytes(b"Hello World")
     ///     .send()
     ///     .await?;
     ///
     /// let response = response.json().await?;
     /// ```
     #[rune::function]
-    async fn post(&self, url: &str) -> Result<RequestBuilder, Error> {
+    fn post(&self, url: &str) -> RequestBuilder {
         let request = self.client.post(url);
-        Ok(RequestBuilder { request })
+        RequestBuilder { request }
     }
 }
 

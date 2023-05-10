@@ -91,11 +91,11 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &meta::Meta, needs: Needs) -> c
     if let Needs::Value = needs {
         match &meta.kind {
             meta::Kind::Struct {
-                fields: meta::Fields::Unit,
+                fields: meta::Fields::Empty,
                 ..
             }
             | meta::Kind::Variant {
-                fields: meta::Fields::Unit,
+                fields: meta::Fields::Empty,
                 ..
             } => {
                 c.asm.push_with_comment(
@@ -108,16 +108,16 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &meta::Meta, needs: Needs) -> c
                 );
             }
             meta::Kind::Variant {
-                fields: meta::Fields::Tuple(tuple),
+                fields: meta::Fields::Unnamed(0),
                 ..
             }
             | meta::Kind::Struct {
-                fields: meta::Fields::Tuple(tuple),
+                fields: meta::Fields::Unnamed(0),
                 ..
-            } if tuple.args == 0 => {
+            } => {
                 c.asm.push_with_comment(
                     Inst::Call {
-                        hash: tuple.hash,
+                        hash: meta.hash,
                         args: 0,
                     },
                     span,
@@ -125,21 +125,21 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &meta::Meta, needs: Needs) -> c
                 );
             }
             meta::Kind::Struct {
-                fields: meta::Fields::Tuple(tuple),
+                fields: meta::Fields::Unnamed(..),
                 ..
             } => {
                 c.asm.push_with_comment(
-                    Inst::LoadFn { hash: tuple.hash },
+                    Inst::LoadFn { hash: meta.hash },
                     span,
                     meta.info(c.q.pool).to_string(),
                 );
             }
             meta::Kind::Variant {
-                fields: meta::Fields::Tuple(tuple),
+                fields: meta::Fields::Unnamed(..),
                 ..
             } => {
                 c.asm.push_with_comment(
-                    Inst::LoadFn { hash: tuple.hash },
+                    Inst::LoadFn { hash: meta.hash },
                     span,
                     meta.info(c.q.pool).to_string(),
                 );
@@ -486,16 +486,16 @@ fn struct_match_for<'a>(
     span: Span,
     c: &Assembler<'_>,
     meta: &'a meta::Meta,
-) -> Option<(&'a meta::Struct, Inst)> {
+) -> Option<(&'a meta::FieldsNamed, Inst)> {
     Some(match &meta.kind {
         meta::Kind::Struct {
-            fields: meta::Fields::Struct(st),
+            fields: meta::Fields::Named(st),
             ..
         } => (st, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Variant {
             enum_hash,
             index,
-            fields: meta::Fields::Struct(st),
+            fields: meta::Fields::Named(st),
             ..
         } => {
             let inst = if let Some(type_check) = c.context.type_check_for(meta.hash) {
@@ -521,13 +521,13 @@ fn struct_match_for<'a>(
 fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &meta::Meta) -> Option<(usize, Inst)> {
     Some(match &meta.kind {
         meta::Kind::Struct {
-            fields: meta::Fields::Unit,
+            fields: meta::Fields::Empty,
             ..
         } => (0, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Struct {
-            fields: meta::Fields::Tuple(tuple),
+            fields: meta::Fields::Unnamed(args),
             ..
-        } => (tuple.args, Inst::MatchType { hash: meta.hash }),
+        } => (*args, Inst::MatchType { hash: meta.hash }),
         meta::Kind::Variant {
             enum_hash,
             index,
@@ -535,8 +535,8 @@ fn tuple_match_for(span: Span, c: &Assembler<'_>, meta: &meta::Meta) -> Option<(
             ..
         } => {
             let args = match fields {
-                meta::Fields::Tuple(tuple) => tuple.args,
-                meta::Fields::Unit => 0,
+                meta::Fields::Unnamed(args) => *args,
+                meta::Fields::Empty => 0,
                 _ => return None,
             };
 
@@ -1758,11 +1758,11 @@ fn convert_expr_call(
 
             match &meta.kind {
                 meta::Kind::Struct {
-                    fields: meta::Fields::Unit,
+                    fields: meta::Fields::Empty,
                     ..
                 }
                 | meta::Kind::Variant {
-                    fields: meta::Fields::Unit,
+                    fields: meta::Fields::Empty,
                     ..
                 } => {
                     if !hir.args.is_empty() {
@@ -1777,25 +1777,25 @@ fn convert_expr_call(
                     }
                 }
                 meta::Kind::Struct {
-                    fields: meta::Fields::Tuple(tuple),
+                    fields: meta::Fields::Unnamed(args),
                     ..
                 }
                 | meta::Kind::Variant {
-                    fields: meta::Fields::Tuple(tuple),
+                    fields: meta::Fields::Unnamed(args),
                     ..
                 } => {
-                    if tuple.args != hir.args.len() {
+                    if *args != hir.args.len() {
                         return Err(compile::Error::new(
                             span,
                             CompileErrorKind::UnsupportedArgumentCount {
                                 meta: meta.info(c.q.pool),
-                                expected: tuple.args,
+                                expected: *args,
                                 actual: hir.args.len(),
                             },
                         ));
                     }
 
-                    if tuple.args == 0 {
+                    if *args == 0 {
                         let tuple = path.span();
                         c.diagnostics.remove_tuple_call_parens(
                             c.source_id,
@@ -2632,7 +2632,7 @@ fn expr_object(
 
             match &meta.kind {
                 meta::Kind::Struct {
-                    fields: meta::Fields::Unit,
+                    fields: meta::Fields::Empty,
                     ..
                 } => {
                     check_object_fields(&HashSet::new(), check_keys, span, item)?;
@@ -2641,7 +2641,7 @@ fn expr_object(
                     c.asm.push(Inst::UnitStruct { hash }, span);
                 }
                 meta::Kind::Struct {
-                    fields: meta::Fields::Struct(st),
+                    fields: meta::Fields::Named(st),
                     ..
                 } => {
                     check_object_fields(&st.fields, check_keys, span, item)?;
@@ -2650,7 +2650,7 @@ fn expr_object(
                     c.asm.push(Inst::Struct { hash, slot }, span);
                 }
                 meta::Kind::Variant {
-                    fields: meta::Fields::Struct(st),
+                    fields: meta::Fields::Named(st),
                     ..
                 } => {
                     check_object_fields(&st.fields, check_keys, span, item)?;

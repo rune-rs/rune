@@ -1,35 +1,36 @@
-prelude!();
+use rune::{from_value, prepare, sources};
+use rune::{Any, Context, ContextError, Module, Vm};
 
 use std::sync::Arc;
+
+#[derive(Debug, Any, PartialEq, Eq)]
+enum External {
+    #[rune(constructor)]
+    First(#[rune(get)] u32),
+    #[rune(constructor)]
+    Second(#[rune(get)] u32),
+    #[rune(constructor)]
+    Third,
+    Fourth {
+        #[rune(get)]
+        a: u32,
+        #[rune(get)]
+        b: u32,
+    },
+    #[rune(constructor)]
+    Output(#[rune(get)] u32),
+}
+
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::new();
+    module.ty::<External>()?;
+    Ok(module)
+}
 
 /// Tests pattern matching and constructing over an external variant from within
 /// Rune.
 #[test]
 fn test_external_enum() -> Result<(), Box<dyn std::error::Error>> {
-    #[derive(Debug, Any, PartialEq, Eq)]
-    enum External {
-        #[rune(constructor)]
-        First(#[rune(get)] u32),
-        #[rune(constructor)]
-        Second(#[rune(get)] u32),
-        #[rune(constructor)]
-        Third,
-        Fourth {
-            #[rune(get)]
-            a: u32,
-            #[rune(get)]
-            b: u32,
-        },
-        #[rune(constructor)]
-        Output(#[rune(get)] u32),
-    }
-
-    pub fn module() -> Result<Module, ContextError> {
-        let mut module = Module::new();
-        module.ty::<External>()?;
-        Ok(module)
-    }
-
     let m = module()?;
 
     let mut context = Context::new();
