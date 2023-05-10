@@ -38,7 +38,7 @@ impl Bencher {
 
 /// Registers `std::test` module.
 pub(super) fn test_module() -> Result<Module, ContextError> {
-    let mut module = Module::with_item(["std", "test"]);
+    let mut module = Module::with_crate_item("std" ["test"]);
     module.ty::<Bencher>()?;
     module.inst_fn("iter", Bencher::iter)?;
     Ok(module)

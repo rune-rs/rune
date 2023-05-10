@@ -23,6 +23,38 @@ use parking_lot::Mutex;
 use crate::runtime::{Stack, VmError, VmResult};
 use crate::{ContextError, Module, Value};
 
+/// Provide a bunch of `std` functions that can be used during tests to capture output.
+pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
+    let mut module = Module::with_crate_item("std", ["io"]);
+
+    let o = io.clone();
+
+    module.function(["print"], move |m: &str| {
+        match write!(o.inner.lock(), "{}", m) {
+            Ok(()) => VmResult::Ok(()),
+            Err(error) => VmResult::panic(error),
+        }
+    })?;
+
+    let o = io.clone();
+
+    module.function(["println"], move |m: &str| {
+        match writeln!(o.inner.lock(), "{}", m) {
+            Ok(()) => VmResult::Ok(()),
+            Err(error) => VmResult::panic(error),
+        }
+    })?;
+
+    let o = io.clone();
+
+    module.raw_fn(["dbg"], move |stack, args| {
+        let mut o = o.inner.lock();
+        dbg_impl(&mut o, stack, args)
+    })?;
+
+    Ok(module)
+}
+
 /// Type which captures output from rune scripts.
 #[derive(Default, Clone)]
 pub struct CaptureIo {
@@ -58,38 +90,6 @@ impl CaptureIo {
     pub fn drain_utf8(&self) -> Result<String, FromUtf8Error> {
         String::from_utf8(self.drain())
     }
-}
-
-/// Provide a bunch of `std` functions that can be used during tests to capture output.
-pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate_item("std", ["io"]);
-
-    let o = io.clone();
-
-    module.function(["print"], move |m: &str| {
-        match write!(o.inner.lock(), "{}", m) {
-            Ok(()) => VmResult::Ok(()),
-            Err(error) => VmResult::panic(error),
-        }
-    })?;
-
-    let o = io.clone();
-
-    module.function(["println"], move |m: &str| {
-        match writeln!(o.inner.lock(), "{}", m) {
-            Ok(()) => VmResult::Ok(()),
-            Err(error) => VmResult::panic(error),
-        }
-    })?;
-
-    let o = io.clone();
-
-    module.raw_fn(["dbg"], move |stack, args| {
-        let mut o = o.inner.lock();
-        dbg_impl(&mut o, stack, args)
-    })?;
-
-    Ok(module)
 }
 
 fn dbg_impl(o: &mut Vec<u8>, stack: &mut Stack, args: usize) -> VmResult<()> {

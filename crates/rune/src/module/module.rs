@@ -332,9 +332,9 @@ impl Module {
     /// This shows how to register the unit type `()` as `nonstd::unit`.
     ///
     /// ```
-    /// use rune::Module;
+    /// use rune::{Any, Module};
     ///
-    /// let mut module = Module::with_item(["nonstd"]);
+    /// let mut module = Module::with_crate("nonstd");
     /// module.unit("unit")?;
     /// # Ok::<_, rune::Error>(())
     pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
