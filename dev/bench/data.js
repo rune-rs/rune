@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683594579232,
+  "lastUpdate": 1683680886529,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -19386,6 +19386,88 @@ window.BENCHMARK_DATA = {
             "name": "fib_20",
             "value": 4950957,
             "range": "± 2500",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "fcc6c82b158ac809a0eb939d76de63b640b21dee",
+          "message": "Module structure (#509)\n\n* Rework metadata and generics\r\n* Rework how modules are structured\r\n* More documentation\r\n* Rework type hashing\r\n* Switch to solely using TypeId for AnyObj",
+          "timestamp": "2023-05-09T20:26:36Z",
+          "url": "https://github.com/rune-rs/rune/commit/fcc6c82b158ac809a0eb939d76de63b640b21dee"
+        },
+        "date": 1683680885255,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aoc_2020_1a",
+            "value": 346146,
+            "range": "± 2739",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1227021,
+            "range": "± 3301",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 492306392,
+            "range": "± 1411157",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 292527147,
+            "range": "± 918731",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 1535915,
+            "range": "± 2117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 16103988,
+            "range": "± 46533",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 86761943,
+            "range": "± 301742",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 13717587,
+            "range": "± 18903",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 535447,
+            "range": "± 2951",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 5945241,
+            "range": "± 5649",
             "unit": "ns/iter"
           }
         ]
