@@ -5,6 +5,7 @@ use core::fmt;
 use core::mem::take;
 use core::num::NonZeroUsize;
 
+use crate::no_std::borrow::Cow;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
@@ -1068,12 +1069,16 @@ impl<'a> Query<'a> {
                 let hash = self.pool.item_type_hash(item_meta.item);
 
                 let kind = meta::Kind::Function {
-                    is_async: f.function.ast.async_token.is_some(),
-                    args: Some(f.function.ast.args.len()),
                     is_test: f.is_test,
                     is_bench: f.is_bench,
-                    instance_function: false,
-                    signature: None,
+                    signature: meta::Signature {
+                        is_async: f.function.ast.async_token.is_some(),
+                        args: Some(f.function.ast.args.len()),
+                        #[cfg(feature = "doc")]
+                        return_type: None,
+                        #[cfg(feature = "doc")]
+                        argument_types: Box::from([]),
+                    },
                     parameters: Hash::EMPTY,
                 };
 
@@ -1088,15 +1093,21 @@ impl<'a> Query<'a> {
             Indexed::InstanceFunction(f) => {
                 let hash = self.pool.item_type_hash(item_meta.item);
                 let container = self.pool.item_type_hash(f.impl_item);
+                let name = Cow::Owned(f.function.ast.name.resolve(resolve_context!(self))?.into());
 
-                let kind = meta::Kind::Function {
-                    is_async: f.function.ast.async_token.is_some(),
-                    args: Some(f.function.ast.args.len()),
-                    is_test: false,
-                    is_bench: false,
-                    instance_function: true,
-                    signature: None,
+                let kind = meta::Kind::AssociatedFunction {
+                    kind: meta::AssociatedKind::Instance(name),
+                    signature: meta::Signature {
+                        is_async: f.function.ast.async_token.is_some(),
+                        args: Some(f.function.ast.args.len()),
+                        #[cfg(feature = "doc")]
+                        return_type: None,
+                        #[cfg(feature = "doc")]
+                        argument_types: Box::from([]),
+                    },
                     parameters: Hash::EMPTY,
+                    #[cfg(feature = "doc")]
+                    parameter_types: Vec::new(),
                 };
 
                 self.inner.queue.push_back(BuildEntry {
@@ -1346,13 +1357,7 @@ impl<'a> Query<'a> {
                 // TODO: We probably should not engage the whole query meta
                 // machinery here.
                 if let Some(meta) = self.query_meta(span, item, Used::Used)? {
-                    if !matches!(
-                        meta.kind,
-                        meta::Kind::Function {
-                            instance_function: true,
-                            ..
-                        }
-                    ) {
+                    if !matches!(meta.kind, meta::Kind::AssociatedFunction { .. }) {
                         return Ok(self.pool.alloc_item(base));
                     }
                 }

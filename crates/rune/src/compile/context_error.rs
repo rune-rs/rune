@@ -4,7 +4,6 @@ use crate::no_std::thiserror;
 
 use thiserror::Error;
 
-use crate::compile::meta;
 use crate::compile::ItemBuf;
 use crate::runtime::{TypeInfo, VmError};
 use crate::Hash;
@@ -18,11 +17,8 @@ pub enum ContextError {
     UnitAlreadyPresent,
     #[error("Type for name `{name}` is already present")]
     InternalAlreadyPresent { name: &'static str },
-    #[error("Function `{signature}` ({hash}) already exists")]
-    ConflictingFunction {
-        signature: Box<meta::Signature>,
-        hash: Hash,
-    },
+    #[error("Function with hash `{hash}` already exists")]
+    ConflictingFunction { hash: Hash },
     #[error("Function `{item}` already exists with hash `{hash}`")]
     ConflictingFunctionName { item: ItemBuf, hash: Hash },
     #[error("Macro `{item}` already exists with hash `{hash}`")]

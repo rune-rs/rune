@@ -841,6 +841,8 @@ pub(super) enum DefinitionKind {
     Enum,
     /// A function.
     Function,
+    /// An associated function.
+    AssociatedFunction,
     /// A local variable.
     Local,
     /// A module that can be jumped to.
@@ -893,6 +895,7 @@ impl CompileVisitor for Visitor {
             } => DefinitionKind::StructVariant,
             meta::Kind::Enum { .. } => DefinitionKind::Enum,
             meta::Kind::Function { .. } => DefinitionKind::Function,
+            meta::Kind::AssociatedFunction { .. } => DefinitionKind::AssociatedFunction,
             _ => return,
         };
 
@@ -904,7 +907,7 @@ impl CompileVisitor for Visitor {
         let index = self.indexes.entry(location.source_id).or_default();
 
         if let Some(d) = index.definitions.insert(location.span, definition) {
-            tracing::warn!("replaced definition: {:?}", d.kind)
+            tracing::warn!("Replaced definition: {:?}", d.kind)
         }
     }
 

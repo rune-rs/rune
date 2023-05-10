@@ -98,8 +98,10 @@ pub(super) async fn run(
     if args.dump_native_functions {
         writeln!(io.stdout, "# functions")?;
 
-        for (i, (hash, f)) in context.iter_functions().enumerate() {
-            writeln!(io.stdout, "{:04} = {} ({})", i, f, hash)?;
+        for (i, (meta, _)) in context.iter_functions().enumerate() {
+            if let Some(item) = &meta.item {
+                writeln!(io.stdout, "{:04} = {} ({})", i, item, meta.hash)?;
+            }
         }
     }
 

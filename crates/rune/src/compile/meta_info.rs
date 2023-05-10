@@ -63,6 +63,9 @@ impl fmt::Display for MetaInfo {
             MetaInfoKind::Function => {
                 write!(fmt, "fn {name}")?;
             }
+            MetaInfoKind::Associated => {
+                write!(fmt, "associated fn {name}")?;
+            }
             MetaInfoKind::Closure => {
                 write!(fmt, "closure {name}")?;
             }
@@ -95,6 +98,7 @@ pub(crate) enum MetaInfoKind {
     Enum,
     Macro,
     Function,
+    Associated,
     Closure,
     AsyncBlock,
     Const,
@@ -112,6 +116,7 @@ impl MetaInfoKind {
             meta::Kind::Enum { .. } => MetaInfoKind::Enum,
             meta::Kind::Macro { .. } => MetaInfoKind::Macro,
             meta::Kind::Function { .. } => MetaInfoKind::Function,
+            meta::Kind::AssociatedFunction { .. } => MetaInfoKind::Associated,
             meta::Kind::Closure { .. } => MetaInfoKind::Closure,
             meta::Kind::AsyncBlock { .. } => MetaInfoKind::AsyncBlock,
             meta::Kind::Const { .. } => MetaInfoKind::Const,

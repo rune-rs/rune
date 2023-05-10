@@ -1,9 +1,8 @@
 use crate::no_std::prelude::*;
 
-use crate::compile::context::{ContextMeta, ContextAssociated};
+use crate::compile::context::ContextMeta;
 use crate::compile::{meta, ComponentRef, IntoComponent, Item, ItemBuf};
 use crate::doc::{Visitor, VisitorData};
-use crate::module::AssociatedKind;
 use crate::runtime::ConstValue;
 use crate::runtime::Protocol;
 use crate::Hash;
@@ -124,13 +123,18 @@ impl<'a> Context<'a> {
 
                 let (is_async, kind) = match data.kind {
                     meta::Kind::Function {
-                        is_async,
-                        instance_function,
-                        args,
+                        signature: ref f,
                         ..
                     } => (
-                        is_async,
-                        AssocFnKind::Method(data.item.last()?.as_str()?, args, if instance_function { Signature::Instance } else { Signature::Function }),
+                        f.is_async,
+                        AssocFnKind::Method(data.item.last()?.as_str()?, f.args, Signature::Function),
+                    ),
+                    meta::Kind::AssociatedFunction {
+                        signature: ref f,
+                        ..
+                    } => (
+                        f.is_async,
+                        AssocFnKind::Method(data.item.last()?.as_str()?, f.args, Signature::Instance),
                     ),
                     _ => return None,
                 };
@@ -147,51 +151,42 @@ impl<'a> Context<'a> {
             }))
         }
 
-        fn context_to_associated<'m>(context: &'m crate::Context, assoc: &'m ContextAssociated) -> Option<Assoc<'m>> {
-            match assoc {
-                ContextAssociated::Associated(m) => {
-                    let kind = match m.name.kind {
-                        AssociatedKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
-                        AssociatedKind::FieldFn(protocol, ref field) => {
+        fn context_to_associated<'m>(context: &'m crate::Context, hash: Hash) -> Option<Assoc<'m>> {
+            let meta = context.lookup_meta_by_hash(hash).next()?;
+            let sig = meta.kind.as_signature()?;
+            let name = meta.item.as_deref()?.last()?.as_str()?;
+
+            let (kind, parameter_types) = match &meta.kind {
+                meta::Kind::AssociatedFunction { kind, parameter_types, .. } => {
+                    let kind = match *kind {
+                        meta::AssociatedKind::Protocol(protocol) => AssocFnKind::Protocol(protocol),
+                        meta::AssociatedKind::FieldFn(protocol, ref field) => {
                             AssocFnKind::FieldFn(protocol, field)
                         }
-                        AssociatedKind::IndexFn(protocol, index) => {
+                        meta::AssociatedKind::IndexFn(protocol, index) => {
                             AssocFnKind::IndexFn(protocol, index)
                         }
-                        AssociatedKind::Instance(ref name) => AssocFnKind::Method(name, m.args, Signature::Instance),
+                        meta::AssociatedKind::Instance(ref name) => AssocFnKind::Method(name, sig.args, Signature::Instance),
                     };
 
-                    Some(Assoc::Fn(AssocFn {
-                        is_async: m.is_async,
-                        return_type: m.return_type.as_ref().map(|f| f.hash),
-                        argument_types: m
-                            .argument_types
-                            .iter()
-                            .map(|f| f.as_ref().map(|f| f.hash))
-                            .collect(),
-                        docs: m.docs.lines(),
-                        arg_names: m.docs.args(),
-                        kind,
-                        parameter_types: &m.name.parameter_types,
-                    }))
-                },
-                ContextAssociated::Function(hash) => {
-                    let meta = context.lookup_meta_by_hash(*hash).next()?;
-                    let sig = meta.kind.as_signature()?;
-                    let name = meta.item.as_deref()?.last()?.as_str()?;
+                    (kind, &parameter_types[..])
+                }
+                _ => {
+                    let kind = AssocFnKind::Method(name, sig.args, Signature::Function);
+                    (kind, &[][..])
+                }
+            };
 
-                    Some(Assoc::Fn(AssocFn {
-                        is_async: sig.is_async,
-                        return_type: sig.return_type,
-                        argument_types: sig
-                            .argument_types.clone(),
-                        docs: meta.docs.lines(),
-                        arg_names: meta.docs.args(),
-                        kind: AssocFnKind::Method(name, sig.args, Signature::Function),
-                        parameter_types: &[],
-                    }))
-                },
-            }
+            Some(Assoc::Fn(AssocFn {
+                is_async: sig.is_async,
+                return_type: sig.return_type,
+                argument_types: sig
+                    .argument_types.clone(),
+                docs: meta.docs.lines(),
+                arg_names: meta.docs.args(),
+                kind,
+                parameter_types,
+            }))
         }
 
         let visitors = self
@@ -264,28 +259,27 @@ impl<'a> Context<'a> {
             meta::Kind::Variant { .. } => Kind::Variant,
             meta::Kind::Enum { .. } => Kind::Enum,
             meta::Kind::Function {
-                args,
-                instance_function,
+                signature: f,
                 ..
             } => {
-                let f = meta.kind.as_signature()?;
-
-                let instance_function = match f.kind {
-                    meta::SignatureKind::Function => *instance_function,
-                    meta::SignatureKind::Instance { .. } => true,
-                };
-
-                let signature = if instance_function {
-                    Signature::Instance
-                } else {
-                    Signature::Function
-                };
-
                 Kind::Function(Function {
                     is_async: f.is_async,
-                    signature,
+                    signature: Signature::Function,
                     arg_names: meta.docs.args(),
-                    args: *args,
+                    args: f.args,
+                    return_type: f.return_type,
+                    argument_types: &f.argument_types,
+                })
+            }
+            meta::Kind::AssociatedFunction {
+                signature: f,
+                ..
+            } => {
+                Kind::Function(Function {
+                    is_async: f.is_async,
+                    signature: Signature::Instance,
+                    arg_names: meta.docs.args(),
+                    args: f.args,
                     return_type: f.return_type,
                     argument_types: &f.argument_types,
                 })
@@ -320,13 +314,21 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
         meta::Kind::Struct { .. } => Kind::Struct,
         meta::Kind::Variant { .. } => Kind::Variant,
         meta::Kind::Enum => Kind::Enum,
-        meta::Kind::Function { is_async, args, .. } => Kind::Function(Function {
-            is_async: *is_async,
+        meta::Kind::Function { signature: f, .. } => Kind::Function(Function {
+            is_async: f.is_async,
             arg_names: None,
-            args: *args,
+            args: f.args,
             signature: Signature::Function,
-            return_type: None,
-            argument_types: &[],
+            return_type: f.return_type,
+            argument_types: &f.argument_types,
+        }),
+        meta::Kind::AssociatedFunction { signature: f, .. } => Kind::Function(Function {
+            is_async: f.is_async,
+            arg_names: None,
+            args: f.args,
+            signature: Signature::Instance,
+            return_type: f.return_type,
+            argument_types: &f.argument_types,
         }),
         meta::Kind::Module => Kind::Module,
         _ => Kind::Unsupported,

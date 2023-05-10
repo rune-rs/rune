@@ -9,8 +9,7 @@ use lsp::MarkupContent;
 use lsp::MarkupKind;
 use lsp::TextEdit;
 
-use crate::compile::meta::SignatureKind;
-use crate::module::AssociatedKind;
+use crate::compile::meta;
 use crate::runtime::debug::DebugArgs;
 use crate::Context;
 use crate::Unit;
@@ -85,49 +84,37 @@ pub(super) fn complete_native_instance_data(
     position: lsp::Position,
     results: &mut Vec<CompletionItem>,
 ) {
-    for info in context.iter_functions() {
-        let (prefix, kind, function_kind) = match &info.1.kind {
-            SignatureKind::Instance { name, .. } => {
-                (info.1.item.clone(), CompletionItemKind::FUNCTION, name)
-            }
-            SignatureKind::Function { .. } => continue,
-        };
-
-        let n = match function_kind {
-            AssociatedKind::Protocol(_) => continue,
-            AssociatedKind::FieldFn(_, _) => continue,
-            AssociatedKind::IndexFn(_, _) => continue,
-            AssociatedKind::Instance(n) => n,
+    for (meta, signature) in context.iter_functions() {
+        let (prefix, kind, n) = match (&meta.item, &meta.kind) {
+            (
+                Some(item),
+                meta::Kind::AssociatedFunction {
+                    kind: meta::AssociatedKind::Instance(name),
+                    ..
+                },
+            ) => (item, CompletionItemKind::FUNCTION, name),
+            _ => continue,
         };
 
         if n.starts_with(symbol) {
-            let meta = context.lookup_meta_by_hash(info.0).next();
-
-            let return_type = info
-                .1
+            let return_type = signature
                 .return_type
                 .and_then(|hash| context.lookup_meta_by_hash(hash).next())
                 .and_then(|r| r.item.as_deref());
 
-            let docs = meta.map(|meta| meta.docs.lines().join("\n"));
-            let args = meta
-                .map(|meta| &meta.docs)
-                .and_then(|d| d.args())
-                .map(|args| args.join(", "));
-            let detail = return_type
-                .zip(args.clone())
-                .map(|(r, a)| format!("({a:} -> {r}"));
+            let docs = meta.docs.lines().join("\n");
+            let args = meta.docs.args().unwrap_or_default().join(", ");
+
+            let detail = return_type.map(|r| format!("({args} -> {r}"));
 
             results.push(CompletionItem {
                 label: n.to_string(),
                 kind: Some(kind),
                 detail,
-                documentation: docs.map(|d| {
-                    lsp::Documentation::MarkupContent(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: d,
-                    })
-                }),
+                documentation: Some(lsp::Documentation::MarkupContent(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: docs,
+                })),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
                     range: lsp::Range {
                         start: lsp::Position {
@@ -142,7 +129,7 @@ pub(super) fn complete_native_instance_data(
                     detail: None,
                     description: Some(prefix.to_string()),
                 }),
-                data: Some(serde_json::to_value(info.0).unwrap()),
+                data: Some(serde_json::to_value(meta.hash).unwrap()),
                 ..Default::default()
             })
         }
@@ -155,41 +142,35 @@ pub(super) fn complete_native_loose_data(
     position: lsp::Position,
     results: &mut Vec<CompletionItem>,
 ) {
-    for info in context.iter_functions() {
-        let (item, kind) = match info.1.kind {
-            SignatureKind::Function { .. } => (info.1.item.clone(), CompletionItemKind::FUNCTION),
-            SignatureKind::Instance { .. } => continue,
+    for (meta, signature) in context.iter_functions() {
+        let (item, kind) = match (&meta.item, &meta.kind) {
+            (Some(item), meta::Kind::Function { .. }) => {
+                (item.clone(), CompletionItemKind::FUNCTION)
+            }
+            _ => continue,
         };
 
         let func_name = item.to_string().trim_start_matches("::").to_owned();
-        if func_name.starts_with(symbol) {
-            let meta = context.lookup_meta_by_hash(info.0).next();
 
-            let return_type = info
-                .1
+        if func_name.starts_with(symbol) {
+            let return_type = signature
                 .return_type
                 .and_then(|hash| context.lookup_meta_by_hash(hash).next())
                 .and_then(|r| r.item.as_deref());
 
-            let docs = meta.map(|meta| meta.docs.lines().join("\n"));
-            let args = meta
-                .map(|meta| &meta.docs)
-                .and_then(|d| d.args())
-                .map(|args| args.join(", "));
-            let detail = return_type
-                .zip(args.clone())
-                .map(|(r, a)| format!("({a:}) -> {r}"));
+            let docs = meta.docs.lines().join("\n");
+            let args = meta.docs.args().unwrap_or_default().join(", ");
+
+            let detail = return_type.map(|r| format!("({args}) -> {r}"));
 
             results.push(CompletionItem {
                 label: func_name.clone(),
                 kind: Some(kind),
                 detail,
-                documentation: docs.map(|d| {
-                    lsp::Documentation::MarkupContent(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: d,
-                    })
-                }),
+                documentation: Some(lsp::Documentation::MarkupContent(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: docs,
+                })),
                 text_edit: Some(lsp::CompletionTextEdit::Edit(TextEdit {
                     range: lsp::Range {
                         start: lsp::Position {
@@ -200,7 +181,7 @@ pub(super) fn complete_native_loose_data(
                     },
                     new_text: func_name,
                 })),
-                data: Some(serde_json::to_value(info.0).unwrap()),
+                data: Some(serde_json::to_value(meta.hash).unwrap()),
                 ..Default::default()
             })
         }

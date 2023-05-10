@@ -144,7 +144,7 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &meta::Meta, needs: Needs) -> c
                     meta.info(c.q.pool).to_string(),
                 );
             }
-            meta::Kind::Function { .. } => {
+            meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => {
                 c.asm.push_with_comment(
                     Inst::LoadFn { hash: meta.hash },
                     span,
@@ -1805,7 +1805,7 @@ fn convert_expr_call(
                         );
                     }
                 }
-                meta::Kind::Function { .. } => (),
+                meta::Kind::Function { .. } | meta::Kind::AssociatedFunction { .. } => (),
                 meta::Kind::ConstFn { id, .. } => {
                     let id = *id;
                     return Ok(Call::ConstFn { meta, id });
@@ -1985,16 +1985,13 @@ fn expr_closure(
     let item = c.q.item_for((span, hir.id))?;
     let hash = c.q.pool.item_type_hash(item.item);
 
-    let meta = match c.q.query_meta(span, item.item, Default::default())? {
-        Some(meta) => meta,
-        None => {
-            return Err(compile::Error::new(
-                span,
-                CompileErrorKind::MissingItem {
-                    item: c.q.pool.item(item.item).to_owned(),
-                },
-            ))
-        }
+    let Some(meta) = c.q.query_meta(span, item.item, Default::default())? else {
+        return Err(compile::Error::new(
+            span,
+            CompileErrorKind::MissingItem {
+                item: c.q.pool.item(item.item).to_owned(),
+            },
+        ))
     };
 
     let (captures, do_move) = match &meta.kind {
