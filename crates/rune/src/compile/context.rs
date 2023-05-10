@@ -3,7 +3,7 @@ use core::fmt;
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use crate::collections::{HashMap, HashSet};
+use crate::collections::{BTreeSet, HashMap, HashSet};
 use crate::compile::meta;
 use crate::compile::{
     ComponentRef, ContextError, Docs, IntoComponent, Item, ItemBuf, MetaInfo, Names,
@@ -61,14 +61,16 @@ impl ContextMeta {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub(crate) struct ContextType {
+    /// Item of the type.
+    item: ItemBuf,
+    /// Type hash.
+    hash: Hash,
     /// The type check used for the current type.
     type_check: Option<TypeCheck>,
     /// Complete detailed information on the hash.
     type_info: TypeInfo,
-    /// Item of the type.
-    item: ItemBuf,
-    /// The hash of the type.
-    type_hash: Hash,
+    /// Parameters hash.
+    parameters_hash: Hash,
 }
 
 impl fmt::Display for ContextType {
@@ -108,7 +110,7 @@ pub struct Context {
     /// Item metadata in the context.
     hash_to_meta: HashMap<Hash, Vec<usize>>,
     /// Store item to hash mapping.
-    item_to_hash: HashMap<ItemBuf, Hash>,
+    item_to_hash: HashMap<ItemBuf, BTreeSet<Hash>>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<FunctionHandler>>,
     /// Information on associated types.
@@ -118,9 +120,6 @@ pub struct Context {
     macros: HashMap<Hash, Arc<MacroHandler>>,
     /// Registered types.
     types: HashMap<Hash, ContextType>,
-    /// Reverse lookup for types, which maps the item type hash to the internal
-    /// type hash which is usually based on a type id.
-    types_rev: HashMap<Hash, Hash>,
     /// Registered internal enums.
     internal_enums: HashSet<&'static StaticType>,
     /// All available names in the context.
@@ -298,20 +297,17 @@ impl Context {
     }
 
     /// Access the context meta for the given item.
-    pub(crate) fn lookup_meta(
-        &self,
-        item: &Item,
-    ) -> impl ExactSizeIterator<Item = &ContextMeta> + Clone {
-        let indexes = match self.item_to_hash.get(item) {
-            Some(hash) => self
-                .hash_to_meta
-                .get(hash)
-                .map(Vec::as_slice)
-                .unwrap_or_default(),
-            None => &[][..],
-        };
-
-        indexes.iter().map(|&i| &self.meta[i])
+    pub(crate) fn lookup_meta(&self, item: &Item) -> impl Iterator<Item = &ContextMeta> + Clone {
+        self.item_to_hash.get(item).into_iter().flat_map(|hashes| {
+            hashes.iter().flat_map(|hash| {
+                let indexes = self
+                    .hash_to_meta
+                    .get(hash)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default();
+                indexes.iter().map(|&i| &self.meta[i])
+            })
+        })
     }
 
     /// Lookup meta by its hash.
@@ -383,16 +379,10 @@ impl Context {
     fn install_meta(&mut self, meta: ContextMeta) -> Result<(), ContextError> {
         if let Some(item) = &meta.item {
             self.names.insert(item);
-
-            if let Some(existing) = self.item_to_hash.insert(item.clone(), meta.hash) {
-                if meta.hash != existing {
-                    return Err(ContextError::ConflictingMetaHash {
-                        item: item.clone(),
-                        hash: meta.hash,
-                        existing,
-                    });
-                }
-            }
+            self.item_to_hash
+                .entry(item.clone())
+                .or_default()
+                .insert(meta.hash);
         }
 
         let hash = meta.hash;
@@ -409,13 +399,13 @@ impl Context {
         let mut current = Some((m.item.as_ref(), Some(&m.docs)));
 
         while let Some((item, docs)) = current.take() {
-            self.install_meta(ContextMeta {
-                hash: Hash::type_hash(item),
-                associated_container: None,
-                item: Some(item.to_owned()),
-                kind: meta::Kind::Module,
-                docs: docs.cloned().unwrap_or_default(),
-            })?;
+            self.install_meta(ContextMeta::new(
+                Hash::type_hash(item),
+                None,
+                Some(item.to_owned()),
+                meta::Kind::Module,
+                docs.cloned().unwrap_or_default(),
+            ))?;
 
             current = item.parent().map(|item| (item, None));
         }
@@ -426,18 +416,14 @@ impl Context {
     /// Install a single type.
     fn install_type(&mut self, module: &Module, ty: &ModuleType) -> Result<(), ContextError> {
         let item = module.item.join(&ty.item);
-        let hash = Hash::type_hash(&item);
-        let type_hash = ty.hash;
 
-        self.install_type_info(
-            hash,
-            ContextType {
-                type_check: None,
-                item: item.clone(),
-                type_hash,
-                type_info: ty.type_info.clone(),
-            },
-        )?;
+        self.install_type_info(ContextType {
+            item: item.clone(),
+            hash: ty.hash,
+            type_check: None,
+            type_info: ty.type_info.clone(),
+            parameters_hash: ty.parameters_hash,
+        })?;
 
         let kind = if let Some(spec) = &ty.spec {
             match spec {
@@ -448,11 +434,8 @@ impl Context {
                     constructor: None,
                 },
                 TypeSpecification::Enum(en) => {
-                    let enum_item = &item;
-                    let enum_hash = type_hash;
-
                     for (index, (name, variant)) in en.variants.iter().enumerate() {
-                        let item = enum_item.extended(name);
+                        let item = item.extended(name);
                         let hash = Hash::type_hash(&item);
                         let constructor = variant.constructor.as_ref();
 
@@ -470,26 +453,24 @@ impl Context {
                             VariantKind::Unit => (meta::Fields::Unit, Some(0)),
                         };
 
-                        self.install_type_info(
+                        self.install_type_info(ContextType {
+                            item: item.clone(),
                             hash,
-                            ContextType {
-                                type_check: None,
+                            type_check: None,
+                            type_info: TypeInfo::Variant(Arc::new(VariantRtti {
+                                enum_hash: ty.hash,
+                                hash,
                                 item: item.clone(),
-                                type_hash: hash,
-                                type_info: TypeInfo::Variant(Arc::new(VariantRtti {
-                                    enum_hash,
-                                    hash,
-                                    item: item.clone(),
-                                })),
-                            },
-                        )?;
+                            })),
+                            parameters_hash: Hash::EMPTY,
+                        })?;
 
                         let constructor = if let (Some(c), Some(args)) = (constructor, args) {
                             let signature = meta::Signature {
                                 item: item.clone(),
                                 is_async: false,
                                 args: Some(args),
-                                return_type: Some(enum_hash),
+                                return_type: Some(ty.hash),
                                 argument_types: Box::from([]),
                                 kind: meta::SignatureKind::Function,
                             };
@@ -501,7 +482,7 @@ impl Context {
                         };
 
                         let kind = meta::Kind::Variant {
-                            enum_hash,
+                            enum_hash: ty.hash,
                             index,
                             fields,
                             constructor,
@@ -509,7 +490,7 @@ impl Context {
 
                         self.install_meta(ContextMeta::new(
                             hash,
-                            Some(enum_hash),
+                            Some(ty.hash),
                             Some(item),
                             kind,
                             Docs::default(),
@@ -524,7 +505,7 @@ impl Context {
         };
 
         self.install_meta(ContextMeta::new(
-            type_hash,
+            ty.hash,
             None,
             Some(item),
             kind,
@@ -534,21 +515,28 @@ impl Context {
         Ok(())
     }
 
-    fn install_type_info(&mut self, hash: Hash, info: ContextType) -> Result<(), ContextError> {
-        // reverse lookup for types.
-        if let Some(existing) = self.types_rev.insert(info.type_hash, hash) {
-            return Err(ContextError::ConflictingTypeHash { hash, existing });
+    fn install_type_info(&mut self, ty: ContextType) -> Result<(), ContextError> {
+        let item_hash = Hash::type_hash(&ty.item).with_parameters(ty.parameters_hash);
+
+        if ty.hash != item_hash {
+            return Err(ContextError::TypeHashMismatch {
+                type_info: ty.type_info,
+                item: ty.item,
+                hash: ty.hash,
+                item_hash,
+            });
         }
 
         self.constants.insert(
-            Hash::instance_function(info.type_hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(info.item.to_string()),
+            Hash::instance_function(ty.hash, Protocol::INTO_TYPE_NAME),
+            ConstValue::String(ty.item.to_string()),
         );
 
-        if let Some(old) = self.types.insert(hash, info) {
+        if let Some(old) = self.types.insert(ty.hash, ty) {
             return Err(ContextError::ConflictingType {
                 item: old.item,
                 type_info: old.type_info,
+                hash: old.hash,
             });
         }
 
@@ -654,24 +642,17 @@ impl Context {
     }
 
     fn install_associated(&mut self, assoc: &ModuleAssociated) -> Result<(), ContextError> {
-        let info = match self
-            .types_rev
-            .get(&assoc.key.type_hash)
-            .and_then(|hash| self.types.get(hash))
-        {
-            Some(info) => info.clone(),
-            None => {
-                return Err(ContextError::MissingInstance {
-                    instance_type: assoc.type_info.clone(),
-                });
-            }
+        let Some(info) = self.types.get(&assoc.container.hash).cloned() else {
+            return Err(ContextError::MissingContainer {
+                container: assoc.container_type_info.clone(),
+            });
         };
 
         let hash = assoc
             .name
             .kind
-            .hash(assoc.key.type_hash)
-            .with_parameters(assoc.key.parameters);
+            .hash(assoc.container.hash)
+            .with_parameters(assoc.name.parameters);
 
         let signature = meta::Signature {
             item: info.item.clone(),
@@ -693,7 +674,7 @@ impl Context {
 
         self.install_meta(ContextMeta::new(
             hash,
-            Some(assoc.key.type_hash),
+            Some(assoc.container.hash),
             None,
             meta::Kind::Function {
                 is_async: assoc.is_async,
@@ -702,63 +683,65 @@ impl Context {
                 is_bench: false,
                 instance_function: true,
                 signature: Some(signature),
-                parameters: assoc.key.parameters,
+                parameters: assoc.name.parameters,
             },
             assoc.docs.clone(),
         ))?;
 
         #[cfg(feature = "doc")]
         self.associated
-            .entry(assoc.key.type_hash)
+            .entry(assoc.container.hash)
             .or_default()
             .push(ContextAssociated::Associated(assoc.clone()));
 
-        // If the associated function is a named instance function - register it
-        // under the name of the item it corresponds to unless it's a field
-        // function.
-        //
-        // The other alternatives are protocol functions (which are not free)
-        // and plain hashes.
-        if let AssociatedKind::Instance(name) = &assoc.name.kind {
-            let item = info.item.extended(name);
-            let type_hash = Hash::type_hash(&item);
-            let hash = type_hash.with_parameters(assoc.key.parameters);
+        // These are currently only usable if parameters hash is empty.
+        if info.parameters_hash.is_empty() {
+            // If the associated function is a named instance function - register it
+            // under the name of the item it corresponds to unless it's a field
+            // function.
+            //
+            // The other alternatives are protocol functions (which are not free)
+            // and plain hashes.
+            if let AssociatedKind::Instance(name) = &assoc.name.kind {
+                let item = info.item.extended(name);
+                let hash = Hash::type_hash(&item).with_parameters(assoc.name.parameters);
 
-            self.constants.insert(
-                Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
-                ConstValue::String(item.to_string()),
-            );
+                self.constants.insert(
+                    Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::String(item.to_string()),
+                );
 
-            let signature = meta::Signature {
-                item: item.clone(),
-                is_async: assoc.is_async,
-                args: assoc.args,
-                return_type: assoc.return_type.as_ref().map(|f| f.hash),
-                argument_types: assoc
-                    .argument_types
-                    .iter()
-                    .map(|f| f.as_ref().map(|f| f.hash))
-                    .collect(),
-                kind: meta::SignatureKind::Function,
-            };
-
-            self.insert_native_fn(hash, &signature, &assoc.handler)?;
-
-            self.install_meta(ContextMeta::new(
-                type_hash,
-                Some(assoc.key.type_hash),
-                Some(item),
-                meta::Kind::Function {
+                let signature = meta::Signature {
+                    item: item.clone(),
                     is_async: assoc.is_async,
                     args: assoc.args,
-                    is_test: false,
-                    is_bench: false,
-                    instance_function: true,
-                    signature: Some(signature),
-                    parameters: assoc.key.parameters,
-                },
-                assoc.docs.clone(),
-            ))?;
+                    return_type: assoc.return_type.as_ref().map(|f| f.hash),
+                    argument_types: assoc
+                        .argument_types
+                        .iter()
+                        .map(|f| f.as_ref().map(|f| f.hash))
+                        .collect(),
+                    kind: meta::SignatureKind::Function,
+                };
+
+                self.insert_native_fn(hash, &signature, &assoc.handler)?;
+
+                self.install_meta(ContextMeta::new(
+                    hash,
+                    Some(assoc.container.hash),
+                    Some(item),
+                    meta::Kind::Function {
+                        is_async: assoc.is_async,
+                        args: assoc.args,
+                        is_test: false,
+                        is_bench: false,
+                        instance_function: true,
+                        signature: Some(signature),
+                        parameters: assoc.name.parameters,
+                    },
+                    assoc.docs.clone(),
+                ))?;
+            }
         }
 
         Ok(())
@@ -772,19 +755,16 @@ impl Context {
         docs: Docs,
     ) -> Result<(), ContextError> {
         let item = module.item.extended(&*unit_type.name);
-        let hash = Hash::type_hash(&item);
-        self.add_internal_tuple(None, item.clone(), 0, || (), docs)?;
 
-        self.install_type_info(
-            hash,
-            ContextType {
-                type_check: Some(TypeCheck::Unit),
-                item,
-                type_hash: crate::runtime::UNIT_TYPE.hash,
-                type_info: TypeInfo::StaticType(crate::runtime::UNIT_TYPE),
-            },
-        )?;
+        self.install_type_info(ContextType {
+            item: item.clone(),
+            hash: crate::runtime::UNIT_TYPE.hash,
+            type_check: Some(TypeCheck::Unit),
+            type_info: crate::runtime::UNIT_TYPE.type_info(),
+            parameters_hash: Hash::EMPTY,
+        })?;
 
+        self.add_internal_tuple(None, item, 0, || (), docs)?;
         Ok(())
     }
 
@@ -801,40 +781,37 @@ impl Context {
             });
         }
 
-        let enum_item = module.item.join(&internal_enum.base_type);
-        let enum_hash = Hash::type_hash(&enum_item);
+        let item = module.item.join(&internal_enum.base_type);
+
+        let enum_hash = internal_enum.static_type.hash;
 
         self.install_meta(ContextMeta::new(
-            internal_enum.static_type.hash,
+            enum_hash,
             None,
-            Some(enum_item.clone()),
+            Some(item.clone()),
             meta::Kind::Enum,
             docs,
         ))?;
 
-        self.install_type_info(
-            enum_hash,
-            ContextType {
-                type_check: None,
-                item: enum_item.clone(),
-                type_hash: internal_enum.static_type.hash,
-                type_info: TypeInfo::StaticType(internal_enum.static_type),
-            },
-        )?;
+        self.install_type_info(ContextType {
+            item: item.clone(),
+            hash: enum_hash,
+            type_check: None,
+            type_info: internal_enum.static_type.type_info(),
+            parameters_hash: Hash::EMPTY,
+        })?;
 
         for (index, variant) in internal_enum.variants.iter().enumerate() {
-            let item = enum_item.extended(variant.name);
+            let item = item.extended(variant.name);
             let hash = Hash::type_hash(&item);
 
-            self.install_type_info(
+            self.install_type_info(ContextType {
+                item: item.clone(),
                 hash,
-                ContextType {
-                    type_check: Some(variant.type_check),
-                    item: item.clone(),
-                    type_hash: hash,
-                    type_info: TypeInfo::StaticType(internal_enum.static_type),
-                },
-            )?;
+                type_check: Some(variant.type_check),
+                type_info: internal_enum.static_type.type_info(),
+                parameters_hash: Hash::EMPTY,
+            })?;
 
             let signature = meta::Signature {
                 item: item.clone(),
@@ -849,7 +826,7 @@ impl Context {
 
             self.install_meta(ContextMeta::new(
                 hash,
-                Some(internal_enum.static_type.hash),
+                Some(enum_hash),
                 Some(item.clone()),
                 meta::Kind::Variant {
                     enum_hash,

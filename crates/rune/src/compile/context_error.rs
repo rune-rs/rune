@@ -23,12 +23,12 @@ pub enum ContextError {
         signature: Box<meta::Signature>,
         hash: Hash,
     },
-    #[error("Function `{item}` already exists")]
-    ConflictingFunctionName { item: ItemBuf },
-    #[error("Macro `{item}` already exists")]
-    ConflictingMacroName { item: ItemBuf },
-    #[error("Constant `{item}` already exists")]
-    ConflictingConstantName { item: ItemBuf },
+    #[error("Function `{item}` already exists with hash `{hash}`")]
+    ConflictingFunctionName { item: ItemBuf, hash: Hash },
+    #[error("Macro `{item}` already exists with hash `{hash}`")]
+    ConflictingMacroName { item: ItemBuf, hash: Hash },
+    #[error("Constant `{item}` already exists with hash `{hash}`")]
+    ConflictingConstantName { item: ItemBuf, hash: Hash },
     #[error("Instance function `{name}` for type `{type_info}` already exists")]
     ConflictingInstanceFunction { type_info: TypeInfo, name: Box<str> },
     #[error("Protocol function `{name}` for type `{type_info}` already exists")]
@@ -47,8 +47,12 @@ pub enum ContextError {
     },
     #[error("Module `{item}` with hash `{hash}` already exists")]
     ConflictingModule { item: ItemBuf, hash: Hash },
-    #[error("Type `{item}` already exists `{type_info}`")]
-    ConflictingType { item: ItemBuf, type_info: TypeInfo },
+    #[error("Type `{item}` already exists `{type_info}` with hash `{hash}`")]
+    ConflictingType {
+        item: ItemBuf,
+        type_info: TypeInfo,
+        hash: Hash,
+    },
     #[error("Type `{item}` at `{type_info}` already has a specification")]
     ConflictingTypeMeta { item: ItemBuf, type_info: TypeInfo },
     #[error(
@@ -71,10 +75,17 @@ pub enum ContextError {
     MissingType { item: ItemBuf, type_info: TypeInfo },
     #[error("Type `{item}` with info `{type_info}` is registered but is not an enum")]
     MissingEnum { item: ItemBuf, type_info: TypeInfo },
-    #[error("Instance `{instance_type}` does not exist in module")]
-    MissingInstance { instance_type: TypeInfo },
+    #[error("Container `{container}` is not registered")]
+    MissingContainer { container: TypeInfo },
     #[error("Missing variant {index} for `{type_info}`")]
     MissingVariant { type_info: TypeInfo, index: usize },
     #[error("Expected associated function")]
     ExpectedAssociated,
+    #[error("Type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`. A possibility is that it has the wrong #[rune(item = ..)] setting.")]
+    TypeHashMismatch {
+        type_info: TypeInfo,
+        item: ItemBuf,
+        hash: Hash,
+        item_hash: Hash,
+    },
 }

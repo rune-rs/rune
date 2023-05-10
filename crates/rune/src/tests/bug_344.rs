@@ -171,7 +171,7 @@ impl GuardCheck {
 
 impl Any for GuardCheck {
     fn type_hash() -> Hash {
-        Hash::new(0x10)
+        Hash::new(0x6b8fb6d544712e99)
     }
 }
 

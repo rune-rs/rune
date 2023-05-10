@@ -24,9 +24,9 @@ enum Name {
     /// An associated key.
     Associated(AssociatedKey),
     /// A regular item.
-    Item(ItemBuf),
+    Item(Hash),
     /// A macro.
-    Macro(ItemBuf),
+    Macro(Hash),
 }
 
 /// A [Module] that is a collection of native functions and types.
@@ -167,12 +167,17 @@ impl Module {
     where
         T: Named + TypeOf + InstallWith,
     {
-        let item = ItemBuf::with_item(&[T::full_name()]);
+        let item = ItemBuf::with_item([T::BASE_NAME]);
         let hash = T::type_hash();
+        let parameters_hash = T::parameters_hash();
         let type_info = T::type_info();
 
-        if !self.names.insert(Name::Item(item.clone())) {
-            return Err(ContextError::ConflictingType { item, type_info });
+        if !self.names.insert(Name::Item(hash)) {
+            return Err(ContextError::ConflictingType {
+                item,
+                type_info,
+                hash,
+            });
         }
 
         let index = self.types.len();
@@ -181,6 +186,7 @@ impl Module {
         self.types.push(ModuleType {
             item,
             hash,
+            parameters_hash,
             type_info,
             spec: None,
             docs: Docs::default(),
@@ -326,9 +332,9 @@ impl Module {
     /// This shows how to register the unit type `()` as `nonstd::unit`.
     ///
     /// ```
-    /// use rune::Module;
+    /// use rune::{Any, Module};
     ///
-    /// let mut module = Module::with_item(["nonstd"]);
+    /// let mut module = Module::with_crate("nonstd");
     /// module.unit("unit")?;
     /// # Ok::<_, rune::Error>(())
     pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
@@ -469,6 +475,7 @@ impl Module {
         V: ToValue,
     {
         let item = ItemBuf::with_item(name);
+        let hash = Hash::type_hash(&item);
 
         let value = match value.to_value() {
             VmResult::Ok(v) => v,
@@ -480,8 +487,8 @@ impl Module {
             VmResult::Err(error) => return Err(ContextError::ValueError { error }),
         };
 
-        if !self.names.insert(Name::Item(item.clone())) {
-            return Err(ContextError::ConflictingConstantName { item });
+        if !self.names.insert(Name::Item(hash)) {
+            return Err(ContextError::ConflictingConstantName { item, hash });
         }
 
         self.constants.push(ModuleConstant {
@@ -538,8 +545,13 @@ impl Module {
 
         match meta.kind {
             MacroMetaKind::Function(data) => {
-                if !self.names.insert(Name::Macro(data.item.clone())) {
-                    return Err(ContextError::ConflictingMacroName { item: data.item });
+                let hash = Hash::type_hash(&data.item);
+
+                if !self.names.insert(Name::Macro(hash)) {
+                    return Err(ContextError::ConflictingMacroName {
+                        item: data.item,
+                        hash,
+                    });
                 }
 
                 let mut docs = Docs::default();
@@ -593,9 +605,10 @@ impl Module {
         N::Item: IntoComponent,
     {
         let item = ItemBuf::with_item(name);
+        let hash = Hash::type_hash(&item);
 
-        if !self.names.insert(Name::Macro(item.clone())) {
-            return Err(ContextError::ConflictingMacroName { item });
+        if !self.names.insert(Name::Macro(hash)) {
+            return Err(ContextError::ConflictingMacroName { item, hash });
         }
 
         let handler: Arc<MacroHandler> = Arc::new(f);
@@ -956,9 +969,10 @@ impl Module {
         N::Item: IntoComponent,
     {
         let item = ItemBuf::with_item(name);
+        let hash = Hash::type_hash(&item);
 
-        if !self.names.insert(Name::Item(item.clone())) {
-            return Err(ContextError::ConflictingFunctionName { item });
+        if !self.names.insert(Name::Item(hash)) {
+            return Err(ContextError::ConflictingFunctionName { item, hash });
         }
 
         self.functions.push(ModuleFunction {
@@ -983,8 +997,13 @@ impl Module {
         data: FunctionData,
         docs: Docs,
     ) -> Result<ItemMut<'_>, ContextError> {
-        if !self.names.insert(Name::Item(data.item.clone())) {
-            return Err(ContextError::ConflictingFunctionName { item: data.item });
+        let hash = Hash::type_hash(&data.item);
+
+        if !self.names.insert(Name::Item(hash)) {
+            return Err(ContextError::ConflictingFunctionName {
+                item: data.item,
+                hash,
+            });
         }
 
         self.functions.push(ModuleFunction {
@@ -1008,37 +1027,36 @@ impl Module {
         data: AssociatedFunctionData,
         docs: Docs,
     ) -> Result<ItemMut<'_>, ContextError> {
-        let key = data.assoc_key();
-
-        if !self.names.insert(Name::Associated(key.clone())) {
+        if !self.names.insert(Name::Associated(data.assoc_key())) {
             return Err(match data.name.kind {
                 AssociatedKind::Protocol(protocol) => ContextError::ConflictingProtocolFunction {
-                    type_info: data.ty.type_info,
+                    type_info: data.container_type_info,
                     name: protocol.name.into(),
                 },
                 AssociatedKind::FieldFn(protocol, field) => {
                     ContextError::ConflictingFieldFunction {
-                        type_info: data.ty.type_info,
+                        type_info: data.container_type_info,
                         name: protocol.name.into(),
                         field,
                     }
                 }
                 AssociatedKind::IndexFn(protocol, index) => {
                     ContextError::ConflictingIndexFunction {
-                        type_info: data.ty.type_info,
+                        type_info: data.container_type_info,
                         name: protocol.name.into(),
                         index,
                     }
                 }
                 AssociatedKind::Instance(name) => ContextError::ConflictingInstanceFunction {
-                    type_info: data.ty.type_info,
+                    type_info: data.container_type_info,
                     name,
                 },
             });
         }
 
         self.associated.push(ModuleAssociated {
-            key,
+            container: data.container,
+            container_type_info: data.container_type_info,
             name: data.name,
             handler: data.handler,
             is_async: data.is_async,
@@ -1046,7 +1064,6 @@ impl Module {
             return_type: data.return_type,
             argument_types: data.argument_types,
             docs,
-            type_info: data.ty.type_info,
         });
 
         let m = self.associated.last_mut().unwrap();

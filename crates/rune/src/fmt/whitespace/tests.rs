@@ -41,7 +41,6 @@ fn test_empty_lines_with_multiple_empty_lines() {
 "#;
 
     let empty_lines = gather_empty_line_spans(source).unwrap();
-    dbg!(&empty_lines);
     assert_eq!(empty_lines.len(), 2);
     assert_eq!(empty_lines[0].span, Span::new(12, 13));
     assert_eq!(empty_lines[1].span, Span::new(25, 26));

@@ -7,8 +7,10 @@ use crate::no_std::sync::Arc;
 use crate::compile::{self, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::{AssocType, AssociatedKey, AsyncFunction, AsyncInstFn, Function, InstFn};
-use crate::runtime::{FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeOf};
+use crate::module::{AssociatedKey, AsyncFunction, AsyncInstFn, Function, InstFn};
+use crate::runtime::{
+    FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf,
+};
 
 mod sealed {
     use crate::params::Params;
@@ -237,10 +239,11 @@ impl AssociatedFunctionName {
 /// Runtime data for an associated function.
 #[derive(Clone)]
 pub struct AssociatedFunctionData {
+    pub(crate) container: FullTypeOf,
+    pub(crate) container_type_info: TypeInfo,
     pub(crate) is_async: bool,
     pub(crate) name: AssociatedFunctionName,
     pub(crate) handler: Arc<FunctionHandler>,
-    pub(crate) ty: AssocType,
     pub(crate) args: Option<usize>,
     pub(crate) return_type: Option<FullTypeOf>,
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
@@ -258,10 +261,11 @@ impl AssociatedFunctionData {
         A::iter_args(|ty| argument_types.push(ty));
 
         Self {
+            container: F::Inst::type_of(),
+            container_type_info: F::Inst::type_info(),
             is_async: false,
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            ty: F::ty(),
             args: Some(F::args()),
             return_type: F::Return::maybe_type_of(),
             argument_types: argument_types.into(),
@@ -279,10 +283,11 @@ impl AssociatedFunctionData {
         A::iter_args(|ty| argument_types.push(ty));
 
         Self {
+            container: F::Inst::type_of(),
+            container_type_info: F::Inst::type_info(),
             is_async: true,
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            ty: F::ty(),
             args: Some(F::args()),
             return_type: <F::Return as Future>::Output::maybe_type_of(),
             argument_types: argument_types.into(),
@@ -292,7 +297,7 @@ impl AssociatedFunctionData {
     /// Get associated key.
     pub(crate) fn assoc_key(&self) -> AssociatedKey {
         AssociatedKey {
-            type_hash: self.ty.hash,
+            type_hash: self.container.hash,
             kind: self.name.kind.clone(),
             parameters: self.name.parameters,
         }

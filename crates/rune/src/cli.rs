@@ -46,10 +46,13 @@ const DEFAULT_ABOUT: &str = "The Rune Language Interpreter";
 /// Options for building context.
 #[non_exhaustive]
 pub struct ContextOptions<'a> {
-    /// The relevant I/O capture.
+    /// If we need to capture I/O this is set to the capture instance you should
+    /// be using to do so.
     pub capture: Option<&'a CaptureIo>,
     /// If experiments should be enabled or not.
     pub experimental: bool,
+    /// If we're running in a test context.
+    pub test: bool,
 }
 
 /// Type used to build a context.
@@ -75,12 +78,41 @@ impl<'a> Entry<'a> {
     ///
     /// For example, this is the first row outputted when the command prints its
     /// help text.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// rune::cli::Entry::new()
+    ///     .about("My own interpreter")
+    ///     .run();
+    ///```
     pub fn about(mut self, about: impl fmt::Display) -> Self {
         self.about = Some(about.to_string());
         self
     }
 
-    /// Configure context to use.
+    /// Configure context to use using a builder.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use rune::{Context, ContextError, Module};
+    ///
+    /// fn my_module() -> Result<Module, ContextError> {
+    ///     let module = Module::default();
+    ///     /* install things into module */
+    ///     Ok(module)
+    /// }
+    ///
+    /// rune::cli::Entry::new()
+    ///     .about("My own interpreter")
+    ///     .context(&mut |opts| {
+    ///         let mut c = Context::with_config(opts.capture.is_none())?;
+    ///         c.install(my_module()?);
+    ///         Ok(c)
+    ///     })
+    ///     .run();
+    ///```
     pub fn context(mut self, context: &'a mut ContextBuilder) -> Self {
         self.context = Some(context);
         self
@@ -436,16 +468,13 @@ impl SharedFlags {
         let opts = ContextOptions {
             capture,
             experimental: self.experimental,
+            test: c.test,
         };
 
-        let mut context = entry.context.as_mut().context("missing context")?(opts)?;
+        let mut context = entry.context.as_mut().context("Context builder not configured with Entry::context")?(opts)?;
 
         if let Some(capture) = capture {
             context.install(crate::modules::capture_io::module(capture)?)?;
-        }
-
-        if c.test {
-            context.install(benches::test_module()?)?;
         }
 
         Ok(context)

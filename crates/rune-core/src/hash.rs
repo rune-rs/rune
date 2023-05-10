@@ -51,6 +51,12 @@ impl Hash {
         self.0
     }
 
+    /// Test if hash is empty.
+    #[doc(hidden)]
+    pub const fn is_empty(&self) -> bool {
+        self.0 == 0
+    }
+
     /// Construct a simple hash from something that is hashable.
     fn of<T: hash::Hash>(thing: T) -> Self {
         let mut hasher = Self::new_hasher();

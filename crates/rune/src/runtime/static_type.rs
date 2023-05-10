@@ -6,7 +6,7 @@ use crate::no_std::prelude::*;
 use crate::no_std::vec;
 
 use crate::runtime as rt;
-use crate::runtime::RawStr;
+use crate::runtime::{RawStr, TypeInfo};
 use crate::Hash;
 
 /// Static type information.
@@ -17,6 +17,13 @@ pub struct StaticType {
     pub name: RawStr,
     /// The hash of the static type.
     pub hash: Hash,
+}
+
+impl StaticType {
+    #[inline]
+    pub(crate) fn type_info(&'static self) -> TypeInfo {
+        TypeInfo::StaticType(self)
+    }
 }
 
 impl cmp::PartialEq for &'static StaticType {
@@ -145,7 +152,7 @@ impl_static_type!(rt::Tuple => TUPLE_TYPE);
 pub static OBJECT_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Object"),
     // hash for ::std::object::Object
-    hash: Hash::new(0xd080f2e951218dde),
+    hash: Hash::new(0x2f5c2c7799148025),
 };
 
 impl_static_type!(rt::Object => OBJECT_TYPE);
@@ -237,7 +244,7 @@ impl_static_type!(rt::Format => FORMAT_TYPE);
 pub static ITERATOR_TYPE: &StaticType = &StaticType {
     name: RawStr::from_str("Iterator"),
     // hash for ::std::iter::Iterator
-    hash: Hash::new(0xe08fbd4d99f308e9),
+    hash: Hash::new(0xff918cc536a3fa32),
 };
 
 impl_static_type!(rt::Iterator => ITERATOR_TYPE);

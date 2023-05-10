@@ -25,7 +25,7 @@ pub(crate) use self::function_meta::{
 
 #[doc(hidden)]
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
-pub use self::function_traits::{AssocType, AsyncFunction, AsyncInstFn, Function, InstFn};
+pub use self::function_traits::{AsyncFunction, AsyncInstFn, Function, InstFn};
 #[doc(hidden)]
 pub use self::module::Module;
 
@@ -108,6 +108,8 @@ pub(crate) struct ModuleType {
     pub(crate) item: ItemBuf,
     /// Type hash.
     pub(crate) hash: Hash,
+    /// Parameters hash.
+    pub(crate) parameters_hash: Hash,
     /// Type information for the installed type.
     pub(crate) type_info: TypeInfo,
     /// The specification for the type.
@@ -228,9 +230,9 @@ pub(crate) struct ModuleFunction {
 
 #[derive(Clone)]
 pub(crate) struct ModuleAssociated {
-    pub(crate) key: AssociatedKey,
+    pub(crate) container: FullTypeOf,
+    pub(crate) container_type_info: TypeInfo,
     pub(crate) name: AssociatedFunctionName,
-    pub(crate) type_info: TypeInfo,
     pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) is_async: bool,
     pub(crate) args: Option<usize>,

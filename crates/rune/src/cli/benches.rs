@@ -11,7 +11,8 @@ use crate::cli::{ExitCode, Io};
 use crate::compile::{Item, ItemBuf};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Function, Unit, Value};
-use crate::{Any, Context, ContextError, Hash, Module, Sources, Vm};
+use crate::{Context, Hash, Sources, Vm};
+use crate::modules::test::Bencher;
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -22,26 +23,6 @@ pub(super) struct Flags {
     /// Iterations to run of the benchmark
     #[arg(long, default_value = "100")]
     iterations: u32,
-}
-
-#[derive(Default, Any)]
-#[rune(module = crate, item = ::std::test)]
-pub(super) struct Bencher {
-    fns: Vec<Function>,
-}
-
-impl Bencher {
-    fn iter(&mut self, f: Function) {
-        self.fns.push(f);
-    }
-}
-
-/// Registers `std::test` module.
-pub(super) fn test_module() -> Result<Module, ContextError> {
-    let mut module = Module::with_item(["std", "test"]);
-    module.ty::<Bencher>()?;
-    module.inst_fn("iter", Bencher::iter)?;
-    Ok(module)
 }
 
 /// Run benchmarks.
@@ -82,9 +63,11 @@ pub(super) async fn run(
             continue;
         }
 
-        let multiple = bencher.fns.len() > 1;
+        let fns = bencher.into_functions();
 
-        for (i, f) in bencher.fns.iter().enumerate() {
+        let multiple = fns.len() > 1;
+
+        for (i, f) in fns.iter().enumerate() {
             if let Err(e) = bench_fn(io, i, item, args, f, multiple) {
                 writeln!(io.stdout, "{}: Error in bench iteration: {}", item, e)?;
 

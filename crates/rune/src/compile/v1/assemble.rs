@@ -87,13 +87,7 @@ impl Asm {
 
 /// Compile an item.
 #[instrument]
-fn meta(
-    span: Span,
-    c: &mut Assembler<'_>,
-    meta: &meta::Meta,
-    needs: Needs,
-    parameters: Option<Hash>,
-) -> compile::Result<()> {
+fn meta(span: Span, c: &mut Assembler<'_>, meta: &meta::Meta, needs: Needs) -> compile::Result<()> {
     if let Needs::Value = needs {
         match &meta.kind {
             meta::Kind::Struct {
@@ -151,14 +145,8 @@ fn meta(
                 );
             }
             meta::Kind::Function { .. } => {
-                let hash = if let Some(parameters) = parameters {
-                    meta.hash.with_parameters(parameters)
-                } else {
-                    meta.hash
-                };
-
                 c.asm.push_with_comment(
-                    Inst::LoadFn { hash },
+                    Inst::LoadFn { hash: meta.hash },
                     span,
                     meta.info(c.q.pool).to_string(),
                 );
@@ -1723,8 +1711,6 @@ enum Call {
     Meta {
         /// meta::Meta being called.
         meta: meta::Meta,
-        /// The hash of the meta thing being called.
-        hash: Hash,
     },
     /// An expression being called.
     Expr,
@@ -1833,15 +1819,7 @@ fn convert_expr_call(
                 }
             };
 
-            let hash = c.q.pool.item_type_hash(meta.item_meta.item);
-
-            let hash = if let Some(parameters) = parameters {
-                hash.with_parameters(parameters)
-            } else {
-                hash
-            };
-
-            return Ok(Call::Meta { meta, hash });
+            return Ok(Call::Meta { meta });
         }
         hir::ExprKind::FieldAccess(hir::ExprFieldAccess {
             expr_field: hir::ExprField::Path(path),
@@ -1907,14 +1885,17 @@ fn expr_call(
             c.asm.push(Inst::CallInstance { hash, args }, span);
             c.scopes.undecl_anon(span, hir.args.len() + 1)?;
         }
-        Call::Meta { meta, hash } => {
+        Call::Meta { meta } => {
             for e in hir.args {
                 expr(e, c, Needs::Value)?.apply(c)?;
                 c.scopes.decl_anon(span)?;
             }
 
             c.asm.push_with_comment(
-                Inst::Call { hash, args },
+                Inst::Call {
+                    hash: meta.hash,
+                    args,
+                },
                 span,
                 meta.info(c.q.pool).to_string(),
             );
@@ -2770,7 +2751,7 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
     };
 
     if let Some(m) = c.try_lookup_meta(span, named.item, parameters)? {
-        meta(span, c, &m, needs, parameters)?;
+        meta(span, c, &m, needs)?;
         return Ok(Asm::top(span));
     }
 

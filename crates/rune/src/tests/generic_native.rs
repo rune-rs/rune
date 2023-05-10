@@ -3,6 +3,7 @@
 prelude!();
 
 #[derive(Any)]
+#[rune(item = ::native_crate)]
 struct Generic<T>
 where
     T: 'static + Clone + Named + UnsafeFromValue + ToValue + MaybeTypeOf + TypeOf,
