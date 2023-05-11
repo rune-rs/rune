@@ -12,13 +12,13 @@ pub trait TypeOf {
         FullTypeOf::new(Self::type_hash())
     }
 
-    /// Parameters hash.
+    /// Hash of type parameters.
     #[inline]
-    fn parameters_hash() -> Hash {
+    fn type_parameters() -> Hash {
         Hash::EMPTY
     }
 
-    /// Convert into a type hash.
+    /// Get full type hash, including type parameters.
     fn type_hash() -> Hash;
 
     /// Access diagnostical information on the value type.
@@ -92,8 +92,8 @@ where
     }
 
     #[inline]
-    fn parameters_hash() -> Hash {
-        T::parameters_hash()
+    fn type_parameters() -> Hash {
+        T::type_parameters()
     }
 
     #[inline]
@@ -118,8 +118,8 @@ where
     }
 
     #[inline]
-    fn parameters_hash() -> Hash {
-        T::parameters_hash()
+    fn type_parameters() -> Hash {
+        T::type_parameters()
     }
 
     #[inline]
@@ -144,8 +144,8 @@ where
     }
 
     #[inline]
-    fn parameters_hash() -> Hash {
-        T::parameters_hash()
+    fn type_parameters() -> Hash {
+        T::type_parameters()
     }
 
     #[inline]
@@ -170,8 +170,8 @@ where
     }
 
     #[inline]
-    fn parameters_hash() -> Hash {
-        T::parameters_hash()
+    fn type_parameters() -> Hash {
+        T::type_parameters()
     }
 
     #[inline]
@@ -196,8 +196,8 @@ where
     }
 
     #[inline]
-    fn parameters_hash() -> Hash {
-        T::parameters_hash()
+    fn type_parameters() -> Hash {
+        T::type_parameters()
     }
 
     #[inline]

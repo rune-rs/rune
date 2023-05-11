@@ -22,13 +22,15 @@ pub(crate) mod prelude {
     pub(crate) use crate::tests::run;
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, Module, Result, Source, Sources, ToValue, Value, Vm,
+        FromValue, Hash, Module, Result, Source, Sources, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 }
 
-use std::sync::Arc;
+use crate::no_std::prelude::*;
+use crate::no_std::sync::Arc;
 
+use anyhow::{Context as _, Result};
 use thiserror::Error;
 
 use crate::compile::{IntoComponent, ItemBuf};
@@ -121,7 +123,7 @@ pub fn sources(source: &str) -> Sources {
 }
 
 /// Run the given source with diagnostics being printed to stderr.
-pub fn run<N, A, T>(context: &Context, source: &str, function: N, args: A) -> Result<T, RunError>
+pub fn run<N, A, T>(context: &Context, source: &str, function: N, args: A) -> Result<T>
 where
     N: IntoIterator,
     N::Item: IntoComponent,
@@ -138,36 +140,37 @@ where
         Err(e) => e,
     };
 
-    let mut writer = termcolor::StandardStream::stdout(termcolor::ColorChoice::Never);
+    let mut buffer = termcolor::Buffer::no_color();
 
     match &e {
         RunError::BuildError(..) => {
             diagnostics
-                .emit(&mut writer, &sources)
-                .expect("emit diagnostics");
+                .emit(&mut buffer, &sources)
+                .expect("Emit diagnostics");
         }
         RunError::VmError(e) => {
-            e.emit(&mut writer, &sources).expect("emit diagnostics");
+            e.emit(&mut buffer, &sources).expect("Emit diagnostics");
         }
     }
 
-    Err(e)
+    let buffer = String::from_utf8(buffer.into_inner()).context("Decoding output")?;
+    Err(anyhow::Error::msg(buffer))
 }
 
 /// Same as [rune_s!] macro, except it takes a Rust token tree. This works
 /// fairly well because Rust and Rune has very similar token trees.
 macro_rules! rune {
     ($($tt:tt)*) => {{
-        let context = $crate::Context::with_default_modules().expect("failed to build context");
-        $crate::tests::run(&context, stringify!($($tt)*), ["main"], ()).expect("program to run successfully")
+        let context = $crate::Context::with_default_modules().expect("Failed to build context");
+        $crate::tests::run(&context, stringify!($($tt)*), ["main"], ()).expect("Program ran unsuccessfully")
     }};
 }
 
 /// Run the given program and return the expected type from it.
 macro_rules! rune_s {
     ($source:expr) => {{
-        let context = $crate::Context::with_default_modules().expect("failed to build context");
-        $crate::tests::run(&context, $source, ["main"], ()).expect("program to run successfully")
+        let context = $crate::Context::with_default_modules().expect("Failed to build context");
+        $crate::tests::run(&context, $source, ["main"], ()).expect("Program ran unsuccessfully")
     }};
 }
 
@@ -176,9 +179,9 @@ macro_rules! rune_s {
 /// position, to pass native objects as arguments to the script.
 macro_rules! rune_n {
     ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
-        let mut context = $crate::Context::with_default_modules().expect("failed to build context");
+        let mut context = $crate::Context::with_default_modules().expect("Failed to build context");
         context.install($module).expect("failed to install native module");
-        $crate::tests::run::<_, _, $ty>(&context, stringify!($($tt)*), ["main"], $args).expect("program to run successfully")
+        $crate::tests::run::<_, _, $ty>(&context, stringify!($($tt)*), ["main"], $args).expect("Program ran unsuccessfully")
     }};
 }
 
@@ -355,7 +358,6 @@ mod custom_macros;
 mod destructuring;
 mod external_ops;
 mod for_loop;
-mod generic_native;
 mod generics;
 mod getter_setter;
 mod instance;

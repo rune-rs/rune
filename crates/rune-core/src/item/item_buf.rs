@@ -1,8 +1,11 @@
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::Hash;
+use core::mem::take;
 use core::ops::Deref;
+use core::str::FromStr;
 
+use crate::error;
 use alloc::vec::{self, Vec};
 
 use serde::{Deserialize, Serialize};
@@ -301,5 +304,45 @@ impl PartialEq<Iter<'_>> for ItemBuf {
 impl PartialEq<Iter<'_>> for &ItemBuf {
     fn eq(&self, other: &Iter<'_>) -> bool {
         *self == other.as_item()
+    }
+}
+
+/// Error when parsing an item.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct FromStrError;
+
+impl fmt::Display for FromStrError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "String is not a valid item")
+    }
+}
+
+impl error::Error for FromStrError {}
+
+impl FromStr for ItemBuf {
+    type Err = FromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut item = ItemBuf::new();
+
+        let (s, mut next_crate) = if let Some(remainder) = s.strip_prefix("::") {
+            (remainder, true)
+        } else {
+            (s, false)
+        };
+
+        for c in s.split("::") {
+            if take(&mut next_crate) {
+                item.push(ComponentRef::Crate(c));
+            } else if let Some(num) = c.strip_prefix('$') {
+                item.push(ComponentRef::Id(num.parse().map_err(|_| FromStrError)?));
+            } else {
+                item.push(ComponentRef::Str(c));
+            }
+        }
+
+        Ok(item)
     }
 }

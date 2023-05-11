@@ -15,7 +15,7 @@ where
 
         AssociatedFunctionName {
             kind: info.kind,
-            parameters: Hash::parameters(self.parameters.iter().map(|t| t.hash)),
+            function_parameters: Hash::parameters(self.parameters.iter().map(|t| t.hash)),
             #[cfg(feature = "doc")]
             parameter_types: self.parameters.iter().map(|t| t.hash).collect(),
         }
@@ -32,7 +32,7 @@ where
 
         AssociatedFunctionName {
             kind: info.kind,
-            parameters: Hash::parameters(self.parameters.iter().map(|p| p.hash)),
+            function_parameters: Hash::parameters(self.parameters.iter().map(|p| p.hash)),
             #[cfg(feature = "doc")]
             parameter_types: self.parameters.iter().map(|p| p.hash).collect(),
         }

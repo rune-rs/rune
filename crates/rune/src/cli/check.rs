@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::cli::{visitor, Config, Entry, ExitCode, Io, SharedFlags};
+use crate::cli::{visitor, Config, Entry, ExitCode, Io, SharedFlags, CommandBase, AssetKind};
 use crate::compile::FileSourceLoader;
 use crate::{Diagnostics, Options, Source, Sources};
 
@@ -13,6 +13,23 @@ pub(super) struct Flags {
     /// Exit with a non-zero exit-code even for warnings
     #[arg(long)]
     warnings_are_errors: bool,
+}
+
+impl CommandBase for Flags {
+    #[inline]
+    fn is_debug(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn is_workspace(&self, _: AssetKind) -> bool {
+        true
+    }
+
+    #[inline]
+    fn describe(&self) -> &str {
+        "Checking"
+    }
 }
 
 pub(super) fn run(

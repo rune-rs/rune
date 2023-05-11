@@ -53,8 +53,8 @@ pub(crate) struct ContextType {
     type_check: Option<TypeCheck>,
     /// Complete detailed information on the hash.
     type_info: TypeInfo,
-    /// Parameters hash.
-    parameters_hash: Hash,
+    /// Type parameters.
+    type_parameters: Hash,
 }
 
 impl fmt::Display for ContextType {
@@ -407,8 +407,10 @@ impl Context {
             hash: ty.hash,
             type_check: None,
             type_info: ty.type_info.clone(),
-            parameters_hash: ty.parameters_hash,
+            type_parameters: ty.type_parameters,
         })?;
+
+        let parameters = Hash::EMPTY.with_type_parameters(ty.type_parameters);
 
         let kind = if let Some(spec) = &ty.spec {
             match spec {
@@ -421,6 +423,7 @@ impl Context {
                         Fields::Empty => meta::Fields::Empty,
                     },
                     constructor: None,
+                    parameters,
                 },
                 TypeSpecification::Enum(en) => {
                     for (index, variant) in en.variants.iter().enumerate() {
@@ -440,7 +443,7 @@ impl Context {
                                 hash,
                                 item: item.clone(),
                             })),
-                            parameters_hash: Hash::EMPTY,
+                            type_parameters: Hash::EMPTY,
                         })?;
 
                         let constructor = if let Some(c) = &variant.constructor {
@@ -492,11 +495,11 @@ impl Context {
                         })?;
                     }
 
-                    meta::Kind::Enum
+                    meta::Kind::Enum { parameters }
                 }
             }
         } else {
-            meta::Kind::Type
+            meta::Kind::Type { parameters }
         };
 
         self.install_meta(ContextMeta {
@@ -512,7 +515,7 @@ impl Context {
     }
 
     fn install_type_info(&mut self, ty: ContextType) -> Result<(), ContextError> {
-        let item_hash = Hash::type_hash(&ty.item).with_parameters(ty.parameters_hash);
+        let item_hash = Hash::type_hash(&ty.item).with_type_parameters(ty.type_parameters);
 
         if ty.hash != item_hash {
             return Err(ContextError::TypeHashMismatch {
@@ -638,11 +641,13 @@ impl Context {
             });
         };
 
+        // NB: `assoc.container.hash` already contains the type hash, so it
+        // should not be mixed in again.
         let hash = assoc
             .name
             .kind
             .hash(assoc.container.hash)
-            .with_parameters(assoc.name.parameters);
+            .with_function_parameters(assoc.name.function_parameters);
 
         let signature = meta::Signature {
             #[cfg(feature = "doc")]
@@ -661,71 +666,46 @@ impl Context {
 
         self.insert_native_fn(hash, &assoc.handler)?;
 
+        // If the associated function is a named instance function - register it
+        // under the name of the item it corresponds to unless it's a field
+        // function.
+        //
+        // The other alternatives are protocol functions (which are not free)
+        // and plain hashes.
+        let item = if let meta::AssociatedKind::Instance(name) = &assoc.name.kind {
+            let item = info.item.extended(name.as_ref());
+
+            let hash = Hash::type_hash(&item)
+                .with_type_parameters(info.type_parameters)
+                .with_function_parameters(assoc.name.function_parameters);
+
+            self.constants.insert(
+                Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                ConstValue::String(item.to_string()),
+            );
+
+            self.insert_native_fn(hash, &assoc.handler)?;
+            Some(item)
+        } else {
+            None
+        };
+
         self.install_meta(ContextMeta {
             hash,
             associated_container: Some(assoc.container.hash),
-            item: None,
+            item,
             kind: meta::Kind::AssociatedFunction {
                 kind: assoc.name.kind.clone(),
                 signature,
-                parameters: assoc.name.parameters,
+                parameters: Hash::EMPTY
+                    .with_type_parameters(info.type_parameters)
+                    .with_function_parameters(assoc.name.function_parameters),
                 #[cfg(feature = "doc")]
                 parameter_types: assoc.name.parameter_types.clone(),
             },
             #[cfg(feature = "doc")]
             docs: assoc.docs.clone(),
         })?;
-
-        // These are currently only usable if parameters hash is empty.
-        if info.parameters_hash.is_empty() {
-            // If the associated function is a named instance function - register it
-            // under the name of the item it corresponds to unless it's a field
-            // function.
-            //
-            // The other alternatives are protocol functions (which are not free)
-            // and plain hashes.
-            if let meta::AssociatedKind::Instance(name) = &assoc.name.kind {
-                let item = info.item.extended(name.as_ref());
-                let hash = Hash::type_hash(&item).with_parameters(assoc.name.parameters);
-
-                self.constants.insert(
-                    Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(item.to_string()),
-                );
-
-                let signature = meta::Signature {
-                    #[cfg(feature = "doc")]
-                    is_async: assoc.is_async,
-                    #[cfg(feature = "doc")]
-                    args: assoc.args,
-                    #[cfg(feature = "doc")]
-                    return_type: assoc.return_type.as_ref().map(|f| f.hash),
-                    #[cfg(feature = "doc")]
-                    argument_types: assoc
-                        .argument_types
-                        .iter()
-                        .map(|f| f.as_ref().map(|f| f.hash))
-                        .collect(),
-                };
-
-                self.insert_native_fn(hash, &assoc.handler)?;
-
-                self.install_meta(ContextMeta {
-                    hash,
-                    associated_container: Some(assoc.container.hash),
-                    item: Some(item),
-                    kind: meta::Kind::AssociatedFunction {
-                        kind: assoc.name.kind.clone(),
-                        signature,
-                        parameters: assoc.name.parameters,
-                        #[cfg(feature = "doc")]
-                        parameter_types: assoc.name.parameter_types.clone(),
-                    },
-                    #[cfg(feature = "doc")]
-                    docs: assoc.docs.clone(),
-                })?;
-            }
-        }
 
         Ok(())
     }
@@ -743,7 +723,7 @@ impl Context {
             hash: crate::runtime::UNIT_TYPE.hash,
             type_check: Some(TypeCheck::Unit),
             type_info: crate::runtime::UNIT_TYPE.type_info(),
-            parameters_hash: Hash::EMPTY,
+            type_parameters: Hash::EMPTY,
         })?;
 
         let hash = <() as TypeOf>::type_hash();
@@ -772,6 +752,7 @@ impl Context {
             kind: meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(0),
                 constructor: Some(signature),
+                parameters: Hash::EMPTY,
             },
             #[cfg(feature = "doc")]
             docs: unit_type.docs.clone(),
@@ -805,7 +786,9 @@ impl Context {
             hash: enum_hash,
             associated_container: None,
             item: Some(item.clone()),
-            kind: meta::Kind::Enum,
+            kind: meta::Kind::Enum {
+                parameters: Hash::EMPTY,
+            },
             #[cfg(feature = "doc")]
             docs: internal_enum.docs.clone(),
         })?;
@@ -815,7 +798,7 @@ impl Context {
             hash: enum_hash,
             type_check: None,
             type_info: internal_enum.static_type.type_info(),
-            parameters_hash: Hash::EMPTY,
+            type_parameters: Hash::EMPTY,
         })?;
 
         for (index, variant) in internal_enum.variants.iter().enumerate() {
@@ -831,7 +814,7 @@ impl Context {
                 hash,
                 type_check: variant.type_check,
                 type_info: internal_enum.static_type.type_info(),
-                parameters_hash: Hash::EMPTY,
+                type_parameters: Hash::EMPTY,
             })?;
 
             let constructor = if let Some(constructor) = &variant.constructor {

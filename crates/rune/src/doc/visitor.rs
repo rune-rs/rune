@@ -9,13 +9,13 @@ use crate::hash::Hash;
 pub(crate) struct VisitorData {
     pub(crate) item: ItemBuf,
     pub(crate) hash: Hash,
-    pub(crate) kind: meta::Kind,
+    pub(crate) kind: Option<meta::Kind>,
     pub(crate) docs: Vec<String>,
     pub(crate) field_docs: HashMap<Box<str>, Vec<String>>,
 }
 
 impl VisitorData {
-    fn new(item: ItemBuf, hash: Hash, kind: meta::Kind) -> Self {
+    fn new(item: ItemBuf, hash: Hash, kind: Option<meta::Kind>) -> Self {
         Self {
             item,
             hash,
@@ -53,7 +53,7 @@ impl Visitor {
 
         let hash = Hash::type_hash(&this.base);
         this.names.insert(&this.base);
-        this.data.insert(hash, VisitorData::new(this.base.clone(), hash, meta::Kind::Module));
+        this.data.insert(hash, VisitorData::new(this.base.clone(), hash, Some(meta::Kind::Module)));
         this.item_to_hash.insert(this.base.clone(), hash);
         this
     }
@@ -85,10 +85,10 @@ impl CompileVisitor for Visitor {
 
         match self.data.entry(meta.hash) {
             hash_map::Entry::Occupied(e) => {
-                e.into_mut().kind = meta.kind.clone();
+                e.into_mut().kind = Some(meta.kind.clone());
             }
             hash_map::Entry::Vacant(e) => {
-                e.insert(VisitorData::new(item, meta.hash, meta.kind.clone()));
+                e.insert(VisitorData::new(item, meta.hash, Some(meta.kind.clone())));
             }
         }
 
@@ -114,7 +114,7 @@ impl CompileVisitor for Visitor {
         let data = self
             .data
             .entry(hash)
-            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, meta::Kind::Type));
+            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, None));
 
         data.docs.push(string.trim_end_matches(newlines).to_owned());
     }
@@ -133,7 +133,7 @@ impl CompileVisitor for Visitor {
         let data = self
             .data
             .entry(hash)
-            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, meta::Kind::Type));
+            .or_insert_with(|| VisitorData::new(item.to_owned(), hash, None));
         data.field_docs
             .entry(field.into())
             .or_default()

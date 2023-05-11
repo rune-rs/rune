@@ -151,7 +151,7 @@ pub struct AssociatedFunctionName {
     /// The name of the instance function.
     pub kind: meta::AssociatedKind,
     /// Parameters hash.
-    pub parameters: Hash,
+    pub function_parameters: Hash,
     #[cfg(feature = "doc")]
     pub parameter_types: Vec<Hash>,
 }
@@ -160,7 +160,7 @@ impl AssociatedFunctionName {
     pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
         Self {
             kind: meta::AssociatedKind::IndexFn(protocol, index),
-            parameters: Hash::EMPTY,
+            function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
         }
@@ -185,7 +185,7 @@ impl ToInstance for &'static str {
     fn to_instance(self) -> AssociatedFunctionName {
         AssociatedFunctionName {
             kind: meta::AssociatedKind::Instance(Cow::Borrowed(self)),
-            parameters: Hash::EMPTY,
+            function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
         }
@@ -197,7 +197,7 @@ impl ToFieldFunction for &'static str {
     fn to_field_function(self, protocol: Protocol) -> AssociatedFunctionName {
         AssociatedFunctionName {
             kind: meta::AssociatedKind::FieldFn(protocol, Cow::Borrowed(self)),
-            parameters: Hash::EMPTY,
+            function_parameters: Hash::EMPTY,
             #[cfg(feature = "doc")]
             parameter_types: vec![],
         }
@@ -279,7 +279,7 @@ impl AssociatedFunctionData {
         AssociatedKey {
             type_hash: self.container.hash,
             kind: self.name.kind.clone(),
-            parameters: self.name.parameters,
+            parameters: self.name.function_parameters,
         }
     }
 }

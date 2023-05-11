@@ -23,6 +23,11 @@ const OBJECT_KEYS: u64 = 0x4473d7017aef7645;
 const INDEX_FUNCTION_HASH: u64 = 0x2579e52d1534901b;
 const INDEX: u64 = 0xe1b2378d7a937035;
 
+// Salt for type parameters.
+const TYPE_PARAMETERS: u64 = 0x9d30e58b77e4599;
+// Salt for function parameters.
+const FUNCTION_PARAMETERS: u64 = 0x6052c152243a6eb3;
+
 /// The primitive hash that among other things is used to reference items,
 /// types, and native functions.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -41,8 +46,8 @@ impl Hash {
 
     /// Construct a new raw hash with the given parameters.
     #[doc(hidden)]
-    pub const fn new_with_parameters(hash: u64, parameters: Hash) -> Self {
-        Self(hash).with_parameters(parameters)
+    pub const fn new_with_type_parameters(hash: u64, parameters: Hash) -> Self {
+        Self(hash).with_type_parameters(parameters)
     }
 
     /// Coerce a hash into its inner numerical value.
@@ -149,9 +154,30 @@ impl Hash {
         Self(hasher.finish())
     }
 
-    /// Mix the current hash in the correct manner with another parameters hash.
-    pub const fn with_parameters(self, parameters: Self) -> Self {
-        Self(self.0 ^ parameters.0)
+    /// Mix in generics hash.
+    ///
+    /// The generics hash must be a combination of the output from
+    /// `with_type_parameters` and `with_function_parameters`.
+    pub const fn with_generics(self, generics: Self) -> Self {
+        Self(self.0 ^ generics.0)
+    }
+
+    /// Mix the current hash with type parameters.
+    pub const fn with_type_parameters(self, ty: Self) -> Self {
+        if !ty.is_empty() {
+            Self(self.0 ^ (ty.0 ^ TYPE_PARAMETERS))
+        } else {
+            self
+        }
+    }
+
+    /// Mix the current hash with function parameters.
+    pub const fn with_function_parameters(self, f: Self) -> Self {
+        if !f.is_empty() {
+            Self(self.0 ^ (f.0 ^ FUNCTION_PARAMETERS))
+        } else {
+            self
+        }
     }
 
     /// Hash type parameters.

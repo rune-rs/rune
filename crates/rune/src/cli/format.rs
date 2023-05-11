@@ -8,44 +8,9 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use similar::{ChangeTag, TextDiff};
 
-use crate::cli::{Entry, ExitCode, Io, EntryPoint, SharedFlags, Config};
+use crate::cli::{Entry, ExitCode, Io, EntryPoint, SharedFlags, Config, CommandBase, AssetKind};
 use crate::termcolor::{WriteColor, ColorSpec, Color};
 use crate::{Source, Sources, Options, Diagnostics};
-
-struct Line(Option<usize>);
-
-impl fmt::Display for Line {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            None => write!(f, "    "),
-            Some(idx) => write!(f, "{:<4}", idx + 1),
-        }
-    }
-}
-
-struct Colors {
-    red: ColorSpec,
-    green: ColorSpec,
-    yellow: ColorSpec,
-    dim: ColorSpec,
-}
-
-impl Colors {
-    fn new() -> Self {
-        let mut this = Self {
-            red: ColorSpec::new(),
-            green: ColorSpec::new(),
-            yellow: ColorSpec::new(),
-            dim: ColorSpec::new(),
-        };
-
-        this.red.set_fg(Some(Color::Red));
-        this.green.set_fg(Some(Color::Green));
-        this.yellow.set_fg(Some(Color::Yellow));
-
-        this
-    }
-}
 
 #[derive(Parser, Debug)]
 pub(super) struct Flags {
@@ -56,6 +21,18 @@ pub(super) struct Flags {
     /// returns a non-successful exitcode.
     #[arg(long)]
     check: bool,
+}
+
+impl CommandBase for Flags {
+    #[inline]
+    fn is_workspace(&self, _: AssetKind) -> bool {
+        true
+    }
+
+    #[inline]
+    fn describe(&self) -> &str {
+        "Formatting"
+    }
 }
 
 pub(super) fn run<'m, I>(io: &mut Io<'_>, entry: &mut Entry<'_>, c: &Config, entrys: I, flags: &Flags, shared: &SharedFlags, options: &Options) -> Result<ExitCode> where I: IntoIterator<Item = EntryPoint<'m>> {
@@ -228,4 +205,39 @@ fn diff(io: &mut Io, source: &Source, val: &str, col: &Colors) -> Result<(), any
     }
 
     Ok(())
+}
+
+struct Line(Option<usize>);
+
+impl fmt::Display for Line {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            None => write!(f, "    "),
+            Some(idx) => write!(f, "{:<4}", idx + 1),
+        }
+    }
+}
+
+struct Colors {
+    red: ColorSpec,
+    green: ColorSpec,
+    yellow: ColorSpec,
+    dim: ColorSpec,
+}
+
+impl Colors {
+    fn new() -> Self {
+        let mut this = Self {
+            red: ColorSpec::new(),
+            green: ColorSpec::new(),
+            yellow: ColorSpec::new(),
+            dim: ColorSpec::new(),
+        };
+
+        this.red.set_fg(Some(Color::Red));
+        this.green.set_fg(Some(Color::Green));
+        this.yellow.set_fg(Some(Color::Yellow));
+
+        this
+    }
 }

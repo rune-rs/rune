@@ -56,7 +56,6 @@ pub(crate) struct InternalEnum {
     /// Internal variants.
     pub(crate) variants: Vec<Variant>,
     /// Documentation for internal enum.
-    #[cfg(feature = "doc")]
     pub(crate) docs: Docs,
 }
 
@@ -72,7 +71,6 @@ impl InternalEnum {
             base_type: ItemBuf::with_item(base_type),
             static_type,
             variants: Vec::new(),
-            #[cfg(feature = "doc")]
             docs: Docs::EMPTY,
         }
     }
@@ -111,8 +109,8 @@ pub(crate) struct ModuleType {
     pub(crate) item: ItemBuf,
     /// Type hash.
     pub(crate) hash: Hash,
-    /// Parameters hash.
-    pub(crate) parameters_hash: Hash,
+    /// Type parameters for this item.
+    pub(crate) type_parameters: Hash,
     /// Type information for the installed type.
     pub(crate) type_info: TypeInfo,
     /// The specification for the type.

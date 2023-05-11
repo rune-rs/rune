@@ -8,7 +8,7 @@ use crate::no_std::prelude::*;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::cli::{Config, Entry, EntryPoint, ExitCode, Io, SharedFlags};
+use crate::cli::{Config, Entry, EntryPoint, ExitCode, Io, SharedFlags, CommandBase, AssetKind};
 use crate::compile::{FileSourceLoader, ItemBuf};
 use crate::{Diagnostics, Options, Source, Sources, workspace};
 
@@ -23,6 +23,18 @@ pub(super) struct Flags {
     /// Open the generated documentation in a browser.
     #[arg(long)]
     open: bool,
+}
+
+impl CommandBase for Flags {
+    #[inline]
+    fn is_workspace(&self, _: AssetKind) -> bool {
+        true
+    }
+
+    #[inline]
+    fn describe(&self) -> &str {
+        "Documenting"
+    }
 }
 
 pub(super) fn run<'p, I>(

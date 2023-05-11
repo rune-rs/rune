@@ -233,8 +233,11 @@ pub(crate) enum CompileErrorKind {
     MissingLocal { name: String },
     #[error("Missing item `{item}`")]
     MissingItem { item: ItemBuf },
-    #[error("Missing item `{item}<{parameters}>`")]
-    MissingItemParameters { item: ItemBuf, parameters: Hash },
+    #[error("Missing item `{item} {parameters:?}`")]
+    MissingItemParameters {
+        item: ItemBuf,
+        parameters: Box<[Option<Hash>]>,
+    },
     #[error("Unsupported crate prefix `::`")]
     UnsupportedGlobal,
     #[error("Cannot load modules using a source without an associated URL")]
@@ -307,7 +310,7 @@ pub(crate) enum CompileErrorKind {
     UnsupportedSuper,
     #[error("Keyword `super` can't be used in paths starting with `Self`")]
     UnsupportedSuperInSelfType,
-    #[error("Path component cannot follow a generic argument")]
+    #[error("This kind of path component cannot follow a generic argument")]
     UnsupportedAfterGeneric,
     #[error("Another segment can't follow wildcard `*` or group imports")]
     IllegalUseSegment,
@@ -440,12 +443,14 @@ pub(crate) enum QueryErrorKind {
     #[error("Missing last use component")]
     LastUseComponent,
     /// Tried to add an item that already exists.
-    #[error("Item `{current}` but conflicting meta `{existing}` already exists")]
+    #[error("Can't insert item `{current}` ({parameters}) because conflicting meta `{existing}` already exists")]
     MetaConflict {
         /// The meta we tried to insert.
         current: MetaInfo,
         /// The existing item.
         existing: MetaInfo,
+        /// Parameters hash.
+        parameters: Hash,
     },
     #[error("Tried to insert variant runtime type information, but conflicted with hash `{hash}`")]
     VariantRttiConflict { hash: Hash },

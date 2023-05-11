@@ -17,9 +17,9 @@ impl Type {
         Self(hash)
     }
 
-    /// Coerce into inner hash.
+    /// Coerce into inner type hash.
     #[inline]
-    pub(crate) fn into_hash(self) -> Hash {
+    pub fn into_hash(self) -> Hash {
         self.0
     }
 }
