@@ -19,6 +19,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m
         name: ComponentRef<'a>,
         #[serde(serialize_with = "super::serialize_item")]
         item: &'a Item,
+        variants: Vec<super::type_::Variant<'a>>,
         methods: Vec<super::type_::Method<'a>>,
         protocols: Vec<super::type_::Protocol<'a>>,
         doc: Option<String>,
@@ -26,7 +27,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m
 
     let module = cx.module_path_html(meta, false)?;
 
-    let (protocols, methods, index) = super::type_::build_assoc_fns(cx, meta)?;
+    let (protocols, methods, variants, index) = super::type_::build_assoc_fns(cx, meta)?;
     let item = meta.item.context("Missing enum item")?;
     let name = item.last().context("Missing enum name")?;
 
@@ -36,6 +37,7 @@ pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<(Builder<'m
             module,
             name,
             item,
+            variants,
             methods,
             protocols,
             doc: cx.render_docs(meta, meta.docs)?,

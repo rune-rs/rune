@@ -27,91 +27,109 @@ pub(super) struct Method<'a> {
     doc: Option<String>,
 }
 
+#[derive(Serialize)]
+pub(super) struct Variant<'a> {
+    name: &'a str,
+    line_doc: Option<String>,
+    doc: Option<String>,
+}
+
 pub(super) fn build_assoc_fns<'m>(
     cx: &Ctxt<'_, 'm>,
     meta: Meta<'m>,
-) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>, Vec<IndexEntry<'m>>)> {
+) -> Result<(Vec<Protocol<'m>>, Vec<Method<'m>>, Vec<Variant<'m>>, Vec<IndexEntry<'m>>)> {
     let mut protocols = Vec::new();
     let mut methods = Vec::new();
+    let mut variants = Vec::new();
 
     let meta_item = meta.item.context("Missing meta item")?;
 
     for assoc in cx.context.associated(meta.hash) {
-        let Assoc::Fn(assoc) = assoc else {
-            continue;
-        };
+        match assoc {
+            Assoc::Variant(variant) => {
+                let line_doc = cx.render_docs(meta, variant.docs.get(..1).unwrap_or_default())?;
+                let doc = cx.render_docs(meta, variant.docs)?;
 
-        let value;
-
-        let (protocol, value) = match assoc.kind {
-            AssocFnKind::Protocol(protocol) => (protocol, "value"),
-            AssocFnKind::FieldFn(protocol, field) => {
-                value = format!("value.{field}");
-                (protocol, value.as_str())
+                variants.push(Variant {
+                    name: variant.name,
+                    line_doc,
+                    doc,
+                });
             }
-            AssocFnKind::IndexFn(protocol, index) => {
-                value = format!("value.{index}");
-                (protocol, value.as_str())
-            }
-            AssocFnKind::Method(name, args, sig) => {
-                let line_doc = cx.render_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
-                let doc = cx.render_docs(meta, assoc.docs)?;
+            Assoc::Fn(assoc) => {
+                let value;
 
-                let mut list = Vec::new();
-
-                for &hash in assoc.parameter_types {
-                    if let Some(link) = cx.link(hash, None)? {
-                        list.push(link);
-                    } else {
-                        list.push(hash.to_string());
+                let (protocol, value) = match assoc.kind {
+                    AssocFnKind::Protocol(protocol) => (protocol, "value"),
+                    AssocFnKind::FieldFn(protocol, field) => {
+                        value = format!("value.{field}");
+                        (protocol, value.as_str())
                     }
-                }
-
-                let parameters = (!list.is_empty()).then(|| list.join(", "));
-
-                methods.push(Method {
-                    is_async: assoc.is_async,
-                    name,
-                    args: cx.args_to_string(
-                        assoc.arg_names,
-                        args,
-                        sig,
-                        &assoc.argument_types,
-                    )?,
-                    parameters,
+                    AssocFnKind::IndexFn(protocol, index) => {
+                        value = format!("value.{index}");
+                        (protocol, value.as_str())
+                    }
+                    AssocFnKind::Method(name, args, sig) => {
+                        let line_doc = cx.render_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
+                        let doc = cx.render_docs(meta, assoc.docs)?;
+        
+                        let mut list = Vec::new();
+        
+                        for &hash in assoc.parameter_types {
+                            if let Some(link) = cx.link(hash, None)? {
+                                list.push(link);
+                            } else {
+                                list.push(hash.to_string());
+                            }
+                        }
+        
+                        let parameters = (!list.is_empty()).then(|| list.join(", "));
+        
+                        methods.push(Method {
+                            is_async: assoc.is_async,
+                            name,
+                            args: cx.args_to_string(
+                                assoc.arg_names,
+                                args,
+                                sig,
+                                &assoc.argument_types,
+                            )?,
+                            parameters,
+                            return_type: match assoc.return_type {
+                                Some(hash) => cx.link(hash, None)?,
+                                None => None,
+                            },
+                            line_doc,
+                            doc,
+                        });
+        
+                        continue;
+                    }
+                };
+        
+                let doc = if assoc.docs.is_empty() {
+                    cx.render_docs(meta, protocol.doc)?
+                } else {
+                    cx.render_docs(meta, assoc.docs)?
+                };
+        
+                let repr = if let Some(repr) = protocol.repr {
+                    Some(cx.render_code([repr.replace("$value", value.as_ref())])?)
+                } else {
+                    None
+                };
+        
+                protocols.push(Protocol {
+                    name: protocol.name,
+                    repr,
                     return_type: match assoc.return_type {
                         Some(hash) => cx.link(hash, None)?,
                         None => None,
                     },
-                    line_doc,
                     doc,
                 });
-
-                continue;
             }
-        };
-
-        let doc = if assoc.docs.is_empty() {
-            cx.render_docs(meta, protocol.doc)?
-        } else {
-            cx.render_docs(meta, assoc.docs)?
-        };
-
-        let repr = if let Some(repr) = protocol.repr {
-            Some(cx.render_code([repr.replace("$value", value.as_ref())])?)
-        } else {
-            None
-        };
-
-        protocols.push(Protocol {
-            name: protocol.name,
-            repr,
-            return_type: match assoc.return_type {
-                Some(hash) => cx.link(hash, None)?,
-                None => None,
-            },
-            doc,
-        });
+        }
     }
 
     let mut index = Vec::new();
@@ -127,9 +145,18 @@ pub(super) fn build_assoc_fns<'m>(
                 doc: m.line_doc.clone(),
             });
         }
+
+        for m in &variants {
+            index.push(IndexEntry {
+                path: cx.state.path.with_file_name(format!("{name}#variant.{}", m.name)),
+                item: Cow::Owned(meta_item.join([m.name])),
+                kind: IndexKind::Variant,
+                doc: m.line_doc.clone(),
+            });
+        }
     }
 
-    Ok((protocols, methods, index))
+    Ok((protocols, methods, variants, index))
 }
 
 #[derive(Serialize)]
@@ -153,7 +180,7 @@ struct Params<'a> {
 pub(super) fn build<'m>(cx: &Ctxt<'_, 'm>, what: &'static str, what_class: &'static str, meta: Meta<'m>) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
     let module = cx.module_path_html(meta, false)?;
 
-    let (protocols, methods, index) = build_assoc_fns(cx, meta)?;
+    let (protocols, methods, _, index) = build_assoc_fns(cx, meta)?;
     let item = meta.item.context("Missing type item")?;
     let name = item.last().context("Missing module name")?;
 

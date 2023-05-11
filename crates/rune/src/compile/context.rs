@@ -365,16 +365,7 @@ impl Context {
         #[cfg(feature = "doc")]
         if let Some(h) = meta.associated_container {
             let assoc = self.associated.entry(h).or_default();
-
-            match &meta.kind {
-                meta::Kind::Variant { .. } => {
-                    assoc.push(meta.hash);
-                }
-                meta::Kind::Function { .. } => {
-                    assoc.push(meta.hash);
-                }
-                _ => {}
-            }
+            assoc.push(meta.hash);
         }
 
         let hash = meta.hash;
@@ -433,13 +424,12 @@ impl Context {
                 },
                 TypeSpecification::Enum(en) => {
                     for (index, variant) in en.variants.iter().enumerate() {
-                        let item = item.extended(variant.name);
-                        let hash = Hash::type_hash(&item);
-                        let constructor = variant.constructor.as_ref();
-
                         let Some(fields) = &variant.fields else {
                             continue;
                         };
+
+                        let item = item.extended(variant.name);
+                        let hash = Hash::type_hash(&item);
 
                         self.install_type_info(ContextType {
                             item: item.clone(),
@@ -453,7 +443,7 @@ impl Context {
                             parameters_hash: Hash::EMPTY,
                         })?;
 
-                        let constructor = if let Some(c) = constructor {
+                        let constructor = if let Some(c) = &variant.constructor {
                             let signature = meta::Signature {
                                 #[cfg(feature = "doc")]
                                 is_async: false,
@@ -829,39 +819,57 @@ impl Context {
         })?;
 
         for (index, variant) in internal_enum.variants.iter().enumerate() {
+            let Some(fields) = &variant.fields else {
+                continue;
+            };
+
             let item = item.extended(variant.name);
             let hash = Hash::type_hash(&item);
 
             self.install_type_info(ContextType {
                 item: item.clone(),
                 hash,
-                type_check: Some(variant.type_check),
+                type_check: variant.type_check,
                 type_info: internal_enum.static_type.type_info(),
                 parameters_hash: Hash::EMPTY,
             })?;
 
-            let signature = meta::Signature {
-                #[cfg(feature = "doc")]
-                is_async: false,
-                #[cfg(feature = "doc")]
-                args: Some(variant.args),
-                #[cfg(feature = "doc")]
-                return_type: Some(enum_hash),
-                #[cfg(feature = "doc")]
-                argument_types: Box::from([]),
-            };
+            let constructor = if let Some(constructor) = &variant.constructor {
+                self.insert_native_fn(hash, constructor)?;
 
-            self.insert_native_fn(hash, &variant.constructor)?;
+                Some(meta::Signature {
+                    #[cfg(feature = "doc")]
+                    is_async: false,
+                    #[cfg(feature = "doc")]
+                    args: Some(match fields {
+                        Fields::Named(names) => names.len(),
+                        Fields::Unnamed(args) => *args,
+                        Fields::Empty => 0,
+                    }),
+                    #[cfg(feature = "doc")]
+                    return_type: Some(enum_hash),
+                    #[cfg(feature = "doc")]
+                    argument_types: Box::from([]),
+                })
+            } else {
+                None
+            };
 
             self.install_meta(ContextMeta {
                 hash,
                 associated_container: Some(enum_hash),
-                item: Some(item.clone()),
+                item: Some(item),
                 kind: meta::Kind::Variant {
                     enum_hash,
                     index,
-                    fields: meta::Fields::Unnamed(variant.args),
-                    constructor: Some(signature),
+                    fields: match fields {
+                        Fields::Named(fields) => meta::Fields::Named(meta::FieldsNamed {
+                            fields: fields.iter().copied().map(Box::<str>::from).collect(),
+                        }),
+                        Fields::Unnamed(args) => meta::Fields::Unnamed(*args),
+                        Fields::Empty => meta::Fields::Empty,
+                    },
+                    constructor,
                 },
                 #[cfg(feature = "doc")]
                 docs: variant.docs.clone(),

@@ -1,5 +1,6 @@
 //! The `std::result` module.
 
+use crate as rune;
 use crate::runtime::{Function, Panic, Value, VmResult};
 use crate::{ContextError, Module};
 
@@ -7,8 +8,19 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["result"]);
     // Sorted for ease of finding
-    module.result(["Result"])?;
-    module.inst_fn("ok", ok)?;
+    let mut result = module
+        .result(["Result"])?
+        .static_docs(&["Result is a type that represents either success (Ok) or failure (Err)."]);
+
+    result
+        .variant_mut(0)?
+        .static_docs(&["Contains the success value"]);
+
+    result
+        .variant_mut(1)?
+        .static_docs(&["Contains the error value"]);
+
+    module.function_meta(ok)?;
     module.inst_fn("is_ok", is_ok)?;
     module.inst_fn("is_err", is_err)?;
     module.inst_fn("unwrap", unwrap_impl)?;
@@ -19,6 +31,11 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
+/// Converts from `Result<T, E>` to `Option<T>`.
+///
+/// Converts self into an `Option<T>`, consuming `self`, and discarding the
+/// error, if any.
+#[rune::function(instance, path = Result::<Value, Value>::ok)]
 fn ok(result: &Result<Value, Value>) -> Option<Value> {
     result.as_ref().ok().cloned()
 }

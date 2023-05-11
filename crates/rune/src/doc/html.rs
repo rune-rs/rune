@@ -309,6 +309,7 @@ impl fmt::Display for ItemKind {
 pub(crate) enum IndexKind {
     Item(ItemKind),
     Method,
+    Variant,
 }
 
 impl fmt::Display for IndexKind {
@@ -316,6 +317,7 @@ impl fmt::Display for IndexKind {
         match self {
             IndexKind::Item(item) => item.fmt(f),
             IndexKind::Method => "method".fmt(f),
+            IndexKind::Variant => "variant".fmt(f),
         }
     }
 }

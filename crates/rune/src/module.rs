@@ -54,7 +54,7 @@ pub(crate) struct InternalEnum {
     /// The static type of the enum.
     pub(crate) static_type: &'static StaticType,
     /// Internal variants.
-    pub(crate) variants: Vec<InternalVariant>,
+    pub(crate) variants: Vec<Variant>,
     /// Documentation for internal enum.
     #[cfg(feature = "doc")]
     pub(crate) docs: Docs,
@@ -90,31 +90,17 @@ impl InternalEnum {
         let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
 
-        self.variants.push(InternalVariant {
+        self.variants.push(Variant {
             name,
-            type_check,
-            args: C::args(),
-            constructor,
+            type_check: Some(type_check),
+            fields: Some(Fields::Unnamed(C::args())),
+            constructor: Some(constructor),
             docs: Docs::EMPTY,
         });
 
         let v = self.variants.last_mut().unwrap();
         ItemMut { docs: &mut v.docs }
     }
-}
-
-/// Internal variant.
-pub(crate) struct InternalVariant {
-    /// The name of the variant.
-    pub(crate) name: &'static str,
-    /// Type check for the variant.
-    pub(crate) type_check: TypeCheck,
-    /// Arguments for the variant.
-    pub(crate) args: usize,
-    /// The constructor of the variant.
-    pub(crate) constructor: Arc<FunctionHandler>,
-    /// Documentation for internal variant.
-    pub(crate) docs: Docs,
 }
 
 /// Data for an opaque type. If `spec` is set, indicates things which are known
@@ -150,6 +136,8 @@ pub(crate) enum Fields {
 pub struct Variant {
     /// The name of the variant.
     pub(crate) name: &'static str,
+    /// Type check for the variant.
+    pub(crate) type_check: Option<TypeCheck>,
     /// Variant metadata.
     pub(crate) fields: Option<Fields>,
     /// Handler to use if this variant can be constructed through a regular function call.
@@ -162,6 +150,7 @@ impl Variant {
     fn new(name: &'static str) -> Self {
         Self {
             name,
+            type_check: None,
             fields: None,
             constructor: None,
             docs: Docs::EMPTY,
@@ -320,6 +309,8 @@ where
     }
 
     /// Set static documentation.
+    ///
+    /// This completely replaces any existing documentation.
     pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
         self.docs.set_docs(docs);
         self
@@ -400,8 +391,62 @@ where
     }
 
     /// Set static documentation.
+    ///
+    /// This completely replaces any existing documentation.
     pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
         self.docs.set_docs(docs);
+        self
+    }
+
+    /// Get the given variant mutably.
+    pub fn variant_mut(&mut self, index: usize) -> Result<VariantMut<'_, T>, ContextError> {
+        let Some(variant) = self.enum_.variants.get_mut(index) else {
+            return Err(ContextError::MissingVariant {
+                index,
+                type_info: T::type_info(),
+            });
+        };
+
+        Ok(VariantMut {
+            index,
+            docs: &mut variant.docs,
+            fields: &mut variant.fields,
+            constructor: &mut variant.constructor,
+            _marker: PhantomData,
+        })
+    }
+}
+
+/// Access internal enum metadata mutably.
+pub struct InternalEnumMut<'a, T>
+where
+    T: TypeOf,
+{
+    enum_: &'a mut InternalEnum,
+    _marker: PhantomData<&'a mut T>,
+}
+
+impl<T> InternalEnumMut<'_, T>
+where
+    T: TypeOf,
+{
+    /// Set documentation for an inserted internal enum.
+    ///
+    /// This completely replaces any existing documentation.
+    pub fn docs<I>(self, docs: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        self.enum_.docs.set_docs(docs);
+        self
+    }
+
+    /// Set static documentation for an inserted internal enum.
+    ///
+    /// This completely replaces any existing documentation.
+    pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
+        self.enum_.docs.set_docs(docs);
         self
     }
 
@@ -458,6 +503,8 @@ where
     }
 
     /// Set static documentation.
+    ///
+    /// This completely replaces any existing documentation.
     pub fn static_docs(self, docs: &'static [&'static str]) -> Self {
         self.docs.set_docs(docs);
         self
