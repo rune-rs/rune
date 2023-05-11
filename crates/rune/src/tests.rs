@@ -30,7 +30,7 @@ pub(crate) mod prelude {
 use crate::no_std::prelude::*;
 use crate::no_std::sync::Arc;
 
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Error, Result};
 use thiserror::Error;
 
 use crate::compile::{IntoComponent, ItemBuf};
@@ -41,10 +41,10 @@ use crate::{termcolor, BuildError, Context, Diagnostics, FromValue, Source, Sour
 #[derive(Debug, Error)]
 pub enum RunError {
     /// A load error was raised during testing.
-    #[error("build error")]
-    BuildError(BuildError),
+    #[error("Build error: {0}")]
+    BuildError(String),
     /// A virtual machine error was raised during testing.
-    #[error("vm error: {0}")]
+    #[error("Vm error: {0}")]
     VmError(VmError),
 }
 
@@ -71,11 +71,21 @@ pub fn vm(
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
 ) -> Result<Vm, RunError> {
-    let unit = crate::prepare(sources)
+    let result = crate::prepare(sources)
         .with_context(context)
         .with_diagnostics(diagnostics)
-        .build()
-        .map_err(RunError::BuildError)?;
+        .build();
+
+    let Ok(unit) = result else {
+        let mut buffer = termcolor::Buffer::no_color();
+
+        diagnostics
+            .emit(&mut buffer, sources)
+            .expect("Emit diagnostics");
+
+        let buffer = String::from_utf8(buffer.into_inner()).expect("Non utf-8 output");
+        return Err(RunError::BuildError(buffer))
+    };
 
     let context = Arc::new(context.runtime());
     Ok(Vm::new(context, Arc::new(unit)))
@@ -102,6 +112,7 @@ where
         let mut execute = vm
             .execute(&ItemBuf::with_item(function), args)
             .map_err(RunError::VmError)?;
+
         let output = execute
             .async_complete()
             .await
@@ -140,21 +151,16 @@ where
         Err(e) => e,
     };
 
-    let mut buffer = termcolor::Buffer::no_color();
-
-    match &e {
-        RunError::BuildError(..) => {
-            diagnostics
-                .emit(&mut buffer, &sources)
-                .expect("Emit diagnostics");
-        }
+    match e {
+        RunError::BuildError(string) => Err(Error::msg(string)),
         RunError::VmError(e) => {
-            e.emit(&mut buffer, &sources).expect("Emit diagnostics");
+            let mut buffer = termcolor::Buffer::no_color();
+            e.emit(&mut buffer, &sources).context("Emit diagnostics")?;
+            let buffer =
+                String::from_utf8(buffer.into_inner()).context("Decode output as utf-8")?;
+            Err(Error::msg(buffer))
         }
     }
-
-    let buffer = String::from_utf8(buffer.into_inner()).context("Decoding output")?;
-    Err(anyhow::Error::msg(buffer))
 }
 
 /// Same as [rune_s!] macro, except it takes a Rust token tree. This works
@@ -201,21 +207,21 @@ macro_rules! assert_vm_error {
         let e = match $crate::tests::run_helper::<_, _, $ty>(&context, &mut sources, &mut diagnostics, ["main"], ()) {
             Err(e) => e,
             Ok(value) => {
-                panic!("expected error but program completed with: {:?}", value);
+                panic!("Expected error but program completed with: {:?}", value);
             }
         };
 
         let e = match e {
             $crate::tests::RunError::VmError(e) => e,
             actual => {
-                panic!("expected vm error `{}` but was `{:?}`", stringify!($pat), actual);
+                panic!("Expected vm error `{}` but was `{:?}`", stringify!($pat), actual);
             }
         };
 
         match e.into_kind() {
             $pat => $cond,
             actual => {
-                panic!("expected error `{}` but was `{:?}`", stringify!($pat), actual);
+                panic!("Expected error `{}` but was `{:?}`", stringify!($pat), actual);
             }
         }
     }};
