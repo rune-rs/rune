@@ -19,6 +19,7 @@ pub fn module() -> Result<Module, ContextError> {
 }
 
 #[derive(Any)]
+#[rune(item = ::time)]
 struct Duration(i32);
 
 impl Duration {

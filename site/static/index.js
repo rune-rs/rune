@@ -1,5 +1,5 @@
 // rune-editor code
-window.onload = () => {
+window.addEventListener("load", () => {
     // Only permit that snippets run 1_000_000 instructions by default.
     let budget = 1_000_000;
     let colTrim = 100;
@@ -33,7 +33,7 @@ window.onload = () => {
             editor.recompile();
         }
     });
-};
+});
 
 function parseOptions(options) {
     let output = [];
@@ -145,6 +145,7 @@ function setupEditor(element, opts) {
 
     let recompile = async () => {
         if (!rune.module) {
+            console.warn("Rune module not available");
             return;
         }
 
@@ -197,10 +198,11 @@ function setupEditor(element, opts) {
             diagnosticsOutput.classList.add("hidden");
         }
 
-        let hasOutput = !!result.output || !!result.result;
-        let text = "";
+        let text = [];
 
         if (!!result.output) {
+            let content = [];
+
             let parts = result.output.split("\n").map(part => {
                 if (part.length > opts.lineTrim) {
                     let trimmed = part.length - opts.lineTrim;
@@ -209,24 +211,46 @@ function setupEditor(element, opts) {
                     return part;
                 }
             });
-            
+
             if (parts.length > opts.colTrim) {
-                text += parts.slice(0, opts.colTrim).join("\n") + "\n";
-                text += `${parts.length - opts.colTrim} more lines trimmed...\n`;
+                content.push(...parts.slice(0, opts.colTrim));
+                content.push(`${parts.length - opts.colTrim} more lines trimmed...`);
             } else {
-                text += parts.join("\n");
+                content.push(...parts);
             }
+
+            text.push({ title: "Output", content });
         }
 
-        if (!result.error) {
-            text += result.result;
+        if (!!result.error) {
+            text.push({ title: "Result", content: [result.error] });
         }
 
-        if (hasOutput) {
-            primaryOutput.textContent = text;
+        if (!!result.result) {
+            text.push({ title: "Result", content: [result.result] });
+        }
+
+        if (text.length > 0) {
+            let el = document.createDocumentFragment();
+
+            for (let section of text) {
+                let title = document.createElement("h4");
+                title.textContent = section.title;
+
+                el.appendChild(title);
+
+                for (let line of section.content) {
+                    let text = document.createElement("p");
+                    text.textContent = line;
+                    el.appendChild(text);
+                }
+            }
+
+            primaryOutput.innerHTML = "";
+            primaryOutput.appendChild(el);
             primaryOutput.classList.remove("hidden");
         } else {
-            primaryOutput.textContent = "";
+            primaryOutput.innerHTML = "";
             primaryOutput.classList.add("hidden");
         }
 

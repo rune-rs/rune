@@ -493,11 +493,31 @@ nav.pagination {
     }
 
     &-output {
+        color: white;
         padding: 6px;
         overflow-x: auto;
         font-family: monospace;
         white-space: pre;
         border-top: 1px solid $accent;
+
+        & > h4 {
+            color: white;
+            font-weight: bold;
+            margin: 6px 0;
+        }
+
+        & > p {
+            color: white;
+            margin: 6px 0;
+
+            &:first-child {
+                margin-top: 0;
+            }
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
 
         &.instructions {
             max-height: 300px;

@@ -13,11 +13,13 @@ pub fn module() -> Result<Module, ContextError> {
 }
 
 #[derive(Any)]
+#[rune(item = ::http)]
 struct Response {
     inner: web_sys::Response,
 }
 
 #[derive(Any)]
+#[rune(item = ::http)]
 struct Error;
 
 /// Perform a `get` request.
