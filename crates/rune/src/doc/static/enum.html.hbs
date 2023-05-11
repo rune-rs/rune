@@ -2,6 +2,19 @@
 <h3 class="title">Enum {{literal module}}::<span class="enum">{{name}}</span></h3>
 {{#if doc}}{{literal doc}}{{/if}}
 
+{{#if variants}}
+<h4 class="section-title">Variants</h4>
+
+{{#each variants}}
+    <div class="item item-fn">
+        <div id="variant.{{this.name}}" class="item-title">
+        <a href="#variant.{{this.name}}" class="variant">{{this.name}}</a>
+        </div>
+        {{#if this.doc}}{{literal this.doc}}{{/if}}
+    </div>
+{{/each}}
+{{/if}}
+
 {{#if methods}}
 <h4 class="section-title">Methods</h4>
 

@@ -12,8 +12,8 @@ use crate::module::function_meta::{
 };
 use crate::module::{
     AssociatedKey, AsyncFunction, AsyncInstFn, EnumMut, Function, InstFn, InstallWith,
-    InternalEnum, ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction, ModuleMacro,
-    ModuleType, TypeMut, TypeSpecification, UnitType, VariantMut,
+    InternalEnum, InternalEnumMut, ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction,
+    ModuleMacro, ModuleType, TypeMut, TypeSpecification, UnitType, VariantMut,
 };
 use crate::runtime::{
     ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf, Protocol, Stack, ToValue,
@@ -358,7 +358,10 @@ impl Module {
     /// let mut module = Module::with_crate_item("nonstd", ["generator"]);
     /// module.generator_state(["GeneratorState"])?;
     /// # Ok::<_, rune::Error>(())
-    pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
+    pub fn generator_state<N>(
+        &mut self,
+        name: N,
+    ) -> Result<InternalEnumMut<'_, GeneratorState>, ContextError>
     where
         N: IntoIterator,
         N::Item: IntoComponent,
@@ -374,6 +377,7 @@ impl Module {
             TypeCheck::GeneratorState(0),
             GeneratorState::Complete,
         );
+
         enum_.variant(
             "Yielded",
             TypeCheck::GeneratorState(1),
@@ -381,7 +385,11 @@ impl Module {
         );
 
         self.internal_enums.push(enum_);
-        Ok(())
+
+        Ok(InternalEnumMut {
+            enum_: self.internal_enums.last_mut().unwrap(),
+            _marker: PhantomData,
+        })
     }
     /// Construct type information for the `Option` type.
     ///
@@ -398,7 +406,7 @@ impl Module {
     /// let mut module = Module::with_crate_item("nonstd", ["option"]);
     /// module.option(["Option"])?;
     /// # Ok::<_, rune::Error>(())
-    pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
+    pub fn option<N>(&mut self, name: N) -> Result<InternalEnumMut<'_, Option<Value>>, ContextError>
     where
         N: IntoIterator,
         N::Item: IntoComponent,
@@ -411,7 +419,11 @@ impl Module {
         enum_.variant("Some", TypeCheck::Option(0), Option::<Value>::Some);
         enum_.variant("None", TypeCheck::Option(1), || Option::<Value>::None);
         self.internal_enums.push(enum_);
-        Ok(())
+
+        Ok(InternalEnumMut {
+            enum_: self.internal_enums.last_mut().unwrap(),
+            _marker: PhantomData,
+        })
     }
 
     /// Construct type information for the internal `Result` type.
@@ -429,7 +441,10 @@ impl Module {
     /// let mut module = Module::with_crate_item("nonstd", ["result"]);
     /// module.result(["Result"])?;
     /// # Ok::<_, rune::Error>(())
-    pub fn result<N>(&mut self, name: N) -> Result<(), ContextError>
+    pub fn result<N>(
+        &mut self,
+        name: N,
+    ) -> Result<InternalEnumMut<'_, Result<Value, Value>>, ContextError>
     where
         N: IntoIterator,
         N::Item: IntoComponent,
@@ -442,7 +457,11 @@ impl Module {
         enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok);
         enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err);
         self.internal_enums.push(enum_);
-        Ok(())
+
+        Ok(InternalEnumMut {
+            enum_: self.internal_enums.last_mut().unwrap(),
+            _marker: PhantomData,
+        })
     }
 
     /// Register a constant value, at a crate, module or associated level.
