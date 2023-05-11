@@ -15,6 +15,7 @@ categories = ["parser-implementations"]
 
 [features]
 doc = []
+std = []
 
 [dependencies]
 twox-hash = { version = "1.6.3", default-features = false }

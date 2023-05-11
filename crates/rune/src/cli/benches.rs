@@ -7,7 +7,7 @@ use crate::no_std::prelude::*;
 
 use clap::Parser;
 
-use crate::cli::{ExitCode, Io};
+use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags};
 use crate::compile::{Item, ItemBuf};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Function, Unit, Value};
@@ -23,6 +23,23 @@ pub(super) struct Flags {
     /// Iterations to run of the benchmark
     #[arg(long, default_value = "100")]
     iterations: u32,
+}
+
+impl CommandBase for Flags {
+    #[inline]
+    fn is_workspace(&self, kind: AssetKind) -> bool {
+        matches!(kind, AssetKind::Bench)
+    }
+
+    #[inline]
+    fn describe(&self) -> &str {
+        "Benchmarking"
+    }
+
+    #[inline]
+    fn propagate(&mut self, c: &mut Config, _: &mut SharedFlags) {
+        c.test = true;
+    }
 }
 
 /// Run benchmarks.

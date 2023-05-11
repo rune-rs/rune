@@ -280,7 +280,11 @@ impl CompileBuildEntry<'_> {
                 let count = f.function.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
-                let meta = c.lookup_meta(f.instance_span, f.impl_item, None)?;
+                let meta = c.lookup_meta(
+                    f.instance_span,
+                    f.impl_item,
+                    self::v1::GenericsParameters::default(),
+                )?;
 
                 let type_hash = meta.type_hash_of().ok_or_else(|| {
                     Error::expected_meta(span, meta.info(c.q.pool), "instance function")

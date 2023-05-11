@@ -96,7 +96,7 @@ pub(crate) struct BuiltInLine {
 #[derive(Default)]
 pub(crate) struct QueryInner {
     /// Resolved meta about every single item during a compilation.
-    meta: HashMap<ItemId, meta::Meta>,
+    meta: HashMap<(ItemId, Hash), meta::Meta>,
     /// Build queue.
     queue: VecDeque<BuildEntry>,
     /// Indexed items that can be queried for, which will queue up for them to
@@ -284,13 +284,18 @@ impl<'a> Query<'a> {
     fn insert_meta(&mut self, span: Span, meta: meta::Meta) -> compile::Result<()> {
         self.visitor.register_meta(meta.as_meta_ref(self.pool));
 
-        match self.inner.meta.entry(meta.item_meta.item) {
+        match self
+            .inner
+            .meta
+            .entry((meta.item_meta.item, meta.parameters))
+        {
             hash_map::Entry::Occupied(e) => {
                 return Err(compile::Error::new(
                     span,
                     QueryErrorKind::MetaConflict {
                         current: meta.info(self.pool),
                         existing: e.get().info(self.pool),
+                        parameters: meta.parameters,
                     },
                 ));
             }
@@ -624,6 +629,7 @@ impl<'a> Query<'a> {
         &mut self,
         span: Span,
         meta: &context::ContextMeta,
+        parameters: Hash,
     ) -> compile::Result<meta::Meta> {
         let Some(item) = &meta.item else {
             return Err(compile::Error::new(
@@ -647,10 +653,16 @@ impl<'a> Query<'a> {
             },
             kind: meta.kind.clone(),
             source: None,
+            parameters,
         };
 
         self.insert_meta(span, meta.clone())?;
         Ok(meta)
+    }
+
+    /// Explicitly look for meta with the given item and hash.
+    pub(crate) fn get_meta(&self, item: ItemId, hash: Hash) -> Option<&meta::Meta> {
+        self.inner.meta.get(&(item, hash))
     }
 
     /// Query for the given meta by looking up the reverse of the specified
@@ -662,7 +674,7 @@ impl<'a> Query<'a> {
         item: ItemId,
         used: Used,
     ) -> compile::Result<Option<meta::Meta>> {
-        if let Some(meta) = self.inner.meta.get(&item) {
+        if let Some(meta) = self.inner.meta.get(&(item, Hash::EMPTY)) {
             tracing::trace!(item = ?item, meta = ?meta, "cached");
             // Ensure that the given item is not indexed, cause if it is
             // `queue_unused_entries` might end up spinning indefinitely since
@@ -710,7 +722,6 @@ impl<'a> Query<'a> {
 
         let mut in_self_type = false;
         let mut local = None;
-        let mut generics = None;
 
         let item = match (path.global, path.first) {
             (
@@ -760,21 +771,16 @@ impl<'a> Query<'a> {
         };
 
         let mut item = self.pool.item(item).to_owned();
+        let mut trailing = 0;
+        let mut parameters = [None, None];
 
-        for segment in path.rest {
-            tracing::trace!("item = {}", item);
+        let mut it = path.rest.iter();
+        let mut parameters_it = parameters.iter_mut();
 
-            if generics.is_some() {
-                return Err(compile::Error::new(
-                    segment,
-                    CompileErrorKind::UnsupportedAfterGeneric,
-                ));
-            }
-
+        for segment in it.by_ref() {
             match segment.kind {
                 hir::PathSegmentKind::Ident(ident) => {
-                    let ident = ident.resolve(resolve_context!(self))?;
-                    item.push(ident);
+                    item.push(ident.resolve(resolve_context!(self))?);
                 }
                 hir::PathSegmentKind::Super => {
                     if in_self_type {
@@ -788,14 +794,16 @@ impl<'a> Query<'a> {
                         .ok_or_else(compile::Error::unsupported_super(segment.span()))?;
                 }
                 hir::PathSegmentKind::Generics(arguments) => {
-                    if generics.is_some() {
+                    let Some(p) = parameters_it.next() else {
                         return Err(compile::Error::new(
-                            segment.span(),
+                            segment,
                             CompileErrorKind::UnsupportedGenerics,
                         ));
-                    }
+                    };
 
-                    generics = Some((segment.span(), arguments));
+                    trailing += 1;
+                    *p = Some((segment.span(), arguments));
+                    break;
                 }
                 _ => {
                     return Err(compile::Error::new(
@@ -804,6 +812,33 @@ impl<'a> Query<'a> {
                     ));
                 }
             }
+        }
+
+        // Consume remaining generics, possibly interleaved with identifiers.
+        while let Some(segment) = it.next() {
+            let hir::PathSegmentKind::Ident(ident) = segment.kind else {
+                return Err(compile::Error::new(
+                    segment.span(),
+                    CompileErrorKind::UnsupportedAfterGeneric,
+                ));
+            };
+
+            trailing += 1;
+            item.push(ident.resolve(resolve_context!(self))?);
+
+            let Some(p) = parameters_it.next() else {
+                return Err(compile::Error::new(
+                    segment,
+                    CompileErrorKind::UnsupportedGenerics,
+                ));
+            };
+
+            let Some(hir::PathSegmentKind::Generics(arguments)) = it.clone().next().map(|p| p.kind) else {
+                continue;
+            };
+
+            *p = Some((segment.span(), arguments));
+            it.next();
         }
 
         let span = path.span();
@@ -819,14 +854,16 @@ impl<'a> Query<'a> {
             return Ok(Named {
                 local,
                 item: new,
-                generics,
+                trailing,
+                parameters,
             });
         }
 
         Ok(Named {
             local,
             item,
-            generics,
+            trailing,
+            parameters,
         })
     }
 
@@ -982,7 +1019,7 @@ impl<'a> Query<'a> {
         path: &mut Vec<ImportStep>,
     ) -> compile::Result<Option<meta::Import>> {
         // already resolved query.
-        if let Some(meta) = self.inner.meta.get(&item) {
+        if let Some(meta) = self.inner.meta.get(&(item, Hash::EMPTY)) {
             return Ok(match meta.kind {
                 meta::Kind::Import(import) => Some(import),
                 _ => None,
@@ -1020,6 +1057,7 @@ impl<'a> Query<'a> {
             item_meta: entry.item_meta,
             kind: meta::Kind::Import(import),
             source: None,
+            parameters: Hash::EMPTY,
         };
 
         self.insert_meta(span, meta)?;
@@ -1038,7 +1076,12 @@ impl<'a> Query<'a> {
         let (hash, container, kind) = match indexed {
             Indexed::Enum => {
                 let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, None, meta::Kind::Enum)
+
+                let kind = meta::Kind::Enum {
+                    parameters: Hash::EMPTY,
+                };
+
+                (hash, None, kind)
             }
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((item_meta.location.span, variant.enum_id))?;
@@ -1236,6 +1279,8 @@ impl<'a> Query<'a> {
             item_meta,
             kind,
             source: Some(source),
+            // NB: generic parameters are not supported in rune yet except for native contexts.
+            parameters: Hash::EMPTY,
         })
     }
 
@@ -1677,14 +1722,16 @@ pub(crate) struct Named<'hir> {
     pub(crate) local: Option<Box<str>>,
     /// The path resolved to the given item.
     pub(crate) item: ItemId,
-    /// Generic arguments if any.
-    pub(crate) generics: Option<(Span, &'hir [hir::Expr<'hir>])>,
+    /// Trailing parameters.
+    pub(crate) trailing: usize,
+    /// Type parameters if any.
+    pub(crate) parameters: [Option<(Span, &'hir [hir::Expr<'hir>])>; 2],
 }
 
 impl Named<'_> {
     /// Get the local identifier of this named.
     pub(crate) fn as_local(&self) -> Option<&str> {
-        if self.generics.is_none() {
+        if self.parameters.iter().all(|v| v.is_none()) {
             self.local.as_deref()
         } else {
             None
@@ -1693,7 +1740,7 @@ impl Named<'_> {
 
     /// Assert that this named type is not generic.
     pub(crate) fn assert_not_generic(&self) -> compile::Result<()> {
-        if let Some((span, _)) = self.generics {
+        if let Some((span, _)) = self.parameters.iter().flatten().next() {
             return Err(compile::Error::new(
                 span,
                 CompileErrorKind::UnsupportedGenerics,
@@ -1724,6 +1771,7 @@ fn unit_body_meta(item: &Item, enum_item: Option<(Hash, usize)>) -> (Hash, meta:
         None => meta::Kind::Struct {
             fields: meta::Fields::Empty,
             constructor: None,
+            parameters: Hash::EMPTY,
         },
     };
 
@@ -1748,6 +1796,7 @@ fn tuple_body_meta(
         None => meta::Kind::Struct {
             fields: meta::Fields::Unnamed(tuple.len()),
             constructor: None,
+            parameters: Hash::EMPTY,
         },
     };
 
@@ -1782,6 +1831,7 @@ fn struct_body_meta(
         None => meta::Kind::Struct {
             fields: meta::Fields::Named(st),
             constructor: None,
+            parameters: Hash::EMPTY,
         },
     };
 

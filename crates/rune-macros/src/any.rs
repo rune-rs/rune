@@ -515,12 +515,12 @@ where
     let type_hash = type_hash.into_inner();
 
     let make_hash = if !generic_names.is_empty() {
-        quote!(#hash::new_with_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_of>::type_hash()),*])))
+        quote!(#hash::new_with_type_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_of>::type_hash()),*])))
     } else {
         quote!(#hash::new(#type_hash))
     };
 
-    let parameters_hash = if !generic_names.is_empty() {
+    let type_parameters = if !generic_names.is_empty() {
         quote!(#hash::parameters([#(<#generic_names as #type_of>::type_hash()),*]))
     } else {
         quote!(#hash::EMPTY)
@@ -555,8 +555,8 @@ where
             }
 
             #[inline]
-            fn parameters_hash() -> #hash {
-                #parameters_hash
+            fn type_parameters() -> #hash {
+                #type_parameters
             }
 
             #[inline]

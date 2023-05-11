@@ -126,21 +126,21 @@ impl<'a> Context<'a> {
                 let data = visitor.data.get(hash)?;
 
                 let (is_async, kind) = match data.kind {
-                    meta::Kind::Function {
+                    Some(meta::Kind::Function {
                         signature: ref f,
                         ..
-                    } => (
+                    }) => (
                         f.is_async,
                         AssocFnKind::Method(data.item.last()?.as_str()?, f.args, Signature::Function),
                     ),
-                    meta::Kind::AssociatedFunction {
+                    Some(meta::Kind::AssociatedFunction {
                         signature: ref f,
                         ..
-                    } => (
+                    }) => (
                         f.is_async,
                         AssocFnKind::Method(data.item.last()?.as_str()?, f.args, Signature::Instance),
                     ),
-                    meta::Kind::Variant { .. } => {
+                    Some(meta::Kind::Variant { .. }) => {
                         return Some(Assoc::Variant(AssocVariant {
                             name: data.item.last()?.as_str()?,
                             docs: &data.docs,
@@ -208,7 +208,7 @@ impl<'a> Context<'a> {
                 }
                 kind => {
                     tracing::warn!(?kind, "Unsupported associated type");
-                    return None;
+                    None
                 }
             }
         }
@@ -334,11 +334,11 @@ impl<'a> Context<'a> {
 
 fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
     let kind = match &data.kind {
-        meta::Kind::Type { .. } => Kind::Type,
-        meta::Kind::Struct { .. } => Kind::Struct,
-        meta::Kind::Variant { .. } => Kind::Variant,
-        meta::Kind::Enum => Kind::Enum,
-        meta::Kind::Function { signature: f, .. } => Kind::Function(Function {
+        Some(meta::Kind::Type { .. }) => Kind::Type,
+        Some(meta::Kind::Struct { .. }) => Kind::Struct,
+        Some(meta::Kind::Variant { .. }) => Kind::Variant,
+        Some(meta::Kind::Enum { .. }) => Kind::Enum,
+        Some(meta::Kind::Function { signature: f, .. }) => Kind::Function(Function {
             is_async: f.is_async,
             arg_names: None,
             args: f.args,
@@ -346,7 +346,7 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
             return_type: f.return_type,
             argument_types: &f.argument_types,
         }),
-        meta::Kind::AssociatedFunction { signature: f, .. } => Kind::Function(Function {
+        Some(meta::Kind::AssociatedFunction { signature: f, .. }) => Kind::Function(Function {
             is_async: f.is_async,
             arg_names: None,
             args: f.args,
@@ -354,7 +354,7 @@ fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
             return_type: f.return_type,
             argument_types: &f.argument_types,
         }),
-        meta::Kind::Module => Kind::Module,
+        Some(meta::Kind::Module) => Kind::Module,
         _ => Kind::Unsupported,
     };
 

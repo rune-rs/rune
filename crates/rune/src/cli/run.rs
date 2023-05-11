@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::cli::{Config, ExitCode, Io};
+use crate::cli::{Config, ExitCode, Io, CommandBase, AssetKind, SharedFlags};
 use crate::runtime::{VmError, VmExecution, VmResult};
 use crate::{Context, Sources, Unit, Value, Vm};
 
@@ -48,8 +48,14 @@ pub(super) struct Flags {
     with_source: bool,
 }
 
-impl Flags {
-    pub(super) fn propagate_related_flags(&mut self) {
+impl CommandBase for Flags {
+    #[inline]
+    fn is_workspace(&self, kind: AssetKind) -> bool {
+        matches!(kind, AssetKind::Bin)
+    }
+
+    #[inline]
+    fn propagate(&mut self, _: &mut Config, _: &mut SharedFlags) {
         if self.dump {
             self.dump_constants = true;
             self.dump_unit = true;
@@ -60,7 +66,9 @@ impl Flags {
             self.dump_native_types = true;
         }
     }
+}
 
+impl Flags {
     fn emit_instructions(&self) -> bool {
         self.dump_unit || self.emit_instructions
     }

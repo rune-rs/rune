@@ -5,15 +5,15 @@ use crate::no_std::prelude::*;
 
 use num::ToPrimitive;
 
-use crate::ast::{self};
-use crate::ast::{Span, Spanned};
+use crate::ast::{self, Span, Spanned};
 use crate::collections::{HashMap, HashSet};
 use crate::compile::meta;
-use crate::compile::v1::{Assembler, Loop, Needs, Scope, Var};
+use crate::compile::v1::{Assembler, GenericsParameters, Loop, Needs, Scope, Var};
 use crate::compile::{self, CompileErrorKind, Item, ParseErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::{Id, Resolve};
+use crate::query::Named;
 use crate::runtime::{
     ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRangeLimits, InstTarget, InstValue,
     InstVariant, Label, PanicReason, Protocol, Type, TypeCheck,
@@ -130,6 +130,15 @@ fn meta(span: Span, c: &mut Assembler<'_>, meta: &meta::Meta, needs: Needs) -> c
             } => {
                 c.asm.push_with_comment(
                     Inst::LoadFn { hash: meta.hash },
+                    span,
+                    meta.info(c.q.pool).to_string(),
+                );
+            }
+            meta::Kind::Struct { .. } => {
+                c.asm.push_with_comment(
+                    Inst::Push {
+                        value: InstValue::Type(Type::new(meta.hash)),
+                    },
                     span,
                     meta.info(c.q.pool).to_string(),
                 );
@@ -266,9 +275,9 @@ fn pat(
         }
         hir::PatKind::PatPath(path) => {
             let named = c.convert_path(path)?;
-            named.assert_not_generic()?;
+            let parameters = generics_parameters(path.span(), c, &named)?;
 
-            if let Some(meta) = c.try_lookup_meta(span, named.item, None)? {
+            if let Some(meta) = c.try_lookup_meta(span, named.item, &parameters)? {
                 if pat_meta_binding(span, c, &meta, false_label, load)? {
                     return Ok(true);
                 }
@@ -581,9 +590,9 @@ fn pat_tuple(
 
     if let Some(path) = hir.path {
         let named = c.convert_path(path)?;
-        named.assert_not_generic()?;
+        let parameters = generics_parameters(path.span(), c, &named)?;
 
-        let meta = c.lookup_meta(path.span(), named.item, None)?;
+        let meta = c.lookup_meta(path.span(), named.item, parameters)?;
 
         // Treat the current meta as a tuple and get the number of arguments it
         // should receive and the type check that applies to it.
@@ -720,9 +729,8 @@ fn pat_object(
             let path_span = path.span();
 
             let named = c.convert_path(path)?;
-            named.assert_not_generic()?;
-
-            let meta = c.lookup_meta(path_span, named.item, None)?;
+            let parameters = generics_parameters(path.span(), c, &named)?;
+            let meta = c.lookup_meta(path_span, named.item, parameters)?;
 
             let (st, inst) = match struct_match_for(span, c, &meta) {
                 Some(out) => out,
@@ -1540,7 +1548,7 @@ fn expr_block(
     }
 
     let item = c.q.item_for(hir.block)?;
-    let meta = c.lookup_meta(span, item.item, None)?;
+    let meta = c.lookup_meta(span, item.item, GenericsParameters::default())?;
 
     match (hir.kind, &meta.kind) {
         (
@@ -1659,9 +1667,33 @@ fn expr_break(
 fn generics_parameters(
     span: Span,
     c: &mut Assembler<'_>,
+    named: &Named<'_>,
+) -> compile::Result<GenericsParameters> {
+    let mut parameters = GenericsParameters {
+        trailing: named.trailing,
+        parameters: [None, None],
+    };
+
+    for (value, o) in named
+        .parameters
+        .iter()
+        .zip(parameters.parameters.iter_mut())
+    {
+        if let &Some((span, expr)) = value {
+            *o = Some(generics_parameter(span, c, expr)?);
+        }
+    }
+
+    Ok(parameters)
+}
+
+#[instrument]
+fn generics_parameter(
+    span: Span,
+    c: &mut Assembler<'_>,
     generics: &[hir::Expr<'_>],
 ) -> compile::Result<Hash> {
-    let mut parameters = ParametersBuilder::new();
+    let mut builder = ParametersBuilder::new();
 
     for expr in generics {
         let path = match expr.kind {
@@ -1675,9 +1707,8 @@ fn generics_parameters(
         };
 
         let named = c.convert_path(path)?;
-        named.assert_not_generic()?;
-
-        let meta = c.lookup_meta(expr.span(), named.item, None)?;
+        let parameters = generics_parameters(path.span(), c, &named)?;
+        let meta = c.lookup_meta(expr.span(), named.item, parameters)?;
 
         let hash = match meta.kind {
             meta::Kind::Type { .. } | meta::Kind::Struct { .. } | meta::Kind::Enum { .. } => {
@@ -1691,10 +1722,10 @@ fn generics_parameters(
             }
         };
 
-        parameters.add(hash);
+        builder.add(hash);
     }
 
-    Ok(parameters.finish())
+    Ok(builder.finish())
 }
 
 enum Call {
@@ -1747,11 +1778,7 @@ fn convert_expr_call(
                 }
             }
 
-            let parameters = if let Some((span, generics)) = named.generics {
-                Some(generics_parameters(span, c, generics)?)
-            } else {
-                None
-            };
+            let parameters = generics_parameters(span, c, &named)?;
 
             let meta = c.lookup_meta(path.span(), named.item, parameters)?;
             debug_assert_eq!(meta.item_meta.item, named.item);
@@ -1829,9 +1856,8 @@ fn convert_expr_call(
                 let ident = ident.resolve(resolve_context!(c.q))?;
                 let hash = Hash::instance_fn_name(ident);
 
-                let hash = if let Some((span, generics)) = generics {
-                    let parameters = generics_parameters(span, c, generics)?;
-                    hash.with_parameters(parameters)
+                let hash = if let Some((span, generic)) = generics {
+                    hash.with_function_parameters(generics_parameter(span, c, generic)?)
                 } else {
                     hash
                 };
@@ -2622,9 +2648,8 @@ fn expr_object(
     match hir.path {
         Some(path) => {
             let named = c.convert_path(path)?;
-            named.assert_not_generic()?;
-
-            let meta = c.lookup_meta(path.span(), named.item, None)?;
+            let parameters = generics_parameters(path.span(), c, &named)?;
+            let meta = c.lookup_meta(path.span(), named.item, parameters)?;
             let item = c.q.pool.item(meta.item_meta.item);
 
             match &meta.kind {
@@ -2741,13 +2766,9 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         }
     }
 
-    let parameters = if let Some((span, generics)) = named.generics {
-        Some(generics_parameters(span, c, generics)?)
-    } else {
-        None
-    };
+    let parameters = generics_parameters(span, c, &named)?;
 
-    if let Some(m) = c.try_lookup_meta(span, named.item, parameters)? {
+    if let Some(m) = c.try_lookup_meta(span, named.item, &parameters)? {
         meta(span, c, &m, needs)?;
         return Ok(Asm::top(span));
     }
@@ -2765,10 +2786,10 @@ fn path(hir: &hir::Path<'_>, c: &mut Assembler<'_>, needs: Needs) -> compile::Re
         }
     }
 
-    let kind = if let Some(parameters) = parameters {
+    let kind = if !parameters.parameters.is_empty() {
         CompileErrorKind::MissingItemParameters {
             item: c.q.pool.item(named.item).to_owned(),
-            parameters,
+            parameters: parameters.parameters.as_ref().into(),
         }
     } else {
         CompileErrorKind::MissingItem {

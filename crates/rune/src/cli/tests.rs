@@ -7,7 +7,7 @@ use crate::no_std::prelude::*;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::cli::{ExitCode, Io};
+use crate::cli::{ExitCode, Io, CommandBase, AssetKind, Config, SharedFlags};
 use crate::compile::ItemBuf;
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Unit, Value, Vm, VmError, VmResult};
@@ -22,6 +22,28 @@ pub(super) struct Flags {
     /// Run all tests regardless of failure
     #[arg(long)]
     no_fail_fast: bool,
+}
+
+impl CommandBase for Flags {
+    #[inline]
+    fn is_debug(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn is_workspace(&self, kind: AssetKind) -> bool {
+        matches!(kind, AssetKind::Test)
+    }
+
+    #[inline]
+    fn describe(&self) -> &str {
+        "Testing"
+    }
+
+    #[inline]
+    fn propagate(&mut self, c: &mut Config, _: &mut SharedFlags) {
+        c.test = true;
+    }
 }
 
 #[derive(Debug)]

@@ -171,7 +171,7 @@ impl Module {
     {
         let item = ItemBuf::with_item([T::BASE_NAME]);
         let hash = T::type_hash();
-        let parameters_hash = T::parameters_hash();
+        let type_parameters = T::type_parameters();
         let type_info = T::type_info();
 
         if !self.names.insert(Name::Item(hash)) {
@@ -188,7 +188,7 @@ impl Module {
         self.types.push(ModuleType {
             item,
             hash,
-            parameters_hash,
+            type_parameters,
             type_info,
             spec: None,
             docs: Docs::EMPTY,

@@ -7,6 +7,9 @@
 #![allow(clippy::module_inception)]
 #![no_std]
 
+#[cfg(feature = "std")]
+extern crate std;
+
 extern crate alloc;
 
 mod hash;
@@ -28,3 +31,10 @@ pub use self::params::Params;
 
 mod type_of;
 pub use self::type_of::FullTypeOf;
+
+#[cfg(feature = "std")]
+#[doc(hidden)]
+pub use std::error;
+
+#[cfg(not(feature = "std"))]
+pub mod error;

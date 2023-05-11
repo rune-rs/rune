@@ -86,11 +86,8 @@ pub(crate) use std::io;
 #[cfg(not(feature = "std"))]
 pub(crate) mod io;
 
-#[cfg(feature = "std")]
-pub(crate) use std::error;
-
-#[cfg(not(feature = "std"))]
-pub(crate) mod error;
+#[doc(inline)]
+pub(crate) use rune_core::error;
 
 #[cfg(not(feature = "std"))]
 pub(crate) mod path;

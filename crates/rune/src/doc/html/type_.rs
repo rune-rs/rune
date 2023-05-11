@@ -92,7 +92,7 @@ pub(super) fn build_assoc_fns<'m>(
                                 assoc.arg_names,
                                 args,
                                 sig,
-                                &assoc.argument_types,
+                                assoc.argument_types,
                             )?,
                             parameters,
                             return_type: match assoc.return_type {

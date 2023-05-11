@@ -16,7 +16,6 @@ mod run;
 mod tests;
 mod visitor;
 
-use std::mem;
 use std::fmt;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -28,17 +27,10 @@ use anyhow::{bail, Context as _, Error, Result};
 use clap::{Parser, Subcommand};
 use tracing_subscriber::filter::EnvFilter;
 
-use crate::compile::{ItemBuf, ParseOptionError, ComponentRef};
+use crate::compile::{ItemBuf, ParseOptionError};
 use crate::modules::capture_io::CaptureIo;
 use crate::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use crate::{Context, ContextError, Options, Hash};
-
-/// Commands which by default should look in the workspace for entrypoints.
-macro_rules! workspace_command {
-    () => {
-        Command::Check(..) | Command::Doc(..) | Command::Fmt(..)
-    }
-}
 
 /// Default about splash.
 const DEFAULT_ABOUT: &str = "The Rune Language Interpreter";
@@ -245,15 +237,126 @@ where
     T: clap::Args,
 {
     #[command(flatten)]
-    command: T,
-    #[command(flatten)]
     shared: SharedFlags,
+    #[command(flatten)]
+    command: T,
+}
+
+impl<T> CommandShared<T> where T: CommandBase + clap::Args {
+    /// Construct compiler options from arguments.
+    fn options(&self) -> Result<Options, ParseOptionError> {
+        let mut options = Options::default();
+
+        // Command-specific override defaults.
+        if self.command.is_debug() {
+            options.debug_info(true);
+            options.test(true);
+            options.bytecode(false);
+        }
+
+        for option in &self.shared.compiler_options {
+            options.parse_option(option)?;
+        }
+
+        Ok(options)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct CommandSharedRef<'a> {
+    shared: &'a SharedFlags,
+    command: &'a dyn CommandBase,
+}
+
+impl CommandSharedRef<'_> {
+    fn find_bins(&self) -> Option<WorkspaceFilter<'_>> {
+        if !self.command.is_workspace(AssetKind::Bin) {
+            return None;
+        }
+
+        Some(if let Some(name) = &self.shared.bin {
+            WorkspaceFilter::Name(name)
+        } else {
+            WorkspaceFilter::All
+        })
+    }
+
+    fn find_tests(&self) -> Option<WorkspaceFilter<'_>> {
+        if !self.command.is_workspace(AssetKind::Test) {
+            return None;
+        }
+
+        Some(if let Some(name) = &self.shared.test {
+            WorkspaceFilter::Name(name)
+        } else {
+            WorkspaceFilter::All
+        })
+    }
+
+    fn find_examples(&self) -> Option<WorkspaceFilter<'_>> {
+        if !self.command.is_workspace(AssetKind::Bin) {
+            return None;
+        }
+
+        Some(if let Some(name) = &self.shared.example {
+            WorkspaceFilter::Name(name)
+        } else {
+            WorkspaceFilter::All
+        })
+    }
+
+    fn find_benches(&self) -> Option<WorkspaceFilter<'_>> {
+        if !self.command.is_workspace(AssetKind::Bench) {
+            return None;
+        }
+
+        Some(if let Some(name) = &self.shared.bench {
+            WorkspaceFilter::Name(name)
+        } else {
+            WorkspaceFilter::All
+        })
+    }
 }
 
 #[derive(Parser, Debug)]
 struct HashFlags {
-    /// The item to generate a type hash from.
-    item: String,
+    /// Generate a random hash.
+    #[arg(long)]
+    random: bool,
+    /// Items to generate hashes for.
+    #[arg(name = "item")]
+    item: Vec<String>,
+}
+
+enum AssetKind {
+    Bin,
+    Test,
+    Bench,
+}
+
+trait CommandBase {
+    /// Test if the command should perform a debug build by default.
+    #[inline]
+    fn is_debug(&self) -> bool {
+        false
+    }
+
+    /// Test if the command should acquire workspace assets for the given asset kind.
+    #[inline]
+    fn is_workspace(&self, _: AssetKind) -> bool {
+        false
+    }
+
+    /// Describe the current command.
+    #[inline]
+    fn describe(&self) -> &str {
+        "Running"
+    }
+
+    /// Propagate related flags from command and config.
+    #[inline]
+    fn propagate(&mut self, _: &mut Config, _: &mut SharedFlags) {
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -273,11 +376,11 @@ enum Command {
     /// Run a language server.
     LanguageServer(SharedFlags),
     /// Helper command to generate type hashes.
-    Hash(CommandShared<HashFlags>),
+    Hash(HashFlags),
 }
 
 impl Command {
-    const ALL: [&str; 7] = [
+    const ALL: [&str; 8] = [
         "check",
         "doc",
         "test",
@@ -285,112 +388,39 @@ impl Command {
         "run",
         "fmt",
         "languageserver",
+        "hash",
     ];
 
-    fn propagate_related_flags(&mut self, c: &mut Config) {
-        match self {
-            Command::Test(..) => {
-                c.test = true;
-            }
-            Command::Bench(..) => {
-                c.test = true;
-            }
-            Command::Run(args) => {
-                args.command.propagate_related_flags();
-            }
-            _ => {}
-        }
+    fn as_command_base_mut(&mut self) -> Option<(&mut SharedFlags, &mut dyn CommandBase)> {
+        let (shared, command): (_, &mut dyn CommandBase) = match self {
+            Command::Check(shared) => (&mut shared.shared, &mut shared.command),
+            Command::Doc(shared) => (&mut shared.shared, &mut shared.command),
+            Command::Test(shared) => (&mut shared.shared, &mut shared.command),
+            Command::Bench(shared) => (&mut shared.shared, &mut shared.command),
+            Command::Run(shared) => (&mut shared.shared, &mut shared.command),
+            Command::Fmt(shared) => (&mut shared.shared, &mut shared.command),
+            Command::LanguageServer(..) => return None,
+            Command::Hash(..) => return None,
+        };
+
+        Some((shared, command))
     }
 
-    fn describe(&self) -> &'static str {
-        match self {
-            Command::Check(..) => "Checking",
-            Command::Doc(..) => "Building documentation",
-            Command::Fmt(..) => "Formatting files",
-            Command::Test(..) => "Testing",
-            Command::Bench(..) => "Benchmarking",
-            _ => "Running",
-        }
-    }
+    fn as_command_shared_ref(&self) -> Option<CommandSharedRef<'_>> {
+        let (shared, command): (_, &dyn CommandBase) = match self {
+            Command::Check(shared) => (&shared.shared, &shared.command),
+            Command::Doc(shared) => (&shared.shared, &shared.command),
+            Command::Test(shared) => (&shared.shared, &shared.command),
+            Command::Bench(shared) => (&shared.shared, &shared.command),
+            Command::Run(shared) => (&shared.shared, &shared.command),
+            Command::Fmt(shared) => (&shared.shared, &shared.command),
+            Command::LanguageServer(..) => return None,
+            Command::Hash(..) => return None,
+        };
 
-    fn shared(&self) -> &SharedFlags {
-        match self {
-            Command::Check(args) => &args.shared,
-            Command::Doc(args) => &args.shared,
-            Command::Fmt(args) => &args.shared,
-            Command::Test(args) => &args.shared,
-            Command::Bench(args) => &args.shared,
-            Command::Run(args) => &args.shared,
-            Command::LanguageServer(shared) => shared,
-            Command::Hash(args) => &args.shared,
-        }
-    }
-
-    fn find_bins(&self) -> Option<WorkspaceFilter<'_>> {
-        if !matches!(
-            self,
-            Command::Run(..) | workspace_command!()
-        ) {
-            return None;
-        }
-
-        let shared = self.shared();
-
-        Some(if let Some(name) = &shared.bin {
-            WorkspaceFilter::Name(name)
-        } else {
-            WorkspaceFilter::All
-        })
-    }
-
-    fn find_tests(&self) -> Option<WorkspaceFilter<'_>> {
-        if !matches!(
-            self,
-            Command::Test(..) | workspace_command!()
-        ) {
-            return None;
-        }
-
-        let shared = self.shared();
-
-        Some(if let Some(name) = &shared.test {
-            WorkspaceFilter::Name(name)
-        } else {
-            WorkspaceFilter::All
-        })
-    }
-
-    fn find_examples(&self) -> Option<WorkspaceFilter<'_>> {
-        if !matches!(
-            self,
-            Command::Run(..) | workspace_command!()
-        ) {
-            return None;
-        }
-
-        let shared = self.shared();
-
-        Some(if let Some(name) = &shared.example {
-            WorkspaceFilter::Name(name)
-        } else {
-            WorkspaceFilter::All
-        })
-    }
-
-    fn find_benches(&self) -> Option<WorkspaceFilter<'_>> {
-        if !matches!(
-            self,
-            Command::Bench(..) | workspace_command!()
-        ) {
-            return None;
-        }
-
-        let shared = self.shared();
-
-        Some(if let Some(name) = &shared.bench {
-            WorkspaceFilter::Name(name)
-        } else {
-            WorkspaceFilter::All
+        Some(CommandSharedRef {
+            shared,
+            command,
         })
     }
 }
@@ -418,13 +448,13 @@ struct Config {
 
 impl Config {
     /// Construct build paths from configuration.
-    fn build_paths<'m>(&'m self, cmd: &Command) -> Result<Vec<BuildPath<'m>>> {
+    fn build_paths<'m>(&'m self, cmd: CommandSharedRef<'_>) -> Result<Vec<BuildPath<'m>>> {
         let mut build_paths = Vec::new();
 
         if !self.found_paths.is_empty() {
             build_paths.extend(self.found_paths.iter().map(|p| BuildPath::Path(p)));
 
-            if !cmd.shared().workspace {
+            if !cmd.shared.workspace {
                 return Ok(build_paths);
             }
         }
@@ -502,28 +532,6 @@ struct Args {
     /// The command to execute
     #[command(subcommand)]
     cmd: Option<Command>,
-}
-
-impl Args {
-    /// Construct compiler options from cli arguments.
-    fn options(&self) -> Result<Options, ParseOptionError> {
-        let mut options = Options::default();
-
-        // Command-specific override defaults.
-        if let Some(Command::Test(..) | Command::Check(..)) = &self.cmd {
-            options.debug_info(true);
-            options.test(true);
-            options.bytecode(false);
-        }
-
-        if let Some(cmd) = &self.cmd {
-            for option in &cmd.shared().compiler_options {
-                options.parse_option(option)?;
-            }
-        }
-
-        Ok(options)
-    }
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -648,15 +656,15 @@ fn find_manifest() -> Option<(PathBuf, PathBuf)> {
     }
 }
 
-fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: &Command) -> Result<()> {
+fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: CommandSharedRef<'_>) -> Result<()> {
     c.found_paths.extend(
-        cmd.shared()
+        cmd.shared
             .paths
             .iter()
             .map(|p| p.as_path().into()),
     );
 
-    if !c.found_paths.is_empty() && !cmd.shared().workspace {
+    if !c.found_paths.is_empty() && !cmd.shared.workspace {
         return Ok(());
     }
 
@@ -700,8 +708,8 @@ fn populate_config(io: &mut Io<'_>, c: &mut Config, cmd: &Command) -> Result<()>
 async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -> Result<ExitCode> {
     let mut c = Config::default();
 
-    if let Some(cmd) = &mut args.cmd {
-        cmd.propagate_related_flags(&mut c);
+    if let Some((shared, base)) = args.cmd.as_mut().and_then(|c| c.as_command_base_mut()) {
+        base.propagate(&mut c, shared);
     }
 
     let cmd = match &args.cmd {
@@ -712,42 +720,43 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
             return Ok(ExitCode::Failure);
         }
     };
-
-    populate_config(io, &mut c, cmd)?;
-
-    let build_paths = c.build_paths(cmd)?;
-    let options = args.options()?;
-
-    let what = cmd.describe();
-    let verbose = c.verbose;
-    let recursive = cmd.shared().recursive;
-
+    
     let mut entrys = Vec::new();
 
-    for build_path in build_paths {
-        match build_path {
-            BuildPath::Path(path) => {
-                for path in loader::recurse_paths(recursive, path.to_owned()) {
-                    entrys.push(EntryPoint::Path(path?));
-                }
-            }
-            BuildPath::Package(p) => {
-                if verbose {
-                    let mut o = io.stderr.lock();
-                    o.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
-                    let result = write!(o, "{:>12}", what);
-                    o.set_color(&ColorSpec::new())?;
-                    o.flush()?;
-                    result?;
-                    writeln!(o, " {} `{}` (from {})", p.found.kind, p.found.path.display(), p.package.name)?;
-                }
+    if let Some(cmd) = cmd.as_command_shared_ref() {
+        populate_config(io, &mut c, cmd)?;
 
-                entrys.push(EntryPoint::Package(p));
+        let build_paths = c.build_paths(cmd)?;
+    
+        let what = cmd.command.describe();
+        let verbose = c.verbose;
+        let recursive = cmd.shared.recursive;
+    
+        for build_path in build_paths {
+            match build_path {
+                BuildPath::Path(path) => {
+                    for path in loader::recurse_paths(recursive, path.to_owned()) {
+                        entrys.push(EntryPoint::Path(path?));
+                    }
+                }
+                BuildPath::Package(p) => {
+                    if verbose {
+                        let mut o = io.stderr.lock();
+                        o.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
+                        let result = write!(o, "{:>12}", what);
+                        o.set_color(&ColorSpec::new())?;
+                        o.flush()?;
+                        result?;
+                        writeln!(o, " {} `{}` (from {})", p.found.kind, p.found.path.display(), p.package.name)?;
+                    }
+    
+                    entrys.push(EntryPoint::Package(p));
+                }
             }
         }
     }
 
-    match run_path(io, &c, cmd, entry, &options, entrys).await? {
+    match run_path(io, &c, cmd, entry, entrys).await? {
         ExitCode::Success => (),
         other => {
             return Ok(other);
@@ -763,7 +772,6 @@ async fn run_path<'p, I>(
     c: &Config,
     cmd: &Command,
     entry: &mut Entry<'_>,
-    options: &Options,
     entrys: I,
 ) -> Result<ExitCode>
 where
@@ -771,18 +779,26 @@ where
 {
     match cmd {
         Command::Check(f) => {
+            let options = f.options()?;
+
             for e in entrys {
-                match check::run(io, entry, c, &f.command, &f.shared, options, e.path())? {
+                match check::run(io, entry, c, &f.command, &f.shared, &options, e.path())? {
                     ExitCode::Success => (),
                     other => return Ok(other),
                 }
             }
         }
-        Command::Doc(f) => return doc::run(io, entry, c, &f.command, &f.shared, options, entrys),
+        Command::Doc(f) => {
+            let options = f.options()?;
+            return doc::run(io, entry, c, &f.command, &f.shared, &options, entrys);
+        }
         Command::Fmt(f) => {
-            return format::run(io, entry, c, entrys, &f.command, &f.shared, options);
+            let options = f.options()?;
+            return format::run(io, entry, c, entrys, &f.command, &f.shared, &options);
         }
         Command::Test(f) => {
+            let options = f.options()?;
+
             for e in entrys {
                 let capture = crate::modules::capture_io::CaptureIo::new();
                 let context = f.shared.context(entry, c, Some(&capture))?;
@@ -791,7 +807,7 @@ where
                     io,
                     &context,
                     &f.shared,
-                    options,
+                    &options,
                     e.path(),
                     visitor::Attribute::Test,
                 )?;
@@ -813,6 +829,8 @@ where
             }
         }
         Command::Bench(f) => {
+            let options = f.options()?;
+
             for e in entrys {
                 let capture_io = crate::modules::capture_io::CaptureIo::new();
                 let context = f.shared.context(entry, c, Some(&capture_io))?;
@@ -821,7 +839,7 @@ where
                     io,
                     &context,
                     &f.shared,
-                    options,
+                    &options,
                     e.path(),
                     visitor::Attribute::Bench,
                 )?;
@@ -843,6 +861,7 @@ where
             }
         }
         Command::Run(f) => {
+            let options = f.options()?;
             let context = f.shared.context(entry, c, None)?;
 
             for e in entrys {
@@ -850,7 +869,7 @@ where
                     io,
                     &context,
                     &f.shared,
-                    options,
+                    &options,
                     e.path(),
                     visitor::Attribute::None,
                 )?;
@@ -866,26 +885,18 @@ where
             languageserver::run(context).await?;
         }
         Command::Hash(args) => {
-            let mut item = ItemBuf::new();
-            let mut next_crate = false;
+            use rand::prelude::*;
 
-            for c in args.command.item.split("::") {
-                if c.is_empty() {
-                    next_crate = true;
-                    continue;
-                }
-
-                if mem::take(&mut next_crate) {
-                    item.push(ComponentRef::Crate(c));
-                } else if let Some(num) = c.strip_prefix('$') {
-                    item.push(ComponentRef::Id(num.parse()?));
-                } else {
-                    item.push(ComponentRef::Str(c));
-                }
+            if args.random {
+                let mut rand = rand::thread_rng();
+                writeln!(io.stdout, "{}", Hash::new(rand.gen::<u64>()))?;
             }
 
-            let hash = Hash::type_hash(&item);
-            writeln!(io.stdout, "{item} => {hash}")?;
+            for item in &args.item {
+                let item: ItemBuf = item.parse()?;
+                let hash = Hash::type_hash(&item);
+                writeln!(io.stdout, "{item} => {hash}")?;
+            }
         }
     }
 

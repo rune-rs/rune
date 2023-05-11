@@ -84,6 +84,8 @@ pub(crate) struct Meta {
     pub(crate) kind: Kind,
     /// The source of the meta.
     pub(crate) source: Option<SourceMeta>,
+    /// Hash parameters for meta.
+    pub(crate) parameters: Hash,
 }
 
 impl Meta {
@@ -145,13 +147,18 @@ pub enum Fields {
 pub enum Kind {
     /// The type is completely opaque. We have no idea about what it is with the
     /// exception of it having a type hash.
-    Type,
+    Type {
+        /// Hash of generic parameters.
+        parameters: Hash,
+    },
     /// Metadata about a struct.
     Struct {
         /// Fields information.
         fields: Fields,
         /// Native constructor for this struct.
         constructor: Option<Signature>,
+        /// Hash of generic parameters.
+        parameters: Hash,
     },
     /// Metadata about an empty variant.
     Variant {
@@ -165,7 +172,10 @@ pub enum Kind {
         constructor: Option<Signature>,
     },
     /// An enum item.
-    Enum,
+    Enum {
+        /// Hash of generic parameters.
+        parameters: Hash,
+    },
     /// A macro item.
     Macro,
     /// A function declaration.
@@ -239,6 +249,9 @@ impl Kind {
         match self {
             Kind::Function { parameters, .. } => *parameters,
             Kind::AssociatedFunction { parameters, .. } => *parameters,
+            Kind::Type { parameters, .. } => *parameters,
+            Kind::Enum { parameters, .. } => *parameters,
+            Kind::Struct { parameters, .. } => *parameters,
             _ => Hash::EMPTY,
         }
     }
