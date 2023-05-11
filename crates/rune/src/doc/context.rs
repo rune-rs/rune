@@ -269,7 +269,7 @@ impl<'a> Context<'a> {
             }
         }
 
-        for meta in self.context.lookup_meta(item) {
+        for meta in self.context.lookup_meta(item).into_iter().flatten() {
             out.extend(self.context_meta_to_meta(meta));
         }
 

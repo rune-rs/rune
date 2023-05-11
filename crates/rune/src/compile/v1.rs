@@ -176,6 +176,10 @@ impl<'a> Assembler<'a> {
             }
         }
 
+        if metas.clone().next().is_none() {
+            return Ok(ContextMatch::None);
+        }
+
         Err(Box::new(QueryErrorKind::AmbiguousContextItem {
             item: self.q.pool.item(item).to_owned(),
             infos: metas.map(|i| i.info()).collect(),
@@ -202,7 +206,9 @@ impl<'a> Assembler<'a> {
             }
         }
 
-        let metas = self.context.lookup_meta(self.q.pool.item(item));
+        let Some(metas) = self.context.lookup_meta(self.q.pool.item(item)) else {
+            return Ok(None);
+        };
 
         let (meta, parameters) = match self
             .select_context_meta(item, metas, parameters)

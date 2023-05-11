@@ -273,17 +273,23 @@ impl Context {
     }
 
     /// Access the context meta for the given item.
-    pub(crate) fn lookup_meta(&self, item: &Item) -> impl Iterator<Item = &ContextMeta> + Clone {
-        self.item_to_hash.get(item).into_iter().flat_map(|hashes| {
-            hashes.iter().flat_map(|hash| {
-                let indexes = self
-                    .hash_to_meta
-                    .get(hash)
-                    .map(Vec::as_slice)
-                    .unwrap_or_default();
-                indexes.iter().map(|&i| &self.meta[i])
-            })
-        })
+    ///
+    /// If this returns `Some`, at least one context meta is guaranteed to be
+    /// available.
+    pub(crate) fn lookup_meta(
+        &self,
+        item: &Item,
+    ) -> Option<impl Iterator<Item = &ContextMeta> + Clone> {
+        let hashes = self.item_to_hash.get(item)?;
+
+        Some(hashes.iter().flat_map(|hash| {
+            let indexes = self
+                .hash_to_meta
+                .get(hash)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            indexes.iter().map(|&i| &self.meta[i])
+        }))
     }
 
     /// Lookup meta by its hash.
@@ -356,6 +362,7 @@ impl Context {
     fn install_meta(&mut self, meta: ContextMeta) -> Result<(), ContextError> {
         if let Some(item) = &meta.item {
             self.names.insert(item);
+
             self.item_to_hash
                 .entry(item.clone())
                 .or_default()
