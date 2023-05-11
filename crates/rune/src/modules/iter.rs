@@ -3,8 +3,8 @@
 use crate::no_std::prelude::*;
 
 use crate as rune;
-use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, TypeOf, Value, Vec, VmResult};
-use crate::{ContextError, Module, Params};
+use crate::runtime::{FromValue, Iterator, Object, Protocol, Tuple, Value, Vec, VmResult};
+use crate::{ContextError, Module};
 
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -13,9 +13,9 @@ pub fn module() -> Result<Module, ContextError> {
 
     // Sorted for ease of finding
     module.inst_fn("chain", Iterator::chain)?;
-    module.inst_fn(Params::new("collect", [Object::type_of()]), collect_object)?;
-    module.inst_fn(Params::new("collect", [Vec::type_of()]), collect_vec)?;
-    module.inst_fn(Params::new("collect", [Tuple::type_of()]), collect_tuple)?;
+    module.function_meta(collect_object)?;
+    module.function_meta(collect_vec)?;
+    module.function_meta(collect_tuple)?;
     module.inst_fn("enumerate", Iterator::enumerate)?;
     module.inst_fn("filter", Iterator::filter)?;
     module.inst_fn("find", Iterator::find)?;
@@ -89,14 +89,42 @@ fn range(start: i64, end: i64) -> Iterator {
     Iterator::from_double_ended("std::iter::Range", start..end)
 }
 
+/// Collect the iterator as a [`Vec`].
+///
+/// # Examples
+///
+/// ```rune
+/// use std::iter::range;
+///
+/// assert_eq!(range(0, 3).collect::<Vec>(), [0, 1, 2]);
+/// ```
+#[rune::function(instance, path = collect::<Vec>)]
 fn collect_vec(it: Iterator) -> VmResult<Vec> {
     VmResult::Ok(Vec::from(vm_try!(it.collect::<Value>())))
 }
 
+/// Collect the iterator as a [`Tuple`].
+///
+/// # Examples
+///
+/// ```rune
+/// use std::iter::range;
+///
+/// assert_eq!(range(0, 3).collect::<Tuple>(), (0, 1, 2));
+/// ```
+#[rune::function(instance, path = collect::<Tuple>)]
 fn collect_tuple(it: Iterator) -> VmResult<Tuple> {
     VmResult::Ok(Tuple::from(vm_try!(it.collect::<Value>())))
 }
 
+/// Collect the iterator as an [`Object`].
+///
+/// # Examples
+///
+/// ```rune
+/// assert_eq!([("first", 1), ("second", 2)].iter().collect::<Object>(), #{first: 1, second: 2});
+/// ```
+#[rune::function(instance, path = collect::<Object>)]
 fn collect_object(mut it: Iterator) -> VmResult<Object> {
     let (cap, _) = it.size_hint();
     let mut object = Object::with_capacity(cap);

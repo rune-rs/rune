@@ -409,9 +409,11 @@ mod collections {
 #[doc(hidden)]
 pub mod __private {
     pub use crate::module::module::Module;
-    pub use crate::module::InstallWith;
-    pub use crate::module::{FunctionMetaData, FunctionMetaKind};
-    pub use crate::module::{MacroMetaData, MacroMetaKind};
+    pub use crate::module::{
+        FunctionMetaData, FunctionMetaKind, InstallWith, MacroMetaData, MacroMetaKind,
+    };
+    pub use crate::params::Params;
+    pub use crate::runtime::TypeOf;
 }
 
 #[cfg(test)]
