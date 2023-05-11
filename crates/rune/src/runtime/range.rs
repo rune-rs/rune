@@ -1,6 +1,7 @@
 use core::fmt;
 use core::ops;
 
+use crate as rune;
 use crate::compile::Named;
 use crate::module::InstallWith;
 use crate::runtime::{
@@ -77,7 +78,8 @@ impl Range {
         VmResult::Ok(true)
     }
 
-    /// Test if the current range contains the given integer.
+    /// Test if the range contains the given integer.
+    #[rune::function(keep, path = contains::<i64>)]
     pub(crate) fn contains_int(&self, n: i64) -> VmResult<bool> {
         let start: Option<i64> = match self.start.clone() {
             Some(value) => Some(vm_try!(FromValue::from_value(value))),

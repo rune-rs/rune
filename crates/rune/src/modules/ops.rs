@@ -1,7 +1,7 @@
 //! The `std::ops` module.
 
-use crate::runtime::{Function, Protocol, Range, TypeOf, Value};
-use crate::{ContextError, Module, Params};
+use crate::runtime::{Function, Protocol, Range, Value};
+use crate::{ContextError, Module};
 
 /// Construct the `std::ops` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -30,12 +30,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.field_fn(Protocol::SET, "end", range_set_end)?;
     module.inst_fn(Protocol::INTO_ITER, Range::into_iterator)?;
 
-    module
-        .inst_fn(
-            Params::new("contains", [u64::type_of()]),
-            Range::contains_int,
-        )?
-        .docs(["Test if the range contains the given integer."]);
+    module.function_meta(Range::__contains_int__meta)?;
 
     module.inst_fn("iter", Range::into_iterator)?.docs([
         "Iterate over the range.",

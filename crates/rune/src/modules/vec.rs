@@ -3,8 +3,8 @@
 use core::cmp;
 
 use crate as rune;
-use crate::runtime::{Function, Protocol, TypeOf, Value, Vec, VmResult};
-use crate::{ContextError, Module, Params};
+use crate::runtime::{Function, Protocol, Value, Vec, VmResult};
+use crate::{ContextError, Module};
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -27,12 +27,12 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
     module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
 
-    // TODO: parameterize with generics.
-    module.inst_fn(Params::new("sort", [i64::type_of()]), sort_int)?;
+    module.function_meta(sort_int)?;
     Ok(module)
 }
 
 /// Sort a vector of integers.
+#[rune::function(instance, path = sort::<i64>)]
 fn sort_int(vec: &mut Vec) {
     vec.sort_by(|a, b| match (a, b) {
         (Value::Integer(a), Value::Integer(b)) => a.cmp(b),

@@ -35,7 +35,7 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// Converts self into an `Option<T>`, consuming `self`, and discarding the
 /// error, if any.
-#[rune::function(instance, path = Result::<Value, Value>::ok)]
+#[rune::function(instance)]
 fn ok(result: &Result<Value, Value>) -> Option<Value> {
     result.as_ref().ok().cloned()
 }
