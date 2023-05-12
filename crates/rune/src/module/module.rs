@@ -11,9 +11,9 @@ use crate::module::function_meta::{
     FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
 };
 use crate::module::{
-    AssociatedKey, AsyncFunction, AsyncInstFn, EnumMut, Function, InstFn, InstallWith,
-    InternalEnum, InternalEnumMut, ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction,
-    ModuleMacro, ModuleType, TypeMut, TypeSpecification, UnitType, VariantMut,
+    AssociatedKey, Async, EnumMut, Function, FunctionKind, InstFn, InstallWith, InternalEnum,
+    InternalEnumMut, ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction, ModuleMacro,
+    ModuleType, Plain, TypeMut, TypeSpecification, UnitType, VariantMut,
 };
 use crate::runtime::{
     ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf, Protocol, Stack, ToValue,
@@ -302,7 +302,7 @@ impl Module {
         constructor: F,
     ) -> Result<(), ContextError>
     where
-        F: Function<A>,
+        F: Function<A, Plain>,
         F::Return: Named + TypeOf,
     {
         self.variant_meta::<F::Return>(index)?
@@ -740,13 +740,14 @@ impl Module {
     /// module.function(["add_ten"], add_ten)?.docs(["Adds 10 to any integer passed in."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
-        F: Function<A>,
+        F: Function<A, K>,
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
         A: FunctionArgs,
+        K: FunctionKind,
     {
         self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
     }
@@ -780,15 +781,16 @@ impl Module {
     ///     .docs(["Download a random quote from the internet."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
+    #[deprecated = "Use Module::function instead"]
     pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
-        F: AsyncFunction<A>,
+        F: Function<A, Async>,
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
         A: FunctionArgs,
     {
-        self.function_inner(FunctionData::new_async(name, f), Docs::EMPTY)
+        self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
     }
 
     /// Register an instance function.
@@ -832,12 +834,13 @@ impl Module {
     ///     .docs(["Get the number of bytes."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn inst_fn<N, F, A, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: InstFn<A>,
+        F: InstFn<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
+        K: FunctionKind,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_instance(), f),
@@ -885,15 +888,16 @@ impl Module {
     ///     .docs(["Download a thing."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
+    #[deprecated = "Use Module::inst_fn instead"]
     pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: AsyncInstFn<A>,
+        F: InstFn<A, Async>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
     {
         self.assoc_fn(
-            AssociatedFunctionData::new_async(name.to_instance(), f),
+            AssociatedFunctionData::new(name.to_instance(), f),
             Docs::EMPTY,
         )
     }
@@ -910,7 +914,7 @@ impl Module {
     ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToFieldFunction,
-        F: InstFn<A>,
+        F: InstFn<A, Plain>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
     {
@@ -931,7 +935,7 @@ impl Module {
         f: F,
     ) -> Result<ItemMut<'_>, ContextError>
     where
-        F: InstFn<A>,
+        F: InstFn<A, Plain>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
     {

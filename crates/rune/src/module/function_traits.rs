@@ -46,32 +46,41 @@ macro_rules! unsafe_inst_vars {
     };
 }
 
-/// Trait used to provide the [function][crate::module::Module::function]
-/// function.
-pub trait Function<A>: 'static + Send + Sync {
-    /// The return type of the function.
-    #[doc(hidden)]
-    type Return;
-
-    /// Get the number of arguments.
-    #[doc(hidden)]
-    fn args() -> usize;
-
-    /// Perform the vm call.
-    #[doc(hidden)]
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
+/// Denotes the kind of a function, allowing the [`Function`] trait to be
+/// implemented separately for plain and async functions.
+pub trait FunctionKind {
+    /// Indicates if the function is async.
+    fn is_async() -> bool;
 }
 
-/// Trait used to provide the
-/// [async_function][crate::module::Module::async_function] function.
-pub trait AsyncFunction<A>: 'static + Send + Sync {
+/// Marker for plain functions.
+#[non_exhaustive]
+pub struct Plain;
+
+impl FunctionKind for Plain {
+    #[inline]
+    fn is_async() -> bool {
+        false
+    }
+}
+
+/// Marker for async functions.
+#[non_exhaustive]
+pub struct Async;
+
+impl FunctionKind for Async {
+    #[inline]
+    fn is_async() -> bool {
+        true
+    }
+}
+
+/// Trait used to provide the [function][crate::module::Module::function]
+/// function.
+pub trait Function<A, K>: 'static + Send + Sync {
     /// The return type of the function.
     #[doc(hidden)]
     type Return;
-
-    /// The output produces by the future.
-    #[doc(hidden)]
-    type Future: Future<Output = Self::Return>;
 
     /// Get the number of arguments.
     #[doc(hidden)]
@@ -84,7 +93,7 @@ pub trait AsyncFunction<A>: 'static + Send + Sync {
 
 /// Trait used to provide the [inst_fn][crate::module::Module::inst_fn]
 /// function.
-pub trait InstFn<A>: 'static + Send + Sync {
+pub trait InstFn<A, K>: 'static + Send + Sync {
     /// The type of the instance.
     #[doc(hidden)]
     type Inst: TypeOf;
@@ -92,30 +101,6 @@ pub trait InstFn<A>: 'static + Send + Sync {
     /// The return type of the function.
     #[doc(hidden)]
     type Return;
-
-    /// Get the number of arguments.
-    #[doc(hidden)]
-    fn args() -> usize;
-
-    /// Perform the vm call.
-    #[doc(hidden)]
-    fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
-}
-
-/// Trait used to provide the
-/// [async_inst_fn][crate::module::Module::async_inst_fn] function.
-pub trait AsyncInstFn<A>: 'static + Send + Sync {
-    /// The type of the instance.
-    #[doc(hidden)]
-    type Inst: TypeOf;
-
-    /// The return type of the function.
-    #[doc(hidden)]
-    type Return;
-
-    /// The output value of the async function.
-    #[doc(hidden)]
-    type Future: Future<Output = Self::Return>;
 
     /// Get the number of arguments.
     #[doc(hidden)]
@@ -128,7 +113,7 @@ pub trait AsyncInstFn<A>: 'static + Send + Sync {
 
 macro_rules! impl_register {
     ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
-        impl<T, U, $($ty,)*> Function<($($ty,)*)> for T
+        impl<T, U, $($ty,)*> Function<($($ty,)*), Plain> for T
         where
             T: 'static + Send + Sync + Fn($($ty,)*) -> U,
             U: ToValue,
@@ -163,7 +148,7 @@ macro_rules! impl_register {
             }
         }
 
-        impl<T, U, $($ty,)*> AsyncFunction<($($ty,)*)> for T
+        impl<T, U, $($ty,)*> Function<($($ty,)*), Async> for T
         where
             T: 'static + Send + Sync + Fn($($ty,)*) -> U,
             U: 'static + Future,
@@ -171,7 +156,6 @@ macro_rules! impl_register {
             $($ty: 'static + UnsafeFromValue,)*
         {
             type Return = U::Output;
-            type Future = U;
 
             fn args() -> usize {
                 $count
@@ -204,7 +188,7 @@ macro_rules! impl_register {
             }
         }
 
-        impl<T, U, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*)> for T
+        impl<T, U, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*), Plain> for T
         where
             T: 'static + Send + Sync + Fn(Inst $(, $ty)*) -> U,
             U: ToValue,
@@ -242,7 +226,7 @@ macro_rules! impl_register {
             }
         }
 
-        impl<T, U, Inst, $($ty,)*> AsyncInstFn<(Inst, $($ty,)*)> for T
+        impl<T, U, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*), Async> for T
         where
             T: 'static + Send + Sync + Fn(Inst $(, $ty)*) -> U,
             U: 'static + Future,
@@ -252,7 +236,6 @@ macro_rules! impl_register {
         {
             type Inst = Inst;
             type Return = U::Output;
-            type Future = U;
 
             #[inline]
             fn args() -> usize {

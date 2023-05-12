@@ -48,9 +48,10 @@ impl Function {
     /// assert_eq!(value, 42);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<Func, Args>(f: Func) -> Self
+    pub fn function<Func, Args, K>(f: Func) -> Self
     where
-        Func: module::Function<Args>,
+        Func: module::Function<Args, K>,
+        K: module::FunctionKind,
     {
         Self(FunctionImpl {
             inner: Inner::FnHandler(FnHandler {
@@ -90,9 +91,10 @@ impl Function {
     /// assert_eq!(value, 42);
     /// # Ok(()) }
     /// ```
+    #[deprecated = "Use Function::function instead"]
     pub fn async_function<Func, Args>(f: Func) -> Self
     where
-        Func: module::AsyncFunction<Args>,
+        Func: module::Function<Args, module::Async>,
     {
         Self(FunctionImpl {
             inner: Inner::FnHandler(FnHandler {

@@ -73,7 +73,7 @@ fn bug_344_async_function() -> Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
-    module.async_function(["function"], function)?;
+    module.function(["function"], function)?;
 
     context.install(module)?;
     let runtime = context.runtime();
@@ -107,7 +107,7 @@ fn bug_344_async_inst_fn() -> Result<()> {
     let mut module = Module::new();
 
     module.ty::<GuardCheck>()?;
-    module.async_inst_fn("function", function)?;
+    module.inst_fn("function", function)?;
 
     context.install(module)?;
     let runtime = context.runtime();

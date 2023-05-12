@@ -7,7 +7,7 @@ use crate::no_std::sync::Arc;
 use crate::compile::{self, meta, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::{AssociatedKey, AsyncFunction, AsyncInstFn, Function, InstFn};
+use crate::module::{AssociatedKey, Function, FunctionKind, InstFn};
 use crate::runtime::{
     FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf,
 };
@@ -62,42 +62,20 @@ pub struct FunctionData {
 
 impl FunctionData {
     #[inline]
-    pub(crate) fn new<F, A, N>(name: N, f: F) -> Self
+    pub(crate) fn new<F, A, N, K>(name: N, f: F) -> Self
     where
-        F: Function<A>,
+        F: Function<A, K>,
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
         A: FunctionArgs,
+        K: FunctionKind,
     {
         Self {
             item: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
             #[cfg(feature = "doc")]
-            is_async: false,
-            #[cfg(feature = "doc")]
-            args: Some(F::args()),
-            #[cfg(feature = "doc")]
-            return_type: F::Return::maybe_type_of(),
-            #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn new_async<F, A, N>(name: N, f: F) -> Self
-    where
-        F: AsyncFunction<A>,
-        F::Return: MaybeTypeOf,
-        N: IntoIterator,
-        N::Item: IntoComponent,
-        A: FunctionArgs,
-    {
-        Self {
-            item: ItemBuf::with_item(name),
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            #[cfg(feature = "doc")]
-            is_async: true,
+            is_async: K::is_async(),
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
@@ -213,11 +191,12 @@ pub struct AssociatedFunctionData {
 
 impl AssociatedFunctionData {
     #[inline]
-    pub(crate) fn new<F, A>(name: AssociatedFunctionName, f: F) -> Self
+    pub(crate) fn new<F, A, K>(name: AssociatedFunctionName, f: F) -> Self
     where
-        F: InstFn<A>,
+        F: InstFn<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
+        K: FunctionKind,
     {
         Self {
             name,
@@ -225,30 +204,7 @@ impl AssociatedFunctionData {
             container: F::Inst::type_of(),
             container_type_info: F::Inst::type_info(),
             #[cfg(feature = "doc")]
-            is_async: false,
-            #[cfg(feature = "doc")]
-            args: Some(F::args()),
-            #[cfg(feature = "doc")]
-            return_type: F::Return::maybe_type_of(),
-            #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn new_async<F, A>(name: AssociatedFunctionName, f: F) -> Self
-    where
-        F: AsyncInstFn<A>,
-        F::Return: MaybeTypeOf,
-        A: FunctionArgs,
-    {
-        Self {
-            name,
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            container: F::Inst::type_of(),
-            container_type_info: F::Inst::type_info(),
-            #[cfg(feature = "doc")]
-            is_async: true,
+            is_async: K::is_async(),
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
@@ -284,11 +240,12 @@ pub enum FunctionMetaKind {
 impl FunctionMetaKind {
     #[doc(hidden)]
     #[inline]
-    pub fn function<N, F, A>(name: N, f: F) -> FunctionBuilder<N, F, A>
+    pub fn function<N, F, A, K>(name: N, f: F) -> FunctionBuilder<N, F, A, K>
     where
-        F: Function<A>,
+        F: Function<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
+        K: FunctionKind,
     {
         FunctionBuilder {
             name,
@@ -299,56 +256,31 @@ impl FunctionMetaKind {
 
     #[doc(hidden)]
     #[inline]
-    pub fn async_function<N, F, A>(name: N, f: F) -> AsyncFunctionBuilder<N, F, A>
-    where
-        F: AsyncFunction<A>,
-        F::Return: MaybeTypeOf,
-        A: FunctionArgs,
-    {
-        AsyncFunctionBuilder {
-            name,
-            f,
-            _marker: PhantomData,
-        }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn instance<N, F, A>(name: N, f: F) -> Self
+    pub fn instance<N, F, A, K>(name: N, f: F) -> Self
     where
         N: ToInstance,
-        F: InstFn<A>,
+        F: InstFn<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
+        K: FunctionKind,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new(name.to_instance(), f))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn async_instance<N, F, A>(name: N, f: F) -> Self
-    where
-        N: ToInstance,
-        F: AsyncInstFn<A>,
-        F::Return: MaybeTypeOf,
-        A: FunctionArgs,
-    {
-        Self::AssociatedFunction(AssociatedFunctionData::new_async(name.to_instance(), f))
     }
 }
 
 #[doc(hidden)]
-pub struct FunctionBuilder<N, F, A> {
+pub struct FunctionBuilder<N, F, A, K> {
     name: N,
     f: F,
-    _marker: PhantomData<A>,
+    _marker: PhantomData<(A, K)>,
 }
 
-impl<N, F, A> FunctionBuilder<N, F, A>
+impl<N, F, A, K> FunctionBuilder<N, F, A, K>
 where
-    F: Function<A>,
+    F: Function<A, K>,
     F::Return: MaybeTypeOf,
     A: FunctionArgs,
+    K: FunctionKind,
 {
     #[doc(hidden)]
     #[inline]
@@ -373,54 +305,7 @@ where
             container: T::type_of(),
             container_type_info: T::type_info(),
             #[cfg(feature = "doc")]
-            is_async: false,
-            #[cfg(feature = "doc")]
-            args: Some(F::args()),
-            #[cfg(feature = "doc")]
-            return_type: F::Return::maybe_type_of(),
-            #[cfg(feature = "doc")]
-            argument_types: A::into_box(),
-        })
-    }
-}
-
-#[doc(hidden)]
-pub struct AsyncFunctionBuilder<N, F, A> {
-    name: N,
-    f: F,
-    _marker: PhantomData<A>,
-}
-
-impl<N, F, A> AsyncFunctionBuilder<N, F, A>
-where
-    F: AsyncFunction<A>,
-    F::Return: MaybeTypeOf,
-    A: FunctionArgs,
-{
-    #[doc(hidden)]
-    #[inline]
-    pub fn build(self) -> FunctionMetaKind
-    where
-        N: IntoIterator,
-        N::Item: IntoComponent,
-    {
-        FunctionMetaKind::Function(FunctionData::new_async(self.name, self.f))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn build_associated<T>(self) -> FunctionMetaKind
-    where
-        N: ToInstance,
-        T: TypeOf + Named,
-    {
-        FunctionMetaKind::AssociatedFunction(AssociatedFunctionData {
-            name: self.name.to_instance(),
-            handler: Arc::new(move |stack, args| self.f.fn_call(stack, args)),
-            container: T::type_of(),
-            container_type_info: T::type_info(),
-            #[cfg(feature = "doc")]
-            is_async: true,
+            is_async: K::is_async(),
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]

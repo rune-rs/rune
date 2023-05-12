@@ -277,13 +277,6 @@ impl Function {
             (false, name, arguments)
         };
 
-        let function = match (instance, self.sig.asyncness.is_some()) {
-            (true, false) => "instance",
-            (true, true) => "async_instance",
-            (_, false) => "function",
-            (_, true) => "async_function",
-        };
-
         if !instance && self_type.is_none() {
             name = {
                 let mut out = syn::ExprArray {
@@ -327,6 +320,12 @@ impl Function {
                 });
             }
         }
+
+        let function = if instance {
+            "instance"
+        } else {
+            "function"
+        };
 
         let meta_kind = syn::Ident::new(function, self.sig.span());
         let mut stream = TokenStream::new();
