@@ -49,7 +49,7 @@ impl Function {
     /// # Ok::<_, rune::Error>(())
     /// ```
     ///
-    /// Asynchronous function:
+    /// Asynchronous functions:
     ///
     /// ```
     /// use rune::{Hash, Vm};
@@ -77,9 +77,9 @@ impl Function {
     /// assert_eq!(value, 42);
     /// # Ok(()) }
     /// ```
-    pub fn function<Func, Args, K>(f: Func) -> Self
+    pub fn new<F, A, K>(f: F) -> Self
     where
-        Func: module::Function<Args, K>,
+        F: module::Function<A, K>,
         K: module::FunctionKind,
     {
         Self(FunctionImpl {
@@ -90,18 +90,23 @@ impl Function {
         })
     }
 
-    /// See [`Function::function`].
-    #[deprecated = "Use Function::function instead"]
-    pub fn async_function<Func, Args>(f: Func) -> Self
+    /// See [`Function::new`].
+    #[deprecated = "Use Function::new() instead"]
+    pub fn function<F, A, K>(f: F) -> Self
     where
-        Func: module::Function<Args, module::Async>,
+        F: module::Function<A, K>,
+        K: module::FunctionKind,
     {
-        Self(FunctionImpl {
-            inner: Inner::FnHandler(FnHandler {
-                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-                hash: Hash::EMPTY,
-            }),
-        })
+        Self::new(f)
+    }
+
+    /// See [`Function::function`].
+    #[deprecated = "Use Function::function() instead"]
+    pub fn async_function<F, A>(f: F) -> Self
+    where
+        F: module::Function<A, module::Async>,
+    {
+        Self::new(f)
     }
 
     /// Perform an asynchronous call over the function which also implements
