@@ -277,13 +277,11 @@ impl Function {
             (false, name, arguments)
         };
 
-        let function = match (instance, self_type.is_some(), self.sig.asyncness.is_some()) {
-            (true, _, false) => "instance",
-            (true, _, true) => "async_instance",
-            (_, true, false) => "function_with",
-            (_, true, true) => "async_function_with",
-            (_, _, false) => "function",
-            (_, _, true) => "async_function",
+        let function = match (instance, self.sig.asyncness.is_some()) {
+            (true, false) => "instance",
+            (true, true) => "async_instance",
+            (_, false) => "function",
+            (_, true) => "async_function",
         };
 
         if !instance && self_type.is_none() {
@@ -348,10 +346,12 @@ impl Function {
         let arguments = &self.arguments;
         let docs = &self.docs;
 
-        let meta_kind = if let Some(self_type) = self_type {
-            quote!(#meta_kind::<#self_type, _, _, _>)
+        let build_with = if instance {
+            None
+        } else if let Some(self_type) = self_type {
+            Some(quote!(.build_associated::<#self_type>()))
         } else {
-            meta_kind.into_token_stream()
+            Some(quote!(.build()))
         };
 
         let meta_vis = &self.vis;
@@ -364,7 +364,7 @@ impl Function {
             #attr
             #meta_vis fn #meta_fn() -> rune::__private::FunctionMetaData {
                 rune::__private::FunctionMetaData {
-                    kind: rune::__private::FunctionMetaKind::#meta_kind(#name, #real_fn_path),
+                    kind: rune::__private::FunctionMetaKind::#meta_kind(#name, #real_fn_path)#build_with,
                     name: #name_string,
                     docs: &#docs[..],
                     arguments: &#arguments[..],

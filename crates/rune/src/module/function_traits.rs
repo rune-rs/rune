@@ -67,11 +67,11 @@ pub trait Function<A>: 'static + Send + Sync {
 pub trait AsyncFunction<A>: 'static + Send + Sync {
     /// The return type of the function.
     #[doc(hidden)]
-    type Return: Future<Output = Self::Output>;
+    type Return;
 
     /// The output produces by the future.
     #[doc(hidden)]
-    type Output;
+    type Future: Future<Output = Self::Return>;
 
     /// Get the number of arguments.
     #[doc(hidden)]
@@ -111,11 +111,11 @@ pub trait AsyncInstFn<A>: 'static + Send + Sync {
 
     /// The return type of the function.
     #[doc(hidden)]
-    type Return: Future<Output = Self::Output>;
+    type Return;
 
     /// The output value of the async function.
     #[doc(hidden)]
-    type Output;
+    type Future: Future<Output = Self::Return>;
 
     /// Get the number of arguments.
     #[doc(hidden)]
@@ -170,8 +170,8 @@ macro_rules! impl_register {
             U::Output: ToValue,
             $($ty: 'static + UnsafeFromValue,)*
         {
-            type Return = U;
-            type Output = U::Output;
+            type Return = U::Output;
+            type Future = U;
 
             fn args() -> usize {
                 $count
@@ -251,8 +251,8 @@ macro_rules! impl_register {
             $($ty: UnsafeFromValue,)*
         {
             type Inst = Inst;
-            type Return = U;
-            type Output = U::Output;
+            type Return = U::Output;
+            type Future = U;
 
             #[inline]
             fn args() -> usize {

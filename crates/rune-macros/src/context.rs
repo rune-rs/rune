@@ -436,11 +436,11 @@ impl Context {
                     } else if meta.path == MODULE {
                         // Parse `#[rune(module = <path>)]`
                         meta.input.parse::<Token![=]>()?;
-                        attr.module = Some(syn::Path::parse_mod_style(meta.input)?);
+                        attr.module = Some(parse_path_compat(meta.input)?);
                     } else if meta.path == INSTALL_WITH {
                         // Parse `#[rune(install_with = <path>)]`
                         meta.input.parse::<Token![=]>()?;
-                        attr.install_with = Some(syn::Path::parse_mod_style(meta.input)?);
+                        attr.install_with = Some(parse_path_compat(meta.input)?);
                     } else {
                         return Err(syn::Error::new_spanned(
                             &meta.path,
@@ -518,7 +518,7 @@ impl Context {
         };
 
         input.parse::<Token![=]>()?;
-        Ok(Some(syn::Path::parse_mod_style(input)?))
+        Ok(Some(parse_path_compat(input)?))
     }
 
     /// Build an inner spanned decoder from an iterator.
@@ -704,6 +704,24 @@ impl Context {
             vm_result: path(m, ["runtime", "VmResult"]),
         }
     }
+}
+
+fn parse_path_compat(input: ParseStream<'_>) -> syn::Result<syn::Path> {
+    if input.peek(syn::LitStr) {
+        let path = input
+            .parse::<syn::LitStr>()?
+            .parse_with(syn::Path::parse_mod_style)?;
+
+        return Err(syn::Error::new_spanned(
+            &path,
+            format_args!(
+                "String literals are no longer supported here, use a path like `{}`",
+                path.to_token_stream()
+            ),
+        ));
+    }
+
+    syn::Path::parse_mod_style(input)
 }
 
 fn path<const N: usize>(base: &syn::Path, path: [&'static str; N]) -> syn::Path {

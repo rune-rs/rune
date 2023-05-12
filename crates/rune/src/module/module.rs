@@ -783,7 +783,7 @@ impl Module {
     pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
+        F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
         A: IterFunctionArgs,
@@ -889,7 +889,7 @@ impl Module {
     where
         N: ToInstance,
         F: AsyncInstFn<A>,
-        F::Output: MaybeTypeOf,
+        F::Return: MaybeTypeOf,
         A: IterFunctionArgs,
     {
         self.assoc_fn(

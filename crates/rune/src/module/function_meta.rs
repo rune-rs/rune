@@ -1,5 +1,4 @@
-#[cfg(feature = "doc")]
-use core::future::Future;
+use core::marker::PhantomData;
 
 use crate::no_std::borrow::Cow;
 use crate::no_std::prelude::*;
@@ -92,7 +91,7 @@ impl FunctionData {
     pub(crate) fn new_async<F, A, N>(name: N, f: F) -> Self
     where
         F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
+        F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
         A: IterFunctionArgs,
@@ -108,7 +107,7 @@ impl FunctionData {
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
-            return_type: F::Output::maybe_type_of(),
+            return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
             argument_types: argument_types.into(),
         }
@@ -276,7 +275,7 @@ impl AssociatedFunctionData {
     pub(crate) fn new_async<F, A>(name: AssociatedFunctionName, f: F) -> Self
     where
         F: AsyncInstFn<A>,
-        F::Output: MaybeTypeOf,
+        F::Return: MaybeTypeOf,
         A: IterFunctionArgs,
     {
         let mut argument_types = Vec::with_capacity(A::len());
@@ -292,7 +291,7 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
-            return_type: <F::Return as Future>::Output::maybe_type_of(),
+            return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
             argument_types: argument_types.into(),
         }
@@ -303,7 +302,7 @@ impl AssociatedFunctionData {
     where
         T: TypeOf + Named,
         F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
+        F::Return: MaybeTypeOf,
         A: IterFunctionArgs,
     {
         let mut argument_types = Vec::with_capacity(A::len());
@@ -319,7 +318,7 @@ impl AssociatedFunctionData {
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
-            return_type: <F::Return as Future>::Output::maybe_type_of(),
+            return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
             argument_types: argument_types.into(),
         }
@@ -351,60 +350,32 @@ pub enum FunctionMetaKind {
 impl FunctionMetaKind {
     #[doc(hidden)]
     #[inline]
-    pub fn function<N, F, A>(name: N, f: F) -> Self
+    pub fn function<N, F, A>(name: N, f: F) -> FunctionBuilder<N, F, A>
     where
-        N: IntoIterator,
-        N::Item: IntoComponent,
         F: Function<A>,
         F::Return: MaybeTypeOf,
         A: IterFunctionArgs,
     {
-        Self::Function(FunctionData::new(name, f))
+        FunctionBuilder {
+            name,
+            f,
+            _marker: PhantomData,
+        }
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn function_with<T, N, F, A>(name: N, f: F) -> Self
+    pub fn async_function<N, F, A>(name: N, f: F) -> AsyncFunctionBuilder<N, F, A>
     where
-        T: TypeOf + Named,
-        N: ToInstance,
-        F: Function<A>,
+        F: AsyncFunction<A>,
         F::Return: MaybeTypeOf,
         A: IterFunctionArgs,
     {
-        Self::AssociatedFunction(AssociatedFunctionData::new_with::<T, _, _>(
-            name.to_instance(),
+        AsyncFunctionBuilder {
+            name,
             f,
-        ))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn async_function<N, F, A>(name: N, f: F) -> Self
-    where
-        N: IntoIterator,
-        N::Item: IntoComponent,
-        F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
-        A: IterFunctionArgs,
-    {
-        Self::Function(FunctionData::new_async(name, f))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn async_function_with<T, N, F, A>(name: N, f: F) -> Self
-    where
-        T: TypeOf + Named,
-        N: ToInstance,
-        F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
-        A: IterFunctionArgs,
-    {
-        Self::AssociatedFunction(AssociatedFunctionData::new_async_with::<T, _, _>(
-            name.to_instance(),
-            f,
-        ))
+            _marker: PhantomData,
+        }
     }
 
     #[doc(hidden)]
@@ -425,10 +396,84 @@ impl FunctionMetaKind {
     where
         N: ToInstance,
         F: AsyncInstFn<A>,
-        F::Output: MaybeTypeOf,
+        F::Return: MaybeTypeOf,
         A: IterFunctionArgs,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new_async(name.to_instance(), f))
+    }
+}
+
+#[doc(hidden)]
+pub struct FunctionBuilder<N, F, A> {
+    name: N,
+    f: F,
+    _marker: PhantomData<A>,
+}
+
+impl<N, F, A> FunctionBuilder<N, F, A>
+where
+    F: Function<A>,
+    F::Return: MaybeTypeOf,
+    A: IterFunctionArgs,
+{
+    #[doc(hidden)]
+    #[inline]
+    pub fn build(self) -> FunctionMetaKind
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        FunctionMetaKind::Function(FunctionData::new(self.name, self.f))
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn build_associated<T>(self) -> FunctionMetaKind
+    where
+        N: ToInstance,
+        T: TypeOf + Named,
+    {
+        FunctionMetaKind::AssociatedFunction(AssociatedFunctionData::new_with::<T, _, _>(
+            self.name.to_instance(),
+            self.f,
+        ))
+    }
+}
+
+#[doc(hidden)]
+pub struct AsyncFunctionBuilder<N, F, A> {
+    name: N,
+    f: F,
+    _marker: PhantomData<A>,
+}
+
+impl<N, F, A> AsyncFunctionBuilder<N, F, A>
+where
+    F: AsyncFunction<A>,
+    F::Return: MaybeTypeOf,
+    A: IterFunctionArgs,
+{
+    #[doc(hidden)]
+    #[inline]
+    pub fn build(self) -> FunctionMetaKind
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        FunctionMetaKind::Function(FunctionData::new_async(self.name, self.f))
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn build_associated<T>(self) -> FunctionMetaKind
+    where
+        N: ToInstance,
+        T: TypeOf + Named,
+    {
+        FunctionMetaKind::AssociatedFunction(AssociatedFunctionData::new_async_with::<T, _, _>(
+            self.name.to_instance(),
+            self.f,
+        ))
     }
 }
 

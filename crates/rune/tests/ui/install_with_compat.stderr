@@ -1,0 +1,5 @@
+error: String literals are no longer supported here, use a path like `foo :: bar`
+ --> tests/ui/install_with_compat.rs:5:23
+  |
+5 | #[rune(install_with = "foo::bar")]
+  |                       ^^^^^^^^^^
