@@ -23,7 +23,7 @@ pub(crate) use self::function_meta::{AssociatedFunctionName, ToFieldFunction, To
 
 #[doc(hidden)]
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
-pub use self::function_traits::{Async, Function, FunctionKind, InstFn, Plain};
+pub use self::function_traits::{Async, Function, FunctionKind, InstanceFunction, Plain};
 #[doc(hidden)]
 pub use self::module::Module;
 
@@ -242,7 +242,7 @@ pub(crate) struct ModuleConstant {
 /// This is returned by methods which insert meta items, such as:
 /// * [`Module::raw_fn`].
 /// * [`Module::function`].
-/// * [`Module::inst_fn`].
+/// * [`Module::associated_function`].
 ///
 /// While this is also returned by `*_meta` inserting functions, it is instead
 /// recommended that you make use of the appropriate macro to capture doc

@@ -23,20 +23,22 @@ pub fn module() -> Result<Module, ContextError> {
             "* `<value>..=<value>`",
         ]);
 
-    module.field_fn(Protocol::GET, "start", |r: &Range| r.start.clone())?;
-    module.field_fn(Protocol::SET, "start", range_set_start)?;
+    module.field_function(Protocol::GET, "start", |r: &Range| r.start.clone())?;
+    module.field_function(Protocol::SET, "start", range_set_start)?;
 
-    module.field_fn(Protocol::GET, "end", |r: &Range| r.end.clone())?;
-    module.field_fn(Protocol::SET, "end", range_set_end)?;
-    module.inst_fn(Protocol::INTO_ITER, Range::into_iterator)?;
+    module.field_function(Protocol::GET, "end", |r: &Range| r.end.clone())?;
+    module.field_function(Protocol::SET, "end", range_set_end)?;
+    module.associated_function(Protocol::INTO_ITER, Range::into_iterator)?;
 
     module.function_meta(Range::__contains_int__meta)?;
 
-    module.inst_fn("iter", Range::into_iterator)?.docs([
-        "Iterate over the range.",
-        "",
-        "This panics if the range is not a well-defined range.",
-    ]);
+    module
+        .associated_function("iter", Range::into_iterator)?
+        .docs([
+            "Iterate over the range.",
+            "",
+            "This panics if the range is not a well-defined range.",
+        ]);
 
     module.ty::<Function>()?.docs([
         "The type of a function in Rune.",

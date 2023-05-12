@@ -16,7 +16,7 @@ pub fn module() -> Result<Module, ContextError> {
         .docs(["Represents a type in the Rune type system."]);
     module.function_meta(type_of_val)?;
     module.function_meta(type_name_of_val)?;
-    module.inst_fn(Protocol::STRING_DISPLAY, format_type)?;
+    module.associated_function(Protocol::STRING_DISPLAY, format_type)?;
     Ok(module)
 }
 

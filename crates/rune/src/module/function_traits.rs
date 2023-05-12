@@ -34,7 +34,7 @@ macro_rules! drop_stack_guards {
 // Expand to instance variable bindings.
 macro_rules! unsafe_inst_vars {
     ($inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        let $inst = vm_try!(Inst::from_value($inst).with_error(|| VmErrorKind::BadArgument {
+        let $inst = vm_try!(Instance::from_value($inst).with_error(|| VmErrorKind::BadArgument {
             arg: 0,
         }));
 
@@ -91,12 +91,13 @@ pub trait Function<A, K>: 'static + Send + Sync {
     fn fn_call(&self, stack: &mut Stack, args: usize) -> VmResult<()>;
 }
 
-/// Trait used to provide the [inst_fn][crate::module::Module::inst_fn]
-/// function.
-pub trait InstFn<A, K>: 'static + Send + Sync {
+/// Trait used to provide the [`associated_function`] function.
+///
+/// [`associated_function`]: crate::module::Module::associated_function
+pub trait InstanceFunction<A, K>: 'static + Send + Sync {
     /// The type of the instance.
     #[doc(hidden)]
-    type Inst: TypeOf;
+    type Instance: TypeOf;
 
     /// The return type of the function.
     #[doc(hidden)]
@@ -188,14 +189,14 @@ macro_rules! impl_register {
             }
         }
 
-        impl<T, U, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*), Plain> for T
+        impl<T, U, Instance, $($ty,)*> InstanceFunction<(Instance, $($ty,)*), Plain> for T
         where
-            T: 'static + Send + Sync + Fn(Inst $(, $ty)*) -> U,
+            T: 'static + Send + Sync + Fn(Instance $(, $ty)*) -> U,
             U: ToValue,
-            Inst: UnsafeFromValue + TypeOf,
+            Instance: UnsafeFromValue + TypeOf,
             $($ty: UnsafeFromValue,)*
         {
-            type Inst = Inst;
+            type Instance = Instance;
             type Return = U;
 
             #[inline]
@@ -215,7 +216,7 @@ macro_rules! impl_register {
                 #[allow(unused)]
                 let ret = unsafe {
                     unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
-                    let ret = self(Inst::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
+                    let ret = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
                     drop_stack_guards!(inst, $($var),*);
                     ret
                 };
@@ -226,15 +227,15 @@ macro_rules! impl_register {
             }
         }
 
-        impl<T, U, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*), Async> for T
+        impl<T, U, Instance, $($ty,)*> InstanceFunction<(Instance, $($ty,)*), Async> for T
         where
-            T: 'static + Send + Sync + Fn(Inst $(, $ty)*) -> U,
+            T: 'static + Send + Sync + Fn(Instance $(, $ty)*) -> U,
             U: 'static + Future,
             U::Output: ToValue,
-            Inst: UnsafeFromValue + TypeOf,
+            Instance: UnsafeFromValue + TypeOf,
             $($ty: UnsafeFromValue,)*
         {
-            type Inst = Inst;
+            type Instance = Instance;
             type Return = U::Output;
 
             #[inline]
@@ -253,7 +254,7 @@ macro_rules! impl_register {
                 #[allow(unused)]
                 let ret = unsafe {
                     unsafe_inst_vars!(inst, $count, $($ty, $var, $num,)*);
-                    let fut = self(Inst::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
+                    let fut = self(Instance::unsafe_coerce(inst.0), $(<$ty>::unsafe_coerce($var.0),)*);
 
                     runtime::Future::new(async move {
                         let output = fut.await;

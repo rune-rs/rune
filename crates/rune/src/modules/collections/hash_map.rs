@@ -11,22 +11,22 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.ty::<HashMap>()?;
     module.function_meta(HashMap::__new__meta)?;
     module.function_meta(hashmap_from)?;
-    module.inst_fn("clear", HashMap::clear)?;
-    module.inst_fn("clone", HashMap::clone)?;
-    module.inst_fn("contains_key", HashMap::contains_key)?;
-    module.inst_fn("extend", HashMap::extend)?;
-    module.inst_fn("get", HashMap::get)?;
-    module.inst_fn("insert", HashMap::insert)?;
-    module.inst_fn("is_empty", HashMap::is_empty)?;
-    module.inst_fn("iter", HashMap::iter)?;
-    module.inst_fn("keys", HashMap::keys)?;
-    module.inst_fn("len", HashMap::len)?;
-    module.inst_fn("remove", HashMap::remove)?;
-    module.inst_fn("values", HashMap::values)?;
-    module.inst_fn(Protocol::INTO_ITER, HashMap::iter)?;
-    module.inst_fn(Protocol::INDEX_SET, HashMap::index_set)?;
-    module.inst_fn(Protocol::INDEX_GET, HashMap::index_get)?;
-    module.inst_fn(Protocol::STRING_DEBUG, HashMap::string_debug)?;
+    module.associated_function("clear", HashMap::clear)?;
+    module.associated_function("clone", HashMap::clone)?;
+    module.associated_function("contains_key", HashMap::contains_key)?;
+    module.associated_function("extend", HashMap::extend)?;
+    module.associated_function("get", HashMap::get)?;
+    module.associated_function("insert", HashMap::insert)?;
+    module.associated_function("is_empty", HashMap::is_empty)?;
+    module.associated_function("iter", HashMap::iter)?;
+    module.associated_function("keys", HashMap::keys)?;
+    module.associated_function("len", HashMap::len)?;
+    module.associated_function("remove", HashMap::remove)?;
+    module.associated_function("values", HashMap::values)?;
+    module.associated_function(Protocol::INTO_ITER, HashMap::iter)?;
+    module.associated_function(Protocol::INDEX_SET, HashMap::index_set)?;
+    module.associated_function(Protocol::INDEX_GET, HashMap::index_get)?;
+    module.associated_function(Protocol::STRING_DEBUG, HashMap::string_debug)?;
     Ok(())
 }
 

@@ -48,22 +48,8 @@ impl Function {
     /// assert_eq!(value, 42);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<Func, Args, K>(f: Func) -> Self
-    where
-        Func: module::Function<Args, K>,
-        K: module::FunctionKind,
-    {
-        Self(FunctionImpl {
-            inner: Inner::FnHandler(FnHandler {
-                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-                hash: Hash::EMPTY,
-            }),
-        })
-    }
-
-    /// Construct an `async` [Function] from a Rust closure.
     ///
-    /// # Examples
+    /// Asynchronous function:
     ///
     /// ```
     /// use rune::{Hash, Vm};
@@ -82,7 +68,7 @@ impl Function {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     ///
-    /// let function = Function::async_function(|value: u32| async move { value + 1 });
+    /// let function = Function::function(|value: u32| async move { value + 1 });
     ///
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
@@ -91,6 +77,20 @@ impl Function {
     /// assert_eq!(value, 42);
     /// # Ok(()) }
     /// ```
+    pub fn function<Func, Args, K>(f: Func) -> Self
+    where
+        Func: module::Function<Args, K>,
+        K: module::FunctionKind,
+    {
+        Self(FunctionImpl {
+            inner: Inner::FnHandler(FnHandler {
+                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+                hash: Hash::EMPTY,
+            }),
+        })
+    }
+
+    /// See [`Function::function`].
     #[deprecated = "Use Function::function instead"]
     pub fn async_function<Func, Args>(f: Func) -> Self
     where

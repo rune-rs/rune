@@ -11,30 +11,30 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<ParseIntError>()?;
 
     module.function(["parse"], parse)?;
-    module.inst_fn("to_float", to_float)?;
+    module.associated_function("to_float", to_float)?;
 
-    module.inst_fn("max", i64::max)?;
-    module.inst_fn("min", i64::min)?;
-    module.inst_fn("abs", i64::abs)?;
-    module.inst_fn("pow", i64::pow)?;
+    module.associated_function("max", i64::max)?;
+    module.associated_function("min", i64::min)?;
+    module.associated_function("abs", i64::abs)?;
+    module.associated_function("pow", i64::pow)?;
 
-    module.inst_fn("checked_add", i64::checked_add)?;
-    module.inst_fn("checked_sub", i64::checked_sub)?;
-    module.inst_fn("checked_div", i64::checked_div)?;
-    module.inst_fn("checked_mul", i64::checked_mul)?;
-    module.inst_fn("checked_rem", i64::checked_rem)?;
+    module.associated_function("checked_add", i64::checked_add)?;
+    module.associated_function("checked_sub", i64::checked_sub)?;
+    module.associated_function("checked_div", i64::checked_div)?;
+    module.associated_function("checked_mul", i64::checked_mul)?;
+    module.associated_function("checked_rem", i64::checked_rem)?;
 
-    module.inst_fn("wrapping_add", i64::wrapping_add)?;
-    module.inst_fn("wrapping_sub", i64::wrapping_sub)?;
-    module.inst_fn("wrapping_div", i64::wrapping_div)?;
-    module.inst_fn("wrapping_mul", i64::wrapping_mul)?;
-    module.inst_fn("wrapping_rem", i64::wrapping_rem)?;
+    module.associated_function("wrapping_add", i64::wrapping_add)?;
+    module.associated_function("wrapping_sub", i64::wrapping_sub)?;
+    module.associated_function("wrapping_div", i64::wrapping_div)?;
+    module.associated_function("wrapping_mul", i64::wrapping_mul)?;
+    module.associated_function("wrapping_rem", i64::wrapping_rem)?;
 
-    module.inst_fn("saturating_add", i64::saturating_add)?;
-    module.inst_fn("saturating_sub", i64::saturating_sub)?;
-    module.inst_fn("saturating_mul", i64::saturating_mul)?;
-    module.inst_fn("saturating_abs", i64::saturating_abs)?;
-    module.inst_fn("saturating_pow", i64::saturating_pow)?;
+    module.associated_function("saturating_add", i64::saturating_add)?;
+    module.associated_function("saturating_sub", i64::saturating_sub)?;
+    module.associated_function("saturating_mul", i64::saturating_mul)?;
+    module.associated_function("saturating_abs", i64::saturating_abs)?;
+    module.associated_function("saturating_pow", i64::saturating_pow)?;
 
     Ok(module)
 }

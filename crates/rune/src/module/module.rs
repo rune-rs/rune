@@ -11,9 +11,9 @@ use crate::module::function_meta::{
     FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
 };
 use crate::module::{
-    AssociatedKey, Async, EnumMut, Function, FunctionKind, InstFn, InstallWith, InternalEnum,
-    InternalEnumMut, ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction, ModuleMacro,
-    ModuleType, Plain, TypeMut, TypeSpecification, UnitType, VariantMut,
+    AssociatedKey, Async, EnumMut, Function, FunctionKind, InstallWith, InstanceFunction,
+    InternalEnum, InternalEnumMut, ItemMut, ModuleAssociated, ModuleConstant, ModuleFunction,
+    ModuleMacro, ModuleType, Plain, TypeMut, TypeSpecification, UnitType, VariantMut,
 };
 use crate::runtime::{
     ConstValue, FromValue, GeneratorState, MacroHandler, MaybeTypeOf, Protocol, Stack, ToValue,
@@ -150,7 +150,7 @@ impl Module {
     /// // Register `len` without registering a type.
     /// let mut module = Module::default();
     /// // Note: cannot do this until we have registered a type.
-    /// module.inst_fn("len", MyBytes::len)?;
+    /// module.associated_function("len", MyBytes::len)?;
     ///
     /// let mut context = rune::Context::new();
     /// assert!(context.install(module).is_err());
@@ -159,7 +159,7 @@ impl Module {
     /// let mut module = Module::default();
     ///
     /// module.ty::<MyBytes>()?;
-    /// module.inst_fn("len", MyBytes::len)?;
+    /// module.associated_function("len", MyBytes::len)?;
     ///
     /// let mut context = Context::new();
     /// assert!(context.install(module).is_ok());
@@ -234,7 +234,7 @@ impl Module {
     ///
     /// This is typically not used directly, but is used automatically with the
     /// [Any][crate::Any] derive.
-    #[deprecated = "Use type_meta() instead"]
+    #[deprecated = "Use type_meta::<T>().make_struct(fields) instead"]
     pub fn struct_meta<T>(&mut self, fields: &'static [&'static str]) -> Result<(), ContextError>
     where
         T: Named + TypeOf,
@@ -245,7 +245,7 @@ impl Module {
 
     /// Register enum metadata for the given type `T`. This allows an enum to be
     /// used in limited ways in Rune.
-    #[deprecated = "Use type_meta().make_enum() instead"]
+    #[deprecated = "Use type_meta::<T>().make_enum(variants) instead"]
     #[doc(hidden)]
     pub fn enum_meta<T>(
         &mut self,
@@ -740,27 +740,8 @@ impl Module {
     /// module.function(["add_ten"], add_ten)?.docs(["Adds 10 to any integer passed in."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
-    where
-        F: Function<A, K>,
-        F::Return: MaybeTypeOf,
-        N: IntoIterator,
-        N::Item: IntoComponent,
-        A: FunctionArgs,
-        K: FunctionKind,
-    {
-        self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
-    }
-
-    /// Register an asynchronous function.
     ///
-    /// If possible, [`Module::function_meta`] should be used since it includes
-    /// more useful information about the function.
-    ///
-    /// This returns a [`ItemMut`], which is a handle that can be used to associate more metadata
-    /// with the inserted item.
-    ///
-    /// # Examples
+    /// Asynchronous function:
     ///
     /// ```
     /// use rune::{Any, Module};
@@ -777,11 +758,24 @@ impl Module {
     ///
     /// let mut module = Module::default();
     ///
-    /// module.async_function(["download_quote"], download_quote)?
+    /// module.function(["download_quote"], download_quote)?
     ///     .docs(["Download a random quote from the internet."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    #[deprecated = "Use Module::function instead"]
+    pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    where
+        F: Function<A, K>,
+        F::Return: MaybeTypeOf,
+        N: IntoIterator,
+        N::Item: IntoComponent,
+        A: FunctionArgs,
+        K: FunctionKind,
+    {
+        self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
+    }
+
+    /// See [`Module::function`].
+    #[deprecated = "Use Module::function() instead"]
     pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
     where
         F: Function<A, Async>,
@@ -830,33 +824,12 @@ impl Module {
     /// module.function(["MyBytes", "new"], MyBytes::new)?
     ///     .docs(["Construct a new empty bytes container."]);
     ///
-    /// module.inst_fn("len", MyBytes::len)?
+    /// module.associated_function("len", MyBytes::len)?
     ///     .docs(["Get the number of bytes."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    pub fn inst_fn<N, F, A, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
-    where
-        N: ToInstance,
-        F: InstFn<A, K>,
-        F::Return: MaybeTypeOf,
-        A: FunctionArgs,
-        K: FunctionKind,
-    {
-        self.assoc_fn(
-            AssociatedFunctionData::new(name.to_instance(), f),
-            Docs::EMPTY,
-        )
-    }
-
-    /// Register an asynchronous instance function.
     ///
-    /// If possible, [`Module::function_meta`] should be used since it includes
-    /// more useful information about the function.
-    ///
-    /// This returns a [`ItemMut`], which is a handle that can be used to associate more metadata
-    /// with the inserted item.
-    ///
-    /// # Examples
+    /// Asynchronous function:
     ///
     /// ```
     /// use std::sync::atomic::AtomicU32;
@@ -884,17 +857,21 @@ impl Module {
     /// let mut module = Module::default();
     ///
     /// module.ty::<Client>()?;
-    /// module.async_inst_fn("download", Client::download)?
+    /// module.associated_function("download", Client::download)?
     ///     .docs(["Download a thing."]);
     /// # Ok::<_, rune::Error>(())
     /// ```
-    #[deprecated = "Use Module::inst_fn instead"]
-    pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    pub fn associated_function<N, F, A, K>(
+        &mut self,
+        name: N,
+        f: F,
+    ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: InstFn<A, Async>,
+        F: InstanceFunction<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
+        K: FunctionKind,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_instance(), f),
@@ -902,11 +879,37 @@ impl Module {
         )
     }
 
+    /// See [`Module::associated_function`].
+    #[deprecated = "Use Module::associated_function() instead"]
+    #[inline]
+    pub fn inst_fn<N, F, A, K>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    where
+        N: ToInstance,
+        F: InstanceFunction<A, K>,
+        F::Return: MaybeTypeOf,
+        A: FunctionArgs,
+        K: FunctionKind,
+    {
+        self.associated_function(name, f)
+    }
+
+    /// See [`Module::associated_function`].
+    #[deprecated = "Use Module::associated_function() instead"]
+    pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemMut<'_>, ContextError>
+    where
+        N: ToInstance,
+        F: InstanceFunction<A, Async>,
+        F::Return: MaybeTypeOf,
+        A: FunctionArgs,
+    {
+        self.associated_function(name, f)
+    }
+
     /// Install a protocol function that interacts with the given field.
     ///
     /// This returns a [`ItemMut`], which is a handle that can be used to
     /// associate more metadata with the inserted item.
-    pub fn field_fn<N, F, A>(
+    pub fn field_function<N, F, A>(
         &mut self,
         protocol: Protocol,
         name: N,
@@ -914,7 +917,7 @@ impl Module {
     ) -> Result<ItemMut<'_>, ContextError>
     where
         N: ToFieldFunction,
-        F: InstFn<A, Plain>,
+        F: InstanceFunction<A, Plain>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
     {
@@ -924,10 +927,46 @@ impl Module {
         )
     }
 
+    /// See [`Module::field_function`].
+    #[deprecated = "Use Module::field_function() instead"]
+    #[inline]
+    pub fn field_fn<N, F, A>(
+        &mut self,
+        protocol: Protocol,
+        name: N,
+        f: F,
+    ) -> Result<ItemMut<'_>, ContextError>
+    where
+        N: ToFieldFunction,
+        F: InstanceFunction<A, Plain>,
+        F::Return: MaybeTypeOf,
+        A: FunctionArgs,
+    {
+        self.field_function(protocol, name, f)
+    }
+
     /// Install a protocol function that interacts with the given index.
     ///
     /// An index can either be a field inside a tuple, or a variant inside of an
     /// enum as configured with [Module::enum_meta].
+    pub fn index_function<F, A>(
+        &mut self,
+        protocol: Protocol,
+        index: usize,
+        f: F,
+    ) -> Result<ItemMut<'_>, ContextError>
+    where
+        F: InstanceFunction<A, Plain>,
+        F::Return: MaybeTypeOf,
+        A: FunctionArgs,
+    {
+        let name = AssociatedFunctionName::index(protocol, index);
+        self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::EMPTY)
+    }
+
+    /// See [`Module::index_function`].
+    #[deprecated = "Use Module::index_function() instead"]
+    #[inline]
     pub fn index_fn<F, A>(
         &mut self,
         protocol: Protocol,
@@ -935,12 +974,11 @@ impl Module {
         f: F,
     ) -> Result<ItemMut<'_>, ContextError>
     where
-        F: InstFn<A, Plain>,
+        F: InstanceFunction<A, Plain>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
     {
-        let name = AssociatedFunctionName::index(protocol, index);
-        self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::EMPTY)
+        self.index_function(protocol, index, f)
     }
 
     /// Register a raw function which interacts directly with the virtual

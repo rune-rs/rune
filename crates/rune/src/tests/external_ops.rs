@@ -34,8 +34,8 @@ fn test_external_ops_struct() -> Result<()> {
             let mut module = Module::new();
             module.ty::<External>()?;
 
-            module.inst_fn(Protocol::$protocol, External::value)?;
-            module.field_fn(Protocol::$protocol, "field", External::field)?;
+            module.associated_function(Protocol::$protocol, External::value)?;
+            module.field_function(Protocol::$protocol, "field", External::field)?;
 
             let mut context = Context::with_default_modules()?;
             context.install(module)?;
@@ -118,8 +118,8 @@ fn test_external_ops_tuple() -> Result<()> {
             let mut module = Module::new();
             module.ty::<External>()?;
 
-            module.inst_fn(Protocol::$protocol, External::value)?;
-            module.index_fn(Protocol::$protocol, 1, External::field)?;
+            module.associated_function(Protocol::$protocol, External::value)?;
+            module.index_function(Protocol::$protocol, 1, External::field)?;
 
             let mut context = Context::with_default_modules()?;
             context.install(module)?;

@@ -16,12 +16,12 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(to_int)?;
     module.function_meta(is_alphabetic)?;
     module.function_meta(is_alphanumeric)?;
-    module.inst_fn("is_control", char::is_control)?;
-    module.inst_fn("is_lowercase", char::is_lowercase)?;
-    module.inst_fn("is_numeric", char::is_numeric)?;
-    module.inst_fn("is_uppercase", char::is_uppercase)?;
-    module.inst_fn("is_whitespace", char::is_whitespace)?;
-    module.inst_fn("to_digit", char::to_digit)?;
+    module.associated_function("is_control", char::is_control)?;
+    module.associated_function("is_lowercase", char::is_lowercase)?;
+    module.associated_function("is_numeric", char::is_numeric)?;
+    module.associated_function("is_uppercase", char::is_uppercase)?;
+    module.associated_function("is_whitespace", char::is_whitespace)?;
+    module.associated_function("to_digit", char::to_digit)?;
     Ok(module)
 }
 

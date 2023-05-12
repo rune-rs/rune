@@ -31,10 +31,10 @@ where
 fn make_native_module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate("native_crate");
     module.ty::<Generic<i64>>()?;
-    module.inst_fn("get_value", Generic::<i64>::get_value)?;
+    module.associated_function("get_value", Generic::<i64>::get_value)?;
 
     module.ty::<Generic<f64>>()?;
-    module.inst_fn("get_value", Generic::<f64>::get_value)?;
+    module.associated_function("get_value", Generic::<f64>::get_value)?;
     Ok(module)
 }
 

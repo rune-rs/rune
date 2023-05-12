@@ -13,19 +13,19 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<Vec>()?;
 
     module.function(["Vec", "new"], Vec::new)?;
-    module.inst_fn("clear", Vec::clear)?;
-    module.inst_fn("clone", Vec::clone)?;
-    module.inst_fn("extend", Vec::extend)?;
+    module.associated_function("clear", Vec::clear)?;
+    module.associated_function("clone", Vec::clone)?;
+    module.associated_function("extend", Vec::extend)?;
     module.function_meta(get)?;
-    module.inst_fn("iter", Vec::into_iterator)?;
-    module.inst_fn("len", Vec::len)?;
-    module.inst_fn("pop", Vec::pop)?;
-    module.inst_fn("push", Vec::push)?;
-    module.inst_fn("remove", Vec::remove)?;
+    module.associated_function("iter", Vec::into_iterator)?;
+    module.associated_function("len", Vec::len)?;
+    module.associated_function("pop", Vec::pop)?;
+    module.associated_function("push", Vec::push)?;
+    module.associated_function("remove", Vec::remove)?;
     module.function_meta(sort_by)?;
-    module.inst_fn("insert", Vec::insert)?;
-    module.inst_fn(Protocol::INTO_ITER, Vec::into_iterator)?;
-    module.inst_fn(Protocol::INDEX_SET, Vec::set)?;
+    module.associated_function("insert", Vec::insert)?;
+    module.associated_function(Protocol::INTO_ITER, Vec::into_iterator)?;
+    module.associated_function(Protocol::INDEX_SET, Vec::set)?;
 
     module.function_meta(sort_int)?;
     Ok(module)

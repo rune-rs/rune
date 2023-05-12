@@ -15,16 +15,16 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(Object::__with_capacity__meta)?;
     module.function_meta(Object::__len__meta)?;
     module.function_meta(Object::__is_empty__meta)?;
-    module.inst_fn("insert", Object::insert)?;
-    module.inst_fn("remove", remove)?;
-    module.inst_fn("clear", Object::clear)?;
-    module.inst_fn("contains_key", contains_key)?;
-    module.inst_fn("get", get)?;
+    module.associated_function("insert", Object::insert)?;
+    module.associated_function("remove", remove)?;
+    module.associated_function("clear", Object::clear)?;
+    module.associated_function("contains_key", contains_key)?;
+    module.associated_function("get", get)?;
 
-    module.inst_fn("iter", Object::into_iterator)?;
-    module.inst_fn(Protocol::INTO_ITER, Object::into_iterator)?;
-    module.inst_fn("keys", keys)?;
-    module.inst_fn("values", values)?;
+    module.associated_function("iter", Object::into_iterator)?;
+    module.associated_function(Protocol::INTO_ITER, Object::into_iterator)?;
+    module.associated_function("keys", keys)?;
+    module.associated_function("values", values)?;
     Ok(module)
 }
 

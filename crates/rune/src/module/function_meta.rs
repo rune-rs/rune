@@ -7,7 +7,7 @@ use crate::no_std::sync::Arc;
 use crate::compile::{self, meta, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::{AssociatedKey, Function, FunctionKind, InstFn};
+use crate::module::{AssociatedKey, Function, FunctionKind, InstanceFunction};
 use crate::runtime::{
     FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf,
 };
@@ -193,7 +193,7 @@ impl AssociatedFunctionData {
     #[inline]
     pub(crate) fn new<F, A, K>(name: AssociatedFunctionName, f: F) -> Self
     where
-        F: InstFn<A, K>,
+        F: InstanceFunction<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
         K: FunctionKind,
@@ -201,8 +201,8 @@ impl AssociatedFunctionData {
         Self {
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            container: F::Inst::type_of(),
-            container_type_info: F::Inst::type_info(),
+            container: F::Instance::type_of(),
+            container_type_info: F::Instance::type_info(),
             #[cfg(feature = "doc")]
             is_async: K::is_async(),
             #[cfg(feature = "doc")]
@@ -259,7 +259,7 @@ impl FunctionMetaKind {
     pub fn instance<N, F, A, K>(name: N, f: F) -> Self
     where
         N: ToInstance,
-        F: InstFn<A, K>,
+        F: InstanceFunction<A, K>,
         F::Return: MaybeTypeOf,
         A: FunctionArgs,
         K: FunctionKind,

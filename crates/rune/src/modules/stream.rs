@@ -7,7 +7,7 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["stream"]);
     module.ty::<Stream<Vm>>()?;
-    module.inst_fn("next", Stream::<Vm>::next)?;
-    module.inst_fn("resume", Stream::<Vm>::resume)?;
+    module.associated_function("next", Stream::<Vm>::next)?;
+    module.associated_function("resume", Stream::<Vm>::resume)?;
     Ok(module)
 }

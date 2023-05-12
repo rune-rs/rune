@@ -44,12 +44,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<Output>()?;
 
     module.function(["Command", "new"], Command::new)?;
-    module.inst_fn("spawn", Command::spawn)?;
-    module.inst_fn("arg", Command::arg)?;
-    module.inst_fn("args", Command::args)?;
-    module.async_inst_fn("wait_with_output", Child::wait_with_output)?;
-    module.inst_fn(Protocol::STRING_DISPLAY, ExitStatus::display)?;
-    module.inst_fn("code", ExitStatus::code)?;
+    module.associated_function("spawn", Command::spawn)?;
+    module.associated_function("arg", Command::arg)?;
+    module.associated_function("args", Command::args)?;
+    module.associated_function("wait_with_output", Child::wait_with_output)?;
+    module.associated_function(Protocol::STRING_DISPLAY, ExitStatus::display)?;
+    module.associated_function("code", ExitStatus::code)?;
     Ok(module)
 }
 

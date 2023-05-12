@@ -383,7 +383,7 @@ fn expand_enum_install_with(
     }
 
     let is_variant = quote! {
-        module.inst_fn(#protocol::IS_VARIANT, |this: &Self, index: usize| {
+        module.associated_function(#protocol::IS_VARIANT, |this: &Self, index: usize| {
             match (this, index) {
                 #(#is_variant,)*
                 _ => false,
@@ -395,7 +395,7 @@ fn expand_enum_install_with(
 
     for (field, matches) in field_fns {
         installers.push(quote! {
-            module.field_fn(#protocol::GET, #field, |this: &Self| {
+            module.field_function(#protocol::GET, #field, |this: &Self| {
                 match this {
                     #(#matches,)*
                     _ => return #vm_result::__rune_macros__unsupported_object_field_get(<Self as #type_of>::type_info()),
@@ -406,7 +406,7 @@ fn expand_enum_install_with(
 
     for (index, matches) in index_fns {
         installers.push(quote! {
-            module.index_fn(#protocol::GET, #index, |this: &Self| {
+            module.index_function(#protocol::GET, #index, |this: &Self| {
                 match this {
                     #(#matches,)*
                     _ => return #vm_result::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info()),

@@ -104,7 +104,7 @@ impl Hash {
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
     #[inline]
-    pub fn instance_function<N>(type_hash: Hash, name: N) -> Self
+    pub fn associated_function<N>(type_hash: Hash, name: N) -> Self
     where
         N: IntoHash,
     {
@@ -114,7 +114,7 @@ impl Hash {
 
     /// Construct a hash corresponding to a field function.
     #[inline]
-    pub fn field_fn<N>(protocol: Protocol, type_hash: Hash, name: N) -> Self
+    pub fn field_function<N>(protocol: Protocol, type_hash: Hash, name: N) -> Self
     where
         N: IntoHash,
     {
@@ -123,7 +123,7 @@ impl Hash {
 
     /// Construct an index function.
     #[inline]
-    pub fn index_fn(protocol: Protocol, type_hash: Hash, index: Hash) -> Self {
+    pub fn index_function(protocol: Protocol, type_hash: Hash, index: Hash) -> Self {
         Self(INDEX_FUNCTION_HASH ^ ((type_hash.0 ^ protocol.hash.0) ^ index.0))
     }
 

@@ -291,7 +291,7 @@ impl UnitBuilder {
                 });
 
                 self.constants.insert(
-                    Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                    Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(rtti.item.to_string()),
                 );
 
@@ -335,7 +335,7 @@ impl UnitBuilder {
                 }
 
                 self.constants.insert(
-                    Hash::instance_function(meta.hash, Protocol::INTO_TYPE_NAME),
+                    Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(signature.path.to_string()),
                 );
 
@@ -377,7 +377,7 @@ impl UnitBuilder {
                 }
 
                 self.constants.insert(
-                    Hash::instance_function(meta.hash, Protocol::INTO_TYPE_NAME),
+                    Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(signature.path.to_string()),
                 );
 
@@ -392,7 +392,7 @@ impl UnitBuilder {
                 });
 
                 self.constants.insert(
-                    Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                    Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(rtti.item.to_string()),
                 );
 
@@ -500,7 +500,7 @@ impl UnitBuilder {
             }
             meta::Kind::Enum { .. } => {
                 self.constants.insert(
-                    Hash::instance_function(meta.hash, Protocol::INTO_TYPE_NAME),
+                    Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
                     ConstValue::String(pool.item(meta.item_meta.item).to_string()),
                 );
             }
@@ -555,7 +555,7 @@ impl UnitBuilder {
         }
 
         self.constants.insert(
-            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
             ConstValue::String(signature.path.to_string()),
         );
 
@@ -600,7 +600,7 @@ impl UnitBuilder {
         tracing::trace!("instance fn: {}", item);
 
         let offset = self.instructions.len();
-        let instance_fn = Hash::instance_function(type_hash, name);
+        let instance_fn = Hash::associated_function(type_hash, name);
         let hash = Hash::type_hash(item);
 
         let info = UnitFn::Offset { offset, call, args };
@@ -625,7 +625,7 @@ impl UnitBuilder {
         }
 
         self.constants.insert(
-            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
             ConstValue::String(signature.path.to_string()),
         );
 

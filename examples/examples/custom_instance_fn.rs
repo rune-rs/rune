@@ -44,6 +44,6 @@ async fn main() -> rune::Result<()> {
 
 fn module() -> Result<Module, ContextError> {
     let mut m = Module::with_item(["mymodule"]);
-    m.inst_fn("divide_by_three", divide_by_three)?;
+    m.associated_function("divide_by_three", divide_by_three)?;
     Ok(m)
 }

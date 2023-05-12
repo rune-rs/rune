@@ -321,11 +321,7 @@ impl Function {
             }
         }
 
-        let function = if instance {
-            "instance"
-        } else {
-            "function"
-        };
+        let function = if instance { "instance" } else { "function" };
 
         let meta_kind = syn::Ident::new(function, self.sig.span());
         let mut stream = TokenStream::new();
