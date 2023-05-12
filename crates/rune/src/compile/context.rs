@@ -24,8 +24,6 @@ use crate::Hash;
 pub(crate) struct ContextMeta {
     /// Type hash for the given meta item.
     pub(crate) hash: Hash,
-    /// The container this item belongs to.
-    pub(crate) associated_container: Option<Hash>,
     /// The item of the returned compile meta.
     pub(crate) item: Option<ItemBuf>,
     /// The kind of the compile meta.
@@ -370,7 +368,7 @@ impl Context {
         }
 
         #[cfg(feature = "doc")]
-        if let Some(h) = meta.associated_container {
+        if let Some(h) = meta.kind.associated_container() {
             let assoc = self.associated.entry(h).or_default();
             assoc.push(meta.hash);
         }
@@ -392,7 +390,6 @@ impl Context {
         while let Some((item, docs)) = current.take() {
             self.install_meta(ContextMeta {
                 hash: Hash::type_hash(item),
-                associated_container: None,
                 item: Some(item.to_owned()),
                 kind: meta::Kind::Module,
                 #[cfg(feature = "doc")]
@@ -477,7 +474,6 @@ impl Context {
 
                         self.install_meta(ContextMeta {
                             hash,
-                            associated_container: Some(ty.hash),
                             item: Some(item),
                             kind: meta::Kind::Variant {
                                 enum_hash: ty.hash,
@@ -511,7 +507,6 @@ impl Context {
 
         self.install_meta(ContextMeta {
             hash: ty.hash,
-            associated_container: None,
             item: Some(item),
             kind,
             #[cfg(feature = "doc")]
@@ -584,7 +579,6 @@ impl Context {
 
         self.install_meta(ContextMeta {
             hash,
-            associated_container: f.associated_container,
             item: Some(item),
             kind: meta::Kind::Function {
                 is_test: false,
@@ -607,7 +601,6 @@ impl Context {
 
         self.install_meta(ContextMeta {
             hash,
-            associated_container: None,
             item: Some(item),
             kind: meta::Kind::Macro,
             #[cfg(feature = "doc")]
@@ -629,7 +622,6 @@ impl Context {
 
         self.install_meta(ContextMeta {
             hash,
-            associated_container: None,
             item: Some(item),
             kind: meta::Kind::Const {
                 const_value: m.value.clone(),
@@ -699,7 +691,6 @@ impl Context {
 
         self.install_meta(ContextMeta {
             hash,
-            associated_container: Some(assoc.container.hash),
             item,
             kind: meta::Kind::AssociatedFunction {
                 kind: assoc.name.kind.clone(),
@@ -707,6 +698,8 @@ impl Context {
                 parameters: Hash::EMPTY
                     .with_type_parameters(info.type_parameters)
                     .with_function_parameters(assoc.name.function_parameters),
+                #[cfg(feature = "doc")]
+                container: assoc.container.hash,
                 #[cfg(feature = "doc")]
                 parameter_types: assoc.name.parameter_types.clone(),
             },
@@ -754,7 +747,6 @@ impl Context {
 
         self.install_meta(ContextMeta {
             hash,
-            associated_container: None,
             item: Some(item.clone()),
             kind: meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(0),
@@ -791,7 +783,6 @@ impl Context {
 
         self.install_meta(ContextMeta {
             hash: enum_hash,
-            associated_container: None,
             item: Some(item.clone()),
             kind: meta::Kind::Enum {
                 parameters: Hash::EMPTY,
@@ -847,7 +838,6 @@ impl Context {
 
             self.install_meta(ContextMeta {
                 hash,
-                associated_container: Some(enum_hash),
                 item: Some(item),
                 kind: meta::Kind::Variant {
                     enum_hash,

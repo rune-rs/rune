@@ -16,15 +16,13 @@ use crate::parse::{Id, ResolveContext};
 use crate::runtime::{ConstValue, Protocol};
 
 /// A meta reference to an item being compiled.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct MetaRef<'a> {
     /// If the meta comes from the context or not.
     pub context: bool,
     /// The hash of a meta item.
     pub hash: Hash,
-    /// The container of this meta, if it is an associated item.
-    pub associated_container: Option<Hash>,
     /// The item being described.
     pub item: &'a Item,
     /// The kind of the item.
@@ -76,8 +74,6 @@ pub(crate) struct Meta {
     pub(crate) context: bool,
     /// Hash of the private metadata.
     pub(crate) hash: Hash,
-    /// The container of this meta, if it is an associated item.
-    pub(crate) associated_container: Option<Hash>,
     /// The item of the returned compile meta.
     pub(crate) item_meta: ItemMeta,
     /// The kind of the compile meta.
@@ -99,7 +95,6 @@ impl Meta {
         MetaRef {
             context: self.context,
             hash: self.hash,
-            associated_container: self.associated_container,
             item: pool.item(self.item_meta.item),
             kind: &self.kind,
             source: self.source.as_ref(),
@@ -197,6 +192,9 @@ pub enum Kind {
         signature: Signature,
         /// Parameters hash.
         parameters: Hash,
+        /// The container of the associated function.
+        #[cfg(feature = "doc")]
+        container: Hash,
         /// Parameter types.
         #[cfg(feature = "doc")]
         parameter_types: Vec<Hash>,
@@ -253,6 +251,16 @@ impl Kind {
             Kind::Enum { parameters, .. } => *parameters,
             Kind::Struct { parameters, .. } => *parameters,
             _ => Hash::EMPTY,
+        }
+    }
+
+    /// Get the associated container of the meta kind.
+    #[cfg(feature = "doc")]
+    pub(crate) fn associated_container(&self) -> Option<Hash> {
+        match self {
+            Kind::Variant { enum_hash, .. } => Some(*enum_hash),
+            Kind::AssociatedFunction { container, .. } => Some(*container),
+            _ => None,
         }
     }
 }

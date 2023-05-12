@@ -748,7 +748,7 @@ impl Module {
         N::Item: IntoComponent,
         A: IterFunctionArgs,
     {
-        self.function_inner(FunctionData::new(name, f, None), Docs::EMPTY)
+        self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
     }
 
     /// Register an asynchronous function.
@@ -788,7 +788,7 @@ impl Module {
         N::Item: IntoComponent,
         A: IterFunctionArgs,
     {
-        self.function_inner(FunctionData::new_async(name, f, None), Docs::EMPTY)
+        self.function_inner(FunctionData::new_async(name, f), Docs::EMPTY)
     }
 
     /// Register an instance function.
@@ -995,7 +995,6 @@ impl Module {
             return_type: None,
             #[cfg(feature = "doc")]
             argument_types: Box::from([]),
-            associated_container: None,
             docs: Docs::EMPTY,
         });
 
@@ -1030,7 +1029,6 @@ impl Module {
             return_type: data.return_type,
             #[cfg(feature = "doc")]
             argument_types: data.argument_types,
-            associated_container: data.associated_container,
             docs,
         });
 

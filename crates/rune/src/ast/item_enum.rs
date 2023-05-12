@@ -11,10 +11,10 @@ fn ast_parse() {
     );
     rt::<ast::ItemEnum>("pub enum Color { Blue, Red, Green }");
 
-    rt::<ast::ItemVariantBody>("( a, b, c )");
-    rt::<ast::ItemVariantBody>("{ a, b, c }");
-    rt::<ast::ItemVariantBody>("( #[serde(default)] a, b, c )");
-    rt::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }");
+    rt::<ast::Fields>("( a, b, c )");
+    rt::<ast::Fields>("{ a, b, c }");
+    rt::<ast::Fields>("( #[serde(default)] a, b, c )");
+    rt::<ast::Fields>("{ a, #[debug(skip)] b, c }");
 }
 
 /// An enum item.
@@ -52,38 +52,5 @@ pub struct ItemVariant {
     pub name: ast::Ident,
     /// The body of the variant.
     #[rune(optional)]
-    pub body: ItemVariantBody,
-}
-
-/// An item body declaration.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
-#[non_exhaustive]
-pub enum ItemVariantBody {
-    /// An empty enum body.
-    UnitBody,
-    /// A tuple struct body.
-    TupleBody(ast::Parenthesized<ast::Field, T![,]>),
-    /// A regular struct body.
-    StructBody(ast::Braced<ast::Field, T![,]>),
-}
-
-impl ItemVariantBody {
-    /// Iterate over the fields of the body.
-    pub(crate) fn fields(&self) -> impl Iterator<Item = &'_ (ast::Field, Option<T![,]>)> {
-        match self {
-            ItemVariantBody::UnitBody => IntoIterator::into_iter(&[]),
-            ItemVariantBody::TupleBody(body) => body.iter(),
-            ItemVariantBody::StructBody(body) => body.iter(),
-        }
-    }
-}
-
-impl Parse for ItemVariantBody {
-    fn parse(p: &mut Parser<'_>) -> Result<Self> {
-        Ok(match p.nth(0)? {
-            K!['('] => Self::TupleBody(p.parse()?),
-            K!['{'] => Self::StructBody(p.parse()?),
-            _ => Self::UnitBody,
-        })
-    }
+    pub body: ast::Fields,
 }

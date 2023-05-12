@@ -92,7 +92,7 @@ impl CompileVisitor for Visitor {
             }
         }
 
-        if let Some(container) = meta.associated_container {
+        if let Some(container) = meta.kind.associated_container() {
             self.associated
                 .entry(container)
                 .or_default()
