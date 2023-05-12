@@ -7,8 +7,8 @@ use crate::no_std::sync::Arc;
 use crate::compile::{self, meta, ContextError, Docs, IntoComponent, ItemBuf, Named};
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::function_meta::{
-    AssociatedFunctionData, AssociatedFunctionName, FunctionData, FunctionMeta, FunctionMetaKind,
-    IterFunctionArgs, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
+    AssociatedFunctionData, AssociatedFunctionName, FunctionArgs, FunctionData, FunctionMeta,
+    FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction, ToInstance,
 };
 use crate::module::{
     AssociatedKey, AsyncFunction, AsyncInstFn, EnumMut, Function, InstFn, InstallWith,
@@ -746,7 +746,7 @@ impl Module {
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
     {
         self.function_inner(FunctionData::new(name, f), Docs::EMPTY)
     }
@@ -786,7 +786,7 @@ impl Module {
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
     {
         self.function_inner(FunctionData::new_async(name, f), Docs::EMPTY)
     }
@@ -837,7 +837,7 @@ impl Module {
         N: ToInstance,
         F: InstFn<A>,
         F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_instance(), f),
@@ -890,7 +890,7 @@ impl Module {
         N: ToInstance,
         F: AsyncInstFn<A>,
         F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new_async(name.to_instance(), f),
@@ -912,7 +912,7 @@ impl Module {
         N: ToFieldFunction,
         F: InstFn<A>,
         F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
     {
         self.assoc_fn(
             AssociatedFunctionData::new(name.to_field_function(protocol), f),
@@ -933,7 +933,7 @@ impl Module {
     where
         F: InstFn<A>,
         F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
     {
         let name = AssociatedFunctionName::index(protocol, index);
         self.assoc_fn(AssociatedFunctionData::new(name, f), Docs::EMPTY)
