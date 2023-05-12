@@ -21,13 +21,13 @@ pub fn module() -> Result<Module, ContextError> {
         .static_docs(&["Contains the error value"]);
 
     module.function_meta(ok)?;
-    module.inst_fn("is_ok", is_ok)?;
-    module.inst_fn("is_err", is_err)?;
-    module.inst_fn("unwrap", unwrap_impl)?;
-    module.inst_fn("unwrap_or", Result::<Value, Value>::unwrap_or)?;
-    module.inst_fn("expect", expect_impl)?;
-    module.inst_fn("and_then", and_then_impl)?;
-    module.inst_fn("map", map_impl)?;
+    module.associated_function("is_ok", is_ok)?;
+    module.associated_function("is_err", is_err)?;
+    module.associated_function("unwrap", unwrap_impl)?;
+    module.associated_function("unwrap_or", Result::<Value, Value>::unwrap_or)?;
+    module.associated_function("expect", expect_impl)?;
+    module.associated_function("and_then", and_then_impl)?;
+    module.associated_function("map", map_impl)?;
     Ok(module)
 }
 

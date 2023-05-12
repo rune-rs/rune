@@ -24,7 +24,7 @@ impl ProtocolCaller for EnvProtocolCaller {
     {
         return crate::runtime::env::with(|context, unit| {
             let count = args.count() + 1;
-            let hash = Hash::instance_function(vm_try!(target.type_hash()), protocol.hash);
+            let hash = Hash::associated_function(vm_try!(target.type_hash()), protocol.hash);
 
             if let Some(UnitFn::Offset {
                 offset,

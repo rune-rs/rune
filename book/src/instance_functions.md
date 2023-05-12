@@ -46,9 +46,9 @@ be stabilized and documented in a future release.
 ## Defining instance functions in Rust
 
 Native instance functions are added to a runtime environment using the
-[`Module::inst_fn`] and [`Module::async_inst_fn`] functions. The type is
-identified as the first argument of the instance function, and must be a type
-registered in the module using [`Module::ty`].
+[`Module::associated_function`] function. The type is identified as the first
+argument of the instance function, and must be a type registered in the module
+using [`Module::ty`].
 
 ```rust,noplaypen
 {{#include ../../examples/examples/custom_instance_fn.rs}}
@@ -62,7 +62,6 @@ output: 11
 For more examples on how modules can be used you can have a look at the source
 for the [`rune-modules`] crate.
 
-[`Module::inst_fn`]: https://docs.rs/rune/0/rune/struct.Module.html#method.inst_fn
-[`Module::async_inst_fn`]: https://docs.rs/rune/0/rune/struct.Module.html#method.async_inst_fn
+[`Module::associated_function`]: https://docs.rs/rune/0/rune/struct.Module.html#method.associated_function
 [`Module::ty`]: https://docs.rs/rune/0/rune/struct.Module.html#method.ty
 [`rune-modules`]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules

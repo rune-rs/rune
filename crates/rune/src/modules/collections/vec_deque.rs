@@ -12,22 +12,22 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.function(["VecDeque", "with_capacity"], VecDeque::with_capacity)?;
     module.function(["VecDeque", "from"], vecdeque_from)?;
 
-    module.inst_fn("extend", VecDeque::extend)?;
-    module.inst_fn("insert", VecDeque::insert)?;
-    module.inst_fn("iter", VecDeque::iter)?;
-    module.inst_fn("len", VecDeque::len)?;
-    module.inst_fn("pop_back", VecDeque::pop_back)?;
-    module.inst_fn("pop_front", VecDeque::pop_front)?;
-    module.inst_fn("push_back", VecDeque::push_back)?;
-    module.inst_fn("push_front", VecDeque::push_front)?;
-    module.inst_fn("remove", VecDeque::remove)?;
-    module.inst_fn("reserve", VecDeque::reserve)?;
-    module.inst_fn("rotate_left", VecDeque::rotate_left)?;
-    module.inst_fn("rotate_right", VecDeque::rotate_right)?;
-    module.inst_fn(Protocol::INDEX_GET, VecDeque::get)?;
-    module.inst_fn(Protocol::INDEX_SET, VecDeque::set)?;
-    module.inst_fn(Protocol::INTO_ITER, VecDeque::iter)?;
-    module.inst_fn(Protocol::STRING_DEBUG, VecDeque::string_debug)?;
+    module.associated_function("extend", VecDeque::extend)?;
+    module.associated_function("insert", VecDeque::insert)?;
+    module.associated_function("iter", VecDeque::iter)?;
+    module.associated_function("len", VecDeque::len)?;
+    module.associated_function("pop_back", VecDeque::pop_back)?;
+    module.associated_function("pop_front", VecDeque::pop_front)?;
+    module.associated_function("push_back", VecDeque::push_back)?;
+    module.associated_function("push_front", VecDeque::push_front)?;
+    module.associated_function("remove", VecDeque::remove)?;
+    module.associated_function("reserve", VecDeque::reserve)?;
+    module.associated_function("rotate_left", VecDeque::rotate_left)?;
+    module.associated_function("rotate_right", VecDeque::rotate_right)?;
+    module.associated_function(Protocol::INDEX_GET, VecDeque::get)?;
+    module.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
+    module.associated_function(Protocol::INTO_ITER, VecDeque::iter)?;
+    module.associated_function(Protocol::STRING_DEBUG, VecDeque::string_debug)?;
     Ok(())
 }
 

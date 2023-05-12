@@ -77,8 +77,8 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(RequestBuilder::header)?;
     module.function_meta(RequestBuilder::body_bytes)?;
 
-    module.inst_fn(Protocol::STRING_DISPLAY, Error::display)?;
-    module.inst_fn(Protocol::STRING_DISPLAY, StatusCode::display)?;
+    module.associated_function(Protocol::STRING_DISPLAY, Error::display)?;
+    module.associated_function(Protocol::STRING_DISPLAY, StatusCode::display)?;
     Ok(module)
 }
 

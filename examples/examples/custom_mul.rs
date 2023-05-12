@@ -52,6 +52,6 @@ fn main() -> rune::Result<()> {
 fn module() -> Result<Module, ContextError> {
     let mut m = Module::with_item(["module"]);
     m.ty::<Foo>()?;
-    m.inst_fn(Protocol::MUL, Foo::mul)?;
+    m.associated_function(Protocol::MUL, Foo::mul)?;
     Ok(m)
 }

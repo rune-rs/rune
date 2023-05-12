@@ -18,12 +18,12 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(Bytes::__pop__meta)?;
     module.function_meta(Bytes::__last__meta)?;
 
-    module.inst_fn("len", Bytes::len)?;
-    module.inst_fn("capacity", Bytes::capacity)?;
-    module.inst_fn("clear", Bytes::clear)?;
-    module.inst_fn("reserve", Bytes::reserve)?;
-    module.inst_fn("reserve_exact", Bytes::reserve_exact)?;
-    module.inst_fn("clone", Bytes::clone)?;
-    module.inst_fn("shrink_to_fit", Bytes::shrink_to_fit)?;
+    module.associated_function("len", Bytes::len)?;
+    module.associated_function("capacity", Bytes::capacity)?;
+    module.associated_function("clear", Bytes::clear)?;
+    module.associated_function("reserve", Bytes::reserve)?;
+    module.associated_function("reserve_exact", Bytes::reserve_exact)?;
+    module.associated_function("clone", Bytes::clone)?;
+    module.associated_function("shrink_to_fit", Bytes::shrink_to_fit)?;
     Ok(module)
 }

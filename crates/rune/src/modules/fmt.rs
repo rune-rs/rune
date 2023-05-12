@@ -15,7 +15,7 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["fmt"]).with_unique("std::fmt");
     module.ty::<fmt::Error>()?;
-    module.inst_fn(Protocol::STRING_DISPLAY, format_fmt_error)?;
+    module.associated_function(Protocol::STRING_DISPLAY, format_fmt_error)?;
     module.macro_meta(format)?;
 
     module.ty::<Format>()?;

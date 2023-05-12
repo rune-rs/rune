@@ -529,7 +529,7 @@ impl Context {
         }
 
         self.constants.insert(
-            Hash::instance_function(ty.hash, Protocol::INTO_TYPE_NAME),
+            Hash::associated_function(ty.hash, Protocol::INTO_TYPE_NAME),
             ConstValue::String(ty.item.to_string()),
         );
 
@@ -556,7 +556,7 @@ impl Context {
         let hash = Hash::type_hash(&item);
 
         self.constants.insert(
-            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
             ConstValue::String(item.to_string()),
         );
 
@@ -679,7 +679,7 @@ impl Context {
                 .with_function_parameters(assoc.name.function_parameters);
 
             self.constants.insert(
-                Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+                Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
                 ConstValue::String(item.to_string()),
             );
 
@@ -758,7 +758,7 @@ impl Context {
         })?;
 
         self.constants.insert(
-            Hash::instance_function(hash, Protocol::INTO_TYPE_NAME),
+            Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
             ConstValue::String(item.to_string()),
         );
 

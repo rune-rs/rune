@@ -11,18 +11,18 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate_item("std", ["option"]);
     module.option(["Option"])?;
     // Sorted for ease of finding
-    module.inst_fn("and_then", and_then_impl)?;
-    module.inst_fn("expect", expect_impl)?;
-    module.inst_fn("is_none", Option::<Value>::is_none)?;
-    module.inst_fn("is_some", Option::<Value>::is_some)?;
-    module.inst_fn("iter", option_iter)?;
-    module.inst_fn("map", map_impl)?;
-    module.inst_fn("take", take_impl)?;
-    module.inst_fn("transpose", transpose_impl)?;
-    module.inst_fn("unwrap", unwrap_impl)?;
-    module.inst_fn("unwrap_or", Option::<Value>::unwrap_or)?;
+    module.associated_function("and_then", and_then_impl)?;
+    module.associated_function("expect", expect_impl)?;
+    module.associated_function("is_none", Option::<Value>::is_none)?;
+    module.associated_function("is_some", Option::<Value>::is_some)?;
+    module.associated_function("iter", option_iter)?;
+    module.associated_function("map", map_impl)?;
+    module.associated_function("take", take_impl)?;
+    module.associated_function("transpose", transpose_impl)?;
+    module.associated_function("unwrap", unwrap_impl)?;
+    module.associated_function("unwrap_or", Option::<Value>::unwrap_or)?;
     module.function_meta(unwrap_or_else)?;
-    module.inst_fn(Protocol::INTO_ITER, option_iter)?;
+    module.associated_function(Protocol::INTO_ITER, option_iter)?;
     Ok(module)
 }
 

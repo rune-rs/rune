@@ -488,7 +488,7 @@ impl Vm {
         // Safety: We hold onto the guard for the duration of this call.
         let _guard = unsafe { vm_try!(args.unsafe_into_stack(&mut self.stack)) };
 
-        let hash = Hash::instance_function(type_hash, hash.to_type_hash());
+        let hash = Hash::associated_function(type_hash, hash.to_type_hash());
 
         if let Some(UnitFn::Offset {
             offset,
@@ -527,7 +527,7 @@ impl Vm {
     {
         let count = args.count();
         let full_count = count + 1;
-        let hash = Hash::field_fn(protocol, vm_try!(target.type_hash()), name);
+        let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
 
         self.stack.push(target);
         vm_try!(args.into_stack(&mut self.stack));
@@ -557,7 +557,7 @@ impl Vm {
     {
         let count = args.count();
         let full_count = count + 1;
-        let hash = Hash::index_fn(protocol, vm_try!(target.type_hash()), Hash::index(index));
+        let hash = Hash::index_function(protocol, vm_try!(target.type_hash()), Hash::index(index));
 
         self.stack.push(target);
         vm_try!(args.into_stack(&mut self.stack));
@@ -2025,7 +2025,7 @@ impl Vm {
     fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmError> {
         let instance = self.stack.pop()?;
         let ty = instance.type_hash()?;
-        let hash = Hash::instance_function(ty, hash);
+        let hash = Hash::associated_function(ty, hash);
         self.stack.push(Value::Type(Type::new(hash)));
         Ok(())
     }
@@ -2759,7 +2759,7 @@ impl Vm {
         let args = args + 1;
         let instance = vm_try!(self.stack.at_offset_from_top(args));
         let type_hash = vm_try!(instance.type_hash());
-        let hash = Hash::instance_function(type_hash, hash);
+        let hash = Hash::associated_function(type_hash, hash);
 
         if let Some(UnitFn::Offset {
             offset,

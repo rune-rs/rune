@@ -19,33 +19,33 @@ pub fn module() -> Result<Module, ContextError> {
     module.function(["String", "new"], String::new)?;
     module.function(["String", "with_capacity"], String::with_capacity)?;
 
-    module.inst_fn("cmp", str::cmp)?;
-    module.inst_fn("len", String::len)?;
-    module.inst_fn("starts_with", str::starts_with::<&str>)?;
-    module.inst_fn("ends_with", str::ends_with::<&str>)?;
-    module.inst_fn("capacity", String::capacity)?;
-    module.inst_fn("clear", String::clear)?;
-    module.inst_fn("contains", str::contains::<&str>)?;
-    module.inst_fn("push", String::push)?;
-    module.inst_fn("push_str", String::push_str)?;
-    module.inst_fn("reserve", String::reserve)?;
-    module.inst_fn("reserve_exact", String::reserve_exact)?;
-    module.inst_fn("into_bytes", into_bytes)?;
-    module.inst_fn("clone", String::clone)?;
-    module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
-    module.inst_fn("char_at", char_at)?;
-    module.inst_fn("split", string_split)?;
-    module.inst_fn("trim", string_trim)?;
-    module.inst_fn("trim_end", string_trim_end)?;
-    module.inst_fn("replace", str::replace::<&str>)?;
+    module.associated_function("cmp", str::cmp)?;
+    module.associated_function("len", String::len)?;
+    module.associated_function("starts_with", str::starts_with::<&str>)?;
+    module.associated_function("ends_with", str::ends_with::<&str>)?;
+    module.associated_function("capacity", String::capacity)?;
+    module.associated_function("clear", String::clear)?;
+    module.associated_function("contains", str::contains::<&str>)?;
+    module.associated_function("push", String::push)?;
+    module.associated_function("push_str", String::push_str)?;
+    module.associated_function("reserve", String::reserve)?;
+    module.associated_function("reserve_exact", String::reserve_exact)?;
+    module.associated_function("into_bytes", into_bytes)?;
+    module.associated_function("clone", String::clone)?;
+    module.associated_function("shrink_to_fit", String::shrink_to_fit)?;
+    module.associated_function("char_at", char_at)?;
+    module.associated_function("split", string_split)?;
+    module.associated_function("trim", string_trim)?;
+    module.associated_function("trim_end", string_trim_end)?;
+    module.associated_function("replace", str::replace::<&str>)?;
     // TODO: deprecate this variant.
-    module.inst_fn("split_str", string_split)?;
-    module.inst_fn("is_empty", str::is_empty)?;
-    module.inst_fn("chars", string_chars)?;
-    module.inst_fn(Protocol::ADD, add)?;
-    module.inst_fn(Protocol::ADD_ASSIGN, String::push_str)?;
-    module.inst_fn(Protocol::INDEX_GET, string_index_get)?;
-    module.inst_fn("get", string_get)?;
+    module.associated_function("split_str", string_split)?;
+    module.associated_function("is_empty", str::is_empty)?;
+    module.associated_function("chars", string_chars)?;
+    module.associated_function(Protocol::ADD, add)?;
+    module.associated_function(Protocol::ADD_ASSIGN, String::push_str)?;
+    module.associated_function(Protocol::INDEX_GET, string_index_get)?;
+    module.associated_function("get", string_get)?;
 
     // TODO: parameterize once generics are available.
     module.function(["parse_int"], parse_int)?;
@@ -64,7 +64,7 @@ impl NotCharBoundary {
     }
 
     fn install(m: &mut Module) -> Result<(), ContextError> {
-        m.inst_fn(Protocol::STRING_DISPLAY, Self::string_display)?;
+        m.associated_function(Protocol::STRING_DISPLAY, Self::string_display)?;
         Ok(())
     }
 }

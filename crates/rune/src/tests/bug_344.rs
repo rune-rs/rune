@@ -44,12 +44,12 @@ fn bug_344_inst_fn() -> Result<()> {
     let mut module = Module::new();
 
     module.ty::<GuardCheck>()?;
-    module.inst_fn("function", function)?;
+    module.associated_function("function", function)?;
 
     context.install(module)?;
     let runtime = context.runtime();
 
-    let hash = Hash::instance_function(<GuardCheck as Any>::type_hash(), "function");
+    let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
 
     let function = runtime.function(hash).expect("expect function");
 
@@ -73,7 +73,7 @@ fn bug_344_async_function() -> Result<()> {
     let mut context = Context::new();
     let mut module = Module::new();
 
-    module.async_function(["function"], function)?;
+    module.function(["function"], function)?;
 
     context.install(module)?;
     let runtime = context.runtime();
@@ -107,12 +107,12 @@ fn bug_344_async_inst_fn() -> Result<()> {
     let mut module = Module::new();
 
     module.ty::<GuardCheck>()?;
-    module.async_inst_fn("function", function)?;
+    module.associated_function("function", function)?;
 
     context.install(module)?;
     let runtime = context.runtime();
 
-    let hash = Hash::instance_function(<GuardCheck as Any>::type_hash(), "function");
+    let hash = Hash::associated_function(<GuardCheck as Any>::type_hash(), "function");
 
     let function = runtime.function(hash).expect("expect function");
 

@@ -22,16 +22,14 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty::<ParseFloatError>()?;
     module.function(["parse"], parse)?;
-    module.inst_fn("max", f64::max)?;
-    module.inst_fn("min", f64::min)?;
+    module.associated_function("max", f64::max)?;
+    module.associated_function("min", f64::min)?;
     #[cfg(feature = "std")]
-    module.inst_fn("abs", f64::abs)?;
+    module.associated_function("abs", f64::abs)?;
     #[cfg(feature = "std")]
-    module.inst_fn("powf", f64::powf)?;
+    module.associated_function("powf", f64::powf)?;
     #[cfg(feature = "std")]
-    module.inst_fn("powi", f64::powi)?;
-
-    module.inst_fn("to_integer", to_integer)?;
-
+    module.associated_function("powi", f64::powi)?;
+    module.associated_function("to_integer", to_integer)?;
     Ok(module)
 }

@@ -567,7 +567,7 @@ impl Value {
     /// a name without the use of a [`Vm`] and one is not provided through the
     /// environment.
     pub fn into_type_name(self) -> VmResult<String> {
-        let hash = Hash::instance_function(vm_try!(self.type_hash()), Protocol::INTO_TYPE_NAME);
+        let hash = Hash::associated_function(vm_try!(self.type_hash()), Protocol::INTO_TYPE_NAME);
 
         crate::runtime::env::with(|context, unit| {
             if let Some(name) = context.constant(hash) {

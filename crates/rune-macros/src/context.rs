@@ -177,11 +177,11 @@ impl Context {
                         GenerateTarget::Named { field_ident, field_name } => {
                             if let Some(custom) = &protocol.custom {
                                 quote_spanned! { field.span() =>
-                                    module.field_fn(#protocol_field, #field_name, #custom)?;
+                                    module.field_function(#protocol_field, #field_name, #custom)?;
                                 }
                             } else {
                                 quote_spanned! { field.span() =>
-                                    module.field_fn(#protocol_field, #field_name, |s: &mut Self, value: #ty| {
+                                    module.field_function(#protocol_field, #field_name, |s: &mut Self, value: #ty| {
                                         s.#field_ident $op value;
                                     })?;
                                 }
@@ -190,11 +190,11 @@ impl Context {
                         GenerateTarget::Numbered { field_index } => {
                             if let Some(custom) = &protocol.custom {
                                 quote_spanned! { field.span() =>
-                                    module.index_fn(#protocol_field, #field_index, #custom)?;
+                                    module.index_function(#protocol_field, #field_index, #custom)?;
                                 }
                             } else {
                                 quote_spanned! { field.span() =>
-                                    module.index_fn(#protocol_field, #field_index, |s: &mut Self, value: #ty| {
+                                    module.index_function(#protocol_field, #field_index, |s: &mut Self, value: #ty| {
                                         s.#field_index $op value;
                                     })?;
                                 }
@@ -271,7 +271,7 @@ impl Context {
                                     let protocol = g.tokens.protocol(PROTOCOL_GET);
 
                                     quote_spanned! { g.field.span() =>
-                                        module.field_fn(#protocol, #field_name, |s: &Self| #access)?;
+                                        module.field_function(#protocol, #field_name, |s: &Self| #access)?;
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
@@ -284,7 +284,7 @@ impl Context {
                                     let protocol = g.tokens.protocol(PROTOCOL_GET);
 
                                     quote_spanned! { g.field.span() =>
-                                        module.index_fn(#protocol, #field_index, |s: &Self| #access)?;
+                                        module.index_function(#protocol, #field_index, |s: &Self| #access)?;
                                     }
                                 }
                             }
@@ -305,14 +305,14 @@ impl Context {
                             match target {
                                 GenerateTarget::Named { field_ident, field_name } => {
                                     quote_spanned! { g.field.span() =>
-                                        module.field_fn(#protocol, #field_name, |s: &mut Self, value: #ty| {
+                                        module.field_function(#protocol, #field_name, |s: &mut Self, value: #ty| {
                                             s.#field_ident = value;
                                         })?;
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
                                     quote_spanned! { g.field.span() =>
-                                        module.index_fn(#protocol, #field_index, |s: &mut Self, value: #ty| {
+                                        module.index_function(#protocol, #field_index, |s: &mut Self, value: #ty| {
                                             s.#field_index = value;
                                         })?;
                                     }
@@ -436,11 +436,11 @@ impl Context {
                     } else if meta.path == MODULE {
                         // Parse `#[rune(module = <path>)]`
                         meta.input.parse::<Token![=]>()?;
-                        attr.module = Some(syn::Path::parse_mod_style(meta.input)?);
+                        attr.module = Some(parse_path_compat(meta.input)?);
                     } else if meta.path == INSTALL_WITH {
                         // Parse `#[rune(install_with = <path>)]`
                         meta.input.parse::<Token![=]>()?;
-                        attr.install_with = Some(syn::Path::parse_mod_style(meta.input)?);
+                        attr.install_with = Some(parse_path_compat(meta.input)?);
                     } else {
                         return Err(syn::Error::new_spanned(
                             &meta.path,
@@ -518,7 +518,7 @@ impl Context {
         };
 
         input.parse::<Token![=]>()?;
-        Ok(Some(syn::Path::parse_mod_style(input)?))
+        Ok(Some(parse_path_compat(input)?))
     }
 
     /// Build an inner spanned decoder from an iterator.
@@ -704,6 +704,24 @@ impl Context {
             vm_result: path(m, ["runtime", "VmResult"]),
         }
     }
+}
+
+fn parse_path_compat(input: ParseStream<'_>) -> syn::Result<syn::Path> {
+    if input.peek(syn::LitStr) {
+        let path = input
+            .parse::<syn::LitStr>()?
+            .parse_with(syn::Path::parse_mod_style)?;
+
+        return Err(syn::Error::new_spanned(
+            &path,
+            format_args!(
+                "String literals are no longer supported here, use a path like `{}`",
+                path.to_token_stream()
+            ),
+        ));
+    }
+
+    syn::Path::parse_mod_style(input)
 }
 
 fn path<const N: usize>(base: &syn::Path, path: [&'static str; N]) -> syn::Path {

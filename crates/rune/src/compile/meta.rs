@@ -343,14 +343,14 @@ impl AssociatedKind {
     /// Convert the kind into a hash function.
     pub(crate) fn hash(&self, instance_type: Hash) -> Hash {
         match self {
-            Self::Protocol(protocol) => Hash::instance_function(instance_type, protocol.hash),
+            Self::Protocol(protocol) => Hash::associated_function(instance_type, protocol.hash),
             Self::IndexFn(protocol, index) => {
-                Hash::index_fn(*protocol, instance_type, Hash::index(*index))
+                Hash::index_function(*protocol, instance_type, Hash::index(*index))
             }
             Self::FieldFn(protocol, field) => {
-                Hash::field_fn(*protocol, instance_type, field.as_ref())
+                Hash::field_function(*protocol, instance_type, field.as_ref())
             }
-            Self::Instance(name) => Hash::instance_function(instance_type, name.as_ref()),
+            Self::Instance(name) => Hash::associated_function(instance_type, name.as_ref()),
         }
     }
 }

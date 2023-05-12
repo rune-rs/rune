@@ -11,21 +11,21 @@ pub(super) fn setup(module: &mut Module) -> Result<(), ContextError> {
     module.ty::<HashSet>()?;
     module.function(["HashSet", "new"], HashSet::new)?;
     module.function(["HashSet", "from"], hashset_from)?;
-    module.inst_fn("clear", HashSet::clear)?;
-    module.inst_fn("clone", HashSet::clone)?;
-    module.inst_fn("contains", HashSet::contains)?;
-    module.inst_fn("difference", HashSet::difference)?;
-    module.inst_fn("extend", HashSet::extend)?;
-    module.inst_fn("insert", HashSet::insert)?;
-    module.inst_fn("intersection", HashSet::intersection)?;
-    module.inst_fn("is_empty", HashSet::is_empty)?;
-    module.inst_fn("iter", HashSet::iter)?;
-    module.inst_fn("len", HashSet::len)?;
-    module.inst_fn("remove", HashSet::remove)?;
-    module.inst_fn("union", HashSet::union)?;
-    module.inst_fn(Protocol::INTO_ITER, HashSet::iter)?;
-    module.inst_fn(Protocol::STRING_DEBUG, HashSet::string_debug)?;
-    module.inst_fn(Protocol::EQ, HashSet::eq)?;
+    module.associated_function("clear", HashSet::clear)?;
+    module.associated_function("clone", HashSet::clone)?;
+    module.associated_function("contains", HashSet::contains)?;
+    module.associated_function("difference", HashSet::difference)?;
+    module.associated_function("extend", HashSet::extend)?;
+    module.associated_function("insert", HashSet::insert)?;
+    module.associated_function("intersection", HashSet::intersection)?;
+    module.associated_function("is_empty", HashSet::is_empty)?;
+    module.associated_function("iter", HashSet::iter)?;
+    module.associated_function("len", HashSet::len)?;
+    module.associated_function("remove", HashSet::remove)?;
+    module.associated_function("union", HashSet::union)?;
+    module.associated_function(Protocol::INTO_ITER, HashSet::iter)?;
+    module.associated_function(Protocol::STRING_DEBUG, HashSet::string_debug)?;
+    module.associated_function(Protocol::EQ, HashSet::eq)?;
     Ok(())
 }
 

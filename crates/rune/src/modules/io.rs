@@ -33,7 +33,7 @@ pub fn module(stdio: bool) -> Result<Module, ContextError> {
     ]);
 
     module.ty::<io::Error>()?;
-    module.inst_fn(Protocol::STRING_DISPLAY, format_io_error)?;
+    module.associated_function(Protocol::STRING_DISPLAY, format_io_error)?;
 
     if stdio {
         module.function_meta(print_impl)?;

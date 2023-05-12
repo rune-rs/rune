@@ -23,7 +23,7 @@ pub(crate) use self::function_meta::{AssociatedFunctionName, ToFieldFunction, To
 
 #[doc(hidden)]
 pub use self::function_meta::{FunctionMetaData, FunctionMetaKind, MacroMetaData, MacroMetaKind};
-pub use self::function_traits::{AsyncFunction, AsyncInstFn, Function, InstFn};
+pub use self::function_traits::{Async, Function, FunctionKind, InstanceFunction, Plain};
 #[doc(hidden)]
 pub use self::module::Module;
 
@@ -83,7 +83,7 @@ impl InternalEnum {
         constructor: C,
     ) -> ItemMut<'_>
     where
-        C: Function<A>,
+        C: Function<A, Plain>,
     {
         let constructor: Arc<FunctionHandler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
@@ -242,9 +242,7 @@ pub(crate) struct ModuleConstant {
 /// This is returned by methods which insert meta items, such as:
 /// * [`Module::raw_fn`].
 /// * [`Module::function`].
-/// * [`Module::async_function`].
-/// * [`Module::inst_fn`].
-/// * [`Module::async_inst_fn`].
+/// * [`Module::associated_function`].
 ///
 /// While this is also returned by `*_meta` inserting functions, it is instead
 /// recommended that you make use of the appropriate macro to capture doc
@@ -331,7 +329,7 @@ where
     /// Register a constructor method for the current variant.
     pub fn constructor<F, A>(self, constructor: F) -> Result<Self, ContextError>
     where
-        F: Function<A, Return = T>,
+        F: Function<A, Plain, Return = T>,
     {
         if self.constructor.is_some() {
             return Err(ContextError::VariantConstructorConflict {

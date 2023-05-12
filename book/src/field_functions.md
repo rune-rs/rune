@@ -48,7 +48,7 @@ are:
 | [`Protocol::SHR_ASSIGN`] | `#[rune(shr_assign)]` | The `>>=` operation. |
 | [`Protocol::REM_ASSIGN`] | `#[rune(rem_assign)]` | The `%=` operation. |
 
-The manual way to register these functions is to use the new `Module::field_fn`
+The manual way to register these functions is to use the new `Module::field_function`
 function. This clearly showcases that there's no relationship between the field
 used and the function registered:
 
@@ -67,7 +67,7 @@ impl External {
 }
 
 let mut module = Module::new();
-module.field_fn(Protocol::GET, "field", External::field_get)?;
+module.field_function(Protocol::GET, "field", External::field_get)?;
 ```
 
 Would allow for this in Rune:

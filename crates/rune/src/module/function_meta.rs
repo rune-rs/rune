@@ -1,5 +1,4 @@
-#[cfg(feature = "doc")]
-use core::future::Future;
+use core::marker::PhantomData;
 
 use crate::no_std::borrow::Cow;
 use crate::no_std::prelude::*;
@@ -8,7 +7,7 @@ use crate::no_std::sync::Arc;
 use crate::compile::{self, meta, IntoComponent, ItemBuf, Named};
 use crate::hash::Hash;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::{AssociatedKey, AsyncFunction, AsyncInstFn, Function, InstFn};
+use crate::module::{AssociatedKey, Function, FunctionKind, InstanceFunction};
 use crate::runtime::{
     FullTypeOf, FunctionHandler, MacroHandler, MaybeTypeOf, Protocol, TypeInfo, TypeOf,
 };
@@ -49,10 +48,10 @@ pub type MacroMeta = fn() -> MacroMetaData;
 /// Runtime data for a function.
 #[derive(Clone)]
 pub struct FunctionData {
-    #[cfg(feature = "doc")]
-    pub(crate) is_async: bool,
     pub(crate) item: ItemBuf,
     pub(crate) handler: Arc<FunctionHandler>,
+    #[cfg(feature = "doc")]
+    pub(crate) is_async: bool,
     #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
@@ -63,54 +62,26 @@ pub struct FunctionData {
 
 impl FunctionData {
     #[inline]
-    pub(crate) fn new<F, A, N>(name: N, f: F) -> Self
+    pub(crate) fn new<F, A, N, K>(name: N, f: F) -> Self
     where
-        F: Function<A>,
+        F: Function<A, K>,
         F::Return: MaybeTypeOf,
         N: IntoIterator,
         N::Item: IntoComponent,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
+        K: FunctionKind,
     {
-        let mut argument_types = Vec::with_capacity(A::len());
-        A::iter_args(|ty| argument_types.push(ty));
-
         Self {
-            #[cfg(feature = "doc")]
-            is_async: false,
             item: ItemBuf::with_item(name),
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            #[cfg(feature = "doc")]
+            is_async: K::is_async(),
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
-            argument_types: argument_types.into(),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn new_async<F, A, N>(name: N, f: F) -> Self
-    where
-        F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
-        N: IntoIterator,
-        N::Item: IntoComponent,
-        A: IterFunctionArgs,
-    {
-        let mut argument_types = Vec::with_capacity(A::len());
-        A::iter_args(|ty| argument_types.push(ty));
-
-        Self {
-            #[cfg(feature = "doc")]
-            is_async: true,
-            item: ItemBuf::with_item(name),
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            #[cfg(feature = "doc")]
-            args: Some(F::args()),
-            #[cfg(feature = "doc")]
-            return_type: F::Output::maybe_type_of(),
-            #[cfg(feature = "doc")]
-            argument_types: argument_types.into(),
+            argument_types: A::into_box(),
         }
     }
 }
@@ -204,12 +175,12 @@ impl ToFieldFunction for &'static str {
 /// Runtime data for an associated function.
 #[derive(Clone)]
 pub struct AssociatedFunctionData {
+    pub(crate) name: AssociatedFunctionName,
+    pub(crate) handler: Arc<FunctionHandler>,
     pub(crate) container: FullTypeOf,
     pub(crate) container_type_info: TypeInfo,
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
-    pub(crate) name: AssociatedFunctionName,
-    pub(crate) handler: Arc<FunctionHandler>,
     #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
     #[cfg(feature = "doc")]
@@ -220,108 +191,26 @@ pub struct AssociatedFunctionData {
 
 impl AssociatedFunctionData {
     #[inline]
-    pub(crate) fn new<F, A>(name: AssociatedFunctionName, f: F) -> Self
+    pub(crate) fn new<F, A, K>(name: AssociatedFunctionName, f: F) -> Self
     where
-        F: InstFn<A>,
+        F: InstanceFunction<A, K>,
         F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
+        K: FunctionKind,
     {
-        let mut argument_types = Vec::with_capacity(A::len());
-        A::iter_args(|ty| argument_types.push(ty));
-
         Self {
-            container: F::Inst::type_of(),
-            container_type_info: F::Inst::type_info(),
-            #[cfg(feature = "doc")]
-            is_async: false,
             name,
             handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+            container: F::Instance::type_of(),
+            container_type_info: F::Instance::type_info(),
+            #[cfg(feature = "doc")]
+            is_async: K::is_async(),
             #[cfg(feature = "doc")]
             args: Some(F::args()),
             #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of(),
             #[cfg(feature = "doc")]
-            argument_types: argument_types.into(),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn new_with<T, F, A>(name: AssociatedFunctionName, f: F) -> Self
-    where
-        T: TypeOf + Named,
-        F: Function<A>,
-        F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
-    {
-        let mut argument_types = Vec::with_capacity(A::len());
-        A::iter_args(|ty| argument_types.push(ty));
-
-        Self {
-            container: T::type_of(),
-            container_type_info: T::type_info(),
-            #[cfg(feature = "doc")]
-            is_async: false,
-            name,
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            #[cfg(feature = "doc")]
-            args: Some(F::args()),
-            #[cfg(feature = "doc")]
-            return_type: F::Return::maybe_type_of(),
-            #[cfg(feature = "doc")]
-            argument_types: argument_types.into(),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn new_async<F, A>(name: AssociatedFunctionName, f: F) -> Self
-    where
-        F: AsyncInstFn<A>,
-        F::Output: MaybeTypeOf,
-        A: IterFunctionArgs,
-    {
-        let mut argument_types = Vec::with_capacity(A::len());
-        A::iter_args(|ty| argument_types.push(ty));
-
-        Self {
-            container: F::Inst::type_of(),
-            container_type_info: F::Inst::type_info(),
-            #[cfg(feature = "doc")]
-            is_async: true,
-            name,
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            #[cfg(feature = "doc")]
-            args: Some(F::args()),
-            #[cfg(feature = "doc")]
-            return_type: <F::Return as Future>::Output::maybe_type_of(),
-            #[cfg(feature = "doc")]
-            argument_types: argument_types.into(),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn new_async_with<T, F, A>(name: AssociatedFunctionName, f: F) -> Self
-    where
-        T: TypeOf + Named,
-        F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
-        A: IterFunctionArgs,
-    {
-        let mut argument_types = Vec::with_capacity(A::len());
-        A::iter_args(|ty| argument_types.push(ty));
-
-        Self {
-            container: T::type_of(),
-            container_type_info: T::type_info(),
-            #[cfg(feature = "doc")]
-            is_async: true,
-            name,
-            handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
-            #[cfg(feature = "doc")]
-            args: Some(F::args()),
-            #[cfg(feature = "doc")]
-            return_type: <F::Return as Future>::Output::maybe_type_of(),
-            #[cfg(feature = "doc")]
-            argument_types: argument_types.into(),
+            argument_types: A::into_box(),
         }
     }
 
@@ -351,84 +240,79 @@ pub enum FunctionMetaKind {
 impl FunctionMetaKind {
     #[doc(hidden)]
     #[inline]
-    pub fn function<N, F, A>(name: N, f: F) -> Self
+    pub fn function<N, F, A, K>(name: N, f: F) -> FunctionBuilder<N, F, A, K>
     where
-        N: IntoIterator,
-        N::Item: IntoComponent,
-        F: Function<A>,
+        F: Function<A, K>,
         F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
+        K: FunctionKind,
     {
-        Self::Function(FunctionData::new(name, f))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn function_with<T, N, F, A>(name: N, f: F) -> Self
-    where
-        T: TypeOf + Named,
-        N: ToInstance,
-        F: Function<A>,
-        F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
-    {
-        Self::AssociatedFunction(AssociatedFunctionData::new_with::<T, _, _>(
-            name.to_instance(),
+        FunctionBuilder {
+            name,
             f,
-        ))
+            _marker: PhantomData,
+        }
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn async_function<N, F, A>(name: N, f: F) -> Self
-    where
-        N: IntoIterator,
-        N::Item: IntoComponent,
-        F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
-        A: IterFunctionArgs,
-    {
-        Self::Function(FunctionData::new_async(name, f))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn async_function_with<T, N, F, A>(name: N, f: F) -> Self
-    where
-        T: TypeOf + Named,
-        N: ToInstance,
-        F: AsyncFunction<A>,
-        F::Output: MaybeTypeOf,
-        A: IterFunctionArgs,
-    {
-        Self::AssociatedFunction(AssociatedFunctionData::new_async_with::<T, _, _>(
-            name.to_instance(),
-            f,
-        ))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn instance<N, F, A>(name: N, f: F) -> Self
+    pub fn instance<N, F, A, K>(name: N, f: F) -> Self
     where
         N: ToInstance,
-        F: InstFn<A>,
+        F: InstanceFunction<A, K>,
         F::Return: MaybeTypeOf,
-        A: IterFunctionArgs,
+        A: FunctionArgs,
+        K: FunctionKind,
     {
         Self::AssociatedFunction(AssociatedFunctionData::new(name.to_instance(), f))
     }
+}
+
+#[doc(hidden)]
+pub struct FunctionBuilder<N, F, A, K> {
+    name: N,
+    f: F,
+    _marker: PhantomData<(A, K)>,
+}
+
+impl<N, F, A, K> FunctionBuilder<N, F, A, K>
+where
+    F: Function<A, K>,
+    F::Return: MaybeTypeOf,
+    A: FunctionArgs,
+    K: FunctionKind,
+{
+    #[doc(hidden)]
+    #[inline]
+    pub fn build(self) -> FunctionMetaKind
+    where
+        N: IntoIterator,
+        N::Item: IntoComponent,
+    {
+        FunctionMetaKind::Function(FunctionData::new(self.name, self.f))
+    }
 
     #[doc(hidden)]
     #[inline]
-    pub fn async_instance<N, F, A>(name: N, f: F) -> Self
+    pub fn build_associated<T>(self) -> FunctionMetaKind
     where
         N: ToInstance,
-        F: AsyncInstFn<A>,
-        F::Output: MaybeTypeOf,
-        A: IterFunctionArgs,
+        T: TypeOf + Named,
     {
-        Self::AssociatedFunction(AssociatedFunctionData::new_async(name.to_instance(), f))
+        FunctionMetaKind::AssociatedFunction(AssociatedFunctionData {
+            name: self.name.to_instance(),
+            handler: Arc::new(move |stack, args| self.f.fn_call(stack, args)),
+            container: T::type_of(),
+            container_type_info: T::type_info(),
+            #[cfg(feature = "doc")]
+            is_async: K::is_async(),
+            #[cfg(feature = "doc")]
+            args: Some(F::args()),
+            #[cfg(feature = "doc")]
+            return_type: F::Return::maybe_type_of(),
+            #[cfg(feature = "doc")]
+            argument_types: A::into_box(),
+        })
     }
 }
 
@@ -493,32 +377,21 @@ pub struct FunctionMetaData {
 
 /// Trait implement allowing the collection of function argument types.
 #[doc(hidden)]
-pub trait IterFunctionArgs {
-    /// The number of arguments being passed in.
-    fn len() -> usize;
-
-    /// Iterate over arguments providing their full type information in the
-    /// process.
+pub trait FunctionArgs {
     #[doc(hidden)]
-    fn iter_args<Receiver>(receiver: Receiver)
-    where
-        Receiver: FnMut(Option<FullTypeOf>);
+    fn into_box() -> Box<[Option<FullTypeOf>]>;
 }
 
 macro_rules! iter_function_args {
     ($count:expr $(, $ty:ident $var:ident $num:expr)*) => {
-        impl<$($ty,)*> IterFunctionArgs for ($($ty,)*)
+        impl<$($ty,)*> FunctionArgs for ($($ty,)*)
         where
             $($ty: MaybeTypeOf,)*
         {
             #[inline]
-            fn len() -> usize {
-                $count
-            }
-
-            #[inline]
-            fn iter_args<Receiver>(#[allow(unused)] mut receiver: Receiver) where Receiver: FnMut(Option<FullTypeOf>) {
-                $(receiver(<$ty>::maybe_type_of());)*
+            #[doc(hidden)]
+            fn into_box() -> Box<[Option<FullTypeOf>]> {
+                vec![$(<$ty>::maybe_type_of(),)*].into()
             }
         }
     }
