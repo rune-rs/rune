@@ -643,7 +643,6 @@ impl<'a> Query<'a> {
         let meta = meta::Meta {
             context: true,
             hash: meta.hash,
-            associated_container: meta.associated_container,
             item_meta: ItemMeta {
                 id: Default::default(),
                 location: Default::default(),
@@ -1053,7 +1052,6 @@ impl<'a> Query<'a> {
         let meta = meta::Meta {
             context: false,
             hash: self.pool.item_type_hash(entry.item_meta.item),
-            associated_container: None,
             item_meta: entry.item_meta,
             kind: meta::Kind::Import(import),
             source: None,
@@ -1073,44 +1071,31 @@ impl<'a> Query<'a> {
     ) -> compile::Result<meta::Meta> {
         let IndexedEntry { item_meta, indexed } = entry;
 
-        let (hash, container, kind) = match indexed {
-            Indexed::Enum => {
-                let hash = self.pool.item_type_hash(item_meta.item);
+        let kind = match indexed {
+            Indexed::Enum => meta::Kind::Enum {
+                parameters: Hash::EMPTY,
+            },
+            Indexed::Variant(variant) => {
+                let enum_ = self.item_for((span, variant.enum_id))?;
 
-                let kind = meta::Kind::Enum {
-                    parameters: Hash::EMPTY,
+                // Ensure that the enum is being built and marked as used.
+                let Some(enum_meta) = self.query_meta(span, enum_.item, Default::default())? else {
+                    return Err(compile::Error::msg(span, format_args!("Missing enum by {:?}", variant.enum_id)));
                 };
 
-                (hash, None, kind)
+                meta::Kind::Variant {
+                    enum_hash: enum_meta.hash,
+                    index: variant.index,
+                    fields: convert_fields(resolve_context!(self), variant.ast.body)?,
+                    constructor: None,
+                }
             }
-            Indexed::Variant(variant) => {
-                let enum_item = self.item_for((item_meta.location.span, variant.enum_id))?;
-
-                // Assert that everything is built for the enum.
-                self.query_meta(span, enum_item.item, Default::default())?;
-                let enum_hash = self.pool.item_type_hash(enum_item.item);
-
-                let (hash, kind) = variant_into_item_decl(
-                    self.pool.item(item_meta.item),
-                    variant.ast.body,
-                    Some((enum_hash, variant.index)),
-                    resolve_context!(self),
-                )?;
-
-                (hash, Some(enum_hash), kind)
-            }
-            Indexed::Struct(st) => {
-                let (hash, kind) = struct_into_item_decl(
-                    self.pool.item(item_meta.item),
-                    st.ast.body,
-                    resolve_context!(self),
-                )?;
-
-                (hash, None, kind)
-            }
+            Indexed::Struct(st) => meta::Kind::Struct {
+                fields: convert_fields(resolve_context!(self), st.ast.body)?,
+                constructor: None,
+                parameters: Hash::EMPTY,
+            },
             Indexed::Function(f) => {
-                let hash = self.pool.item_type_hash(item_meta.item);
-
                 let kind = meta::Kind::Function {
                     is_test: f.is_test,
                     is_bench: f.is_bench,
@@ -1133,12 +1118,11 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                (hash, None, kind)
+                kind
             }
             Indexed::InstanceFunction(f) => {
-                let hash = self.pool.item_type_hash(item_meta.item);
-                let container = self.pool.item_type_hash(f.impl_item);
-                let name = Cow::Owned(f.function.ast.name.resolve(resolve_context!(self))?.into());
+                let name: Cow<str> =
+                    Cow::Owned(f.function.ast.name.resolve(resolve_context!(self))?.into());
 
                 let kind = meta::Kind::AssociatedFunction {
                     kind: meta::AssociatedKind::Instance(name),
@@ -1154,6 +1138,8 @@ impl<'a> Query<'a> {
                     },
                     parameters: Hash::EMPTY,
                     #[cfg(feature = "doc")]
+                    container: self.pool.item_type_hash(f.impl_item),
+                    #[cfg(feature = "doc")]
                     parameter_types: Vec::new(),
                 };
 
@@ -1163,7 +1149,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                (hash, Some(container), kind)
+                kind
             }
             Indexed::Closure(c) => {
                 let captures = c.captures.clone();
@@ -1175,11 +1161,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                let hash = self.pool.item_type_hash(item_meta.item);
-
-                let kind = meta::Kind::Closure { captures, do_move };
-
-                (hash, None, kind)
+                meta::Kind::Closure { captures, do_move }
             }
             Indexed::AsyncBlock(b) => {
                 let captures = b.captures.clone();
@@ -1191,11 +1173,7 @@ impl<'a> Query<'a> {
                     used,
                 });
 
-                let hash = self.pool.item_type_hash(item_meta.item);
-
-                let kind = meta::Kind::AsyncBlock { captures, do_move };
-
-                (hash, None, kind)
+                meta::Kind::AsyncBlock { captures, do_move }
             }
             Indexed::Const(c) => {
                 let mut const_compiler = IrInterpreter {
@@ -1216,8 +1194,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, None, meta::Kind::Const { const_value })
+                meta::Kind::Const { const_value }
             }
             Indexed::ConstFn(c) => {
                 let ir_fn = {
@@ -1242,8 +1219,7 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, None, meta::Kind::ConstFn { id: Id::new(id) })
+                meta::Kind::ConstFn { id: Id::new(id) }
             }
             Indexed::Import(import) => {
                 if !import.wildcard {
@@ -1254,14 +1230,9 @@ impl<'a> Query<'a> {
                     });
                 }
 
-                let hash = self.pool.item_type_hash(item_meta.item);
-                let kind = meta::Kind::Import(import.entry);
-                (hash, None, kind)
+                meta::Kind::Import(import.entry)
             }
-            Indexed::Module => {
-                let hash = self.pool.item_type_hash(item_meta.item);
-                (hash, None, meta::Kind::Module)
-            }
+            Indexed::Module => meta::Kind::Module,
         };
 
         let source = SourceMeta {
@@ -1274,12 +1245,10 @@ impl<'a> Query<'a> {
 
         Ok(meta::Meta {
             context: false,
-            hash,
-            associated_container: container,
+            hash: self.pool.item_type_hash(item_meta.item),
             item_meta,
             kind,
             source: Some(source),
-            // NB: generic parameters are not supported in rune yet except for native contexts.
             parameters: Hash::EMPTY,
         })
     }
@@ -1757,111 +1726,21 @@ impl fmt::Display for Named<'_> {
     }
 }
 
-/// Construct metadata for an empty body.
-fn unit_body_meta(item: &Item, enum_item: Option<(Hash, usize)>) -> (Hash, meta::Kind) {
-    let type_hash = Hash::type_hash(item);
-
-    let kind = match enum_item {
-        Some((enum_hash, index)) => meta::Kind::Variant {
-            enum_hash,
-            index,
-            fields: meta::Fields::Empty,
-            constructor: None,
-        },
-        None => meta::Kind::Struct {
-            fields: meta::Fields::Empty,
-            constructor: None,
-            parameters: Hash::EMPTY,
-        },
-    };
-
-    (type_hash, kind)
-}
-
-/// Construct metadata for an empty body.
-fn tuple_body_meta(
-    item: &Item,
-    enum_: Option<(Hash, usize)>,
-    tuple: ast::Parenthesized<ast::Field, T![,]>,
-) -> (Hash, meta::Kind) {
-    let type_hash = Hash::type_hash(item);
-
-    let kind = match enum_ {
-        Some((enum_hash, index)) => meta::Kind::Variant {
-            enum_hash,
-            index,
-            fields: meta::Fields::Unnamed(tuple.len()),
-            constructor: None,
-        },
-        None => meta::Kind::Struct {
-            fields: meta::Fields::Unnamed(tuple.len()),
-            constructor: None,
-            parameters: Hash::EMPTY,
-        },
-    };
-
-    (type_hash, kind)
-}
-
-/// Construct metadata for a struct body.
-fn struct_body_meta(
-    item: &Item,
-    enum_: Option<(Hash, usize)>,
-    ctx: ResolveContext<'_>,
-    st: ast::Braced<ast::Field, T![,]>,
-) -> compile::Result<(Hash, meta::Kind)> {
-    let type_hash = Hash::type_hash(item);
-
-    let mut fields = HashSet::new();
-
-    for (ast::Field { name, .. }, _) in st {
-        let name = name.resolve(ctx)?;
-        fields.insert(name.into());
-    }
-
-    let st = meta::FieldsNamed { fields };
-
-    let kind = match enum_ {
-        Some((enum_hash, index)) => meta::Kind::Variant {
-            enum_hash,
-            index,
-            fields: meta::Fields::Named(st),
-            constructor: None,
-        },
-        None => meta::Kind::Struct {
-            fields: meta::Fields::Named(st),
-            constructor: None,
-            parameters: Hash::EMPTY,
-        },
-    };
-
-    Ok((type_hash, kind))
-}
-
-/// Convert an ast declaration into a struct.
-fn variant_into_item_decl(
-    item: &Item,
-    body: ast::ItemVariantBody,
-    enum_: Option<(Hash, usize)>,
-    ctx: ResolveContext<'_>,
-) -> compile::Result<(Hash, meta::Kind)> {
+/// Convert AST fields into meta fields.
+fn convert_fields(ctx: ResolveContext<'_>, body: ast::Fields) -> compile::Result<meta::Fields> {
     Ok(match body {
-        ast::ItemVariantBody::UnitBody => unit_body_meta(item, enum_),
-        ast::ItemVariantBody::TupleBody(tuple) => tuple_body_meta(item, enum_, tuple),
-        ast::ItemVariantBody::StructBody(st) => struct_body_meta(item, enum_, ctx, st)?,
-    })
-}
+        ast::Fields::Empty => meta::Fields::Empty,
+        ast::Fields::Unnamed(tuple) => meta::Fields::Unnamed(tuple.len()),
+        ast::Fields::Named(st) => {
+            let mut fields = HashSet::new();
 
-/// Convert an ast declaration into a struct.
-fn struct_into_item_decl(
-    item: &Item,
-    body: ast::ItemStructBody,
-    ctx: ResolveContext<'_>,
-) -> compile::Result<(Hash, meta::Kind)> {
-    Ok(match body {
-        ast::ItemStructBody::UnitBody => unit_body_meta(item, None),
-        ast::ItemStructBody::TupleBody(tuple) => tuple_body_meta(item, None, tuple),
-        ast::ItemStructBody::StructBody(st) => struct_body_meta(item, None, ctx, st)?,
+            for (ast::Field { name, .. }, _) in st {
+                let name = name.resolve(ctx)?;
+                fields.insert(name.into());
+            }
+
+            meta::Fields::Named(meta::FieldsNamed { fields })
+        }
     })
 }
 

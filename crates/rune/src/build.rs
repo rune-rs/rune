@@ -91,13 +91,13 @@ struct CompileVisitorGroup<'a> {
 impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
     fn register_meta(&mut self, meta: compile::MetaRef<'_>) {
         for v in self.visitors.iter_mut() {
-            v.register_meta(meta.clone())
+            v.register_meta(meta)
         }
     }
 
     fn visit_meta(&mut self, location: compile::Location, meta: compile::MetaRef<'_>) {
         for v in self.visitors.iter_mut() {
-            v.visit_meta(location, meta.clone())
+            v.visit_meta(location, meta)
         }
     }
 

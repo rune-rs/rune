@@ -286,7 +286,7 @@ impl Function {
             (_, _, true) => "async_function",
         };
 
-        if !instance {
+        if !instance && self_type.is_none() {
             name = {
                 let mut out = syn::ExprArray {
                     attrs: Vec::new(),

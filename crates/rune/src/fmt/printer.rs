@@ -10,11 +10,11 @@ use crate::ast::{
     ExprClosureArgs, ExprContinue, ExprElse, ExprElseIf, ExprEmpty, ExprField, ExprFieldAccess,
     ExprFor, ExprGroup, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMatch, ExprMatchBranch,
     ExprObject, ExprRange, ExprReturn, ExprSelect, ExprSelectBranch, ExprSelectPatBranch, ExprTry,
-    ExprTuple, ExprUnary, ExprVec, ExprWhile, ExprYield, Field, FieldAssign, FnArg, Item,
-    ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemModBody, ItemStruct, ItemStructBody,
-    ItemVariant, ItemVariantBody, LitSource, Local, MacroCall, ObjectKey, Pat, PatBinding,
-    PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple, PatVec, Path, PathSegment,
-    PathSegmentExpr, SelfType, SelfValue, SemiColon, Span, Spanned, Stmt, StmtSemi,
+    ExprTuple, ExprUnary, ExprVec, ExprWhile, ExprYield, Field, FieldAssign, Fields, FnArg, Item,
+    ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemModBody, ItemStruct, ItemVariant,
+    LitSource, Local, MacroCall, ObjectKey, Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath,
+    PatRest, PatTuple, PatVec, Path, PathSegment, PathSegmentExpr, SelfType, SelfValue, SemiColon,
+    Span, Spanned, Stmt, StmtSemi,
 };
 use crate::Source;
 
@@ -265,10 +265,10 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_struct_body(&mut self, body: &ItemStructBody) -> Result<()> {
+    fn visit_struct_body(&mut self, body: &Fields) -> Result<()> {
         match body {
-            ItemStructBody::UnitBody => {}
-            ItemStructBody::TupleBody(tuple) => {
+            Fields::Empty => {}
+            Fields::Unnamed(tuple) => {
                 self.writer
                     .write_spanned_raw(tuple.open.span, false, false)?;
                 for (field, comma) in tuple {
@@ -280,7 +280,7 @@ impl<'a> Printer<'a> {
                 self.writer
                     .write_spanned_raw(tuple.close.span, false, false)?;
             }
-            ItemStructBody::StructBody(body) => {
+            Fields::Named(body) => {
                 self.writer.write_unspanned(" ")?;
                 self.writer.write_spanned_raw(body.open.span, true, false)?;
 
@@ -364,10 +364,10 @@ impl<'a> Printer<'a> {
         Ok(())
     }
 
-    fn visit_variant_body(&mut self, body: &ItemVariantBody) -> Result<()> {
+    fn visit_variant_body(&mut self, body: &Fields) -> Result<()> {
         match body {
-            ItemVariantBody::UnitBody => {}
-            ItemVariantBody::TupleBody(body) => {
+            Fields::Empty => {}
+            Fields::Unnamed(body) => {
                 self.writer
                     .write_spanned_raw(body.open.span, false, false)?;
 
@@ -386,7 +386,7 @@ impl<'a> Printer<'a> {
                 self.writer
                     .write_spanned_raw(body.close.span, false, false)?;
             }
-            ItemVariantBody::StructBody(sbody) => {
+            Fields::Named(sbody) => {
                 self.writer.write_unspanned(" ")?;
                 self.writer
                     .write_spanned_raw(sbody.open.span, true, false)?;

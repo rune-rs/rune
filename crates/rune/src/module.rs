@@ -122,11 +122,11 @@ pub(crate) struct ModuleType {
 /// The kind of the variant.
 #[derive(Debug)]
 pub(crate) enum Fields {
-    /// Variant is a Tuple variant.
-    Unnamed(usize),
-    /// Variant is a Struct variant.
+    /// Sequence of named fields.
     Named(&'static [&'static str]),
-    /// Variant is a Unit variant.
+    /// Sequence of unnamed fields.
+    Unnamed(usize),
+    /// Empty.
     Empty,
 }
 
@@ -202,7 +202,6 @@ pub(crate) struct ModuleFunction {
     pub(crate) return_type: Option<FullTypeOf>,
     #[cfg(feature = "doc")]
     pub(crate) argument_types: Box<[Option<FullTypeOf>]>,
-    pub(crate) associated_container: Option<Hash>,
     pub(crate) docs: Docs,
 }
 
