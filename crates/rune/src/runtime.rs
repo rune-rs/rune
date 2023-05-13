@@ -69,7 +69,8 @@ mod key;
 pub use self::key::Key;
 
 mod label;
-pub use self::label::{DebugLabel, Label};
+pub use self::label::DebugLabel;
+pub(crate) use self::label::Label;
 
 mod object;
 pub use self::object::Object;

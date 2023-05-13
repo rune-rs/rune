@@ -390,7 +390,7 @@ pub enum Inst {
         /// The number of entries to pop of the condition is true.
         count: usize,
         /// The offset to jump if the condition is true.
-        offset: isize,
+        jump: usize,
     },
     /// Clean the stack by keeping the top of it, and popping `count` values
     /// under it.
@@ -481,7 +481,7 @@ pub enum Inst {
     #[musli(packed)]
     Jump {
         /// Offset to jump to.
-        offset: isize,
+        jump: usize,
     },
     /// Jump to `offset` relative to the current instruction pointer if the
     /// condition is `true`.
@@ -495,7 +495,7 @@ pub enum Inst {
     #[musli(packed)]
     JumpIf {
         /// Offset to jump to.
-        offset: isize,
+        jump: usize,
     },
     /// Jump to `offset` relative to the current instruction pointer if the
     /// condition is `true`. Will only pop the stack is a jump is not performed.
@@ -509,7 +509,7 @@ pub enum Inst {
     #[musli(packed)]
     JumpIfOrPop {
         /// Offset to jump to.
-        offset: isize,
+        jump: usize,
     },
     /// Jump to `offset` relative to the current instruction pointer if the
     /// condition is `false`. Will only pop the stack is a jump is not performed.
@@ -523,7 +523,7 @@ pub enum Inst {
     #[musli(packed)]
     JumpIfNotOrPop {
         /// Offset to jump to.
-        offset: isize,
+        jump: usize,
     },
     /// Compares the `branch` register with the top of the stack, and if they
     /// match pops the top of the stack and performs the jump to offset.
@@ -539,7 +539,7 @@ pub enum Inst {
         /// The branch value to compare against.
         branch: i64,
         /// The offset to jump.
-        offset: isize,
+        jump: usize,
     },
     /// Construct a push a vector value onto the stack. The number of elements
     /// in the vector are determined by `count` and are popped from the stack.
@@ -1047,7 +1047,7 @@ pub enum Inst {
         /// The offset of the value being advanced.
         offset: usize,
         /// A relative jump to perform if the iterator could not be advanced.
-        jump: isize,
+        jump: usize,
     },
     /// Cause the VM to panic and error out without a reason.
     ///
@@ -1105,168 +1105,164 @@ impl Inst {
 }
 
 impl fmt::Display for Inst {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Drop { offset } => {
-                write!(fmt, "drop offset={}", offset)?;
+                write!(f, "drop offset={offset}")?;
             }
             Self::Not => {
-                write!(fmt, "not")?;
+                write!(f, "not")?;
             }
             Self::Neg => {
-                write!(fmt, "neg")?;
+                write!(f, "neg")?;
             }
             Self::Call { hash, args } => {
-                write!(fmt, "call hash={}, args={}", hash, args)?;
+                write!(f, "call hash={hash}, args={args}")?;
             }
             Self::CallInstance { hash, args } => {
-                write!(fmt, "call-instance hash={}, args={}", hash, args)?;
+                write!(f, "call-instance hash={hash}, args={args}")?;
             }
             Self::Closure { hash, count } => {
-                write!(fmt, "closure hash={}, count={}", hash, count)?;
+                write!(f, "closure hash={hash}, count={count}")?;
             }
             Self::CallFn { args } => {
-                write!(fmt, "call-fn args={}", args)?;
+                write!(f, "call-fn args={args}")?;
             }
             Self::LoadInstanceFn { hash } => {
-                write!(fmt, "load-instance-fn hash={}", hash)?;
+                write!(f, "load-instance-fn hash={hash}")?;
             }
             Self::IndexGet { target, index } => {
-                write!(fmt, "index-get target={}, index={}", target, index)?;
+                write!(f, "index-get target={target}, index={index}")?;
             }
             Self::TupleIndexGet { index } => {
-                write!(fmt, "tuple-index-get index={}", index)?;
+                write!(f, "tuple-index-get index={index}")?;
             }
             Self::TupleIndexSet { index } => {
-                write!(fmt, "tuple-index-set index={}", index)?;
+                write!(f, "tuple-index-set index={index}")?;
             }
             Self::TupleIndexGetAt { offset, index } => {
-                write!(fmt, "tuple-index-get-at offset={}, index={}", offset, index)?;
+                write!(f, "tuple-index-get-at offset={offset}, index={index}")?;
             }
             Self::ObjectIndexGet { slot } => {
-                write!(fmt, "object-index-get slot={}", slot)?;
+                write!(f, "object-index-get slot={slot}")?;
             }
             Self::ObjectIndexSet { slot } => {
-                write!(fmt, "object-index-set slot={}", slot)?;
+                write!(f, "object-index-set slot={slot}")?;
             }
             Self::ObjectIndexGetAt { offset, slot } => {
-                write!(fmt, "object-index-get-at offset={}, slot={}", offset, slot)?;
+                write!(f, "object-index-get-at offset={offset}, slot={slot}")?;
             }
             Self::IndexSet => {
-                write!(fmt, "index-set")?;
+                write!(f, "index-set")?;
             }
             Self::Await => {
-                write!(fmt, "await")?;
+                write!(f, "await")?;
             }
             Self::Select { len } => {
-                write!(fmt, "select len={}", len)?;
+                write!(f, "select len={len}")?;
             }
             Self::LoadFn { hash } => {
-                write!(fmt, "load-fn hash={}", hash)?;
+                write!(f, "load-fn hash={hash}")?;
             }
             Self::Push { value } => {
-                write!(fmt, "push value={}", value)?;
+                write!(f, "push value={value}")?;
             }
             Self::Pop => {
-                write!(fmt, "pop")?;
+                write!(f, "pop")?;
             }
             Self::PopN { count } => {
-                write!(fmt, "pop-n count={}", count)?;
+                write!(f, "pop-n count={count}")?;
             }
-            Self::PopAndJumpIfNot { count, offset } => {
-                write!(
-                    fmt,
-                    "pop-and-jump-if-not count={}, offset={}",
-                    count, offset
-                )?;
+            Self::PopAndJumpIfNot { count, jump } => {
+                write!(f, "pop-and-jump-if-not count={count}, jump={jump}")?;
             }
             Self::Clean { count } => {
-                write!(fmt, "clean count={}", count)?;
+                write!(f, "clean count={count}")?;
             }
             Self::Copy { offset } => {
-                write!(fmt, "copy offset={}", offset)?;
+                write!(f, "copy offset={offset}")?;
             }
             Self::Move { offset } => {
-                write!(fmt, "move offset={}", offset)?;
+                write!(f, "move offset={offset}")?;
             }
             Self::Dup => {
-                write!(fmt, "dup")?;
+                write!(f, "dup")?;
             }
             Self::Replace { offset } => {
-                write!(fmt, "replace offset={}", offset)?;
+                write!(f, "replace offset={offset}")?;
             }
             Self::Return { address, clean } => {
-                write!(fmt, "return address={}, clean={}", address, clean)?;
+                write!(f, "return address={address}, clean={clean}")?;
             }
             Self::ReturnUnit => {
-                write!(fmt, "return-unit")?;
+                write!(f, "return-unit")?;
             }
-            Self::Jump { offset } => {
-                write!(fmt, "jump offset={}", offset)?;
+            Self::Jump { jump } => {
+                write!(f, "jump jump={jump}")?;
             }
-            Self::JumpIf { offset } => {
-                write!(fmt, "jump-if offset={}", offset)?;
+            Self::JumpIf { jump } => {
+                write!(f, "jump-if jump={jump}")?;
             }
-            Self::JumpIfOrPop { offset } => {
-                write!(fmt, "jump-if-or-pop offset={}", offset)?;
+            Self::JumpIfOrPop { jump } => {
+                write!(f, "jump-if-or-pop jump={jump}")?;
             }
-            Self::JumpIfNotOrPop { offset } => {
-                write!(fmt, "jump-if-not-or-pop offset={}", offset)?;
+            Self::JumpIfNotOrPop { jump } => {
+                write!(f, "jump-if-not-or-pop jump={jump}")?;
             }
-            Self::JumpIfBranch { branch, offset } => {
-                write!(fmt, "jump-if-branch branch={}, offset={}", branch, offset)?;
+            Self::JumpIfBranch { branch, jump } => {
+                write!(f, "jump-if-branch branch={branch}, jump={jump}")?;
             }
             Self::Vec { count } => {
-                write!(fmt, "vec count={}", count)?;
+                write!(f, "vec count={count}")?;
             }
             Self::Tuple1 { args: [a] } => {
-                write!(fmt, "tuple-1 {}", a)?;
+                write!(f, "tuple-1 {a}")?;
             }
             Self::Tuple2 { args: [a, b] } => {
-                write!(fmt, "tuple-2 {}, {}", a, b)?;
+                write!(f, "tuple-2 {a}, {b}")?;
             }
             Self::Tuple3 { args: [a, b, c] } => {
-                write!(fmt, "tuple-3 {}, {}, {}", a, b, c)?;
+                write!(f, "tuple-3 {a}, {b}, {c}")?;
             }
             Self::Tuple4 { args: [a, b, c, d] } => {
-                write!(fmt, "tuple-4 {}, {}, {}, {}", a, b, c, d)?;
+                write!(f, "tuple-4 {a}, {b}, {c}, {d}")?;
             }
             Self::Tuple { count } => {
-                write!(fmt, "tuple count={}", count)?;
+                write!(f, "tuple count={count}")?;
             }
             Self::PushTuple => {
-                write!(fmt, "push-tuple")?;
+                write!(f, "push-tuple")?;
             }
             Self::UnitStruct { hash } => {
-                write!(fmt, "unit-struct hash={}", hash)?;
+                write!(f, "unit-struct hash={hash}")?;
             }
             Self::Struct { hash, slot } => {
-                write!(fmt, "struct hash={}, slot={}", hash, slot)?;
+                write!(f, "struct hash={hash}, slot={slot}")?;
             }
             Self::UnitVariant { hash } => {
-                write!(fmt, "unit-variant hash={}", hash)?;
+                write!(f, "unit-variant hash={hash}")?;
             }
             Self::StructVariant { hash, slot } => {
-                write!(fmt, "struct-variant hash={}, slot={}", hash, slot)?;
+                write!(f, "struct-variant hash={hash}, slot={slot}")?;
             }
             Self::Object { slot } => {
-                write!(fmt, "object slot={}", slot)?;
+                write!(f, "object slot={slot}")?;
             }
             Self::Range { limits } => {
-                write!(fmt, "range limits={}", limits)?;
+                write!(f, "range limits={limits}")?;
             }
             Self::String { slot } => {
-                write!(fmt, "string slot={}", slot)?;
+                write!(f, "string slot={slot}")?;
             }
             Self::Bytes { slot } => {
-                write!(fmt, "bytes slot={}", slot)?;
+                write!(f, "bytes slot={slot}")?;
             }
             Self::StringConcat { len, size_hint } => {
-                write!(fmt, "string-concat len={}, size_hint={}", len, size_hint)?;
+                write!(f, "string-concat len={len}, size_hint={size_hint}")?;
             }
             Self::Format { spec } => {
                 write!(
-                    fmt,
+                    f,
                     "format {fill:?}, {align}, {flags:?}, {width}, {precision}, {format_type}",
                     fill = spec.fill,
                     align = spec.align,
@@ -1277,7 +1273,7 @@ impl fmt::Display for Inst {
                 )?;
             }
             Self::IsUnit => {
-                write!(fmt, "is-unit")?;
+                write!(f, "is-unit")?;
             }
             Self::Try {
                 address,
@@ -1285,31 +1281,30 @@ impl fmt::Display for Inst {
                 preserve,
             } => {
                 write!(
-                    fmt,
-                    "try address={}, clean={}, preserve={}",
-                    address, clean, preserve
+                    f,
+                    "try address={address}, clean={clean}, preserve={preserve}",
                 )?;
             }
             Self::EqByte { byte } => {
-                write!(fmt, "eq-byte byte={:?}", byte)?;
+                write!(f, "eq-byte byte={:?}", byte)?;
             }
             Self::EqChar { char } => {
-                write!(fmt, "eq-character char={:?}", char)?;
+                write!(f, "eq-character char={char:?}")?;
             }
             Self::EqInteger { integer } => {
-                write!(fmt, "eq-integer integer={}", integer)?;
+                write!(f, "eq-integer integer={integer}")?;
             }
             Self::EqBool { boolean } => {
-                write!(fmt, "eq-integer boolean={}", boolean)?;
+                write!(f, "eq-integer boolean={boolean}")?;
             }
             Self::EqString { slot } => {
-                write!(fmt, "eq-string slot={}", slot)?;
+                write!(f, "eq-string slot={slot}")?;
             }
             Self::EqBytes { slot } => {
-                write!(fmt, "eq-bytes slot={}", slot)?;
+                write!(f, "eq-bytes slot={slot}")?;
             }
             Self::MatchType { hash } => {
-                write!(fmt, "match-type hash={}", hash,)?;
+                write!(f, "match-type hash={hash}")?;
             }
             Self::MatchVariant {
                 variant_hash,
@@ -1317,13 +1312,12 @@ impl fmt::Display for Inst {
                 index,
             } => {
                 write!(
-                    fmt,
-                    "match-variant variant_hash={}, enum_hash={}, index={}",
-                    enum_hash, variant_hash, index
+                    f,
+                    "match-variant variant_hash={variant_hash}, enum_hash={enum_hash}, index={index}",
                 )?;
             }
             Self::MatchBuiltIn { type_check } => {
-                write!(fmt, "match-builtin type_check={}", type_check)?;
+                write!(f, "match-builtin type_check={type_check}")?;
             }
             Self::MatchSequence {
                 type_check,
@@ -1331,34 +1325,33 @@ impl fmt::Display for Inst {
                 exact,
             } => {
                 write!(
-                    fmt,
-                    "match-sequence type_check={}, len={}, exact={}",
-                    type_check, len, exact
+                    f,
+                    "match-sequence type_check={type_check}, len={len}, exact={exact}",
                 )?;
             }
             Self::MatchObject { slot, exact } => {
-                write!(fmt, "match-object slot={}, exact={}", slot, exact)?;
+                write!(f, "match-object slot={slot}, exact={exact}")?;
             }
             Self::Yield => {
-                write!(fmt, "yield")?;
+                write!(f, "yield")?;
             }
             Self::YieldUnit => {
-                write!(fmt, "yield-unit")?;
+                write!(f, "yield-unit")?;
             }
             Self::Variant { variant } => {
-                write!(fmt, "variant variant={}", variant)?;
+                write!(f, "variant variant={variant}")?;
             }
             Self::Op { op, a, b } => {
-                write!(fmt, "op op={}, a={}, b={}", op, a, b)?;
+                write!(f, "op op={op}, a={a}, b={b}")?;
             }
             Self::Assign { target, op } => {
-                write!(fmt, "assign target={}, op={}", target, op)?;
+                write!(f, "assign target={target}, op={op}")?;
             }
             Self::IterNext { offset, jump } => {
-                write!(fmt, "iter-next offset={}, jump={}", offset, jump)?;
+                write!(f, "iter-next offset={offset}, jump={jump}")?;
             }
             Self::Panic { reason } => {
-                write!(fmt, "panic reason={}", reason.ident())?;
+                write!(f, "panic reason={}", reason.ident())?;
             }
         }
 
@@ -1399,7 +1392,7 @@ impl fmt::Display for InstAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Top => write!(f, "top"),
-            Self::Offset(offset) => write!(f, "offset({})", offset),
+            Self::Offset(offset) => write!(f, "offset({offset})"),
         }
     }
 }
@@ -1439,9 +1432,9 @@ pub enum InstTarget {
 impl fmt::Display for InstTarget {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Offset(offset) => write!(f, "offset({})", offset),
-            Self::Field(slot) => write!(f, "field({})", slot),
-            Self::TupleField(slot) => write!(f, "tuple-field({})", slot),
+            Self::Offset(offset) => write!(f, "offset({offset})"),
+            Self::Field(slot) => write!(f, "field({slot})"),
+            Self::TupleField(slot) => write!(f, "tuple-field({slot})"),
         }
     }
 }

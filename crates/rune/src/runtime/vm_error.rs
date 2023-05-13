@@ -402,6 +402,8 @@ pub(crate) enum VmErrorKind {
     },
     #[error("Panicked: {reason}")]
     Panic { reason: Panic },
+    #[error("Invalid instruction")]
+    BadInstruction,
     #[error("No running virtual machines")]
     NoRunningVm,
     #[error("Halted for unexpected reason `{halt}`")]
@@ -549,6 +551,8 @@ pub(crate) enum VmErrorKind {
     ExpectedVariant { actual: TypeInfo },
     #[error("The object field get operation is not supported on `{target}`")]
     UnsupportedObjectFieldGet { target: TypeInfo },
+    #[error("Bad jump index {jump}")]
+    BadJump { jump: usize },
 }
 
 impl VmErrorKind {

@@ -6,6 +6,7 @@ use crate::no_std::path::PathBuf;
 use crate::no_std::prelude::*;
 use crate::no_std::thiserror;
 
+use musli_storage::error::BufferError;
 use thiserror::Error;
 
 use crate::ast;
@@ -14,7 +15,7 @@ use crate::compile::{HasSpan, IrValue, ItemBuf, Location, MetaInfo, Visibility};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
-use crate::runtime::{AccessError, Label, TypeInfo, TypeOf};
+use crate::runtime::{AccessError, TypeInfo, TypeOf};
 use crate::shared::scopes::MissingLocal;
 use crate::shared::MissingLastId;
 use crate::{Hash, SourceId};
@@ -223,6 +224,11 @@ pub(crate) enum CompileErrorKind {
         #[source]
         error: io::Error,
     },
+    #[error("{error}")]
+    BufferError {
+        #[from]
+        error: BufferError,
+    },
     #[error("File not found, expected a module file like `{path}.rn`")]
     ModNotFound { path: PathBuf },
     #[error("Module `{item}` has already been loaded")]
@@ -360,16 +366,8 @@ pub(crate) enum CompileErrorKind {
         current: Box<[String]>,
         existing: Box<[String]>,
     },
-    #[error("Duplicate label `{label}`")]
-    DuplicateLabel { label: Label },
-    #[error("Missing label `{label}`")]
-    MissingLabel { label: Label },
     #[error("Missing loop label `{label}`")]
     MissingLoopLabel { label: Box<str> },
-    #[error("Base offset overflow")]
-    BaseOverflow,
-    #[error("Offset overflow")]
-    OffsetOverflow,
     #[error("Segment is only supported in the first position")]
     ExpectedLeadingPathSegment,
     #[error("Visibility modifier not supported")]
@@ -398,6 +396,8 @@ pub(crate) enum CompileErrorKind {
         item: ItemBuf,
         fields: Box<[Box<str>]>,
     },
+    #[error("Use of label `{name}_{index}` which has no code location")]
+    MissingLabelLocation { name: &'static str, index: usize },
 }
 
 /// Error raised during queries.

@@ -20,7 +20,9 @@ use crate::Hash;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Unit {
     /// The instructions contained in the source file.
-    instructions: Vec<Inst>,
+    instructions: Vec<u8>,
+    /// Known jump offsets.
+    offsets: Vec<usize>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFn>,
     /// A static string.
@@ -48,7 +50,8 @@ impl Unit {
     /// Construct a new unit with the given content.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        instructions: Vec<Inst>,
+        instructions: Vec<u8>,
+        offsets: Vec<usize>,
         functions: HashMap<Hash, UnitFn>,
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
@@ -60,6 +63,7 @@ impl Unit {
     ) -> Self {
         Self {
             instructions,
+            offsets,
             functions,
             static_strings,
             static_bytes,
@@ -71,6 +75,15 @@ impl Unit {
         }
     }
 
+    #[inline]
+    pub(crate) fn offset(&self, jump: usize) -> Option<usize> {
+        if let Some(&offset) = self.offsets.get(jump) {
+            Some(offset)
+        } else {
+            None
+        }
+    }
+
     /// Access debug information for the given location if it is available.
     pub fn debug_info(&self) -> Option<&DebugInfo> {
         let debug = self.debug.as_ref()?;
@@ -78,13 +91,21 @@ impl Unit {
     }
 
     /// Get raw underying instructions.
-    pub(crate) fn instructions(&self) -> &[Inst] {
+    pub(crate) fn instructions(&self) -> &[u8] {
         &self.instructions
     }
 
     /// Get the instruction at the given instruction pointer.
-    pub(crate) fn instruction_at(&self, ip: usize) -> Option<&Inst> {
-        self.instructions.get(ip)
+    pub(crate) fn instruction_at(&self, ip: usize) -> Result<Option<(Inst, usize)>, VmErrorKind> {
+        let Some(mut bytes) = self.instructions.get(ip..) else {
+            return Ok(None);
+        };
+
+        let start = bytes.as_ptr();
+        let inst: Inst =
+            musli_storage::decode(&mut bytes).map_err(|_| VmErrorKind::BadInstruction)?;
+        let len = (bytes.as_ptr() as usize).wrapping_sub(start as usize);
+        Ok(Some((inst, len)))
     }
 
     /// Iterate over all static strings in the unit.
@@ -114,8 +135,19 @@ impl Unit {
 
     /// Iterate over all instructions in order.
     #[cfg(feature = "emit")]
-    pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = Inst> + '_ {
-        self.instructions.iter().copied()
+    pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = (usize, Inst)> + '_ {
+        let mut address = &self.instructions[..];
+        let len = address.len();
+
+        std::iter::from_fn(move || {
+            if address.is_empty() {
+                return None;
+            }
+
+            let o = len - address.len();
+            let inst = musli_storage::decode(&mut address).ok()?;
+            Some((o, inst))
+        })
     }
 
     /// Iterate over dynamic functions.

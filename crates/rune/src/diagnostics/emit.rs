@@ -241,7 +241,7 @@ impl Unit {
     {
         let mut first_function = true;
 
-        for (n, inst) in self.iter_instructions().enumerate() {
+        for (n, inst) in self.iter_instructions() {
             let debug = self.debug_info().and_then(|d| d.instruction_at(n));
 
             if let Some((hash, signature)) = self.debug_info().and_then(|d| d.function_at(n)) {
@@ -260,7 +260,7 @@ impl Unit {
                 }
             }
 
-            if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
+            for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
                 writeln!(out, "{}:", label)?;
             }
 

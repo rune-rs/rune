@@ -231,7 +231,7 @@ where
                     continue;
                 }
                 VmHalt::VmCall(vm_call) => {
-                    vm_call.into_execution(self);
+                    vm_try!(vm_call.into_execution(self));
                     continue;
                 }
                 VmHalt::Yielded => {
@@ -256,6 +256,7 @@ where
 
     /// Resume the current execution with the given value and resume synchronous
     /// execution.
+    #[tracing::instrument(skip_all, fields(?value))]
     pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
         if !matches!(self.state, ExecutionState::Resumed) {
             return VmResult::err(VmErrorKind::ExpectedExecutionState {
@@ -274,6 +275,7 @@ where
     /// it while returning a unit from the current `yield`.
     ///
     /// If any async instructions are encountered, this will error.
+    #[tracing::instrument(skip_all)]
     pub fn resume(&mut self) -> VmResult<GeneratorState> {
         if matches!(self.state, ExecutionState::Resumed) {
             vm_mut!(self).stack_mut().push(Value::Unit);
@@ -292,7 +294,7 @@ where
             match vm_try!(Self::run(vm)) {
                 VmHalt::Exited => (),
                 VmHalt::VmCall(vm_call) => {
-                    vm_call.into_execution(self);
+                    vm_try!(vm_call.into_execution(self));
                     continue;
                 }
                 VmHalt::Yielded => {
@@ -326,7 +328,7 @@ where
         match vm_try!(budget::with(1, || Self::run(vm)).call()) {
             VmHalt::Exited => (),
             VmHalt::VmCall(vm_call) => {
-                vm_call.into_execution(self);
+                vm_try!(vm_call.into_execution(self));
                 return VmResult::Ok(None);
             }
             VmHalt::Limited => return VmResult::Ok(None),
@@ -359,7 +361,7 @@ where
                 return VmResult::Ok(None);
             }
             VmHalt::VmCall(vm_call) => {
-                vm_call.into_execution(self);
+                vm_try!(vm_call.into_execution(self));
                 return VmResult::Ok(None);
             }
             VmHalt::Limited => return VmResult::Ok(None),
@@ -404,7 +406,6 @@ where
 
         let onto = vm_mut!(self);
         onto.stack_mut().push(value);
-        onto.advance();
         self.state = state;
         VmResult::Ok(())
     }

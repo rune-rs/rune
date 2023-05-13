@@ -6,10 +6,10 @@ use core::fmt;
 use core::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
 use core::mem;
 
-use serde::{Deserialize, Serialize};
-use twox_hash::XxHash64;
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+use serde::{Deserialize, Serialize};
+use twox_hash::XxHash64;
 
 use crate::protocol::Protocol;
 

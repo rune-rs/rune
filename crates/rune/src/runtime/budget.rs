@@ -31,6 +31,7 @@ pub struct Budget<T> {
 
 /// Wrap the given value with a budget.
 pub fn with<T>(budget: usize, value: T) -> Budget<T> {
+    tracing::trace!(?budget);
     Budget { budget, value }
 }
 

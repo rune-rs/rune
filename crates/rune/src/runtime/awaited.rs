@@ -16,13 +16,11 @@ impl Awaited {
             Self::Future(future) => {
                 let value = vm_try!(vm_try!(future.borrow_mut()).await);
                 vm.stack_mut().push(value);
-                vm.advance();
             }
             Self::Select(select) => {
                 let (branch, value) = vm_try!(select.await);
                 vm.stack_mut().push(value);
                 vm.stack_mut().push(vm_try!(ToValue::to_value(branch)));
-                vm.advance();
             }
         }
 

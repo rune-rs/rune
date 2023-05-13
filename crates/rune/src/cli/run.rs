@@ -14,9 +14,12 @@ pub(super) struct Flags {
     /// Provide detailed tracing for each instruction executed.
     #[arg(short, long)]
     trace: bool,
-    /// Dump everything.
+    /// Perform a default dump.
     #[arg(short, long)]
     dump: bool,
+    /// Dump everything that is available, this is very verbose.
+    #[arg(long)]
+    dump_all: bool,
     /// Dump default information about unit.
     #[arg(long)]
     dump_unit: bool,
@@ -56,10 +59,13 @@ impl CommandBase for Flags {
 
     #[inline]
     fn propagate(&mut self, _: &mut Config, _: &mut SharedFlags) {
-        if self.dump {
-            self.dump_constants = true;
+        if self.dump || self.dump_all {
             self.dump_unit = true;
             self.dump_stack = true;
+        }
+
+        if self.dump_all {
+            self.dump_constants = true;
             self.dump_functions = true;
             self.dump_types = true;
             self.dump_native_functions = true;
@@ -90,8 +96,16 @@ enum TraceError {
 }
 
 impl From<std::io::Error> for TraceError {
+    #[inline]
     fn from(error: std::io::Error) -> Self {
         Self::Io(error)
+    }
+}
+
+impl From<VmError> for TraceError {
+    #[inline]
+    fn from(error: VmError) -> Self {
+        Self::VmError(error)
     }
 }
 
@@ -316,14 +330,14 @@ where
                 }
             }
 
-            if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
+            for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
                 writeln!(o, "{}:", label)?;
             }
 
-            if let Some(inst) = vm.unit().instruction_at(vm.ip()) {
+            if let Some((inst, _)) = vm.unit().instruction_at(vm.ip()).map_err(VmError::from)? {
                 write!(o, "  {:04} = {}", vm.ip(), inst)?;
             } else {
-                write!(o, "  {:04} = *o of bounds*", vm.ip())?;
+                write!(o, "  {:04} = *out of bounds*", vm.ip())?;
             }
 
             if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {

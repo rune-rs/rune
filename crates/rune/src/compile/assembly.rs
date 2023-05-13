@@ -2,11 +2,11 @@
 
 use core::fmt;
 
+use crate::no_std::collections::{hash_map, HashMap};
 use crate::no_std::prelude::*;
 
 use crate::ast::Span;
-use crate::collections::HashMap;
-use crate::compile::{self, CompileErrorKind, Location};
+use crate::compile::{self, Location};
 use crate::runtime::{Inst, Label};
 use crate::{Hash, SourceId};
 
@@ -27,10 +27,8 @@ pub(crate) enum AssemblyInst {
 pub(crate) struct Assembly {
     /// The location that caused the assembly.
     location: Location,
-    /// Label to offset.
-    pub(crate) labels: HashMap<Label, usize>,
     /// Registered label by offset.
-    pub(crate) labels_rev: HashMap<usize, Label>,
+    pub(crate) labels: HashMap<usize, (usize, Vec<Label>)>,
     /// Instructions with spans.
     pub(crate) instructions: Vec<(AssemblyInst, Span)>,
     /// Comments associated with instructions.
@@ -47,7 +45,6 @@ impl Assembly {
         Self {
             location,
             labels: Default::default(),
-            labels_rev: Default::default(),
             instructions: Default::default(),
             comments: Default::default(),
             label_count,
@@ -63,61 +60,97 @@ impl Assembly {
     }
 
     /// Apply the label at the current instruction offset.
-    pub(crate) fn label(&mut self, label: Label) -> compile::Result<Label> {
-        let offset = self.instructions.len();
+    pub(crate) fn label(&mut self, label: &Label) -> compile::Result<()> {
+        let len = self.labels.len();
 
-        if self.labels.insert(label, offset).is_some() {
-            return Err(compile::Error::new(
-                self.location.span,
-                CompileErrorKind::DuplicateLabel { label },
-            ));
+        match self.labels.entry(self.instructions.len()) {
+            hash_map::Entry::Occupied(e) => {
+                let &mut (len, ref mut labels) = e.into_mut();
+                label.set_jump(len);
+                labels.push(label.clone());
+            }
+            hash_map::Entry::Vacant(e) => {
+                label.set_jump(len);
+                e.insert((len, vec![label.clone()]));
+            }
         }
 
-        self.labels_rev.insert(offset, label);
-        Ok(label)
+        Ok(())
     }
 
     /// Add a jump to the given label.
-    pub(crate) fn jump(&mut self, label: Label, span: Span) {
-        self.instructions.push((AssemblyInst::Jump { label }, span));
+    pub(crate) fn jump(&mut self, label: &Label, span: Span) {
+        self.inner_push(
+            AssemblyInst::Jump {
+                label: label.clone(),
+            },
+            span,
+        );
     }
 
     /// Add a conditional jump to the given label.
-    pub(crate) fn jump_if(&mut self, label: Label, span: Span) {
-        self.instructions
-            .push((AssemblyInst::JumpIf { label }, span));
+    pub(crate) fn jump_if(&mut self, label: &Label, span: Span) {
+        self.inner_push(
+            AssemblyInst::JumpIf {
+                label: label.clone(),
+            },
+            span,
+        );
     }
 
     /// Add a conditional jump to the given label. Only pops the top of the
     /// stack if the jump is not executed.
-    pub(crate) fn jump_if_or_pop(&mut self, label: Label, span: Span) {
-        self.instructions
-            .push((AssemblyInst::JumpIfOrPop { label }, span));
+    pub(crate) fn jump_if_or_pop(&mut self, label: &Label, span: Span) {
+        self.inner_push(
+            AssemblyInst::JumpIfOrPop {
+                label: label.clone(),
+            },
+            span,
+        );
     }
 
     /// Add a conditional jump to the given label. Only pops the top of the
     /// stack if the jump is not executed.
-    pub(crate) fn jump_if_not_or_pop(&mut self, label: Label, span: Span) {
-        self.instructions
-            .push((AssemblyInst::JumpIfNotOrPop { label }, span));
+    pub(crate) fn jump_if_not_or_pop(&mut self, label: &Label, span: Span) {
+        self.inner_push(
+            AssemblyInst::JumpIfNotOrPop {
+                label: label.clone(),
+            },
+            span,
+        );
     }
 
     /// Add a conditional jump-if-branch instruction.
-    pub(crate) fn jump_if_branch(&mut self, branch: i64, label: Label, span: Span) {
-        self.instructions
-            .push((AssemblyInst::JumpIfBranch { branch, label }, span));
+    pub(crate) fn jump_if_branch(&mut self, branch: i64, label: &Label, span: Span) {
+        self.inner_push(
+            AssemblyInst::JumpIfBranch {
+                branch,
+                label: label.clone(),
+            },
+            span,
+        );
     }
 
     /// Add a pop-and-jump-if-not instruction to a label.
-    pub(crate) fn pop_and_jump_if_not(&mut self, count: usize, label: Label, span: Span) {
-        self.instructions
-            .push((AssemblyInst::PopAndJumpIfNot { count, label }, span));
+    pub(crate) fn pop_and_jump_if_not(&mut self, count: usize, label: &Label, span: Span) {
+        self.inner_push(
+            AssemblyInst::PopAndJumpIfNot {
+                count,
+                label: label.clone(),
+            },
+            span,
+        );
     }
 
     /// Add an instruction that advanced an iterator.
-    pub(crate) fn iter_next(&mut self, offset: usize, label: Label, span: Span) {
-        self.instructions
-            .push((AssemblyInst::IterNext { offset, label }, span));
+    pub(crate) fn iter_next(&mut self, offset: usize, label: &Label, span: Span) {
+        self.inner_push(
+            AssemblyInst::IterNext {
+                offset,
+                label: label.clone(),
+            },
+            span,
+        );
     }
 
     /// Push a raw instruction.
@@ -129,7 +162,7 @@ impl Assembly {
                 .push((span, self.location.source_id));
         }
 
-        self.instructions.push((AssemblyInst::Raw { raw }, span));
+        self.inner_push(AssemblyInst::Raw { raw }, span);
     }
 
     /// Push a raw instruction.
@@ -145,5 +178,9 @@ impl Assembly {
             .push(comment.to_string().into());
 
         self.push(raw, span);
+    }
+
+    fn inner_push(&mut self, inst: AssemblyInst, span: Span) {
+        self.instructions.push((inst, span));
     }
 }

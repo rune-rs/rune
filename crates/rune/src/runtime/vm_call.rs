@@ -1,4 +1,4 @@
-use crate::runtime::{Call, Future, Generator, Stream, Value, Vm, VmExecution};
+use crate::runtime::{Call, Future, Generator, Stream, Value, Vm, VmExecution, VmResult};
 
 /// An instruction to push a virtual machine to the execution.
 #[derive(Debug)]
@@ -14,7 +14,7 @@ impl VmCall {
     }
 
     /// Encode the push itno an execution.
-    pub(crate) fn into_execution<T>(self, execution: &mut VmExecution<T>)
+    pub(crate) fn into_execution<T>(self, execution: &mut VmExecution<T>) -> VmResult<()>
     where
         T: AsMut<Vm>,
     {
@@ -25,7 +25,7 @@ impl VmCall {
             }
             Call::Immediate => {
                 execution.push_vm(self.vm);
-                return;
+                return VmResult::Ok(());
             }
             Call::Stream => Value::from(Stream::new(self.vm)),
             Call::Generator => Value::from(Generator::new(self.vm)),
@@ -33,6 +33,6 @@ impl VmCall {
 
         let vm = execution.vm_mut();
         vm.stack_mut().push(value);
-        vm.advance();
+        VmResult::Ok(())
     }
 }
