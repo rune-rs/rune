@@ -9,6 +9,7 @@ use core::str;
 
 use crate::no_std::prelude::*;
 
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::compile::Named;
@@ -61,7 +62,7 @@ impl FromValue for Format {
 }
 
 /// A format specification.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub struct FormatSpec {
     /// Formatting flags.
@@ -370,7 +371,7 @@ impl FormatSpec {
 }
 
 /// The type of formatting requested.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub enum Type {
     /// Display type (default).
@@ -437,7 +438,7 @@ impl fmt::Display for Type {
 }
 
 /// The alignment requested.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub enum Alignment {
     /// Left alignment.
@@ -501,8 +502,9 @@ pub enum Flag {
 }
 
 /// Format specification flags.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[repr(transparent)]
+#[musli(transparent)]
 pub struct Flags(u32);
 
 impl Flags {

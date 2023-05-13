@@ -8,6 +8,8 @@ use core::mem;
 
 use serde::{Deserialize, Serialize};
 use twox_hash::XxHash64;
+#[cfg(feature = "musli")]
+use musli::{Decode, Encode};
 
 use crate::protocol::Protocol;
 
@@ -31,7 +33,9 @@ const FUNCTION_PARAMETERS: u64 = 0x6052c152243a6eb3;
 /// The primitive hash that among other things is used to reference items,
 /// types, and native functions.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[repr(transparent)]
+#[cfg_attr(feature = "musli", musli(transparent))]
 pub struct Hash(u64);
 
 impl Hash {

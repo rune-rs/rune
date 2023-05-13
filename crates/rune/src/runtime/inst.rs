@@ -1,5 +1,6 @@
 use core::fmt;
 
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::{FormatSpec, Type, Value};
@@ -9,7 +10,7 @@ use crate::Hash;
 ///
 /// To formulate a custom reason, use
 /// [`VmError::panic`][crate::runtime::VmError::panic].
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub enum PanicReason {
     /// Not implemented.
@@ -46,7 +47,7 @@ impl fmt::Display for PanicReason {
 }
 
 /// Type checks for built-in types.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub enum TypeCheck {
     /// Matches a unit type.
@@ -58,10 +59,13 @@ pub enum TypeCheck {
     /// Matches a vector.
     Vec,
     /// An option type, and the specified variant index.
+    #[musli(packed)]
     Option(usize),
     /// A result type, and the specified variant index.
+    #[musli(packed)]
     Result(usize),
     /// A generator state type, and the specified variant index.
+    #[musli(packed)]
     GeneratorState(usize),
 }
 
@@ -83,7 +87,7 @@ impl fmt::Display for TypeCheck {
 }
 
 /// An operation in the stack-based virtual machine.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 pub enum Inst {
     /// Not operator. Takes a boolean from the top of the stack  and inverts its
     /// logical value.
@@ -113,6 +117,7 @@ pub enum Inst {
     /// <value..>
     /// => <fn>
     /// ```
+    #[musli(packed)]
     Closure {
         /// The hash of the internally stored closure function.
         hash: Hash,
@@ -123,6 +128,7 @@ pub enum Inst {
     ///
     /// It will construct a new stack frame which includes the last `args`
     /// number of entries.
+    #[musli(packed)]
     Call {
         /// The hash of the function to call.
         hash: Hash,
@@ -133,6 +139,7 @@ pub enum Inst {
     ///
     /// The instance being called on should be on top of the stack, followed by
     /// `args` number of arguments.
+    #[musli(packed)]
     CallInstance {
         /// The hash of the name of the function to call.
         hash: Hash,
@@ -153,6 +160,7 @@ pub enum Inst {
     /// <value>
     /// => <fn>
     /// ```
+    #[musli(packed)]
     LoadInstanceFn {
         /// The name hash of the instance function.
         hash: Hash,
@@ -166,6 +174,7 @@ pub enum Inst {
     /// <args...>
     /// => <ret>
     /// ```
+    #[musli(packed)]
     CallFn {
         /// The number of arguments expected on the stack for this call.
         args: usize,
@@ -179,6 +188,7 @@ pub enum Inst {
     /// <index>
     /// => <value>
     /// ```
+    #[musli(packed)]
     IndexGet {
         /// How the target is addressed.
         target: InstAddress,
@@ -194,6 +204,7 @@ pub enum Inst {
     /// <tuple>
     /// => <value>
     /// ```
+    #[musli(packed)]
     TupleIndexGet {
         /// The index to fetch.
         index: usize,
@@ -207,6 +218,7 @@ pub enum Inst {
     /// <tuple>
     /// => *nothing*
     /// ```
+    #[musli(packed)]
     TupleIndexSet {
         /// The index to set.
         index: usize,
@@ -219,6 +231,7 @@ pub enum Inst {
     /// ```text
     /// => <value>
     /// ```
+    #[musli(packed)]
     TupleIndexGetAt {
         /// The slot offset to load the tuple from.
         offset: usize,
@@ -237,6 +250,7 @@ pub enum Inst {
     /// <object>
     /// => <value>
     /// ```
+    #[musli(packed)]
     ObjectIndexGet {
         /// The static string slot corresponding to the index to fetch.
         slot: usize,
@@ -254,6 +268,7 @@ pub enum Inst {
     /// <value>
     /// =>
     /// ```
+    #[musli(packed)]
     ObjectIndexSet {
         /// The static string slot corresponding to the index to set.
         slot: usize,
@@ -269,6 +284,7 @@ pub enum Inst {
     /// ```text
     /// => <value>
     /// ```
+    #[musli(packed)]
     ObjectIndexGetAt {
         /// The slot offset to get the value to load from.
         offset: usize,
@@ -309,6 +325,7 @@ pub enum Inst {
     /// <future...>
     /// => <value>
     /// ```
+    #[musli(packed)]
     Select {
         /// The number of futures to poll.
         len: usize,
@@ -320,6 +337,7 @@ pub enum Inst {
     /// ```text
     /// => <value>
     /// ```
+    #[musli(packed)]
     LoadFn {
         /// The hash of the function to push.
         hash: Hash,
@@ -331,6 +349,7 @@ pub enum Inst {
     /// ```text
     /// => <value>
     /// ```
+    #[musli(packed)]
     Push {
         /// The value to push.
         value: InstValue,
@@ -352,6 +371,7 @@ pub enum Inst {
     /// <value..>
     /// => *noop*
     /// ```
+    #[musli(packed)]
     PopN {
         /// The number of elements to pop from the stack.
         count: usize,
@@ -365,6 +385,7 @@ pub enum Inst {
     /// <bool>
     /// => *noop*
     /// ```
+    #[musli(packed)]
     PopAndJumpIfNot {
         /// The number of entries to pop of the condition is true.
         count: usize,
@@ -381,6 +402,7 @@ pub enum Inst {
     /// <value..>
     /// => <top>
     /// ```
+    #[musli(packed)]
     Clean {
         /// The number of entries in the stack to pop.
         count: usize,
@@ -389,12 +411,14 @@ pub enum Inst {
     /// frame.
     ///
     /// A copy is very cheap. It simply means pushing a reference to the stack.
+    #[musli(packed)]
     Copy {
         /// Offset to copy value from.
         offset: usize,
     },
     /// Move a variable from a location `offset` relative to the current call
     /// frame.
+    #[musli(packed)]
     Move {
         /// Offset to move value from.
         offset: usize,
@@ -407,6 +431,7 @@ pub enum Inst {
     /// ```text
     /// => *noop*
     /// ```
+    #[musli(packed)]
     Drop {
         /// Frame offset to drop.
         offset: usize,
@@ -421,6 +446,7 @@ pub enum Inst {
     Dup,
     /// Replace a value at the offset relative from the top of the stack, with
     /// the top of the stack.
+    #[musli(packed)]
     Replace {
         /// Offset to swap value from.
         offset: usize,
@@ -429,6 +455,7 @@ pub enum Inst {
     ///
     /// The stack frame will be cleared, and the value on the top of the stack
     /// will be left on top of it.
+    #[musli(packed)]
     Return {
         /// The address of the value to return.
         address: InstAddress,
@@ -451,6 +478,7 @@ pub enum Inst {
     /// *nothing*
     /// => *nothing*
     /// ```
+    #[musli(packed)]
     Jump {
         /// Offset to jump to.
         offset: isize,
@@ -464,6 +492,7 @@ pub enum Inst {
     /// <boolean>
     /// => *nothing*
     /// ```
+    #[musli(packed)]
     JumpIf {
         /// Offset to jump to.
         offset: isize,
@@ -477,6 +506,7 @@ pub enum Inst {
     /// <boolean>
     /// => *nothing*
     /// ```
+    #[musli(packed)]
     JumpIfOrPop {
         /// Offset to jump to.
         offset: isize,
@@ -490,6 +520,7 @@ pub enum Inst {
     /// <boolean>
     /// => *nothing*
     /// ```
+    #[musli(packed)]
     JumpIfNotOrPop {
         /// Offset to jump to.
         offset: isize,
@@ -503,6 +534,7 @@ pub enum Inst {
     /// <integer>
     /// => *nothing*
     /// ```
+    #[musli(packed)]
     JumpIfBranch {
         /// The branch value to compare against.
         branch: i64,
@@ -518,6 +550,7 @@ pub enum Inst {
     /// <value..>
     /// => <vec>
     /// ```
+    #[musli(packed)]
     Vec {
         /// The size of the vector.
         count: usize,
@@ -529,8 +562,10 @@ pub enum Inst {
     /// ```text
     /// => <tuple>
     /// ```
+    #[musli(packed)]
     Tuple1 {
         /// First element of the tuple.
+        #[musli(with = self::array::<_, 1>)]
         args: [InstAddress; 1],
     },
     /// Construct a push a two-tuple value onto the stack.
@@ -540,8 +575,10 @@ pub enum Inst {
     /// ```text
     /// => <tuple>
     /// ```
+    #[musli(packed)]
     Tuple2 {
         /// Tuple arguments.
+        #[musli(with = self::array::<_, 2>)]
         args: [InstAddress; 2],
     },
     /// Construct a push a three-tuple value onto the stack.
@@ -551,8 +588,10 @@ pub enum Inst {
     /// ```text
     /// => <tuple>
     /// ```
+    #[musli(packed)]
     Tuple3 {
         /// Tuple arguments.
+        #[musli(with = self::array::<_, 3>)]
         args: [InstAddress; 3],
     },
     /// Construct a push a four-tuple value onto the stack.
@@ -562,8 +601,10 @@ pub enum Inst {
     /// ```text
     /// => <tuple>
     /// ```
+    #[musli(packed)]
     Tuple4 {
         /// Tuple arguments.
+        #[musli(with = self::array::<_, 4>)]
         args: [InstAddress; 4],
     },
     /// Construct a push a tuple value onto the stack. The number of elements
@@ -575,6 +616,7 @@ pub enum Inst {
     /// <value..>
     /// => <tuple>
     /// ```
+    #[musli(packed)]
     Tuple {
         /// The size of the tuple.
         count: usize,
@@ -604,6 +646,7 @@ pub enum Inst {
     /// <value..>
     /// => <object>
     /// ```
+    #[musli(packed)]
     Object {
         /// The static slot of the object keys.
         slot: usize,
@@ -618,6 +661,7 @@ pub enum Inst {
     /// <to>
     /// => <range>
     /// ```
+    #[musli(packed)]
     Range {
         /// The limits of the range.
         limits: InstRangeLimits,
@@ -630,6 +674,7 @@ pub enum Inst {
     /// ```text
     /// => <object>
     /// ```
+    #[musli(packed)]
     UnitStruct {
         /// The type of the object to construct.
         hash: Hash,
@@ -646,6 +691,7 @@ pub enum Inst {
     /// <value..>
     /// => <object>
     /// ```
+    #[musli(packed)]
     Struct {
         /// The type of the object to construct.
         hash: Hash,
@@ -660,6 +706,7 @@ pub enum Inst {
     /// ```text
     /// => <object>
     /// ```
+    #[musli(packed)]
     UnitVariant {
         /// The type hash of the object variant to construct.
         hash: Hash,
@@ -676,6 +723,7 @@ pub enum Inst {
     /// <value..>
     /// => <object>
     /// ```
+    #[musli(packed)]
     StructVariant {
         /// The type hash of the object variant to construct.
         hash: Hash,
@@ -689,6 +737,7 @@ pub enum Inst {
     /// ```text
     /// => <string>
     /// ```
+    #[musli(packed)]
     String {
         /// The static string slot to load the string from.
         slot: usize,
@@ -700,6 +749,7 @@ pub enum Inst {
     /// ```text
     /// => <bytes>
     /// ```
+    #[musli(packed)]
     Bytes {
         /// The static byte string slot to load the string from.
         slot: usize,
@@ -715,6 +765,7 @@ pub enum Inst {
     /// <value...>
     /// => <string>
     /// ```
+    #[musli(packed)]
     StringConcat {
         /// The number of items to pop from the stack.
         len: usize,
@@ -723,6 +774,7 @@ pub enum Inst {
     },
     /// Push a combined format specification and value onto the stack. The value
     /// used is the last value on the stack.
+    #[musli(packed)]
     Format {
         /// The format specification to use.
         spec: FormatSpec,
@@ -745,6 +797,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     Try {
         /// Address to test if value.
         address: InstAddress,
@@ -762,6 +815,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     EqByte {
         /// The byte to test against.
         byte: u8,
@@ -774,6 +828,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     EqChar {
         /// The character to test against.
         char: char,
@@ -786,6 +841,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     EqInteger {
         /// The integer to test against.
         integer: i64,
@@ -799,6 +855,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     EqBool {
         /// The bool to test against.
         boolean: bool,
@@ -811,6 +868,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     EqString {
         /// The slot to test against.
         slot: usize,
@@ -823,6 +881,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     EqBytes {
         /// The slot to test against.
         slot: usize,
@@ -835,6 +894,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     MatchType {
         /// The type hash to match against.
         hash: Hash,
@@ -850,6 +910,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     MatchVariant {
         /// The exact type hash of the variant.
         variant_hash: Hash,
@@ -866,6 +927,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     MatchBuiltIn {
         /// The type to check for.
         type_check: TypeCheck,
@@ -879,6 +941,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     MatchSequence {
         /// Type constraints that the sequence must match.
         type_check: TypeCheck,
@@ -897,6 +960,7 @@ pub enum Inst {
     /// <object>
     /// => <boolean>
     /// ```
+    #[musli(packed)]
     MatchObject {
         /// The slot of object keys to use.
         slot: usize,
@@ -937,6 +1001,7 @@ pub enum Inst {
     /// <value..>
     /// => <variant>
     /// ```
+    #[musli(packed)]
     Variant {
         /// The kind of built-in variant to construct.
         variant: InstVariant,
@@ -949,6 +1014,7 @@ pub enum Inst {
     /// ```text
     /// => <value>
     /// ```
+    #[musli(packed)]
     Op {
         /// The actual operation.
         op: InstOp,
@@ -968,6 +1034,7 @@ pub enum Inst {
     /// <value>
     /// =>
     /// ```
+    #[musli(packed)]
     Assign {
         /// The target of the operation.
         target: InstTarget,
@@ -975,6 +1042,7 @@ pub enum Inst {
         op: InstAssignOp,
     },
     /// Advance an iterator at the given position.
+    #[musli(packed)]
     IterNext {
         /// The offset of the value being advanced.
         offset: usize,
@@ -985,6 +1053,7 @@ pub enum Inst {
     ///
     /// This should only be used during testing or extreme scenarios that are
     /// completely unrecoverable.
+    #[musli(packed)]
     Panic {
         /// The reason for the panic.
         reason: PanicReason,
@@ -1316,11 +1385,13 @@ impl fmt::Display for Inst {
 }
 
 /// How an instruction addresses a value.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 pub enum InstAddress {
     /// Addressed from the top of the stack.
+    #[default]
     Top,
     /// Value addressed at the given offset.
+    #[musli(packed)]
     Offset(usize),
 }
 
@@ -1334,7 +1405,7 @@ impl fmt::Display for InstAddress {
 }
 
 /// Range limits of a range expression.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 pub enum InstRangeLimits {
     /// A half-open range `a .. b`.
     HalfOpen,
@@ -1352,13 +1423,16 @@ impl fmt::Display for InstRangeLimits {
 }
 
 /// The target of an operation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
 pub enum InstTarget {
     /// Target is an offset to the current call frame.
+    #[musli(packed)]
     Offset(usize),
     /// Target the field of an object.
+    #[musli(packed)]
     Field(usize),
     /// Target a tuple field.
+    #[musli(packed)]
     TupleField(usize),
 }
 
@@ -1373,7 +1447,7 @@ impl fmt::Display for InstTarget {
 }
 
 /// An operation between two values on the machine.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 pub enum InstAssignOp {
     /// The add operation. `a + b`.
     Add,
@@ -1437,7 +1511,7 @@ impl fmt::Display for InstAssignOp {
 }
 
 /// An operation between two values on the machine.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 pub enum InstOp {
     /// The add operation. `a + b`.
     Add,
@@ -1608,22 +1682,28 @@ impl fmt::Display for InstOp {
 }
 
 /// A literal value that can be pushed.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub enum InstValue {
     /// A unit.
     Unit,
     /// A boolean.
+    #[musli(packed)]
     Bool(bool),
     /// A byte.
+    #[musli(packed)]
     Byte(u8),
     /// A character.
+    #[musli(packed)]
     Char(char),
     /// An integer.
+    #[musli(packed)]
     Integer(i64),
     /// A float.
+    #[musli(packed)]
     Float(f64),
     /// A type hash.
+    #[musli(packed)]
     Type(Type),
 }
 
@@ -1665,7 +1745,7 @@ impl fmt::Display for InstValue {
 }
 
 /// A variant that can be constructed.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 pub enum InstVariant {
     /// `Option::Some`, which uses one value.
     Some,
@@ -1695,5 +1775,49 @@ impl fmt::Display for InstVariant {
         }
 
         Ok(())
+    }
+}
+
+mod array {
+    use musli::de::SequenceDecoder;
+    use musli::en::SequenceEncoder;
+    use musli::{Decode, Decoder, Encode, Encoder, Mode};
+
+    #[inline]
+    pub(super) fn encode<M, E, T, const N: usize>(
+        this: &[T; N],
+        encoder: E,
+    ) -> Result<E::Ok, E::Error>
+    where
+        T: Encode<M>,
+        M: Mode,
+        E: Encoder,
+    {
+        let mut seq = encoder.encode_sequence(N)?;
+
+        for value in this {
+            value.encode(seq.next()?)?;
+        }
+
+        seq.end()
+    }
+
+    #[inline]
+    pub(super) fn decode<'de, M, D, T, const N: usize>(decoder: D) -> Result<[T; N], D::Error>
+    where
+        T: Copy + Default + Decode<'de, M>,
+        M: Mode,
+        D: Decoder<'de>,
+    {
+        let mut seq = decoder.decode_sequence()?;
+        let mut array = [T::default(); N];
+
+        for o in array.iter_mut() {
+            if let Some(value) = seq.next()? {
+                *o = T::decode(value)?;
+            }
+        }
+
+        Ok(array)
     }
 }
