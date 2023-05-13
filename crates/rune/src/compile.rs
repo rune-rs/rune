@@ -8,7 +8,7 @@ pub(crate) use self::assembly::{Assembly, AssemblyInst};
 
 pub(crate) mod attrs;
 
-mod error;
+pub(crate) mod error;
 pub(crate) use self::error::{
     CompileErrorKind, HirErrorKind, IrErrorKind, ParseErrorKind, QueryErrorKind, ResolveErrorKind,
 };
@@ -106,22 +106,20 @@ pub(crate) fn compile(
     let mut storage = Storage::default();
     let mut inner = Default::default();
 
-    // The worker queue.
-    let mut worker = Worker::new(
-        context,
+    let q = Query::new(
+        unit,
+        prelude,
         &mut consts,
         &mut storage,
         sources,
         pool,
-        options,
-        unit,
-        prelude,
-        diagnostics,
         visitor,
-        source_loader,
         &gen,
         &mut inner,
     );
+
+    // The worker queue.
+    let mut worker = Worker::new(context, options, diagnostics, source_loader, q);
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {
@@ -270,14 +268,11 @@ impl CompileBuildEntry<'_> {
 
                 use self::v1::assemble;
 
-                let args = format_fn_args(
-                    self.q.sources,
-                    location,
-                    f.function.ast.args.iter().map(|(a, _)| a),
-                )?;
+                let args =
+                    format_fn_args(self.q.sources, location, f.ast.args.iter().map(|(a, _)| a))?;
 
-                let span = f.function.ast.span();
-                let count = f.function.ast.args.len();
+                let span = f.ast.span();
+                let count = f.ast.args.len();
 
                 let mut c = self.compiler1(location, span, &mut asm);
                 let meta = c.lookup_meta(
@@ -292,13 +287,13 @@ impl CompileBuildEntry<'_> {
 
                 let arena = hir::Arena::new();
                 let ctx = hir::lowering::Ctx::new(&arena, c.q.borrow());
-                let hir = hir::lowering::item_fn(&ctx, &f.function.ast)?;
+                let hir = hir::lowering::item_fn(&ctx, &f.ast)?;
                 assemble::fn_from_item_fn(&hir, &mut c, true)?;
 
                 if used.is_unused() {
                     c.diagnostics.not_used(location.source_id, span, None);
                 } else {
-                    let name = f.function.ast.name.resolve(resolve_context!(self.q))?;
+                    let name = f.ast.name.resolve(resolve_context!(self.q))?;
 
                     self.q.unit.new_instance_function(
                         location,
@@ -307,7 +302,7 @@ impl CompileBuildEntry<'_> {
                         name,
                         count,
                         asm,
-                        f.function.call,
+                        f.call,
                         args,
                     )?;
                 }

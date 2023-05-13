@@ -6,13 +6,12 @@ use crate::ast;
 use crate::ast::Span;
 use crate::collections::HashMap;
 use crate::collections::VecDeque;
-use crate::compile::{CompileVisitor, ModId, Options, Pool, Prelude, SourceLoader, UnitBuilder};
+use crate::compile::{ModId, Options, SourceLoader};
 use crate::indexing::index;
 use crate::indexing::{IndexScopes, Indexer};
-use crate::macros::Storage;
-use crate::query::{Query, QueryInner};
-use crate::shared::{Consts, Gen, Items};
-use crate::{Context, Diagnostics, SourceId, Sources};
+use crate::query::Query;
+use crate::shared::Items;
+use crate::{Context, Diagnostics, SourceId};
 
 mod import;
 mod task;
@@ -29,8 +28,6 @@ pub(crate) struct Worker<'a> {
     pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Query engine.
     pub(crate) q: Query<'a>,
-    /// Id generator.
-    pub(crate) gen: &'a Gen,
     /// Files that have been loaded.
     pub(crate) loaded: HashMap<ModId, (SourceId, Span)>,
     /// Worker queue.
@@ -41,28 +38,17 @@ impl<'a> Worker<'a> {
     /// Construct a new worker.
     pub(crate) fn new(
         context: &'a Context,
-        consts: &'a mut Consts,
-        storage: &'a mut Storage,
-        sources: &'a mut Sources,
-        pool: &'a mut Pool,
         options: &'a Options,
-        unit: &'a mut UnitBuilder,
-        prelude: &'a Prelude,
         diagnostics: &'a mut Diagnostics,
-        visitor: &'a mut dyn CompileVisitor,
         source_loader: &'a mut dyn SourceLoader,
-        gen: &'a Gen,
-        inner: &'a mut QueryInner,
+        q: Query<'a>,
     ) -> Self {
         Self {
             context,
             options,
             diagnostics,
             source_loader,
-            q: Query::new(
-                unit, prelude, consts, storage, sources, pool, visitor, gen, inner,
-            ),
-            gen,
+            q,
             loaded: HashMap::new(),
             queue: VecDeque::new(),
         }
@@ -111,7 +97,7 @@ impl<'a> Worker<'a> {
                     };
 
                     tracing::trace!("load file: {}", item);
-                    let items = Items::new(item, self.gen);
+                    let items = Items::new(item, self.q.gen);
 
                     let mut indexer = Indexer {
                         root,

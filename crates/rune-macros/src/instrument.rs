@@ -3,22 +3,26 @@ use quote::quote;
 
 /// An internal call to the macro.
 pub struct Expander {
-    f: syn::ItemFn,
+    attrs: Vec<syn::Attribute>,
+    vis: syn::Visibility,
+    sig: syn::Signature,
+    remaining: TokenStream,
 }
 
 impl syn::parse::Parse for Expander {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let f: syn::ItemFn = input.parse()?;
-
-        Ok(Self { f })
+        Ok(Self {
+            attrs: input.call(syn::Attribute::parse_outer)?,
+            vis: input.parse()?,
+            sig: input.parse()?,
+            remaining: input.parse()?,
+        })
     }
 }
 
 impl Expander {
     pub fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let f = self.f;
-
-        let mut it = f.sig.inputs.iter();
+        let mut it = self.sig.inputs.iter();
 
         let first = match it.next() {
             Some(syn::FnArg::Typed(ty)) => match &*ty.pat {
@@ -36,7 +40,7 @@ impl Expander {
             _ => None,
         };
 
-        let ident = &f.sig.ident;
+        let ident = &self.sig.ident;
 
         let log = match (first, second) {
             (Some(a), Some(b)) => {
@@ -54,14 +58,16 @@ impl Expander {
             _ => None,
         };
 
-        let vis = &f.vis;
-        let stmts = &f.block.stmts;
-        let sig = &f.sig;
+        let attrs = &self.attrs;
+        let vis = &self.vis;
+        let sig = &self.sig;
+        let remaining = &self.remaining;
 
         Ok(quote! {
+            #(#attrs)*
             #vis #sig {
                 #log
-                { #(#stmts)* }
+                #remaining
             }
         })
     }

@@ -16,20 +16,18 @@ use crate::compile::{
     SourceLoader, Visibility, WithSpan,
 };
 use crate::indexing::locals;
+use crate::indexing::{self, Indexed};
 use crate::indexing::{IndexFnKind, IndexScopes};
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, Parser, Resolve};
-use crate::query::{
-    BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Function, Indexed,
-    IndexedEntry, IndexedFunction, InstanceFunction, Query,
-};
+use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::format;
 use crate::runtime::Call;
-use crate::shared::{Items, MissingLastId};
+use crate::shared::Items;
 use crate::worker::{Import, ImportKind, LoadFileKind, Task};
 use crate::{Context, Diagnostics, SourceId};
 
-use rune_macros::__instrument_ast as instrument;
+use rune_macros::instrument;
 
 /// `self` variable.
 const SELF: &str = "self";
@@ -569,9 +567,7 @@ impl<'a> Indexer<'a> {
             docs,
         )?;
 
-        item_mod
-            .id
-            .set(self.items.id().map_err(missing_last_id(span))?);
+        item_mod.id.set(self.items.id().with_span(span)?);
 
         let source = self
             .source_loader
@@ -718,11 +714,6 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
         }
     };
 
-    let function = Function {
-        ast: Box::new(ast.clone()),
-        call,
-    };
-
     // NB: it's only a public item in the sense of exporting it if it's not
     // inside of a nested item.
     let is_public = item_meta.is_public(idx.q.pool) && idx.nested_item.is_none();
@@ -785,19 +776,21 @@ fn item_fn(ast: &mut ast::ItemFn, idx: &mut Indexer<'_>) -> compile::Result<()> 
             compile::Error::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
         })?;
 
-        idx.q.index_and_build(IndexedEntry {
+        idx.q.index_and_build(indexing::Entry {
             item_meta,
-            indexed: Indexed::InstanceFunction(InstanceFunction {
-                function,
+            indexed: Indexed::InstanceFunction(indexing::InstanceFunction {
+                ast: Box::new(ast.clone()),
+                call,
                 impl_item,
                 instance_span: span,
             }),
         });
     } else {
-        let entry = IndexedEntry {
+        let entry = indexing::Entry {
             item_meta,
-            indexed: Indexed::Function(IndexedFunction {
-                function,
+            indexed: Indexed::Function(indexing::Function {
+                ast: Box::new(ast.clone()),
+                call,
                 is_test,
                 is_bench,
             }),
@@ -1458,8 +1451,7 @@ fn item_mod(ast: &mut ast::ItemMod, idx: &mut Indexer<'_>) -> compile::Result<()
                 &docs,
             )?;
 
-            ast.id
-                .set(idx.items.id().map_err(missing_last_id(name_span))?);
+            ast.id.set(idx.items.id().with_span(name_span)?);
 
             let replaced = replace(&mut idx.mod_item, mod_item);
             file(&mut body.file, idx)?;
@@ -1649,8 +1641,7 @@ fn expr_closure(ast: &mut ast::ExprClosure, idx: &mut Indexer<'_>) -> compile::R
         &[],
     )?;
 
-    ast.id
-        .set(idx.items.id().map_err(missing_last_id(ast.span()))?);
+    ast.id.set(idx.items.id().with_span(ast.span())?);
 
     for (arg, _) in ast.args.as_slice_mut() {
         match arg {
@@ -1795,8 +1786,7 @@ fn expr_select(ast: &mut ast::ExprSelect, idx: &mut Indexer<'_>) -> compile::Res
 
 #[instrument]
 fn expr_call(ast: &mut ast::ExprCall, idx: &mut Indexer<'_>) -> compile::Result<()> {
-    ast.id
-        .set(idx.items.id().map_err(missing_last_id(ast.span()))?);
+    ast.id.set(idx.items.id().with_span(ast.span())?);
 
     for (e, _) in &mut ast.args {
         expr(e, idx, IS_USED)?;
@@ -1894,9 +1884,4 @@ fn ast_to_visibility(vis: &ast::Visibility) -> compile::Result<Visibility> {
         span,
         CompileErrorKind::UnsupportedVisibility,
     ))
-}
-
-/// Coerce an internal MissingLastId into an internal diagnostical message.
-fn missing_last_id(span: Span) -> impl FnOnce(MissingLastId) -> compile::Error {
-    move |e| compile::Error::msg(span, e)
 }

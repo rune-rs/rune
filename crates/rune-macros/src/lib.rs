@@ -153,7 +153,7 @@ pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenS
 
 #[proc_macro_attribute]
 #[doc(hidden)]
-pub fn __instrument_ast(
+pub fn instrument(
     _attr: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
