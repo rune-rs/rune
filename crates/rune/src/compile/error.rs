@@ -16,6 +16,7 @@ use crate::parse::{Expectation, Id, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::{AccessError, Label, TypeInfo, TypeOf};
 use crate::shared::scopes::MissingLocal;
+use crate::shared::MissingLastId;
 use crate::{Hash, SourceId};
 
 /// An error raised by the compiler.
@@ -205,6 +206,8 @@ pub(crate) enum CompileErrorKind {
     #[error("{0}")]
     QueryError(#[from] QueryErrorKind),
     #[error("{0}")]
+    MetaConflict(#[from] MetaConflict),
+    #[error("{0}")]
     ResolveError(#[from] ResolveErrorKind),
     #[error("{0}")]
     ParseError(#[from] ParseErrorKind),
@@ -212,6 +215,8 @@ pub(crate) enum CompileErrorKind {
     AccessError(#[from] AccessError),
     #[error("{0}")]
     HirError(#[from] HirErrorKind),
+    #[error("{0}")]
+    MissingLastId(#[from] MissingLastId),
     #[error("Failed to load `{path}`: {error}")]
     FileError {
         path: PathBuf,
@@ -442,16 +447,6 @@ pub(crate) enum QueryErrorKind {
     ImportRecursionLimit { count: usize, path: Vec<ImportStep> },
     #[error("Missing last use component")]
     LastUseComponent,
-    /// Tried to add an item that already exists.
-    #[error("Can't insert item `{current}` ({parameters}) because conflicting meta `{existing}` already exists")]
-    MetaConflict {
-        /// The meta we tried to insert.
-        current: MetaInfo,
-        /// The existing item.
-        existing: MetaInfo,
-        /// Parameters hash.
-        parameters: Hash,
-    },
     #[error("Tried to insert variant runtime type information, but conflicted with hash `{hash}`")]
     VariantRttiConflict { hash: Hash },
     #[error("Tried to insert runtime type information, but conflicted with hash `{hash}`")]
@@ -630,4 +625,16 @@ pub struct ImportStep {
     pub location: Location,
     /// The item being imported.
     pub item: ItemBuf,
+}
+
+#[derive(Debug, Error)]
+/// Tried to add an item that already exists.
+#[error("Can't insert item `{current}` ({parameters}) because conflicting meta `{existing}` already exists")]
+pub(crate) struct MetaConflict {
+    /// The meta we tried to insert.
+    pub(crate) current: MetaInfo,
+    /// The existing item.
+    pub(crate) existing: MetaInfo,
+    /// Parameters hash.
+    pub(crate) parameters: Hash,
 }

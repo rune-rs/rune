@@ -4,7 +4,7 @@ use crate::compile;
 use crate::indexing::Indexer;
 use crate::parse::Resolve;
 
-use rune_macros::__instrument_ast as instrument;
+use rune_macros::instrument;
 
 #[instrument]
 pub(crate) fn pat(ast: &mut ast::Pat, idx: &mut Indexer<'_>) -> compile::Result<()> {

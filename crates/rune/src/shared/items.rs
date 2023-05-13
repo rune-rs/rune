@@ -8,6 +8,7 @@ use crate::compile::{ComponentRef, Item, ItemBuf};
 use crate::parse::NonZeroId;
 use crate::shared::Gen;
 
+#[derive(Debug)]
 #[non_exhaustive]
 pub(crate) struct MissingLastId;
 
@@ -16,6 +17,8 @@ impl fmt::Display for MissingLastId {
         write!(f, "missing last inserted id into the items stack")
     }
 }
+
+impl crate::no_std::error::Error for MissingLastId {}
 
 #[derive(Debug)]
 struct Inner<'a> {

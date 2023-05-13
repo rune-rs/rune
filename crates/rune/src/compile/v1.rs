@@ -9,7 +9,7 @@ use crate::compile::{
     Location, Options, QueryErrorKind, WithSpan,
 };
 use crate::hir;
-use crate::query::{Named, Query, QueryConstFn, Used};
+use crate::query::{ConstFn, Named, Query, Used};
 use crate::runtime::{ConstValue, Inst};
 use crate::{Context, Diagnostics, Hash, SourceId};
 
@@ -219,7 +219,29 @@ impl<'a> Assembler<'a> {
             ContextMatch::Context(meta, parameters) => (meta, parameters),
         };
 
-        let meta = self.q.insert_context_meta(span, meta, parameters)?;
+        let Some(item) = &meta.item else {
+            return Err(compile::Error::new(span,
+            QueryErrorKind::MissingItem {
+                hash: meta.hash,
+            }));
+        };
+
+        let meta = meta::Meta {
+            context: true,
+            hash: meta.hash,
+            item_meta: ItemMeta {
+                id: Default::default(),
+                location: Default::default(),
+                item: self.q.pool.alloc_item(item),
+                visibility: Default::default(),
+                module: Default::default(),
+            },
+            kind: meta.kind.clone(),
+            source: None,
+            parameters,
+        };
+
+        self.q.insert_meta(meta.clone()).with_span(span)?;
 
         tracing::trace!("Found in context: {:?}", meta);
 
@@ -322,7 +344,7 @@ impl<'a> Assembler<'a> {
         span: Span,
         meta: &meta::Meta,
         from: &ItemMeta,
-        query_const_fn: &QueryConstFn,
+        query_const_fn: &ConstFn,
         args: &[hir::Expr<'_>],
     ) -> compile::Result<ConstValue> {
         if query_const_fn.ir_fn.args.len() != args.len() {

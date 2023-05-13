@@ -20,7 +20,7 @@ use crate::runtime::{
 };
 use crate::Hash;
 
-use rune_macros::__instrument_ast as instrument;
+use rune_macros::instrument;
 
 /// `self` variable.
 const SELF: &str = "self";

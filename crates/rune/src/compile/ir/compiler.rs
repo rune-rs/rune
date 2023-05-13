@@ -11,7 +11,7 @@ use crate::query::Query;
 use crate::runtime::{Bytes, Shared};
 use crate::SourceId;
 
-use rune_macros::__instrument_ast as instrument;
+use rune_macros::instrument;
 
 /// A c that compiles AST into Rune IR.
 pub(crate) struct IrCompiler<'a> {
